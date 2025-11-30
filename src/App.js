@@ -1,0 +1,149 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { MantineProvider, ColorSchemeScript } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { theme } from './theme';
+
+// Pages
+import Landing from './pages/Landing';
+import Auth from './pages/Auth';
+import Dashboard from './pages/Dashboard';
+import RouteBuilder from './pages/RouteBuilder';
+import TrainingDashboard from './pages/TrainingDashboard';
+import Settings from './pages/Settings';
+
+// OAuth Callbacks
+import StravaCallback from './pages/oauth/StravaCallback';
+import GarminCallback from './pages/oauth/GarminCallback';
+import WahooCallback from './pages/oauth/WahooCallback';
+import AuthCallback from './pages/oauth/AuthCallback';
+
+// Styles
+import '@mantine/core/styles.css';
+import '@mantine/notifications/styles.css';
+import '@mantine/charts/styles.css';
+import './styles/global.css';
+
+// Protected Route wrapper
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  return children;
+}
+
+// Public Route wrapper (redirects to dashboard if already logged in)
+function PublicRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/" element={<Landing />} />
+      <Route
+        path="/auth"
+        element={
+          <PublicRoute>
+            <Auth />
+          </PublicRoute>
+        }
+      />
+
+      {/* OAuth Callbacks */}
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/oauth/strava/callback" element={<StravaCallback />} />
+      <Route path="/oauth/garmin/callback" element={<GarminCallback />} />
+      <Route path="/oauth/wahoo/callback" element={<WahooCallback />} />
+
+      {/* Protected routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/routes"
+        element={
+          <ProtectedRoute>
+            <RouteBuilder />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/routes/:routeId"
+        element={
+          <ProtectedRoute>
+            <RouteBuilder />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/training"
+        element={
+          <ProtectedRoute>
+            <TrainingDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Catch all - redirect to landing */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
+    <>
+      <ColorSchemeScript defaultColorScheme="dark" />
+      <MantineProvider theme={theme} defaultColorScheme="dark">
+        <Notifications position="top-right" />
+        <AuthProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </AuthProvider>
+      </MantineProvider>
+    </>
+  );
+}
+
+export default App;
