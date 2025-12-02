@@ -1,7 +1,10 @@
 -- Routes table for tribos.studio
 -- Stores user-created and AI-generated cycling routes
 
-CREATE TABLE IF NOT EXISTS routes (
+-- Drop existing table and related objects if they exist
+DROP TABLE IF EXISTS routes CASCADE;
+
+CREATE TABLE routes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
 
@@ -49,11 +52,11 @@ CREATE TABLE IF NOT EXISTS routes (
 );
 
 -- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_routes_user_id ON routes(user_id);
-CREATE INDEX IF NOT EXISTS idx_routes_training_goal ON routes(training_goal);
-CREATE INDEX IF NOT EXISTS idx_routes_distance ON routes(distance_km);
-CREATE INDEX IF NOT EXISTS idx_routes_visibility ON routes(visibility) WHERE visibility != 'private';
-CREATE INDEX IF NOT EXISTS idx_routes_created_at ON routes(created_at DESC);
+CREATE INDEX idx_routes_user_id ON routes(user_id);
+CREATE INDEX idx_routes_training_goal ON routes(training_goal);
+CREATE INDEX idx_routes_distance ON routes(distance_km);
+CREATE INDEX idx_routes_visibility ON routes(visibility) WHERE visibility != 'private';
+CREATE INDEX idx_routes_created_at ON routes(created_at DESC);
 
 -- Enable Row Level Security
 ALTER TABLE routes ENABLE ROW LEVEL SECURITY;
