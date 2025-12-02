@@ -127,6 +127,13 @@ async function exchangeCodeForToken(req, res, code, userId) {
     // Calculate expiration
     const expiresAt = new Date(tokenData.expires_at * 1000).toISOString();
 
+    console.log('📝 Storing Strava integration in database...', {
+      userId,
+      athleteId: tokenData.athlete.id,
+      athleteUsername: tokenData.athlete.username,
+      expiresAt
+    });
+
     // Store tokens in bike_computer_integrations table
     const { error: dbError } = await supabase
       .from('bike_computer_integrations')
@@ -134,21 +141,25 @@ async function exchangeCodeForToken(req, res, code, userId) {
         user_id: userId,
         provider: 'strava',
         provider_user_id: tokenData.athlete.id.toString(),
-        provider_username: tokenData.athlete.username || `${tokenData.athlete.firstname} ${tokenData.athlete.lastname}`,
+        provider_user_data: {
+          username: tokenData.athlete.username,
+          firstname: tokenData.athlete.firstname,
+          lastname: tokenData.athlete.lastname,
+          profile: tokenData.athlete.profile,
+          scopes: ['read', 'activity:read_all', 'profile:read_all']
+        },
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
         token_expires_at: expiresAt,
-        scopes: ['read', 'activity:read_all', 'profile:read_all'],
         sync_enabled: true,
-        status: 'active',
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id,provider'
       });
 
     if (dbError) {
-      console.error('Database error storing tokens:', dbError);
-      throw new Error('Failed to store authentication data');
+      console.error('Database error storing tokens:', JSON.stringify(dbError, null, 2));
+      throw new Error(`Failed to store authentication data: ${dbError.message || dbError.code || 'Unknown error'}`);
     }
 
     console.log('✅ Strava integration stored successfully');
@@ -179,7 +190,7 @@ async function getConnectionStatus(req, res, userId) {
   try {
     const { data: integration, error } = await supabase
       .from('bike_computer_integrations')
-      .select('provider_username, provider_user_id, token_expires_at, status, updated_at')
+      .select('provider_user_id, provider_user_data, token_expires_at, updated_at, sync_enabled')
       .eq('user_id', userId)
       .eq('provider', 'strava')
       .maybeSingle();
@@ -201,9 +212,10 @@ async function getConnectionStatus(req, res, userId) {
     return res.status(200).json({
       connected: true,
       isExpired,
-      username: integration.provider_username,
+      username: integration.provider_user_data?.username ||
+                `${integration.provider_user_data?.firstname} ${integration.provider_user_data?.lastname}`,
       userId: integration.provider_user_id,
-      status: integration.status,
+      syncEnabled: integration.sync_enabled,
       lastUpdated: integration.updated_at
     });
 
