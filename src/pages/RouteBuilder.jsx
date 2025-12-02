@@ -35,13 +35,18 @@ function RouteBuilder() {
     setIsCalculating(true);
     try {
       const coordinates = points.map(p => `${p.lng},${p.lat}`).join(';');
-      const response = await fetch(
-        `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?` +
+      const url = `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?` +
         `geometries=geojson&overview=full&steps=true&` +
-        `access_token=${MAPBOX_TOKEN}`
-      );
+        `access_token=${MAPBOX_TOKEN}`;
 
+      const response = await fetch(url);
       const data = await response.json();
+
+      if (data.code !== 'Ok') {
+        console.error('Mapbox API error:', data);
+        return;
+      }
+
       if (data.routes && data.routes[0]) {
         const route = data.routes[0];
         setRouteGeometry(route.geometry);
@@ -221,7 +226,7 @@ function RouteBuilder() {
                     id="route-line"
                     type="line"
                     paint={{
-                      'line-color': tokens.colors.primary,
+                      'line-color': tokens.colors.electricLime,
                       'line-width': 4,
                       'line-opacity': 0.8
                     }}
@@ -242,7 +247,7 @@ function RouteBuilder() {
                   }}
                 >
                   <div style={{
-                    backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : tokens.colors.primary,
+                    backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : tokens.colors.electricLime,
                     color: 'white',
                     width: 32,
                     height: 32,
