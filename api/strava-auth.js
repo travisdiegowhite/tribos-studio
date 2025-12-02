@@ -97,6 +97,9 @@ async function exchangeCodeForToken(req, res, code, userId) {
 
   try {
     console.log('🔄 Exchanging Strava code for tokens...');
+    console.log('Client ID:', process.env.STRAVA_CLIENT_ID);
+    console.log('Client Secret (first 5 chars):', process.env.STRAVA_CLIENT_SECRET?.substring(0, 5));
+    console.log('Code length:', code?.length);
 
     // Exchange code with Strava
     const response = await fetch(`${STRAVA_OAUTH_BASE}/token`, {
