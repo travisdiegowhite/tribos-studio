@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Text, Stack, Alert } from '@mantine/core';
 import { useAuth } from '../../contexts/AuthContext.jsx';
@@ -11,9 +11,13 @@ function StravaCallback() {
   const { user } = useAuth();
   const [error, setError] = useState(null);
   const [status, setStatus] = useState('processing');
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
     const handleCallback = async () => {
+      // Prevent duplicate processing in React strict mode
+      if (hasProcessed.current) return;
+      hasProcessed.current = true;
       const code = searchParams.get('code');
       const errorParam = searchParams.get('error');
 
