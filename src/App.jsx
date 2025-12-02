@@ -1,22 +1,22 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { MantineProvider, ColorSchemeScript } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { theme } from './theme';
 
 // Pages
-import Landing from './pages/Landing';
-import Auth from './pages/Auth';
-import Dashboard from './pages/Dashboard';
-import RouteBuilder from './pages/RouteBuilder';
-import TrainingDashboard from './pages/TrainingDashboard';
-import Settings from './pages/Settings';
+import Landing from './pages/Landing.jsx';
+import Auth from './pages/Auth.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import RouteBuilder from './pages/RouteBuilder.jsx';
+import TrainingDashboard from './pages/TrainingDashboard.jsx';
+import Settings from './pages/Settings.jsx';
 
 // OAuth Callbacks
-import StravaCallback from './pages/oauth/StravaCallback';
-import GarminCallback from './pages/oauth/GarminCallback';
-import WahooCallback from './pages/oauth/WahooCallback';
-import AuthCallback from './pages/oauth/AuthCallback';
+import StravaCallback from './pages/oauth/StravaCallback.jsx';
+import GarminCallback from './pages/oauth/GarminCallback.jsx';
+import WahooCallback from './pages/oauth/WahooCallback.jsx';
+import AuthCallback from './pages/oauth/AuthCallback.jsx';
 
 // Styles
 import '@mantine/core/styles.css';

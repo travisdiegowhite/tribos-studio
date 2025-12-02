@@ -15,7 +15,7 @@ import {
   Anchor,
   Alert,
 } from '@mantine/core';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext.jsx';
 import { tokens } from '../theme';
 
 function Auth() {
@@ -27,10 +27,11 @@ function Auth() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  const { signIn, signUp, signInWithProvider } = useAuth();
+  const { signIn, signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
+    console.log('handleSubmit called');
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -38,24 +39,29 @@ function Auth() {
 
     try {
       if (isSignUp) {
+        console.log('Attempting sign up...');
         const { error } = await signUp(email, password, { full_name: name });
         if (error) throw error;
         setMessage('Check your email for the confirmation link!');
       } else {
+        console.log('Attempting sign in...');
         const { error } = await signIn(email, password);
+        console.log('Sign in completed, error:', error);
         if (error) throw error;
+        console.log('Navigating to dashboard...');
         navigate('/dashboard');
       }
     } catch (err) {
+      console.error('Auth error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOAuthSignIn = async (provider) => {
+  const handleGoogleSignIn = async () => {
     setError('');
-    const { error } = await signInWithProvider(provider);
+    const { error } = await signInWithGoogle();
     if (error) {
       setError(error.message);
     }
@@ -143,7 +149,7 @@ function Auth() {
               variant="outline"
               color="gray"
               fullWidth
-              onClick={() => handleOAuthSignIn('google')}
+              onClick={handleGoogleSignIn}
               leftSection={<span>🔵</span>}
             >
               Google

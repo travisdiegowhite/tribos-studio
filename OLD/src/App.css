@@ -1,0 +1,135 @@
+/* Cycling AI App - Consistent Dark Theme with Design Tokens */
+
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--gradient-hero);
+  background-attachment: fixed;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.App::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    var(--gradient-radial-primary),
+    var(--gradient-radial-accent),
+    var(--gradient-radial-warm);
+  pointer-events: none;
+  z-index: var(--z-index-base);
+}
+
+.App-header {
+  background: var(--gradient-surface);
+  backdrop-filter: var(--backdrop-blur);
+  border-bottom: var(--border-width) solid var(--border-color);
+  padding: var(--space-8) var(--space-5);
+  text-align: center;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 0;
+  position: relative;
+}
+
+.App-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 2px;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-xs);
+}
+
+.App-header h1 {
+  color: var(--color-slate-50);
+  font-size: var(--font-size-5xl);
+  font-weight: var(--font-weight-extrabold);
+  font-family: var(--font-family-base);
+  margin: 0 0 var(--space-4) 0;
+  background: var(--gradient-hero);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: var(--letter-spacing-tight);
+  text-shadow: 0 0 30px rgba(16, 185, 129, 0.3);
+  position: relative;
+}
+
+.App-header p {
+  color: var(--text-secondary);
+  font-size: var(--font-size-lg);
+  margin: 0 auto;
+  max-width: 700px;
+  line-height: var(--line-height-relaxed);
+  font-weight: var(--font-weight-normal);
+  opacity: 0.9;
+}
+
+.App-main {
+  flex: 1;
+  padding: var(--space-12) var(--space-5);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  position: relative;
+  min-height: calc(100vh - 200px);
+}
+
+.App-footer {
+  background: var(--gradient-surface);
+  backdrop-filter: var(--backdrop-blur);
+  padding: var(--space-6);
+  text-align: center;
+  border-top: var(--border-width) solid var(--border-color);
+  margin-top: auto;
+  position: relative;
+}
+
+.App-footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--border-color-strong) 50%, transparent 100%);
+}
+
+.App-footer p {
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+}
+
+/* Responsive design - Mobile optimized for readability */
+@media (max-width: 768px) {
+  .App-header {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .App-header h1 {
+    font-size: var(--font-size-4xl);
+  }
+
+  .App-header p {
+    font-size: var(--font-size-base);
+  }
+
+  .App-main {
+    padding: var(--space-5) var(--space-3);
+  }
+}
+
+/* Global styles for better typography */
+* {
+  box-sizing: border-box;
+}

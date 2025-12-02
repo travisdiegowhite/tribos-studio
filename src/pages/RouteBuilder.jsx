@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput } from '@mantine/core';
 import { tokens } from '../theme';
-import AppShell from '../components/AppShell';
+import AppShell from '../components/AppShell.jsx';
 
 function RouteBuilder() {
   const { routeId } = useParams();

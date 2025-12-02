@@ -13,60 +13,24 @@ export const useAuth = () => {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
+    // Get initial session - simple like the OLD implementation
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setLoading(false);
-      }
+      setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (_event, session) => {
         setUser(session?.user ?? null);
-
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
-
-        if (event === 'SIGNED_OUT') {
-          setProfile(null);
-        }
       }
     );
 
     return () => subscription.unsubscribe();
   }, []);
-
-  const fetchProfile = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching profile:', error);
-      }
-
-      setProfile(data);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const signUp = async (email, password, metadata = {}) => {
     const { data, error } = await supabase.auth.signUp({
@@ -80,16 +44,18 @@ export function AuthProvider({ children }) {
   };
 
   const signIn = async (email, password) => {
+    console.log('signIn called with email:', email);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+    console.log('signIn result:', { data, error });
     return { data, error };
   };
 
-  const signInWithProvider = async (provider) => {
+  const signInWithGoogle = async () => {
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
+      provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
@@ -109,32 +75,26 @@ export function AuthProvider({ children }) {
     return { data, error };
   };
 
-  const updateProfile = async (updates) => {
-    if (!user) return { error: new Error('No user logged in') };
+  // Helper function to check if user account is new (created within 48 hours)
+  const isNewUser = () => {
+    if (!user || !user.created_at) return false;
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .upsert({ id: user.id, ...updates, updated_at: new Date().toISOString() })
-      .select()
-      .single();
+    const accountCreatedAt = new Date(user.created_at);
+    const now = new Date();
+    const hoursSinceCreation = (now - accountCreatedAt) / (1000 * 60 * 60);
 
-    if (!error) {
-      setProfile(data);
-    }
-
-    return { data, error };
+    return hoursSinceCreation <= 48;
   };
 
   const value = {
     user,
-    profile,
     loading,
     signUp,
     signIn,
-    signInWithProvider,
+    signInWithGoogle,
     signOut,
     resetPassword,
-    updateProfile,
+    isNewUser,
     isAuthenticated: !!user,
   };
 

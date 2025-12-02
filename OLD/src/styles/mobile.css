@@ -1,0 +1,223 @@
+/**
+ * Mobile-specific styles and optimizations
+ * Touch-friendly controls, responsive layouts
+ */
+
+/* Touch-friendly minimum sizes */
+@media (max-width: 768px) {
+  /* Ensure all buttons are at least 44px for touch targets */
+  button,
+  a,
+  .mantine-Button-root,
+  .mantine-ActionIcon-root {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  /* Larger tap targets for checkboxes and radios */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  /* Optimize container padding for mobile */
+  .mantine-Container-root {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* Stack cards vertically on mobile */
+  .mantine-SimpleGrid-root {
+    gap: 12px !important;
+  }
+
+  /* Reduce header size on mobile */
+  h1, .mantine-Title-root[data-order="1"] {
+    font-size: 1.75rem !important;
+  }
+
+  h2, .mantine-Title-root[data-order="2"] {
+    font-size: 1.5rem !important;
+  }
+
+  /* Optimize table for mobile scrolling */
+  .mantine-Table-root {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Make modals full-screen on mobile */
+  .mantine-Modal-content {
+    max-height: 100vh !important;
+  }
+
+  .mantine-Modal-body {
+    max-height: calc(100vh - 120px) !important;
+    overflow-y: auto !important;
+  }
+
+  /* Optimize form inputs */
+  .mantine-TextInput-input,
+  .mantine-Textarea-input,
+  .mantine-Select-input,
+  .mantine-NumberInput-input {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+    min-height: 44px !important;
+  }
+
+  /* Optimize badge sizes */
+  .mantine-Badge-root {
+    font-size: 0.75rem !important;
+    padding: 4px 8px !important;
+  }
+
+  /* Stack groups vertically on mobile */
+  .mantine-Group-root {
+    gap: 8px !important;
+  }
+
+  /* Optimize card spacing */
+  .mantine-Card-root {
+    padding: 12px !important;
+  }
+
+  /* Reduce gap in stacks */
+  .mantine-Stack-root {
+    gap: 12px !important;
+  }
+}
+
+/* Extra small devices (phones, less than 576px) */
+@media (max-width: 575px) {
+  /* Even more compact on very small screens */
+  .mantine-Container-root {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* Smaller text on tiny screens */
+  body {
+    font-size: 14px !important;
+  }
+
+  /* Reduce card padding further */
+  .mantine-Card-root {
+    padding: 8px !important;
+  }
+}
+
+/* Tablet and up - restore normal spacing */
+@media (min-width: 769px) {
+  /* Normal spacing for larger screens */
+  .mantine-Container-root {
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+  }
+}
+
+/* Landscape orientation optimizations */
+@media (max-width: 768px) and (orientation: landscape) {
+  /* Reduce vertical padding in landscape */
+  .mantine-Container-root {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+
+  /* Reduce header sizes in landscape */
+  h1, .mantine-Title-root[data-order="1"] {
+    font-size: 1.5rem !important;
+  }
+
+  h2, .mantine-Title-root[data-order="2"] {
+    font-size: 1.25rem !important;
+  }
+}
+
+/* PWA display mode styles */
+@media all and (display-mode: standalone) {
+  /* Add safe area padding for notched devices */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Hide browser-specific UI elements when in standalone mode */
+  .browser-only {
+    display: none !important;
+  }
+}
+
+/* iOS specific fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Fix iOS input zoom */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Prevent iOS bounce scroll on body */
+  body {
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Android specific fixes */
+@media (max-width: 768px) {
+  /* Better scrolling performance */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Optimize scroll containers */
+  .scroll-container {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+}
+
+/* Dark mode adjustments for mobile */
+@media (max-width: 768px) and (prefers-color-scheme: dark) {
+  /* Ensure good contrast on mobile dark mode */
+  .mantine-Card-root {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+  }
+}
+
+/* Accessibility: Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Print styles */
+@media print {
+  /* Hide navigation and non-essential elements */
+  nav,
+  .mantine-AppShell-navbar,
+  .mantine-AppShell-aside,
+  button {
+    display: none !important;
+  }
+
+  /* Optimize for printing */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .mantine-Card-root {
+    border: 1px solid #ccc !important;
+    page-break-inside: avoid;
+  }
+}

@@ -11,7 +11,7 @@ import {
   Badge,
 } from '@mantine/core';
 import { tokens } from '../theme';
-import AppShell from '../components/AppShell';
+import AppShell from '../components/AppShell.jsx';
 
 function TrainingDashboard() {
   return (

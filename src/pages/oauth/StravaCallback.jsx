@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Text, Stack, Alert } from '@mantine/core';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext.jsx';
 import { tokens } from '../../theme';
+import { stravaService } from '../../utils/stravaService';
 
 function StravaCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [error, setError] = useState(null);
+  const [status, setStatus] = useState('processing');
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -18,53 +19,44 @@ function StravaCallback() {
 
       if (errorParam) {
         setError('Strava authorization was denied');
+        setStatus('error');
         setTimeout(() => navigate('/settings'), 3000);
         return;
       }
 
       if (!code) {
         setError('No authorization code received');
+        setStatus('error');
         setTimeout(() => navigate('/settings'), 3000);
         return;
       }
 
       if (!user) {
         setError('You must be logged in to connect Strava');
+        setStatus('error');
         setTimeout(() => navigate('/auth'), 3000);
         return;
       }
 
       try {
-        // Exchange code for tokens via your backend/edge function
-        // This is a placeholder - implement the token exchange on your backend
-        const response = await fetch('/api/oauth/strava/callback', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ code, userId: user.id }),
-        });
+        console.log('🔗 Processing Strava authorization code...');
+        setStatus('exchanging');
 
-        if (!response.ok) {
-          throw new Error('Failed to complete Strava connection');
-        }
+        // Exchange code for access token via secure backend
+        const result = await stravaService.exchangeCodeForToken(code);
 
-        const data = await response.json();
+        console.log('✅ Strava connection successful!', result.athlete);
+        setStatus('success');
 
-        // Store the connection in your database
-        await supabase.from('connected_services').upsert({
-          user_id: user.id,
-          provider: 'strava',
-          provider_user_id: data.athlete.id.toString(),
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          expires_at: new Date(data.expires_at * 1000).toISOString(),
-        });
+        // Redirect to settings with success indicator
+        setTimeout(() => {
+          navigate('/settings?tab=integrations&connected=strava');
+        }, 2000);
 
-        navigate('/settings?connected=strava');
       } catch (err) {
         console.error('Strava callback error:', err);
-        setError('Failed to connect Strava. Please try again.');
+        setError(err.message || 'Failed to connect Strava. Please try again.');
+        setStatus('error');
         setTimeout(() => navigate('/settings'), 3000);
       }
     };
@@ -83,15 +75,27 @@ function StravaCallback() {
       }}
     >
       <Stack align="center" gap="md">
-        {error ? (
-          <Alert color="red" variant="light">
+        {status === 'error' || error ? (
+          <Alert color="red" variant="light" style={{ maxWidth: 400 }}>
             {error}
           </Alert>
+        ) : status === 'success' ? (
+          <>
+            <Text size="xl" fw={600} style={{ color: tokens.colors.primary }}>
+              ✅ Successfully connected!
+            </Text>
+            <Text style={{ color: tokens.colors.textSecondary }}>
+              Redirecting to settings...
+            </Text>
+          </>
         ) : (
           <>
             <div className="loading-spinner" />
-            <Text style={{ color: tokens.colors.textSecondary }}>
-              Connecting to Strava...
+            <Text size="lg" fw={500} style={{ color: tokens.colors.textPrimary }}>
+              {status === 'exchanging' ? 'Connecting to Strava...' : 'Processing authorization...'}
+            </Text>
+            <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+              {status === 'exchanging' ? 'Exchanging tokens securely' : 'Please wait'}
             </Text>
           </>
         )}

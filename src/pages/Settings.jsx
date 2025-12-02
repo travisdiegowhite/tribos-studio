@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Container,
   Title,
@@ -14,29 +14,113 @@ import {
   Box,
   Badge,
   Switch,
+  Loader,
 } from '@mantine/core';
-import { useAuth } from '../contexts/AuthContext';
+import { notifications } from '@mantine/notifications';
+import { useAuth } from '../contexts/AuthContext.jsx';
+import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
-import AppShell from '../components/AppShell';
+import AppShell from '../components/AppShell.jsx';
+import { stravaService } from '../utils/stravaService';
 
 function Settings() {
-  const { profile, user, signOut, updateProfile } = useAuth();
+  const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [stravaStatus, setStravaStatus] = useState({ connected: false, loading: true });
 
   // Form state
-  const [fullName, setFullName] = useState(profile?.full_name || '');
-  const [ftp, setFtp] = useState(profile?.ftp || '');
-  const [weight, setWeight] = useState(profile?.weight || '');
-  const [unit, setUnit] = useState(profile?.unit_preference || 'metric');
+  const [displayName, setDisplayName] = useState('');
+  const [location, setLocation] = useState('');
+  const [bio, setBio] = useState('');
+  const [unitsPreference, setUnitsPreference] = useState('imperial');
+
+  // Load profile data directly from Supabase
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error loading profile:', error);
+        } else if (data) {
+          setDisplayName(data.display_name || '');
+          setLocation(data.location || '');
+          setBio(data.bio || '');
+          setUnitsPreference(data.units_preference || 'imperial');
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [user]);
+
+  // Load Strava connection status
+  useEffect(() => {
+    const loadStravaStatus = async () => {
+      try {
+        const status = await stravaService.getConnectionStatus();
+        setStravaStatus({ ...status, loading: false });
+      } catch (error) {
+        console.error('Error loading Strava status:', error);
+        setStravaStatus({ connected: false, loading: false });
+      }
+    };
+
+    if (user) {
+      loadStravaStatus();
+    }
+  }, [user]);
 
   const handleSaveProfile = async () => {
+    if (!user) return;
+
     setLoading(true);
-    await updateProfile({
-      full_name: fullName,
-      ftp: ftp || null,
-      weight: weight || null,
-      unit_preference: unit,
-    });
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .upsert({
+          id: user.id,
+          display_name: displayName,
+          location: location,
+          bio: bio,
+          units_preference: unitsPreference,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase error:', error);
+        notifications.show({
+          title: 'Error',
+          message: error.message || 'Failed to update profile',
+          color: 'red',
+        });
+      } else {
+        notifications.show({
+          title: 'Success',
+          message: 'Profile updated successfully',
+          color: 'green',
+        });
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to update profile',
+        color: 'red',
+      });
+    }
     setLoading(false);
   };
 
@@ -44,24 +128,54 @@ function Settings() {
     await signOut();
   };
 
-  // Placeholder OAuth handlers
+  // OAuth handlers
   const connectStrava = () => {
-    const clientId = import.meta.env.VITE_STRAVA_CLIENT_ID;
-    if (!clientId) {
-      alert('Strava client ID not configured');
-      return;
+    try {
+      const authUrl = stravaService.getAuthorizationUrl();
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Error connecting to Strava:', error);
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'Failed to connect to Strava',
+        color: 'red',
+      });
     }
-    const redirectUri = `${window.location.origin}/oauth/strava/callback`;
-    const scope = 'read,activity:read_all,profile:read_all';
-    window.location.href = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
+  };
+
+  const disconnectStrava = async () => {
+    try {
+      await stravaService.disconnect();
+      setStravaStatus({ connected: false, loading: false });
+      notifications.show({
+        title: 'Disconnected',
+        message: 'Strava has been disconnected',
+        color: 'green',
+      });
+    } catch (error) {
+      console.error('Error disconnecting Strava:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to disconnect Strava',
+        color: 'red',
+      });
+    }
   };
 
   const connectGarmin = () => {
-    alert('Garmin Connect integration coming soon!');
+    notifications.show({
+      title: 'Coming Soon',
+      message: 'Garmin Connect integration coming soon!',
+      color: 'blue',
+    });
   };
 
   const connectWahoo = () => {
-    alert('Wahoo integration coming soon!');
+    notifications.show({
+      title: 'Coming Soon',
+      message: 'Wahoo integration coming soon!',
+      color: 'blue',
+    });
   };
 
   return (
@@ -85,10 +199,10 @@ function Settings() {
               </Title>
 
               <TextInput
-                label="Full Name"
-                placeholder="Your name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                label="Display Name"
+                placeholder="Your display name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
               />
 
               <TextInput
@@ -98,30 +212,24 @@ function Settings() {
                 description="Email cannot be changed"
               />
 
-              <Group grow>
-                <NumberInput
-                  label="FTP (Watts)"
-                  placeholder="Enter your FTP"
-                  value={ftp}
-                  onChange={setFtp}
-                  min={0}
-                  max={500}
-                />
-                <NumberInput
-                  label={`Weight (${unit === 'metric' ? 'kg' : 'lbs'})`}
-                  placeholder="Enter your weight"
-                  value={weight}
-                  onChange={setWeight}
-                  min={0}
-                  max={200}
-                  decimalScale={1}
-                />
-              </Group>
+              <TextInput
+                label="Location"
+                placeholder="City, State"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+              />
+
+              <TextInput
+                label="Bio"
+                placeholder="Tell us about yourself"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+              />
 
               <Select
-                label="Units"
-                value={unit}
-                onChange={setUnit}
+                label="Units Preference"
+                value={unitsPreference}
+                onChange={setUnitsPreference}
                 data={[
                   { value: 'metric', label: 'Metric (km, kg)' },
                   { value: 'imperial', label: 'Imperial (mi, lbs)' },
@@ -149,9 +257,11 @@ function Settings() {
               <ServiceConnection
                 name="Strava"
                 icon="🟠"
-                connected={false}
+                connected={stravaStatus.connected}
+                username={stravaStatus.username}
+                loading={stravaStatus.loading}
                 onConnect={connectStrava}
-                onDisconnect={() => {}}
+                onDisconnect={disconnectStrava}
               />
 
               <Divider />
@@ -225,16 +335,28 @@ function Settings() {
   );
 }
 
-function ServiceConnection({ name, icon, connected, onConnect, onDisconnect }) {
+function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect }) {
+  if (loading) {
+    return (
+      <Group justify="space-between">
+        <Group>
+          <Text size="xl">{icon}</Text>
+          <Text style={{ color: tokens.colors.textPrimary }}>{name}</Text>
+        </Group>
+        <Loader size="sm" />
+      </Group>
+    );
+  }
+
   return (
     <Group justify="space-between">
       <Group>
         <Text size="xl">{icon}</Text>
         <Box>
           <Text style={{ color: tokens.colors.textPrimary }}>{name}</Text>
-          {connected && (
+          {connected && username && (
             <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-              Last synced: Just now
+              Connected as {username}
             </Text>
           )}
         </Box>

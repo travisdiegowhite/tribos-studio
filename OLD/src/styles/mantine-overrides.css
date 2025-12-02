@@ -1,0 +1,534 @@
+/*
+ * Mantine Component Global Overrides
+ * Ensures consistent dark theme across ALL Mantine components
+ * This file overrides any inline styles that might use light colors
+ */
+
+/* ================================
+ * GLOBAL CARD/PAPER OVERRIDES
+ * ================================ */
+
+/* Override all Card and Paper components to use dark background */
+[class*="Card-root"],
+[class*="Paper-root"],
+.mantine-Card-root,
+.mantine-Paper-root {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* White background cards - force dark */
+[style*="background: white"],
+[style*="background: #fff"],
+[style*="background-color: white"],
+[style*="background-color: #fff"],
+[style*="background-color: rgb(255, 255, 255)"],
+[style*="background-color:#fff"],
+[style*="background-color: #FFF"],
+[style*="background-color: #ffffff"],
+[style*="background-color: #FFFFFF"],
+[style*="backgroundColor: white"],
+[style*='backgroundColor: "white"'],
+[style*="backgroundColor: '#fff'"],
+[style*='backgroundColor: "#fff"'] {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Light background overrides */
+[style*="background: #f"],
+[style*="background-color: #f"],
+div[style*="background"][style*="#f"],
+/* Catch all light colors */
+[style*="background: #e"],
+[style*="background-color: #e"],
+[style*="background: rgb(2"][style*=", 2"][style*=", 2"],
+[style*="background-color: rgb(2"][style*=", 2"][style*=", 2"] {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Very aggressive white/light background override */
+div[style*="backgroundColor"],
+span[style*="backgroundColor"],
+section[style*="backgroundColor"] {
+  /* Only override if it's a light color */
+}
+
+div[style*="backgroundColor: white"],
+div[style*='backgroundColor: "white"'],
+div[style*="backgroundColor: 'white'"],
+span[style*="backgroundColor: white"],
+section[style*="backgroundColor: white"] {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ================================
+ * TEXT OVERRIDES
+ * ================================ */
+
+/* Override all text to be light on dark */
+[class*="Text-root"],
+.mantine-Text-root {
+  color: var(--text-primary) !important;
+}
+
+/* Dimmed text should still be readable */
+[data-dimmed="true"],
+[class*="Text-root"][data-variant="dimmed"] {
+  color: var(--text-secondary) !important;
+  opacity: 1 !important;
+}
+
+/* Gray text overrides */
+[style*="color: gray"],
+[style*="color: #666"],
+[style*="color: #888"],
+[style*="color: #999"],
+[style*="color: rgb(102, 102, 102)"] {
+  color: var(--text-secondary) !important;
+}
+
+/* Very light gray text (hard to read) */
+[style*="color: #ccc"],
+[style*="color: #ddd"],
+[style*="color: #e0e0e0"] {
+  color: var(--text-primary) !important;
+}
+
+/* Dark text colors (used on light backgrounds) - make them light */
+[style*="color: black"],
+[style*="color: #000"],
+[style*="color: #333"],
+[style*="color: #444"],
+[style*="color: dark"],
+[style*='color: "dark"'],
+[c="dark"],
+[class*="Text"][c="dark"] {
+  color: var(--text-primary) !important;
+}
+
+/* ================================
+ * TITLE/HEADING OVERRIDES
+ * ================================ */
+
+[class*="Title-root"],
+.mantine-Title-root,
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-heading) !important;
+}
+
+/* ================================
+ * BUTTON OVERRIDES
+ * ================================ */
+
+/* Default variant buttons */
+[class*="Button-root"][data-variant="default"],
+.mantine-Button-root[data-variant="default"] {
+  background-color: var(--bg-surface-dark) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Subtle variant buttons */
+[class*="Button-root"][data-variant="subtle"],
+.mantine-Button-root[data-variant="subtle"] {
+  color: var(--text-primary) !important;
+}
+
+/* Light variant buttons */
+[class*="Button-root"][data-variant="light"],
+.mantine-Button-root[data-variant="light"] {
+  background-color: var(--color-success-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ================================
+ * INPUT OVERRIDES
+ * ================================ */
+
+/* All input elements */
+[class*="Input-input"],
+.mantine-Input-input,
+[class*="TextInput-input"],
+.mantine-TextInput-input,
+[class*="Textarea-input"],
+.mantine-Textarea-input,
+[class*="Select-input"],
+.mantine-Select-input,
+[class*="NumberInput-input"],
+.mantine-NumberInput-input {
+  background-color: var(--bg-surface-dark) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Input placeholders */
+[class*="Input-input"]::placeholder,
+.mantine-Input-input::placeholder {
+  color: var(--text-tertiary) !important;
+  opacity: 1 !important;
+}
+
+/* Input labels */
+[class*="Input-label"],
+.mantine-Input-label,
+[class*="InputWrapper-label"],
+.mantine-InputWrapper-label {
+  color: var(--text-secondary) !important;
+}
+
+/* ================================
+ * SELECT/DROPDOWN OVERRIDES
+ * ================================ */
+
+/* Dropdown menus */
+[class*="Select-dropdown"],
+.mantine-Select-dropdown,
+[class*="Menu-dropdown"],
+.mantine-Menu-dropdown,
+[class*="Combobox-dropdown"],
+.mantine-Combobox-dropdown {
+  background-color: var(--bg-surface-darker) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Dropdown items */
+[class*="Select-option"],
+.mantine-Select-option,
+[class*="Menu-item"],
+.mantine-Menu-item,
+[class*="Combobox-option"],
+.mantine-Combobox-option {
+  color: var(--text-primary) !important;
+}
+
+[class*="Select-option"]:hover,
+.mantine-Select-option:hover,
+[class*="Menu-item"]:hover,
+.mantine-Menu-item:hover {
+  background-color: rgba(50, 205, 50, 0.1) !important;
+}
+
+/* ================================
+ * MODAL OVERRIDES
+ * ================================ */
+
+[class*="Modal-content"],
+.mantine-Modal-content,
+[class*="Modal-body"],
+.mantine-Modal-body {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+
+[class*="Modal-header"],
+.mantine-Modal-header {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+[class*="Modal-title"],
+.mantine-Modal-title {
+  color: var(--text-heading) !important;
+}
+
+/* ================================
+ * TABLE OVERRIDES
+ * ================================ */
+
+[class*="Table-root"],
+.mantine-Table-root,
+table {
+  color: var(--text-primary) !important;
+}
+
+[class*="Table-root"] th,
+.mantine-Table-root th {
+  color: var(--text-heading) !important;
+  background-color: var(--bg-surface-dark) !important;
+  border-color: var(--border-color) !important;
+}
+
+[class*="Table-root"] td,
+.mantine-Table-root td {
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+[class*="Table-root"] tbody tr:hover,
+.mantine-Table-root tbody tr:hover {
+  background-color: var(--bg-surface-dark) !important;
+}
+
+/* ================================
+ * BADGE OVERRIDES
+ * ================================ */
+
+[class*="Badge-root"],
+.mantine-Badge-root {
+  color: var(--text-primary) !important;
+}
+
+/* ================================
+ * ACCORDION OVERRIDES
+ * ================================ */
+
+[class*="Accordion-item"],
+.mantine-Accordion-item {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--border-color) !important;
+}
+
+[class*="Accordion-control"],
+.mantine-Accordion-control {
+  color: var(--text-primary) !important;
+}
+
+[class*="Accordion-content"],
+.mantine-Accordion-content {
+  color: var(--text-primary) !important;
+}
+
+/* ================================
+ * TABS OVERRIDES
+ * ================================ */
+
+[class*="Tabs-tab"],
+.mantine-Tabs-tab {
+  color: var(--text-primary) !important;
+}
+
+[class*="Tabs-tab"][data-active="true"],
+.mantine-Tabs-tab[data-active="true"] {
+  color: var(--color-lime-500) !important;
+  border-color: var(--color-lime-500) !important;
+}
+
+/* ================================
+ * ALERT OVERRIDES
+ * ================================ */
+
+[class*="Alert-root"],
+.mantine-Alert-root {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+[class*="Alert-message"],
+.mantine-Alert-message,
+[class*="Alert-title"],
+.mantine-Alert-title {
+  color: var(--text-primary) !important;
+}
+
+/* Alert variants */
+[class*="Alert-root"][data-variant="filled"],
+.mantine-Alert-root[data-variant="filled"] {
+  background-color: var(--bg-surface-dark) !important;
+}
+
+[class*="Alert-root"][data-variant="light"],
+.mantine-Alert-root[data-variant="light"] {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ================================
+ * SEGMENTED CONTROL OVERRIDES
+ * ================================ */
+
+[class*="SegmentedControl-root"],
+.mantine-SegmentedControl-root {
+  background-color: var(--bg-surface-dark) !important;
+}
+
+[class*="SegmentedControl-label"],
+.mantine-SegmentedControl-label {
+  color: var(--text-primary) !important;
+}
+
+[class*="SegmentedControl-label"][data-active="true"],
+.mantine-SegmentedControl-label[data-active="true"] {
+  color: var(--text-on-primary) !important;
+}
+
+/* ================================
+ * DIVIDER OVERRIDES
+ * ================================ */
+
+[class*="Divider-root"],
+.mantine-Divider-root {
+  border-color: var(--border-color) !important;
+}
+
+/* ================================
+ * SLIDER OVERRIDES
+ * ================================ */
+
+[class*="Slider-track"],
+.mantine-Slider-track {
+  background-color: var(--bg-surface-dark) !important;
+}
+
+[class*="Slider-bar"],
+.mantine-Slider-bar {
+  background-color: var(--color-primary-500) !important;
+}
+
+/* ================================
+ * SWITCH OVERRIDES
+ * ================================ */
+
+[class*="Switch-track"],
+.mantine-Switch-track {
+  background-color: var(--bg-surface-dark) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* ================================
+ * CHECKBOX/RADIO OVERRIDES
+ * ================================ */
+
+[class*="Checkbox-label"],
+.mantine-Checkbox-label,
+[class*="Radio-label"],
+.mantine-Radio-label {
+  color: var(--text-primary) !important;
+}
+
+/* ================================
+ * NOTIFICATION OVERRIDES
+ * ================================ */
+
+[class*="Notification-root"],
+.mantine-Notification-root {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* ================================
+ * SPECIFIC COMPONENT FIXES
+ * ================================ */
+
+/* Workout cards in library */
+.workout-card,
+[class*="workout-card"] {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Stats cards */
+.stats-card,
+[class*="stats-card"] {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Ensure minimum contrast for all text */
+* {
+  /* This ensures text is never too light on dark backgrounds */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ================================
+ * CHART/GRAPH OVERRIDES
+ * ================================ */
+
+/* Recharts library overrides */
+.recharts-text,
+.recharts-cartesian-axis-tick-value,
+.recharts-label {
+  fill: var(--text-primary) !important;
+  font-size: var(--font-size-sm) !important;
+}
+
+.recharts-legend-item-text {
+  color: var(--text-primary) !important;
+}
+
+/* Grid lines */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--border-color) !important;
+  stroke-opacity: 0.3 !important;
+}
+
+/* Tooltip */
+.recharts-tooltip-wrapper {
+  z-index: var(--z-index-popover) !important;
+}
+
+.recharts-default-tooltip {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--border-color) !important;
+  border-radius: var(--radius-md) !important;
+  padding: var(--space-3) !important;
+}
+
+.recharts-tooltip-label,
+.recharts-tooltip-item {
+  color: var(--text-primary) !important;
+}
+
+/* Chart.js overrides (if used) */
+canvas {
+  /* Ensure canvas elements are visible */
+  opacity: 1 !important;
+}
+
+/* SVG text elements in charts */
+svg text {
+  fill: var(--text-primary) !important;
+  font-size: var(--font-size-sm) !important;
+}
+
+svg text[text-anchor="middle"],
+svg text[text-anchor="end"],
+svg text[text-anchor="start"] {
+  fill: var(--text-primary) !important;
+}
+
+/* Axis labels */
+svg .recharts-cartesian-axis text,
+svg .axis text,
+svg .tick text {
+  fill: var(--text-primary) !important;
+  font-size: 12px !important;
+}
+
+/* Legend text */
+svg .recharts-legend-wrapper text,
+svg .legend text {
+  fill: var(--text-primary) !important;
+}
+
+/* ================================
+ * MOBILE SPECIFIC OVERRIDES
+ * ================================ */
+
+@media (max-width: 768px) {
+  /* Ensure all text is at least 14px on mobile */
+  [class*="Text-root"],
+  .mantine-Text-root {
+    font-size: var(--font-size-sm) !important;
+  }
+
+  /* Larger touch targets */
+  [class*="Button-root"],
+  .mantine-Button-root {
+    min-height: var(--touch-target-min) !important;
+  }
+
+  /* Smaller chart text on mobile */
+  svg text,
+  .recharts-text {
+    font-size: 10px !important;
+  }
+}

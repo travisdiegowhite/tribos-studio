@@ -10,9 +10,9 @@ import {
   Button,
   Box,
 } from '@mantine/core';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext.jsx';
 import { tokens } from '../theme';
-import AppShell from '../components/AppShell';
+import AppShell from '../components/AppShell.jsx';
 
 function Dashboard() {
   const { profile, user } = useAuth();

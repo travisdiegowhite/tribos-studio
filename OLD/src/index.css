@@ -1,0 +1,35 @@
+/* Import centralized design tokens */
+@import './styles/design-tokens.css';
+
+/* Import Mantine component overrides for consistent dark theme */
+@import './styles/mantine-overrides.css';
+
+body {
+  margin: 0;
+  /* Design tokens now handle font, colors, and background */
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Custom scrollbar styles for toolbar - using design tokens */
+.toolbar-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.toolbar-scroll::-webkit-scrollbar-track {
+  background: var(--color-neutral-800);
+  border-radius: var(--radius-xs);
+}
+
+.toolbar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(50, 205, 50, 0.5);
+  border-radius: var(--radius-xs);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.toolbar-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-lime-500);
+}
