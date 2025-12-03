@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   Container,
   Title,
@@ -9,11 +10,154 @@ import {
   Box,
   Progress,
   Badge,
+  Loader,
+  Button,
 } from '@mantine/core';
+import { useNavigate } from 'react-router-dom';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
+import { useAuth } from '../contexts/AuthContext.jsx';
+import { supabase } from '../lib/supabase';
 
 function TrainingDashboard() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [activities, setActivities] = useState([]);
+  const [speedProfile, setSpeedProfile] = useState(null);
+  const [weeklyStats, setWeeklyStats] = useState({
+    totalDistance: 0,
+    totalTime: 0,
+    totalElevation: 0,
+    rideCount: 0,
+  });
+
+  // Load activities from Supabase
+  useEffect(() => {
+    const loadData = async () => {
+      if (!user) return;
+
+      try {
+        // Get activities from last 90 days (to show more history)
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+        const { data: activityData, error: activityError } = await supabase
+          .from('strava_activities')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('start_date', ninetyDaysAgo.toISOString())
+          .order('start_date', { ascending: false });
+
+        if (activityError) {
+          console.error('Error loading activities:', activityError);
+        } else {
+          setActivities(activityData || []);
+
+          // Calculate weekly stats (last 7 days)
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+          const weeklyActivities = (activityData || []).filter(
+            (a) => new Date(a.start_date) >= sevenDaysAgo
+          );
+
+          const stats = weeklyActivities.reduce(
+            (acc, activity) => ({
+              totalDistance: acc.totalDistance + (activity.distance || 0),
+              totalTime: acc.totalTime + (activity.moving_time || 0),
+              totalElevation: acc.totalElevation + (activity.total_elevation_gain || 0),
+              rideCount: acc.rideCount + 1,
+            }),
+            { totalDistance: 0, totalTime: 0, totalElevation: 0, rideCount: 0 }
+          );
+
+          setWeeklyStats(stats);
+        }
+
+        // Get speed profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('user_speed_profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!profileError && profileData) {
+          setSpeedProfile(profileData);
+        }
+      } catch (error) {
+        console.error('Error loading training data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [user]);
+
+  // Format distance (meters to km or miles based on preference)
+  const formatDistance = (meters) => {
+    const km = meters / 1000;
+    return km.toFixed(1);
+  };
+
+  // Format time (seconds to hours:minutes)
+  const formatTime = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+  };
+
+  // Get activity type icon
+  const getActivityIcon = (type) => {
+    switch (type) {
+      case 'Ride':
+        return '🚴';
+      case 'VirtualRide':
+        return '🖥️';
+      case 'GravelRide':
+        return '🌲';
+      case 'MountainBikeRide':
+        return '⛰️';
+      case 'EBikeRide':
+        return '⚡';
+      default:
+        return '🚴';
+    }
+  };
+
+  if (loading) {
+    return (
+      <AppShell>
+        <Container size="xl" py="xl">
+          <Stack align="center" justify="center" style={{ minHeight: 400 }}>
+            <Loader color="lime" size="lg" />
+            <Text style={{ color: tokens.colors.textSecondary }}>Loading training data...</Text>
+          </Stack>
+        </Container>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <Container size="xl" py="xl">
@@ -28,35 +172,207 @@ function TrainingDashboard() {
             </Text>
           </Box>
 
-          {/* Fitness Overview */}
+          {/* Weekly Overview */}
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
             <MetricCard
-              label="Fitness (CTL)"
-              value="--"
-              change={null}
-              description="Chronic Training Load"
+              label="Weekly Distance"
+              value={`${formatDistance(weeklyStats.totalDistance)} km`}
+              description="Last 7 days"
             />
             <MetricCard
-              label="Fatigue (ATL)"
-              value="--"
-              change={null}
-              description="Acute Training Load"
+              label="Weekly Time"
+              value={formatTime(weeklyStats.totalTime)}
+              description="Time in saddle"
             />
             <MetricCard
-              label="Form (TSB)"
-              value="--"
-              change={null}
-              description="Training Stress Balance"
+              label="Weekly Elevation"
+              value={`${Math.round(weeklyStats.totalElevation)} m`}
+              description="Total climbing"
             />
             <MetricCard
-              label="FTP"
-              value="-- W"
-              change={null}
-              description="Functional Threshold Power"
+              label="Rides This Week"
+              value={weeklyStats.rideCount.toString()}
+              description={`${activities.length} total (90 days)`}
             />
           </SimpleGrid>
 
-          {/* Power Zones */}
+          {/* Speed Profile */}
+          {speedProfile && (
+            <Card>
+              <Stack gap="md">
+                <Group justify="space-between">
+                  <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                    Your Speed Profile
+                  </Title>
+                  <Badge variant="light" color="lime">
+                    {speedProfile.rides_analyzed} rides analyzed
+                  </Badge>
+                </Group>
+
+                <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+                  <Box>
+                    <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                      Average Speed
+                    </Text>
+                    <Text size="xl" fw={700} style={{ color: tokens.colors.electricLime }}>
+                      {speedProfile.average_speed?.toFixed(1)} km/h
+                    </Text>
+                  </Box>
+                  {speedProfile.road_speed && (
+                    <Box>
+                      <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                        Road
+                      </Text>
+                      <Text size="xl" fw={700} style={{ color: tokens.colors.textPrimary }}>
+                        {speedProfile.road_speed?.toFixed(1)} km/h
+                      </Text>
+                    </Box>
+                  )}
+                  {speedProfile.gravel_speed && (
+                    <Box>
+                      <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                        Gravel
+                      </Text>
+                      <Text size="xl" fw={700} style={{ color: tokens.colors.textPrimary }}>
+                        {speedProfile.gravel_speed?.toFixed(1)} km/h
+                      </Text>
+                    </Box>
+                  )}
+                  {speedProfile.mtb_speed && (
+                    <Box>
+                      <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                        MTB
+                      </Text>
+                      <Text size="xl" fw={700} style={{ color: tokens.colors.textPrimary }}>
+                        {speedProfile.mtb_speed?.toFixed(1)} km/h
+                      </Text>
+                    </Box>
+                  )}
+                </SimpleGrid>
+
+                <Group gap="lg">
+                  <Box>
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                      Avg Ride Duration
+                    </Text>
+                    <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                      {Math.round(speedProfile.avg_ride_duration || 0)} min
+                    </Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                      Avg Elevation/km
+                    </Text>
+                    <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                      {(speedProfile.avg_elevation_per_km || 0).toFixed(1)} m
+                    </Text>
+                  </Box>
+                </Group>
+              </Stack>
+            </Card>
+          )}
+
+          {/* Recent Workouts */}
+          <Card>
+            <Stack gap="md">
+              <Group justify="space-between">
+                <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                  Recent Workouts
+                </Title>
+                <Badge variant="light" color="gray">
+                  Last 90 days
+                </Badge>
+              </Group>
+
+              {activities.length === 0 ? (
+                <Box
+                  style={{
+                    padding: tokens.spacing.xl,
+                    textAlign: 'center',
+                    borderRadius: tokens.radius.md,
+                    border: `1px dashed ${tokens.colors.bgTertiary}`,
+                  }}
+                >
+                  <Text size="lg" mb="sm">
+                    📊
+                  </Text>
+                  <Text style={{ color: tokens.colors.textSecondary }} mb="md">
+                    No workouts found. Sync your Strava activities to see them here!
+                  </Text>
+                  <Button
+                    variant="light"
+                    color="lime"
+                    onClick={() => navigate('/settings')}
+                  >
+                    Go to Settings
+                  </Button>
+                </Box>
+              ) : (
+                <Stack gap="xs">
+                  {activities.slice(0, 10).map((activity) => (
+                    <Box
+                      key={activity.id}
+                      style={{
+                        padding: tokens.spacing.sm,
+                        backgroundColor: tokens.colors.bgTertiary,
+                        borderRadius: tokens.radius.sm,
+                      }}
+                    >
+                      <Group justify="space-between" wrap="nowrap">
+                        <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+                          <Text size="xl">{getActivityIcon(activity.type)}</Text>
+                          <Box style={{ minWidth: 0, flex: 1 }}>
+                            <Text
+                              fw={600}
+                              size="sm"
+                              style={{
+                                color: tokens.colors.textPrimary,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {activity.name}
+                            </Text>
+                            <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                              {formatDate(activity.start_date)}
+                            </Text>
+                          </Box>
+                        </Group>
+                        <Group gap="md" wrap="nowrap">
+                          <Box style={{ textAlign: 'right' }}>
+                            <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+                              {formatDistance(activity.distance)} km
+                            </Text>
+                            <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                              {formatTime(activity.moving_time)}
+                            </Text>
+                          </Box>
+                          <Box style={{ textAlign: 'right', minWidth: 60 }}>
+                            <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                              {((activity.average_speed || 0) * 3.6).toFixed(1)} km/h
+                            </Text>
+                            {activity.total_elevation_gain > 0 && (
+                              <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                                {Math.round(activity.total_elevation_gain)}m ↗
+                              </Text>
+                            )}
+                          </Box>
+                        </Group>
+                      </Group>
+                    </Box>
+                  ))}
+                  {activities.length > 10 && (
+                    <Text size="sm" style={{ color: tokens.colors.textMuted, textAlign: 'center' }}>
+                      + {activities.length - 10} more activities
+                    </Text>
+                  )}
+                </Stack>
+              )}
+            </Stack>
+          </Card>
+
+          {/* Power Zones (placeholder for future FTP integration) */}
           <Card>
             <Stack gap="md">
               <Title order={3} style={{ color: tokens.colors.textPrimary }}>
@@ -77,62 +393,6 @@ function TrainingDashboard() {
               </Stack>
             </Stack>
           </Card>
-
-          {/* Recent Workouts */}
-          <Card>
-            <Stack gap="md">
-              <Group justify="space-between">
-                <Title order={3} style={{ color: tokens.colors.textPrimary }}>
-                  Recent Workouts
-                </Title>
-                <Badge variant="light" color="gray">
-                  Last 7 days
-                </Badge>
-              </Group>
-
-              <Box
-                style={{
-                  padding: tokens.spacing.xl,
-                  textAlign: 'center',
-                  borderRadius: tokens.radius.md,
-                  border: `1px dashed ${tokens.colors.bgTertiary}`,
-                }}
-              >
-                <Text size="lg" mb="sm">
-                  📊
-                </Text>
-                <Text style={{ color: tokens.colors.textSecondary }}>
-                  No workouts recorded yet. Connect your devices to start tracking!
-                </Text>
-              </Box>
-            </Stack>
-          </Card>
-
-          {/* Chart Placeholder */}
-          <Card>
-            <Stack gap="md">
-              <Title order={3} style={{ color: tokens.colors.textPrimary }}>
-                Training Load
-              </Title>
-              <Box
-                style={{
-                  height: 300,
-                  backgroundColor: tokens.colors.bgTertiary,
-                  borderRadius: tokens.radius.md,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Stack align="center" gap="sm">
-                  <Text size="2rem">📈</Text>
-                  <Text style={{ color: tokens.colors.textSecondary }}>
-                    Training load chart will appear here
-                  </Text>
-                </Stack>
-              </Box>
-            </Stack>
-          </Card>
         </Stack>
       </Container>
     </AppShell>
@@ -150,12 +410,13 @@ function MetricCard({ label, value, change, description }) {
           <Text size="2rem" fw={700} style={{ color: tokens.colors.electricLime }}>
             {value}
           </Text>
-          {change !== null && (
+          {change !== null && change !== undefined && (
             <Text
               size="sm"
               style={{ color: change >= 0 ? tokens.colors.success : tokens.colors.error }}
             >
-              {change >= 0 ? '+' : ''}{change}
+              {change >= 0 ? '+' : ''}
+              {change}
             </Text>
           )}
         </Group>
