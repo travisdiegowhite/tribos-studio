@@ -1,6 +1,8 @@
 // Claude AI Route Generation Service
 // Handles prompting and parsing for AI-generated cycling routes
 
+import { getSmartCyclingRoute, getRoutingStrategyDescription } from './smartCyclingRouter';
+
 /**
  * Generate route suggestions using Claude AI
  * @param {Object} params - Route generation parameters
@@ -224,28 +226,226 @@ function calculateTargetDistance(timeMinutes, trainingGoal) {
 }
 
 /**
- * Convert a Claude route suggestion to actual GPS coordinates
- * This would normally use routing services, but for MVP we'll return a placeholder
+ * Convert a Claude route suggestion to actual GPS coordinates using Smart Cycling Router
+ * Uses Stadia Maps (Valhalla) as primary, with BRouter and Mapbox fallbacks
+ *
+ * @param {Object} claudeRoute - Route suggestion from Claude
+ * @param {Object} options - Conversion options
+ * @param {string} options.mapboxToken - Mapbox token for fallback
+ * @param {string} options.profile - Route profile: 'road', 'gravel', 'mountain', 'commuting'
+ * @param {number} options.userSpeed - Optional personalized cycling speed in km/h
+ * @returns {Promise<Object>} Route with GPS coordinates
  */
-export async function convertClaudeToRoute(claudeRoute, mapboxToken) {
-  // For MVP, we'll return the Claude suggestion as-is
-  // In full implementation, this would:
-  // 1. Parse keyDirections into waypoints
-  // 2. Use Mapbox Directions API to get actual coordinates
-  // 3. Fetch elevation profile
-  // 4. Return complete route with geometry
+export async function convertClaudeToRoute(claudeRoute, options = {}) {
+  const {
+    mapboxToken,
+    profile = 'road',
+    userSpeed = null
+  } = typeof options === 'string' ? { mapboxToken: options } : options;
 
-  console.log('Converting Claude route to GPS coordinates:', claudeRoute.name);
+  console.log('🚴 Converting Claude route to GPS coordinates:', claudeRoute.name);
+  console.log('📍 Profile:', profile);
 
-  return {
-    ...claudeRoute,
-    coordinates: [], // Would be filled by routing API
-    geometry: null,   // Would be GeoJSON geometry
-    needsRouting: true
+  const { startLocation, distance, routeType, trainingGoal } = claudeRoute;
+
+  try {
+    // Generate waypoints based on route type and distance
+    const waypoints = generateRouteWaypoints(startLocation, distance, routeType || 'loop');
+
+    // Convert waypoints to [lon, lat] format for smart router
+    const waypointsArray = waypoints.map(wp => [wp.lng, wp.lat]);
+
+    console.log(`📍 Generated ${waypointsArray.length} waypoints for smart routing`);
+
+    // Use smart cycling router (Stadia Maps → BRouter → Mapbox fallback)
+    const routeResult = await getSmartCyclingRoute(waypointsArray, {
+      profile,
+      trainingGoal: trainingGoal || 'endurance',
+      mapboxToken,
+      userSpeed
+    });
+
+    if (!routeResult || !routeResult.coordinates || routeResult.coordinates.length < 10) {
+      throw new Error('Smart router failed to generate route');
+    }
+
+    // Get human-readable routing strategy description
+    const routingStrategy = getRoutingStrategyDescription(routeResult);
+
+    console.log(`✅ Route generated via ${routeResult.source}: ${(routeResult.distance / 1000).toFixed(1)}km`);
+    console.log(`📊 Strategy: ${routingStrategy}`);
+
+    return {
+      ...claudeRoute,
+      coordinates: routeResult.coordinates,
+      geometry: {
+        type: 'LineString',
+        coordinates: routeResult.coordinates
+      },
+      distance: routeResult.distance / 1000, // Convert meters to km
+      duration: routeResult.duration / 60, // Convert seconds to minutes
+      elevationGain: routeResult.elevationGain || claudeRoute.elevationGain || 0,
+      elevationLoss: routeResult.elevationLoss || 0,
+      waypoints: waypoints,
+      needsRouting: false,
+      routingSource: routeResult.source,
+      routingStrategy,
+      confidence: routeResult.confidence,
+      profile: routeResult.profile || profile
+    };
+
+  } catch (error) {
+    console.error('❌ Error converting Claude route to GPS:', error);
+    throw new Error(`Failed to generate route coordinates: ${error.message}`);
+  }
+}
+
+/**
+ * Generate waypoints for route based on start location, distance, and type
+ */
+function generateRouteWaypoints(startLocation, targetDistanceKm, routeType) {
+  const { lat, lng } = startLocation;
+
+  // Approximate degrees per km (rough calculation for latitude)
+  const degreesPerKm = 1 / 111; // ~111km per degree latitude
+
+  // For MVP, generate simple geometric routes
+  // In production, this would use Claude's keyDirections or local knowledge
+
+  if (routeType === 'loop') {
+    // Create a loop route with 4-6 waypoints
+    const numWaypoints = 5;
+    const radiusKm = targetDistanceKm / (Math.PI * 2); // Approximate circular loop
+    const waypoints = [];
+
+    for (let i = 0; i < numWaypoints; i++) {
+      const angle = (i / numWaypoints) * Math.PI * 2;
+      const latOffset = Math.cos(angle) * radiusKm * degreesPerKm;
+      const lngOffset = Math.sin(angle) * radiusKm * degreesPerKm / Math.cos(lat * Math.PI / 180);
+
+      waypoints.push({
+        lat: lat + latOffset,
+        lng: lng + lngOffset
+      });
+    }
+
+    // Close the loop
+    waypoints.push({ lat, lng });
+
+    return waypoints;
+
+  } else if (routeType === 'out_back') {
+    // Simple out-and-back route
+    const halfDistance = targetDistanceKm / 2;
+    const bearing = Math.random() * Math.PI * 2; // Random direction
+
+    const endLat = lat + Math.cos(bearing) * halfDistance * degreesPerKm;
+    const endLng = lng + Math.sin(bearing) * halfDistance * degreesPerKm / Math.cos(lat * Math.PI / 180);
+
+    return [
+      { lat, lng },
+      { lat: endLat, lng: endLng },
+      { lat, lng } // Return to start
+    ];
+
+  } else {
+    // point_to_point
+    const bearing = Math.random() * Math.PI * 2; // Random direction
+
+    const endLat = lat + Math.cos(bearing) * targetDistanceKm * degreesPerKm;
+    const endLng = lng + Math.sin(bearing) * targetDistanceKm * degreesPerKm / Math.cos(lat * Math.PI / 180);
+
+    return [
+      { lat, lng },
+      { lat: endLat, lng: endLng }
+    ];
+  }
+}
+
+/**
+ * Parse natural language route request into structured parameters
+ * Examples:
+ *   "40 mile loop from Boulder with gravel roads"
+ *   "2 hour recovery ride, flat terrain"
+ *   "Hilly intervals session, 90 minutes"
+ *
+ * @param {string} text - Natural language route description
+ * @param {Object} defaultLocation - Default start location {lat, lng}
+ * @returns {Object} Parsed route parameters
+ */
+export function parseNaturalLanguageRoute(text, defaultLocation) {
+  const result = {
+    timeAvailable: 60, // Default 1 hour
+    trainingGoal: 'endurance',
+    routeType: 'loop',
+    profile: 'road',
+    startLocation: defaultLocation
   };
+
+  const lowerText = text.toLowerCase();
+
+  // Parse distance/time
+  const mileMatch = lowerText.match(/(\d+)\s*mile/);
+  const kmMatch = lowerText.match(/(\d+)\s*km/);
+  const hourMatch = lowerText.match(/(\d+(?:\.\d+)?)\s*hour/);
+  const minMatch = lowerText.match(/(\d+)\s*min/);
+
+  if (mileMatch) {
+    // Convert miles to approximate time (assuming ~15mph avg)
+    result.timeAvailable = Math.round(parseInt(mileMatch[1]) * 4);
+  } else if (kmMatch) {
+    // Convert km to approximate time (assuming ~24km/h avg)
+    result.timeAvailable = Math.round(parseInt(kmMatch[1]) * 2.5);
+  } else if (hourMatch) {
+    result.timeAvailable = Math.round(parseFloat(hourMatch[1]) * 60);
+  } else if (minMatch) {
+    result.timeAvailable = parseInt(minMatch[1]);
+  }
+
+  // Parse route type
+  if (lowerText.includes('loop')) {
+    result.routeType = 'loop';
+  } else if (lowerText.includes('out and back') || lowerText.includes('out-and-back')) {
+    result.routeType = 'out_back';
+  } else if (lowerText.includes('point to point') || lowerText.includes('one way')) {
+    result.routeType = 'point_to_point';
+  }
+
+  // Parse training goal
+  if (lowerText.includes('recovery') || lowerText.includes('easy')) {
+    result.trainingGoal = 'recovery';
+  } else if (lowerText.includes('interval') || lowerText.includes('speed') || lowerText.includes('fast')) {
+    result.trainingGoal = 'intervals';
+  } else if (lowerText.includes('hill') || lowerText.includes('climb') || lowerText.includes('mountain')) {
+    result.trainingGoal = 'hills';
+  } else if (lowerText.includes('endurance') || lowerText.includes('long') || lowerText.includes('steady')) {
+    result.trainingGoal = 'endurance';
+  }
+
+  // Parse profile/surface type
+  if (lowerText.includes('gravel') || lowerText.includes('dirt') || lowerText.includes('unpaved')) {
+    result.profile = 'gravel';
+  } else if (lowerText.includes('mountain') || lowerText.includes('mtb') || lowerText.includes('trail')) {
+    result.profile = 'mountain';
+  } else if (lowerText.includes('commute') || lowerText.includes('bike path') || lowerText.includes('safe')) {
+    result.profile = 'commuting';
+  } else {
+    result.profile = 'road';
+  }
+
+  // Parse terrain preference (for training goal refinement)
+  if (lowerText.includes('flat')) {
+    if (result.trainingGoal === 'endurance') {
+      result.trainingGoal = 'recovery'; // Flat + endurance = easy ride
+    }
+  }
+
+  console.log('🗣️ Parsed natural language route:', result);
+  return result;
 }
 
 export default {
   generateClaudeRoutes,
-  convertClaudeToRoute
+  convertClaudeToRoute,
+  parseNaturalLanguageRoute
 };

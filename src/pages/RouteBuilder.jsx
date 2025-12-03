@@ -1,13 +1,13 @@
 import { useState, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, SegmentedControl, NumberInput, Select, Card, Badge, Divider } from '@mantine/core';
+import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconSparkles, IconRoute } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
-import { generateClaudeRoutes } from '../utils/claudeRouteService';
+import { generateClaudeRoutes, convertClaudeToRoute, parseNaturalLanguageRoute } from '../utils/claudeRouteService';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -25,8 +25,12 @@ function RouteBuilder() {
   const [trainingGoal, setTrainingGoal] = useState('endurance');
   const [timeAvailable, setTimeAvailable] = useState(60);
   const [routeType, setRouteType] = useState('loop');
+  const [routeProfile, setRouteProfile] = useState('road'); // 'road', 'gravel', 'mountain', 'commuting'
   const [aiSuggestions, setAiSuggestions] = useState([]);
   const [generatingAI, setGeneratingAI] = useState(false);
+  const [convertingRoute, setConvertingRoute] = useState(null); // Index of suggestion being converted
+  const [naturalLanguageInput, setNaturalLanguageInput] = useState('');
+  const [routingSource, setRoutingSource] = useState(null); // 'stadia_maps', 'brouter', 'mapbox'
 
   const [viewport, setViewport] = useState({
     latitude: 37.7749,
@@ -144,19 +148,129 @@ function RouteBuilder() {
     }
   }, [viewport, timeAvailable, trainingGoal, routeType]);
 
-  // Select an AI suggestion
-  const handleSelectAISuggestion = useCallback((suggestion) => {
-    // For MVP, we'll display the suggestion details
-    // In full implementation, this would convert keyDirections to actual GPS route
-    notifications.show({
-      title: 'Route Selected',
-      message: `"${suggestion.name}" - Full routing implementation coming soon!`,
-      color: 'blue'
+  // Select an AI suggestion and convert to GPS route
+  const handleSelectAISuggestion = useCallback(async (suggestion, index) => {
+    setConvertingRoute(index);
+    setRouteName(suggestion.name);
+
+    try {
+      notifications.show({
+        id: 'converting-route',
+        title: 'Converting Route',
+        message: `Generating GPS coordinates for "${suggestion.name}"...`,
+        loading: true,
+        autoClose: false
+      });
+
+      // Convert Claude suggestion to actual GPS route using smart router
+      const convertedRoute = await convertClaudeToRoute(suggestion, {
+        mapboxToken: MAPBOX_TOKEN,
+        profile: routeProfile,
+        userSpeed: null // TODO: Get from user's speed profile when Strava import is complete
+      });
+
+      if (convertedRoute && convertedRoute.coordinates) {
+        // Set the route geometry
+        setRouteGeometry(convertedRoute.geometry);
+
+        // Update route stats
+        setRouteStats({
+          distance: convertedRoute.distance.toFixed(1),
+          elevation: convertedRoute.elevationGain || 0,
+          duration: Math.round(convertedRoute.duration)
+        });
+
+        // Track routing source for display
+        setRoutingSource(convertedRoute.routingSource);
+
+        // Clear waypoints since we're using AI-generated route
+        setWaypoints([]);
+
+        notifications.update({
+          id: 'converting-route',
+          title: 'Route Generated!',
+          message: `${convertedRoute.distance.toFixed(1)} km via ${getRoutingSourceLabel(convertedRoute.routingSource)}`,
+          color: 'lime',
+          loading: false,
+          autoClose: 3000
+        });
+      }
+    } catch (error) {
+      console.error('Error converting route:', error);
+      notifications.update({
+        id: 'converting-route',
+        title: 'Conversion Failed',
+        message: error.message || 'Failed to generate GPS route. Please try again.',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    } finally {
+      setConvertingRoute(null);
+    }
+  }, [routeProfile]);
+
+  // Get human-readable label for routing source
+  const getRoutingSourceLabel = (source) => {
+    switch (source) {
+      case 'stadia_maps': return 'Stadia Maps (Valhalla)';
+      case 'brouter': return 'BRouter';
+      case 'brouter_gravel': return 'BRouter Gravel';
+      case 'mapbox_fallback': return 'Mapbox';
+      default: return source || 'Unknown';
+    }
+  };
+
+  // Handle natural language route generation
+  const handleNaturalLanguageGenerate = useCallback(async () => {
+    if (!naturalLanguageInput.trim()) {
+      notifications.show({
+        title: 'Enter a description',
+        message: 'Please describe the route you want (e.g., "40 mile gravel loop")',
+        color: 'yellow'
+      });
+      return;
+    }
+
+    // Parse natural language into structured params
+    const parsed = parseNaturalLanguageRoute(naturalLanguageInput, {
+      lat: viewport.latitude,
+      lng: viewport.longitude
     });
 
-    // Set route name to the suggestion name
-    setRouteName(suggestion.name);
-  }, []);
+    // Update UI with parsed values
+    setTimeAvailable(parsed.timeAvailable);
+    setTrainingGoal(parsed.trainingGoal);
+    setRouteType(parsed.routeType);
+    setRouteProfile(parsed.profile);
+
+    // Generate routes with parsed params
+    setGeneratingAI(true);
+    try {
+      const suggestions = await generateClaudeRoutes({
+        startLocation: parsed.startLocation,
+        timeAvailable: parsed.timeAvailable,
+        trainingGoal: parsed.trainingGoal,
+        routeType: parsed.routeType
+      });
+
+      setAiSuggestions(suggestions);
+      notifications.show({
+        title: 'Routes Generated!',
+        message: `Found ${suggestions.length} ${parsed.profile} routes matching "${naturalLanguageInput}"`,
+        color: 'lime'
+      });
+    } catch (error) {
+      console.error('Natural language route generation error:', error);
+      notifications.show({
+        title: 'Generation Failed',
+        message: error.message || 'Failed to generate routes. Please try again.',
+        color: 'red'
+      });
+    } finally {
+      setGeneratingAI(false);
+    }
+  }, [naturalLanguageInput, viewport]);
 
   return (
     <AppShell fullWidth>
@@ -187,6 +301,64 @@ function RouteBuilder() {
             </Box>
 
             <Divider label="AI Route Generator" labelPosition="center" />
+
+            {/* Natural Language Input */}
+            <Box>
+              <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                DESCRIBE YOUR RIDE
+              </Text>
+              <Textarea
+                placeholder="e.g., '40 mile gravel loop' or '2 hour recovery ride on bike paths'"
+                value={naturalLanguageInput}
+                onChange={(e) => setNaturalLanguageInput(e.target.value)}
+                minRows={2}
+                maxRows={3}
+                size="sm"
+                variant="filled"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleNaturalLanguageGenerate();
+                  }
+                }}
+              />
+              <Button
+                onClick={handleNaturalLanguageGenerate}
+                loading={generatingAI}
+                leftSection={<IconSparkles size={16} />}
+                color="lime"
+                variant="light"
+                size="xs"
+                mt="xs"
+                fullWidth
+              >
+                Generate from Description
+              </Button>
+            </Box>
+
+            <Divider label="or configure manually" labelPosition="center" size="xs" />
+
+            {/* Route Profile Selector */}
+            <Box>
+              <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                ROUTE PROFILE
+              </Text>
+              <SegmentedControl
+                value={routeProfile}
+                onChange={setRouteProfile}
+                fullWidth
+                size="xs"
+                data={[
+                  { label: '🚴 Road', value: 'road' },
+                  { label: '🌲 Gravel', value: 'gravel' },
+                  { label: '⛰️ MTB', value: 'mountain' },
+                  { label: '🏙️ Commute', value: 'commuting' }
+                ]}
+                styles={{
+                  root: { backgroundColor: tokens.colors.bgTertiary }
+                }}
+              />
+            </Box>
 
             {/* AI Route Generation Controls */}
             <Box>
@@ -267,11 +439,12 @@ function RouteBuilder() {
                       padding="sm"
                       style={{
                         backgroundColor: tokens.colors.bgTertiary,
-                        cursor: 'pointer',
-                        border: `1px solid ${tokens.colors.bgPrimary}`,
-                        transition: 'all 0.2s'
+                        cursor: convertingRoute !== null ? 'wait' : 'pointer',
+                        border: `1px solid ${convertingRoute === index ? tokens.colors.electricLime : tokens.colors.bgPrimary}`,
+                        transition: 'all 0.2s',
+                        opacity: convertingRoute !== null && convertingRoute !== index ? 0.5 : 1
                       }}
-                      onClick={() => handleSelectAISuggestion(suggestion)}
+                      onClick={() => convertingRoute === null && handleSelectAISuggestion(suggestion, index)}
                     >
                       <Stack gap="xs">
                         <Group justify="space-between" align="flex-start">
@@ -309,10 +482,12 @@ function RouteBuilder() {
                           size="xs"
                           variant="light"
                           color="lime"
-                          leftSection={<IconRoute size={14} />}
+                          leftSection={convertingRoute === index ? <Loader size={14} /> : <IconRoute size={14} />}
                           fullWidth
+                          disabled={convertingRoute !== null}
+                          loading={convertingRoute === index}
                         >
-                          Select Route
+                          {convertingRoute === index ? 'Converting...' : 'Select & Generate Route'}
                         </Button>
                       </Stack>
                     </Card>
@@ -341,13 +516,13 @@ function RouteBuilder() {
               </Group>
               <Group justify="space-between" mb="xs">
                 <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                  Waypoints
+                  Elevation
                 </Text>
                 <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
-                  {waypoints.length}
+                  {routeStats.elevation > 0 ? `${routeStats.elevation}m ↗` : '--'}
                 </Text>
               </Group>
-              <Group justify="space-between">
+              <Group justify="space-between" mb="xs">
                 <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
                   Est. Time
                 </Text>
@@ -355,6 +530,20 @@ function RouteBuilder() {
                   {routeStats.duration > 0 ? `${Math.floor(routeStats.duration / 60)}h ${routeStats.duration % 60}m` : '--:--'}
                 </Text>
               </Group>
+              {routingSource && (
+                <Group justify="space-between">
+                  <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                    Powered by
+                  </Text>
+                  <Tooltip label={getRoutingSourceLabel(routingSource)}>
+                    <Badge size="xs" variant="light" color="blue">
+                      {routingSource === 'stadia_maps' ? 'Valhalla' :
+                       routingSource === 'brouter' || routingSource === 'brouter_gravel' ? 'BRouter' :
+                       'Mapbox'}
+                    </Badge>
+                  </Tooltip>
+                </Group>
+              )}
             </Box>
 
             {/* Instructions */}
