@@ -229,6 +229,146 @@ export class StravaService {
       throw error;
     }
   }
+
+  /**
+   * Sync activities from Strava (server-side)
+   */
+  async syncActivities(page = 1, perPage = 50) {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      console.log('📥 Syncing Strava activities...');
+
+      const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'sync_activities',
+          userId,
+          page,
+          perPage
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to sync activities');
+      }
+
+      const data = await response.json();
+      console.log(`✅ Synced ${data.stored} activities`);
+      return data;
+
+    } catch (error) {
+      console.error('Error syncing Strava activities:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sync all activities (multiple pages)
+   */
+  async syncAllActivities(onProgress = null) {
+    let page = 1;
+    let totalSynced = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      if (onProgress) {
+        onProgress({ page, totalSynced });
+      }
+
+      const result = await this.syncActivities(page, 100);
+      totalSynced += result.stored;
+      hasMore = result.hasMore;
+      page++;
+
+      // Safety limit
+      if (page > 20) {
+        console.warn('Reached sync page limit');
+        break;
+      }
+    }
+
+    return { totalSynced, pages: page - 1 };
+  }
+
+  /**
+   * Get user's speed profile
+   */
+  async getSpeedProfile() {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'get_speed_profile',
+          userId
+        })
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      return data.profile;
+
+    } catch (error) {
+      console.error('Error getting speed profile:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Recalculate speed profile
+   */
+  async calculateSpeedProfile() {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'calculate_speed_profile',
+          userId
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to calculate speed profile');
+      }
+
+      const data = await response.json();
+      return data.profile;
+
+    } catch (error) {
+      console.error('Error calculating speed profile:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

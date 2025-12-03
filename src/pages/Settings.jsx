@@ -28,6 +28,8 @@ function Settings() {
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [stravaStatus, setStravaStatus] = useState({ connected: false, loading: true });
+  const [stravaSyncing, setStravaSyncing] = useState(false);
+  const [speedProfile, setSpeedProfile] = useState(null);
 
   // Form state
   const [displayName, setDisplayName] = useState('');
@@ -65,12 +67,18 @@ function Settings() {
     loadProfile();
   }, [user]);
 
-  // Load Strava connection status
+  // Load Strava connection status and speed profile
   useEffect(() => {
     const loadStravaStatus = async () => {
       try {
         const status = await stravaService.getConnectionStatus();
         setStravaStatus({ ...status, loading: false });
+
+        // Load speed profile if connected
+        if (status.connected) {
+          const profile = await stravaService.getSpeedProfile();
+          setSpeedProfile(profile);
+        }
       } catch (error) {
         console.error('Error loading Strava status:', error);
         setStravaStatus({ connected: false, loading: false });
@@ -147,6 +155,7 @@ function Settings() {
     try {
       await stravaService.disconnect();
       setStravaStatus({ connected: false, loading: false });
+      setSpeedProfile(null);
       notifications.show({
         title: 'Disconnected',
         message: 'Strava has been disconnected',
@@ -159,6 +168,54 @@ function Settings() {
         message: 'Failed to disconnect Strava',
         color: 'red',
       });
+    }
+  };
+
+  const syncStravaActivities = async () => {
+    setStravaSyncing(true);
+    try {
+      notifications.show({
+        id: 'strava-sync',
+        title: 'Syncing Activities',
+        message: 'Fetching your recent rides from Strava...',
+        loading: true,
+        autoClose: false
+      });
+
+      const result = await stravaService.syncAllActivities((progress) => {
+        notifications.update({
+          id: 'strava-sync',
+          title: 'Syncing Activities',
+          message: `Page ${progress.page}... ${progress.totalSynced} activities synced`,
+          loading: true,
+          autoClose: false
+        });
+      });
+
+      // Reload speed profile
+      const profile = await stravaService.getSpeedProfile();
+      setSpeedProfile(profile);
+
+      notifications.update({
+        id: 'strava-sync',
+        title: 'Sync Complete!',
+        message: `Synced ${result.totalSynced} activities. Speed profile ${profile ? 'updated' : 'needs more data'}.`,
+        color: 'lime',
+        loading: false,
+        autoClose: 5000
+      });
+    } catch (error) {
+      console.error('Error syncing Strava:', error);
+      notifications.update({
+        id: 'strava-sync',
+        title: 'Sync Failed',
+        message: error.message || 'Failed to sync activities',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    } finally {
+      setStravaSyncing(false);
     }
   };
 
@@ -262,6 +319,9 @@ function Settings() {
                 loading={stravaStatus.loading}
                 onConnect={connectStrava}
                 onDisconnect={disconnectStrava}
+                onSync={syncStravaActivities}
+                syncing={stravaSyncing}
+                speedProfile={speedProfile}
               />
 
               <Divider />
@@ -335,7 +395,7 @@ function Settings() {
   );
 }
 
-function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect }) {
+function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile }) {
   if (loading) {
     return (
       <Group justify="space-between">
@@ -349,35 +409,75 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
   }
 
   return (
-    <Group justify="space-between">
-      <Group>
-        <Text size="xl">{icon}</Text>
-        <Box>
-          <Text style={{ color: tokens.colors.textPrimary }}>{name}</Text>
-          {connected && username && (
-            <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-              Connected as {username}
-            </Text>
-          )}
-        </Box>
-      </Group>
-      <Group>
-        {connected ? (
-          <>
-            <Badge color="green" variant="light">
-              Connected
-            </Badge>
-            <Button variant="subtle" color="red" size="sm" onClick={onDisconnect}>
-              Disconnect
+    <Stack gap="xs">
+      <Group justify="space-between">
+        <Group>
+          <Text size="xl">{icon}</Text>
+          <Box>
+            <Text style={{ color: tokens.colors.textPrimary }}>{name}</Text>
+            {connected && username && (
+              <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                Connected as {username}
+              </Text>
+            )}
+          </Box>
+        </Group>
+        <Group>
+          {connected ? (
+            <>
+              <Badge color="green" variant="light">
+                Connected
+              </Badge>
+              <Button variant="subtle" color="red" size="sm" onClick={onDisconnect}>
+                Disconnect
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" color="lime" size="sm" onClick={onConnect}>
+              Connect
             </Button>
-          </>
-        ) : (
-          <Button variant="outline" color="lime" size="sm" onClick={onConnect}>
-            Connect
-          </Button>
-        )}
+          )}
+        </Group>
       </Group>
-    </Group>
+
+      {/* Sync and Speed Profile (only for Strava when connected) */}
+      {connected && onSync && (
+        <Box
+          style={{
+            backgroundColor: tokens.colors.bgTertiary,
+            padding: tokens.spacing.sm,
+            borderRadius: tokens.radius.sm,
+            marginLeft: '2.5rem'
+          }}
+        >
+          <Group justify="space-between" align="flex-start">
+            <Box>
+              <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
+                Activity Sync
+              </Text>
+              {speedProfile ? (
+                <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                  {speedProfile.rides_analyzed} rides analyzed • Avg: {speedProfile.average_speed?.toFixed(1)} km/h
+                </Text>
+              ) : (
+                <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                  Sync to calculate your speed profile
+                </Text>
+              )}
+            </Box>
+            <Button
+              size="xs"
+              color="lime"
+              variant="light"
+              onClick={onSync}
+              loading={syncing}
+            >
+              {syncing ? 'Syncing...' : 'Sync Activities'}
+            </Button>
+          </Group>
+        </Box>
+      )}
+    </Stack>
   );
 }
 
