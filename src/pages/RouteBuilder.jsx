@@ -1,10 +1,13 @@
 import { useState, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, ActionIcon } from '@mantine/core';
+import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, SegmentedControl, NumberInput, Select, Card, Badge, Divider } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { IconSparkles, IconRoute } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
+import { generateClaudeRoutes } from '../utils/claudeRouteService';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -17,6 +20,13 @@ function RouteBuilder() {
   const [isCalculating, setIsCalculating] = useState(false);
   const mapRef = useRef();
   const isEditing = !!routeId;
+
+  // AI Route Generation State
+  const [trainingGoal, setTrainingGoal] = useState('endurance');
+  const [timeAvailable, setTimeAvailable] = useState(60);
+  const [routeType, setRouteType] = useState('loop');
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [generatingAI, setGeneratingAI] = useState(false);
 
   const [viewport, setViewport] = useState({
     latitude: 37.7749,
@@ -102,6 +112,52 @@ function RouteBuilder() {
     URL.revokeObjectURL(url);
   }, [routeName, routeGeometry, waypoints]);
 
+  // Generate AI Routes
+  const handleGenerateAIRoutes = useCallback(async () => {
+    setGeneratingAI(true);
+    try {
+      const suggestions = await generateClaudeRoutes({
+        startLocation: {
+          lat: viewport.latitude,
+          lng: viewport.longitude
+        },
+        timeAvailable,
+        trainingGoal,
+        routeType
+      });
+
+      setAiSuggestions(suggestions);
+      notifications.show({
+        title: 'Routes Generated!',
+        message: `Found ${suggestions.length} routes for your ${trainingGoal} session`,
+        color: 'lime'
+      });
+    } catch (error) {
+      console.error('AI route generation error:', error);
+      notifications.show({
+        title: 'Generation Failed',
+        message: error.message || 'Failed to generate routes. Please try again.',
+        color: 'red'
+      });
+    } finally {
+      setGeneratingAI(false);
+    }
+  }, [viewport, timeAvailable, trainingGoal, routeType]);
+
+  // Select an AI suggestion
+  const handleSelectAISuggestion = useCallback((suggestion) => {
+    // For MVP, we'll display the suggestion details
+    // In full implementation, this would convert keyDirections to actual GPS route
+    notifications.show({
+      title: 'Route Selected',
+      message: `"${suggestion.name}" - Full routing implementation coming soon!`,
+      color: 'blue'
+    });
+
+    // Set route name to the suggestion name
+    setRouteName(suggestion.name);
+  }, []);
+
   return (
     <AppShell fullWidth>
       <Box style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
@@ -129,6 +185,143 @@ function RouteBuilder() {
                 size="md"
               />
             </Box>
+
+            <Divider label="AI Route Generator" labelPosition="center" />
+
+            {/* AI Route Generation Controls */}
+            <Box>
+              <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                TRAINING GOAL
+              </Text>
+              <SegmentedControl
+                value={trainingGoal}
+                onChange={setTrainingGoal}
+                fullWidth
+                size="xs"
+                data={[
+                  { label: 'Recovery', value: 'recovery' },
+                  { label: 'Endurance', value: 'endurance' },
+                  { label: 'Intervals', value: 'intervals' },
+                  { label: 'Hills', value: 'hills' }
+                ]}
+                styles={{
+                  root: { backgroundColor: tokens.colors.bgTertiary }
+                }}
+              />
+            </Box>
+
+            <Group grow>
+              <Box>
+                <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                  TIME (MIN)
+                </Text>
+                <NumberInput
+                  value={timeAvailable}
+                  onChange={setTimeAvailable}
+                  min={15}
+                  max={480}
+                  step={15}
+                  size="sm"
+                  variant="filled"
+                />
+              </Box>
+
+              <Box>
+                <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                  ROUTE TYPE
+                </Text>
+                <Select
+                  value={routeType}
+                  onChange={setRouteType}
+                  size="sm"
+                  variant="filled"
+                  data={[
+                    { value: 'loop', label: 'Loop' },
+                    { value: 'out_back', label: 'Out & Back' },
+                    { value: 'point_to_point', label: 'Point to Point' }
+                  ]}
+                />
+              </Box>
+            </Group>
+
+            <Button
+              onClick={handleGenerateAIRoutes}
+              loading={generatingAI}
+              leftSection={<IconSparkles size={18} />}
+              color="lime"
+              fullWidth
+            >
+              {generatingAI ? 'Generating Routes...' : 'Generate AI Routes'}
+            </Button>
+
+            {/* AI Suggestions Display */}
+            {aiSuggestions.length > 0 && (
+              <Box>
+                <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                  AI SUGGESTIONS ({aiSuggestions.length})
+                </Text>
+                <Stack gap="xs" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  {aiSuggestions.map((suggestion, index) => (
+                    <Card
+                      key={index}
+                      padding="sm"
+                      style={{
+                        backgroundColor: tokens.colors.bgTertiary,
+                        cursor: 'pointer',
+                        border: `1px solid ${tokens.colors.bgPrimary}`,
+                        transition: 'all 0.2s'
+                      }}
+                      onClick={() => handleSelectAISuggestion(suggestion)}
+                    >
+                      <Stack gap="xs">
+                        <Group justify="space-between" align="flex-start">
+                          <Text fw={600} size="sm" style={{ color: tokens.colors.textPrimary, flex: 1 }}>
+                            {suggestion.name}
+                          </Text>
+                          <Badge
+                            size="xs"
+                            color={
+                              suggestion.difficulty === 'easy' ? 'green' :
+                              suggestion.difficulty === 'moderate' ? 'yellow' :
+                              'red'
+                            }
+                          >
+                            {suggestion.difficulty}
+                          </Badge>
+                        </Group>
+                        <Text size="xs" style={{ color: tokens.colors.textSecondary }} lineClamp={2}>
+                          {suggestion.description}
+                        </Text>
+                        <Group gap="xs">
+                          <Badge variant="outline" size="xs">
+                            {suggestion.distance} km
+                          </Badge>
+                          {suggestion.elevationGain > 0 && (
+                            <Badge variant="outline" size="xs">
+                              {suggestion.elevationGain}m ↗
+                            </Badge>
+                          )}
+                          <Badge variant="light" size="xs" color="lime">
+                            {suggestion.estimatedTime}min
+                          </Badge>
+                        </Group>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="lime"
+                          leftSection={<IconRoute size={14} />}
+                          fullWidth
+                        >
+                          Select Route
+                        </Button>
+                      </Stack>
+                    </Card>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            <Divider />
 
             {/* Route Stats */}
             <Box
