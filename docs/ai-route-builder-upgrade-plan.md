@@ -113,25 +113,25 @@ Display on map + stats
 4. **No geometric fallbacks** - If routing fails, show error rather than fake route
 5. **Minimal complexity** - Only port what's absolutely needed
 
-## Open Questions (Need Your Input)
+## Decisions Made
 
-### 1. Stadia Maps API Key
-Do you already have a Stadia Maps API key configured? Their free tier gives 10,000 routes/month. If not, we can set it up to gracefully fall back to Mapbox.
+1. **Stadia Maps API Key** - ✅ Have key, will use as primary router
+2. **Natural Language Route Input** - ✅ Include the natural language feature
+3. **Training Plan Integration** - ✅ Full training plans from Supabase (cleaned up version)
+4. **BRouter for Gravel** - ✅ Include as fallback for gravel routes
+5. **Speed Profile** - ✅ Include speed profile learning from past rides
+6. **Strava Import** - ✅ Need to finish Strava import to populate ride history for speed profiles
 
-### 2. Natural Language Route Input
-The OLD version had a sophisticated natural language feature where you could type things like "40 mile loop from Boulder through the mountains with gravel roads." Do you want this feature included, or should we focus on the simpler structured UI?
+## Additional Phase: Strava Import Completion
 
-### 3. Training Plan Integration
-For this rebuild, should we:
-- **Keep it simple**: Just training goal (endurance/intervals/recovery/hills) and time available
-- **Add workout library**: Include the workout selector with 40+ pre-built workouts
-- **Full integration**: Connect to training plans from Supabase
+### Phase 5: Complete Strava Import
+**Purpose:** Speed profiles need ride history data from Strava
 
-### 4. BRouter for Gravel
-Should I include BRouter as a fallback for gravel routes, or is Stadia's gravel profile sufficient?
-
-### 5. Speed Profile
-The OLD version learned your actual riding speed from past rides to calculate more accurate distances. Should we include this feature? (It's separate from the problematic "pattern analysis" that caused junk routes)
+**Tasks:**
+- Review current Strava connection status
+- Complete ride import functionality
+- Store rides in Supabase for speed analysis
+- Calculate speed profiles from imported rides
 
 ## Testing Checklist
 - [ ] Generate AI route for 60min endurance ride
