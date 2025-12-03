@@ -5,6 +5,7 @@
   "description": "Cycling training platform - tribos.studio",
   "scripts": {
     "dev": "vite",
+    "dev:vercel": "vercel dev",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .js,.jsx"
