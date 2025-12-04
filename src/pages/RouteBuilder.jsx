@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -45,11 +45,53 @@ function RouteBuilder() {
   const [isSaving, setIsSaving] = useState(false);
   const [loadingRoute, setLoadingRoute] = useState(false);
 
+  // Location search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
+
   const [viewport, setViewport] = useState({
     latitude: 37.7749,
     longitude: -122.4194,
     zoom: 12
   });
+
+  // Geolocate user on mount
+  useEffect(() => {
+    if (routeId) return; // Don't geolocate if loading existing route
+
+    const geolocateUser = () => {
+      if (!navigator.geolocation) {
+        console.log('Geolocation not supported');
+        return;
+      }
+
+      setIsLocating(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setUserLocation({ latitude, longitude });
+          setViewport(v => ({
+            ...v,
+            latitude,
+            longitude,
+            zoom: 13
+          }));
+          setIsLocating(false);
+          console.log('📍 Geolocated to:', latitude, longitude);
+        },
+        (error) => {
+          console.log('Geolocation error:', error.message);
+          setIsLocating(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+      );
+    };
+
+    geolocateUser();
+  }, [routeId]);
 
   // Load user's speed profile on mount
   useEffect(() => {
@@ -440,6 +482,89 @@ function RouteBuilder() {
     }
   }, [naturalLanguageInput, viewport]);
 
+  // Search for address using Mapbox Geocoding API
+  const handleAddressSearch = useCallback(async (query) => {
+    if (!query || query.length < 3) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?` +
+        `access_token=${MAPBOX_TOKEN}&types=address,place,locality,neighborhood,poi&limit=5`
+      );
+      const data = await response.json();
+
+      if (data.features) {
+        setSearchResults(data.features.map(f => ({
+          id: f.id,
+          name: f.place_name,
+          center: f.center, // [lng, lat]
+        })));
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // Handle selecting a search result
+  const handleSelectSearchResult = useCallback((result) => {
+    const [lng, lat] = result.center;
+    setViewport(v => ({
+      ...v,
+      latitude: lat,
+      longitude: lng,
+      zoom: 14
+    }));
+    setSearchQuery('');
+    setSearchResults([]);
+  }, []);
+
+  // Handle "My Location" button click
+  const handleGeolocate = useCallback(() => {
+    if (!navigator.geolocation) {
+      notifications.show({
+        title: 'Not Supported',
+        message: 'Geolocation is not supported by your browser',
+        color: 'yellow'
+      });
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ latitude, longitude });
+        setViewport(v => ({
+          ...v,
+          latitude,
+          longitude,
+          zoom: 14
+        }));
+        setIsLocating(false);
+        notifications.show({
+          title: 'Location Found',
+          message: 'Map centered on your current location',
+          color: 'lime'
+        });
+      },
+      (error) => {
+        setIsLocating(false);
+        notifications.show({
+          title: 'Location Error',
+          message: error.message || 'Could not get your location',
+          color: 'red'
+        });
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, []);
+
   // Show loading state when loading existing route
   if (loadingRoute) {
     return (
@@ -795,6 +920,109 @@ function RouteBuilder() {
 
         {/* Map Container */}
         <Box style={{ flex: 1, position: 'relative' }}>
+          {/* Search Bar and Location Button */}
+          {MAPBOX_TOKEN && (
+            <Box
+              style={{
+                position: 'absolute',
+                top: 16,
+                left: 16,
+                right: 16,
+                zIndex: 10,
+                display: 'flex',
+                gap: 8,
+                maxWidth: 500,
+              }}
+            >
+              <Box style={{ flex: 1, position: 'relative' }}>
+                <TextInput
+                  placeholder="Search for an address or place..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    handleAddressSearch(e.target.value);
+                  }}
+                  leftSection={<IconSearch size={16} />}
+                  rightSection={
+                    searchQuery ? (
+                      <IconX
+                        size={16}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          setSearchQuery('');
+                          setSearchResults([]);
+                        }}
+                      />
+                    ) : isSearching ? (
+                      <Loader size={14} />
+                    ) : null
+                  }
+                  styles={{
+                    input: {
+                      backgroundColor: tokens.colors.bgSecondary,
+                      borderColor: tokens.colors.bgTertiary,
+                      '&:focus': {
+                        borderColor: tokens.colors.electricLime,
+                      },
+                    },
+                  }}
+                />
+                {/* Search Results Dropdown */}
+                {searchResults.length > 0 && (
+                  <Paper
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: 4,
+                      backgroundColor: tokens.colors.bgSecondary,
+                      border: `1px solid ${tokens.colors.bgTertiary}`,
+                      borderRadius: tokens.radius.sm,
+                      overflow: 'hidden',
+                      zIndex: 20,
+                    }}
+                  >
+                    {searchResults.map((result) => (
+                      <Box
+                        key={result.id}
+                        onClick={() => handleSelectSearchResult(result)}
+                        style={{
+                          padding: '10px 12px',
+                          cursor: 'pointer',
+                          borderBottom: `1px solid ${tokens.colors.bgTertiary}`,
+                          transition: 'background-color 0.15s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = tokens.colors.bgTertiary;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
+                          {result.name}
+                        </Text>
+                      </Box>
+                    ))}
+                  </Paper>
+                )}
+              </Box>
+              <Tooltip label="My Location">
+                <Button
+                  variant="filled"
+                  color="lime"
+                  size="md"
+                  onClick={handleGeolocate}
+                  loading={isLocating}
+                  style={{ padding: '0 12px' }}
+                >
+                  <IconCurrentLocation size={20} />
+                </Button>
+              </Tooltip>
+            </Box>
+          )}
+
           {MAPBOX_TOKEN ? (
             <Map
               ref={mapRef}
@@ -819,6 +1047,24 @@ function RouteBuilder() {
                     }}
                   />
                 </Source>
+              )}
+
+              {/* Render user location marker */}
+              {userLocation && (
+                <Marker
+                  longitude={userLocation.longitude}
+                  latitude={userLocation.latitude}
+                  anchor="center"
+                >
+                  <div style={{
+                    width: 16,
+                    height: 16,
+                    backgroundColor: '#3b82f6',
+                    borderRadius: '50%',
+                    border: '3px solid white',
+                    boxShadow: '0 0 0 2px #3b82f6, 0 2px 8px rgba(59, 130, 246, 0.5)',
+                  }} />
+                </Marker>
               )}
 
               {/* Render waypoint markers */}
