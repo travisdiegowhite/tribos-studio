@@ -234,23 +234,29 @@ function calculateTargetDistance(timeMinutes, trainingGoal) {
  * @param {string} options.mapboxToken - Mapbox token for fallback
  * @param {string} options.profile - Route profile: 'road', 'gravel', 'mountain', 'commuting'
  * @param {number} options.userSpeed - Optional personalized cycling speed in km/h
+ * @param {number} options.routeIndex - Index of this route (0, 1, 2) for variation
  * @returns {Promise<Object>} Route with GPS coordinates
  */
 export async function convertClaudeToRoute(claudeRoute, options = {}) {
   const {
     mapboxToken,
     profile = 'road',
-    userSpeed = null
+    userSpeed = null,
+    routeIndex = 0
   } = typeof options === 'string' ? { mapboxToken: options } : options;
 
   console.log('🚴 Converting Claude route to GPS coordinates:', claudeRoute.name);
-  console.log('📍 Profile:', profile);
+  console.log('📍 Profile:', profile, '| Route Index:', routeIndex);
 
-  const { startLocation, distance, routeType, trainingGoal } = claudeRoute;
+  const { startLocation, distance, routeType, trainingGoal, keyDirections } = claudeRoute;
 
   try {
-    // Generate waypoints based on route type and distance
-    const waypoints = generateRouteWaypoints(startLocation, distance, routeType || 'loop');
+    // Generate waypoints based on route type, distance, and route index for variation
+    const waypoints = generateRouteWaypoints(startLocation, distance, routeType || 'loop', {
+      routeIndex,
+      keyDirections,
+      trainingGoal
+    });
 
     // Convert waypoints to [lon, lat] format for smart router
     const waypointsArray = waypoints.map(wp => [wp.lng, wp.lat]);
@@ -301,27 +307,90 @@ export async function convertClaudeToRoute(claudeRoute, options = {}) {
 }
 
 /**
- * Generate waypoints for route based on start location, distance, and type
+ * Parse direction from key directions text (e.g., "Head north" -> 0 degrees)
  */
-function generateRouteWaypoints(startLocation, targetDistanceKm, routeType) {
+function parseDirectionFromText(keyDirections) {
+  if (!keyDirections || keyDirections.length === 0) return null;
+
+  const directionText = keyDirections.join(' ').toLowerCase();
+
+  // Cardinal and ordinal directions in degrees (0 = north, clockwise)
+  const directions = {
+    'north': 0, 'n ': 0,
+    'northeast': 45, 'ne ': 45,
+    'east': 90, 'e ': 90,
+    'southeast': 135, 'se ': 135,
+    'south': 180, 's ': 180,
+    'southwest': 225, 'sw ': 225,
+    'west': 270, 'w ': 270,
+    'northwest': 315, 'nw ': 315
+  };
+
+  for (const [dir, angle] of Object.entries(directions)) {
+    if (directionText.includes(dir)) {
+      return angle;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Generate waypoints for route based on start location, distance, and type
+ * Creates distinct routes by using different base directions for each route index
+ */
+function generateRouteWaypoints(startLocation, targetDistanceKm, routeType, options = {}) {
   const { lat, lng } = startLocation;
+  const { routeIndex = 0, keyDirections = [], trainingGoal = 'endurance' } = options;
 
   // Approximate degrees per km (rough calculation for latitude)
   const degreesPerKm = 1 / 111; // ~111km per degree latitude
+  const lngCorrection = Math.cos(lat * Math.PI / 180);
 
-  // For MVP, generate simple geometric routes
-  // In production, this would use Claude's keyDirections or local knowledge
+  // Try to parse direction from Claude's keyDirections
+  const parsedDirection = parseDirectionFromText(keyDirections);
+
+  // Base directions for each route index (spread apart by 120 degrees for 3 routes)
+  // Route 0: North-ish, Route 1: Southeast-ish, Route 2: Southwest-ish
+  const baseDirections = [0, 120, 240];
+
+  // Use parsed direction if available, otherwise use route-index-based direction
+  let baseAngle = parsedDirection !== null
+    ? parsedDirection
+    : baseDirections[routeIndex % baseDirections.length];
+
+  // Add some randomness to prevent exact same routes on repeated requests
+  // But keep it deterministic within a session by using route index
+  const angleVariation = ((routeIndex * 17) % 30) - 15; // -15 to +15 degrees variation
+  baseAngle = (baseAngle + angleVariation + 360) % 360;
+
+  // Convert to radians
+  const baseAngleRad = (baseAngle * Math.PI) / 180;
+
+  console.log(`📐 Route ${routeIndex}: Base direction ${baseAngle.toFixed(0)}° (${getDirectionName(baseAngle)})`);
 
   if (routeType === 'loop') {
-    // Create a loop route with 4-6 waypoints
-    const numWaypoints = 5;
-    const radiusKm = targetDistanceKm / (Math.PI * 2); // Approximate circular loop
+    // Create varied loop shapes based on route index
+    // Different shapes: elongated, figure-8 influenced, cloverleaf influenced
+    const numWaypoints = 5 + (routeIndex % 3); // 5, 6, or 7 waypoints for variety
+    const radiusKm = targetDistanceKm / (Math.PI * 2); // Base radius
     const waypoints = [];
 
+    // Shape variation based on route index
+    const shapeFactors = [
+      { xStretch: 1.3, yStretch: 0.8 },   // Route 0: East-west elongated
+      { xStretch: 0.8, yStretch: 1.3 },   // Route 1: North-south elongated
+      { xStretch: 1.1, yStretch: 1.1 }    // Route 2: More circular
+    ];
+    const shape = shapeFactors[routeIndex % shapeFactors.length];
+
     for (let i = 0; i < numWaypoints; i++) {
-      const angle = (i / numWaypoints) * Math.PI * 2;
-      const latOffset = Math.cos(angle) * radiusKm * degreesPerKm;
-      const lngOffset = Math.sin(angle) * radiusKm * degreesPerKm / Math.cos(lat * Math.PI / 180);
+      // Start from base angle and go around
+      const angle = baseAngleRad + (i / numWaypoints) * Math.PI * 2;
+
+      // Apply shape distortion
+      const latOffset = Math.cos(angle) * radiusKm * shape.yStretch * degreesPerKm;
+      const lngOffset = Math.sin(angle) * radiusKm * shape.xStretch * degreesPerKm / lngCorrection;
 
       waypoints.push({
         lat: lat + latOffset,
@@ -335,31 +404,68 @@ function generateRouteWaypoints(startLocation, targetDistanceKm, routeType) {
     return waypoints;
 
   } else if (routeType === 'out_back') {
-    // Simple out-and-back route
+    // Out-and-back with direction based on route index
     const halfDistance = targetDistanceKm / 2;
-    const bearing = Math.random() * Math.PI * 2; // Random direction
 
-    const endLat = lat + Math.cos(bearing) * halfDistance * degreesPerKm;
-    const endLng = lng + Math.sin(bearing) * halfDistance * degreesPerKm / Math.cos(lat * Math.PI / 180);
+    // Add intermediate waypoints for more realistic routing
+    const numIntermediatePoints = 2 + routeIndex; // More points for variety
+    const waypoints = [{ lat, lng }];
 
-    return [
-      { lat, lng },
-      { lat: endLat, lng: endLng },
-      { lat, lng } // Return to start
-    ];
+    for (let i = 1; i <= numIntermediatePoints; i++) {
+      const fraction = i / (numIntermediatePoints + 1);
+      // Add slight curve variation
+      const curveOffset = Math.sin(fraction * Math.PI) * 0.1 * (routeIndex + 1);
+      const perpAngle = baseAngleRad + Math.PI / 2;
+
+      const pointLat = lat + Math.cos(baseAngleRad) * halfDistance * fraction * degreesPerKm +
+                       Math.cos(perpAngle) * curveOffset * degreesPerKm;
+      const pointLng = lng + Math.sin(baseAngleRad) * halfDistance * fraction * degreesPerKm / lngCorrection +
+                       Math.sin(perpAngle) * curveOffset * degreesPerKm / lngCorrection;
+
+      waypoints.push({ lat: pointLat, lng: pointLng });
+    }
+
+    // End point
+    const endLat = lat + Math.cos(baseAngleRad) * halfDistance * degreesPerKm;
+    const endLng = lng + Math.sin(baseAngleRad) * halfDistance * degreesPerKm / lngCorrection;
+    waypoints.push({ lat: endLat, lng: endLng });
+
+    // Return path (reversed)
+    for (let i = numIntermediatePoints; i >= 1; i--) {
+      waypoints.push(waypoints[i]);
+    }
+    waypoints.push({ lat, lng });
+
+    return waypoints;
 
   } else {
-    // point_to_point
-    const bearing = Math.random() * Math.PI * 2; // Random direction
+    // point_to_point with intermediate waypoints
+    const waypoints = [{ lat, lng }];
+    const numIntermediatePoints = 2 + routeIndex;
 
-    const endLat = lat + Math.cos(bearing) * targetDistanceKm * degreesPerKm;
-    const endLng = lng + Math.sin(bearing) * targetDistanceKm * degreesPerKm / Math.cos(lat * Math.PI / 180);
+    for (let i = 1; i <= numIntermediatePoints; i++) {
+      const fraction = i / (numIntermediatePoints + 1);
+      const pointLat = lat + Math.cos(baseAngleRad) * targetDistanceKm * fraction * degreesPerKm;
+      const pointLng = lng + Math.sin(baseAngleRad) * targetDistanceKm * fraction * degreesPerKm / lngCorrection;
+      waypoints.push({ lat: pointLat, lng: pointLng });
+    }
 
-    return [
-      { lat, lng },
-      { lat: endLat, lng: endLng }
-    ];
+    // End point
+    const endLat = lat + Math.cos(baseAngleRad) * targetDistanceKm * degreesPerKm;
+    const endLng = lng + Math.sin(baseAngleRad) * targetDistanceKm * degreesPerKm / lngCorrection;
+    waypoints.push({ lat: endLat, lng: endLng });
+
+    return waypoints;
   }
+}
+
+/**
+ * Get human-readable direction name from angle
+ */
+function getDirectionName(angle) {
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const index = Math.round(angle / 45) % 8;
+  return directions[index];
 }
 
 /**

@@ -373,10 +373,12 @@ function RouteBuilder() {
       });
 
       // Convert Claude suggestion to actual GPS route using smart router
+      // Pass routeIndex to generate distinct route directions
       const convertedRoute = await convertClaudeToRoute(suggestion, {
         mapboxToken: MAPBOX_TOKEN,
         profile: routeProfile,
-        userSpeed // Use personalized speed from Strava data
+        userSpeed, // Use personalized speed from Strava data
+        routeIndex: index // Each route uses different direction for variety
       });
 
       if (convertedRoute && convertedRoute.coordinates) {
