@@ -12,12 +12,19 @@ import {
   Badge,
   Loader,
   Button,
+  Tabs,
+  Paper,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
+import { IconRobot, IconBarbell, IconChartLine, IconListCheck, IconCalendarEvent, IconClock, IconFlame } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
+import AICoach from '../components/AICoach.jsx';
+import { WORKOUT_LIBRARY, getWorkoutsByCategory } from '../data/workoutLibrary';
+import { getAllPlans } from '../data/trainingPlanTemplates';
 
 function TrainingDashboard() {
   const { user } = useAuth();
@@ -216,14 +223,16 @@ function TrainingDashboard() {
       <Container size="xl" py="xl">
         <Stack gap="xl">
           {/* Header */}
-          <Box>
-            <Title order={1} style={{ color: tokens.colors.textPrimary }}>
-              Training
-            </Title>
-            <Text style={{ color: tokens.colors.textSecondary }}>
-              Track your performance and training progress
-            </Text>
-          </Box>
+          <Group justify="space-between" align="flex-start">
+            <Box>
+              <Title order={1} style={{ color: tokens.colors.textPrimary }}>
+                Training
+              </Title>
+              <Text style={{ color: tokens.colors.textSecondary }}>
+                Track your performance and training progress
+              </Text>
+            </Box>
+          </Group>
 
           {/* Weekly Overview */}
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
@@ -518,10 +527,73 @@ function TrainingDashboard() {
               )}
             </Stack>
           </Card>
+
+          {/* Training Tools Section */}
+          <Card>
+            <Tabs defaultValue="coach" color="lime">
+              <Tabs.List mb="md">
+                <Tabs.Tab value="coach" leftSection={<IconRobot size={16} />}>
+                  AI Coach
+                </Tabs.Tab>
+                <Tabs.Tab value="workouts" leftSection={<IconBarbell size={16} />}>
+                  Workout Library
+                </Tabs.Tab>
+                <Tabs.Tab value="plans" leftSection={<IconCalendarEvent size={16} />}>
+                  Training Plans
+                </Tabs.Tab>
+              </Tabs.List>
+
+              <Tabs.Panel value="coach">
+                <AICoach
+                  trainingContext={buildTrainingContext()}
+                  onAddWorkout={(workout) => {
+                    notifications.show({
+                      title: 'Workout Added',
+                      message: `${workout.name} has been added to your training plan`,
+                      color: 'lime'
+                    });
+                  }}
+                />
+              </Tabs.Panel>
+
+              <Tabs.Panel value="workouts">
+                <WorkoutLibraryPanel />
+              </Tabs.Panel>
+
+              <Tabs.Panel value="plans">
+                <TrainingPlansPanel />
+              </Tabs.Panel>
+            </Tabs>
+          </Card>
         </Stack>
       </Container>
     </AppShell>
   );
+
+  // Build training context for AI Coach
+  function buildTrainingContext() {
+    const context = [];
+
+    if (ftp) {
+      context.push(`FTP: ${ftp}W`);
+    }
+
+    if (weeklyStats.rideCount > 0) {
+      context.push(`This week: ${weeklyStats.rideCount} rides, ${formatDistance(weeklyStats.totalDistance)} ${distanceUnit}, ${formatTime(weeklyStats.totalTime)}`);
+    }
+
+    if (speedProfile) {
+      context.push(`Average speed: ${formatSpeed(speedProfile.average_speed || 0)} ${speedUnit}`);
+      context.push(`${speedProfile.rides_analyzed} rides analyzed`);
+    }
+
+    if (activities.length > 0) {
+      const lastRide = activities[0];
+      context.push(`Last ride: ${lastRide.name} on ${formatDate(lastRide.start_date)} - ${formatDistance(lastRide.distance)} ${distanceUnit}`);
+    }
+
+    return context.join('\n');
+  }
 }
 
 function MetricCard({ label, value, change, description }) {
@@ -581,6 +653,292 @@ function ZoneBar({ zone, label, range, color, watts }) {
         </Text>
       </Box>
     </Group>
+  );
+}
+
+// Training Plans Panel Component
+function TrainingPlansPanel() {
+  const [selectedGoal, setSelectedGoal] = useState('all');
+  const plans = getAllPlans();
+
+  const goals = [
+    { value: 'all', label: 'All Plans' },
+    { value: 'general_fitness', label: 'General Fitness' },
+    { value: 'century', label: 'Century/Gran Fondo' },
+    { value: 'climbing', label: 'Climbing' },
+    { value: 'racing', label: 'Racing' },
+  ];
+
+  const filteredPlans = selectedGoal === 'all'
+    ? plans
+    : plans.filter(plan => plan.goal === selectedGoal);
+
+  const getMethodologyColor = (methodology) => {
+    const colors = {
+      polarized: 'blue',
+      sweet_spot: 'lime',
+      pyramidal: 'cyan',
+      threshold: 'yellow',
+      endurance: 'gray',
+    };
+    return colors[methodology] || 'gray';
+  };
+
+  const getFitnessLevelBadge = (level) => {
+    const colors = {
+      beginner: 'green',
+      intermediate: 'yellow',
+      advanced: 'red',
+    };
+    return colors[level] || 'gray';
+  };
+
+  return (
+    <Stack gap="md">
+      {/* Goal Filter */}
+      <Group gap="xs" wrap="wrap">
+        {goals.map((goal) => (
+          <Button
+            key={goal.value}
+            size="xs"
+            variant={selectedGoal === goal.value ? 'filled' : 'light'}
+            color={selectedGoal === goal.value ? 'lime' : 'gray'}
+            onClick={() => setSelectedGoal(goal.value)}
+          >
+            {goal.label}
+          </Button>
+        ))}
+      </Group>
+
+      {/* Plans List */}
+      <Stack gap="sm">
+        {filteredPlans.map((plan) => (
+          <Paper
+            key={plan.id}
+            p="md"
+            style={{
+              backgroundColor: tokens.colors.bgTertiary,
+              border: `1px solid ${tokens.colors.bgTertiary}`,
+            }}
+          >
+            <Stack gap="sm">
+              <Group justify="space-between" align="flex-start" wrap="nowrap">
+                <Box style={{ flex: 1 }}>
+                  <Group gap="xs" mb={4}>
+                    <Text fw={600} size="md" style={{ color: tokens.colors.textPrimary }}>
+                      {plan.name}
+                    </Text>
+                  </Group>
+                  <Group gap="sm" mb="xs">
+                    <Badge size="xs" color={getMethodologyColor(plan.methodology)}>
+                      {plan.methodology.replace('_', ' ')}
+                    </Badge>
+                    <Badge size="xs" color={getFitnessLevelBadge(plan.fitnessLevel)}>
+                      {plan.fitnessLevel}
+                    </Badge>
+                  </Group>
+                  <Text size="sm" style={{ color: tokens.colors.textSecondary }} mb="xs">
+                    {plan.description}
+                  </Text>
+                </Box>
+              </Group>
+
+              {/* Plan Details */}
+              <Group gap="lg">
+                <Group gap={4}>
+                  <IconCalendarEvent size={14} style={{ color: tokens.colors.textMuted }} />
+                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                    {plan.duration} weeks
+                  </Text>
+                </Group>
+                <Group gap={4}>
+                  <IconClock size={14} style={{ color: tokens.colors.textMuted }} />
+                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                    {plan.hoursPerWeek.min}-{plan.hoursPerWeek.max} hrs/week
+                  </Text>
+                </Group>
+                <Group gap={4}>
+                  <IconFlame size={14} style={{ color: tokens.colors.textMuted }} />
+                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                    {plan.weeklyTSS.min}-{plan.weeklyTSS.max} TSS/week
+                  </Text>
+                </Group>
+              </Group>
+
+              {/* Phases */}
+              <Box>
+                <Text size="xs" fw={500} style={{ color: tokens.colors.textMuted }} mb={4}>
+                  Phases:
+                </Text>
+                <Group gap="xs" wrap="wrap">
+                  {plan.phases.map((phase, index) => (
+                    <Badge
+                      key={index}
+                      size="xs"
+                      variant="light"
+                      color={
+                        phase.phase === 'base' ? 'blue' :
+                        phase.phase === 'build' ? 'yellow' :
+                        phase.phase === 'peak' ? 'orange' :
+                        phase.phase === 'recovery' ? 'green' :
+                        phase.phase === 'taper' ? 'gray' : 'gray'
+                      }
+                    >
+                      {phase.phase}: {phase.focus}
+                    </Badge>
+                  ))}
+                </Group>
+              </Box>
+
+              {/* Expected Gains */}
+              {plan.expectedGains && (
+                <Box>
+                  <Text size="xs" fw={500} style={{ color: tokens.colors.textMuted }} mb={4}>
+                    Expected Gains:
+                  </Text>
+                  <Group gap="xs" wrap="wrap">
+                    {Object.entries(plan.expectedGains).map(([key, value]) => (
+                      <Badge key={key} size="xs" variant="outline" color="lime">
+                        {key.replace(/_/g, ' ')}: {value}
+                      </Badge>
+                    ))}
+                  </Group>
+                </Box>
+              )}
+            </Stack>
+          </Paper>
+        ))}
+      </Stack>
+
+      {filteredPlans.length === 0 && (
+        <Box
+          style={{
+            padding: tokens.spacing.xl,
+            textAlign: 'center',
+            borderRadius: tokens.radius.md,
+            border: `1px dashed ${tokens.colors.bgTertiary}`,
+          }}
+        >
+          <Text style={{ color: tokens.colors.textMuted }}>
+            No training plans match this filter
+          </Text>
+        </Box>
+      )}
+    </Stack>
+  );
+}
+
+// Workout Library Panel Component
+function WorkoutLibraryPanel() {
+  const [selectedCategory, setSelectedCategory] = useState('all');
+
+  const categories = [
+    { value: 'all', label: 'All Workouts' },
+    { value: 'recovery', label: 'Recovery' },
+    { value: 'endurance', label: 'Endurance' },
+    { value: 'tempo', label: 'Tempo' },
+    { value: 'sweet_spot', label: 'Sweet Spot' },
+    { value: 'threshold', label: 'Threshold' },
+    { value: 'vo2max', label: 'VO2max' },
+    { value: 'climbing', label: 'Climbing' },
+    { value: 'anaerobic', label: 'Anaerobic' },
+    { value: 'racing', label: 'Racing' },
+  ];
+
+  const filteredWorkouts = selectedCategory === 'all'
+    ? Object.values(WORKOUT_LIBRARY)
+    : getWorkoutsByCategory(selectedCategory);
+
+  const getCategoryColor = (category) => {
+    const colors = {
+      recovery: 'gray',
+      endurance: 'blue',
+      tempo: 'cyan',
+      sweet_spot: 'lime',
+      threshold: 'yellow',
+      vo2max: 'orange',
+      climbing: 'grape',
+      anaerobic: 'red',
+      racing: 'pink',
+    };
+    return colors[category] || 'gray';
+  };
+
+  return (
+    <Stack gap="md">
+      {/* Category Filter */}
+      <Group gap="xs" wrap="wrap">
+        {categories.map((cat) => (
+          <Button
+            key={cat.value}
+            size="xs"
+            variant={selectedCategory === cat.value ? 'filled' : 'light'}
+            color={selectedCategory === cat.value ? 'lime' : 'gray'}
+            onClick={() => setSelectedCategory(cat.value)}
+          >
+            {cat.label}
+          </Button>
+        ))}
+      </Group>
+
+      {/* Workout List */}
+      <Stack gap="sm">
+        {filteredWorkouts.map((workout) => (
+          <Paper
+            key={workout.id}
+            p="sm"
+            style={{
+              backgroundColor: tokens.colors.bgTertiary,
+              border: `1px solid ${tokens.colors.bgTertiary}`,
+            }}
+          >
+            <Group justify="space-between" align="flex-start" wrap="nowrap">
+              <Box style={{ flex: 1 }}>
+                <Group gap="xs" mb={4}>
+                  <Text fw={600} size="sm" style={{ color: tokens.colors.textPrimary }}>
+                    {workout.name}
+                  </Text>
+                  <Badge size="xs" color={getCategoryColor(workout.category)}>
+                    {workout.category.replace('_', ' ')}
+                  </Badge>
+                </Group>
+                <Group gap="lg" mb="xs">
+                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                    {workout.duration} min
+                  </Text>
+                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                    {workout.targetTSS} TSS
+                  </Text>
+                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                    IF: {workout.intensityFactor}
+                  </Text>
+                </Group>
+                {workout.coachNotes && (
+                  <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                    {workout.coachNotes}
+                  </Text>
+                )}
+              </Box>
+            </Group>
+          </Paper>
+        ))}
+      </Stack>
+
+      {filteredWorkouts.length === 0 && (
+        <Box
+          style={{
+            padding: tokens.spacing.xl,
+            textAlign: 'center',
+            borderRadius: tokens.radius.md,
+            border: `1px dashed ${tokens.colors.bgTertiary}`,
+          }}
+        >
+          <Text style={{ color: tokens.colors.textMuted }}>
+            No workouts in this category
+          </Text>
+        </Box>
+      )}
+    </Stack>
   );
 }
 
