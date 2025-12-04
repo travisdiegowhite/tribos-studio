@@ -22,6 +22,8 @@ import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { stravaService } from '../utils/stravaService';
+import { garminService } from '../utils/garminService';
+import { wahooService } from '../utils/wahooService';
 
 function Settings() {
   const { user, signOut } = useAuth();
@@ -30,12 +32,17 @@ function Settings() {
   const [stravaStatus, setStravaStatus] = useState({ connected: false, loading: true });
   const [stravaSyncing, setStravaSyncing] = useState(false);
   const [speedProfile, setSpeedProfile] = useState(null);
+  const [garminStatus, setGarminStatus] = useState({ connected: false, loading: true });
+  const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
 
   // Form state
   const [displayName, setDisplayName] = useState('');
   const [location, setLocation] = useState('');
   const [bio, setBio] = useState('');
   const [unitsPreference, setUnitsPreference] = useState('imperial');
+  const [ftp, setFtp] = useState(null);
+  const [weightKg, setWeightKg] = useState(null);
+  const [powerZones, setPowerZones] = useState(null);
 
   // Load profile data directly from Supabase
   useEffect(() => {
@@ -56,6 +63,9 @@ function Settings() {
           setLocation(data.location || '');
           setBio(data.bio || '');
           setUnitsPreference(data.units_preference || 'imperial');
+          setFtp(data.ftp || null);
+          setWeightKg(data.weight_kg || null);
+          setPowerZones(data.power_zones || null);
         }
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -90,6 +100,40 @@ function Settings() {
     }
   }, [user]);
 
+  // Load Garmin connection status
+  useEffect(() => {
+    const loadGarminStatus = async () => {
+      try {
+        const status = await garminService.getConnectionStatus();
+        setGarminStatus({ ...status, loading: false });
+      } catch (error) {
+        console.error('Error loading Garmin status:', error);
+        setGarminStatus({ connected: false, loading: false });
+      }
+    };
+
+    if (user) {
+      loadGarminStatus();
+    }
+  }, [user]);
+
+  // Load Wahoo connection status
+  useEffect(() => {
+    const loadWahooStatus = async () => {
+      try {
+        const status = await wahooService.getConnectionStatus();
+        setWahooStatus({ ...status, loading: false });
+      } catch (error) {
+        console.error('Error loading Wahoo status:', error);
+        setWahooStatus({ connected: false, loading: false });
+      }
+    };
+
+    if (user) {
+      loadWahooStatus();
+    }
+  }, [user]);
+
   const handleSaveProfile = async () => {
     if (!user) return;
 
@@ -103,9 +147,16 @@ function Settings() {
           location: location,
           bio: bio,
           units_preference: unitsPreference,
+          ftp: ftp || null,
+          weight_kg: weightKg || null,
         })
         .select()
         .single();
+
+      // Update local power zones from saved data (calculated by DB trigger)
+      if (data?.power_zones) {
+        setPowerZones(data.power_zones);
+      }
 
       if (error) {
         console.error('Supabase error:', error);
@@ -219,20 +270,86 @@ function Settings() {
     }
   };
 
-  const connectGarmin = () => {
-    notifications.show({
-      title: 'Coming Soon',
-      message: 'Garmin Connect integration coming soon!',
-      color: 'blue',
-    });
+  const connectGarmin = async () => {
+    try {
+      if (!garminService.isConfigured()) {
+        notifications.show({
+          title: 'Not Configured',
+          message: 'Garmin integration is not yet configured. Contact support.',
+          color: 'yellow',
+        });
+        return;
+      }
+      const authUrl = await garminService.getAuthorizationUrl();
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Error connecting to Garmin:', error);
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'Failed to connect to Garmin',
+        color: 'red',
+      });
+    }
+  };
+
+  const disconnectGarmin = async () => {
+    try {
+      await garminService.disconnect();
+      setGarminStatus({ connected: false, loading: false });
+      notifications.show({
+        title: 'Disconnected',
+        message: 'Garmin has been disconnected',
+        color: 'green',
+      });
+    } catch (error) {
+      console.error('Error disconnecting Garmin:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to disconnect Garmin',
+        color: 'red',
+      });
+    }
   };
 
   const connectWahoo = () => {
-    notifications.show({
-      title: 'Coming Soon',
-      message: 'Wahoo integration coming soon!',
-      color: 'blue',
-    });
+    try {
+      if (!wahooService.isConfigured()) {
+        notifications.show({
+          title: 'Not Configured',
+          message: 'Wahoo integration is not yet configured. Contact support.',
+          color: 'yellow',
+        });
+        return;
+      }
+      const authUrl = wahooService.getAuthorizationUrl();
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Error connecting to Wahoo:', error);
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'Failed to connect to Wahoo',
+        color: 'red',
+      });
+    }
+  };
+
+  const disconnectWahoo = async () => {
+    try {
+      await wahooService.disconnect();
+      setWahooStatus({ connected: false, loading: false });
+      notifications.show({
+        title: 'Disconnected',
+        message: 'Wahoo has been disconnected',
+        color: 'green',
+      });
+    } catch (error) {
+      console.error('Error disconnecting Wahoo:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to disconnect Wahoo',
+        color: 'red',
+      });
+    }
   };
 
   return (
@@ -299,6 +416,123 @@ function Settings() {
             </Stack>
           </Card>
 
+          {/* Training & Power */}
+          <Card>
+            <Stack gap="md">
+              <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                Training & Power
+              </Title>
+              <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                Set your FTP to calculate personalized power zones
+              </Text>
+
+              <Group grow>
+                <NumberInput
+                  label="FTP (Functional Threshold Power)"
+                  description="Your 1-hour max sustainable power in watts"
+                  placeholder="e.g., 250"
+                  value={ftp || ''}
+                  onChange={(val) => setFtp(val || null)}
+                  min={50}
+                  max={600}
+                  suffix=" W"
+                />
+                <NumberInput
+                  label="Weight"
+                  description="For W/kg calculations"
+                  placeholder={unitsPreference === 'imperial' ? 'e.g., 165' : 'e.g., 75'}
+                  value={unitsPreference === 'imperial' && weightKg ? Math.round(weightKg * 2.20462) : (weightKg || '')}
+                  onChange={(val) => {
+                    if (val) {
+                      setWeightKg(unitsPreference === 'imperial' ? val / 2.20462 : val);
+                    } else {
+                      setWeightKg(null);
+                    }
+                  }}
+                  min={30}
+                  max={200}
+                  suffix={unitsPreference === 'imperial' ? ' lbs' : ' kg'}
+                  decimalScale={1}
+                />
+              </Group>
+
+              {ftp && weightKg && (
+                <Box
+                  style={{
+                    padding: tokens.spacing.sm,
+                    backgroundColor: tokens.colors.bgTertiary,
+                    borderRadius: tokens.radius.sm,
+                  }}
+                >
+                  <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                    Your W/kg: <Text component="span" fw={700} style={{ color: tokens.colors.electricLime }}>
+                      {(ftp / weightKg).toFixed(2)} W/kg
+                    </Text>
+                  </Text>
+                </Box>
+              )}
+
+              {powerZones && (
+                <Box>
+                  <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }} mb="xs">
+                    Your Power Zones
+                  </Text>
+                  <Stack gap="xs">
+                    {['z1', 'z2', 'z3', 'z4', 'z5', 'z6', 'z7'].map((zoneKey, index) => {
+                      const zone = powerZones[zoneKey];
+                      if (!zone) return null;
+                      const zoneColors = [
+                        tokens.colors.zone1,
+                        tokens.colors.zone2,
+                        tokens.colors.zone3,
+                        tokens.colors.zone4,
+                        tokens.colors.zone5,
+                        tokens.colors.zone6,
+                        tokens.colors.zone7,
+                      ];
+                      return (
+                        <Group key={zoneKey} gap="sm" wrap="nowrap">
+                          <Badge
+                            size="sm"
+                            style={{ backgroundColor: zoneColors[index], minWidth: 35 }}
+                          >
+                            Z{index + 1}
+                          </Badge>
+                          <Text size="sm" style={{ color: tokens.colors.textPrimary, minWidth: 100 }}>
+                            {zone.name}
+                          </Text>
+                          <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                            {zone.min}{zone.max ? `-${zone.max}` : '+'} W
+                          </Text>
+                        </Group>
+                      );
+                    })}
+                  </Stack>
+                </Box>
+              )}
+
+              {!ftp && (
+                <Box
+                  style={{
+                    padding: tokens.spacing.md,
+                    backgroundColor: tokens.colors.bgTertiary,
+                    borderRadius: tokens.radius.md,
+                    textAlign: 'center',
+                  }}
+                >
+                  <Text size="sm" style={{ color: tokens.colors.textMuted }}>
+                    Enter your FTP above to see your personalized power zones.
+                    Not sure of your FTP? Try a 20-minute all-out effort and multiply by 0.95.
+                  </Text>
+                </Box>
+              )}
+
+              <Button color="lime" onClick={handleSaveProfile} loading={loading}>
+                Save Training Settings
+              </Button>
+            </Stack>
+          </Card>
+
           {/* Connected Services */}
           <Card>
             <Stack gap="md">
@@ -329,9 +563,11 @@ function Settings() {
               <ServiceConnection
                 name="Garmin Connect"
                 icon="🔵"
-                connected={false}
+                connected={garminStatus.connected}
+                username={garminStatus.username}
+                loading={garminStatus.loading}
                 onConnect={connectGarmin}
-                onDisconnect={() => {}}
+                onDisconnect={disconnectGarmin}
               />
 
               <Divider />
@@ -339,9 +575,11 @@ function Settings() {
               <ServiceConnection
                 name="Wahoo"
                 icon="🔷"
-                connected={false}
+                connected={wahooStatus.connected}
+                username={wahooStatus.username}
+                loading={wahooStatus.loading}
                 onConnect={connectWahoo}
-                onDisconnect={() => {}}
+                onDisconnect={disconnectWahoo}
               />
             </Stack>
           </Card>

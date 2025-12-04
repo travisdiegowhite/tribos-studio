@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Text, Stack, Alert } from '@mantine/core';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { tokens } from '../../theme';
+import { wahooService } from '../../utils/wahooService';
 
 function WahooCallback() {
   const navigate = useNavigate();
@@ -35,31 +35,8 @@ function WahooCallback() {
       }
 
       try {
-        // Exchange code for tokens via your backend/edge function
-        const response = await fetch('/api/oauth/wahoo/callback', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ code, userId: user.id }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to complete Wahoo connection');
-        }
-
-        const data = await response.json();
-
-        // Store the connection in your database
-        await supabase.from('connected_services').upsert({
-          user_id: user.id,
-          provider: 'wahoo',
-          provider_user_id: data.user.id.toString(),
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
-        });
-
+        // Exchange code for tokens via our wahoo service
+        await wahooService.exchangeCodeForToken(code);
         navigate('/settings?connected=wahoo');
       } catch (err) {
         console.error('Wahoo callback error:', err);

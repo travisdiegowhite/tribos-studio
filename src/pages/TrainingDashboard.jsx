@@ -26,6 +26,8 @@ function TrainingDashboard() {
   const [activities, setActivities] = useState([]);
   const [speedProfile, setSpeedProfile] = useState(null);
   const [unitsPreference, setUnitsPreference] = useState('metric'); // 'metric' or 'imperial'
+  const [ftp, setFtp] = useState(null);
+  const [powerZones, setPowerZones] = useState(null);
   const [weeklyStats, setWeeklyStats] = useState({
     totalDistance: 0,
     totalTime: 0,
@@ -44,15 +46,21 @@ function TrainingDashboard() {
       if (!user) return;
 
       try {
-        // Get user's units preference
+        // Get user's profile including units preference, FTP, and power zones
         const { data: userProfileData } = await supabase
           .from('user_profiles')
-          .select('units_preference')
+          .select('units_preference, ftp, power_zones')
           .eq('id', user.id)
           .single();
 
         if (userProfileData?.units_preference) {
           setUnitsPreference(userProfileData.units_preference);
+        }
+        if (userProfileData?.ftp) {
+          setFtp(userProfileData.ftp);
+        }
+        if (userProfileData?.power_zones) {
+          setPowerZones(userProfileData.power_zones);
         }
 
         // Get activities from last 90 days (to show more history)
@@ -420,25 +428,94 @@ function TrainingDashboard() {
             </Stack>
           </Card>
 
-          {/* Power Zones (placeholder for future FTP integration) */}
+          {/* Power Zones */}
           <Card>
             <Stack gap="md">
-              <Title order={3} style={{ color: tokens.colors.textPrimary }}>
-                Power Zones
-              </Title>
-              <Text size="sm" style={{ color: tokens.colors.textSecondary }} mb="md">
-                Set your FTP in settings to calculate your power zones
-              </Text>
+              <Group justify="space-between">
+                <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                  Power Zones
+                </Title>
+                {ftp && (
+                  <Badge variant="light" color="lime">
+                    FTP: {ftp}W
+                  </Badge>
+                )}
+              </Group>
 
-              <Stack gap="sm">
-                <ZoneBar zone={1} label="Recovery" range="< 55%" color={tokens.colors.zone1} />
-                <ZoneBar zone={2} label="Endurance" range="55-75%" color={tokens.colors.zone2} />
-                <ZoneBar zone={3} label="Tempo" range="75-90%" color={tokens.colors.zone3} />
-                <ZoneBar zone={4} label="Threshold" range="90-105%" color={tokens.colors.zone4} />
-                <ZoneBar zone={5} label="VO2max" range="105-120%" color={tokens.colors.zone5} />
-                <ZoneBar zone={6} label="Anaerobic" range="120-150%" color={tokens.colors.zone6} />
-                <ZoneBar zone={7} label="Neuromuscular" range="> 150%" color={tokens.colors.zone7} />
-              </Stack>
+              {!ftp ? (
+                <Box
+                  style={{
+                    padding: tokens.spacing.lg,
+                    textAlign: 'center',
+                    borderRadius: tokens.radius.md,
+                    border: `1px dashed ${tokens.colors.bgTertiary}`,
+                  }}
+                >
+                  <Text size="lg" mb="sm">⚡</Text>
+                  <Text style={{ color: tokens.colors.textSecondary }} mb="md">
+                    Set your FTP in settings to see your personalized power zones
+                  </Text>
+                  <Button
+                    variant="light"
+                    color="lime"
+                    onClick={() => navigate('/settings')}
+                  >
+                    Set FTP
+                  </Button>
+                </Box>
+              ) : (
+                <Stack gap="sm">
+                  <ZoneBar
+                    zone={1}
+                    label="Recovery"
+                    range="< 55%"
+                    color={tokens.colors.zone1}
+                    watts={powerZones?.z1 ? `0-${powerZones.z1.max}` : null}
+                  />
+                  <ZoneBar
+                    zone={2}
+                    label="Endurance"
+                    range="55-75%"
+                    color={tokens.colors.zone2}
+                    watts={powerZones?.z2 ? `${powerZones.z2.min}-${powerZones.z2.max}` : null}
+                  />
+                  <ZoneBar
+                    zone={3}
+                    label="Tempo"
+                    range="75-90%"
+                    color={tokens.colors.zone3}
+                    watts={powerZones?.z3 ? `${powerZones.z3.min}-${powerZones.z3.max}` : null}
+                  />
+                  <ZoneBar
+                    zone={4}
+                    label="Threshold"
+                    range="90-105%"
+                    color={tokens.colors.zone4}
+                    watts={powerZones?.z4 ? `${powerZones.z4.min}-${powerZones.z4.max}` : null}
+                  />
+                  <ZoneBar
+                    zone={5}
+                    label="VO2max"
+                    range="105-120%"
+                    color={tokens.colors.zone5}
+                    watts={powerZones?.z5 ? `${powerZones.z5.min}-${powerZones.z5.max}` : null}
+                  />
+                  <ZoneBar
+                    zone={6}
+                    label="Anaerobic"
+                    range="120-150%"
+                    color={tokens.colors.zone6}
+                    watts={powerZones?.z6 ? `${powerZones.z6.min}-${powerZones.z6.max}` : null}
+                  />
+                  <ZoneBar
+                    zone={7}
+                    label="Neuromuscular"
+                    range="> 150%"
+                    color={tokens.colors.zone7}
+                    watts={powerZones?.z7 ? `${powerZones.z7.min}+` : null}
+                  />
+                </Stack>
+              )}
             </Stack>
           </Card>
         </Stack>
@@ -476,7 +553,10 @@ function MetricCard({ label, value, change, description }) {
   );
 }
 
-function ZoneBar({ zone, label, range, color }) {
+function ZoneBar({ zone, label, range, color, watts }) {
+  // Calculate a visual width based on zone (higher zones = wider bars for visual appeal)
+  const zoneWidths = { 1: 40, 2: 55, 3: 70, 4: 85, 5: 95, 6: 100, 7: 100 };
+
   return (
     <Group gap="md">
       <Box style={{ width: 30, textAlign: 'center' }}>
@@ -493,11 +573,11 @@ function ZoneBar({ zone, label, range, color }) {
             {range}
           </Text>
         </Group>
-        <Progress value={0} color={color} size="sm" radius="xl" />
+        <Progress value={watts ? zoneWidths[zone] : 0} color={color} size="sm" radius="xl" />
       </Box>
-      <Box style={{ width: 70, textAlign: 'right' }}>
-        <Text size="sm" style={{ color: tokens.colors.textMuted }}>
-          -- W
+      <Box style={{ width: 90, textAlign: 'right' }}>
+        <Text size="sm" fw={watts ? 600 : 400} style={{ color: watts ? tokens.colors.textPrimary : tokens.colors.textMuted }}>
+          {watts ? `${watts}W` : '-- W'}
         </Text>
       </Box>
     </Group>

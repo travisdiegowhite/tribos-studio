@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Text, Stack, Alert } from '@mantine/core';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { tokens } from '../../theme';
+import { garminService } from '../../utils/garminService';
 
 function GarminCallback() {
   const navigate = useNavigate();
@@ -30,35 +30,8 @@ function GarminCallback() {
       }
 
       try {
-        // Exchange tokens via your backend/edge function
-        // Garmin OAuth 1.0a requires server-side handling
-        const response = await fetch('/api/oauth/garmin/callback', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            oauthToken,
-            oauthVerifier,
-            userId: user.id,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to complete Garmin connection');
-        }
-
-        const data = await response.json();
-
-        // Store the connection in your database
-        await supabase.from('connected_services').upsert({
-          user_id: user.id,
-          provider: 'garmin',
-          provider_user_id: data.userId,
-          access_token: data.accessToken,
-          access_token_secret: data.accessTokenSecret,
-        });
-
+        // Exchange tokens via our garmin service (which calls the API)
+        await garminService.exchangeToken(oauthToken, oauthVerifier);
         navigate('/settings?connected=garmin');
       } catch (err) {
         console.error('Garmin callback error:', err);
