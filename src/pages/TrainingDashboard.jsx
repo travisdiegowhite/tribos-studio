@@ -25,6 +25,7 @@ function TrainingDashboard() {
   const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState([]);
   const [speedProfile, setSpeedProfile] = useState(null);
+  const [unitsPreference, setUnitsPreference] = useState('metric'); // 'metric' or 'imperial'
   const [weeklyStats, setWeeklyStats] = useState({
     totalDistance: 0,
     totalTime: 0,
@@ -32,12 +33,28 @@ function TrainingDashboard() {
     rideCount: 0,
   });
 
+  // Unit conversion helpers
+  const isImperial = unitsPreference === 'imperial';
+  const KM_TO_MILES = 0.621371;
+  const M_TO_FEET = 3.28084;
+
   // Load activities from Supabase
   useEffect(() => {
     const loadData = async () => {
       if (!user) return;
 
       try {
+        // Get user's units preference
+        const { data: profileData } = await supabase
+          .from('user_profiles')
+          .select('units_preference')
+          .eq('id', user.id)
+          .single();
+
+        if (profileData?.units_preference) {
+          setUnitsPreference(profileData.units_preference);
+        }
+
         // Get activities from last 90 days (to show more history)
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -98,8 +115,36 @@ function TrainingDashboard() {
   // Format distance (meters to km or miles based on preference)
   const formatDistance = (meters) => {
     const km = meters / 1000;
+    if (isImperial) {
+      return (km * KM_TO_MILES).toFixed(1);
+    }
     return km.toFixed(1);
   };
+
+  // Get distance unit label
+  const distanceUnit = isImperial ? 'mi' : 'km';
+
+  // Format elevation (meters to feet based on preference)
+  const formatElevation = (meters) => {
+    if (isImperial) {
+      return Math.round(meters * M_TO_FEET);
+    }
+    return Math.round(meters);
+  };
+
+  // Get elevation unit label
+  const elevationUnit = isImperial ? 'ft' : 'm';
+
+  // Format speed (km/h to mph based on preference)
+  const formatSpeed = (kmh) => {
+    if (isImperial) {
+      return (kmh * KM_TO_MILES).toFixed(1);
+    }
+    return kmh.toFixed(1);
+  };
+
+  // Get speed unit label
+  const speedUnit = isImperial ? 'mph' : 'km/h';
 
   // Format time (seconds to hours:minutes)
   const formatTime = (seconds) => {
@@ -176,7 +221,7 @@ function TrainingDashboard() {
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
             <MetricCard
               label="Weekly Distance"
-              value={`${formatDistance(weeklyStats.totalDistance)} km`}
+              value={`${formatDistance(weeklyStats.totalDistance)} ${distanceUnit}`}
               description="Last 7 days"
             />
             <MetricCard
@@ -186,7 +231,7 @@ function TrainingDashboard() {
             />
             <MetricCard
               label="Weekly Elevation"
-              value={`${Math.round(weeklyStats.totalElevation)} m`}
+              value={`${formatElevation(weeklyStats.totalElevation)} ${elevationUnit}`}
               description="Total climbing"
             />
             <MetricCard
@@ -215,7 +260,7 @@ function TrainingDashboard() {
                       Average Speed
                     </Text>
                     <Text size="xl" fw={700} style={{ color: tokens.colors.electricLime }}>
-                      {speedProfile.average_speed?.toFixed(1)} km/h
+                      {formatSpeed(speedProfile.average_speed || 0)} {speedUnit}
                     </Text>
                   </Box>
                   {speedProfile.road_speed && (
@@ -224,7 +269,7 @@ function TrainingDashboard() {
                         Road
                       </Text>
                       <Text size="xl" fw={700} style={{ color: tokens.colors.textPrimary }}>
-                        {speedProfile.road_speed?.toFixed(1)} km/h
+                        {formatSpeed(speedProfile.road_speed)} {speedUnit}
                       </Text>
                     </Box>
                   )}
@@ -234,7 +279,7 @@ function TrainingDashboard() {
                         Gravel
                       </Text>
                       <Text size="xl" fw={700} style={{ color: tokens.colors.textPrimary }}>
-                        {speedProfile.gravel_speed?.toFixed(1)} km/h
+                        {formatSpeed(speedProfile.gravel_speed)} {speedUnit}
                       </Text>
                     </Box>
                   )}
@@ -244,7 +289,7 @@ function TrainingDashboard() {
                         MTB
                       </Text>
                       <Text size="xl" fw={700} style={{ color: tokens.colors.textPrimary }}>
-                        {speedProfile.mtb_speed?.toFixed(1)} km/h
+                        {formatSpeed(speedProfile.mtb_speed)} {speedUnit}
                       </Text>
                     </Box>
                   )}
@@ -261,10 +306,13 @@ function TrainingDashboard() {
                   </Box>
                   <Box>
                     <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                      Avg Elevation/km
+                      Avg Elevation/{distanceUnit}
                     </Text>
                     <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                      {(speedProfile.avg_elevation_per_km || 0).toFixed(1)} m
+                      {isImperial
+                        ? ((speedProfile.avg_elevation_per_km || 0) * M_TO_FEET / KM_TO_MILES).toFixed(0)
+                        : (speedProfile.avg_elevation_per_km || 0).toFixed(1)
+                      } {elevationUnit}
                     </Text>
                   </Box>
                 </Group>
@@ -342,19 +390,19 @@ function TrainingDashboard() {
                         <Group gap="md" wrap="nowrap">
                           <Box style={{ textAlign: 'right' }}>
                             <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
-                              {formatDistance(activity.distance)} km
+                              {formatDistance(activity.distance)} {distanceUnit}
                             </Text>
                             <Text size="xs" style={{ color: tokens.colors.textMuted }}>
                               {formatTime(activity.moving_time)}
                             </Text>
                           </Box>
-                          <Box style={{ textAlign: 'right', minWidth: 60 }}>
+                          <Box style={{ textAlign: 'right', minWidth: 70 }}>
                             <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                              {((activity.average_speed || 0) * 3.6).toFixed(1)} km/h
+                              {formatSpeed((activity.average_speed || 0) * 3.6)} {speedUnit}
                             </Text>
                             {activity.total_elevation_gain > 0 && (
                               <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                                {Math.round(activity.total_elevation_gain)}m ↗
+                                {formatElevation(activity.total_elevation_gain)}{elevationUnit} ↗
                               </Text>
                             )}
                           </Box>
