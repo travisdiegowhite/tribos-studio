@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -10,11 +10,13 @@ import AppShell from '../components/AppShell.jsx';
 import { generateClaudeRoutes, convertClaudeToRoute, parseNaturalLanguageRoute } from '../utils/claudeRouteService';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { stravaService } from '../utils/stravaService';
+import { saveRoute, getRoute } from '../utils/routesService';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 function RouteBuilder() {
   const { routeId } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [routeName, setRouteName] = useState('Untitled Route');
   const [waypoints, setWaypoints] = useState([]);
@@ -37,6 +39,11 @@ function RouteBuilder() {
 
   // Speed profile from Strava sync
   const [speedProfile, setSpeedProfile] = useState(null);
+
+  // Route saving state
+  const [savedRouteId, setSavedRouteId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [loadingRoute, setLoadingRoute] = useState(false);
 
   const [viewport, setViewport] = useState({
     latitude: 37.7749,
@@ -67,6 +74,51 @@ function RouteBuilder() {
 
     loadSpeedProfile();
   }, [user]);
+
+  // Load existing route if editing
+  useEffect(() => {
+    const loadExistingRoute = async () => {
+      if (!routeId || !user) return;
+
+      setLoadingRoute(true);
+      try {
+        const route = await getRoute(routeId);
+        if (route) {
+          setRouteName(route.name);
+          setRouteGeometry(route.geometry);
+          setRouteStats({
+            distance: route.distance_km || 0,
+            elevation: route.elevation_gain_m || 0,
+            duration: route.estimated_duration_minutes || 0
+          });
+          setRouteType(route.route_type || 'loop');
+          setTrainingGoal(route.training_goal || 'endurance');
+          setSavedRouteId(route.id);
+
+          // Center map on route start
+          if (route.start_latitude && route.start_longitude) {
+            setViewport(v => ({
+              ...v,
+              latitude: route.start_latitude,
+              longitude: route.start_longitude,
+              zoom: 13
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading route:', error);
+        notifications.show({
+          title: 'Error',
+          message: 'Failed to load route',
+          color: 'red'
+        });
+      } finally {
+        setLoadingRoute(false);
+      }
+    };
+
+    loadExistingRoute();
+  }, [routeId, user]);
 
   // Calculate route using Mapbox Directions API
   const calculateRoute = useCallback(async (points) => {
@@ -131,8 +183,12 @@ function RouteBuilder() {
 
   // Export GPX
   const exportGPX = useCallback(() => {
-    if (!routeGeometry || waypoints.length < 2) {
-      alert('Please create a route first');
+    if (!routeGeometry) {
+      notifications.show({
+        title: 'No Route',
+        message: 'Please create a route first',
+        color: 'yellow'
+      });
       return;
     }
 
@@ -144,7 +200,68 @@ function RouteBuilder() {
     link.download = `${routeName.replace(/\s+/g, '_')}.gpx`;
     link.click();
     URL.revokeObjectURL(url);
-  }, [routeName, routeGeometry, waypoints]);
+  }, [routeName, routeGeometry]);
+
+  // Save route to database
+  const handleSaveRoute = useCallback(async () => {
+    if (!routeGeometry) {
+      notifications.show({
+        title: 'No Route',
+        message: 'Please create a route before saving',
+        color: 'yellow'
+      });
+      return;
+    }
+
+    if (!user) {
+      notifications.show({
+        title: 'Sign In Required',
+        message: 'Please sign in to save routes',
+        color: 'yellow'
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const routeData = {
+        id: savedRouteId, // Include ID if updating existing route
+        name: routeName,
+        geometry: routeGeometry,
+        distance_km: parseFloat(routeStats.distance) || null,
+        elevation_gain_m: routeStats.elevation || null,
+        estimated_duration_minutes: routeStats.duration || null,
+        route_type: routeType,
+        training_goal: trainingGoal,
+        surface_type: routeProfile,
+        generated_by: aiSuggestions.length > 0 ? 'ai' : 'manual',
+        waypoints: waypoints.length > 0 ? waypoints : null
+      };
+
+      const saved = await saveRoute(routeData);
+      setSavedRouteId(saved.id);
+
+      notifications.show({
+        title: 'Route Saved!',
+        message: `"${routeName}" has been saved to your routes`,
+        color: 'lime'
+      });
+
+      // If this was a new route, update URL to include route ID
+      if (!routeId && saved.id) {
+        navigate(`/routes/${saved.id}`, { replace: true });
+      }
+    } catch (error) {
+      console.error('Error saving route:', error);
+      notifications.show({
+        title: 'Save Failed',
+        message: error.message || 'Failed to save route',
+        color: 'red'
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [routeGeometry, routeName, routeStats, routeType, trainingGoal, routeProfile, waypoints, aiSuggestions, savedRouteId, user, routeId, navigate]);
 
   // Generate AI Routes
   const handleGenerateAIRoutes = useCallback(async () => {
@@ -322,6 +439,20 @@ function RouteBuilder() {
       setGeneratingAI(false);
     }
   }, [naturalLanguageInput, viewport]);
+
+  // Show loading state when loading existing route
+  if (loadingRoute) {
+    return (
+      <AppShell fullWidth>
+        <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 60px)' }}>
+          <Stack align="center" gap="md">
+            <Loader color="lime" size="lg" />
+            <Text style={{ color: tokens.colors.textSecondary }}>Loading route...</Text>
+          </Stack>
+        </Box>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell fullWidth>
@@ -633,20 +764,31 @@ function RouteBuilder() {
               <Button
                 color="lime"
                 fullWidth
-                disabled={waypoints.length < 2}
-                onClick={exportGPX}
+                disabled={!routeGeometry}
+                onClick={handleSaveRoute}
+                loading={isSaving}
+                leftSection={<IconDeviceFloppy size={18} />}
               >
-                Export GPX
+                {savedRouteId ? 'Update Route' : 'Save Route'}
               </Button>
-              <Button
-                variant="outline"
-                color="red"
-                fullWidth
-                disabled={waypoints.length === 0}
-                onClick={clearRoute}
-              >
-                Clear Route
-              </Button>
+              <Group grow>
+                <Button
+                  variant="light"
+                  color="lime"
+                  disabled={!routeGeometry}
+                  onClick={exportGPX}
+                >
+                  Export GPX
+                </Button>
+                <Button
+                  variant="outline"
+                  color="red"
+                  disabled={!routeGeometry && waypoints.length === 0}
+                  onClick={clearRoute}
+                >
+                  Clear
+                </Button>
+              </Group>
             </Stack>
           </Stack>
         </Paper>

@@ -9,6 +9,7 @@ import Landing from './pages/Landing.jsx';
 import Auth from './pages/Auth.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import RouteBuilder from './pages/RouteBuilder.jsx';
+import MyRoutes from './pages/MyRoutes.jsx';
 import TrainingDashboard from './pages/TrainingDashboard.jsx';
 import Settings from './pages/Settings.jsx';
 
@@ -93,6 +94,14 @@ function AppRoutes() {
       />
       <Route
         path="/routes"
+        element={
+          <ProtectedRoute>
+            <MyRoutes />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/routes/new"
         element={
           <ProtectedRoute>
             <RouteBuilder />
