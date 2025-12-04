@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -8,11 +8,14 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { generateClaudeRoutes, convertClaudeToRoute, parseNaturalLanguageRoute } from '../utils/claudeRouteService';
+import { useAuth } from '../contexts/AuthContext.jsx';
+import { stravaService } from '../utils/stravaService';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 function RouteBuilder() {
   const { routeId } = useParams();
+  const { user } = useAuth();
   const [routeName, setRouteName] = useState('Untitled Route');
   const [waypoints, setWaypoints] = useState([]);
   const [routeGeometry, setRouteGeometry] = useState(null);
@@ -32,11 +35,38 @@ function RouteBuilder() {
   const [naturalLanguageInput, setNaturalLanguageInput] = useState('');
   const [routingSource, setRoutingSource] = useState(null); // 'stadia_maps', 'brouter', 'mapbox'
 
+  // Speed profile from Strava sync
+  const [speedProfile, setSpeedProfile] = useState(null);
+
   const [viewport, setViewport] = useState({
     latitude: 37.7749,
     longitude: -122.4194,
     zoom: 12
   });
+
+  // Load user's speed profile on mount
+  useEffect(() => {
+    const loadSpeedProfile = async () => {
+      if (!user) return;
+
+      try {
+        const profile = await stravaService.getSpeedProfile();
+        if (profile) {
+          setSpeedProfile(profile);
+          console.log('🚴 Speed profile loaded:', {
+            average: profile.average_speed,
+            road: profile.road_speed,
+            gravel: profile.gravel_speed,
+            mtb: profile.mtb_speed
+          });
+        }
+      } catch (error) {
+        console.error('Error loading speed profile:', error);
+      }
+    };
+
+    loadSpeedProfile();
+  }, [user]);
 
   // Calculate route using Mapbox Directions API
   const calculateRoute = useCallback(async (points) => {
@@ -148,16 +178,37 @@ function RouteBuilder() {
     }
   }, [viewport, timeAvailable, trainingGoal, routeType]);
 
+  // Get user's speed for the current route profile
+  const getUserSpeedForProfile = useCallback((profile) => {
+    if (!speedProfile) return null;
+
+    switch (profile) {
+      case 'road':
+        return speedProfile.road_speed || speedProfile.average_speed;
+      case 'gravel':
+        return speedProfile.gravel_speed || (speedProfile.average_speed ? speedProfile.average_speed * 0.85 : null);
+      case 'mountain':
+        return speedProfile.mtb_speed || (speedProfile.average_speed ? speedProfile.average_speed * 0.7 : null);
+      case 'commuting':
+        return speedProfile.easy_speed || (speedProfile.average_speed ? speedProfile.average_speed * 0.9 : null);
+      default:
+        return speedProfile.average_speed;
+    }
+  }, [speedProfile]);
+
   // Select an AI suggestion and convert to GPS route
   const handleSelectAISuggestion = useCallback(async (suggestion, index) => {
     setConvertingRoute(index);
     setRouteName(suggestion.name);
 
+    // Get personalized speed for this route type
+    const userSpeed = getUserSpeedForProfile(routeProfile);
+
     try {
       notifications.show({
         id: 'converting-route',
         title: 'Converting Route',
-        message: `Generating GPS coordinates for "${suggestion.name}"...`,
+        message: `Generating GPS coordinates for "${suggestion.name}"...${userSpeed ? ` (using your ${routeProfile} speed: ${userSpeed.toFixed(1)} km/h)` : ''}`,
         loading: true,
         autoClose: false
       });
@@ -166,7 +217,7 @@ function RouteBuilder() {
       const convertedRoute = await convertClaudeToRoute(suggestion, {
         mapboxToken: MAPBOX_TOKEN,
         profile: routeProfile,
-        userSpeed: null // TODO: Get from user's speed profile when Strava import is complete
+        userSpeed // Use personalized speed from Strava data
       });
 
       if (convertedRoute && convertedRoute.coordinates) {
@@ -208,7 +259,7 @@ function RouteBuilder() {
     } finally {
       setConvertingRoute(null);
     }
-  }, [routeProfile]);
+  }, [routeProfile, getUserSpeedForProfile]);
 
   // Get human-readable label for routing source
   const getRoutingSourceLabel = (source) => {
@@ -540,6 +591,18 @@ function RouteBuilder() {
                       {routingSource === 'stadia_maps' ? 'Valhalla' :
                        routingSource === 'brouter' || routingSource === 'brouter_gravel' ? 'BRouter' :
                        'Mapbox'}
+                    </Badge>
+                  </Tooltip>
+                </Group>
+              )}
+              {speedProfile && (
+                <Group justify="space-between">
+                  <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                    Your Speed
+                  </Text>
+                  <Tooltip label={`Based on ${speedProfile.rides_analyzed} Strava rides`}>
+                    <Badge size="xs" variant="light" color="lime">
+                      {getUserSpeedForProfile(routeProfile)?.toFixed(1) || speedProfile.average_speed?.toFixed(1)} km/h
                     </Badge>
                   </Tooltip>
                 </Group>
