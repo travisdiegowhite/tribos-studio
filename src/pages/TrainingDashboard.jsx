@@ -45,14 +45,14 @@ function TrainingDashboard() {
 
       try {
         // Get user's units preference
-        const { data: profileData } = await supabase
+        const { data: userProfileData } = await supabase
           .from('user_profiles')
           .select('units_preference')
           .eq('id', user.id)
           .single();
 
-        if (profileData?.units_preference) {
-          setUnitsPreference(profileData.units_preference);
+        if (userProfileData?.units_preference) {
+          setUnitsPreference(userProfileData.units_preference);
         }
 
         // Get activities from last 90 days (to show more history)
