@@ -9,6 +9,7 @@ import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { generateClaudeRoutes, convertClaudeToRoute } from '../utils/claudeRouteService';
 import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
+import { matchRouteToOSM } from '../utils/osmCyclingService';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { stravaService } from '../utils/stravaService';
 import { saveRoute, getRoute } from '../utils/routesService';
@@ -202,26 +203,86 @@ function parseNaturalLanguageResponse(responseText) {
 
 /**
  * Geocode a waypoint name to coordinates
+ * IMPORTANT: Uses Mapbox with bounding box, falls back to OSM for trails
  */
 async function geocodeWaypoint(waypointName, proximityLocation) {
   if (!waypointName || !MAPBOX_TOKEN) return null;
 
-  try {
-    const encodedName = encodeURIComponent(waypointName);
-    let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedName}.json?access_token=${MAPBOX_TOKEN}&country=US&types=place,locality,address,poi,neighborhood`;
+  const isTrailOrPath = waypointName.toLowerCase().includes('path') ||
+                        waypointName.toLowerCase().includes('trail') ||
+                        waypointName.toLowerCase().includes('creek') ||
+                        waypointName.toLowerCase().includes('greenway');
 
-    // Add proximity bias if we have a user location
-    if (proximityLocation) {
-      url += `&proximity=${proximityLocation[0]},${proximityLocation[1]}`;
+  // For trails/paths, try OSM first since it has better trail data
+  if (isTrailOrPath && proximityLocation) {
+    try {
+      console.log(`🗺️ Trying OSM for trail: "${waypointName}"`);
+      const osmMatch = await matchRouteToOSM(
+        { name: waypointName },
+        { lat: proximityLocation[1], lng: proximityLocation[0] }
+      );
+
+      if (osmMatch) {
+        console.log(`✅ OSM found "${waypointName}" at: ${osmMatch.name}`);
+        return {
+          coordinates: [osmMatch.lng, osmMatch.lat], // [lng, lat]
+          name: osmMatch.name
+        };
+      }
+    } catch (osmError) {
+      console.log(`⚠️ OSM lookup failed for "${waypointName}", trying Mapbox...`);
+    }
+  }
+
+  // Fall back to Mapbox geocoding
+  try {
+    // Append state hint to trail names to prevent geocoding to wrong state
+    let searchName = waypointName;
+
+    if (proximityLocation && isTrailOrPath) {
+      if (!waypointName.toLowerCase().includes('colorado') &&
+          !waypointName.toLowerCase().includes(', co')) {
+        searchName = `${waypointName}, Colorado`;
+      }
     }
 
-    console.log(`🔍 Geocoding waypoint: "${waypointName}"`);
+    const encodedName = encodeURIComponent(searchName);
+    let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedName}.json?access_token=${MAPBOX_TOKEN}&country=US&types=place,locality,address,poi,neighborhood`;
+
+    // Add proximity bias and bounding box if we have a user location
+    if (proximityLocation) {
+      url += `&proximity=${proximityLocation[0]},${proximityLocation[1]}`;
+
+      // Add bounding box around the user (about 100 miles / 160km radius)
+      const lng = proximityLocation[0];
+      const lat = proximityLocation[1];
+      const radius = 1.5; // degrees, roughly 100 miles
+      const bbox = `${lng - radius},${lat - radius},${lng + radius},${lat + radius}`;
+      url += `&bbox=${bbox}`;
+    }
+
+    console.log(`🔍 Geocoding waypoint: "${searchName}"`);
 
     const response = await fetch(url);
     const data = await response.json();
 
     if (data.features && data.features.length > 0) {
       const feature = data.features[0];
+
+      // Verify the result is reasonably close to the user (within ~200km)
+      if (proximityLocation) {
+        const [resultLng, resultLat] = feature.center;
+        const distance = Math.sqrt(
+          Math.pow(resultLng - proximityLocation[0], 2) +
+          Math.pow(resultLat - proximityLocation[1], 2)
+        );
+        // If result is more than 2 degrees away (~220km), it's probably wrong
+        if (distance > 2) {
+          console.warn(`⚠️ Geocoded result for "${waypointName}" is too far away (${distance.toFixed(1)}° from user), skipping`);
+          return null;
+        }
+      }
+
       console.log(`✅ Geocoded "${waypointName}" to: ${feature.place_name}`);
       return {
         coordinates: feature.center, // [lng, lat]
