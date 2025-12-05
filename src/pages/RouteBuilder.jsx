@@ -7,12 +7,235 @@ import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
-import { generateClaudeRoutes, convertClaudeToRoute, parseNaturalLanguageRoute } from '../utils/claudeRouteService';
+import { generateClaudeRoutes, convertClaudeToRoute } from '../utils/claudeRouteService';
+import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { stravaService } from '../utils/stravaService';
 import { saveRoute, getRoute } from '../utils/routesService';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+
+/**
+ * Build a prompt for Claude to parse natural language route requests
+ * Returns waypoint NAMES that will be geocoded, not generic route suggestions
+ */
+function buildNaturalLanguagePrompt(userRequest, weatherData, userLocation, userAddress) {
+  // Extract region/area from user's address for context
+  let regionContext = '';
+  let gravelExamples = '';
+
+  if (userAddress) {
+    const addressLower = userAddress.toLowerCase();
+
+    if (addressLower.includes('colorado') || addressLower.includes(', co')) {
+      regionContext = 'The cyclist is in Colorado.';
+      gravelExamples = `
+   **Colorado Front Range Examples:**
+   - Erie → Lafayette → Superior → Louisville (county roads)
+   - Boulder → Lyons → Hygiene → Longmont (dirt roads in foothills)
+   - Boulder → Nederland → Ward → Jamestown (high country gravel)
+   - Golden → Morrison → Evergreen → Conifer (mountain roads)`;
+    } else if (addressLower.includes('california') || addressLower.includes(', ca')) {
+      regionContext = 'The cyclist is in California.';
+      gravelExamples = `
+   **California Examples:**
+   - Use small towns connected by county roads
+   - Suggest towns in wine country, foothills, or rural areas
+   - Look for agricultural areas with farm roads`;
+    } else {
+      regionContext = `The cyclist is near: ${userAddress}`;
+      gravelExamples = `
+   **General Strategy:**
+   - Suggest small towns/communities near the cyclist's location
+   - Rural areas typically have more gravel/dirt roads
+   - County roads between small towns are often unpaved`;
+    }
+  } else {
+    regionContext = 'Cyclist location unknown.';
+    gravelExamples = `
+   **General Strategy:**
+   - Suggest small towns logically placed between start and destination
+   - Rural areas and small communities often have gravel roads
+   - Use actual town names that will geocode reliably`;
+  }
+
+  return `You are an expert cycling route planner. A cyclist has requested: "${userRequest}"
+
+${regionContext}
+
+Your task is to extract the route requirements and return a structured JSON response with ACTUAL WAYPOINT NAMES that can be geocoded.
+
+CRITICAL: If the user mentions SPECIFIC trail names or paths (e.g., "Coal Creek Path", "Boulder Creek Trail", "Cherry Creek Trail"), you MUST include those EXACT names as waypoints. These are the user's primary request.
+
+Extract the following:
+1. Start location (if mentioned)
+2. Waypoints - CRITICAL: Include any trail names, path names, roads, or landmarks the user specifically mentioned
+3. Route type (loop, out_back, point_to_point)
+4. Distance or time
+5. Surface preference (gravel, paved, mixed)
+
+ROUTE TYPE DEFINITIONS:
+- "loop": Returns to start via DIFFERENT roads. If user says "heading south and back", this is a loop.
+- "out_back": Returns via the SAME route (only when explicitly requested)
+- "point_to_point": Different start and end
+
+Current conditions:
+${weatherData ? `- Weather: ${weatherData.temperature}°C, ${weatherData.description}
+- Wind: ${weatherData.windSpeed} km/h` : '- Weather data not available'}
+
+${gravelExamples}
+
+Return ONLY a JSON object:
+{
+  "startLocation": "start location if mentioned, or null",
+  "waypoints": ["IMPORTANT: Include EXACT trail/path names user mentioned here", "additional waypoint"],
+  "routeType": "loop|out_back|point_to_point",
+  "distance": number in km (or null),
+  "timeAvailable": number in minutes (or null),
+  "surfaceType": "gravel|paved|mixed",
+  "avoidHighways": true/false,
+  "trainingGoal": "endurance|intervals|recovery|hills" or null,
+  "direction": "north|south|east|west" if user mentioned a direction
+}
+
+EXAMPLES:
+
+User: "30 mile loop heading south on Coal Creek Path"
+Response:
+{
+  "startLocation": null,
+  "waypoints": ["Coal Creek Path"],
+  "routeType": "loop",
+  "distance": 48.3,
+  "surfaceType": "paved",
+  "direction": "south"
+}
+
+User: "Ride to Boulder Creek Trail and back on gravel"
+Response:
+{
+  "startLocation": null,
+  "waypoints": ["Boulder Creek Trail"],
+  "routeType": "loop",
+  "surfaceType": "gravel"
+}
+
+User: "40 mile loop through Hygiene and Lyons on dirt roads"
+Response:
+{
+  "startLocation": null,
+  "waypoints": ["Hygiene", "Lyons"],
+  "routeType": "loop",
+  "distance": 64.4,
+  "surfaceType": "gravel"
+}
+
+CRITICAL RULES:
+1. If user mentions a TRAIL NAME (Coal Creek Path, Boulder Creek, etc.), it MUST be in waypoints
+2. Return ONLY valid JSON, no extra text
+3. Waypoints should be actual place names that can be geocoded`;
+}
+
+/**
+ * Parse Claude's natural language response to extract waypoints
+ */
+function parseNaturalLanguageResponse(responseText) {
+  try {
+    // Try to extract JSON from the response
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in response');
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    console.log('📝 Parsed natural language response:', parsed);
+
+    // Convert to route generator parameters
+    const result = {};
+
+    // Determine route type
+    if (parsed.routeType) {
+      result.routeType = parsed.routeType;
+    } else if (parsed.endLocation && parsed.endLocation !== parsed.startLocation) {
+      result.routeType = 'point_to_point';
+    } else {
+      result.routeType = 'loop';
+    }
+
+    // Set time or distance
+    if (parsed.timeAvailable) {
+      result.timeAvailable = parsed.timeAvailable;
+    } else if (parsed.distance) {
+      // Estimate time from distance (assume 25 km/h average)
+      result.timeAvailable = Math.round((parsed.distance / 25) * 60);
+      result.targetDistanceKm = parsed.distance;
+    }
+
+    // Set training goal
+    if (parsed.trainingGoal) {
+      result.trainingGoal = parsed.trainingGoal;
+    } else {
+      result.trainingGoal = 'endurance';
+    }
+
+    // Extract waypoints - THIS IS THE KEY DIFFERENCE
+    result.startLocationName = parsed.startLocation;
+    result.waypoints = parsed.waypoints || [];
+    result.direction = parsed.direction;
+
+    // Surface/preferences
+    result.preferences = {
+      avoidHighways: parsed.avoidHighways,
+      surfaceType: parsed.surfaceType || 'mixed',
+      trailPreference: parsed.surfaceType === 'gravel'
+    };
+
+    console.log('🎯 Extracted waypoints:', result.waypoints);
+    console.log('🧭 Direction:', result.direction);
+    return result;
+
+  } catch (error) {
+    console.error('Failed to parse natural language response:', error);
+    throw new Error('Could not understand the route request. Please try being more specific.');
+  }
+}
+
+/**
+ * Geocode a waypoint name to coordinates
+ */
+async function geocodeWaypoint(waypointName, proximityLocation) {
+  if (!waypointName || !MAPBOX_TOKEN) return null;
+
+  try {
+    const encodedName = encodeURIComponent(waypointName);
+    let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedName}.json?access_token=${MAPBOX_TOKEN}&country=US&types=place,locality,address,poi,neighborhood`;
+
+    // Add proximity bias if we have a user location
+    if (proximityLocation) {
+      url += `&proximity=${proximityLocation[0]},${proximityLocation[1]}`;
+    }
+
+    console.log(`🔍 Geocoding waypoint: "${waypointName}"`);
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.features && data.features.length > 0) {
+      const feature = data.features[0];
+      console.log(`✅ Geocoded "${waypointName}" to: ${feature.place_name}`);
+      return {
+        coordinates: feature.center, // [lng, lat]
+        name: feature.place_name
+      };
+    } else {
+      console.warn(`⚠️ Could not geocode: ${waypointName}`);
+      return null;
+    }
+  } catch (error) {
+    console.error(`Geocoding error for ${waypointName}:`, error);
+    return null;
+  }
+}
 
 function RouteBuilder() {
   const { routeId } = useParams();
@@ -434,7 +657,8 @@ function RouteBuilder() {
     }
   };
 
-  // Handle natural language route generation
+  // Handle natural language route generation - NEW APPROACH
+  // Uses Claude to extract waypoint NAMES, then geocodes and routes through them
   const handleNaturalLanguageGenerate = useCallback(async () => {
     if (!naturalLanguageInput.trim()) {
       notifications.show({
@@ -445,38 +669,127 @@ function RouteBuilder() {
       return;
     }
 
-    // Parse natural language into structured params
-    const parsed = parseNaturalLanguageRoute(naturalLanguageInput, {
-      lat: viewport.latitude,
-      lng: viewport.longitude
-    });
-
-    // Update UI with parsed values
-    setTimeAvailable(parsed.timeAvailable);
-    setTrainingGoal(parsed.trainingGoal);
-    setRouteType(parsed.routeType);
-    setRouteProfile(parsed.profile);
-
-    // Generate routes with parsed params
     setGeneratingAI(true);
+
     try {
-      const suggestions = await generateClaudeRoutes({
-        startLocation: parsed.startLocation,
-        timeAvailable: parsed.timeAvailable,
-        targetDistanceKm: parsed.targetDistanceKm,
-        trainingGoal: parsed.trainingGoal,
-        routeType: parsed.routeType,
-        userRequest: naturalLanguageInput  // Pass the full user request so Claude sees trail names, directions, etc.
+      console.log('🗣️ Processing natural language request:', naturalLanguageInput);
+
+      // Step 1: Build prompt for Claude to extract waypoint names
+      const prompt = buildNaturalLanguagePrompt(
+        naturalLanguageInput,
+        null, // weatherData
+        [viewport.longitude, viewport.latitude],
+        null // userAddress - could add reverse geocoding later
+      );
+
+      // Step 2: Call Claude API to parse the request
+      const apiUrl = import.meta.env.PROD ? '/api/claude-routes' : 'http://localhost:3000/api/claude-routes';
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          maxTokens: 1000,
+          temperature: 0.3 // Lower temperature for more consistent parsing
+        })
       });
 
-      setAiSuggestions(suggestions);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to process route request');
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to parse route request');
+      }
+
+      // Step 3: Parse Claude's response to get waypoint names
+      const parsed = parseNaturalLanguageResponse(data.content);
+      console.log('📍 Parsed route request:', parsed);
+
+      // Update UI with parsed values
+      if (parsed.timeAvailable) setTimeAvailable(parsed.timeAvailable);
+      if (parsed.trainingGoal) setTrainingGoal(parsed.trainingGoal);
+      if (parsed.routeType) setRouteType(parsed.routeType);
+      if (parsed.preferences?.surfaceType === 'gravel') setRouteProfile('gravel');
+
+      // Step 4: Geocode each waypoint name to coordinates
+      const startLocation = [viewport.longitude, viewport.latitude];
+      const waypointCoords = [startLocation]; // Start with user's current location
+
+      for (const waypointName of parsed.waypoints) {
+        const geocoded = await geocodeWaypoint(waypointName, startLocation);
+        if (geocoded) {
+          waypointCoords.push(geocoded.coordinates);
+        } else {
+          console.warn(`Could not geocode waypoint: ${waypointName}`);
+        }
+      }
+
+      // For loop routes, return to start
+      if (parsed.routeType === 'loop' || parsed.routeType === 'out_back') {
+        waypointCoords.push(startLocation);
+      }
+
+      console.log(`📍 Routing through ${waypointCoords.length} waypoints:`, waypointCoords);
+
+      if (waypointCoords.length < 2) {
+        throw new Error('Could not find any of the specified locations. Try using different place names.');
+      }
+
+      // Step 5: Generate route through the geocoded waypoints
       notifications.show({
-        title: 'Routes Generated!',
-        message: `Found ${suggestions.length} ${parsed.profile} routes matching "${naturalLanguageInput}"`,
-        color: 'lime'
+        id: 'generating-route',
+        title: 'Generating Route',
+        message: `Routing through ${parsed.waypoints.join(', ')}...`,
+        loading: true,
+        autoClose: false
       });
+
+      const routeResult = await getSmartCyclingRoute(waypointCoords, {
+        profile: parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
+        trainingGoal: parsed.trainingGoal || 'endurance',
+        mapboxToken: MAPBOX_TOKEN
+      });
+
+      if (!routeResult || !routeResult.coordinates || routeResult.coordinates.length < 10) {
+        throw new Error('Could not generate a route through those waypoints. Try different locations.');
+      }
+
+      // Step 6: Create route object and display
+      const routeName = `${parsed.waypoints.join(' → ')} ${parsed.routeType}`;
+
+      setRouteGeometry({
+        type: 'LineString',
+        coordinates: routeResult.coordinates
+      });
+
+      setRouteStats({
+        distance: (routeResult.distance / 1000).toFixed(1),
+        elevation: routeResult.elevationGain || 0,
+        duration: Math.round(routeResult.duration / 60)
+      });
+
+      setRouteName(routeName);
+      setRoutingSource(routeResult.source);
+      setWaypoints([]); // Clear manual waypoints since we're using AI route
+
+      notifications.update({
+        id: 'generating-route',
+        title: 'Route Generated!',
+        message: `${(routeResult.distance / 1000).toFixed(1)} km route through ${parsed.waypoints.join(', ')}`,
+        color: 'lime',
+        loading: false,
+        autoClose: 3000
+      });
+
+      console.log(`✅ Route generated: ${(routeResult.distance / 1000).toFixed(1)} km via ${routeResult.source}`);
+
     } catch (error) {
       console.error('Natural language route generation error:', error);
+      notifications.hide('generating-route');
       notifications.show({
         title: 'Generation Failed',
         message: error.message || 'Failed to generate routes. Please try again.',
