@@ -1,8 +1,62 @@
 // Claude AI Route Generation Service
 // Handles prompting and parsing for AI-generated cycling routes
+//
+// This service uses Claude to:
+// 1. Parse natural language requests into structured waypoints (place names)
+// 2. Geocode those waypoints to coordinates
+// 3. Route through the actual places the user requested
+//
+// Key insight: Claude extracts PLACE NAMES from user requests, then we geocode them.
+// This is different from asking Claude to generate geometric routes.
 
 import { getSmartCyclingRoute, getRoutingStrategyDescription } from './smartCyclingRouter';
 import { matchRouteToOSM, getTrailWaypoints } from './osmCyclingService';
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+
+/**
+ * Geocode a place name to coordinates using Mapbox
+ * @param {string} placeName - Name of place (e.g., "Coal Creek Trail", "Boulder, CO")
+ * @param {Object} proximity - Optional proximity bias {lat, lng}
+ * @returns {Promise<Object|null>} - {coordinates: [lng, lat], address: string} or null
+ */
+async function geocodePlace(placeName, proximity = null) {
+  if (!placeName?.trim()) return null;
+  if (!MAPBOX_TOKEN) {
+    console.warn('Mapbox token not available for geocoding');
+    return null;
+  }
+
+  try {
+    const encodedPlace = encodeURIComponent(placeName);
+    let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedPlace}.json?access_token=${MAPBOX_TOKEN}&country=US&types=place,locality,address,poi,neighborhood`;
+
+    if (proximity) {
+      url += `&proximity=${proximity.lng},${proximity.lat}`;
+    }
+
+    console.log(`🔍 Geocoding: "${placeName}"${proximity ? ' with proximity bias' : ''}`);
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.features && data.features.length > 0) {
+      const feature = data.features[0];
+      const [longitude, latitude] = feature.center;
+      console.log(`✅ Geocoded "${placeName}" → ${feature.place_name}`);
+      return {
+        coordinates: { lat: latitude, lng: longitude },
+        address: feature.place_name
+      };
+    } else {
+      console.warn(`⚠️ Could not geocode: "${placeName}"`);
+      return null;
+    }
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    return null;
+  }
+}
 
 /**
  * Generate route suggestions using Claude AI
@@ -89,7 +143,13 @@ export async function generateClaudeRoutes(params) {
 }
 
 /**
- * Build the prompt for Claude
+ * Build the prompt for Claude - NEW APPROACH
+ * Instead of asking for abstract route descriptions, we ask Claude to:
+ * 1. Parse the user's natural language request
+ * 2. Extract specific WAYPOINT NAMES (trails, towns, landmarks)
+ * 3. Return those waypoint names so we can geocode them to real coordinates
+ *
+ * This is the key difference from the old broken approach.
  */
 function buildRoutePrompt(params) {
   const {
@@ -101,7 +161,126 @@ function buildRoutePrompt(params) {
     routeType,
     weatherData,
     userPreferences,
-    userRequest
+    userRequest,
+    userAddress
+  } = params;
+
+  // If no user request, use the old approach (for structured form input)
+  if (!userRequest) {
+    return buildStructuredRoutePrompt(params);
+  }
+
+  // NEW: Natural language waypoint extraction prompt
+  // This prompt asks Claude to extract PLACE NAMES from the user's request
+  const prompt = `You are an expert cycling route planner. A cyclist has made this request:
+
+"${userRequest}"
+
+Their current location: ${startLat.toFixed(5)}, ${startLng.toFixed(5)}${userAddress ? ` (near ${userAddress})` : ''}
+Target distance: ${targetDistance.toFixed(1)} km (${(targetDistance / 1.60934).toFixed(1)} miles)
+Route type preference: ${routeType}
+
+Your task: Extract and interpret the route requirements, then suggest SPECIFIC WAYPOINTS (real places that can be geocoded).
+
+**CRITICAL INSTRUCTIONS:**
+1. If the user mentions specific trails, paths, or roads (e.g., "Coal Creek Path", "Boulder Creek Trail"), include them as waypoints
+2. If the user mentions directions (e.g., "heading south"), note this for the route
+3. Suggest 1-3 intermediate waypoint names that will help create the requested route
+4. Waypoints should be REAL PLACE NAMES that exist and can be geocoded (towns, trails, parks, landmarks)
+5. Keep waypoints logically ordered for the route type
+
+**OUTPUT FORMAT - Return ONLY this JSON (no markdown, no explanation):**
+{
+  "routes": [
+    {
+      "name": "Descriptive route name",
+      "description": "Why this matches the request",
+      "waypoints": ["First Waypoint Name", "Second Waypoint Name"],
+      "routeType": "loop|out_back|point_to_point",
+      "estimatedDistance": ${targetDistance.toFixed(1)},
+      "difficulty": "easy|moderate|hard",
+      "surfaceType": "paved|gravel|mixed",
+      "initialDirection": "north|south|east|west|null"
+    }
+  ]
+}
+
+**EXAMPLES:**
+
+User: "30 mile loop heading south on Coal Creek Path"
+Response:
+{
+  "routes": [
+    {
+      "name": "Coal Creek Path South Loop",
+      "description": "Head south on Coal Creek Path, loop through Superior and return",
+      "waypoints": ["Coal Creek Trail", "Superior, CO"],
+      "routeType": "loop",
+      "estimatedDistance": 48.3,
+      "difficulty": "moderate",
+      "surfaceType": "mixed",
+      "initialDirection": "south"
+    }
+  ]
+}
+
+User: "2 hour ride to Lyons and back"
+Response:
+{
+  "routes": [
+    {
+      "name": "Lyons Out-and-Back",
+      "description": "Scenic ride to Lyons through the foothills",
+      "waypoints": ["Lyons, CO"],
+      "routeType": "out_back",
+      "estimatedDistance": 60,
+      "difficulty": "moderate",
+      "surfaceType": "paved",
+      "initialDirection": "north"
+    }
+  ]
+}
+
+User: "gravel loop from Boulder through the mountains"
+Response:
+{
+  "routes": [
+    {
+      "name": "Boulder Mountain Gravel Loop",
+      "description": "Gravel roads through Nederland and Ward",
+      "waypoints": ["Nederland, CO", "Ward, CO"],
+      "routeType": "loop",
+      "estimatedDistance": 80,
+      "difficulty": "hard",
+      "surfaceType": "gravel",
+      "initialDirection": "west"
+    }
+  ]
+}
+
+**IMPORTANT:**
+- Generate 2-3 route variations with DIFFERENT waypoints
+- Use REAL place names near the user's location
+- If the user mentions a specific trail/path, ALWAYS include it as a waypoint
+- Trail names like "Coal Creek Trail" ARE valid waypoints (Mapbox can geocode them)
+
+Now parse this request and return the JSON:`;
+
+  return prompt;
+}
+
+/**
+ * Build structured route prompt (for form-based input without natural language)
+ */
+function buildStructuredRoutePrompt(params) {
+  const {
+    startLat,
+    startLng,
+    targetDistance,
+    timeAvailable,
+    trainingGoal,
+    routeType,
+    weatherData
   } = params;
 
   // Training goal descriptions
@@ -112,35 +291,14 @@ function buildRoutePrompt(params) {
     hills: 'Climbing strength and power development. Prioritize routes with sustained climbs and varied gradients.'
   };
 
-  // Route type descriptions
-  const routeTypeDesc = {
-    loop: 'a loop route that returns to the starting point',
-    out_back: 'an out-and-back route along the same path',
-    point_to_point: 'a point-to-point route to a different destination'
-  };
-
-  // Build user request section if provided
-  const userRequestSection = userRequest ? `
-**USER'S SPECIFIC REQUEST**
-"${userRequest}"
-
-CRITICAL: The user has made a specific request. You MUST incorporate their mentioned:
-- Trail/path names (e.g., "Coal Creek Path" - use this exact trail in your route)
-- Directions (e.g., "heading south" - start by going in that direction)
-- Landmarks or destinations mentioned
-- Any other specific preferences
-
-Your routes MUST follow the user's request. If they ask for "Coal Creek Path heading south", ALL routes should use Coal Creek Path and head south initially.
-` : '';
-
   const prompt = `You are an expert cycling coach and route planner. Generate 3 cycling route suggestions based on these parameters:
 
 **LOCATION & DISTANCE**
 - Start Location: ${startLat.toFixed(6)}, ${startLng.toFixed(6)}
 - Target Distance: ${targetDistance.toFixed(1)} km
 - Available Time: ${timeAvailable} minutes
-- Route Type: ${routeTypeDesc[routeType]}
-${userRequestSection}
+- Route Type: ${routeType}
+
 **TRAINING GOAL: ${trainingGoal.toUpperCase()}**
 ${goalDescriptions[trainingGoal]}
 
@@ -150,37 +308,26 @@ ${weatherData ? `**WEATHER CONDITIONS**
 - Wind: ${weatherData.wind || 'Light'}
 ` : ''}
 
-**OUTPUT FORMAT**
-Respond with ONLY a JSON object in this exact format (no markdown, no code blocks, just raw JSON):
-
+**OUTPUT FORMAT - Return ONLY this JSON:**
 {
   "routes": [
     {
-      "name": "Descriptive route name (e.g., 'North Valley Loop')",
+      "name": "Descriptive route name",
       "description": "Brief explanation of why this route matches the training goal",
+      "waypoints": ["Town or Landmark 1", "Town or Landmark 2"],
+      "routeType": "${routeType}",
       "estimatedDistance": ${targetDistance.toFixed(1)},
-      "estimatedElevation": 150,
       "difficulty": "easy|moderate|hard",
-      "keyDirections": [
-        "Head north on Main St",
-        "Turn right onto Valley Rd",
-        "Follow for 5km",
-        "Return via Oak Ave"
-      ],
-      "trainingFocus": "Explanation of how this route achieves the training goal",
-      "estimatedTime": ${timeAvailable}
+      "surfaceType": "paved|gravel|mixed",
+      "initialDirection": "north|south|east|west"
     }
   ]
 }
 
-**IMPORTANT RULES**
-1. Generate exactly 3 route variations with different characteristics
-2. Keep routes within 20% of target distance (${(targetDistance * 0.8).toFixed(1)}-${(targetDistance * 1.2).toFixed(1)} km)
-3. Ensure routes are realistic and rideable
-4. Consider bike infrastructure and safety
-5. Match difficulty to training goal
-6. Respond with ONLY the JSON object (no extra text, no markdown formatting)
-${userRequest ? `7. CRITICAL: All routes MUST incorporate the user's specific request: "${userRequest}"` : ''}
+**IMPORTANT:**
+- waypoints should be REAL place names near the start location that can be geocoded
+- Generate 3 different route variations with different waypoints
+- Match difficulty to training goal
 
 Generate the routes now:`;
 
@@ -189,6 +336,7 @@ Generate the routes now:`;
 
 /**
  * Parse Claude's JSON response into route objects
+ * NEW: Now handles waypoint arrays for geocoding
  */
 function parseClaudeResponse(responseText, context) {
   try {
@@ -204,17 +352,23 @@ function parseClaudeResponse(responseText, context) {
       throw new Error('Invalid response format - missing routes array');
     }
 
-    // Map to internal route format
+    // Map to internal route format - NOW INCLUDES WAYPOINT NAMES
     return parsed.routes.map(route => ({
       name: route.name,
       description: route.description,
       distance: route.estimatedDistance,
-      elevationGain: route.estimatedElevation,
+      elevationGain: route.estimatedElevation || 0,
       difficulty: route.difficulty,
       estimatedTime: route.estimatedTime || context.timeAvailable,
       trainingGoal: context.trainingGoal,
+      // NEW: Store waypoint names for geocoding
+      waypointNames: route.waypoints || [],
+      surfaceType: route.surfaceType || 'mixed',
+      initialDirection: route.initialDirection || null,
+      routeType: route.routeType || context.routeType || 'loop',
+      // Legacy support
       keyDirections: route.keyDirections || [],
-      trainingFocus: route.trainingFocus,
+      trainingFocus: route.trainingFocus || route.description,
       source: 'claude',
       confidence: 0.85,
       needsRouting: true, // Needs conversion to actual GPS coordinates
@@ -250,16 +404,16 @@ function calculateTargetDistance(timeMinutes, trainingGoal) {
 }
 
 /**
- * Convert a Claude route suggestion to actual GPS coordinates using Smart Cycling Router
- * Uses Stadia Maps (Valhalla) as primary, with BRouter and Mapbox fallbacks
+ * Convert a Claude route suggestion to actual GPS coordinates
+ * NEW APPROACH: Geocode waypoint NAMES from Claude's response, then route through them
  *
- * @param {Object} claudeRoute - Route suggestion from Claude
+ * This is the key fix - instead of generating geometric waypoints, we:
+ * 1. Take the waypoint names Claude extracted (e.g., ["Coal Creek Trail", "Superior, CO"])
+ * 2. Geocode each to real coordinates
+ * 3. Route through those actual locations
+ *
+ * @param {Object} claudeRoute - Route suggestion from Claude (with waypointNames array)
  * @param {Object} options - Conversion options
- * @param {string} options.mapboxToken - Mapbox token for fallback
- * @param {string} options.profile - Route profile: 'road', 'gravel', 'mountain', 'commuting'
- * @param {number} options.userSpeed - Optional personalized cycling speed in km/h
- * @param {number} options.routeIndex - Index of this route (0, 1, 2) for variation
- * @param {string} options.userRequest - Original user request for better OSM matching
  * @returns {Promise<Object>} Route with GPS coordinates
  */
 export async function convertClaudeToRoute(claudeRoute, options = {}) {
@@ -272,93 +426,84 @@ export async function convertClaudeToRoute(claudeRoute, options = {}) {
   } = typeof options === 'string' ? { mapboxToken: options } : options;
 
   console.log('🚴 Converting Claude route to GPS coordinates:', claudeRoute.name);
-  console.log('📍 Profile:', profile, '| Route Index:', routeIndex);
+  console.log('📍 Profile:', profile, '| Waypoint names:', claudeRoute.waypointNames);
 
-  const { startLocation, distance, routeType, trainingGoal, keyDirections } = claudeRoute;
+  const { startLocation, distance, routeType, trainingGoal, waypointNames, surfaceType, initialDirection } = claudeRoute;
 
   try {
-    // Step 1: Try to match route to real OSM cycling infrastructure
-    let osmMatch = null;
-    let waypoints = [];
+    // Step 1: Build waypoints array starting with user's location
+    const waypoints = [startLocation];
 
-    // First try matching the user's original request (e.g., "Coal Creek Path")
-    // This is more likely to match OSM than Claude's generated route name
-    if (userRequest) {
-      try {
-        console.log(`🔍 Trying OSM match on user request: "${userRequest}"`);
-        osmMatch = await matchRouteToOSM({ name: userRequest }, startLocation);
-      } catch (osmError) {
-        console.log('⚠️ OSM matching on user request failed:', osmError.message);
-      }
-    }
+    // Step 2: GEOCODE each waypoint name to coordinates - THIS IS THE KEY FIX
+    if (waypointNames && waypointNames.length > 0) {
+      console.log(`🗺️ Geocoding ${waypointNames.length} waypoint names...`);
 
-    // Fall back to matching Claude's route name
-    if (!osmMatch) {
-      try {
-        osmMatch = await matchRouteToOSM(claudeRoute, startLocation);
-      } catch (osmError) {
-        console.log('⚠️ OSM matching failed, will use geometric waypoints:', osmError.message);
-      }
-    }
+      for (const waypointName of waypointNames) {
+        const geocoded = await geocodePlace(waypointName, startLocation);
 
-    if (osmMatch) {
-      // Use OSM-matched feature - get waypoints ALONG the trail, not just to it
-      console.log(`✅ Using OSM feature: ${osmMatch.name} at ${osmMatch.lat.toFixed(4)}, ${osmMatch.lng.toFixed(4)}`);
-
-      // Get multiple waypoints along the actual trail
-      const trailWaypoints = getTrailWaypoints(osmMatch, startLocation, distance);
-
-      if (trailWaypoints.length > 0) {
-        // Build route: start → along trail → back to start (for loop)
-        if (routeType === 'loop' || !routeType) {
-          // For loops: go to trail, follow it, then return
-          waypoints = [
-            startLocation,
-            ...trailWaypoints,
-            startLocation
-          ];
-          console.log(`📍 Loop route with ${trailWaypoints.length} trail waypoints`);
+        if (geocoded) {
+          waypoints.push(geocoded.coordinates);
+          console.log(`✅ Waypoint "${waypointName}" → ${geocoded.address}`);
         } else {
-          // For out-and-back: go to trail, follow it, reverse back
-          waypoints = [
-            startLocation,
-            ...trailWaypoints,
-            ...trailWaypoints.slice().reverse(),
-            startLocation
-          ];
-          console.log(`📍 Out-and-back with ${trailWaypoints.length * 2} trail waypoints`);
+          // Try OSM matching as fallback for trails
+          try {
+            const osmMatch = await matchRouteToOSM({ name: waypointName }, startLocation);
+            if (osmMatch) {
+              waypoints.push({ lat: osmMatch.lat, lng: osmMatch.lng });
+              console.log(`✅ Waypoint "${waypointName}" → OSM: ${osmMatch.name}`);
+            } else {
+              console.warn(`⚠️ Could not geocode or OSM-match waypoint: "${waypointName}"`);
+            }
+          } catch (osmErr) {
+            console.warn(`⚠️ Could not find waypoint: "${waypointName}"`);
+          }
         }
-      } else {
-        // Fallback to single point if no geometry
-        const osmWaypoint = { lat: osmMatch.lat, lng: osmMatch.lng };
-        waypoints = generateLoopWithOSMTarget(startLocation, osmWaypoint, distance, routeIndex);
       }
-    } else {
-      // Step 2: Fall back to geometric waypoint generation
-      console.log('📐 Using geometric waypoint generation');
-      waypoints = generateRouteWaypoints(startLocation, distance, routeType || 'loop', {
+    }
+
+    // Step 3: If no waypoints were geocoded, fall back to geometric generation
+    if (waypoints.length === 1) {
+      console.log('⚠️ No waypoints geocoded, falling back to geometric generation');
+      const geometricWaypoints = generateRouteWaypoints(startLocation, distance, routeType || 'loop', {
         routeIndex,
-        keyDirections,
+        keyDirections: claudeRoute.keyDirections || [],
         trainingGoal
       });
+      waypoints.push(...geometricWaypoints.slice(1)); // Skip first (start) point
+    }
+
+    // Step 4: Close the loop if needed
+    if (routeType === 'loop' || routeType === 'out_back') {
+      // Make sure we return to start
+      const lastWaypoint = waypoints[waypoints.length - 1];
+      if (lastWaypoint.lat !== startLocation.lat || lastWaypoint.lng !== startLocation.lng) {
+        waypoints.push(startLocation);
+      }
     }
 
     // Convert waypoints to [lon, lat] format for smart router
     const waypointsArray = waypoints.map(wp => [wp.lng, wp.lat]);
 
-    console.log(`📍 Generated ${waypointsArray.length} waypoints for smart routing${osmMatch ? ' (OSM-guided)' : ''}`);
+    console.log(`📍 Routing through ${waypointsArray.length} waypoints (${waypoints.length - 1} geocoded)`);
 
+    // Determine routing profile based on surface type
+    let routingProfile = profile;
+    if (surfaceType === 'gravel') {
+      routingProfile = 'gravel';
+    } else if (surfaceType === 'mixed') {
+      routingProfile = 'road'; // Default to road for mixed
+    }
 
-    // Use smart cycling router (Stadia Maps → BRouter → Mapbox fallback)
+    // Step 5: Use smart cycling router to generate actual route
     const routeResult = await getSmartCyclingRoute(waypointsArray, {
-      profile,
+      profile: routingProfile,
       trainingGoal: trainingGoal || 'endurance',
       mapboxToken,
       userSpeed
     });
 
     if (!routeResult || !routeResult.coordinates || routeResult.coordinates.length < 10) {
-      throw new Error('Smart router failed to generate route');
+      throw new Error('Smart router failed to generate route through waypoints');
     }
 
     // Get human-readable routing strategy description
@@ -379,11 +524,12 @@ export async function convertClaudeToRoute(claudeRoute, options = {}) {
       elevationGain: routeResult.elevationGain || claudeRoute.elevationGain || 0,
       elevationLoss: routeResult.elevationLoss || 0,
       waypoints: waypoints,
+      waypointNames: waypointNames, // Keep original names for display
       needsRouting: false,
       routingSource: routeResult.source,
       routingStrategy,
       confidence: routeResult.confidence,
-      profile: routeResult.profile || profile
+      profile: routeResult.profile || routingProfile
     };
 
   } catch (error) {
