@@ -7,7 +7,7 @@ import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
-import { generateClaudeRoutes, convertClaudeToRoute } from '../utils/claudeRouteService';
+import { generateAIRoutes } from '../utils/aiRouteGenerator';
 import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
 import { matchRouteToOSM } from '../utils/osmCyclingService';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -589,24 +589,29 @@ function RouteBuilder() {
     }
   }, [routeGeometry, routeName, routeStats, routeType, trainingGoal, routeProfile, waypoints, aiSuggestions, savedRouteId, user, routeId, navigate]);
 
-  // Generate AI Routes
+  // Generate AI Routes using the comprehensive aiRouteGenerator
   const handleGenerateAIRoutes = useCallback(async () => {
     setGeneratingAI(true);
     try {
-      const suggestions = await generateClaudeRoutes({
-        startLocation: {
-          lat: viewport.latitude,
-          lng: viewport.longitude
-        },
+      // Use the full AI route generator which:
+      // 1. Uses Claude for intelligent suggestions
+      // 2. Converts suggestions to full GPS routes
+      // 3. Falls back to past ride patterns and Mapbox if needed
+      const routes = await generateAIRoutes({
+        startLocation: [viewport.longitude, viewport.latitude], // [lng, lat] format
         timeAvailable,
         trainingGoal,
-        routeType
+        routeType,
+        userId: user?.id,
+        speedProfile,
+        speedModifier: 1.0
       });
 
-      setAiSuggestions(suggestions);
+      // Routes from generateAIRoutes already have full coordinates
+      setAiSuggestions(routes);
       notifications.show({
         title: 'Routes Generated!',
-        message: `Found ${suggestions.length} routes for your ${trainingGoal} session`,
+        message: `Found ${routes.length} routes for your ${trainingGoal} session`,
         color: 'lime'
       });
     } catch (error) {
@@ -619,7 +624,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [viewport, timeAvailable, trainingGoal, routeType]);
+  }, [viewport, timeAvailable, trainingGoal, routeType, user, speedProfile]);
 
   // Get user's speed for the current route profile
   const getUserSpeedForProfile = useCallback((profile) => {
@@ -639,73 +644,55 @@ function RouteBuilder() {
     }
   }, [speedProfile]);
 
-  // Select an AI suggestion and convert to GPS route
+  // Select an AI suggestion - routes already have full coordinates from generateAIRoutes
   const handleSelectAISuggestion = useCallback(async (suggestion, index) => {
     setConvertingRoute(index);
     setRouteName(suggestion.name);
 
-    // Get personalized speed for this route type
-    const userSpeed = getUserSpeedForProfile(routeProfile);
-
     try {
-      notifications.show({
-        id: 'converting-route',
-        title: 'Converting Route',
-        message: `Generating GPS coordinates for "${suggestion.name}"...${userSpeed ? ` (using your ${routeProfile} speed: ${userSpeed.toFixed(1)} km/h)` : ''}`,
-        loading: true,
-        autoClose: false
-      });
+      // Routes from generateAIRoutes already have full coordinates
+      if (suggestion.coordinates && suggestion.coordinates.length > 0) {
+        // Create GeoJSON geometry from coordinates
+        const geometry = {
+          type: 'LineString',
+          coordinates: suggestion.coordinates
+        };
+        setRouteGeometry(geometry);
 
-      // Convert Claude suggestion to actual GPS route using smart router
-      // Pass routeIndex to generate distinct route directions
-      const convertedRoute = await convertClaudeToRoute(suggestion, {
-        mapboxToken: MAPBOX_TOKEN,
-        profile: routeProfile,
-        userSpeed, // Use personalized speed from Strava data
-        routeIndex: index, // Each route uses different direction for variety
-        userRequest: naturalLanguageInput // Pass user's original request for OSM matching
-      });
-
-      if (convertedRoute && convertedRoute.coordinates) {
-        // Set the route geometry
-        setRouteGeometry(convertedRoute.geometry);
-
-        // Update route stats
+        // Update route stats from the pre-computed route data
         setRouteStats({
-          distance: convertedRoute.distance.toFixed(1),
-          elevation: convertedRoute.elevationGain || 0,
-          duration: Math.round(convertedRoute.duration)
+          distance: (suggestion.distance || 0).toFixed(1),
+          elevation: suggestion.elevationGain || 0,
+          duration: Math.round((suggestion.distance || 0) / 25 * 60) // Estimate based on 25km/h
         });
 
         // Track routing source for display
-        setRoutingSource(convertedRoute.routingSource);
+        setRoutingSource(suggestion.source || 'ai_generated');
 
         // Clear waypoints since we're using AI-generated route
         setWaypoints([]);
 
-        notifications.update({
-          id: 'converting-route',
-          title: 'Route Generated!',
-          message: `${convertedRoute.distance.toFixed(1)} km via ${getRoutingSourceLabel(convertedRoute.routingSource)}`,
+        notifications.show({
+          title: 'Route Selected!',
+          message: `${(suggestion.distance || 0).toFixed(1)} km - ${suggestion.name}`,
           color: 'lime',
-          loading: false,
           autoClose: 3000
         });
+      } else {
+        throw new Error('Route has no coordinates');
       }
     } catch (error) {
-      console.error('Error converting route:', error);
-      notifications.update({
-        id: 'converting-route',
-        title: 'Conversion Failed',
-        message: error.message || 'Failed to generate GPS route. Please try again.',
+      console.error('Error selecting route:', error);
+      notifications.show({
+        title: 'Selection Failed',
+        message: error.message || 'Failed to load route. Please try again.',
         color: 'red',
-        loading: false,
         autoClose: 5000
       });
     } finally {
       setConvertingRoute(null);
     }
-  }, [routeProfile, getUserSpeedForProfile]);
+  }, []);
 
   // Get human-readable label for routing source
   const getRoutingSourceLabel = (source) => {
