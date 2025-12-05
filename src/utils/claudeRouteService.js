@@ -17,7 +17,8 @@ export async function generateClaudeRoutes(params) {
     trainingGoal = 'endurance',  // 'endurance' | 'intervals' | 'hills' | 'recovery'
     routeType = 'loop',  // 'loop' | 'out_back' | 'point_to_point'
     weatherData,         // Optional weather info
-    userPreferences      // Optional user preferences
+    userPreferences,     // Optional user preferences
+    userRequest          // The user's natural language request (e.g., "30 mile loop on Coal Creek Path")
   } = params;
 
   // Normalize start location
@@ -27,7 +28,9 @@ export async function generateClaudeRoutes(params) {
   // Use explicit distance if provided, otherwise calculate from time
   const targetDistance = targetDistanceKm || calculateTargetDistance(timeAvailable, trainingGoal);
   console.log(`🎯 Target distance: ${targetDistance.toFixed(1)} km ${targetDistanceKm ? '(user specified)' : '(calculated from time)'}`);
-
+  if (userRequest) {
+    console.log(`📝 User request: "${userRequest}"`);
+  }
 
   // Build the prompt
   const prompt = buildRoutePrompt({
@@ -38,7 +41,8 @@ export async function generateClaudeRoutes(params) {
     trainingGoal,
     routeType,
     weatherData,
-    userPreferences
+    userPreferences,
+    userRequest
   });
 
   try {
@@ -96,7 +100,8 @@ function buildRoutePrompt(params) {
     trainingGoal,
     routeType,
     weatherData,
-    userPreferences
+    userPreferences,
+    userRequest
   } = params;
 
   // Training goal descriptions
@@ -114,6 +119,20 @@ function buildRoutePrompt(params) {
     point_to_point: 'a point-to-point route to a different destination'
   };
 
+  // Build user request section if provided
+  const userRequestSection = userRequest ? `
+**USER'S SPECIFIC REQUEST**
+"${userRequest}"
+
+CRITICAL: The user has made a specific request. You MUST incorporate their mentioned:
+- Trail/path names (e.g., "Coal Creek Path" - use this exact trail in your route)
+- Directions (e.g., "heading south" - start by going in that direction)
+- Landmarks or destinations mentioned
+- Any other specific preferences
+
+Your routes MUST follow the user's request. If they ask for "Coal Creek Path heading south", ALL routes should use Coal Creek Path and head south initially.
+` : '';
+
   const prompt = `You are an expert cycling coach and route planner. Generate 3 cycling route suggestions based on these parameters:
 
 **LOCATION & DISTANCE**
@@ -121,7 +140,7 @@ function buildRoutePrompt(params) {
 - Target Distance: ${targetDistance.toFixed(1)} km
 - Available Time: ${timeAvailable} minutes
 - Route Type: ${routeTypeDesc[routeType]}
-
+${userRequestSection}
 **TRAINING GOAL: ${trainingGoal.toUpperCase()}**
 ${goalDescriptions[trainingGoal]}
 
@@ -161,6 +180,7 @@ Respond with ONLY a JSON object in this exact format (no markdown, no code block
 4. Consider bike infrastructure and safety
 5. Match difficulty to training goal
 6. Respond with ONLY the JSON object (no extra text, no markdown formatting)
+${userRequest ? `7. CRITICAL: All routes MUST incorporate the user's specific request: "${userRequest}"` : ''}
 
 Generate the routes now:`;
 
@@ -239,6 +259,7 @@ function calculateTargetDistance(timeMinutes, trainingGoal) {
  * @param {string} options.profile - Route profile: 'road', 'gravel', 'mountain', 'commuting'
  * @param {number} options.userSpeed - Optional personalized cycling speed in km/h
  * @param {number} options.routeIndex - Index of this route (0, 1, 2) for variation
+ * @param {string} options.userRequest - Original user request for better OSM matching
  * @returns {Promise<Object>} Route with GPS coordinates
  */
 export async function convertClaudeToRoute(claudeRoute, options = {}) {
@@ -246,7 +267,8 @@ export async function convertClaudeToRoute(claudeRoute, options = {}) {
     mapboxToken,
     profile = 'road',
     userSpeed = null,
-    routeIndex = 0
+    routeIndex = 0,
+    userRequest = null
   } = typeof options === 'string' ? { mapboxToken: options } : options;
 
   console.log('🚴 Converting Claude route to GPS coordinates:', claudeRoute.name);
@@ -259,10 +281,24 @@ export async function convertClaudeToRoute(claudeRoute, options = {}) {
     let osmMatch = null;
     let waypoints = [];
 
-    try {
-      osmMatch = await matchRouteToOSM(claudeRoute, startLocation);
-    } catch (osmError) {
-      console.log('⚠️ OSM matching failed, will use geometric waypoints:', osmError.message);
+    // First try matching the user's original request (e.g., "Coal Creek Path")
+    // This is more likely to match OSM than Claude's generated route name
+    if (userRequest) {
+      try {
+        console.log(`🔍 Trying OSM match on user request: "${userRequest}"`);
+        osmMatch = await matchRouteToOSM({ name: userRequest }, startLocation);
+      } catch (osmError) {
+        console.log('⚠️ OSM matching on user request failed:', osmError.message);
+      }
+    }
+
+    // Fall back to matching Claude's route name
+    if (!osmMatch) {
+      try {
+        osmMatch = await matchRouteToOSM(claudeRoute, startLocation);
+      } catch (osmError) {
+        console.log('⚠️ OSM matching failed, will use geometric waypoints:', osmError.message);
+      }
     }
 
     if (osmMatch) {

@@ -378,7 +378,8 @@ function RouteBuilder() {
         mapboxToken: MAPBOX_TOKEN,
         profile: routeProfile,
         userSpeed, // Use personalized speed from Strava data
-        routeIndex: index // Each route uses different direction for variety
+        routeIndex: index, // Each route uses different direction for variety
+        userRequest: naturalLanguageInput // Pass user's original request for OSM matching
       });
 
       if (convertedRoute && convertedRoute.coordinates) {
@@ -462,8 +463,10 @@ function RouteBuilder() {
       const suggestions = await generateClaudeRoutes({
         startLocation: parsed.startLocation,
         timeAvailable: parsed.timeAvailable,
+        targetDistanceKm: parsed.targetDistanceKm,
         trainingGoal: parsed.trainingGoal,
-        routeType: parsed.routeType
+        routeType: parsed.routeType,
+        userRequest: naturalLanguageInput  // Pass the full user request so Claude sees trail names, directions, etc.
       });
 
       setAiSuggestions(suggestions);
