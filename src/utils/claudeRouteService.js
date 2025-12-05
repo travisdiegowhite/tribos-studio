@@ -2,7 +2,7 @@
 // Handles prompting and parsing for AI-generated cycling routes
 
 import { getSmartCyclingRoute, getRoutingStrategyDescription } from './smartCyclingRouter';
-import { matchRouteToOSM, getCyclingFeaturesNear } from './osmCyclingService';
+import { matchRouteToOSM, getTrailWaypoints } from './osmCyclingService';
 
 /**
  * Generate route suggestions using Claude AI
@@ -266,23 +266,36 @@ export async function convertClaudeToRoute(claudeRoute, options = {}) {
     }
 
     if (osmMatch) {
-      // Use OSM-matched feature as a waypoint
+      // Use OSM-matched feature - get waypoints ALONG the trail, not just to it
       console.log(`✅ Using OSM feature: ${osmMatch.name} at ${osmMatch.lat.toFixed(4)}, ${osmMatch.lng.toFixed(4)}`);
 
-      // Build waypoints: start → OSM feature → back to start (for loop)
-      if (routeType === 'loop' || !routeType) {
-        // For loops: go to the OSM feature and back via different path
-        const osmWaypoint = { lat: osmMatch.lat, lng: osmMatch.lng };
+      // Get multiple waypoints along the actual trail
+      const trailWaypoints = getTrailWaypoints(osmMatch, startLocation, distance);
 
-        // Create intermediate waypoints for a more interesting loop
-        waypoints = generateLoopWithOSMTarget(startLocation, osmWaypoint, distance, routeIndex);
+      if (trailWaypoints.length > 0) {
+        // Build route: start → along trail → back to start (for loop)
+        if (routeType === 'loop' || !routeType) {
+          // For loops: go to trail, follow it, then return
+          waypoints = [
+            startLocation,
+            ...trailWaypoints,
+            startLocation
+          ];
+          console.log(`📍 Loop route with ${trailWaypoints.length} trail waypoints`);
+        } else {
+          // For out-and-back: go to trail, follow it, reverse back
+          waypoints = [
+            startLocation,
+            ...trailWaypoints,
+            ...trailWaypoints.slice().reverse(),
+            startLocation
+          ];
+          console.log(`📍 Out-and-back with ${trailWaypoints.length * 2} trail waypoints`);
+        }
       } else {
-        // For out-and-back or point-to-point
-        waypoints = [
-          startLocation,
-          { lat: osmMatch.lat, lng: osmMatch.lng },
-          startLocation
-        ];
+        // Fallback to single point if no geometry
+        const osmWaypoint = { lat: osmMatch.lat, lng: osmMatch.lng };
+        waypoints = generateLoopWithOSMTarget(startLocation, osmWaypoint, distance, routeIndex);
       }
     } else {
       // Step 2: Fall back to geometric waypoint generation
