@@ -2,6 +2,7 @@
 // Handles prompting and parsing for AI-generated cycling routes
 
 import { getSmartCyclingRoute, getRoutingStrategyDescription } from './smartCyclingRouter';
+import { matchRouteToOSM, getCyclingFeaturesNear } from './osmCyclingService';
 
 /**
  * Generate route suggestions using Claude AI
@@ -12,6 +13,7 @@ export async function generateClaudeRoutes(params) {
   const {
     startLocation,       // {lat, lng} or [lng, lat]
     timeAvailable,       // minutes
+    targetDistanceKm,    // Explicit distance in km (if user specified)
     trainingGoal = 'endurance',  // 'endurance' | 'intervals' | 'hills' | 'recovery'
     routeType = 'loop',  // 'loop' | 'out_back' | 'point_to_point'
     weatherData,         // Optional weather info
@@ -22,8 +24,10 @@ export async function generateClaudeRoutes(params) {
   const startLat = startLocation.lat || startLocation[1];
   const startLng = startLocation.lng || startLocation[0];
 
-  // Calculate target distance based on time and training goal
-  const targetDistance = calculateTargetDistance(timeAvailable, trainingGoal);
+  // Use explicit distance if provided, otherwise calculate from time
+  const targetDistance = targetDistanceKm || calculateTargetDistance(timeAvailable, trainingGoal);
+  console.log(`🎯 Target distance: ${targetDistance.toFixed(1)} km ${targetDistanceKm ? '(user specified)' : '(calculated from time)'}`);
+
 
   // Build the prompt
   const prompt = buildRoutePrompt({
@@ -251,17 +255,50 @@ export async function convertClaudeToRoute(claudeRoute, options = {}) {
   const { startLocation, distance, routeType, trainingGoal, keyDirections } = claudeRoute;
 
   try {
-    // Generate waypoints based on route type, distance, and route index for variation
-    const waypoints = generateRouteWaypoints(startLocation, distance, routeType || 'loop', {
-      routeIndex,
-      keyDirections,
-      trainingGoal
-    });
+    // Step 1: Try to match route to real OSM cycling infrastructure
+    let osmMatch = null;
+    let waypoints = [];
+
+    try {
+      osmMatch = await matchRouteToOSM(claudeRoute, startLocation);
+    } catch (osmError) {
+      console.log('⚠️ OSM matching failed, will use geometric waypoints:', osmError.message);
+    }
+
+    if (osmMatch) {
+      // Use OSM-matched feature as a waypoint
+      console.log(`✅ Using OSM feature: ${osmMatch.name} at ${osmMatch.lat.toFixed(4)}, ${osmMatch.lng.toFixed(4)}`);
+
+      // Build waypoints: start → OSM feature → back to start (for loop)
+      if (routeType === 'loop' || !routeType) {
+        // For loops: go to the OSM feature and back via different path
+        const osmWaypoint = { lat: osmMatch.lat, lng: osmMatch.lng };
+
+        // Create intermediate waypoints for a more interesting loop
+        waypoints = generateLoopWithOSMTarget(startLocation, osmWaypoint, distance, routeIndex);
+      } else {
+        // For out-and-back or point-to-point
+        waypoints = [
+          startLocation,
+          { lat: osmMatch.lat, lng: osmMatch.lng },
+          startLocation
+        ];
+      }
+    } else {
+      // Step 2: Fall back to geometric waypoint generation
+      console.log('📐 Using geometric waypoint generation');
+      waypoints = generateRouteWaypoints(startLocation, distance, routeType || 'loop', {
+        routeIndex,
+        keyDirections,
+        trainingGoal
+      });
+    }
 
     // Convert waypoints to [lon, lat] format for smart router
     const waypointsArray = waypoints.map(wp => [wp.lng, wp.lat]);
 
-    console.log(`📍 Generated ${waypointsArray.length} waypoints for smart routing`);
+    console.log(`📍 Generated ${waypointsArray.length} waypoints for smart routing${osmMatch ? ' (OSM-guided)' : ''}`);
+
 
     // Use smart cycling router (Stadia Maps → BRouter → Mapbox fallback)
     const routeResult = await getSmartCyclingRoute(waypointsArray, {
@@ -469,6 +506,57 @@ function getDirectionName(angle) {
 }
 
 /**
+ * Generate a loop route that passes through an OSM target feature
+ * Creates a more interesting loop by adding offset waypoints
+ *
+ * @param {Object} start - Start location {lat, lng}
+ * @param {Object} osmTarget - OSM feature location {lat, lng}
+ * @param {number} targetDistanceKm - Target route distance
+ * @param {number} routeIndex - Index for variation (0, 1, 2)
+ * @returns {Array} Array of waypoints for the loop
+ */
+function generateLoopWithOSMTarget(start, osmTarget, targetDistanceKm, routeIndex) {
+  const degreesPerKm = 1 / 111;
+  const lngCorrection = Math.cos(start.lat * Math.PI / 180);
+
+  // Calculate direction from start to OSM target
+  const deltaLat = osmTarget.lat - start.lat;
+  const deltaLng = (osmTarget.lng - start.lng) * lngCorrection;
+  const angleToTarget = Math.atan2(deltaLng, deltaLat);
+
+  // Distance to target
+  const distToTarget = Math.sqrt(deltaLat * deltaLat + deltaLng * deltaLng) / degreesPerKm;
+
+  // Create offset waypoints perpendicular to the direct path
+  // This makes the route go around rather than just out-and-back
+  const offsetDistance = targetDistanceKm * 0.15; // 15% of total distance as offset
+  const perpAngle = angleToTarget + (routeIndex % 2 === 0 ? Math.PI / 2 : -Math.PI / 2);
+
+  // Waypoint 1: Offset point on the way out
+  const wp1Lat = start.lat + deltaLat * 0.3 + Math.cos(perpAngle) * offsetDistance * degreesPerKm;
+  const wp1Lng = start.lng + (deltaLng * 0.3 + Math.sin(perpAngle) * offsetDistance * degreesPerKm) / lngCorrection;
+
+  // Waypoint 2: Near the OSM target
+  const wp2Lat = osmTarget.lat + Math.cos(perpAngle) * offsetDistance * 0.5 * degreesPerKm;
+  const wp2Lng = osmTarget.lng + Math.sin(perpAngle) * offsetDistance * 0.5 * degreesPerKm / lngCorrection;
+
+  // Waypoint 3: Offset point on the way back (opposite side)
+  const wp3Lat = start.lat + deltaLat * 0.3 - Math.cos(perpAngle) * offsetDistance * degreesPerKm;
+  const wp3Lng = start.lng + (deltaLng * 0.3 - Math.sin(perpAngle) * offsetDistance * degreesPerKm) / lngCorrection;
+
+  console.log(`📐 OSM loop: Start → offset1 → OSM target → offset2 → Start`);
+
+  return [
+    start,
+    { lat: wp1Lat, lng: wp1Lng },
+    { lat: wp2Lat, lng: wp2Lng },
+    osmTarget,
+    { lat: wp3Lat, lng: wp3Lng },
+    start
+  ];
+}
+
+/**
  * Parse natural language route request into structured parameters
  * Examples:
  *   "40 mile loop from Boulder with gravel roads"
@@ -482,6 +570,9 @@ function getDirectionName(angle) {
 export function parseNaturalLanguageRoute(text, defaultLocation) {
   const result = {
     timeAvailable: 60, // Default 1 hour
+    targetDistanceKm: null, // Explicit distance if specified
+    distanceUnit: null, // 'miles' or 'km' if specified
+    originalDistance: null, // Original value for display
     trainingGoal: 'endurance',
     routeType: 'loop',
     profile: 'road',
@@ -490,22 +581,35 @@ export function parseNaturalLanguageRoute(text, defaultLocation) {
 
   const lowerText = text.toLowerCase();
 
-  // Parse distance/time
-  const mileMatch = lowerText.match(/(\d+)\s*mile/);
-  const kmMatch = lowerText.match(/(\d+)\s*km/);
+  // Parse distance/time - IMPORTANT: Store actual distance, not just time
+  const mileMatch = lowerText.match(/(\d+(?:\.\d+)?)\s*mile/);
+  const kmMatch = lowerText.match(/(\d+(?:\.\d+)?)\s*(?:km|kilometer)/);
   const hourMatch = lowerText.match(/(\d+(?:\.\d+)?)\s*hour/);
   const minMatch = lowerText.match(/(\d+)\s*min/);
 
   if (mileMatch) {
-    // Convert miles to approximate time (assuming ~15mph avg)
-    result.timeAvailable = Math.round(parseInt(mileMatch[1]) * 4);
+    // User specified distance in miles - convert to km accurately
+    const miles = parseFloat(mileMatch[1]);
+    result.targetDistanceKm = miles * 1.60934; // Accurate conversion
+    result.distanceUnit = 'miles';
+    result.originalDistance = miles;
+    // Also estimate time for Claude prompt context
+    result.timeAvailable = Math.round(miles * 4); // ~15mph average
+    console.log(`📏 Parsed ${miles} miles → ${result.targetDistanceKm.toFixed(1)} km`);
   } else if (kmMatch) {
-    // Convert km to approximate time (assuming ~24km/h avg)
-    result.timeAvailable = Math.round(parseInt(kmMatch[1]) * 2.5);
+    // User specified distance in km
+    const km = parseFloat(kmMatch[1]);
+    result.targetDistanceKm = km;
+    result.distanceUnit = 'km';
+    result.originalDistance = km;
+    result.timeAvailable = Math.round(km * 2.5); // ~24km/h average
+    console.log(`📏 Parsed ${km} km`);
   } else if (hourMatch) {
     result.timeAvailable = Math.round(parseFloat(hourMatch[1]) * 60);
+    // No explicit distance - will be calculated from time
   } else if (minMatch) {
     result.timeAvailable = parseInt(minMatch[1]);
+    // No explicit distance - will be calculated from time
   }
 
   // Parse route type
