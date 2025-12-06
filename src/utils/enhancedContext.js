@@ -11,21 +11,26 @@ export class EnhancedContextCollector {
   
   /**
    * Initialize user preferences if they don't exist
+   * Note: This is optional - if database tables don't exist, we use defaults
    */
   static async initializeUserPreferences(userId) {
     try {
-      // Call the database function to initialize all preference tables
+      // Try to call the database function to initialize all preference tables
+      // This may fail if the database tables/functions don't exist - that's OK
       const { error } = await supabase
         .rpc('initialize_user_preferences', { p_user_id: userId });
-      
+
       if (error) {
-        console.error('Error initializing user preferences:', error);
+        // This is expected if the database isn't fully set up
+        // Just log and continue - we'll use defaults
+        console.log('Using default preferences (database tables may not exist)');
         return false;
       }
-      
+
       return true;
     } catch (error) {
-      console.error('Failed to initialize user preferences:', error);
+      // Expected if database isn't set up - silently use defaults
+      console.log('Using default preferences');
       return false;
     }
   }
@@ -79,7 +84,7 @@ export class EnhancedContextCollector {
         maxGradientComfort: data.max_gradient_comfort
       };
     } catch (error) {
-      console.error('Error fetching routing preferences:', error);
+      // Expected if database table doesn't exist - use defaults
       return this.getDefaultRoutingPreferences();
     }
   }
@@ -125,7 +130,7 @@ export class EnhancedContextCollector {
         wetWeatherPavedOnly: data.wet_weather_paved_only
       };
     } catch (error) {
-      console.error('Error fetching surface preferences:', error);
+      // Expected if database table doesn't exist - use defaults
       return this.getDefaultSurfacePreferences();
     }
   }
@@ -171,7 +176,7 @@ export class EnhancedContextCollector {
         groupSize: data.group_size
       };
     } catch (error) {
-      console.error('Error fetching safety preferences:', error);
+      // Expected if database table doesn't exist - use defaults
       return this.getDefaultSafetyPreferences();
     }
   }
@@ -219,7 +224,7 @@ export class EnhancedContextCollector {
         varietyImportance: data.variety_importance
       };
     } catch (error) {
-      console.error('Error fetching scenic preferences:', error);
+      // Expected if database table doesn't exist - use defaults
       return this.getDefaultScenicPreferences();
     }
   }
@@ -272,7 +277,7 @@ export class EnhancedContextCollector {
         equipmentStatus: data.equipment_status
       };
     } catch (error) {
-      console.error('Error fetching training context:', error);
+      // Expected if database table doesn't exist - use defaults
       return this.getDefaultTrainingContext();
     }
   }

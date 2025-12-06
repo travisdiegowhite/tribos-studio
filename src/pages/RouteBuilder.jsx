@@ -1,8 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip } from '@mantine/core';
+import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -13,6 +13,10 @@ import { matchRouteToOSM } from '../utils/osmCyclingService';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { stravaService } from '../utils/stravaService';
 import { saveRoute, getRoute } from '../utils/routesService';
+import PreferenceSettings from '../components/PreferenceSettings.jsx';
+import IntervalCues from '../components/IntervalCues.jsx';
+import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
+import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -324,6 +328,13 @@ function RouteBuilder() {
   // Speed profile from Strava sync
   const [speedProfile, setSpeedProfile] = useState(null);
 
+  // Preferences modal state
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
+
+  // Workout and interval cues state
+  const [selectedWorkout, setSelectedWorkout] = useState(null);
+  const [intervalCues, setIntervalCues] = useState(null);
+
   // Route saving state
   const [savedRouteId, setSavedRouteId] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -341,6 +352,31 @@ function RouteBuilder() {
     longitude: -122.4194,
     zoom: 12
   });
+
+  // Generate colored route segments when workout is selected and route exists
+  const coloredSegments = useMemo(() => {
+    if (!routeGeometry?.coordinates || !selectedWorkout) {
+      return null;
+    }
+
+    try {
+      // Create route object for interval cue generation
+      const route = {
+        coordinates: routeGeometry.coordinates,
+        distance: routeStats.distance
+      };
+
+      // Generate cues from workout structure
+      const cues = generateCuesFromWorkoutStructure(route, selectedWorkout);
+      if (cues && cues.length > 0) {
+        setIntervalCues(cues);
+        return createColoredRouteSegments(routeGeometry.coordinates, cues);
+      }
+    } catch (error) {
+      console.error('Error generating colored segments:', error);
+    }
+    return null;
+  }, [routeGeometry, selectedWorkout, routeStats.distance]);
 
   // Geolocate user on mount
   useEffect(() => {
@@ -1089,6 +1125,50 @@ function RouteBuilder() {
               </Box>
             </Group>
 
+            {/* Workout Selection for Color-Coded Routes */}
+            <Box>
+              <Group justify="space-between" mb="xs">
+                <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                  WORKOUT (OPTIONAL)
+                </Text>
+                <Tooltip label="Route Preferences">
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    onClick={() => setPreferencesOpen(true)}
+                  >
+                    <IconSettings size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+              <Select
+                placeholder="Select a workout for color-coded route..."
+                value={selectedWorkout?.id || null}
+                onChange={(value) => {
+                  if (value) {
+                    const workout = WORKOUT_LIBRARY[value];
+                    setSelectedWorkout(workout);
+                  } else {
+                    setSelectedWorkout(null);
+                    setIntervalCues(null);
+                  }
+                }}
+                clearable
+                size="sm"
+                variant="filled"
+                data={Object.values(WORKOUT_LIBRARY).map(w => ({
+                  value: w.id,
+                  label: `${w.name} (${w.duration}min)`,
+                  group: w.category
+                }))}
+              />
+              {selectedWorkout && (
+                <Text size="xs" c="dimmed" mt="xs">
+                  Route will show color-coded segments for: {selectedWorkout.name}
+                </Text>
+              )}
+            </Box>
+
             <Button
               onClick={handleGenerateAIRoutes}
               loading={generatingAI}
@@ -1230,6 +1310,11 @@ function RouteBuilder() {
                 </Group>
               )}
             </Box>
+
+            {/* Interval Cues Display (when workout selected) */}
+            {intervalCues && intervalCues.length > 0 && (
+              <IntervalCues cues={intervalCues} />
+            )}
 
             {/* Instructions */}
             <Box style={{ flex: 1 }}>
@@ -1400,8 +1485,27 @@ function RouteBuilder() {
               style={{ width: '100%', height: '100%' }}
               cursor="crosshair"
             >
-              {/* Render route line */}
-              {routeGeometry && (
+              {/* Render colored route segments when workout is selected */}
+              {coloredSegments && (
+                <Source id="colored-route" type="geojson" data={coloredSegments}>
+                  {[1, 2, 3, 4, 5].map(zone => (
+                    <Layer
+                      key={`zone-${zone}`}
+                      id={`route-zone-${zone}`}
+                      type="line"
+                      filter={['==', ['get', 'zone'], zone]}
+                      paint={{
+                        'line-color': ['get', 'color'],
+                        'line-width': 6,
+                        'line-opacity': 0.9
+                      }}
+                    />
+                  ))}
+                </Source>
+              )}
+
+              {/* Render route line (shown when no workout selected, or as outline) */}
+              {routeGeometry && !coloredSegments && (
                 <Source id="route" type="geojson" data={{ type: 'Feature', geometry: routeGeometry }}>
                   <Layer
                     id="route-line"
@@ -1489,6 +1593,12 @@ function RouteBuilder() {
           )}
         </Box>
       </Box>
+
+      {/* Preferences Modal */}
+      <PreferenceSettings
+        opened={preferencesOpen}
+        onClose={() => setPreferencesOpen(false)}
+      />
     </AppShell>
   );
 }

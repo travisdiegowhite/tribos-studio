@@ -304,18 +304,118 @@ function getTrainingGoalDescription(goal) {
 }
 
 /**
+ * Extract and repair JSON from Claude's response
+ * Handles common formatting issues like trailing commas, incomplete arrays, etc.
+ */
+function extractAndRepairJSON(text) {
+  // Try to find the JSON object containing routes
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+
+  let jsonStr = jsonMatch[0];
+
+  // First attempt: parse as-is
+  try {
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    // Continue to repair attempts
+  }
+
+  // Repair attempt 1: Fix trailing commas
+  try {
+    const fixed = jsonStr
+      .replace(/,\s*}/g, '}')
+      .replace(/,\s*]/g, ']');
+    return JSON.parse(fixed);
+  } catch (e) {
+    // Continue to next repair
+  }
+
+  // Repair attempt 2: Try to find routes array directly
+  try {
+    const routesMatch = text.match(/"routes"\s*:\s*\[([\s\S]*?)\]/);
+    if (routesMatch) {
+      // Try to extract individual route objects
+      const routeObjects = [];
+      const routePattern = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
+      let match;
+      while ((match = routePattern.exec(routesMatch[1])) !== null) {
+        try {
+          const routeObj = JSON.parse(match[0].replace(/,\s*$/, ''));
+          routeObjects.push(routeObj);
+        } catch (e) {
+          // Skip malformed route
+        }
+      }
+      if (routeObjects.length > 0) {
+        return { routes: routeObjects };
+      }
+    }
+  } catch (e) {
+    // Continue
+  }
+
+  // Repair attempt 3: Truncate at last valid position
+  try {
+    // Find the last complete route object
+    let lastValidPos = 0;
+    let braceCount = 0;
+    let inString = false;
+    let escape = false;
+
+    for (let i = 0; i < jsonStr.length; i++) {
+      const char = jsonStr[i];
+
+      if (escape) {
+        escape = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+
+      if (char === '"' && !escape) {
+        inString = !inString;
+        continue;
+      }
+
+      if (!inString) {
+        if (char === '{') braceCount++;
+        if (char === '}') {
+          braceCount--;
+          if (braceCount === 0) {
+            lastValidPos = i + 1;
+          }
+        }
+      }
+    }
+
+    if (lastValidPos > 0 && lastValidPos < jsonStr.length) {
+      const truncated = jsonStr.substring(0, lastValidPos);
+      return JSON.parse(truncated);
+    }
+  } catch (e) {
+    // All repairs failed
+  }
+
+  return null;
+}
+
+/**
  * Parse Claude's response and convert to route objects
  */
 function parseClaudeResponse(responseText) {
   try {
-    // Extract JSON from response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.warn('No JSON found in Claude response');
+    // Extract and repair JSON from response
+    const parsed = extractAndRepairJSON(responseText);
+
+    if (!parsed) {
+      console.warn('No valid JSON found in Claude response');
       return [];
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
     const routes = parsed.routes || [];
 
     return routes.map((route, index) => ({

@@ -399,7 +399,7 @@ async function generateMapboxBasedRoutes(params) {
   console.log('Generating routes using Mapbox cycling intelligence');
   
   // Check for Mapbox token
-  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for route generation');
     return [createMockRoute('No Mapbox Token', targetDistance, trainingGoal, startLocation)];
@@ -525,7 +525,7 @@ async function generateSmartDestinations(startLocation, targetDistance, isochron
 // Generate Mapbox-based loop routes
 async function generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null) {
   const routes = [];
-  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   
   // Generate different loop patterns using strategic waypoints
   const loopPatterns = [
@@ -569,7 +569,7 @@ async function generateMapboxLoops(startLocation, targetDistance, trainingGoal, 
 // Generate Mapbox-based out-and-back routes
 async function generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null) {
   const routes = [];
-  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   
   // Generate different directional out-and-back routes
   const directions = [
@@ -853,7 +853,7 @@ function calculateDestinationPoint(start, distanceKm, bearingDegrees) {
 
 // Convert Claude route suggestion to full route with coordinates
 async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistance, preferences = null) {
-  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for Claude route conversion');
     return {
@@ -1088,7 +1088,7 @@ async function generateRoutesFromPersonalHistory(params) {
   } = params;
 
   const routes = [];
-  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
   if (!mapboxToken) {
     console.warn('Mapbox token required for personal history routes');
@@ -1321,7 +1321,7 @@ function generateFallbackDestinations(startLocation, targetDistance) {
 async function generateSingleValidatedRoute(startLocation, targetDistance, trainingGoal) {
   console.log('Generating single validated route as last resort using Mapbox');
   
-  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('No Mapbox token available for last resort route');
     return null;
@@ -1398,7 +1398,7 @@ async function generateLoopRoutes(startLocation, targetDistance, trainingGoal, w
   // Priority 3: Use Mapbox cycling intelligence instead of geometric patterns
   if (routes.length === 0) {
     console.log('No routes found from ride data, using Mapbox cycling intelligence');
-    const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+    const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
     if (mapboxToken) {
       const mapboxRoute = await generateMapboxLoop(startLocation, targetDistance, 
         { name: 'Fallback Loop', bearing: 45, radius: 0.8 }, trainingGoal, mapboxToken, userPreferences);
@@ -1502,7 +1502,7 @@ async function buildLoopsFromFrequentAreas(startLocation, targetDistance, traini
 
 // Build a loop from two segments
 async function buildSegmentLoop(startLocation, segment1, segment2, targetDistance, trainingGoal) {
-  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) return null;
   
   try {
@@ -1564,7 +1564,7 @@ async function buildSegmentLoop(startLocation, segment1, segment2, targetDistanc
 
 // Create loop through a frequent area
 async function createLoopThroughArea(startLocation, areaCenter, targetDistance, trainingGoal) {
-  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) return null;
   
   try {
@@ -1649,7 +1649,7 @@ async function generateLoopPattern(startLocation, targetDistance, pattern, train
   waypoints.push(startLocation);
 
   // Get Mapbox token
-  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for route generation');
     return createMockRoute(pattern.name, targetDistance, trainingGoal);
@@ -2298,7 +2298,7 @@ async function generateOutAndBackPattern(startLocation, halfDistance, direction,
   const waypoints = [startLocation, targetPoint];
   
   // Get Mapbox token and try to generate route
-  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available');
     return null;
@@ -2465,7 +2465,7 @@ async function generateRoutesFromTemplates(params) {
 
 // Adapt a route template to a new location
 async function adaptTemplateToLocation(template, newStartLocation, targetDistance, trainingGoal) {
-  const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) return null;
   
   // Scale and translate the template key points to the new start location
