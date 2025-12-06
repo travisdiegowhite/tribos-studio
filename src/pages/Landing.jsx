@@ -163,8 +163,7 @@ function Landing() {
                   }}
                 >
                   Know Exactly What{' '}
-                  <Text
-                    span
+                  <span
                     style={{
                       background: `linear-gradient(135deg, ${tokens.colors.electricLime} 0%, #22d3ee 100%)`,
                       WebkitBackgroundClip: 'text',
@@ -172,7 +171,7 @@ function Landing() {
                     }}
                   >
                     Ride Your Body Needs
-                  </Text>
+                  </span>
                   {' '}Today
                 </Title>
 
@@ -503,7 +502,7 @@ function Landing() {
               Works With Your Gear
             </Title>
 
-            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
+            <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
               <Paper p="lg" style={{ backgroundColor: tokens.colors.bgSecondary, border: '2px solid #FC4C02', textAlign: 'center' }}>
                 <ThemeIcon size={50} radius="xl" color="orange" variant="light" mx="auto" mb="sm">
                   <IconActivity size={24} />
@@ -516,6 +515,13 @@ function Landing() {
                   <IconDeviceWatch size={24} />
                 </ThemeIcon>
                 <Text fw={600} style={{ color: tokens.colors.textPrimary }}>Garmin</Text>
+                <Text size="xs" c="dimmed">Sync routes to device</Text>
+              </Paper>
+              <Paper p="lg" style={{ backgroundColor: tokens.colors.bgSecondary, border: '2px solid #1A73E8', textAlign: 'center' }}>
+                <ThemeIcon size={50} radius="xl" color="cyan" variant="light" mx="auto" mb="sm">
+                  <IconDeviceWatch size={24} />
+                </ThemeIcon>
+                <Text fw={600} style={{ color: tokens.colors.textPrimary }}>Wahoo</Text>
                 <Text size="xs" c="dimmed">Sync routes to device</Text>
               </Paper>
               <Paper p="lg" style={{ backgroundColor: tokens.colors.bgSecondary, border: `2px solid ${tokens.colors.electricLime}`, textAlign: 'center' }}>
