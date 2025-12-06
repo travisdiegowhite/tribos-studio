@@ -337,23 +337,18 @@ function RouteBuilder() {
 
   // Memoize workout options for Select component
   const workoutOptions = useMemo(() => {
-    console.log('Building workout options, WORKOUT_LIBRARY:', WORKOUT_LIBRARY);
     if (!WORKOUT_LIBRARY || typeof WORKOUT_LIBRARY !== 'object') {
-      console.warn('WORKOUT_LIBRARY is not available');
       return [];
     }
     try {
       const values = Object.values(WORKOUT_LIBRARY);
-      console.log('WORKOUT_LIBRARY values count:', values.length);
-      const options = values
+      // Simple flat list without groups (groups can cause issues with Mantine Select)
+      return values
         .filter(w => w && w.id && w.name && w.duration)
         .map(w => ({
           value: w.id,
-          label: `${w.name} (${w.duration}min)`,
-          group: w.category || 'Other'
+          label: `${w.name} (${w.duration}min)`
         }));
-      console.log('Built workout options:', options.length);
-      return options;
     } catch (e) {
       console.error('Error building workout options:', e);
       return [];
