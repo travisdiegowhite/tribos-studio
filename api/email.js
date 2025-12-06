@@ -121,27 +121,34 @@ async function sendImportEmail(req, res) {
 async function sendBetaNotifyEmail(req, res) {
   const { email } = req.body;
 
+  console.log('sendBetaNotifyEmail called with:', { email });
+
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
   }
 
-  // Use verified domain or Resend's default sender
-  const fromAddress = process.env.RESEND_FROM_EMAIL || 'Tribos Studio <onboarding@resend.dev>';
+  try {
+    const htmlContent = getBetaNotifyEmailHtml();
+    console.log('HTML content generated, length:', htmlContent?.length);
 
-  const { data, error } = await resend.emails.send({
-    from: fromAddress,
-    to: [email],
-    subject: "You're on the Tribos.Studio Beta List! 🚴",
-    html: getBetaNotifyEmailHtml(),
-  });
+    const { data, error } = await resend.emails.send({
+      from: 'Tribos Studio <noreply@tribos.studio>',
+      to: [email],
+      subject: "You're on the Tribos.Studio Beta List! 🚴",
+      html: htmlContent,
+    });
 
-  if (error) {
-    console.error('Resend API error:', error);
-    return res.status(500).json({ error: 'Failed to send email', details: error });
+    if (error) {
+      console.error('Resend API error:', JSON.stringify(error, null, 2));
+      return res.status(500).json({ error: 'Failed to send email', details: error });
+    }
+
+    console.log('Beta notify email sent successfully:', data);
+    return res.status(200).json({ success: true, messageId: data.id });
+  } catch (err) {
+    console.error('Exception in sendBetaNotifyEmail:', err.message, err.stack);
+    return res.status(500).json({ error: 'Exception sending email', message: err.message });
   }
-
-  console.log('Beta notify email sent successfully:', data);
-  return res.status(200).json({ success: true, messageId: data.id });
 }
 
 // ============ WELCOME EMAIL ============
