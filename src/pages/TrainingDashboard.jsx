@@ -40,6 +40,7 @@ import {
   IconAward,
   IconChartBar,
   IconSettings,
+  IconUpload,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -52,6 +53,7 @@ import RideHistoryTable from '../components/RideHistoryTable.jsx';
 import PersonalRecordsCard from '../components/PersonalRecordsCard.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
+import FitUploadModal from '../components/FitUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
@@ -77,6 +79,7 @@ function TrainingDashboard() {
   });
   const [dailyTSSData, setDailyTSSData] = useState([]);
   const [healthCheckInOpen, setHealthCheckInOpen] = useState(false);
+  const [fitUploadOpen, setFitUploadOpen] = useState(false);
   const [todayHealthMetrics, setTodayHealthMetrics] = useState(null);
 
   // Unit conversion helpers
@@ -296,6 +299,15 @@ function TrainingDashboard() {
               />
               <Button
                 variant="light"
+                color="orange"
+                size="xs"
+                leftSection={<IconUpload size={14} />}
+                onClick={() => setFitUploadOpen(true)}
+              >
+                Upload FIT
+              </Button>
+              <Button
+                variant="light"
                 color="lime"
                 size="xs"
                 leftSection={<IconSettings size={14} />}
@@ -435,6 +447,18 @@ function TrainingDashboard() {
         onClose={() => setHealthCheckInOpen(false)}
         onSave={(data) => setTodayHealthMetrics(data)}
         existingData={todayHealthMetrics}
+      />
+
+      {/* FIT File Upload Modal */}
+      <FitUploadModal
+        opened={fitUploadOpen}
+        onClose={() => setFitUploadOpen(false)}
+        onUploadComplete={(results) => {
+          // Refresh activities after upload
+          if (results.success.length > 0) {
+            window.location.reload();
+          }
+        }}
       />
     </AppShell>
   );
