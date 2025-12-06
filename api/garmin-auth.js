@@ -117,10 +117,27 @@ export default async function handler(req, res) {
     const { action, userId, oauthToken, oauthVerifier, routeData } = req.body;
 
     // Validate required environment variables
-    if (!process.env.GARMIN_CONSUMER_KEY || !process.env.GARMIN_CONSUMER_SECRET) {
+    const hasGarminKey = !!process.env.GARMIN_CONSUMER_KEY;
+    const hasGarminSecret = !!process.env.GARMIN_CONSUMER_SECRET;
+    const hasSupabaseKey = !!process.env.SUPABASE_SERVICE_KEY;
+
+    if (!hasGarminKey || !hasGarminSecret) {
+      console.log('Garmin config check:', { hasGarminKey, hasGarminSecret });
       return res.status(200).json({
-        error: 'Garmin integration not configured',
-        configured: false
+        error: 'Garmin integration not configured. Please add GARMIN_CONSUMER_KEY and GARMIN_CONSUMER_SECRET to your environment.',
+        configured: false,
+        missing: {
+          consumerKey: !hasGarminKey,
+          consumerSecret: !hasGarminSecret
+        }
+      });
+    }
+
+    if (!hasSupabaseKey) {
+      console.error('Missing SUPABASE_SERVICE_KEY for Garmin auth');
+      return res.status(500).json({
+        error: 'Server configuration error. Please contact support.',
+        code: 'MISSING_SERVICE_KEY'
       });
     }
 
@@ -150,8 +167,27 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Garmin auth error:', error);
 
+    // Provide more specific error messages
+    let errorMessage = 'Authentication failed';
+    let errorCode = 'AUTH_ERROR';
+
+    if (error.message?.includes('request token')) {
+      errorMessage = 'Failed to initiate Garmin authorization. Please try again.';
+      errorCode = 'REQUEST_TOKEN_ERROR';
+    } else if (error.message?.includes('access token')) {
+      errorMessage = 'Failed to complete Garmin connection. Please try again.';
+      errorCode = 'ACCESS_TOKEN_ERROR';
+    } else if (error.message?.includes('not found')) {
+      errorMessage = 'Authorization session expired. Please start again.';
+      errorCode = 'SESSION_EXPIRED';
+    } else if (error.message?.includes('ECONNREFUSED') || error.message?.includes('fetch')) {
+      errorMessage = 'Unable to reach Garmin servers. Please check your connection.';
+      errorCode = 'NETWORK_ERROR';
+    }
+
     return res.status(500).json({
-      error: 'Authentication failed',
+      error: errorMessage,
+      code: errorCode,
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -195,8 +231,12 @@ async function getRequestToken(req, res, userId) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Garmin request token error:', errorText);
-      throw new Error('Failed to get request token from Garmin');
+      console.error('Garmin request token error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`Failed to get request token from Garmin (${response.status}): ${errorText || response.statusText}`);
     }
 
     const responseText = await response.text();
