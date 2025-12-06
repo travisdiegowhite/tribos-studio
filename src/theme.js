@@ -9,10 +9,10 @@ export const tokens = {
     electricLimeDark: '#28A428',
 
     // Backgrounds
-    bgPrimary: '#0a0a0a',
-    bgSecondary: '#141414',
-    bgTertiary: '#1a1a1a',
-    bgElevated: '#242424',
+    bgPrimary: '#121212',
+    bgSecondary: '#1a1a1a',
+    bgTertiary: '#222222',
+    bgElevated: '#2a2a2a',
 
     // Text
     textPrimary: '#ffffff',
@@ -78,10 +78,10 @@ export const theme = createTheme({
       '#909090', // Improved dimmed text
       '#373A40',
       '#2C2E33',
-      '#1a1a1a', // bg tertiary
-      '#141414', // bg secondary
-      '#0a0a0a', // bg primary
-      '#050505',
+      '#222222', // bg tertiary
+      '#1a1a1a', // bg secondary
+      '#121212', // bg primary
+      '#0a0a0a',
     ],
   },
 
