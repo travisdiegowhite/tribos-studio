@@ -104,6 +104,15 @@ button {
 }
 
 /* Mantine dark theme overrides */
+
+/* Force Mantine CSS variables for dark mode */
+:root[data-mantine-color-scheme='dark'] {
+  --mantine-color-body: #121212 !important;
+  --mantine-color-dark-7: #121212 !important;
+  --mantine-color-dark-6: #1a1a1a !important;
+  --mantine-color-dark-5: #2a2a2a !important;
+}
+
 .mantine-Modal-content,
 .mantine-Drawer-content {
   background-color: #1a1a1a !important;
