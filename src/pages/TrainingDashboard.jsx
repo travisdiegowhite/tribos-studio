@@ -54,7 +54,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
-import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS } from '../utils/trainingPlans';
+import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS } from '../utils/trainingPlans';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 
 function TrainingDashboard() {
@@ -112,7 +112,10 @@ function TrainingDashboard() {
           .gte('start_date', ninetyDaysAgo.toISOString())
           .order('start_date', { ascending: false });
 
-        if (!activityError) {
+        if (activityError) {
+          console.error('Error loading activities:', activityError);
+        } else {
+          console.log(`Loaded ${activityData?.length || 0} activities from database`);
           setActivities(activityData || []);
 
           // Build daily TSS data
@@ -128,15 +131,27 @@ function TrainingDashboard() {
             }
 
             activityData.forEach((activity) => {
-              const dateStr = activity.start_date.split('T')[0];
-              if (dailyTSS[dateStr]) {
-                const activityTSS = activity.tss || estimateTSS(
-                  activity.moving_time / 60,
-                  activity.average_watts && userProfileData?.ftp
-                    ? activity.average_watts / userProfileData.ftp
-                    : 0.65
-                );
-                dailyTSS[dateStr].tss += activityTSS;
+              const dateStr = activity.start_date?.split('T')[0];
+              if (dateStr && dailyTSS[dateStr]) {
+                // Calculate TSS - use power-based if available, otherwise estimate
+                let activityTSS;
+                if (activity.average_watts && userProfileData?.ftp) {
+                  // Power-based TSS calculation
+                  activityTSS = calculateTSS(
+                    activity.moving_time,
+                    activity.average_watts,
+                    userProfileData.ftp
+                  );
+                } else {
+                  // Estimate TSS from duration, distance, and elevation
+                  activityTSS = estimateTSS(
+                    (activity.moving_time || 0) / 60, // duration in minutes
+                    (activity.distance || 0) / 1000,  // distance in km
+                    activity.total_elevation_gain || 0, // elevation in meters
+                    'endurance' // default workout type
+                  );
+                }
+                dailyTSS[dateStr].tss += activityTSS || 0;
               }
             });
 
@@ -151,6 +166,7 @@ function TrainingDashboard() {
             const tsb = calculateTSB(ctl, atl);
             const interpretation = interpretTSB(tsb);
 
+            console.log('Training metrics calculated:', { ctl, atl, tsb });
             setTrainingMetrics({ ctl, atl, tsb, interpretation });
           }
         }
@@ -181,16 +197,31 @@ function TrainingDashboard() {
     const filtered = activities.filter(a => new Date(a.start_date) >= cutoff);
 
     return filtered.reduce(
-      (acc, a) => ({
-        totalDistance: acc.totalDistance + (a.distance || 0),
-        totalTime: acc.totalTime + (a.moving_time || 0),
-        totalElevation: acc.totalElevation + (a.total_elevation_gain || 0),
-        totalTSS: acc.totalTSS + (a.tss || estimateTSS(a.moving_time / 60, 0.65)),
-        rideCount: acc.rideCount + 1,
-      }),
+      (acc, a) => {
+        // Calculate TSS for this activity
+        let activityTSS;
+        if (a.average_watts && ftp) {
+          activityTSS = calculateTSS(a.moving_time, a.average_watts, ftp);
+        } else {
+          activityTSS = estimateTSS(
+            (a.moving_time || 0) / 60,
+            (a.distance || 0) / 1000,
+            a.total_elevation_gain || 0,
+            'endurance'
+          );
+        }
+
+        return {
+          totalDistance: acc.totalDistance + (a.distance || 0),
+          totalTime: acc.totalTime + (a.moving_time || 0),
+          totalElevation: acc.totalElevation + (a.total_elevation_gain || 0),
+          totalTSS: acc.totalTSS + (activityTSS || 0),
+          rideCount: acc.rideCount + 1,
+        };
+      },
       { totalDistance: 0, totalTime: 0, totalElevation: 0, totalTSS: 0, rideCount: 0 }
     );
-  }, [activities, timeRange]);
+  }, [activities, timeRange, ftp]);
 
   // Format helpers
   const formatTime = (seconds) => {
