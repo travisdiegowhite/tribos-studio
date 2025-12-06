@@ -77,11 +77,11 @@ export const theme = createTheme({
       '#B0B0B0', // Brighter muted text
       '#909090', // Improved dimmed text
       '#373A40',
-      '#2C2E33',
-      '#222222', // bg tertiary
-      '#1a1a1a', // bg secondary
-      '#121212', // bg primary
-      '#0a0a0a',
+      '#2a2a2a', // bg elevated
+      '#1a1a1a', // bg secondary (cards)
+      '#121212', // bg primary (body) - Mantine uses dark[7] for body
+      '#0d0d0d',
+      '#080808',
     ],
   },
 
