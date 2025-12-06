@@ -335,6 +335,25 @@ function RouteBuilder() {
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [intervalCues, setIntervalCues] = useState(null);
 
+  // Memoize workout options for Select component
+  const workoutOptions = useMemo(() => {
+    if (!WORKOUT_LIBRARY || typeof WORKOUT_LIBRARY !== 'object') {
+      return [];
+    }
+    try {
+      return Object.values(WORKOUT_LIBRARY)
+        .filter(w => w && w.id && w.name && w.duration)
+        .map(w => ({
+          value: w.id,
+          label: `${w.name} (${w.duration}min)`,
+          group: w.category || 'Other'
+        }));
+    } catch (e) {
+      console.error('Error building workout options:', e);
+      return [];
+    }
+  }, []);
+
   // Route saving state
   const [savedRouteId, setSavedRouteId] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -1156,11 +1175,7 @@ function RouteBuilder() {
                 clearable
                 size="sm"
                 variant="filled"
-                data={WORKOUT_LIBRARY ? Object.values(WORKOUT_LIBRARY).map(w => ({
-                  value: w.id,
-                  label: `${w.name} (${w.duration}min)`,
-                  group: w.category
-                })) : []}
+                data={workoutOptions}
               />
               {selectedWorkout && (
                 <Text size="xs" c="dimmed" mt="xs">
