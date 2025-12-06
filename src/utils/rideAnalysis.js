@@ -8,6 +8,7 @@ export async function fetchPastRides(userId, limit = 50) {
     console.log('🔍 Fetching past rides for learning from user:', userId);
     
     // Get enhanced routes metadata from new comprehensive schema
+    // Note: Using created_at instead of recorded_at for compatibility with different database schemas
     const { data: routes, error: routesError } = await supabase
       .from('routes')
       .select(`
@@ -51,11 +52,10 @@ export async function fetchPastRides(userId, limit = 50) {
         has_heart_rate_data,
         has_power_data,
         track_points_count,
-        recorded_at,
         created_at
       `)
       .eq('user_id', userId)
-      .order('recorded_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(limit);
 
     if (routesError) {
