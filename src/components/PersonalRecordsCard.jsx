@@ -10,7 +10,7 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
   const records = useMemo(() => {
     if (!rides || rides.length === 0) return null;
 
-    // Calculate PRs from rides (supports both strava_activities and routes table formats)
+    // Calculate PRs from rides (supports both activities and routes table formats)
     const getDistance = (r) => r.distance_km || (r.distance ? r.distance / 1000 : 0);
     const getElevation = (r) => r.elevation_gain_m || r.total_elevation_gain || 0;
     const getDuration = (r) => r.duration_seconds || r.moving_time || r.elapsed_time || 0;

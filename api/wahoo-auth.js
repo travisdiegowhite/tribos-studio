@@ -352,7 +352,7 @@ async function syncWorkouts(req, res, userId) {
     const workoutsData = await response.json();
     const workouts = workoutsData.workouts || [];
 
-    // TODO: Store workouts in strava_activities table (or a unified activities table)
+    // TODO: Store workouts in activities table
     // For now, just return the count
 
     return res.status(200).json({

@@ -112,7 +112,7 @@ function TrainingDashboard() {
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
         const { data: activityData, error: activityError } = await supabase
-          .from('strava_activities')
+          .from('activities')
           .select('*')
           .eq('user_id', user.id)
           .gte('start_date', ninetyDaysAgo.toISOString())
