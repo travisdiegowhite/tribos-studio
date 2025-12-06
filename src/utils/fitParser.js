@@ -300,48 +300,75 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * Convert FIT data to strava_rides format for database storage
+ * Convert FIT data to strava_activities format for database storage
  */
-export function fitToStravaRidesFormat(fitData, userId) {
-  const { metadata, summary, trackPoints } = fitData;
+export function fitToStravaActivitiesFormat(fitData, userId) {
+  const { metadata, summary, trackPoints, laps } = fitData;
 
-  // Calculate TSS estimate if we have power data
-  let estimatedTss = null;
-  if (summary.normalizedPower && summary.totalMovingTime) {
-    // TSS = (duration_seconds * NP * IF) / (FTP * 3600) * 100
-    // Without FTP, estimate based on IF if available
-    if (summary.intensityFactor) {
-      estimatedTss = (summary.totalMovingTime * summary.normalizedPower * summary.intensityFactor) / 3600;
-    }
+  // Generate a unique provider_activity_id for FIT uploads
+  const timestamp = metadata.startTime ? new Date(metadata.startTime).getTime() : Date.now();
+  const providerActivityId = `fit_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Determine activity type
+  let activityType = 'Ride';
+  if (metadata.sport === 'cycling' || metadata.sport === 'biking') {
+    activityType = 'Ride';
+  } else if (metadata.sport === 'running') {
+    activityType = 'Run';
+  } else if (metadata.sport === 'swimming') {
+    activityType = 'Swim';
+  } else if (metadata.sport) {
+    activityType = metadata.sport.charAt(0).toUpperCase() + metadata.sport.slice(1);
   }
+
+  // Store extended data in raw_data JSONB
+  const rawData = {
+    source: 'fit_upload',
+    device: metadata.manufacturer,
+    product: metadata.product,
+    serial_number: metadata.serialNumber,
+    sub_sport: metadata.subSport,
+    max_watts: summary.maxPower,
+    normalized_power: summary.normalizedPower,
+    average_cadence: summary.avgCadence,
+    max_cadence: summary.maxCadence,
+    training_stress_score: summary.trainingStressScore,
+    intensity_factor: summary.intensityFactor,
+    total_descent: summary.totalDescent,
+    laps: laps
+  };
 
   return {
     user_id: userId,
-    strava_id: null, // Not from Strava
+    provider: 'fit_upload',
+    provider_activity_id: providerActivityId,
     name: metadata.name,
-    sport_type: metadata.sport === 'cycling' ? 'Ride' : metadata.sport,
-    workout_type: null,
+    type: activityType,
+    sport_type: metadata.sport || 'cycling',
+    start_date: metadata.startTime,
     start_date_local: metadata.startTime,
-    distance: summary.totalDistance * 1000, // Convert back to meters
-    moving_time: summary.totalMovingTime,
-    elapsed_time: summary.totalElapsedTime || summary.totalMovingTime,
+    distance: summary.totalDistance * 1000, // Convert km to meters
+    moving_time: Math.round(summary.totalMovingTime),
+    elapsed_time: Math.round(summary.totalElapsedTime || summary.totalMovingTime),
     total_elevation_gain: summary.totalAscent,
-    average_speed: summary.avgSpeed / 3.6, // Convert to m/s
+    average_speed: summary.avgSpeed / 3.6, // Convert km/h to m/s
     max_speed: summary.maxSpeed / 3.6,
+    average_watts: summary.avgPower,
+    kilojoules: summary.totalCalories ? summary.totalCalories * 4.184 : null,
     average_heartrate: summary.avgHeartRate,
     max_heartrate: summary.maxHeartRate,
-    average_watts: summary.avgPower,
-    max_watts: summary.maxPower,
-    weighted_average_watts: summary.normalizedPower,
-    average_cadence: summary.avgCadence,
-    kilojoules: summary.totalCalories ? summary.totalCalories * 4.184 : null,
     suffer_score: null,
-    estimated_tss: estimatedTss,
-    data_source: 'fit_upload',
-    device_name: metadata.manufacturer,
-    map_polyline: trackPoints.length > 0 ? encodePolyline(trackPoints) : null
+    workout_type: null,
+    trainer: false,
+    commute: false,
+    gear_id: null,
+    map_summary_polyline: trackPoints.length > 0 ? encodePolyline(trackPoints) : null,
+    raw_data: rawData
   };
 }
+
+// Keep old name as alias for backwards compatibility
+export const fitToStravaRidesFormat = fitToStravaActivitiesFormat;
 
 /**
  * Simple polyline encoder for track points
