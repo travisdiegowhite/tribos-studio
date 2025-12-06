@@ -19,11 +19,11 @@ import {
   IconHeart,
   IconMoon,
   IconBolt,
-  IconMoodSmile,
   IconStretching,
   IconBrain,
   IconScale,
   IconCheck,
+  IconBattery,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -49,15 +49,15 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    resting_heart_rate: null,
-    hrv_score: null,
+    resting_hr: null,
+    hrv_ms: null,
     sleep_hours: null,
     sleep_quality: 3,
     energy_level: 3,
     muscle_soreness: 1,
-    mood: 3,
     stress_level: 3,
     weight_kg: null,
+    body_battery: null,
     notes: '',
   });
 
@@ -65,15 +65,15 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
   useEffect(() => {
     if (existingData) {
       setFormData({
-        resting_heart_rate: existingData.resting_heart_rate || null,
-        hrv_score: existingData.hrv_score || null,
+        resting_hr: existingData.resting_hr || null,
+        hrv_ms: existingData.hrv_ms || null,
         sleep_hours: existingData.sleep_hours || null,
         sleep_quality: existingData.sleep_quality || 3,
         energy_level: existingData.energy_level || 3,
         muscle_soreness: existingData.muscle_soreness || 1,
-        mood: existingData.mood || 3,
         stress_level: existingData.stress_level || 3,
         weight_kg: existingData.weight_kg || null,
+        body_battery: existingData.body_battery || null,
         notes: existingData.notes || '',
       });
     }
@@ -94,10 +94,11 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         .from('health_metrics')
         .upsert({
           user_id: user.id,
-          recorded_date: today,
+          metric_date: today,
+          source: 'manual',
           ...formData,
         }, {
-          onConflict: 'user_id,recorded_date',
+          onConflict: 'user_id,metric_date',
         })
         .select()
         .single();
@@ -181,21 +182,20 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
             label="Resting HR"
             placeholder="bpm"
             leftSection={<IconHeart size={14} />}
-            value={formData.resting_heart_rate || ''}
-            onChange={(v) => updateField('resting_heart_rate', v || null)}
+            value={formData.resting_hr || ''}
+            onChange={(v) => updateField('resting_hr', v || null)}
             min={30}
             max={120}
             suffix=" bpm"
           />
           <NumberInput
-            label="HRV Score"
+            label="HRV"
             placeholder="ms"
             leftSection={<IconBolt size={14} />}
-            value={formData.hrv_score || ''}
-            onChange={(v) => updateField('hrv_score', v || null)}
+            value={formData.hrv_ms || ''}
+            onChange={(v) => updateField('hrv_ms', v || null)}
             min={0}
             max={200}
-            decimalScale={1}
           />
           <NumberInput
             label="Sleep Hours"
@@ -216,7 +216,6 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
           {renderScaleSelector('sleep_quality', 'Sleep Quality', <IconMoon size={14} />)}
           {renderScaleSelector('energy_level', 'Energy Level', <IconBolt size={14} />)}
-          {renderScaleSelector('mood', 'Mood', <IconMoodSmile size={14} />)}
           {renderScaleSelector('stress_level', 'Stress Level', <IconBrain size={14} />, {
             1: { label: 'Very Low', color: 'green' },
             2: { label: 'Low', color: 'lime' },
@@ -224,9 +223,8 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
             4: { label: 'High', color: 'orange' },
             5: { label: 'Very High', color: 'red' },
           })}
+          {renderScaleSelector('muscle_soreness', 'Muscle Soreness', <IconStretching size={14} />, SORENESS_SCALE)}
         </SimpleGrid>
-
-        {renderScaleSelector('muscle_soreness', 'Muscle Soreness', <IconStretching size={14} />, SORENESS_SCALE)}
 
         <Divider />
 
@@ -242,6 +240,15 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
             max={200}
             decimalScale={1}
             suffix=" kg"
+          />
+          <NumberInput
+            label="Body Battery (optional)"
+            placeholder="0-100"
+            leftSection={<IconBattery size={14} />}
+            value={formData.body_battery || ''}
+            onChange={(v) => updateField('body_battery', v || null)}
+            min={0}
+            max={100}
           />
         </SimpleGrid>
 
@@ -320,8 +327,8 @@ function ReadinessPreview({ formData }) {
     }
 
     // HRV contribution
-    if (formData.hrv_score) {
-      score += Math.min(25, formData.hrv_score / 4);
+    if (formData.hrv_ms) {
+      score += Math.min(25, formData.hrv_ms / 4);
       factorCount++;
     }
 

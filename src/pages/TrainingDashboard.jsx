@@ -188,7 +188,7 @@ function TrainingDashboard() {
           .from('health_metrics')
           .select('*')
           .eq('user_id', user.id)
-          .eq('recorded_date', today)
+          .eq('metric_date', today)
           .single();
 
         if (healthData) setTodayHealthMetrics(healthData);
@@ -616,7 +616,7 @@ function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, f
           <SimpleGrid cols={3} spacing="xs">
             <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
               <Text size="xs" c="dimmed">HRV</Text>
-              <Text fw={600}>{todayHealthMetrics?.hrv_score ? Math.round(todayHealthMetrics.hrv_score) : '--'}</Text>
+              <Text fw={600}>{todayHealthMetrics?.hrv_ms ? `${todayHealthMetrics.hrv_ms}ms` : '--'}</Text>
             </Paper>
             <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
               <Text size="xs" c="dimmed">Sleep</Text>
@@ -625,7 +625,7 @@ function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, f
             <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
               <Text size="xs" c="dimmed">Readiness</Text>
               <Text fw={600} c={todayHealthMetrics?.readiness_score >= 60 ? 'green' : todayHealthMetrics?.readiness_score >= 40 ? 'yellow' : 'red'}>
-                {todayHealthMetrics?.readiness_score ? `${Math.round(todayHealthMetrics.readiness_score)}%` : '--'}
+                {todayHealthMetrics?.readiness_score ? `${todayHealthMetrics.readiness_score}%` : '--'}
               </Text>
             </Paper>
           </SimpleGrid>
