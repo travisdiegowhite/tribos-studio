@@ -16,8 +16,8 @@ export const tokens = {
 
     // Text
     textPrimary: '#ffffff',
-    textSecondary: '#a0a0a0',
-    textMuted: '#666666',
+    textSecondary: '#B8B8B8',
+    textMuted: '#999999',
 
     // Semantic
     success: '#32CD32',
@@ -72,10 +72,10 @@ export const theme = createTheme({
       '#0d520d',
     ],
     dark: [
-      '#C1C2C5',
-      '#A6A7AB',
-      '#909296',
-      '#5c5f66',
+      '#E0E0E0', // Brighter for better readability
+      '#C8C8C8', // Brighter secondary text
+      '#B0B0B0', // Brighter muted text
+      '#909090', // Improved dimmed text
       '#373A40',
       '#2C2E33',
       '#1a1a1a', // bg tertiary
