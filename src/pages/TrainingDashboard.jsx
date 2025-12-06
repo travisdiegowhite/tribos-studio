@@ -23,8 +23,11 @@ import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import AICoach from '../components/AICoach.jsx';
+import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
+import TrainingCalendar from '../components/TrainingCalendar.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
+import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS } from '../utils/trainingPlans';
 
 function TrainingDashboard() {
   const { user } = useAuth();
@@ -41,6 +44,13 @@ function TrainingDashboard() {
     totalElevation: 0,
     rideCount: 0,
   });
+  const [trainingMetrics, setTrainingMetrics] = useState({
+    ctl: 0,
+    atl: 0,
+    tsb: 0,
+    interpretation: null,
+  });
+  const [dailyTSSData, setDailyTSSData] = useState([]);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -105,6 +115,51 @@ function TrainingDashboard() {
           );
 
           setWeeklyStats(stats);
+
+          // Calculate CTL/ATL/TSB from activities
+          if (activityData && activityData.length > 0) {
+            // Build daily TSS data for the last 90 days
+            const dailyTSS = {};
+            const today = new Date();
+
+            // Initialize all days with 0 TSS
+            for (let i = 0; i < 90; i++) {
+              const date = new Date(today);
+              date.setDate(date.getDate() - i);
+              const dateStr = date.toISOString().split('T')[0];
+              dailyTSS[dateStr] = { date: dateStr, tss: 0 };
+            }
+
+            // Add TSS from activities
+            activityData.forEach((activity) => {
+              const dateStr = activity.start_date.split('T')[0];
+              if (dailyTSS[dateStr]) {
+                // Use actual TSS if available, otherwise estimate from duration and intensity
+                const activityTSS = activity.tss || estimateTSS(
+                  activity.moving_time / 60, // duration in minutes
+                  activity.average_watts && userProfileData?.ftp
+                    ? activity.average_watts / userProfileData.ftp
+                    : 0.65 // default IF for endurance ride
+                );
+                dailyTSS[dateStr].tss += activityTSS;
+              }
+            });
+
+            // Convert to sorted array (oldest first for calculations)
+            const sortedDailyTSS = Object.values(dailyTSS)
+              .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            setDailyTSSData(sortedDailyTSS);
+
+            // Calculate CTL, ATL, TSB using the utility functions
+            const tssValues = sortedDailyTSS.map(d => d.tss);
+            const ctl = calculateCTL(tssValues);
+            const atl = calculateATL(tssValues);
+            const tsb = calculateTSB(ctl, atl);
+            const interpretation = interpretTSB(tsb);
+
+            setTrainingMetrics({ ctl, atl, tsb, interpretation });
+          }
         }
 
         // Get speed profile
@@ -257,6 +312,127 @@ function TrainingDashboard() {
               description={`${activities.length} total (90 days)`}
             />
           </SimpleGrid>
+
+          {/* Training Load Metrics */}
+          {(trainingMetrics.ctl > 0 || trainingMetrics.atl > 0) && (
+            <Card>
+              <Stack gap="md">
+                <Group justify="space-between">
+                  <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                    Training Load
+                  </Title>
+                  {trainingMetrics.interpretation && (
+                    <Badge
+                      variant="filled"
+                      color={trainingMetrics.interpretation.color}
+                    >
+                      {trainingMetrics.interpretation.status}
+                    </Badge>
+                  )}
+                </Group>
+
+                <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+                  <Box
+                    style={{
+                      padding: tokens.spacing.md,
+                      backgroundColor: tokens.colors.bgTertiary,
+                      borderRadius: tokens.radius.md,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb={4}>
+                      CTL (Fitness)
+                    </Text>
+                    <Text size="xl" fw={700} style={{ color: tokens.colors.electricLime }}>
+                      {Math.round(trainingMetrics.ctl)}
+                    </Text>
+                    <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                      42-day avg TSS
+                    </Text>
+                  </Box>
+
+                  <Box
+                    style={{
+                      padding: tokens.spacing.md,
+                      backgroundColor: tokens.colors.bgTertiary,
+                      borderRadius: tokens.radius.md,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb={4}>
+                      ATL (Fatigue)
+                    </Text>
+                    <Text size="xl" fw={700} style={{ color: tokens.colors.warning }}>
+                      {Math.round(trainingMetrics.atl)}
+                    </Text>
+                    <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                      7-day avg TSS
+                    </Text>
+                  </Box>
+
+                  <Box
+                    style={{
+                      padding: tokens.spacing.md,
+                      backgroundColor: tokens.colors.bgTertiary,
+                      borderRadius: tokens.radius.md,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb={4}>
+                      TSB (Form)
+                    </Text>
+                    <Text
+                      size="xl"
+                      fw={700}
+                      style={{
+                        color: trainingMetrics.tsb >= 0
+                          ? tokens.colors.success
+                          : trainingMetrics.tsb > -20
+                            ? tokens.colors.warning
+                            : tokens.colors.error,
+                      }}
+                    >
+                      {trainingMetrics.tsb > 0 ? '+' : ''}{Math.round(trainingMetrics.tsb)}
+                    </Text>
+                    <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                      CTL - ATL
+                    </Text>
+                  </Box>
+                </SimpleGrid>
+
+                {trainingMetrics.interpretation && (
+                  <Box
+                    style={{
+                      padding: tokens.spacing.sm,
+                      backgroundColor: tokens.colors.bgSecondary,
+                      borderRadius: tokens.radius.sm,
+                      borderLeft: `3px solid ${
+                        trainingMetrics.interpretation.color === 'green'
+                          ? tokens.colors.success
+                          : trainingMetrics.interpretation.color === 'yellow'
+                            ? tokens.colors.warning
+                            : trainingMetrics.interpretation.color === 'red'
+                              ? tokens.colors.error
+                              : tokens.colors.info
+                      }`,
+                    }}
+                  >
+                    <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                      {trainingMetrics.interpretation.message}
+                    </Text>
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mt={4}>
+                      {trainingMetrics.interpretation.recommendation}
+                    </Text>
+                  </Box>
+                )}
+              </Stack>
+            </Card>
+          )}
+
+          {/* Training Load Chart */}
+          {dailyTSSData.length > 0 && (
+            <TrainingLoadChart data={dailyTSSData} />
+          )}
 
           {/* Speed Profile */}
           {speedProfile && (
@@ -541,6 +717,9 @@ function TrainingDashboard() {
                 <Tabs.Tab value="plans" leftSection={<IconCalendarEvent size={16} />}>
                   Training Plans
                 </Tabs.Tab>
+                <Tabs.Tab value="calendar" leftSection={<IconListCheck size={16} />}>
+                  Calendar
+                </Tabs.Tab>
               </Tabs.List>
 
               <Tabs.Panel value="coach">
@@ -563,6 +742,10 @@ function TrainingDashboard() {
               <Tabs.Panel value="plans">
                 <TrainingPlansPanel />
               </Tabs.Panel>
+
+              <Tabs.Panel value="calendar">
+                <TrainingCalendar activePlan={null} rides={activities} />
+              </Tabs.Panel>
             </Tabs>
           </Card>
         </Stack>
@@ -576,6 +759,14 @@ function TrainingDashboard() {
 
     if (ftp) {
       context.push(`FTP: ${ftp}W`);
+    }
+
+    // Add training load metrics
+    if (trainingMetrics.ctl > 0 || trainingMetrics.atl > 0) {
+      context.push(`Training Load - CTL: ${Math.round(trainingMetrics.ctl)}, ATL: ${Math.round(trainingMetrics.atl)}, TSB: ${Math.round(trainingMetrics.tsb)}`);
+      if (trainingMetrics.interpretation) {
+        context.push(`Form Status: ${trainingMetrics.interpretation.status} - ${trainingMetrics.interpretation.message}`);
+      }
     }
 
     if (weeklyStats.rideCount > 0) {
