@@ -30,7 +30,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { parseFitFile, fitToStravaRidesFormat } from '../utils/fitParser';
+import { parseFitFile, fitToStravaActivitiesFormat } from '../utils/fitParser';
 
 function FitUploadModal({ opened, onClose, onUploadComplete }) {
   const { user } = useAuth();
@@ -86,16 +86,17 @@ function FitUploadModal({ opened, onClose, onUploadComplete }) {
         const fitData = await parseFitFile(buffer, isCompressed);
 
         // Convert to database format
-        const rideData = fitToStravaRidesFormat(fitData, user.id);
+        const activityData = fitToStravaActivitiesFormat(fitData, user.id);
 
         // Check for duplicate (same date and similar distance)
         const { data: existing } = await supabase
-          .from('strava_rides')
+          .from('strava_activities')
           .select('id')
           .eq('user_id', user.id)
-          .eq('start_date_local', rideData.start_date_local)
-          .gte('distance', rideData.distance * 0.95)
-          .lte('distance', rideData.distance * 1.05)
+          .gte('start_date_local', new Date(new Date(activityData.start_date_local).getTime() - 60000).toISOString())
+          .lte('start_date_local', new Date(new Date(activityData.start_date_local).getTime() + 60000).toISOString())
+          .gte('distance', activityData.distance * 0.95)
+          .lte('distance', activityData.distance * 1.05)
           .maybeSingle();
 
         if (existing) {
@@ -108,8 +109,8 @@ function FitUploadModal({ opened, onClose, onUploadComplete }) {
 
         // Insert into database
         const { data, error: insertError } = await supabase
-          .from('strava_rides')
-          .insert(rideData)
+          .from('strava_activities')
+          .insert(activityData)
           .select()
           .single();
 
