@@ -51,6 +51,7 @@ import TrainingCalendar from '../components/TrainingCalendar.jsx';
 import RideHistoryTable from '../components/RideHistoryTable.jsx';
 import PersonalRecordsCard from '../components/PersonalRecordsCard.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
@@ -75,6 +76,8 @@ function TrainingDashboard() {
     interpretation: null,
   });
   const [dailyTSSData, setDailyTSSData] = useState([]);
+  const [healthCheckInOpen, setHealthCheckInOpen] = useState(false);
+  const [todayHealthMetrics, setTodayHealthMetrics] = useState(null);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -178,6 +181,17 @@ function TrainingDashboard() {
           .single();
 
         if (profileData) setSpeedProfile(profileData);
+
+        // Load today's health metrics
+        const today = new Date().toISOString().split('T')[0];
+        const { data: healthData } = await supabase
+          .from('health_metrics')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('recorded_date', today)
+          .single();
+
+        if (healthData) setTodayHealthMetrics(healthData);
       } catch (error) {
         console.error('Error loading training data:', error);
       } finally {
@@ -368,6 +382,8 @@ function TrainingDashboard() {
                   formatElev={formatElev}
                   formatTime={formatTime}
                   isImperial={isImperial}
+                  todayHealthMetrics={todayHealthMetrics}
+                  onOpenHealthCheckIn={() => setHealthCheckInOpen(true)}
                 />
               </Tabs.Panel>
 
@@ -412,6 +428,14 @@ function TrainingDashboard() {
           </Card>
         </Stack>
       </Container>
+
+      {/* Health Check-in Modal */}
+      <HealthCheckInModal
+        opened={healthCheckInOpen}
+        onClose={() => setHealthCheckInOpen(false)}
+        onSave={(data) => setTodayHealthMetrics(data)}
+        existingData={todayHealthMetrics}
+      />
     </AppShell>
   );
 }
@@ -530,7 +554,9 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities,
 // ============================================================================
 // TODAY TAB
 // ============================================================================
-function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, formatDist, formatElev, formatTime, isImperial }) {
+function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, formatDist, formatElev, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn }) {
+  const hasCheckedIn = !!todayHealthMetrics;
+
   return (
     <Stack gap="lg">
       {/* AI Coach Section */}
@@ -580,26 +606,31 @@ function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, f
               <IconHeart size={18} />
             </ThemeIcon>
             <Text fw={600}>Body Check-in</Text>
+            {hasCheckedIn && (
+              <Badge color="green" variant="light" size="xs">Done</Badge>
+            )}
           </Group>
           <Text size="sm" c="dimmed" mb="md">
-            Log your daily metrics for better recommendations
+            {hasCheckedIn ? 'Today\'s metrics recorded' : 'Log your daily metrics for better recommendations'}
           </Text>
           <SimpleGrid cols={3} spacing="xs">
             <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
               <Text size="xs" c="dimmed">HRV</Text>
-              <Text fw={600}>--</Text>
+              <Text fw={600}>{todayHealthMetrics?.hrv_score ? Math.round(todayHealthMetrics.hrv_score) : '--'}</Text>
             </Paper>
             <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
               <Text size="xs" c="dimmed">Sleep</Text>
-              <Text fw={600}>--</Text>
+              <Text fw={600}>{todayHealthMetrics?.sleep_hours ? `${todayHealthMetrics.sleep_hours}h` : '--'}</Text>
             </Paper>
             <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
-              <Text size="xs" c="dimmed">RHR</Text>
-              <Text fw={600}>--</Text>
+              <Text size="xs" c="dimmed">Readiness</Text>
+              <Text fw={600} c={todayHealthMetrics?.readiness_score >= 60 ? 'green' : todayHealthMetrics?.readiness_score >= 40 ? 'yellow' : 'red'}>
+                {todayHealthMetrics?.readiness_score ? `${Math.round(todayHealthMetrics.readiness_score)}%` : '--'}
+              </Text>
             </Paper>
           </SimpleGrid>
-          <Button variant="light" color="violet" fullWidth mt="md">
-            Log Metrics
+          <Button variant="light" color="violet" fullWidth mt="md" onClick={onOpenHealthCheckIn}>
+            {hasCheckedIn ? 'Update Check-in' : 'Log Metrics'}
           </Button>
         </Card>
       </SimpleGrid>
