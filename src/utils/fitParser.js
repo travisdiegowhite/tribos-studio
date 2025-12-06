@@ -300,9 +300,9 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * Convert FIT data to strava_activities format for database storage
+ * Convert FIT data to activities table format for database storage
  */
-export function fitToStravaActivitiesFormat(fitData, userId) {
+export function fitToActivityFormat(fitData, userId) {
   const { metadata, summary, trackPoints, laps } = fitData;
 
   // Generate a unique provider_activity_id for FIT uploads
@@ -367,8 +367,9 @@ export function fitToStravaActivitiesFormat(fitData, userId) {
   };
 }
 
-// Keep old name as alias for backwards compatibility
-export const fitToStravaRidesFormat = fitToStravaActivitiesFormat;
+// Aliases for backwards compatibility
+export const fitToStravaActivitiesFormat = fitToActivityFormat;
+export const fitToStravaRidesFormat = fitToActivityFormat;
 
 /**
  * Simple polyline encoder for track points

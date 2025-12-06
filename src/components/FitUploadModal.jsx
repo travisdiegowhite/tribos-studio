@@ -30,7 +30,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { parseFitFile, fitToStravaActivitiesFormat } from '../utils/fitParser';
+import { parseFitFile, fitToActivityFormat } from '../utils/fitParser';
 
 function FitUploadModal({ opened, onClose, onUploadComplete }) {
   const { user } = useAuth();
@@ -86,11 +86,11 @@ function FitUploadModal({ opened, onClose, onUploadComplete }) {
         const fitData = await parseFitFile(buffer, isCompressed);
 
         // Convert to database format
-        const activityData = fitToStravaActivitiesFormat(fitData, user.id);
+        const activityData = fitToActivityFormat(fitData, user.id);
 
         // Check for duplicate (same date and similar distance)
         const { data: existing } = await supabase
-          .from('strava_activities')
+          .from('activities')
           .select('id')
           .eq('user_id', user.id)
           .gte('start_date_local', new Date(new Date(activityData.start_date_local).getTime() - 60000).toISOString())
@@ -109,7 +109,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete }) {
 
         // Insert into database
         const { data, error: insertError } = await supabase
-          .from('strava_activities')
+          .from('activities')
           .insert(activityData)
           .select()
           .single();

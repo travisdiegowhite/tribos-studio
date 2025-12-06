@@ -220,7 +220,7 @@ async function storeActivities(userId, activities) {
 
   // Upsert activities (update if exists based on provider_activity_id)
   const { error } = await supabase
-    .from('strava_activities')
+    .from('activities')
     .upsert(activitiesToStore, {
       onConflict: 'user_id,provider_activity_id',
       ignoreDuplicates: false
@@ -295,7 +295,7 @@ async function calculateAndStoreSpeedProfile(userId) {
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
   const { data: activities, error } = await supabase
-    .from('strava_activities')
+    .from('activities')
     .select('*')
     .eq('user_id', userId)
     .eq('trainer', false) // Outdoor only
