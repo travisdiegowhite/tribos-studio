@@ -9,8 +9,10 @@ import { getZoneColor, getZoneName } from '../utils/intervalCues';
 const IntervalCues = ({ cues }) => {
   // Simple distance formatter (km)
   const formatDistance = (km) => {
-    if (!km && km !== 0) return '0 km';
-    return `${km.toFixed(1)} km`;
+    if (km === null || km === undefined) return '0 km';
+    const numKm = typeof km === 'string' ? parseFloat(km) : km;
+    if (isNaN(numKm)) return '0 km';
+    return `${numKm.toFixed(1)} km`;
   };
 
   if (!cues || cues.length === 0) {
