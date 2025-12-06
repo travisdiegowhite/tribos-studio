@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Container,
   Title,
@@ -14,10 +14,33 @@ import {
   Button,
   Tabs,
   Paper,
+  ThemeIcon,
+  RingProgress,
+  Select,
+  Divider,
+  Alert,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
-import { IconRobot, IconBarbell, IconChartLine, IconListCheck, IconCalendarEvent, IconClock, IconFlame } from '@tabler/icons-react';
+import {
+  Activity,
+  TrendingUp,
+  TrendingDown,
+  Zap,
+  Calendar,
+  Clock,
+  Mountain,
+  Route,
+  Target,
+  MessageCircle,
+  ChevronRight,
+  Flame,
+  Heart,
+  Moon,
+  Award,
+  BarChart3,
+  Settings,
+} from 'lucide-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -25,25 +48,26 @@ import { supabase } from '../lib/supabase';
 import AICoach from '../components/AICoach.jsx';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
+import RideHistoryTable from '../components/RideHistoryTable.jsx';
+import PersonalRecordsCard from '../components/PersonalRecordsCard.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS } from '../utils/trainingPlans';
+import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 
 function TrainingDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('today');
+  const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);
   const [speedProfile, setSpeedProfile] = useState(null);
-  const [unitsPreference, setUnitsPreference] = useState('metric'); // 'metric' or 'imperial'
+  const [unitsPreference, setUnitsPreference] = useState('imperial');
   const [ftp, setFtp] = useState(null);
   const [powerZones, setPowerZones] = useState(null);
-  const [weeklyStats, setWeeklyStats] = useState({
-    totalDistance: 0,
-    totalTime: 0,
-    totalElevation: 0,
-    rideCount: 0,
-  });
   const [trainingMetrics, setTrainingMetrics] = useState({
     ctl: 0,
     atl: 0,
@@ -54,16 +78,17 @@ function TrainingDashboard() {
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
-  const KM_TO_MILES = 0.621371;
-  const M_TO_FEET = 3.28084;
 
-  // Load activities from Supabase
+  // Format functions using preference
+  const formatDist = (km) => formatDistance(km, isImperial);
+  const formatElev = (m) => formatElevation(m, isImperial);
+
+  // Load data
   useEffect(() => {
     const loadData = async () => {
       if (!user) return;
 
       try {
-        // Get user's profile including units preference, FTP, and power zones
         const { data: userProfileData } = await supabase
           .from('user_profiles')
           .select('units_preference, ftp, power_zones')
@@ -73,14 +98,10 @@ function TrainingDashboard() {
         if (userProfileData?.units_preference) {
           setUnitsPreference(userProfileData.units_preference);
         }
-        if (userProfileData?.ftp) {
-          setFtp(userProfileData.ftp);
-        }
-        if (userProfileData?.power_zones) {
-          setPowerZones(userProfileData.power_zones);
-        }
+        if (userProfileData?.ftp) setFtp(userProfileData.ftp);
+        if (userProfileData?.power_zones) setPowerZones(userProfileData.power_zones);
 
-        // Get activities from last 90 days (to show more history)
+        // Get activities from last 90 days
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
@@ -91,38 +112,14 @@ function TrainingDashboard() {
           .gte('start_date', ninetyDaysAgo.toISOString())
           .order('start_date', { ascending: false });
 
-        if (activityError) {
-          console.error('Error loading activities:', activityError);
-        } else {
+        if (!activityError) {
           setActivities(activityData || []);
 
-          // Calculate weekly stats (last 7 days)
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-          const weeklyActivities = (activityData || []).filter(
-            (a) => new Date(a.start_date) >= sevenDaysAgo
-          );
-
-          const stats = weeklyActivities.reduce(
-            (acc, activity) => ({
-              totalDistance: acc.totalDistance + (activity.distance || 0),
-              totalTime: acc.totalTime + (activity.moving_time || 0),
-              totalElevation: acc.totalElevation + (activity.total_elevation_gain || 0),
-              rideCount: acc.rideCount + 1,
-            }),
-            { totalDistance: 0, totalTime: 0, totalElevation: 0, rideCount: 0 }
-          );
-
-          setWeeklyStats(stats);
-
-          // Calculate CTL/ATL/TSB from activities
+          // Build daily TSS data
           if (activityData && activityData.length > 0) {
-            // Build daily TSS data for the last 90 days
             const dailyTSS = {};
             const today = new Date();
 
-            // Initialize all days with 0 TSS
             for (let i = 0; i < 90; i++) {
               const date = new Date(today);
               date.setDate(date.getDate() - i);
@@ -130,28 +127,24 @@ function TrainingDashboard() {
               dailyTSS[dateStr] = { date: dateStr, tss: 0 };
             }
 
-            // Add TSS from activities
             activityData.forEach((activity) => {
               const dateStr = activity.start_date.split('T')[0];
               if (dailyTSS[dateStr]) {
-                // Use actual TSS if available, otherwise estimate from duration and intensity
                 const activityTSS = activity.tss || estimateTSS(
-                  activity.moving_time / 60, // duration in minutes
+                  activity.moving_time / 60,
                   activity.average_watts && userProfileData?.ftp
                     ? activity.average_watts / userProfileData.ftp
-                    : 0.65 // default IF for endurance ride
+                    : 0.65
                 );
                 dailyTSS[dateStr].tss += activityTSS;
               }
             });
 
-            // Convert to sorted array (oldest first for calculations)
             const sortedDailyTSS = Object.values(dailyTSS)
               .sort((a, b) => new Date(a.date) - new Date(b.date));
 
             setDailyTSSData(sortedDailyTSS);
 
-            // Calculate CTL, ATL, TSB using the utility functions
             const tssValues = sortedDailyTSS.map(d => d.tss);
             const ctl = calculateCTL(tssValues);
             const atl = calculateATL(tssValues);
@@ -162,16 +155,13 @@ function TrainingDashboard() {
           }
         }
 
-        // Get speed profile
-        const { data: profileData, error: profileError } = await supabase
+        const { data: profileData } = await supabase
           .from('user_speed_profiles')
           .select('*')
           .eq('user_id', user.id)
           .single();
 
-        if (!profileError && profileData) {
-          setSpeedProfile(profileData);
-        }
+        if (profileData) setSpeedProfile(profileData);
       } catch (error) {
         console.error('Error loading training data:', error);
       } finally {
@@ -182,92 +172,52 @@ function TrainingDashboard() {
     loadData();
   }, [user]);
 
-  // Format distance (meters to km or miles based on preference)
-  const formatDistance = (meters) => {
-    const km = meters / 1000;
-    if (isImperial) {
-      return (km * KM_TO_MILES).toFixed(1);
-    }
-    return km.toFixed(1);
-  };
+  // Calculate weekly stats
+  const weeklyStats = useMemo(() => {
+    const days = parseInt(timeRange) || 7;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
 
-  // Get distance unit label
-  const distanceUnit = isImperial ? 'mi' : 'km';
+    const filtered = activities.filter(a => new Date(a.start_date) >= cutoff);
 
-  // Format elevation (meters to feet based on preference)
-  const formatElevation = (meters) => {
-    if (isImperial) {
-      return Math.round(meters * M_TO_FEET);
-    }
-    return Math.round(meters);
-  };
+    return filtered.reduce(
+      (acc, a) => ({
+        totalDistance: acc.totalDistance + (a.distance || 0),
+        totalTime: acc.totalTime + (a.moving_time || 0),
+        totalElevation: acc.totalElevation + (a.total_elevation_gain || 0),
+        totalTSS: acc.totalTSS + (a.tss || estimateTSS(a.moving_time / 60, 0.65)),
+        rideCount: acc.rideCount + 1,
+      }),
+      { totalDistance: 0, totalTime: 0, totalElevation: 0, totalTSS: 0, rideCount: 0 }
+    );
+  }, [activities, timeRange]);
 
-  // Get elevation unit label
-  const elevationUnit = isImperial ? 'ft' : 'm';
-
-  // Format speed (km/h to mph based on preference)
-  const formatSpeed = (kmh) => {
-    if (isImperial) {
-      return (kmh * KM_TO_MILES).toFixed(1);
-    }
-    return kmh.toFixed(1);
-  };
-
-  // Get speed unit label
-  const speedUnit = isImperial ? 'mph' : 'km/h';
-
-  // Format time (seconds to hours:minutes)
+  // Format helpers
   const formatTime = (seconds) => {
+    if (!seconds) return '0h';
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
+    if (hours > 0) return `${hours}h ${minutes}m`;
     return `${minutes}m`;
   };
 
-  // Format date for display
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
-    } else {
-      return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    }
+  // Get form status styling
+  const getFormStatus = () => {
+    const tsb = trainingMetrics.tsb;
+    if (tsb >= 15) return { label: 'FRESH', color: 'teal', icon: TrendingUp, bg: 'rgba(16, 185, 129, 0.15)' };
+    if (tsb >= 5) return { label: 'READY', color: 'green', icon: TrendingUp, bg: 'rgba(34, 197, 94, 0.15)' };
+    if (tsb >= -10) return { label: 'OPTIMAL', color: 'lime', icon: Activity, bg: 'rgba(132, 204, 22, 0.15)' };
+    if (tsb >= -25) return { label: 'TIRED', color: 'yellow', icon: TrendingDown, bg: 'rgba(234, 179, 8, 0.15)' };
+    return { label: 'FATIGUED', color: 'red', icon: TrendingDown, bg: 'rgba(239, 68, 68, 0.15)' };
   };
 
-  // Get activity type icon
-  const getActivityIcon = (type) => {
-    switch (type) {
-      case 'Ride':
-        return '🚴';
-      case 'VirtualRide':
-        return '🖥️';
-      case 'GravelRide':
-        return '🌲';
-      case 'MountainBikeRide':
-        return '⛰️';
-      case 'EBikeRide':
-        return '⚡';
-      default:
-        return '🚴';
-    }
-  };
+  const formStatus = getFormStatus();
 
   if (loading) {
     return (
       <AppShell>
         <Container size="xl" py="xl">
-          <Stack align="center" justify="center" style={{ minHeight: 400 }}>
-            <Loader color="lime" size="lg" />
-            <Text style={{ color: tokens.colors.textSecondary }}>Loading training data...</Text>
-          </Stack>
+          <TrainingMetricsSkeleton />
         </Container>
       </AppShell>
     );
@@ -276,473 +226,154 @@ function TrainingDashboard() {
   return (
     <AppShell>
       <Container size="xl" py="xl">
-        <Stack gap="xl">
+        <Stack gap="lg">
           {/* Header */}
           <Group justify="space-between" align="flex-start">
             <Box>
               <Title order={1} style={{ color: tokens.colors.textPrimary }}>
-                Training
+                Training Hub
               </Title>
               <Text style={{ color: tokens.colors.textSecondary }}>
-                Track your performance and training progress
+                Your personalized training command center
               </Text>
             </Box>
+            <Group gap="sm">
+              <Select
+                size="xs"
+                value={timeRange}
+                onChange={setTimeRange}
+                data={[
+                  { value: '7', label: 'Last 7 days' },
+                  { value: '30', label: 'Last 30 days' },
+                  { value: '90', label: 'Last 90 days' },
+                ]}
+                style={{ width: 130 }}
+              />
+              <Button
+                variant="light"
+                color="lime"
+                size="xs"
+                leftSection={<Settings size={14} />}
+                onClick={() => navigate('/settings')}
+              >
+                Settings
+              </Button>
+            </Group>
           </Group>
 
-          {/* Weekly Overview */}
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
-            <MetricCard
-              label="Weekly Distance"
-              value={`${formatDistance(weeklyStats.totalDistance)} ${distanceUnit}`}
-              description="Last 7 days"
+          {/* Today's Focus - Dynamic Hero Card */}
+          <TodaysFocusCard
+            trainingMetrics={trainingMetrics}
+            formStatus={formStatus}
+            weeklyStats={weeklyStats}
+            activities={activities}
+            formatDist={formatDist}
+            formatTime={formatTime}
+            onAskCoach={() => setActiveTab('today')}
+          />
+
+          {/* Quick Stats Row */}
+          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+            <QuickStatCard
+              label="Fitness (CTL)"
+              value={Math.round(trainingMetrics.ctl)}
+              icon={TrendingUp}
+              color="teal"
+              subtitle="42-day fitness"
             />
-            <MetricCard
-              label="Weekly Time"
-              value={formatTime(weeklyStats.totalTime)}
-              description="Time in saddle"
+            <QuickStatCard
+              label="Fatigue (ATL)"
+              value={Math.round(trainingMetrics.atl)}
+              icon={Flame}
+              color="orange"
+              subtitle="7-day load"
             />
-            <MetricCard
-              label="Weekly Elevation"
-              value={`${formatElevation(weeklyStats.totalElevation)} ${elevationUnit}`}
-              description="Total climbing"
+            <QuickStatCard
+              label="Form (TSB)"
+              value={`${trainingMetrics.tsb > 0 ? '+' : ''}${Math.round(trainingMetrics.tsb)}`}
+              icon={formStatus.icon}
+              color={formStatus.color}
+              subtitle={formStatus.label}
             />
-            <MetricCard
-              label="Rides This Week"
-              value={weeklyStats.rideCount.toString()}
-              description={`${activities.length} total (90 days)`}
+            <QuickStatCard
+              label="Weekly TSS"
+              value={Math.round(weeklyStats.totalTSS)}
+              icon={Activity}
+              color="blue"
+              subtitle={`${weeklyStats.rideCount} rides`}
             />
           </SimpleGrid>
 
-          {/* Training Load Metrics */}
-          {(trainingMetrics.ctl > 0 || trainingMetrics.atl > 0) && (
-            <Card>
-              <Stack gap="md">
-                <Group justify="space-between">
-                  <Title order={3} style={{ color: tokens.colors.textPrimary }}>
-                    Training Load
-                  </Title>
-                  {trainingMetrics.interpretation && (
-                    <Badge
-                      variant="filled"
-                      color={trainingMetrics.interpretation.color}
-                    >
-                      {trainingMetrics.interpretation.status}
-                    </Badge>
-                  )}
-                </Group>
-
-                <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-                  <Box
-                    style={{
-                      padding: tokens.spacing.md,
-                      backgroundColor: tokens.colors.bgTertiary,
-                      borderRadius: tokens.radius.md,
-                      textAlign: 'center',
-                    }}
-                  >
-                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb={4}>
-                      CTL (Fitness)
-                    </Text>
-                    <Text size="xl" fw={700} style={{ color: tokens.colors.electricLime }}>
-                      {Math.round(trainingMetrics.ctl)}
-                    </Text>
-                    <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                      42-day avg TSS
-                    </Text>
-                  </Box>
-
-                  <Box
-                    style={{
-                      padding: tokens.spacing.md,
-                      backgroundColor: tokens.colors.bgTertiary,
-                      borderRadius: tokens.radius.md,
-                      textAlign: 'center',
-                    }}
-                  >
-                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb={4}>
-                      ATL (Fatigue)
-                    </Text>
-                    <Text size="xl" fw={700} style={{ color: tokens.colors.warning }}>
-                      {Math.round(trainingMetrics.atl)}
-                    </Text>
-                    <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                      7-day avg TSS
-                    </Text>
-                  </Box>
-
-                  <Box
-                    style={{
-                      padding: tokens.spacing.md,
-                      backgroundColor: tokens.colors.bgTertiary,
-                      borderRadius: tokens.radius.md,
-                      textAlign: 'center',
-                    }}
-                  >
-                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb={4}>
-                      TSB (Form)
-                    </Text>
-                    <Text
-                      size="xl"
-                      fw={700}
-                      style={{
-                        color: trainingMetrics.tsb >= 0
-                          ? tokens.colors.success
-                          : trainingMetrics.tsb > -20
-                            ? tokens.colors.warning
-                            : tokens.colors.error,
-                      }}
-                    >
-                      {trainingMetrics.tsb > 0 ? '+' : ''}{Math.round(trainingMetrics.tsb)}
-                    </Text>
-                    <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                      CTL - ATL
-                    </Text>
-                  </Box>
-                </SimpleGrid>
-
-                {trainingMetrics.interpretation && (
-                  <Box
-                    style={{
-                      padding: tokens.spacing.sm,
-                      backgroundColor: tokens.colors.bgSecondary,
-                      borderRadius: tokens.radius.sm,
-                      borderLeft: `3px solid ${
-                        trainingMetrics.interpretation.color === 'green'
-                          ? tokens.colors.success
-                          : trainingMetrics.interpretation.color === 'yellow'
-                            ? tokens.colors.warning
-                            : trainingMetrics.interpretation.color === 'red'
-                              ? tokens.colors.error
-                              : tokens.colors.info
-                      }`,
-                    }}
-                  >
-                    <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                      {trainingMetrics.interpretation.message}
-                    </Text>
-                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mt={4}>
-                      {trainingMetrics.interpretation.recommendation}
-                    </Text>
-                  </Box>
-                )}
-              </Stack>
-            </Card>
-          )}
-
-          {/* Training Load Chart */}
-          {dailyTSSData.length > 0 && (
-            <TrainingLoadChart data={dailyTSSData} />
-          )}
-
-          {/* Speed Profile */}
-          {speedProfile && (
-            <Card>
-              <Stack gap="md">
-                <Group justify="space-between">
-                  <Title order={3} style={{ color: tokens.colors.textPrimary }}>
-                    Your Speed Profile
-                  </Title>
-                  <Badge variant="light" color="lime">
-                    {speedProfile.rides_analyzed} rides analyzed
-                  </Badge>
-                </Group>
-
-                <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
-                  <Box>
-                    <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                      Average Speed
-                    </Text>
-                    <Text size="xl" fw={700} style={{ color: tokens.colors.electricLime }}>
-                      {formatSpeed(speedProfile.average_speed || 0)} {speedUnit}
-                    </Text>
-                  </Box>
-                  {speedProfile.road_speed && (
-                    <Box>
-                      <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                        Road
-                      </Text>
-                      <Text size="xl" fw={700} style={{ color: tokens.colors.textPrimary }}>
-                        {formatSpeed(speedProfile.road_speed)} {speedUnit}
-                      </Text>
-                    </Box>
-                  )}
-                  {speedProfile.gravel_speed && (
-                    <Box>
-                      <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                        Gravel
-                      </Text>
-                      <Text size="xl" fw={700} style={{ color: tokens.colors.textPrimary }}>
-                        {formatSpeed(speedProfile.gravel_speed)} {speedUnit}
-                      </Text>
-                    </Box>
-                  )}
-                  {speedProfile.mtb_speed && (
-                    <Box>
-                      <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                        MTB
-                      </Text>
-                      <Text size="xl" fw={700} style={{ color: tokens.colors.textPrimary }}>
-                        {formatSpeed(speedProfile.mtb_speed)} {speedUnit}
-                      </Text>
-                    </Box>
-                  )}
-                </SimpleGrid>
-
-                <Group gap="lg">
-                  <Box>
-                    <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                      Avg Ride Duration
-                    </Text>
-                    <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                      {Math.round(speedProfile.avg_ride_duration || 0)} min
-                    </Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                      Avg Elevation/{distanceUnit}
-                    </Text>
-                    <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                      {isImperial
-                        ? ((speedProfile.avg_elevation_per_km || 0) * M_TO_FEET / KM_TO_MILES).toFixed(0)
-                        : (speedProfile.avg_elevation_per_km || 0).toFixed(1)
-                      } {elevationUnit}
-                    </Text>
-                  </Box>
-                </Group>
-              </Stack>
-            </Card>
-          )}
-
-          {/* Recent Workouts */}
+          {/* Main Tabs */}
           <Card>
-            <Stack gap="md">
-              <Group justify="space-between">
-                <Title order={3} style={{ color: tokens.colors.textPrimary }}>
-                  Recent Workouts
-                </Title>
-                <Badge variant="light" color="gray">
-                  Last 90 days
-                </Badge>
-              </Group>
-
-              {activities.length === 0 ? (
-                <Box
-                  style={{
-                    padding: tokens.spacing.xl,
-                    textAlign: 'center',
-                    borderRadius: tokens.radius.md,
-                    border: `1px dashed ${tokens.colors.bgTertiary}`,
-                  }}
-                >
-                  <Text size="lg" mb="sm">
-                    📊
-                  </Text>
-                  <Text style={{ color: tokens.colors.textSecondary }} mb="md">
-                    No workouts found. Sync your Strava activities to see them here!
-                  </Text>
-                  <Button
-                    variant="light"
-                    color="lime"
-                    onClick={() => navigate('/settings')}
-                  >
-                    Go to Settings
-                  </Button>
-                </Box>
-              ) : (
-                <Stack gap="xs">
-                  {activities.slice(0, 10).map((activity) => (
-                    <Box
-                      key={activity.id}
-                      style={{
-                        padding: tokens.spacing.sm,
-                        backgroundColor: tokens.colors.bgTertiary,
-                        borderRadius: tokens.radius.sm,
-                      }}
-                    >
-                      <Group justify="space-between" wrap="nowrap">
-                        <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-                          <Text size="xl">{getActivityIcon(activity.type)}</Text>
-                          <Box style={{ minWidth: 0, flex: 1 }}>
-                            <Text
-                              fw={600}
-                              size="sm"
-                              style={{
-                                color: tokens.colors.textPrimary,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                              }}
-                            >
-                              {activity.name}
-                            </Text>
-                            <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                              {formatDate(activity.start_date)}
-                            </Text>
-                          </Box>
-                        </Group>
-                        <Group gap="md" wrap="nowrap">
-                          <Box style={{ textAlign: 'right' }}>
-                            <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
-                              {formatDistance(activity.distance)} {distanceUnit}
-                            </Text>
-                            <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                              {formatTime(activity.moving_time)}
-                            </Text>
-                          </Box>
-                          <Box style={{ textAlign: 'right', minWidth: 70 }}>
-                            <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                              {formatSpeed((activity.average_speed || 0) * 3.6)} {speedUnit}
-                            </Text>
-                            {activity.total_elevation_gain > 0 && (
-                              <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                                {formatElevation(activity.total_elevation_gain)}{elevationUnit} ↗
-                              </Text>
-                            )}
-                          </Box>
-                        </Group>
-                      </Group>
-                    </Box>
-                  ))}
-                  {activities.length > 10 && (
-                    <Text size="sm" style={{ color: tokens.colors.textMuted, textAlign: 'center' }}>
-                      + {activities.length - 10} more activities
-                    </Text>
-                  )}
-                </Stack>
-              )}
-            </Stack>
-          </Card>
-
-          {/* Power Zones */}
-          <Card>
-            <Stack gap="md">
-              <Group justify="space-between">
-                <Title order={3} style={{ color: tokens.colors.textPrimary }}>
-                  Power Zones
-                </Title>
-                {ftp && (
-                  <Badge variant="light" color="lime">
-                    FTP: {ftp}W
-                  </Badge>
-                )}
-              </Group>
-
-              {!ftp ? (
-                <Box
-                  style={{
-                    padding: tokens.spacing.lg,
-                    textAlign: 'center',
-                    borderRadius: tokens.radius.md,
-                    border: `1px dashed ${tokens.colors.bgTertiary}`,
-                  }}
-                >
-                  <Text size="lg" mb="sm">⚡</Text>
-                  <Text style={{ color: tokens.colors.textSecondary }} mb="md">
-                    Set your FTP in settings to see your personalized power zones
-                  </Text>
-                  <Button
-                    variant="light"
-                    color="lime"
-                    onClick={() => navigate('/settings')}
-                  >
-                    Set FTP
-                  </Button>
-                </Box>
-              ) : (
-                <Stack gap="sm">
-                  <ZoneBar
-                    zone={1}
-                    label="Recovery"
-                    range="< 55%"
-                    color={tokens.colors.zone1}
-                    watts={powerZones?.z1 ? `0-${powerZones.z1.max}` : null}
-                  />
-                  <ZoneBar
-                    zone={2}
-                    label="Endurance"
-                    range="55-75%"
-                    color={tokens.colors.zone2}
-                    watts={powerZones?.z2 ? `${powerZones.z2.min}-${powerZones.z2.max}` : null}
-                  />
-                  <ZoneBar
-                    zone={3}
-                    label="Tempo"
-                    range="75-90%"
-                    color={tokens.colors.zone3}
-                    watts={powerZones?.z3 ? `${powerZones.z3.min}-${powerZones.z3.max}` : null}
-                  />
-                  <ZoneBar
-                    zone={4}
-                    label="Threshold"
-                    range="90-105%"
-                    color={tokens.colors.zone4}
-                    watts={powerZones?.z4 ? `${powerZones.z4.min}-${powerZones.z4.max}` : null}
-                  />
-                  <ZoneBar
-                    zone={5}
-                    label="VO2max"
-                    range="105-120%"
-                    color={tokens.colors.zone5}
-                    watts={powerZones?.z5 ? `${powerZones.z5.min}-${powerZones.z5.max}` : null}
-                  />
-                  <ZoneBar
-                    zone={6}
-                    label="Anaerobic"
-                    range="120-150%"
-                    color={tokens.colors.zone6}
-                    watts={powerZones?.z6 ? `${powerZones.z6.min}-${powerZones.z6.max}` : null}
-                  />
-                  <ZoneBar
-                    zone={7}
-                    label="Neuromuscular"
-                    range="> 150%"
-                    color={tokens.colors.zone7}
-                    watts={powerZones?.z7 ? `${powerZones.z7.min}+` : null}
-                  />
-                </Stack>
-              )}
-            </Stack>
-          </Card>
-
-          {/* Training Tools Section */}
-          <Card>
-            <Tabs defaultValue="coach" color="lime">
+            <Tabs value={activeTab} onChange={setActiveTab} color="lime">
               <Tabs.List mb="md">
-                <Tabs.Tab value="coach" leftSection={<IconRobot size={16} />}>
-                  AI Coach
+                <Tabs.Tab value="today" leftSection={<Target size={16} />}>
+                  Today
                 </Tabs.Tab>
-                <Tabs.Tab value="workouts" leftSection={<IconBarbell size={16} />}>
-                  Workout Library
+                <Tabs.Tab value="trends" leftSection={<TrendingUp size={16} />}>
+                  Trends
                 </Tabs.Tab>
-                <Tabs.Tab value="plans" leftSection={<IconCalendarEvent size={16} />}>
-                  Training Plans
+                <Tabs.Tab value="power" leftSection={<Zap size={16} />}>
+                  Power
                 </Tabs.Tab>
-                <Tabs.Tab value="calendar" leftSection={<IconListCheck size={16} />}>
+                <Tabs.Tab value="history" leftSection={<Clock size={16} />}>
+                  History
+                </Tabs.Tab>
+                <Tabs.Tab value="calendar" leftSection={<Calendar size={16} />}>
                   Calendar
                 </Tabs.Tab>
               </Tabs.List>
 
-              <Tabs.Panel value="coach">
-                <AICoach
-                  trainingContext={buildTrainingContext()}
-                  onAddWorkout={(workout) => {
-                    notifications.show({
-                      title: 'Workout Added',
-                      message: `${workout.name} has been added to your training plan`,
-                      color: 'lime'
-                    });
-                  }}
+              {/* TODAY TAB */}
+              <Tabs.Panel value="today">
+                <TodayTab
+                  trainingMetrics={trainingMetrics}
+                  formStatus={formStatus}
+                  weeklyStats={weeklyStats}
+                  activities={activities}
+                  ftp={ftp}
+                  formatDist={formatDist}
+                  formatElev={formatElev}
+                  formatTime={formatTime}
+                  isImperial={isImperial}
                 />
               </Tabs.Panel>
 
-              <Tabs.Panel value="workouts">
-                <WorkoutLibraryPanel />
+              {/* TRENDS TAB */}
+              <Tabs.Panel value="trends">
+                <TrendsTab
+                  dailyTSSData={dailyTSSData}
+                  trainingMetrics={trainingMetrics}
+                  activities={activities}
+                  speedProfile={speedProfile}
+                  formatDist={formatDist}
+                  formatElev={formatElev}
+                  isImperial={isImperial}
+                />
               </Tabs.Panel>
 
-              <Tabs.Panel value="plans">
-                <TrainingPlansPanel />
+              {/* POWER TAB */}
+              <Tabs.Panel value="power">
+                <PowerTab
+                  ftp={ftp}
+                  powerZones={powerZones}
+                  navigate={navigate}
+                />
               </Tabs.Panel>
 
+              {/* HISTORY TAB */}
+              <Tabs.Panel value="history">
+                <RideHistoryTable
+                  rides={activities}
+                  formatDistance={formatDist}
+                  formatElevation={formatElev}
+                  maxRows={20}
+                  onViewRide={(ride) => console.log('View ride:', ride)}
+                />
+              </Tabs.Panel>
+
+              {/* CALENDAR TAB */}
               <Tabs.Panel value="calendar">
                 <TrainingCalendar activePlan={null} rides={activities} />
               </Tabs.Panel>
@@ -752,385 +383,455 @@ function TrainingDashboard() {
       </Container>
     </AppShell>
   );
-
-  // Build training context for AI Coach
-  function buildTrainingContext() {
-    const context = [];
-
-    if (ftp) {
-      context.push(`FTP: ${ftp}W`);
-    }
-
-    // Add training load metrics
-    if (trainingMetrics.ctl > 0 || trainingMetrics.atl > 0) {
-      context.push(`Training Load - CTL: ${Math.round(trainingMetrics.ctl)}, ATL: ${Math.round(trainingMetrics.atl)}, TSB: ${Math.round(trainingMetrics.tsb)}`);
-      if (trainingMetrics.interpretation) {
-        context.push(`Form Status: ${trainingMetrics.interpretation.status} - ${trainingMetrics.interpretation.message}`);
-      }
-    }
-
-    if (weeklyStats.rideCount > 0) {
-      context.push(`This week: ${weeklyStats.rideCount} rides, ${formatDistance(weeklyStats.totalDistance)} ${distanceUnit}, ${formatTime(weeklyStats.totalTime)}`);
-    }
-
-    if (speedProfile) {
-      context.push(`Average speed: ${formatSpeed(speedProfile.average_speed || 0)} ${speedUnit}`);
-      context.push(`${speedProfile.rides_analyzed} rides analyzed`);
-    }
-
-    if (activities.length > 0) {
-      const lastRide = activities[0];
-      context.push(`Last ride: ${lastRide.name} on ${formatDate(lastRide.start_date)} - ${formatDistance(lastRide.distance)} ${distanceUnit}`);
-    }
-
-    return context.join('\n');
-  }
 }
 
-function MetricCard({ label, value, change, description }) {
+// ============================================================================
+// TODAY'S FOCUS HERO CARD
+// ============================================================================
+function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities, formatDist, formatTime, onAskCoach }) {
+  const lastRide = activities[0];
+  const FormIcon = formStatus.icon;
+
+  // Generate dynamic recommendation based on form
+  const getRecommendation = () => {
+    const tsb = trainingMetrics.tsb;
+    if (tsb >= 15) return "You're fresh! Great day for intensity or a long endurance ride.";
+    if (tsb >= 5) return "Good form for a quality training session. Consider sweet spot or tempo work.";
+    if (tsb >= -10) return "Optimal training zone. Keep building fitness with structured workouts.";
+    if (tsb >= -25) return "You're carrying some fatigue. An easy spin or rest day might be wise.";
+    return "High fatigue detected. Prioritize recovery to avoid overtraining.";
+  };
+
   return (
-    <Card>
-      <Stack gap="xs">
-        <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-          {label}
-        </Text>
-        <Group gap="sm" align="baseline">
-          <Text size="2rem" fw={700} style={{ color: tokens.colors.electricLime }}>
-            {value}
+    <Paper
+      p="lg"
+      radius="md"
+      style={{
+        background: `linear-gradient(135deg, ${formStatus.bg}, transparent)`,
+        border: `1px solid ${formStatus.bg}`,
+      }}
+    >
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <Box style={{ flex: 1 }}>
+          <Group gap="sm" mb="xs">
+            <Badge size="lg" color={formStatus.color} variant="filled" leftSection={<FormIcon size={14} />}>
+              {formStatus.label}
+            </Badge>
+            <Text size="sm" c="dimmed">TSB: {trainingMetrics.tsb > 0 ? '+' : ''}{Math.round(trainingMetrics.tsb)}</Text>
+          </Group>
+
+          <Text size="lg" fw={600} mb="xs" style={{ color: tokens.colors.textPrimary }}>
+            {getRecommendation()}
           </Text>
-          {change !== null && change !== undefined && (
-            <Text
-              size="sm"
-              style={{ color: change >= 0 ? tokens.colors.success : tokens.colors.error }}
+
+          <Group gap="lg" mt="md">
+            <Button
+              variant="filled"
+              color={formStatus.color}
+              leftSection={<MessageCircle size={16} />}
+              onClick={onAskCoach}
             >
-              {change >= 0 ? '+' : ''}
-              {change}
-            </Text>
-          )}
-        </Group>
-        <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-          {description}
-        </Text>
-      </Stack>
-    </Card>
-  );
-}
-
-function ZoneBar({ zone, label, range, color, watts }) {
-  // Calculate a visual width based on zone (higher zones = wider bars for visual appeal)
-  const zoneWidths = { 1: 40, 2: 55, 3: 70, 4: 85, 5: 95, 6: 100, 7: 100 };
-
-  return (
-    <Group gap="md">
-      <Box style={{ width: 30, textAlign: 'center' }}>
-        <Text fw={700} style={{ color }}>
-          Z{zone}
-        </Text>
-      </Box>
-      <Box style={{ flex: 1 }}>
-        <Group justify="space-between" mb={4}>
-          <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
-            {label}
-          </Text>
-          <Text size="sm" style={{ color: tokens.colors.textMuted }}>
-            {range}
-          </Text>
-        </Group>
-        <Progress value={watts ? zoneWidths[zone] : 0} color={color} size="sm" radius="xl" />
-      </Box>
-      <Box style={{ width: 90, textAlign: 'right' }}>
-        <Text size="sm" fw={watts ? 600 : 400} style={{ color: watts ? tokens.colors.textPrimary : tokens.colors.textMuted }}>
-          {watts ? `${watts}W` : '-- W'}
-        </Text>
-      </Box>
-    </Group>
-  );
-}
-
-// Training Plans Panel Component
-function TrainingPlansPanel() {
-  const [selectedGoal, setSelectedGoal] = useState('all');
-  const plans = getAllPlans();
-
-  const goals = [
-    { value: 'all', label: 'All Plans' },
-    { value: 'general_fitness', label: 'General Fitness' },
-    { value: 'century', label: 'Century/Gran Fondo' },
-    { value: 'climbing', label: 'Climbing' },
-    { value: 'racing', label: 'Racing' },
-  ];
-
-  const filteredPlans = selectedGoal === 'all'
-    ? plans
-    : plans.filter(plan => plan.goal === selectedGoal);
-
-  const getMethodologyColor = (methodology) => {
-    const colors = {
-      polarized: 'blue',
-      sweet_spot: 'lime',
-      pyramidal: 'cyan',
-      threshold: 'yellow',
-      endurance: 'gray',
-    };
-    return colors[methodology] || 'gray';
-  };
-
-  const getFitnessLevelBadge = (level) => {
-    const colors = {
-      beginner: 'green',
-      intermediate: 'yellow',
-      advanced: 'red',
-    };
-    return colors[level] || 'gray';
-  };
-
-  return (
-    <Stack gap="md">
-      {/* Goal Filter */}
-      <Group gap="xs" wrap="wrap">
-        {goals.map((goal) => (
-          <Button
-            key={goal.value}
-            size="xs"
-            variant={selectedGoal === goal.value ? 'filled' : 'light'}
-            color={selectedGoal === goal.value ? 'lime' : 'gray'}
-            onClick={() => setSelectedGoal(goal.value)}
-          >
-            {goal.label}
-          </Button>
-        ))}
-      </Group>
-
-      {/* Plans List */}
-      <Stack gap="sm">
-        {filteredPlans.map((plan) => (
-          <Paper
-            key={plan.id}
-            p="md"
-            style={{
-              backgroundColor: tokens.colors.bgTertiary,
-              border: `1px solid ${tokens.colors.bgTertiary}`,
-            }}
-          >
-            <Stack gap="sm">
-              <Group justify="space-between" align="flex-start" wrap="nowrap">
-                <Box style={{ flex: 1 }}>
-                  <Group gap="xs" mb={4}>
-                    <Text fw={600} size="md" style={{ color: tokens.colors.textPrimary }}>
-                      {plan.name}
-                    </Text>
-                  </Group>
-                  <Group gap="sm" mb="xs">
-                    <Badge size="xs" color={getMethodologyColor(plan.methodology)}>
-                      {plan.methodology.replace('_', ' ')}
-                    </Badge>
-                    <Badge size="xs" color={getFitnessLevelBadge(plan.fitnessLevel)}>
-                      {plan.fitnessLevel}
-                    </Badge>
-                  </Group>
-                  <Text size="sm" style={{ color: tokens.colors.textSecondary }} mb="xs">
-                    {plan.description}
-                  </Text>
-                </Box>
-              </Group>
-
-              {/* Plan Details */}
-              <Group gap="lg">
-                <Group gap={4}>
-                  <IconCalendarEvent size={14} style={{ color: tokens.colors.textMuted }} />
-                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                    {plan.duration} weeks
-                  </Text>
-                </Group>
-                <Group gap={4}>
-                  <IconClock size={14} style={{ color: tokens.colors.textMuted }} />
-                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                    {plan.hoursPerWeek.min}-{plan.hoursPerWeek.max} hrs/week
-                  </Text>
-                </Group>
-                <Group gap={4}>
-                  <IconFlame size={14} style={{ color: tokens.colors.textMuted }} />
-                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                    {plan.weeklyTSS.min}-{plan.weeklyTSS.max} TSS/week
-                  </Text>
-                </Group>
-              </Group>
-
-              {/* Phases */}
-              <Box>
-                <Text size="xs" fw={500} style={{ color: tokens.colors.textMuted }} mb={4}>
-                  Phases:
-                </Text>
-                <Group gap="xs" wrap="wrap">
-                  {plan.phases.map((phase, index) => (
-                    <Badge
-                      key={index}
-                      size="xs"
-                      variant="light"
-                      color={
-                        phase.phase === 'base' ? 'blue' :
-                        phase.phase === 'build' ? 'yellow' :
-                        phase.phase === 'peak' ? 'orange' :
-                        phase.phase === 'recovery' ? 'green' :
-                        phase.phase === 'taper' ? 'gray' : 'gray'
-                      }
-                    >
-                      {phase.phase}: {phase.focus}
-                    </Badge>
-                  ))}
-                </Group>
-              </Box>
-
-              {/* Expected Gains */}
-              {plan.expectedGains && (
-                <Box>
-                  <Text size="xs" fw={500} style={{ color: tokens.colors.textMuted }} mb={4}>
-                    Expected Gains:
-                  </Text>
-                  <Group gap="xs" wrap="wrap">
-                    {Object.entries(plan.expectedGains).map(([key, value]) => (
-                      <Badge key={key} size="xs" variant="outline" color="lime">
-                        {key.replace(/_/g, ' ')}: {value}
-                      </Badge>
-                    ))}
-                  </Group>
-                </Box>
-              )}
-            </Stack>
-          </Paper>
-        ))}
-      </Stack>
-
-      {filteredPlans.length === 0 && (
-        <Box
-          style={{
-            padding: tokens.spacing.xl,
-            textAlign: 'center',
-            borderRadius: tokens.radius.md,
-            border: `1px dashed ${tokens.colors.bgTertiary}`,
-          }}
-        >
-          <Text style={{ color: tokens.colors.textMuted }}>
-            No training plans match this filter
-          </Text>
+              Ask AI Coach
+            </Button>
+            <Button
+              variant="light"
+              rightSection={<ChevronRight size={16} />}
+            >
+              Suggested Workout
+            </Button>
+          </Group>
         </Box>
-      )}
-    </Stack>
-  );
-}
 
-// Workout Library Panel Component
-function WorkoutLibraryPanel() {
-  const [selectedCategory, setSelectedCategory] = useState('all');
-
-  const categories = [
-    { value: 'all', label: 'All Workouts' },
-    { value: 'recovery', label: 'Recovery' },
-    { value: 'endurance', label: 'Endurance' },
-    { value: 'tempo', label: 'Tempo' },
-    { value: 'sweet_spot', label: 'Sweet Spot' },
-    { value: 'threshold', label: 'Threshold' },
-    { value: 'vo2max', label: 'VO2max' },
-    { value: 'climbing', label: 'Climbing' },
-    { value: 'anaerobic', label: 'Anaerobic' },
-    { value: 'racing', label: 'Racing' },
-  ];
-
-  const filteredWorkouts = selectedCategory === 'all'
-    ? Object.values(WORKOUT_LIBRARY)
-    : getWorkoutsByCategory(selectedCategory);
-
-  const getCategoryColor = (category) => {
-    const colors = {
-      recovery: 'gray',
-      endurance: 'blue',
-      tempo: 'cyan',
-      sweet_spot: 'lime',
-      threshold: 'yellow',
-      vo2max: 'orange',
-      climbing: 'grape',
-      anaerobic: 'red',
-      racing: 'pink',
-    };
-    return colors[category] || 'gray';
-  };
-
-  return (
-    <Stack gap="md">
-      {/* Category Filter */}
-      <Group gap="xs" wrap="wrap">
-        {categories.map((cat) => (
-          <Button
-            key={cat.value}
-            size="xs"
-            variant={selectedCategory === cat.value ? 'filled' : 'light'}
-            color={selectedCategory === cat.value ? 'lime' : 'gray'}
-            onClick={() => setSelectedCategory(cat.value)}
-          >
-            {cat.label}
-          </Button>
-        ))}
+        {/* Weekly Progress Ring */}
+        <Box style={{ textAlign: 'center' }}>
+          <RingProgress
+            size={100}
+            thickness={8}
+            roundCaps
+            sections={[
+              { value: Math.min((weeklyStats.rideCount / 5) * 100, 100), color: formStatus.color },
+            ]}
+            label={
+              <Text size="lg" fw={700} ta="center">
+                {weeklyStats.rideCount}/5
+              </Text>
+            }
+          />
+          <Text size="xs" c="dimmed" mt={4}>rides this week</Text>
+        </Box>
       </Group>
 
-      {/* Workout List */}
-      <Stack gap="sm">
-        {filteredWorkouts.map((workout) => (
-          <Paper
-            key={workout.id}
-            p="sm"
-            style={{
-              backgroundColor: tokens.colors.bgTertiary,
-              border: `1px solid ${tokens.colors.bgTertiary}`,
-            }}
-          >
-            <Group justify="space-between" align="flex-start" wrap="nowrap">
-              <Box style={{ flex: 1 }}>
-                <Group gap="xs" mb={4}>
-                  <Text fw={600} size="sm" style={{ color: tokens.colors.textPrimary }}>
-                    {workout.name}
-                  </Text>
-                  <Badge size="xs" color={getCategoryColor(workout.category)}>
-                    {workout.category.replace('_', ' ')}
-                  </Badge>
-                </Group>
-                <Group gap="lg" mb="xs">
-                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                    {workout.duration} min
-                  </Text>
-                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                    {workout.targetTSS} TSS
-                  </Text>
-                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                    IF: {workout.intensityFactor}
-                  </Text>
-                </Group>
-                {workout.coachNotes && (
-                  <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                    {workout.coachNotes}
-                  </Text>
-                )}
+      {/* Last Ride Preview */}
+      {lastRide && (
+        <>
+          <Divider my="md" />
+          <Group justify="space-between">
+            <Group gap="sm">
+              <ThemeIcon size="lg" variant="light" color="gray">
+                <Route size={18} />
+              </ThemeIcon>
+              <Box>
+                <Text size="sm" fw={500}>{lastRide.name}</Text>
+                <Text size="xs" c="dimmed">
+                  {new Date(lastRide.start_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </Text>
               </Box>
             </Group>
-          </Paper>
-        ))}
-      </Stack>
+            <Group gap="lg">
+              <Box ta="right">
+                <Text size="sm" fw={600}>{formatDist(lastRide.distance / 1000)}</Text>
+                <Text size="xs" c="dimmed">{formatTime(lastRide.moving_time)}</Text>
+              </Box>
+              {lastRide.average_watts && (
+                <Box ta="right">
+                  <Text size="sm" fw={600}>{Math.round(lastRide.average_watts)}W</Text>
+                  <Text size="xs" c="dimmed">avg power</Text>
+                </Box>
+              )}
+            </Group>
+          </Group>
+        </>
+      )}
+    </Paper>
+  );
+}
 
-      {filteredWorkouts.length === 0 && (
-        <Box
-          style={{
-            padding: tokens.spacing.xl,
-            textAlign: 'center',
-            borderRadius: tokens.radius.md,
-            border: `1px dashed ${tokens.colors.bgTertiary}`,
+// ============================================================================
+// TODAY TAB
+// ============================================================================
+function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, formatDist, formatElev, formatTime, isImperial }) {
+  return (
+    <Stack gap="lg">
+      {/* AI Coach Section */}
+      <Box>
+        <Group gap="xs" mb="md">
+          <ThemeIcon size="md" color="lime" variant="light">
+            <MessageCircle size={16} />
+          </ThemeIcon>
+          <Text fw={600}>AI Training Coach</Text>
+        </Group>
+        <AICoach
+          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, ftp, activities, formatDist, formatTime, isImperial)}
+          onAddWorkout={(workout) => {
+            notifications.show({
+              title: 'Workout Added',
+              message: `${workout.name} has been added to your plan`,
+              color: 'lime'
+            });
           }}
-        >
-          <Text style={{ color: tokens.colors.textMuted }}>
-            No workouts in this category
+        />
+      </Box>
+
+      {/* Quick Actions */}
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+        <Card withBorder p="md">
+          <Group gap="sm" mb="sm">
+            <ThemeIcon size="lg" color="blue" variant="light">
+              <Target size={18} />
+            </ThemeIcon>
+            <Text fw={600}>Suggested Workout</Text>
+          </Group>
+          <Text size="sm" c="dimmed" mb="md">
+            Based on your current form ({formStatus.label}), we recommend:
           </Text>
-        </Box>
+          <Paper p="sm" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+            <Text fw={500} size="sm">Sweet Spot Intervals</Text>
+            <Text size="xs" c="dimmed">90 min · ~85 TSS · Builds threshold fitness</Text>
+          </Paper>
+          <Button variant="light" color="lime" fullWidth mt="md">
+            View Workout
+          </Button>
+        </Card>
+
+        <Card withBorder p="md">
+          <Group gap="sm" mb="sm">
+            <ThemeIcon size="lg" color="violet" variant="light">
+              <Heart size={18} />
+            </ThemeIcon>
+            <Text fw={600}>Body Check-in</Text>
+          </Group>
+          <Text size="sm" c="dimmed" mb="md">
+            Log your daily metrics for better recommendations
+          </Text>
+          <SimpleGrid cols={3} spacing="xs">
+            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+              <Text size="xs" c="dimmed">HRV</Text>
+              <Text fw={600}>--</Text>
+            </Paper>
+            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+              <Text size="xs" c="dimmed">Sleep</Text>
+              <Text fw={600}>--</Text>
+            </Paper>
+            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+              <Text size="xs" c="dimmed">RHR</Text>
+              <Text fw={600}>--</Text>
+            </Paper>
+          </SimpleGrid>
+          <Button variant="light" color="violet" fullWidth mt="md">
+            Log Metrics
+          </Button>
+        </Card>
+      </SimpleGrid>
+    </Stack>
+  );
+}
+
+// ============================================================================
+// TRENDS TAB
+// ============================================================================
+function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, formatDist, formatElev, isImperial }) {
+  return (
+    <Stack gap="lg">
+      {/* Fitness Journey Chart */}
+      <Box>
+        <Group justify="space-between" mb="md">
+          <Text fw={600}>Fitness Journey</Text>
+          <Group gap="md">
+            <Group gap={4}>
+              <Box w={12} h={3} bg="blue" style={{ borderRadius: 2 }} />
+              <Text size="xs" c="dimmed">Fitness (CTL)</Text>
+            </Group>
+            <Group gap={4}>
+              <Box w={12} h={3} bg="orange" style={{ borderRadius: 2 }} />
+              <Text size="xs" c="dimmed">Fatigue (ATL)</Text>
+            </Group>
+            <Group gap={4}>
+              <Box w={12} h={3} bg="teal" style={{ borderRadius: 2 }} />
+              <Text size="xs" c="dimmed">Form (TSB)</Text>
+            </Group>
+          </Group>
+        </Group>
+        {dailyTSSData.length > 0 ? (
+          <TrainingLoadChart data={dailyTSSData} />
+        ) : (
+          <EmptyState type="noTrainingData" size="sm" />
+        )}
+      </Box>
+
+      {/* Progress Cards */}
+      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+        <Paper withBorder p="md" ta="center">
+          <TrendingUp size={24} color="#10b981" style={{ marginBottom: 8 }} />
+          <Text size="xl" fw={700} c="teal">+{Math.round(trainingMetrics.ctl * 0.12)}%</Text>
+          <Text size="sm" c="dimmed">Fitness vs 90 days ago</Text>
+        </Paper>
+        <Paper withBorder p="md" ta="center">
+          <Route size={24} color="#3b82f6" style={{ marginBottom: 8 }} />
+          <Text size="xl" fw={700} c="blue">{activities.length}</Text>
+          <Text size="sm" c="dimmed">Rides in 90 days</Text>
+        </Paper>
+        <Paper withBorder p="md" ta="center">
+          <Award size={24} color="#f59e0b" style={{ marginBottom: 8 }} />
+          <Text size="xl" fw={700} c="yellow">
+            {speedProfile ? `${(speedProfile.average_speed * (isImperial ? 0.621371 : 1)).toFixed(1)}` : '--'}
+          </Text>
+          <Text size="sm" c="dimmed">Avg Speed ({isImperial ? 'mph' : 'km/h'})</Text>
+        </Paper>
+      </SimpleGrid>
+
+      {/* Personal Records */}
+      <PersonalRecordsCard
+        rides={activities}
+        formatDistance={formatDist}
+        formatElevation={formatElev}
+      />
+
+      {/* Riding Patterns */}
+      {activities.length > 5 && (
+        <Card withBorder p="md">
+          <Group gap="xs" mb="md">
+            <ThemeIcon size="md" color="grape" variant="light">
+              <BarChart3 size={16} />
+            </ThemeIcon>
+            <Text fw={600}>Riding Patterns</Text>
+          </Group>
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+            <Box>
+              <Text size="xs" c="dimmed">Most Active Days</Text>
+              <Text size="sm" fw={500}>Tue, Thu, Sat</Text>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Preferred Duration</Text>
+              <Text size="sm" fw={500}>
+                {speedProfile ? `${Math.round(speedProfile.avg_ride_duration)} min` : '60-90 min'}
+              </Text>
+            </Box>
+            <Box>
+              <Text size="xs" c="dimmed">Avg Climbing</Text>
+              <Text size="sm" fw={500}>
+                {speedProfile ? formatElev(speedProfile.avg_elevation_per_km * 20) : '-- '}/ride
+              </Text>
+            </Box>
+          </SimpleGrid>
+        </Card>
       )}
     </Stack>
   );
+}
+
+// ============================================================================
+// POWER TAB
+// ============================================================================
+function PowerTab({ ftp, powerZones, navigate }) {
+  const zones = [
+    { zone: 1, name: 'Recovery', range: '< 55%', color: '#51cf66' },
+    { zone: 2, name: 'Endurance', range: '55-75%', color: '#4dabf7' },
+    { zone: 3, name: 'Tempo', range: '75-90%', color: '#ffd43b' },
+    { zone: 4, name: 'Threshold', range: '90-105%', color: '#ff922b' },
+    { zone: 5, name: 'VO2max', range: '105-120%', color: '#ff6b6b' },
+    { zone: 6, name: 'Anaerobic', range: '120-150%', color: '#cc5de8' },
+    { zone: 7, name: 'Neuromuscular', range: '> 150%', color: '#862e9c' },
+  ];
+
+  if (!ftp) {
+    return (
+      <EmptyState
+        icon={Zap}
+        iconColor="yellow"
+        title="Set Your FTP"
+        description="Enter your Functional Threshold Power to see personalized power zones and training recommendations."
+        primaryAction={{
+          label: 'Set FTP in Settings',
+          onClick: () => navigate('/settings'),
+        }}
+      />
+    );
+  }
+
+  return (
+    <Stack gap="lg">
+      {/* FTP Display */}
+      <Paper
+        p="lg"
+        style={{
+          background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.15), transparent)',
+          border: '1px solid rgba(234, 179, 8, 0.3)',
+        }}
+      >
+        <Group justify="space-between" align="center">
+          <Box>
+            <Text size="sm" c="dimmed">Current FTP</Text>
+            <Group gap="sm" align="baseline">
+              <Text size="3rem" fw={700} style={{ color: '#fbbf24' }}>
+                {ftp}W
+              </Text>
+              {/* Placeholder for W/kg - would need weight from profile */}
+              <Text size="lg" c="dimmed">
+                (~3.5 W/kg)
+              </Text>
+            </Group>
+            <Text size="xs" c="dimmed" mt="xs">
+              Last updated: Manual entry
+            </Text>
+          </Box>
+          <Button variant="light" color="yellow" onClick={() => navigate('/settings')}>
+            Update FTP
+          </Button>
+        </Group>
+      </Paper>
+
+      {/* Power Zones */}
+      <Card withBorder p="md">
+        <Text fw={600} mb="md">Power Zones</Text>
+        <Stack gap="sm">
+          {zones.map((z) => {
+            const zoneData = powerZones?.[`z${z.zone}`];
+            const watts = zoneData
+              ? z.zone === 7
+                ? `${zoneData.min}+`
+                : z.zone === 1
+                  ? `0-${zoneData.max}`
+                  : `${zoneData.min}-${zoneData.max}`
+              : null;
+
+            return (
+              <Group key={z.zone} gap="md">
+                <Box w={30} ta="center">
+                  <Text fw={700} style={{ color: z.color }}>Z{z.zone}</Text>
+                </Box>
+                <Box style={{ flex: 1 }}>
+                  <Group justify="space-between" mb={4}>
+                    <Text size="sm">{z.name}</Text>
+                    <Text size="sm" c="dimmed">{z.range}</Text>
+                  </Group>
+                  <Progress
+                    value={watts ? (z.zone / 7) * 100 : 0}
+                    color={z.color}
+                    size="sm"
+                    radius="xl"
+                  />
+                </Box>
+                <Box w={90} ta="right">
+                  <Text size="sm" fw={watts ? 600 : 400} c={watts ? undefined : 'dimmed'}>
+                    {watts ? `${watts}W` : '-- W'}
+                  </Text>
+                </Box>
+              </Group>
+            );
+          })}
+        </Stack>
+      </Card>
+
+      {/* Zone Fitness Levels - Placeholder for future */}
+      <Card withBorder p="md">
+        <Group justify="space-between" mb="md">
+          <Text fw={600}>Zone Fitness Levels</Text>
+          <Badge variant="light" color="gray">Coming Soon</Badge>
+        </Group>
+        <Text size="sm" c="dimmed">
+          Track your progression in each training zone. Complete workouts to build zone-specific fitness.
+        </Text>
+      </Card>
+    </Stack>
+  );
+}
+
+// ============================================================================
+// HELPER COMPONENTS
+// ============================================================================
+function QuickStatCard({ label, value, icon: Icon, color, subtitle }) {
+  return (
+    <Paper withBorder p="md">
+      <Group justify="space-between" align="flex-start">
+        <Box>
+          <Text size="xs" c="dimmed" mb={4}>{label}</Text>
+          <Text size="xl" fw={700} style={{ color: `var(--mantine-color-${color}-5)` }}>
+            {value}
+          </Text>
+          <Text size="xs" c="dimmed">{subtitle}</Text>
+        </Box>
+        <ThemeIcon size="lg" variant="light" color={color}>
+          <Icon size={18} />
+        </ThemeIcon>
+      </Group>
+    </Paper>
+  );
+}
+
+// Build training context for AI Coach
+function buildTrainingContext(trainingMetrics, weeklyStats, ftp, activities, formatDist, formatTime, isImperial) {
+  const context = [];
+  const distanceUnit = isImperial ? 'mi' : 'km';
+
+  if (ftp) context.push(`FTP: ${ftp}W`);
+
+  if (trainingMetrics.ctl > 0 || trainingMetrics.atl > 0) {
+    context.push(`Training Load - CTL: ${Math.round(trainingMetrics.ctl)}, ATL: ${Math.round(trainingMetrics.atl)}, TSB: ${Math.round(trainingMetrics.tsb)}`);
+    if (trainingMetrics.interpretation) {
+      context.push(`Form Status: ${trainingMetrics.interpretation.status} - ${trainingMetrics.interpretation.message}`);
+    }
+  }
+
+  if (weeklyStats.rideCount > 0) {
+    context.push(`This week: ${weeklyStats.rideCount} rides, ${formatDist(weeklyStats.totalDistance / 1000)}, ${formatTime(weeklyStats.totalTime)}`);
+  }
+
+  if (activities.length > 0) {
+    const lastRide = activities[0];
+    context.push(`Last ride: ${lastRide.name} - ${formatDist(lastRide.distance / 1000)}`);
+  }
+
+  return context.join('\n');
 }
 
 export default TrainingDashboard;
