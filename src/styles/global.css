@@ -52,12 +52,12 @@ body {
 
 .mapboxgl-ctrl-attrib {
   background-color: rgba(10, 10, 10, 0.8) !important;
-  color: #666 !important;
+  color: #999 !important;
   font-size: 10px !important;
 }
 
 .mapboxgl-ctrl-attrib a {
-  color: #888 !important;
+  color: #B0B0B0 !important;
 }
 
 /* Scrollbar styling */
@@ -71,12 +71,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: #4a4a4a;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background: #5a5a5a;
 }
 
 /* Selection */
@@ -120,5 +120,5 @@ button {
 }
 
 .recharts-text {
-  fill: #666;
+  fill: #999;
 }
