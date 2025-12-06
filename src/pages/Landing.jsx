@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Container,
   Title,
@@ -37,9 +37,11 @@ import { tokens } from '../theme';
 import { supabase } from '../lib/supabase';
 
 function Landing() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
+  const [bottomEmail, setBottomEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [bottomSubmitting, setBottomSubmitting] = useState(false);
 
   const features = [
     {
@@ -76,10 +78,10 @@ function Landing() {
     'Built by a cyclist who was frustrated with existing tools',
   ];
 
-  const handleBetaSignup = async (e) => {
+  const handleBetaSignup = async (e, emailValue, setLoadingFn) => {
     e.preventDefault();
 
-    if (!email || !email.includes('@')) {
+    if (!emailValue || !emailValue.includes('@')) {
       notifications.show({
         title: 'Invalid Email',
         message: 'Please enter a valid email address',
@@ -88,24 +90,26 @@ function Landing() {
       return;
     }
 
-    setSubmitting(true);
+    setLoadingFn(true);
 
     try {
       const { error } = await supabase
         .from('beta_signups')
         .insert([{
-          email: email,
+          email: emailValue,
           signed_up_at: new Date().toISOString(),
           status: 'pending'
         }]);
 
       if (error) {
         if (error.code === '23505') {
+          // Already signed up - still redirect them
           notifications.show({
-            title: 'Already Signed Up',
-            message: "You're already on the list! We'll be in touch soon.",
+            title: 'Welcome Back!',
+            message: "You're already on the list! Redirecting to create your account...",
             color: 'blue',
           });
+          setTimeout(() => navigate('/auth'), 1500);
         } else {
           throw error;
         }
@@ -116,19 +120,20 @@ function Landing() {
           await fetch(`${apiBase}/api/email?action=beta-notify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email: emailValue }),
           });
         } catch (emailErr) {
           console.error('Failed to send welcome email:', emailErr);
-          // Don't fail the signup if email fails
         }
 
-        setSubmitted(true);
         notifications.show({
           title: 'Welcome to the Beta!',
-          message: "You're on the list! Check your inbox for a confirmation email.",
+          message: "You're in! Redirecting to create your account...",
           color: 'green',
         });
+
+        // Redirect to auth page after a brief delay
+        setTimeout(() => navigate('/auth'), 1500);
       }
     } catch (error) {
       console.error('Beta signup error:', error);
@@ -138,7 +143,7 @@ function Landing() {
         color: 'red',
       });
     } finally {
-      setSubmitting(false);
+      setLoadingFn(false);
     }
   };
 
@@ -247,50 +252,33 @@ function Landing() {
                   </Text>
                 </Stack>
 
-                {!submitted ? (
-                  <form onSubmit={handleBetaSignup}>
-                    <Stack gap="sm">
-                      <TextInput
-                        placeholder="your@email.com"
-                        size="md"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        leftSection={<IconMail size={18} />}
-                        styles={{
-                          input: {
-                            backgroundColor: tokens.colors.bgPrimary,
-                            borderColor: tokens.colors.borderDefault,
-                          },
-                        }}
-                      />
-                      <Button
-                        type="submit"
-                        size="md"
-                        color="lime"
-                        loading={submitting}
-                        rightSection={<IconChevronRight size={18} />}
-                        fullWidth
-                      >
-                        Get Early Access
-                      </Button>
-                    </Stack>
-                  </form>
-                ) : (
-                  <Stack align="center" gap="sm">
-                    <ThemeIcon size={48} color="green" variant="light" radius="xl">
-                      <IconCheck size={24} />
-                    </ThemeIcon>
-                    <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
-                      You're on the list!
-                    </Text>
-                    <Text size="sm" ta="center" style={{ color: tokens.colors.textSecondary }}>
-                      We'll send you access details soon. In the meantime, feel free to explore.
-                    </Text>
-                    <Button component={Link} to="/auth" color="lime" variant="light">
-                      Create Account Now
+                <form onSubmit={(e) => handleBetaSignup(e, email, setSubmitting)}>
+                  <Stack gap="sm">
+                    <TextInput
+                      placeholder="your@email.com"
+                      size="md"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      leftSection={<IconMail size={18} />}
+                      styles={{
+                        input: {
+                          backgroundColor: tokens.colors.bgPrimary,
+                          borderColor: tokens.colors.borderDefault,
+                        },
+                      }}
+                    />
+                    <Button
+                      type="submit"
+                      size="md"
+                      color="lime"
+                      loading={submitting}
+                      rightSection={<IconChevronRight size={18} />}
+                      fullWidth
+                    >
+                      Get Early Access
                     </Button>
                   </Stack>
-                )}
+                </form>
 
                 <Group justify="center" gap="lg">
                   <Text size="xs" style={{ color: tokens.colors.textMuted }}>
@@ -624,7 +612,7 @@ function Landing() {
 
       <Divider style={{ borderColor: `${tokens.colors.electricLime}30` }} />
 
-      {/* Final CTA */}
+      {/* Final CTA - Bottom Beta Signup */}
       <Box py={{ base: 40, md: 80 }} px={{ base: 'md', md: 'xl' }} style={{ backgroundColor: `${tokens.colors.bgSecondary}80` }}>
         <Container size="sm">
           <Stack align="center" gap="xl">
@@ -634,17 +622,47 @@ function Landing() {
             <Text size="lg" ta="center" lh={1.6} style={{ color: tokens.colors.textSecondary }}>
               Join the beta and help build the cycling platform we've all been waiting for.
             </Text>
-            <Group>
-              <Button
-                component={Link}
-                to="/auth"
-                size="xl"
-                color="lime"
-                rightSection={<IconChevronRight size={24} />}
-              >
-                Get Started Free
-              </Button>
-            </Group>
+
+            {/* Bottom Beta Signup Form */}
+            <Paper
+              p="lg"
+              radius="md"
+              style={{
+                background: `linear-gradient(135deg, rgba(190, 242, 100, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%)`,
+                border: `2px solid ${tokens.colors.electricLime}40`,
+                maxWidth: 450,
+                width: '100%',
+              }}
+            >
+              <form onSubmit={(e) => handleBetaSignup(e, bottomEmail, setBottomSubmitting)}>
+                <Stack gap="sm">
+                  <TextInput
+                    placeholder="your@email.com"
+                    size="lg"
+                    value={bottomEmail}
+                    onChange={(e) => setBottomEmail(e.target.value)}
+                    leftSection={<IconMail size={20} />}
+                    styles={{
+                      input: {
+                        backgroundColor: tokens.colors.bgPrimary,
+                        borderColor: tokens.colors.borderDefault,
+                      },
+                    }}
+                  />
+                  <Button
+                    type="submit"
+                    size="lg"
+                    color="lime"
+                    loading={bottomSubmitting}
+                    rightSection={<IconChevronRight size={20} />}
+                    fullWidth
+                  >
+                    Get Early Access
+                  </Button>
+                </Stack>
+              </form>
+            </Paper>
+
             <Text size="sm" style={{ color: tokens.colors.textMuted }}>
               Free to start • No credit card required • Cancel anytime
             </Text>
