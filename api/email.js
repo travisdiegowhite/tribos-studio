@@ -125,8 +125,11 @@ async function sendBetaNotifyEmail(req, res) {
     return res.status(400).json({ error: 'Email is required' });
   }
 
+  // Use verified domain or Resend's default sender
+  const fromAddress = process.env.RESEND_FROM_EMAIL || 'Tribos Studio <onboarding@resend.dev>';
+
   const { data, error } = await resend.emails.send({
-    from: 'Tribos Studio <noreply@tribos.studio>',
+    from: fromAddress,
     to: [email],
     subject: "You're on the Tribos.Studio Beta List! 🚴",
     html: getBetaNotifyEmailHtml(),
