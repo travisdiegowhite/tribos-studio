@@ -1156,11 +1156,11 @@ function RouteBuilder() {
                 clearable
                 size="sm"
                 variant="filled"
-                data={Object.values(WORKOUT_LIBRARY).map(w => ({
+                data={WORKOUT_LIBRARY ? Object.values(WORKOUT_LIBRARY).map(w => ({
                   value: w.id,
                   label: `${w.name} (${w.duration}min)`,
                   group: w.category
-                }))}
+                })) : []}
               />
               {selectedWorkout && (
                 <Text size="xs" c="dimmed" mt="xs">

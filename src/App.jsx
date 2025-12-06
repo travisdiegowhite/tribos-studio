@@ -96,6 +96,14 @@ function AppRoutes() {
         path="/routes"
         element={
           <ProtectedRoute>
+            <Navigate to="/routes/new" replace />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/routes/list"
+        element={
+          <ProtectedRoute>
             <MyRoutes />
           </ProtectedRoute>
         }
