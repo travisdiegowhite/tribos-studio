@@ -12,7 +12,7 @@ import {
   Button,
   Select,
 } from '@mantine/core';
-import { Search, Eye, BarChart3, ChevronRight, Filter } from 'lucide-react';
+import { IconSearch, IconEye, IconChartBar, IconChevronRight, IconFilter } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '@mantine/hooks';
 
@@ -108,12 +108,12 @@ const RideHistoryTable = ({
               { value: '30d', label: 'Last 30 Days' },
               { value: '90d', label: 'Last 90 Days' },
             ]}
-            leftSection={<Filter size={12} />}
+            leftSection={<IconFilter size={12} />}
             style={{ width: 130 }}
           />
           <TextInput
             placeholder="Search..."
-            leftSection={<Search size={14} />}
+            leftSection={<IconSearch size={14} />}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             size="xs"
@@ -230,7 +230,7 @@ const RideHistoryTable = ({
                           variant="subtle"
                           onClick={() => onViewRide?.(ride)}
                         >
-                          <Eye size={16} />
+                          <IconEye size={16} />
                         </ActionIcon>
                       </Tooltip>
                       {getPower(ride) > 0 && onAnalyzeRide && (
@@ -241,7 +241,7 @@ const RideHistoryTable = ({
                             color="blue"
                             onClick={() => onAnalyzeRide(ride)}
                           >
-                            <BarChart3 size={16} />
+                            <IconChartBar size={16} />
                           </ActionIcon>
                         </Tooltip>
                       )}
@@ -259,7 +259,7 @@ const RideHistoryTable = ({
           variant="subtle"
           fullWidth
           mt="sm"
-          rightSection={<ChevronRight size={16} />}
+          rightSection={<IconChevronRight size={16} />}
           onClick={() => navigate('/training?tab=history')}
         >
           View all {rides.length} rides

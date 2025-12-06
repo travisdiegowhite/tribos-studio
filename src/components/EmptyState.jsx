@@ -2,15 +2,15 @@ import React from 'react';
 import { Paper, Stack, Text, Button, ThemeIcon, Group } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
 import {
-  Route,
-  Upload,
-  TrendingUp,
-  Calendar,
-  Activity,
-  Map,
-  FileText,
-  Users,
-} from 'lucide-react';
+  IconRoute,
+  IconUpload,
+  IconTrendingUp,
+  IconCalendar,
+  IconActivity,
+  IconMap,
+  IconFileText,
+  IconUsers,
+} from '@tabler/icons-react';
 
 /**
  * EmptyState - Reusable component for displaying helpful empty states
@@ -19,7 +19,7 @@ import {
 
 const EMPTY_STATE_CONFIGS = {
   noRides: {
-    icon: Upload,
+    icon: IconUpload,
     iconColor: 'teal',
     title: 'No Rides Yet',
     description: 'Import your rides from Strava, Garmin, or upload FIT files to get started.',
@@ -30,7 +30,7 @@ const EMPTY_STATE_CONFIGS = {
     secondaryText: 'Your ride history will appear here once imported.',
   },
   noRoutes: {
-    icon: Route,
+    icon: IconRoute,
     iconColor: 'blue',
     title: 'No Routes Yet',
     description: 'Create your first AI-powered route or import your ride history.',
@@ -44,7 +44,7 @@ const EMPTY_STATE_CONFIGS = {
     },
   },
   noTrainingData: {
-    icon: TrendingUp,
+    icon: IconTrendingUp,
     iconColor: 'green',
     title: 'Not Enough Data',
     description: 'Import at least 2 weeks of rides to see your training metrics and trends.',
@@ -55,7 +55,7 @@ const EMPTY_STATE_CONFIGS = {
     secondaryText: 'Training load, form, and fitness trends need historical data to calculate.',
   },
   noTrainingPlan: {
-    icon: Calendar,
+    icon: IconCalendar,
     iconColor: 'violet',
     title: 'No Training Plan',
     description: 'Create a personalized training plan to reach your cycling goals.',
@@ -66,7 +66,7 @@ const EMPTY_STATE_CONFIGS = {
     secondaryText: 'Plans adapt to your fitness level and available time.',
   },
   noWorkouts: {
-    icon: Activity,
+    icon: IconActivity,
     iconColor: 'orange',
     title: 'No Workouts Scheduled',
     description: 'Your upcoming workouts will appear here.',
@@ -77,20 +77,20 @@ const EMPTY_STATE_CONFIGS = {
     secondaryText: 'Add workouts from the library or get them from your coach.',
   },
   noMessages: {
-    icon: Users,
+    icon: IconUsers,
     iconColor: 'cyan',
     title: 'No Messages',
     description: 'Connect with a coach to receive personalized guidance and workouts.',
     secondaryText: 'Messages from your coach will appear here.',
   },
   noSearchResults: {
-    icon: FileText,
+    icon: IconFileText,
     iconColor: 'gray',
     title: 'No Results Found',
     description: 'Try adjusting your search or filters.',
   },
   generic: {
-    icon: Map,
+    icon: IconMap,
     iconColor: 'gray',
     title: 'Nothing Here Yet',
     description: 'Check back later or take an action to add data.',
@@ -111,7 +111,7 @@ const EmptyState = ({
   const navigate = useNavigate();
 
   const config = type ? EMPTY_STATE_CONFIGS[type] : null;
-  const Icon = CustomIcon || config?.icon || Map;
+  const Icon = CustomIcon || config?.icon || IconMap;
   const finalIconColor = iconColor || config?.iconColor || 'gray';
   const finalTitle = title || config?.title || 'No Data';
   const finalDescription = description || config?.description || '';

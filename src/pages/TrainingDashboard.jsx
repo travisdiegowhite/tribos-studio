@@ -23,24 +23,24 @@ import {
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
 import {
-  Activity,
-  TrendingUp,
-  TrendingDown,
-  Zap,
-  Calendar,
-  Clock,
-  Mountain,
-  Route,
-  Target,
-  MessageCircle,
-  ChevronRight,
-  Flame,
-  Heart,
-  Moon,
-  Award,
-  BarChart3,
-  Settings,
-} from 'lucide-react';
+  IconActivity,
+  IconTrendingUp,
+  IconTrendingDown,
+  IconBolt,
+  IconCalendar,
+  IconClock,
+  IconMountain,
+  IconRoute,
+  IconTarget,
+  IconMessageCircle,
+  IconChevronRight,
+  IconFlame,
+  IconHeart,
+  IconMoon,
+  IconAward,
+  IconChartBar,
+  IconSettings,
+} from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -204,11 +204,11 @@ function TrainingDashboard() {
   // Get form status styling
   const getFormStatus = () => {
     const tsb = trainingMetrics.tsb;
-    if (tsb >= 15) return { label: 'FRESH', color: 'teal', icon: TrendingUp, bg: 'rgba(16, 185, 129, 0.15)' };
-    if (tsb >= 5) return { label: 'READY', color: 'green', icon: TrendingUp, bg: 'rgba(34, 197, 94, 0.15)' };
-    if (tsb >= -10) return { label: 'OPTIMAL', color: 'lime', icon: Activity, bg: 'rgba(132, 204, 22, 0.15)' };
-    if (tsb >= -25) return { label: 'TIRED', color: 'yellow', icon: TrendingDown, bg: 'rgba(234, 179, 8, 0.15)' };
-    return { label: 'FATIGUED', color: 'red', icon: TrendingDown, bg: 'rgba(239, 68, 68, 0.15)' };
+    if (tsb >= 15) return { label: 'FRESH', color: 'teal', icon: IconTrendingUp, bg: 'rgba(16, 185, 129, 0.15)' };
+    if (tsb >= 5) return { label: 'READY', color: 'green', icon: IconTrendingUp, bg: 'rgba(34, 197, 94, 0.15)' };
+    if (tsb >= -10) return { label: 'OPTIMAL', color: 'lime', icon: IconActivity, bg: 'rgba(132, 204, 22, 0.15)' };
+    if (tsb >= -25) return { label: 'TIRED', color: 'yellow', icon: IconTrendingDown, bg: 'rgba(234, 179, 8, 0.15)' };
+    return { label: 'FATIGUED', color: 'red', icon: IconTrendingDown, bg: 'rgba(239, 68, 68, 0.15)' };
   };
 
   const formStatus = getFormStatus();
@@ -253,7 +253,7 @@ function TrainingDashboard() {
                 variant="light"
                 color="lime"
                 size="xs"
-                leftSection={<Settings size={14} />}
+                leftSection={<IconSettings size={14} />}
                 onClick={() => navigate('/settings')}
               >
                 Settings
@@ -277,14 +277,14 @@ function TrainingDashboard() {
             <QuickStatCard
               label="Fitness (CTL)"
               value={Math.round(trainingMetrics.ctl)}
-              icon={TrendingUp}
+              icon={IconTrendingUp}
               color="teal"
               subtitle="42-day fitness"
             />
             <QuickStatCard
               label="Fatigue (ATL)"
               value={Math.round(trainingMetrics.atl)}
-              icon={Flame}
+              icon={IconFlame}
               color="orange"
               subtitle="7-day load"
             />
@@ -298,7 +298,7 @@ function TrainingDashboard() {
             <QuickStatCard
               label="Weekly TSS"
               value={Math.round(weeklyStats.totalTSS)}
-              icon={Activity}
+              icon={IconActivity}
               color="blue"
               subtitle={`${weeklyStats.rideCount} rides`}
             />
@@ -308,19 +308,19 @@ function TrainingDashboard() {
           <Card>
             <Tabs value={activeTab} onChange={setActiveTab} color="lime">
               <Tabs.List mb="md">
-                <Tabs.Tab value="today" leftSection={<Target size={16} />}>
+                <Tabs.Tab value="today" leftSection={<IconTarget size={16} />}>
                   Today
                 </Tabs.Tab>
-                <Tabs.Tab value="trends" leftSection={<TrendingUp size={16} />}>
+                <Tabs.Tab value="trends" leftSection={<IconTrendingUp size={16} />}>
                   Trends
                 </Tabs.Tab>
-                <Tabs.Tab value="power" leftSection={<Zap size={16} />}>
+                <Tabs.Tab value="power" leftSection={<IconBolt size={16} />}>
                   Power
                 </Tabs.Tab>
-                <Tabs.Tab value="history" leftSection={<Clock size={16} />}>
+                <Tabs.Tab value="history" leftSection={<IconClock size={16} />}>
                   History
                 </Tabs.Tab>
-                <Tabs.Tab value="calendar" leftSection={<Calendar size={16} />}>
+                <Tabs.Tab value="calendar" leftSection={<IconCalendar size={16} />}>
                   Calendar
                 </Tabs.Tab>
               </Tabs.List>
@@ -428,14 +428,14 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities,
             <Button
               variant="filled"
               color={formStatus.color}
-              leftSection={<MessageCircle size={16} />}
+              leftSection={<IconMessageCircle size={16} />}
               onClick={onAskCoach}
             >
               Ask AI Coach
             </Button>
             <Button
               variant="light"
-              rightSection={<ChevronRight size={16} />}
+              rightSection={<IconChevronRight size={16} />}
             >
               Suggested Workout
             </Button>
@@ -468,7 +468,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities,
           <Group justify="space-between">
             <Group gap="sm">
               <ThemeIcon size="lg" variant="light" color="gray">
-                <Route size={18} />
+                <IconRoute size={18} />
               </ThemeIcon>
               <Box>
                 <Text size="sm" fw={500}>{lastRide.name}</Text>
@@ -506,7 +506,7 @@ function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, f
       <Box>
         <Group gap="xs" mb="md">
           <ThemeIcon size="md" color="lime" variant="light">
-            <MessageCircle size={16} />
+            <IconMessageCircle size={16} />
           </ThemeIcon>
           <Text fw={600}>AI Training Coach</Text>
         </Group>
@@ -527,7 +527,7 @@ function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, f
         <Card withBorder p="md">
           <Group gap="sm" mb="sm">
             <ThemeIcon size="lg" color="blue" variant="light">
-              <Target size={18} />
+              <IconTarget size={18} />
             </ThemeIcon>
             <Text fw={600}>Suggested Workout</Text>
           </Group>
@@ -546,7 +546,7 @@ function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, f
         <Card withBorder p="md">
           <Group gap="sm" mb="sm">
             <ThemeIcon size="lg" color="violet" variant="light">
-              <Heart size={18} />
+              <IconHeart size={18} />
             </ThemeIcon>
             <Text fw={600}>Body Check-in</Text>
           </Group>
@@ -611,17 +611,17 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
       {/* Progress Cards */}
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
         <Paper withBorder p="md" ta="center">
-          <TrendingUp size={24} color="#10b981" style={{ marginBottom: 8 }} />
+          <IconTrendingUp size={24} color="#10b981" style={{ marginBottom: 8 }} />
           <Text size="xl" fw={700} c="teal">+{Math.round(trainingMetrics.ctl * 0.12)}%</Text>
           <Text size="sm" c="dimmed">Fitness vs 90 days ago</Text>
         </Paper>
         <Paper withBorder p="md" ta="center">
-          <Route size={24} color="#3b82f6" style={{ marginBottom: 8 }} />
+          <IconRoute size={24} color="#3b82f6" style={{ marginBottom: 8 }} />
           <Text size="xl" fw={700} c="blue">{activities.length}</Text>
           <Text size="sm" c="dimmed">Rides in 90 days</Text>
         </Paper>
         <Paper withBorder p="md" ta="center">
-          <Award size={24} color="#f59e0b" style={{ marginBottom: 8 }} />
+          <IconAward size={24} color="#f59e0b" style={{ marginBottom: 8 }} />
           <Text size="xl" fw={700} c="yellow">
             {speedProfile ? `${(speedProfile.average_speed * (isImperial ? 0.621371 : 1)).toFixed(1)}` : '--'}
           </Text>
@@ -641,7 +641,7 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
         <Card withBorder p="md">
           <Group gap="xs" mb="md">
             <ThemeIcon size="md" color="grape" variant="light">
-              <BarChart3 size={16} />
+              <IconChartBar size={16} />
             </ThemeIcon>
             <Text fw={600}>Riding Patterns</Text>
           </Group>
@@ -686,7 +686,7 @@ function PowerTab({ ftp, powerZones, navigate }) {
   if (!ftp) {
     return (
       <EmptyState
-        icon={Zap}
+        icon={IconBolt}
         iconColor="yellow"
         title="Set Your FTP"
         description="Enter your Functional Threshold Power to see personalized power zones and training recommendations."
