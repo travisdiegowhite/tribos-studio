@@ -337,17 +337,23 @@ function RouteBuilder() {
 
   // Memoize workout options for Select component
   const workoutOptions = useMemo(() => {
+    console.log('Building workout options, WORKOUT_LIBRARY:', WORKOUT_LIBRARY);
     if (!WORKOUT_LIBRARY || typeof WORKOUT_LIBRARY !== 'object') {
+      console.warn('WORKOUT_LIBRARY is not available');
       return [];
     }
     try {
-      return Object.values(WORKOUT_LIBRARY)
+      const values = Object.values(WORKOUT_LIBRARY);
+      console.log('WORKOUT_LIBRARY values count:', values.length);
+      const options = values
         .filter(w => w && w.id && w.name && w.duration)
         .map(w => ({
           value: w.id,
           label: `${w.name} (${w.duration}min)`,
           group: w.category || 'Other'
         }));
+      console.log('Built workout options:', options.length);
+      return options;
     } catch (e) {
       console.error('Error building workout options:', e);
       return [];
