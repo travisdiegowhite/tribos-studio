@@ -78,17 +78,8 @@ function Landing() {
           throw error;
         }
       } else {
-        try {
-          const apiBase = import.meta.env.VITE_API_URL || '';
-          await fetch(`${apiBase}/api/email?action=beta-notify`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: emailValue }),
-          });
-        } catch (emailErr) {
-          console.error('Failed to send welcome email:', emailErr);
-        }
-
+        // Beta signup saved - user will receive the branded confirmation email from Supabase
+        // after they create their account on the auth page
         notifications.show({
           title: 'Welcome to the Beta!',
           message: "You're in! Let's create your account...",
