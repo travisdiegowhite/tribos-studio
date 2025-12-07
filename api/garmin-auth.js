@@ -193,12 +193,11 @@ async function getAuthorizationUrl(req, res, userId) {
       throw new Error('Failed to initialize authorization');
     }
 
-    // Build authorization URL
+    // Build authorization URL (per Garmin OAuth2 PKCE spec - no scope parameter)
     const authParams = new URLSearchParams({
       client_id: process.env.GARMIN_CONSUMER_KEY,
       response_type: 'code',
       redirect_uri: callbackUrl,
-      scope: 'activity:read activity:write', // Adjust scopes as needed
       state: state,
       code_challenge: codeChallenge,
       code_challenge_method: 'S256'
@@ -249,6 +248,12 @@ async function exchangeToken(req, res, userId, code, state) {
     }
 
     console.log('Exchanging authorization code for tokens...');
+    console.log('Token exchange debug:', {
+      client_id: process.env.GARMIN_CONSUMER_KEY?.slice(0, 8) + '...',
+      code: code?.slice(0, 8) + '...',
+      code_verifier_length: codeVerifier?.length,
+      redirect_uri: callbackUrl
+    });
 
     // Exchange code for tokens
     const tokenParams = new URLSearchParams({
