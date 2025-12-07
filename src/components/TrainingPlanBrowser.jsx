@@ -58,15 +58,20 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
   // Get all plans and filter
   const allPlans = useMemo(() => getAllPlans(), []);
 
+  // Helper to get plan start date (supports both old and new schema)
+  const getPlanStartDate = (plan) => plan?.started_at || plan?.start_date;
+
   // Calculate plan progress
   const getPlanProgress = (plan) => {
-    if (!plan?.started_at) return { week: 1, progress: 0, daysRemaining: 0 };
+    const planStart = getPlanStartDate(plan);
+    if (!planStart) return { week: 1, progress: 0, daysRemaining: 0 };
 
-    const startDate = new Date(plan.started_at);
+    const startDate = new Date(planStart);
     const now = new Date();
     const daysSinceStart = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
-    const currentWeek = Math.min(Math.floor(daysSinceStart / 7) + 1, plan.duration_weeks || 8);
-    const totalDays = (plan.duration_weeks || 8) * 7;
+    const durationWeeks = plan.duration_weeks || 8;
+    const currentWeek = Math.min(Math.floor(daysSinceStart / 7) + 1, durationWeeks);
+    const totalDays = durationWeeks * 7;
     const progress = Math.min(100, Math.round((daysSinceStart / totalDays) * 100));
     const daysRemaining = Math.max(0, totalDays - daysSinceStart);
 
@@ -254,11 +259,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           user_id: user.id,
           template_id: plan.id,
           name: plan.name,
+          description: plan.description,
           duration_weeks: plan.duration,
           methodology: plan.methodology,
           goal: plan.goal,
           fitness_level: plan.fitnessLevel,
           started_at: startDate.toISOString(),
+          start_date: startDate.toISOString().split('T')[0], // For backward compatibility
           status: 'active',
         })
         .select()
@@ -642,7 +649,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               <Box>
                 <Text fw={600}>{activePlan.name}</Text>
                 <Text size="xs" c="dimmed">
-                  Started {new Date(activePlan.started_at).toLocaleDateString()}
+                  Started {getPlanStartDate(activePlan) ? new Date(getPlanStartDate(activePlan)).toLocaleDateString() : 'Not started'}
                 </Text>
               </Box>
             </Group>
