@@ -293,7 +293,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete }) {
                   {parsedData.metadata.manufacturer && ` | ${parsedData.metadata.manufacturer}`}
                 </Text>
 
-                <SimpleGrid cols={3} spacing="xs">
+                <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xs">
                   <Paper p="xs" bg="dark.6">
                     <Group gap="xs">
                       <IconRoute size={14} color="var(--mantine-color-blue-5)" />
@@ -332,7 +332,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete }) {
                 </SimpleGrid>
 
                 {(parsedData.summary.avgHeartRate || parsedData.summary.avgPower) && (
-                  <SimpleGrid cols={2} spacing="xs">
+                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
                     {parsedData.summary.avgHeartRate && (
                       <Paper p="xs" bg="dark.6">
                         <Group gap="xs">

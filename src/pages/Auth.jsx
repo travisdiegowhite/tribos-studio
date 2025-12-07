@@ -78,7 +78,7 @@ function Auth() {
         padding: tokens.spacing.md,
       }}
     >
-      <Container size={420}>
+      <Container size="xs">
         <Box mb="xl" style={{ textAlign: 'center' }}>
           <Text
             size="lg"
