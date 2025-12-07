@@ -17,6 +17,7 @@ import { stravaService } from '../utils/stravaService';
 import { saveRoute, getRoute } from '../utils/routesService';
 import PreferenceSettings from '../components/PreferenceSettings.jsx';
 import IntervalCues from '../components/IntervalCues.jsx';
+import ElevationProfile from '../components/ElevationProfile.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
@@ -1820,6 +1821,17 @@ function RouteBuilder() {
             {/* Interval Cues Display (when workout selected) */}
             {intervalCues && intervalCues.length > 0 && (
               <IntervalCues cues={intervalCues} formatDistance={formatDist} />
+            )}
+
+            {/* Elevation Profile */}
+            {routeGeometry?.coordinates && routeGeometry.coordinates.length > 1 && (
+              <ElevationProfile
+                coordinates={routeGeometry.coordinates}
+                elevationGain={routeStats.elevation}
+                isImperial={isImperial}
+                height={120}
+                showStats={true}
+              />
             )}
 
             {/* Instructions */}

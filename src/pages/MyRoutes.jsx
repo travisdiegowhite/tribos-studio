@@ -14,9 +14,12 @@ import {
   Loader,
   Menu,
   ActionIcon,
+  Skeleton,
+  TextInput,
+  SegmentedControl,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconPlus, IconDotsVertical, IconTrash, IconEdit, IconDownload } from '@tabler/icons-react';
+import { IconPlus, IconDotsVertical, IconTrash, IconEdit, IconDownload, IconSearch, IconX } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -28,6 +31,24 @@ function MyRoutes() {
   const [loading, setLoading] = useState(true);
   const [routes, setRoutes] = useState([]);
   const [deletingId, setDeletingId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all'); // 'all', 'ai', 'manual'
+
+  // Filter routes based on search and filter type
+  const filteredRoutes = routes.filter(route => {
+    // Text search filter
+    const matchesSearch = searchQuery.trim() === '' ||
+      route.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      route.training_goal?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      route.surface_type?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Type filter
+    const matchesType = filterType === 'all' ||
+      (filterType === 'ai' && route.generated_by === 'ai') ||
+      (filterType === 'manual' && route.generated_by !== 'ai');
+
+    return matchesSearch && matchesType;
+  });
 
   // Load routes on mount
   useEffect(() => {
@@ -152,9 +173,50 @@ function MyRoutes() {
     return (
       <AppShell>
         <Container size="xl" py="xl">
-          <Stack align="center" justify="center" style={{ minHeight: 400 }}>
-            <Loader color="lime" size="lg" />
-            <Text style={{ color: tokens.colors.textSecondary }}>Loading your routes...</Text>
+          <Stack gap="xl">
+            {/* Header skeleton */}
+            <Group justify="space-between" align="flex-start">
+              <Box>
+                <Skeleton height={32} width={180} mb="xs" />
+                <Skeleton height={16} width={100} />
+              </Box>
+              <Skeleton height={36} width={110} radius="md" />
+            </Group>
+
+            {/* Routes grid skeleton */}
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Card key={i} padding="lg" style={{ backgroundColor: tokens.colors.bgSecondary }}>
+                  <Stack gap="sm">
+                    <Group justify="space-between">
+                      <Box style={{ flex: 1 }}>
+                        <Skeleton height={20} width="70%" mb={4} />
+                        <Skeleton height={12} width="40%" />
+                      </Box>
+                      <Skeleton height={24} width={24} radius="sm" />
+                    </Group>
+                    <Group gap="md">
+                      <Box>
+                        <Skeleton height={10} width={50} mb={4} />
+                        <Skeleton height={16} width={60} />
+                      </Box>
+                      <Box>
+                        <Skeleton height={10} width={50} mb={4} />
+                        <Skeleton height={16} width={50} />
+                      </Box>
+                      <Box>
+                        <Skeleton height={10} width={40} mb={4} />
+                        <Skeleton height={16} width={50} />
+                      </Box>
+                    </Group>
+                    <Group gap="xs">
+                      <Skeleton height={20} width={70} radius="xl" />
+                      <Skeleton height={20} width={60} radius="xl" />
+                    </Group>
+                  </Stack>
+                </Card>
+              ))}
+            </SimpleGrid>
           </Stack>
         </Container>
       </AppShell>
@@ -172,7 +234,7 @@ function MyRoutes() {
                 My Routes
               </Title>
               <Text style={{ color: tokens.colors.textSecondary }}>
-                {routes.length} saved route{routes.length !== 1 ? 's' : ''}
+                {filteredRoutes.length} of {routes.length} route{routes.length !== 1 ? 's' : ''}
               </Text>
             </Box>
             <Button
@@ -183,6 +245,41 @@ function MyRoutes() {
               New Route
             </Button>
           </Group>
+
+          {/* Search and Filter */}
+          {routes.length > 0 && (
+            <Group gap="md" wrap="wrap">
+              <TextInput
+                placeholder="Search routes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                leftSection={<IconSearch size={16} />}
+                rightSection={searchQuery && (
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    <IconX size={14} />
+                  </ActionIcon>
+                )}
+                style={{ flex: 1, minWidth: 200, maxWidth: 400 }}
+              />
+              <SegmentedControl
+                value={filterType}
+                onChange={setFilterType}
+                size="sm"
+                data={[
+                  { label: 'All', value: 'all' },
+                  { label: 'AI Generated', value: 'ai' },
+                  { label: 'Manual', value: 'manual' }
+                ]}
+                styles={{
+                  root: { backgroundColor: tokens.colors.bgTertiary }
+                }}
+              />
+            </Group>
+          )}
 
           {/* Routes Grid */}
           {routes.length === 0 ? (
@@ -205,9 +302,28 @@ function MyRoutes() {
                 </Button>
               </Stack>
             </Card>
+          ) : filteredRoutes.length === 0 ? (
+            <Card>
+              <Stack align="center" gap="md" py="xl">
+                <Text size="3rem">🔍</Text>
+                <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                  No routes found
+                </Title>
+                <Text style={{ color: tokens.colors.textSecondary, textAlign: 'center' }} maw={{ base: '100%', sm: 400 }}>
+                  No routes match your search. Try adjusting your filters or search terms.
+                </Text>
+                <Button
+                  variant="light"
+                  color="lime"
+                  onClick={() => { setSearchQuery(''); setFilterType('all'); }}
+                >
+                  Clear Filters
+                </Button>
+              </Stack>
+            </Card>
           ) : (
             <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-              {routes.map((route) => (
+              {filteredRoutes.map((route) => (
                 <Card
                   key={route.id}
                   padding="lg"
