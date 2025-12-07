@@ -19,6 +19,8 @@ import {
   Select,
   Divider,
   Alert,
+  Modal,
+  List,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
@@ -55,7 +57,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
-import { WORKOUT_LIBRARY, getWorkoutsByCategory } from '../data/workoutLibrary';
+import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS } from '../utils/trainingPlans';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
@@ -81,6 +83,8 @@ function TrainingDashboard() {
   const [healthCheckInOpen, setHealthCheckInOpen] = useState(false);
   const [fitUploadOpen, setFitUploadOpen] = useState(false);
   const [todayHealthMetrics, setTodayHealthMetrics] = useState(null);
+  const [workoutModalOpen, setWorkoutModalOpen] = useState(false);
+  const [selectedWorkout, setSelectedWorkout] = useState(null);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -261,6 +265,28 @@ function TrainingDashboard() {
 
   const formStatus = getFormStatus();
 
+  // Get suggested workout based on current form status
+  const getSuggestedWorkout = () => {
+    const tsb = trainingMetrics.tsb;
+    // FRESH: High intensity day - VO2max or threshold work
+    if (tsb >= 15) return getWorkoutById('five_by_four_vo2') || getWorkoutById('two_by_twenty_ftp');
+    // READY: Quality session - threshold or hard sweet spot
+    if (tsb >= 5) return getWorkoutById('two_by_twenty_ftp') || getWorkoutById('four_by_twelve_sst');
+    // OPTIMAL: Sweet spot for building fitness
+    if (tsb >= -10) return getWorkoutById('traditional_sst') || getWorkoutById('three_by_ten_sst');
+    // TIRED: Easy endurance or recovery
+    if (tsb >= -25) return getWorkoutById('foundation_miles') || getWorkoutById('endurance_base_build');
+    // FATIGUED: Recovery only
+    return getWorkoutById('recovery_spin') || getWorkoutById('easy_recovery_ride');
+  };
+
+  const suggestedWorkout = getSuggestedWorkout();
+
+  const handleViewWorkout = (workout) => {
+    setSelectedWorkout(workout);
+    setWorkoutModalOpen(true);
+  };
+
   if (loading) {
     return (
       <AppShell>
@@ -327,6 +353,8 @@ function TrainingDashboard() {
             formatDist={formatDist}
             formatTime={formatTime}
             onAskCoach={() => setActiveTab('today')}
+            suggestedWorkout={suggestedWorkout}
+            onViewWorkout={handleViewWorkout}
           />
 
           {/* Quick Stats Row */}
@@ -396,6 +424,8 @@ function TrainingDashboard() {
                   isImperial={isImperial}
                   todayHealthMetrics={todayHealthMetrics}
                   onOpenHealthCheckIn={() => setHealthCheckInOpen(true)}
+                  suggestedWorkout={suggestedWorkout}
+                  onViewWorkout={handleViewWorkout}
                 />
               </Tabs.Panel>
 
@@ -460,6 +490,14 @@ function TrainingDashboard() {
           }
         }}
       />
+
+      {/* Workout Detail Modal */}
+      <WorkoutDetailModal
+        opened={workoutModalOpen}
+        onClose={() => setWorkoutModalOpen(false)}
+        workout={selectedWorkout}
+        ftp={ftp}
+      />
     </AppShell>
   );
 }
@@ -467,7 +505,7 @@ function TrainingDashboard() {
 // ============================================================================
 // TODAY'S FOCUS HERO CARD
 // ============================================================================
-function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities, formatDist, formatTime, onAskCoach }) {
+function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities, formatDist, formatTime, onAskCoach, suggestedWorkout, onViewWorkout }) {
   const lastRide = activities[0];
   const FormIcon = formStatus.icon;
 
@@ -515,6 +553,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities,
             <Button
               variant="light"
               rightSection={<IconChevronRight size={16} />}
+              onClick={() => suggestedWorkout && onViewWorkout(suggestedWorkout)}
             >
               Suggested Workout
             </Button>
@@ -578,7 +617,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities,
 // ============================================================================
 // TODAY TAB
 // ============================================================================
-function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, formatDist, formatElev, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn }) {
+function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, formatDist, formatElev, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, suggestedWorkout, onViewWorkout }) {
   const hasCheckedIn = !!todayHealthMetrics;
 
   return (
@@ -616,10 +655,18 @@ function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, f
             Based on your current form ({formStatus.label}), we recommend:
           </Text>
           <Paper p="sm" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
-            <Text fw={500} size="sm">Sweet Spot Intervals</Text>
-            <Text size="xs" c="dimmed">90 min · ~85 TSS · Builds threshold fitness</Text>
+            <Text fw={500} size="sm">{suggestedWorkout?.name || 'Sweet Spot Intervals'}</Text>
+            <Text size="xs" c="dimmed">
+              {suggestedWorkout ? `${suggestedWorkout.duration} min · ~${suggestedWorkout.targetTSS} TSS · ${suggestedWorkout.description}` : '90 min · ~85 TSS · Builds threshold fitness'}
+            </Text>
           </Paper>
-          <Button variant="light" color="lime" fullWidth mt="md">
+          <Button
+            variant="light"
+            color="lime"
+            fullWidth
+            mt="md"
+            onClick={() => suggestedWorkout && onViewWorkout(suggestedWorkout)}
+          >
             View Workout
           </Button>
         </Card>
@@ -891,6 +938,174 @@ function QuickStatCard({ label, value, icon: Icon, color, subtitle }) {
         </ThemeIcon>
       </Group>
     </Paper>
+  );
+}
+
+// ============================================================================
+// WORKOUT DETAIL MODAL
+// ============================================================================
+function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
+  if (!workout) return null;
+
+  // Format workout structure for display
+  const formatWorkoutStructure = () => {
+    const parts = [];
+
+    if (workout.structure?.warmup) {
+      parts.push({
+        name: 'Warm-up',
+        duration: workout.structure.warmup.duration,
+        power: workout.structure.warmup.powerPctFTP,
+        zone: workout.structure.warmup.zone
+      });
+    }
+
+    if (workout.structure?.main) {
+      workout.structure.main.forEach((item, idx) => {
+        if (item.type === 'repeat') {
+          parts.push({
+            name: `Main Set: ${item.sets}x`,
+            duration: item.work.duration,
+            power: item.work.powerPctFTP,
+            zone: item.work.zone,
+            description: item.work.description,
+            rest: item.rest?.duration
+          });
+        } else {
+          parts.push({
+            name: item.description || `Interval ${idx + 1}`,
+            duration: item.duration,
+            power: item.powerPctFTP,
+            zone: item.zone
+          });
+        }
+      });
+    }
+
+    if (workout.structure?.cooldown) {
+      parts.push({
+        name: 'Cool-down',
+        duration: workout.structure.cooldown.duration,
+        power: workout.structure.cooldown.powerPctFTP,
+        zone: workout.structure.cooldown.zone
+      });
+    }
+
+    return parts;
+  };
+
+  const structureParts = formatWorkoutStructure();
+
+  const getCategoryColor = (category) => {
+    const colors = {
+      recovery: 'green',
+      endurance: 'blue',
+      tempo: 'yellow',
+      sweet_spot: 'orange',
+      threshold: 'red',
+      vo2max: 'pink',
+      climbing: 'grape',
+      anaerobic: 'violet',
+      racing: 'cyan'
+    };
+    return colors[category] || 'gray';
+  };
+
+  return (
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={
+        <Group gap="sm">
+          <ThemeIcon size="lg" color={getCategoryColor(workout.category)} variant="light">
+            <IconTarget size={18} />
+          </ThemeIcon>
+          <Text fw={600} size="lg">{workout.name}</Text>
+        </Group>
+      }
+      size="lg"
+    >
+      <Stack gap="md">
+        {/* Workout Overview */}
+        <Group gap="xs">
+          <Badge color={getCategoryColor(workout.category)} variant="light">
+            {workout.category?.replace('_', ' ')}
+          </Badge>
+          <Badge color="gray" variant="light">{workout.difficulty}</Badge>
+          <Badge color="blue" variant="light">{workout.duration} min</Badge>
+          <Badge color="orange" variant="light">~{workout.targetTSS} TSS</Badge>
+        </Group>
+
+        {/* Description */}
+        <Box>
+          <Text fw={500} size="sm" mb="xs">Description</Text>
+          <Text size="sm" c="dimmed">{workout.description}</Text>
+        </Box>
+
+        {/* Coach Notes */}
+        {workout.coachNotes && (
+          <Paper p="sm" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+            <Text fw={500} size="sm" mb="xs" c="lime">Coach Notes</Text>
+            <Text size="sm" c="dimmed">{workout.coachNotes}</Text>
+          </Paper>
+        )}
+
+        {/* Workout Structure */}
+        <Box>
+          <Text fw={500} size="sm" mb="sm">Workout Structure</Text>
+          <Stack gap="xs">
+            {structureParts.map((part, idx) => (
+              <Paper key={idx} p="sm" withBorder>
+                <Group justify="space-between">
+                  <Box>
+                    <Text fw={500} size="sm">{part.name}</Text>
+                    {part.description && (
+                      <Text size="xs" c="dimmed">{part.description}</Text>
+                    )}
+                  </Box>
+                  <Group gap="md">
+                    <Box ta="right">
+                      <Text size="sm" fw={500}>{part.duration} min</Text>
+                      <Text size="xs" c="dimmed">Zone {part.zone}</Text>
+                    </Box>
+                    {ftp && (
+                      <Box ta="right">
+                        <Text size="sm" fw={500}>{Math.round(ftp * (part.power / 100))}W</Text>
+                        <Text size="xs" c="dimmed">{part.power}% FTP</Text>
+                      </Box>
+                    )}
+                    {part.rest && (
+                      <Box ta="right">
+                        <Text size="xs" c="dimmed">{part.rest}min rest</Text>
+                      </Box>
+                    )}
+                  </Group>
+                </Group>
+              </Paper>
+            ))}
+          </Stack>
+        </Box>
+
+        {/* Tags */}
+        {workout.tags && workout.tags.length > 0 && (
+          <Box>
+            <Text fw={500} size="sm" mb="xs">Tags</Text>
+            <Group gap="xs">
+              {workout.tags.map((tag, idx) => (
+                <Badge key={idx} size="sm" variant="outline" color="gray">
+                  {tag}
+                </Badge>
+              ))}
+            </Group>
+          </Box>
+        )}
+
+        {/* Close Button */}
+        <Button variant="light" color="lime" fullWidth onClick={onClose}>
+          Close
+        </Button>
+      </Stack>
+    </Modal>
   );
 }
 
