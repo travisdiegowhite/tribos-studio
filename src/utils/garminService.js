@@ -46,7 +46,7 @@ export class GarminService {
     }
 
     try {
-      // Request a request token from the server (OAuth 1.0a step 1)
+      // Request authorization URL from the server (OAuth 2.0 PKCE)
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
         method: 'POST',
         headers: {
@@ -54,7 +54,7 @@ export class GarminService {
         },
         credentials: 'include',
         body: JSON.stringify({
-          action: 'get_request_token',
+          action: 'get_authorization_url',
           userId
         })
       });
@@ -65,6 +65,12 @@ export class GarminService {
       }
 
       const data = await response.json();
+
+      // Check if not configured
+      if (data.configured === false) {
+        throw new Error(data.error || 'Garmin integration not configured');
+      }
+
       return data.authorizationUrl;
     } catch (error) {
       console.error('Error getting Garmin auth URL:', error);
@@ -73,9 +79,9 @@ export class GarminService {
   }
 
   /**
-   * Complete OAuth flow with verifier (called after callback)
+   * Complete OAuth flow with authorization code (called after callback)
    */
-  async exchangeToken(oauthToken, oauthVerifier) {
+  async exchangeToken(code, state) {
     const userId = await this.getCurrentUserId();
     if (!userId) {
       throw new Error('User must be authenticated');
@@ -91,8 +97,8 @@ export class GarminService {
         body: JSON.stringify({
           action: 'exchange_token',
           userId,
-          oauthToken,
-          oauthVerifier
+          code,
+          state
         })
       });
 

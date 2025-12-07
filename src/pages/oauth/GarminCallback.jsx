@@ -13,12 +13,21 @@ function GarminCallback() {
 
   useEffect(() => {
     const handleCallback = async () => {
-      // Garmin uses OAuth 1.0a, so the flow is different
-      const oauthToken = searchParams.get('oauth_token');
-      const oauthVerifier = searchParams.get('oauth_verifier');
+      // OAuth 2.0 PKCE flow - get code and state from URL
+      const code = searchParams.get('code');
+      const state = searchParams.get('state');
+      const errorParam = searchParams.get('error');
+      const errorDescription = searchParams.get('error_description');
 
-      if (!oauthToken || !oauthVerifier) {
-        setError('Invalid Garmin authorization response');
+      // Handle OAuth error response
+      if (errorParam) {
+        setError(errorDescription || `Authorization failed: ${errorParam}`);
+        setTimeout(() => navigate('/settings'), 3000);
+        return;
+      }
+
+      if (!code) {
+        setError('Invalid Garmin authorization response - no authorization code received');
         setTimeout(() => navigate('/settings'), 3000);
         return;
       }
@@ -30,12 +39,12 @@ function GarminCallback() {
       }
 
       try {
-        // Exchange tokens via our garmin service (which calls the API)
-        await garminService.exchangeToken(oauthToken, oauthVerifier);
+        // Exchange authorization code for tokens
+        await garminService.exchangeToken(code, state);
         navigate('/settings?connected=garmin');
       } catch (err) {
         console.error('Garmin callback error:', err);
-        setError('Failed to connect Garmin. Please try again.');
+        setError(err.message || 'Failed to connect Garmin. Please try again.');
         setTimeout(() => navigate('/settings'), 3000);
       }
     };
