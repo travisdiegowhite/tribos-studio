@@ -12,6 +12,7 @@ import RouteBuilder from './pages/RouteBuilder.jsx';
 import MyRoutes from './pages/MyRoutes.jsx';
 import TrainingDashboard from './pages/TrainingDashboard.jsx';
 import Settings from './pages/Settings.jsx';
+import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
@@ -68,6 +69,7 @@ function AppRoutes() {
     <Routes>
       {/* Public routes */}
       <Route path="/" element={<Landing />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route
         path="/auth"
         element={
