@@ -19,7 +19,7 @@ import PreferenceSettings from '../components/PreferenceSettings.jsx';
 import IntervalCues from '../components/IntervalCues.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
-import { formatDistance, formatElevation } from '../utils/units';
+import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { supabase } from '../lib/supabase';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -345,6 +345,7 @@ function RouteBuilder() {
   const isImperial = unitsPreference === 'imperial';
   const formatDist = (km) => formatDistance(km, isImperial);
   const formatElev = (m) => formatElevation(m, isImperial);
+  const formatSpd = (kmh) => formatSpeed(kmh, isImperial);
 
   // Memoize workout options for Select component
   const workoutOptions = useMemo(() => {
@@ -1037,11 +1038,11 @@ function RouteBuilder() {
     <Group justify="space-between" style={{ width: '100%' }}>
       <Box>
         <Text size="xs" c="dimmed">Distance</Text>
-        <Text fw={600} size="sm">{routeStats.distance} km</Text>
+        <Text fw={600} size="sm">{formatDist(routeStats.distance)}</Text>
       </Box>
       <Box>
         <Text size="xs" c="dimmed">Elevation</Text>
-        <Text fw={600} size="sm">{routeStats.elevation > 0 ? `${routeStats.elevation}m` : '--'}</Text>
+        <Text fw={600} size="sm">{routeStats.elevation > 0 ? formatElev(routeStats.elevation) : '--'}</Text>
       </Box>
       <Box>
         <Text size="xs" c="dimmed">Time</Text>
@@ -1769,7 +1770,7 @@ function RouteBuilder() {
                   Distance
                 </Text>
                 <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
-                  {routeStats.distance} km
+                  {formatDist(routeStats.distance)}
                 </Text>
               </Group>
               <Group justify="space-between" mb="xs">
@@ -1777,7 +1778,7 @@ function RouteBuilder() {
                   Elevation
                 </Text>
                 <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
-                  {routeStats.elevation > 0 ? `${routeStats.elevation}m ↗` : '--'}
+                  {routeStats.elevation > 0 ? `${formatElev(routeStats.elevation)} ↗` : '--'}
                 </Text>
               </Group>
               <Group justify="space-between" mb="xs">
@@ -1809,7 +1810,7 @@ function RouteBuilder() {
                   </Text>
                   <Tooltip label={`Based on ${speedProfile.rides_analyzed} Strava rides`}>
                     <Badge size="xs" variant="light" color="lime">
-                      {getUserSpeedForProfile(routeProfile)?.toFixed(1) || speedProfile.average_speed?.toFixed(1)} km/h
+                      {formatSpd(getUserSpeedForProfile(routeProfile) || speedProfile.average_speed)}
                     </Badge>
                   </Tooltip>
                 </Group>
