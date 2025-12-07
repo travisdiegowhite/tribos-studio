@@ -29,19 +29,27 @@ const corsHeaders = {
   'Access-Control-Allow-Credentials': 'true',
 };
 
+// Base64 URL encoding (without padding) - matches Garmin spec exactly
+function base64URLEncode(buffer) {
+  return buffer.toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
 // PKCE helper functions
 function generateCodeVerifier() {
   // Generate a random 43-128 character string
-  return crypto.randomBytes(32).toString('base64url');
+  return base64URLEncode(crypto.randomBytes(32));
 }
 
 function generateCodeChallenge(verifier) {
   // SHA256 hash of the verifier, base64url encoded
-  return crypto.createHash('sha256').update(verifier).digest('base64url');
+  return base64URLEncode(crypto.createHash('sha256').update(verifier).digest());
 }
 
 function generateState() {
-  return crypto.randomBytes(16).toString('hex');
+  return base64URLEncode(crypto.randomBytes(16));
 }
 
 export default async function handler(req, res) {
