@@ -43,6 +43,7 @@ import {
   IconChartBar,
   IconSettings,
   IconUpload,
+  IconList,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -51,6 +52,7 @@ import { supabase } from '../lib/supabase';
 import AICoach from '../components/AICoach.jsx';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
+import TrainingPlanBrowser from '../components/TrainingPlanBrowser.jsx';
 import RideHistoryTable from '../components/RideHistoryTable.jsx';
 import PersonalRecordsCard from '../components/PersonalRecordsCard.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -85,6 +87,7 @@ function TrainingDashboard() {
   const [todayHealthMetrics, setTodayHealthMetrics] = useState(null);
   const [workoutModalOpen, setWorkoutModalOpen] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
+  const [activePlan, setActivePlan] = useState(null);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -199,6 +202,19 @@ function TrainingDashboard() {
           .single();
 
         if (healthData) setTodayHealthMetrics(healthData);
+
+        // Load active training plan
+        const { data: planData } = await supabase
+          .from('training_plans')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .single();
+
+        if (planData) {
+          setActivePlan(planData);
+          console.log('Active training plan loaded:', planData.name);
+        }
       } catch (error) {
         console.error('Error loading training data:', error);
       } finally {
@@ -396,6 +412,9 @@ function TrainingDashboard() {
                 <Tabs.Tab value="today" leftSection={<IconTarget size={16} />}>
                   Today
                 </Tabs.Tab>
+                <Tabs.Tab value="plans" leftSection={<IconList size={16} />}>
+                  Plans
+                </Tabs.Tab>
                 <Tabs.Tab value="trends" leftSection={<IconTrendingUp size={16} />}>
                   Trends
                 </Tabs.Tab>
@@ -426,6 +445,17 @@ function TrainingDashboard() {
                   onOpenHealthCheckIn={() => setHealthCheckInOpen(true)}
                   suggestedWorkout={suggestedWorkout}
                   onViewWorkout={handleViewWorkout}
+                />
+              </Tabs.Panel>
+
+              {/* PLANS TAB */}
+              <Tabs.Panel value="plans">
+                <TrainingPlanBrowser
+                  activePlan={activePlan}
+                  onPlanActivated={(plan) => {
+                    setActivePlan(plan);
+                    setActiveTab('calendar');
+                  }}
                 />
               </Tabs.Panel>
 
@@ -464,7 +494,7 @@ function TrainingDashboard() {
 
               {/* CALENDAR TAB */}
               <Tabs.Panel value="calendar">
-                <TrainingCalendar activePlan={null} rides={activities} formatDistance={formatDist} />
+                <TrainingCalendar activePlan={activePlan} rides={activities} formatDistance={formatDist} />
               </Tabs.Panel>
             </Tabs>
           </Card>
