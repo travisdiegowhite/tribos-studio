@@ -179,11 +179,6 @@ async function getAuthorizationUrl(req, res, userId) {
     const codeChallenge = generateCodeChallenge(codeVerifier);
     const state = generateState();
 
-    console.log('=== GARMIN AUTH DEBUG (OAuth 2.0 PKCE) ===');
-    console.log('Client ID:', process.env.GARMIN_CONSUMER_KEY?.slice(0, 8) + '...');
-    console.log('Callback URL:', callbackUrl);
-    console.log('State:', state);
-
     // Store PKCE verifier and state temporarily
     const { error: storeError } = await supabase
       .from('garmin_oauth_temp')
@@ -212,8 +207,6 @@ async function getAuthorizationUrl(req, res, userId) {
     });
 
     const authorizationUrl = `${GARMIN_AUTHORIZE_URL}?${authParams.toString()}`;
-
-    console.log('Authorization URL generated successfully');
 
     return res.status(200).json({
       success: true,
@@ -255,18 +248,6 @@ async function exchangeToken(req, res, userId, code, state) {
       throw new Error('State mismatch. Possible CSRF attack.');
     }
 
-    console.log('Exchanging authorization code for tokens...');
-    const secret = process.env.GARMIN_CONSUMER_SECRET || '';
-    console.log('Token exchange debug:', {
-      client_id: process.env.GARMIN_CONSUMER_KEY,
-      client_secret_first4: secret.slice(0, 4),
-      client_secret_last4: secret.slice(-4),
-      client_secret_length: secret.length,
-      code: code?.slice(0, 8) + '...',
-      code_verifier: codeVerifier,
-      redirect_uri: callbackUrl
-    });
-
     // Exchange code for tokens
     const tokenParams = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -277,17 +258,12 @@ async function exchangeToken(req, res, userId, code, state) {
       code_verifier: codeVerifier
     });
 
-    // Log the full request for debugging (mask sensitive values)
-    const bodyString = tokenParams.toString();
-    console.log('Token request URL:', GARMIN_TOKEN_URL);
-    console.log('Token request body (masked):', bodyString.replace(/client_secret=[^&]+/, 'client_secret=***').replace(/code=[^&]+/, 'code=***'));
-
     const response = await fetch(GARMIN_TOKEN_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: bodyString
+      body: tokenParams.toString()
     });
 
     if (!response.ok) {
@@ -301,8 +277,6 @@ async function exchangeToken(req, res, userId, code, state) {
     }
 
     const tokenData = await response.json();
-
-    console.log('Token exchange successful');
 
     // Calculate token expiration (Garmin tokens expire in 3 months)
     const expiresAt = new Date();
@@ -337,8 +311,6 @@ async function exchangeToken(req, res, userId, code, state) {
       .from('garmin_oauth_temp')
       .delete()
       .eq('user_id', userId);
-
-    console.log('✅ Garmin integration stored successfully');
 
     return res.status(200).json({
       success: true,
@@ -413,8 +385,6 @@ async function refreshToken(req, res, userId) {
       throw new Error('Failed to update tokens');
     }
 
-    console.log('✅ Garmin token refreshed successfully');
-
     return res.status(200).json({
       success: true,
       message: 'Token refreshed successfully'
@@ -479,8 +449,6 @@ async function disconnect(req, res, userId) {
     if (error) {
       throw new Error('Failed to disconnect Garmin');
     }
-
-    console.log('✅ Garmin integration disconnected');
 
     return res.status(200).json({
       success: true,
