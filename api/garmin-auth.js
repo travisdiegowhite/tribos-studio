@@ -48,7 +48,13 @@ function percentEncode(str) {
     .replace(/\*/g, '%2A');
 }
 
-function generateSignature(method, url, params, consumerSecret, tokenSecret = '') {
+function maskSecret(str) {
+  if (!str) return 'UNDEFINED';
+  if (str.length <= 8) return '***';
+  return `${str.slice(0, 4)}...${str.slice(-4)} (len: ${str.length})`;
+}
+
+function generateSignature(method, url, params, consumerSecret, tokenSecret = '', debug = false) {
   // Sort parameters alphabetically
   const sortedParams = Object.keys(params)
     .sort()
@@ -60,6 +66,12 @@ function generateSignature(method, url, params, consumerSecret, tokenSecret = ''
 
   // Create signing key
   const signingKey = `${percentEncode(consumerSecret)}&${percentEncode(tokenSecret)}`;
+
+  if (debug) {
+    console.log('=== OAUTH SIGNATURE DEBUG ===');
+    console.log('Signature base string:', signatureBase);
+    console.log('Signing key (masked):', maskSecret(signingKey));
+  }
 
   // Generate HMAC-SHA1 signature
   const signature = crypto
@@ -202,9 +214,20 @@ async function getRequestToken(req, res, userId) {
   const callbackUrl = process.env.GARMIN_CALLBACK_URL ||
     `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/oauth/garmin/callback`;
 
+  // Debug logging
+  const consumerKey = process.env.GARMIN_CONSUMER_KEY;
+  const consumerSecret = process.env.GARMIN_CONSUMER_SECRET;
+
+  console.log('=== GARMIN AUTH DEBUG ===');
+  console.log('Consumer Key:', maskSecret(consumerKey));
+  console.log('Consumer Secret:', maskSecret(consumerSecret));
+  console.log('Callback URL:', callbackUrl);
+  console.log('GARMIN_CALLBACK_URL env:', process.env.GARMIN_CALLBACK_URL || 'NOT SET');
+  console.log('VERCEL_URL env:', process.env.VERCEL_URL || 'NOT SET');
+
   try {
     const oauthParams = {
-      oauth_consumer_key: process.env.GARMIN_CONSUMER_KEY,
+      oauth_consumer_key: consumerKey,
       oauth_signature_method: 'HMAC-SHA1',
       oauth_timestamp: generateTimestamp(),
       oauth_nonce: generateNonce(),
@@ -212,19 +235,24 @@ async function getRequestToken(req, res, userId) {
       oauth_callback: callbackUrl
     };
 
-    // Generate signature
+    // Generate signature with debug enabled
     oauthParams.oauth_signature = generateSignature(
       'POST',
       GARMIN_REQUEST_TOKEN_URL,
       oauthParams,
-      process.env.GARMIN_CONSUMER_SECRET
+      consumerSecret,
+      '',
+      true // Enable debug logging
     );
+
+    const authHeader = buildAuthorizationHeader(oauthParams);
+    console.log('Authorization Header:', authHeader);
 
     // Make request
     const response = await fetch(GARMIN_REQUEST_TOKEN_URL, {
       method: 'POST',
       headers: {
-        'Authorization': buildAuthorizationHeader(oauthParams),
+        'Authorization': authHeader,
         'Content-Type': 'application/x-www-form-urlencoded'
       }
     });
