@@ -18,6 +18,7 @@ import { saveRoute, getRoute } from '../utils/routesService';
 import PreferenceSettings from '../components/PreferenceSettings.jsx';
 import IntervalCues from '../components/IntervalCues.jsx';
 import ElevationProfile from '../components/ElevationProfile.jsx';
+import WeatherWidget from '../components/WeatherWidget.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
@@ -347,6 +348,9 @@ function RouteBuilder() {
   const formatDist = (km) => formatDistance(km, isImperial);
   const formatElev = (m) => formatElevation(m, isImperial);
   const formatSpd = (kmh) => formatSpeed(kmh, isImperial);
+
+  // Weather state
+  const [weatherData, setWeatherData] = useState(null);
 
   // Memoize workout options for Select component
   const workoutOptions = useMemo(() => {
@@ -1280,6 +1284,19 @@ function RouteBuilder() {
         </Box>
       )}
 
+      {/* Weather Widget (compact for mobile) */}
+      {userLocation && (
+        <WeatherWidget
+          latitude={userLocation.latitude}
+          longitude={userLocation.longitude}
+          coordinates={routeGeometry?.coordinates}
+          isImperial={isImperial}
+          compact={true}
+          showWindAnalysis={false}
+          onWeatherUpdate={setWeatherData}
+        />
+      )}
+
       {/* Actions */}
       <Stack gap="sm">
         <Group grow>
@@ -1817,6 +1834,18 @@ function RouteBuilder() {
                 </Group>
               )}
             </Box>
+
+            {/* Weather Widget - Shows current conditions and wind analysis */}
+            {userLocation && (
+              <WeatherWidget
+                latitude={userLocation.latitude}
+                longitude={userLocation.longitude}
+                coordinates={routeGeometry?.coordinates}
+                isImperial={isImperial}
+                showWindAnalysis={routeGeometry?.coordinates?.length >= 2}
+                onWeatherUpdate={setWeatherData}
+              />
+            )}
 
             {/* Interval Cues Display (when workout selected) */}
             {intervalCues && intervalCues.length > 0 && (
