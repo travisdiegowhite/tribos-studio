@@ -464,7 +464,7 @@ function TrainingDashboard() {
 
               {/* CALENDAR TAB */}
               <Tabs.Panel value="calendar">
-                <TrainingCalendar activePlan={null} rides={activities} />
+                <TrainingCalendar activePlan={null} rides={activities} formatDistance={formatDist} />
               </Tabs.Panel>
             </Tabs>
           </Card>
@@ -489,6 +489,8 @@ function TrainingDashboard() {
             window.location.reload();
           }
         }}
+        formatDistance={formatDist}
+        formatElevation={formatElev}
       />
 
       {/* Workout Detail Modal */}

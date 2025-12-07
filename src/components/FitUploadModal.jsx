@@ -32,7 +32,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parseFitFile, fitToActivityFormat } from '../utils/fitParser';
 
-function FitUploadModal({ opened, onClose, onUploadComplete }) {
+function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: formatDistanceProp, formatElevation: formatElevationProp }) {
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -189,10 +189,17 @@ function FitUploadModal({ opened, onClose, onUploadComplete }) {
     return `${minutes}m`;
   };
 
-  const formatDistance = (km) => {
+  // Format distance - use prop if provided, otherwise default to simple format
+  const formatDistance = formatDistanceProp || ((km) => {
     if (!km) return '--';
     return `${km.toFixed(1)} km`;
-  };
+  });
+
+  // Format elevation - use prop if provided, otherwise default to simple format
+  const formatElevation = formatElevationProp || ((m) => {
+    if (!m && m !== 0) return '--';
+    return `${Math.round(m)} m`;
+  });
 
   return (
     <Modal
@@ -324,7 +331,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete }) {
                       <div>
                         <Text size="xs" c="dimmed">Elevation</Text>
                         <Text size="sm" fw={500}>
-                          {parsedData.summary.totalAscent || 0}m
+                          {formatElevation(parsedData.summary.totalAscent || 0)}
                         </Text>
                       </div>
                     </Group>

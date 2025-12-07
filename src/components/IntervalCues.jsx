@@ -6,14 +6,14 @@ import { getZoneColor, getZoneName } from '../utils/intervalCues';
  * IntervalCues - Displays workout structure with color-coded segments
  * Shows the workout intervals mapped to route distance
  */
-const IntervalCues = ({ cues }) => {
-  // Simple distance formatter (km)
-  const formatDistance = (km) => {
+const IntervalCues = ({ cues, formatDistance: formatDistanceProp }) => {
+  // Format distance - use prop if provided, otherwise default to simple format
+  const formatDistance = formatDistanceProp || ((km) => {
     if (km === null || km === undefined) return '0 km';
     const numKm = typeof km === 'string' ? parseFloat(km) : km;
     if (isNaN(numKm)) return '0 km';
     return `${numKm.toFixed(1)} km`;
-  };
+  });
 
   if (!cues || cues.length === 0) {
     return null;

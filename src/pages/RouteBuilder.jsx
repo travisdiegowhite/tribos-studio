@@ -19,6 +19,8 @@ import PreferenceSettings from '../components/PreferenceSettings.jsx';
 import IntervalCues from '../components/IntervalCues.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
+import { formatDistance, formatElevation } from '../utils/units';
+import { supabase } from '../lib/supabase';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -338,6 +340,12 @@ function RouteBuilder() {
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [intervalCues, setIntervalCues] = useState(null);
 
+  // Units preference state
+  const [unitsPreference, setUnitsPreference] = useState('imperial');
+  const isImperial = unitsPreference === 'imperial';
+  const formatDist = (km) => formatDistance(km, isImperial);
+  const formatElev = (m) => formatElevation(m, isImperial);
+
   // Memoize workout options for Select component
   const workoutOptions = useMemo(() => {
     if (!WORKOUT_LIBRARY || typeof WORKOUT_LIBRARY !== 'object') {
@@ -400,6 +408,26 @@ function RouteBuilder() {
     }
     return null;
   }, [routeGeometry, selectedWorkout, routeStats.distance]);
+
+  // Load user's units preference
+  useEffect(() => {
+    const loadUnitsPreference = async () => {
+      if (!user) return;
+      try {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('units_preference')
+          .eq('id', user.id)
+          .single();
+        if (data?.units_preference) {
+          setUnitsPreference(data.units_preference);
+        }
+      } catch (err) {
+        console.error('Failed to load units preference:', err);
+      }
+    };
+    loadUnitsPreference();
+  }, [user]);
 
   // Geolocate user on mount
   useEffect(() => {
@@ -1790,7 +1818,7 @@ function RouteBuilder() {
 
             {/* Interval Cues Display (when workout selected) */}
             {intervalCues && intervalCues.length > 0 && (
-              <IntervalCues cues={intervalCues} />
+              <IntervalCues cues={intervalCues} formatDistance={formatDist} />
             )}
 
             {/* Instructions */}
