@@ -250,6 +250,8 @@ async function exchangeToken(req, res, userId, code, state) {
     console.log('Exchanging authorization code for tokens...');
     console.log('Token exchange debug:', {
       client_id: process.env.GARMIN_CONSUMER_KEY?.slice(0, 8) + '...',
+      client_secret_present: !!process.env.GARMIN_CONSUMER_SECRET,
+      client_secret_length: process.env.GARMIN_CONSUMER_SECRET?.length,
       code: code?.slice(0, 8) + '...',
       code_verifier_length: codeVerifier?.length,
       redirect_uri: callbackUrl
