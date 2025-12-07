@@ -1,12 +1,14 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
+import BottomSheet from '../components/BottomSheet.jsx';
 import { generateAIRoutes } from '../utils/aiRouteGenerator';
 import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
 import { matchRouteToOSM } from '../utils/osmCyclingService';
@@ -306,6 +308,7 @@ function RouteBuilder() {
   const { routeId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const [routeName, setRouteName] = useState('Untitled Route');
   const [waypoints, setWaypoints] = useState([]);
   const [routeGeometry, setRouteGeometry] = useState(null);
@@ -1001,6 +1004,463 @@ function RouteBuilder() {
     );
   }
 
+  // Render route stats for the bottom sheet peek content
+  const renderPeekContent = () => (
+    <Group justify="space-between" style={{ width: '100%' }}>
+      <Box>
+        <Text size="xs" c="dimmed">Distance</Text>
+        <Text fw={600} size="sm">{routeStats.distance} km</Text>
+      </Box>
+      <Box>
+        <Text size="xs" c="dimmed">Elevation</Text>
+        <Text fw={600} size="sm">{routeStats.elevation > 0 ? `${routeStats.elevation}m` : '--'}</Text>
+      </Box>
+      <Box>
+        <Text size="xs" c="dimmed">Time</Text>
+        <Text fw={600} size="sm">
+          {routeStats.duration > 0 ? `${Math.floor(routeStats.duration / 60)}h ${routeStats.duration % 60}m` : '--:--'}
+        </Text>
+      </Box>
+      <Button
+        size="xs"
+        color="lime"
+        disabled={!routeGeometry}
+        onClick={handleSaveRoute}
+        loading={isSaving}
+      >
+        Save
+      </Button>
+    </Group>
+  );
+
+  // Render the sidebar/bottom sheet controls
+  const renderControls = () => (
+    <Stack gap="md">
+      <Box>
+        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+          ROUTE NAME
+        </Text>
+        <TextInput
+          value={routeName}
+          onChange={(e) => setRouteName(e.target.value)}
+          variant="filled"
+          size="sm"
+        />
+      </Box>
+
+      <Divider label="AI Route Generator" labelPosition="center" />
+
+      {/* Natural Language Input */}
+      <Box>
+        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+          DESCRIBE YOUR RIDE
+        </Text>
+        <Textarea
+          placeholder="e.g., '40 mile gravel loop' or '2 hour recovery ride'"
+          value={naturalLanguageInput}
+          onChange={(e) => setNaturalLanguageInput(e.target.value)}
+          minRows={2}
+          maxRows={3}
+          size="sm"
+          variant="filled"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleNaturalLanguageGenerate();
+            }
+          }}
+        />
+        <Button
+          onClick={handleNaturalLanguageGenerate}
+          loading={generatingAI}
+          leftSection={<IconSparkles size={16} />}
+          color="lime"
+          variant="light"
+          size="xs"
+          mt="xs"
+          fullWidth
+        >
+          Generate from Description
+        </Button>
+      </Box>
+
+      <Divider label="or configure manually" labelPosition="center" size="xs" />
+
+      {/* Route Profile */}
+      <Box>
+        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+          ROUTE PROFILE
+        </Text>
+        <SegmentedControl
+          value={routeProfile}
+          onChange={setRouteProfile}
+          fullWidth
+          size="xs"
+          data={[
+            { label: '🚴 Road', value: 'road' },
+            { label: '🌲 Gravel', value: 'gravel' },
+            { label: '⛰️ MTB', value: 'mountain' },
+            { label: '🏙️ Commute', value: 'commuting' }
+          ]}
+          styles={{
+            root: { backgroundColor: tokens.colors.bgTertiary }
+          }}
+        />
+      </Box>
+
+      {/* Training Goal */}
+      <Box>
+        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+          TRAINING GOAL
+        </Text>
+        <SegmentedControl
+          value={trainingGoal}
+          onChange={setTrainingGoal}
+          fullWidth
+          size="xs"
+          data={[
+            { label: 'Recovery', value: 'recovery' },
+            { label: 'Endurance', value: 'endurance' },
+            { label: 'Intervals', value: 'intervals' },
+            { label: 'Hills', value: 'hills' }
+          ]}
+          styles={{
+            root: { backgroundColor: tokens.colors.bgTertiary }
+          }}
+        />
+      </Box>
+
+      <Group grow>
+        <Box>
+          <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+            TIME (MIN)
+          </Text>
+          <NumberInput
+            value={timeAvailable}
+            onChange={setTimeAvailable}
+            min={15}
+            max={480}
+            step={15}
+            size="sm"
+            variant="filled"
+          />
+        </Box>
+
+        <Box>
+          <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+            ROUTE TYPE
+          </Text>
+          <Select
+            value={routeType}
+            onChange={setRouteType}
+            size="sm"
+            variant="filled"
+            data={[
+              { value: 'loop', label: 'Loop' },
+              { value: 'out_back', label: 'Out & Back' },
+              { value: 'point_to_point', label: 'Point to Point' }
+            ]}
+          />
+        </Box>
+      </Group>
+
+      {/* Workout Selection */}
+      <Box>
+        <Group justify="space-between" mb="xs">
+          <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+            WORKOUT (OPTIONAL)
+          </Text>
+          <Tooltip label="Route Preferences">
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onClick={() => setPreferencesOpen(true)}
+            >
+              <IconSettings size={16} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+        <Select
+          placeholder="Select a workout for color-coded route..."
+          value={selectedWorkout?.id || null}
+          onChange={(value) => {
+            if (value) {
+              const workout = WORKOUT_LIBRARY[value];
+              setSelectedWorkout(workout);
+            } else {
+              setSelectedWorkout(null);
+              setIntervalCues(null);
+            }
+          }}
+          clearable
+          size="sm"
+          variant="filled"
+          data={workoutOptions}
+        />
+      </Box>
+
+      <Button
+        onClick={handleGenerateAIRoutes}
+        loading={generatingAI}
+        leftSection={<IconSparkles size={18} />}
+        color="lime"
+        fullWidth
+      >
+        {generatingAI ? 'Generating Routes...' : 'Generate AI Routes'}
+      </Button>
+
+      {/* AI Suggestions */}
+      {aiSuggestions.length > 0 && (
+        <Box>
+          <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+            AI SUGGESTIONS
+          </Text>
+          <Stack gap="xs" style={{ maxHeight: isMobile ? 150 : 200, overflowY: 'auto' }}>
+            {aiSuggestions.map((suggestion, index) => (
+              <Card
+                key={index}
+                p="xs"
+                withBorder
+                style={{
+                  borderColor: tokens.colors.bgTertiary,
+                  backgroundColor: tokens.colors.bgPrimary,
+                  cursor: 'pointer',
+                }}
+                onClick={() => handleSelectSuggestion(index)}
+              >
+                <Group justify="space-between" wrap="nowrap">
+                  <Box style={{ flex: 1 }}>
+                    <Text size="sm" fw={500} lineClamp={1}>
+                      {suggestion.name}
+                    </Text>
+                    <Group gap={4}>
+                      <Badge size="xs" variant="light">
+                        {suggestion.distance}
+                      </Badge>
+                      <Badge size="xs" variant="light" color="gray">
+                        {suggestion.elevation}
+                      </Badge>
+                    </Group>
+                  </Box>
+                  {convertingRoute === index && <Loader size={14} />}
+                </Group>
+              </Card>
+            ))}
+          </Stack>
+        </Box>
+      )}
+
+      {/* Actions */}
+      <Stack gap="sm">
+        <Group grow>
+          <Button
+            variant="light"
+            color="lime"
+            size="sm"
+            disabled={!routeGeometry}
+            onClick={exportGPX}
+          >
+            Export GPX
+          </Button>
+          <Button
+            variant="outline"
+            color="red"
+            size="sm"
+            disabled={!routeGeometry && waypoints.length === 0}
+            onClick={clearRoute}
+          >
+            Clear
+          </Button>
+        </Group>
+      </Stack>
+    </Stack>
+  );
+
+  // Mobile layout
+  if (isMobile) {
+    return (
+      <AppShell fullWidth hideNav>
+        <Box style={{ height: 'calc(100vh - 60px)', position: 'relative' }}>
+          {/* Full-screen map */}
+          <Box style={{ width: '100%', height: '100%' }}>
+            {MAPBOX_TOKEN ? (
+              <Map
+                ref={mapRef}
+                {...viewport}
+                onMove={evt => setViewport(evt.viewState)}
+                onClick={handleMapClick}
+                mapStyle="mapbox://styles/mapbox/outdoors-v12"
+                mapboxAccessToken={MAPBOX_TOKEN}
+                style={{ width: '100%', height: '100%' }}
+                cursor="crosshair"
+              >
+                {/* Colored route segments */}
+                {coloredSegments && (
+                  <Source id="colored-route" type="geojson" data={coloredSegments}>
+                    {[1, 2, 3, 4, 5].map(zone => (
+                      <Layer
+                        key={`zone-${zone}`}
+                        id={`route-zone-${zone}`}
+                        type="line"
+                        filter={['==', ['get', 'zone'], zone]}
+                        paint={{
+                          'line-color': ['get', 'color'],
+                          'line-width': 6,
+                          'line-opacity': 0.9
+                        }}
+                      />
+                    ))}
+                  </Source>
+                )}
+
+                {/* Route line */}
+                {routeGeometry && !coloredSegments && (
+                  <Source id="route" type="geojson" data={{ type: 'Feature', geometry: routeGeometry }}>
+                    <Layer
+                      id="route-line"
+                      type="line"
+                      paint={{
+                        'line-color': tokens.colors.electricLime,
+                        'line-width': 4,
+                        'line-opacity': 0.8
+                      }}
+                    />
+                  </Source>
+                )}
+
+                {/* User location */}
+                {userLocation && (
+                  <Marker longitude={userLocation.longitude} latitude={userLocation.latitude} anchor="center">
+                    <div style={{
+                      width: 16,
+                      height: 16,
+                      backgroundColor: '#3b82f6',
+                      borderRadius: '50%',
+                      border: '3px solid white',
+                      boxShadow: '0 0 0 2px #3b82f6',
+                    }} />
+                  </Marker>
+                )}
+
+                {/* Waypoint markers */}
+                {waypoints.map((waypoint, index) => (
+                  <Marker
+                    key={waypoint.id}
+                    longitude={waypoint.lng}
+                    latitude={waypoint.lat}
+                    anchor="bottom"
+                    onClick={(e) => {
+                      e.originalEvent.stopPropagation();
+                      removeWaypoint(waypoint.id);
+                    }}
+                  >
+                    <div style={{
+                      backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : tokens.colors.electricLime,
+                      color: 'white',
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 600,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      border: '2px solid white',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                    }}>
+                      {index + 1}
+                    </div>
+                  </Marker>
+                ))}
+              </Map>
+            ) : (
+              <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                <Text>Map requires MAPBOX_TOKEN</Text>
+              </Box>
+            )}
+
+            {/* Mobile search bar - top center */}
+            {MAPBOX_TOKEN && (
+              <Box
+                style={{
+                  position: 'absolute',
+                  top: 16,
+                  left: 16,
+                  right: 16,
+                  zIndex: 10,
+                  display: 'flex',
+                  gap: 8,
+                }}
+              >
+                <TextInput
+                  placeholder="Search location..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    handleAddressSearch(e.target.value);
+                  }}
+                  leftSection={<IconSearch size={16} />}
+                  rightSection={searchQuery ? (
+                    <IconX size={16} style={{ cursor: 'pointer' }} onClick={() => { setSearchQuery(''); setSearchResults([]); }} />
+                  ) : null}
+                  style={{ flex: 1 }}
+                  styles={{ input: { backgroundColor: tokens.colors.bgSecondary } }}
+                />
+                <Tooltip label="My Location">
+                  <Button variant="filled" color="lime" size="md" onClick={handleGeolocate} loading={isLocating} style={{ padding: '0 12px' }}>
+                    <IconCurrentLocation size={20} />
+                  </Button>
+                </Tooltip>
+              </Box>
+            )}
+
+            {/* Search results dropdown */}
+            {searchResults.length > 0 && (
+              <Paper
+                shadow="md"
+                style={{
+                  position: 'absolute',
+                  top: 70,
+                  left: 16,
+                  right: 16,
+                  zIndex: 10,
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                  backgroundColor: tokens.colors.bgSecondary,
+                }}
+              >
+                {searchResults.map((result, index) => (
+                  <Box
+                    key={index}
+                    p="sm"
+                    style={{ cursor: 'pointer', borderBottom: `1px solid ${tokens.colors.bgTertiary}` }}
+                    onClick={() => handleSelectSearchResult(result)}
+                  >
+                    <Text size="sm">{result.place_name}</Text>
+                  </Box>
+                ))}
+              </Paper>
+            )}
+          </Box>
+
+          {/* Bottom Sheet with controls */}
+          <BottomSheet
+            peekContent={renderPeekContent()}
+            peekHeight={100}
+            expandedHeight="75vh"
+          >
+            {renderControls()}
+          </BottomSheet>
+        </Box>
+
+        {/* Preferences Modal */}
+        <PreferenceSettings opened={preferencesOpen} onClose={() => setPreferencesOpen(false)} />
+      </AppShell>
+    );
+  }
+
+  // Desktop layout
   return (
     <AppShell fullWidth>
       <Box style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
@@ -1012,6 +1472,7 @@ function RouteBuilder() {
             borderRight: `1px solid ${tokens.colors.bgTertiary}`,
             display: 'flex',
             flexDirection: 'column',
+            overflowY: 'auto',
           }}
           radius={0}
           p="md"

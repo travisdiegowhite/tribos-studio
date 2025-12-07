@@ -1,20 +1,34 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Box, Group, Text, UnstyledButton, Container } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
+import {
+  IconHome,
+  IconRoute,
+  IconChartBar,
+  IconSettings,
+} from '@tabler/icons-react';
 import { tokens } from '../theme';
 
 const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: '🏠' },
-  { path: '/routes', label: 'Routes', icon: '🗺️' },
-  { path: '/training', label: 'Training', icon: '📊' },
-  { path: '/settings', label: 'Settings', icon: '⚙️' },
+  { path: '/dashboard', label: 'Home', icon: IconHome },
+  { path: '/routes', label: 'Routes', icon: IconRoute },
+  { path: '/training', label: 'Training', icon: IconChartBar },
+  { path: '/settings', label: 'Settings', icon: IconSettings },
 ];
 
-function AppShell({ children, fullWidth = false }) {
+function AppShell({ children, fullWidth = false, hideNav = false }) {
   const location = useLocation();
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   return (
-    <Box style={{ minHeight: '100vh', backgroundColor: tokens.colors.bgPrimary }}>
-      {/* Header */}
+    <Box
+      style={{
+        minHeight: '100vh',
+        backgroundColor: tokens.colors.bgPrimary,
+        paddingBottom: isMobile && !hideNav ? 70 : 0, // Space for bottom nav
+      }}
+    >
+      {/* Header - simplified on mobile */}
       <Box
         component="header"
         style={{
@@ -42,29 +56,61 @@ function AppShell({ children, fullWidth = false }) {
               </Text>
             </Link>
 
-            {/* Navigation */}
-            <Group gap="xs">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  label={item.label}
-                  icon={item.icon}
-                  active={location.pathname === item.path || location.pathname.startsWith(item.path + '/')}
-                />
-              ))}
-            </Group>
+            {/* Desktop Navigation - hidden on mobile */}
+            {!isMobile && (
+              <Group gap="xs">
+                {navItems.map((item) => (
+                  <DesktopNavLink
+                    key={item.path}
+                    to={item.path}
+                    label={item.label}
+                    icon={item.icon}
+                    active={location.pathname === item.path || location.pathname.startsWith(item.path + '/')}
+                  />
+                ))}
+              </Group>
+            )}
           </Group>
         </Container>
       </Box>
 
       {/* Main content */}
       <Box component="main">{children}</Box>
+
+      {/* Mobile Bottom Tab Bar */}
+      {isMobile && !hideNav && (
+        <Box
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 70,
+            backgroundColor: tokens.colors.bgSecondary,
+            borderTop: `1px solid ${tokens.colors.bgTertiary}`,
+            zIndex: 100,
+            display: 'flex',
+            justifyContent: 'space-around',
+            alignItems: 'center',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)', // iOS safe area
+          }}
+        >
+          {navItems.map((item) => (
+            <MobileNavLink
+              key={item.path}
+              to={item.path}
+              label={item.label}
+              icon={item.icon}
+              active={location.pathname === item.path || location.pathname.startsWith(item.path + '/')}
+            />
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }
 
-function NavLink({ to, label, icon, active }) {
+function DesktopNavLink({ to, label, icon: Icon, active }) {
   return (
     <UnstyledButton
       component={Link}
@@ -87,7 +133,7 @@ function NavLink({ to, label, icon, active }) {
       }}
     >
       <Group gap="xs">
-        <Text size="sm">{icon}</Text>
+        <Icon size={18} color={active ? tokens.colors.electricLime : tokens.colors.textSecondary} />
         <Text
           size="sm"
           fw={active ? 600 : 400}
@@ -96,6 +142,39 @@ function NavLink({ to, label, icon, active }) {
           {label}
         </Text>
       </Group>
+    </UnstyledButton>
+  );
+}
+
+function MobileNavLink({ to, label, icon: Icon, active }) {
+  return (
+    <UnstyledButton
+      component={Link}
+      to={to}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '8px 16px',
+        flex: 1,
+        gap: 4,
+      }}
+    >
+      <Icon
+        size={24}
+        color={active ? tokens.colors.electricLime : tokens.colors.textSecondary}
+        stroke={active ? 2 : 1.5}
+      />
+      <Text
+        size="xs"
+        fw={active ? 600 : 400}
+        style={{
+          color: active ? tokens.colors.electricLime : tokens.colors.textSecondary,
+        }}
+      >
+        {label}
+      </Text>
     </UnstyledButton>
   );
 }
