@@ -36,6 +36,7 @@ function Settings() {
   const [stravaSyncing, setStravaSyncing] = useState(false);
   const [speedProfile, setSpeedProfile] = useState(null);
   const [garminStatus, setGarminStatus] = useState({ connected: false, loading: true });
+  const [garminWebhookStatus, setGarminWebhookStatus] = useState(null);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
   const [showImportWizard, setShowImportWizard] = useState(false);
 
@@ -301,6 +302,7 @@ function Settings() {
     try {
       await garminService.disconnect();
       setGarminStatus({ connected: false, loading: false });
+      setGarminWebhookStatus(null);
       notifications.show({
         title: 'Disconnected',
         message: 'Garmin has been disconnected',
@@ -311,6 +313,21 @@ function Settings() {
       notifications.show({
         title: 'Error',
         message: 'Failed to disconnect Garmin',
+        color: 'red',
+      });
+    }
+  };
+
+  const checkGarminWebhookStatus = async () => {
+    try {
+      const status = await garminService.getWebhookStatus();
+      setGarminWebhookStatus(status.stats);
+      console.log('Garmin Webhook Status:', status.stats);
+    } catch (error) {
+      console.error('Error checking Garmin webhook status:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to check webhook status',
         color: 'red',
       });
     }
@@ -583,6 +600,8 @@ function Settings() {
                 loading={garminStatus.loading}
                 onConnect={connectGarmin}
                 onDisconnect={disconnectGarmin}
+                onCheckWebhook={checkGarminWebhookStatus}
+                webhookStatus={garminWebhookStatus}
               />
 
               <Divider />
@@ -648,7 +667,7 @@ function Settings() {
   );
 }
 
-function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile }) {
+function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus }) {
   if (loading) {
     return (
       <Group justify="space-between">
@@ -728,6 +747,79 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
               {syncing ? 'Syncing...' : 'Sync Activities'}
             </Button>
           </Group>
+        </Box>
+      )}
+
+      {/* Webhook Status (for Garmin when connected) */}
+      {connected && onCheckWebhook && (
+        <Box
+          style={{
+            backgroundColor: tokens.colors.bgTertiary,
+            padding: tokens.spacing.sm,
+            borderRadius: tokens.radius.sm,
+            marginLeft: '2.5rem'
+          }}
+        >
+          <Stack gap="xs">
+            <Group justify="space-between" align="flex-start">
+              <Box>
+                <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
+                  Webhook Status
+                </Text>
+                <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                  Auto-sync when you complete rides
+                </Text>
+              </Box>
+              <Button
+                size="xs"
+                color="cyan"
+                variant="light"
+                onClick={onCheckWebhook}
+              >
+                Check Status
+              </Button>
+            </Group>
+            {webhookStatus && (
+              <Box
+                style={{
+                  backgroundColor: tokens.colors.bgSecondary,
+                  padding: tokens.spacing.xs,
+                  borderRadius: tokens.radius.xs,
+                  fontSize: '12px'
+                }}
+              >
+                <Stack gap={4}>
+                  <Group gap="xs">
+                    <Text size="xs" style={{ color: tokens.colors.textSecondary }}>Garmin User ID:</Text>
+                    <Text size="xs" style={{ color: webhookStatus.integration?.hasGarminUserId ? tokens.colors.electricLime : 'red' }}>
+                      {webhookStatus.integration?.hasGarminUserId ? '✓ Set' : '✗ Missing'}
+                    </Text>
+                  </Group>
+                  <Group gap="xs">
+                    <Text size="xs" style={{ color: tokens.colors.textSecondary }}>Token Valid:</Text>
+                    <Text size="xs" style={{ color: webhookStatus.integration?.tokenValid ? tokens.colors.electricLime : 'red' }}>
+                      {webhookStatus.integration?.tokenValid ? '✓ Yes' : '✗ Expired'}
+                    </Text>
+                  </Group>
+                  <Group gap="xs">
+                    <Text size="xs" style={{ color: tokens.colors.textSecondary }}>Webhooks Received:</Text>
+                    <Text size="xs" style={{ color: tokens.colors.textPrimary }}>
+                      {webhookStatus.webhookStats?.totalEvents || 0}
+                    </Text>
+                  </Group>
+                  {webhookStatus.diagnostics?.troubleshooting?.length > 0 && (
+                    <Box style={{ marginTop: 4 }}>
+                      {webhookStatus.diagnostics.troubleshooting.map((tip, i) => (
+                        <Text key={i} size="xs" style={{ color: 'orange' }}>
+                          ⚠ {tip}
+                        </Text>
+                      ))}
+                    </Box>
+                  )}
+                </Stack>
+              </Box>
+            )}
+          </Stack>
         </Box>
       )}
     </Stack>
