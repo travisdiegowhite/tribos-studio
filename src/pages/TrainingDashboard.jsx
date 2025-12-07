@@ -195,7 +195,7 @@ function TrainingDashboard() {
           .from('health_metrics')
           .select('*')
           .eq('user_id', user.id)
-          .eq('metric_date', today)
+          .eq('recorded_date', today)
           .single();
 
         if (healthData) setTodayHealthMetrics(healthData);

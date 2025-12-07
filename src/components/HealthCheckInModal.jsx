@@ -94,11 +94,11 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         .from('health_metrics')
         .upsert({
           user_id: user.id,
-          metric_date: today,
+          recorded_date: today,
           source: 'manual',
           ...formData,
         }, {
-          onConflict: 'user_id,metric_date',
+          onConflict: 'user_id,recorded_date',
         })
         .select()
         .single();
