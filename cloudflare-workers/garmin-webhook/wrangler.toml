@@ -1,0 +1,16 @@
+name = "garmin-webhook"
+main = "src/index.js"
+compatibility_date = "2025-01-15"
+
+# Environment variables (set these in Cloudflare dashboard or wrangler)
+# SUPABASE_URL - Your Supabase project URL
+# SUPABASE_SERVICE_KEY - Your Supabase service_role key
+# GARMIN_CONSUMER_KEY - Garmin OAuth client ID
+# GARMIN_CONSUMER_SECRET - Garmin OAuth client secret
+# GARMIN_WEBHOOK_SECRET (optional) - Webhook signature verification secret
+
+# Free plan automatically gets 10ms CPU limit
+# Paid plan ($5/month) gets 30s CPU limit
+
+# Or use workers.dev subdomain for free
+# URL will be: https://garmin-webhook.<your-subdomain>.workers.dev
