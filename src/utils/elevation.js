@@ -2,31 +2,33 @@
 // Provides accurate elevation data for cycling routes
 
 /**
- * Fetch elevation data using OpenTopoData API (free, reliable)
- * Uses SRTM 30m resolution data
+ * Fetch elevation data via our API proxy (avoids CORS issues)
+ * Uses OpenTopoData SRTM 30m resolution data
  */
-async function fetchElevationFromOpenTopo(coordinates) {
+async function fetchElevationFromAPI(coordinates) {
   try {
-    // OpenTopoData has a limit of 100 locations per request
+    // API has a limit of 100 locations per request
     const maxBatchSize = 100;
     const results = [];
 
     for (let i = 0; i < coordinates.length; i += maxBatchSize) {
       const batch = coordinates.slice(i, i + maxBatchSize);
-      const locations = batch.map(([lon, lat]) => `${lat},${lon}`).join('|');
 
-      const url = `https://api.opentopodata.org/v1/srtm30m?locations=${locations}`;
+      const response = await fetch('/api/elevation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ coordinates: batch }),
+      });
 
-      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        if (data.status === 'OK' && data.results) {
-          results.push(...data.results.map(r => ({
-            lat: r.location.lat,
-            lon: r.location.lng,
-            elevation: r.elevation || 0
-          })));
+        if (data.success && data.results) {
+          results.push(...data.results);
         }
+      } else {
+        console.error('Elevation API error:', response.status);
       }
 
       // Small delay between batches to be respectful to the API
@@ -37,7 +39,7 @@ async function fetchElevationFromOpenTopo(coordinates) {
 
     return results.length > 0 ? results : null;
   } catch (error) {
-    console.error('OpenTopoData API failed:', error);
+    console.error('Elevation API failed:', error);
     return null;
   }
 }
@@ -161,9 +163,9 @@ export async function getElevationData(coordinates) {
     console.log(`📉 Downsampled from ${coordinates.length} to ${sampledCoords.length} points`);
   }
 
-  // Fetch elevation from OpenTopoData
-  console.log('🏔️ Fetching elevation from OpenTopoData...');
-  const elevationData = await fetchElevationFromOpenTopo(sampledCoords);
+  // Fetch elevation via API proxy
+  console.log('🏔️ Fetching elevation data...');
+  const elevationData = await fetchElevationFromAPI(sampledCoords);
 
   if (!elevationData || elevationData.length === 0) {
     console.warn('⚠️ Failed to fetch elevation data');
