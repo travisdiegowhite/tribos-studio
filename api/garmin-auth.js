@@ -256,12 +256,14 @@ async function exchangeToken(req, res, userId, code, state) {
     }
 
     console.log('Exchanging authorization code for tokens...');
+    const secret = process.env.GARMIN_CONSUMER_SECRET || '';
     console.log('Token exchange debug:', {
-      client_id: process.env.GARMIN_CONSUMER_KEY?.slice(0, 8) + '...',
-      client_secret_present: !!process.env.GARMIN_CONSUMER_SECRET,
-      client_secret_length: process.env.GARMIN_CONSUMER_SECRET?.length,
+      client_id: process.env.GARMIN_CONSUMER_KEY,
+      client_secret_first4: secret.slice(0, 4),
+      client_secret_last4: secret.slice(-4),
+      client_secret_length: secret.length,
       code: code?.slice(0, 8) + '...',
-      code_verifier_length: codeVerifier?.length,
+      code_verifier: codeVerifier,
       redirect_uri: callbackUrl
     });
 
