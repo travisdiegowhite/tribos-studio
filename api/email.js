@@ -302,65 +302,66 @@ function getBetaNotifyEmailHtml() {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>You're on the Tribos.Studio Beta List!</title>
+  <title>Welcome to Tribos.Studio Beta</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #1a1a2e;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #1a1a2e; padding: 40px 0;">
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #121212;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #121212; padding: 40px 0;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #252540; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #1a1a1a; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+          <!-- Header -->
           <tr>
-            <td style="background: linear-gradient(135deg, #10b981 0%, #22d3ee 100%); padding: 50px 40px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; line-height: 1.3;">You're on the Beta List!</h1>
-              <p style="margin: 15px 0 0; color: rgba(255,255,255,0.9); font-size: 18px; font-weight: 400;">Thanks for your interest in Tribos.Studio</p>
+            <td style="padding: 30px 40px; text-align: center; border-bottom: 1px solid #222222;">
+              <p style="margin: 0; color: #32CD32; font-size: 18px; font-weight: 700; letter-spacing: 0.1em;">TRIBOS.STUDIO</p>
             </td>
           </tr>
+          <!-- Hero -->
           <tr>
-            <td style="padding: 50px 40px;">
-              <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%); border-left: 4px solid #10b981; margin: 0 0 35px 0; border-radius: 8px;">
-                <tr>
-                  <td style="padding: 20px;">
-                    <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #d1d5db;"><strong style="color: #10b981;">tribos</strong> (Greek: <em>tribos</em>) - the road less traveled, a path worn by those who venture beyond the ordinary.</p>
-                  </td>
-                </tr>
-              </table>
+            <td style="padding: 50px 40px 30px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; line-height: 1.3;">You're In!</h1>
+              <p style="margin: 15px 0 0; color: #B8B8B8; font-size: 18px; font-weight: 400;">Welcome to the Tribos.Studio beta</p>
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style="padding: 20px 40px 50px;">
+              <p style="margin: 0 0 25px; font-size: 16px; line-height: 1.7; color: #B8B8B8;">Know exactly what ride your body needs today. Training load analytics, smart route planning, and recovery tracking—finally in one place.</p>
 
-              <p style="margin: 0 0 25px; font-size: 16px; line-height: 1.7; color: #d1d5db;">I'm building something different for cyclists who want more than cookie-cutter routes and generic training plans.</p>
-
-              <h2 style="margin: 30px 0 15px; font-size: 18px; font-weight: 600; color: #ffffff;">What Tribos.Studio Will Offer:</h2>
-              <ul style="margin: 0 0 25px; padding-left: 20px; font-size: 15px; line-height: 2; color: #d1d5db;">
-                <li><strong style="color: #10b981;">AI-powered route generation</strong> - describe your ideal ride in plain English</li>
-                <li><strong style="color: #10b981;">Training-aware routes</strong> - routes designed around your workout goals</li>
-                <li><strong style="color: #10b981;">Strava & Garmin integration</strong> - sync your ride history for personalized suggestions</li>
-                <li><strong style="color: #10b981;">Professional route builder</strong> - elevation profiles, surface types, and more</li>
+              <h2 style="margin: 30px 0 15px; font-size: 18px; font-weight: 600; color: #ffffff;">What you'll get:</h2>
+              <ul style="margin: 0 0 25px; padding-left: 20px; font-size: 15px; line-height: 2; color: #B8B8B8;">
+                <li><strong style="color: #32CD32;">Training analytics that guide you</strong> - CTL, ATL, TSB explained with daily recommendations</li>
+                <li><strong style="color: #32CD32;">Smart route planning</strong> - AI-powered routes based on your fitness and goals</li>
+                <li><strong style="color: #32CD32;">Recovery tracking</strong> - Log sleep, HRV, and readiness for smarter training</li>
+                <li><strong style="color: #32CD32;">Strava & Garmin sync</strong> - Auto-import rides and export routes to your devices</li>
               </ul>
 
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                 <tr>
                   <td align="center">
-                    <a href="https://www.tribos.studio/auth" style="display: inline-block; padding: 16px 32px; background: linear-gradient(135deg, #10b981 0%, #22d3ee 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Create Your Account</a>
+                    <a href="https://www.tribos.studio/auth" style="display: inline-block; padding: 16px 32px; background-color: #32CD32; color: #121212; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Create Your Account</a>
                   </td>
                 </tr>
               </table>
 
-              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #1e1e35; border-radius: 8px; margin: 30px 0;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #222222; border-radius: 8px; margin: 30px 0;">
                 <tr>
                   <td style="padding: 25px;">
                     <p style="margin: 0 0 10px; font-size: 16px; font-weight: 600; color: #ffffff;">What happens next?</p>
-                    <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #9ca3af;">Create your account to get immediate access to Tribos.Studio. As a beta user, you'll get early access to new features and direct influence on what we build next.</p>
+                    <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #999999;">Create your account to get immediate access. As a beta user, you'll get early access to new features and direct influence on what we build next.</p>
                   </td>
                 </tr>
               </table>
 
-              <p style="margin: 25px 0 5px; font-size: 16px; line-height: 1.6; color: #d1d5db;">Looking forward to riding smarter together,</p>
+              <p style="margin: 25px 0 5px; font-size: 16px; line-height: 1.6; color: #B8B8B8;">Looking forward to riding smarter together,</p>
               <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #ffffff; font-weight: 600;">Travis</p>
-              <p style="margin: 5px 0 0; font-size: 14px; color: #9ca3af;">Founder, Tribos.Studio</p>
+              <p style="margin: 5px 0 0; font-size: 14px; color: #999999;">Founder, Tribos.Studio</p>
             </td>
           </tr>
+          <!-- Footer -->
           <tr>
-            <td style="background-color: #1e1e35; padding: 30px 40px; text-align: center; border-radius: 0 0 12px 12px;">
-              <p style="margin: 0 0 10px; font-size: 14px; color: #9ca3af;"><strong style="color: #d1d5db;">Tribos.Studio</strong> - Discover the road less traveled</p>
-              <p style="margin: 0; font-size: 12px; color: #6b7280;">AI-powered cycling routes and training insights</p>
+            <td style="background-color: #121212; padding: 30px 40px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #222222;">
+              <p style="margin: 0 0 10px; font-size: 14px; color: #999999;"><strong style="color: #32CD32;">tribos.studio</strong></p>
+              <p style="margin: 0; font-size: 12px; color: #666666;">Training load analytics & smart route planning for cyclists</p>
             </td>
           </tr>
         </table>
