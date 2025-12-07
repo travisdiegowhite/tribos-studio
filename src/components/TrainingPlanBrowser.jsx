@@ -16,6 +16,8 @@ import {
   ThemeIcon,
   Timeline,
   Alert,
+  Menu,
+  ActionIcon,
 } from '@mantine/core';
 import {
   IconTarget,
@@ -26,6 +28,11 @@ import {
   IconChevronRight,
   IconCheck,
   IconPlayerPlay,
+  IconPlayerPause,
+  IconTrash,
+  IconDotsVertical,
+  IconX,
+  IconRefresh,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
@@ -45,9 +52,154 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [managingPlan, setManagingPlan] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   // Get all plans and filter
   const allPlans = useMemo(() => getAllPlans(), []);
+
+  // Helper to get plan start date (supports both old and new schema)
+  const getPlanStartDate = (plan) => plan?.started_at || plan?.start_date;
+
+  // Calculate plan progress
+  const getPlanProgress = (plan) => {
+    const planStart = getPlanStartDate(plan);
+    if (!planStart) return { week: 1, progress: 0, daysRemaining: 0 };
+
+    const startDate = new Date(planStart);
+    const now = new Date();
+    const daysSinceStart = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
+    const durationWeeks = plan.duration_weeks || 8;
+    const currentWeek = Math.min(Math.floor(daysSinceStart / 7) + 1, durationWeeks);
+    const totalDays = durationWeeks * 7;
+    const progress = Math.min(100, Math.round((daysSinceStart / totalDays) * 100));
+    const daysRemaining = Math.max(0, totalDays - daysSinceStart);
+
+    return { week: currentWeek, progress, daysRemaining };
+  };
+
+  // Pause/Resume plan
+  const handleTogglePause = async () => {
+    if (!activePlan?.id) return;
+    setManagingPlan(true);
+
+    try {
+      const newStatus = activePlan.status === 'paused' ? 'active' : 'paused';
+      const updates = {
+        status: newStatus,
+        paused_at: newStatus === 'paused' ? new Date().toISOString() : null,
+      };
+
+      const { error } = await supabase
+        .from('training_plans')
+        .update(updates)
+        .eq('id', activePlan.id);
+
+      if (error) throw error;
+
+      notifications.show({
+        title: newStatus === 'paused' ? 'Plan Paused' : 'Plan Resumed',
+        message: newStatus === 'paused'
+          ? 'Your training plan has been paused. Resume when ready.'
+          : 'Your training plan is now active again!',
+        color: newStatus === 'paused' ? 'yellow' : 'lime',
+      });
+
+      if (onPlanActivated) {
+        onPlanActivated({ ...activePlan, ...updates });
+      }
+    } catch (error) {
+      console.error('Failed to toggle plan status:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to update plan status',
+        color: 'red',
+      });
+    } finally {
+      setManagingPlan(false);
+    }
+  };
+
+  // Cancel/Delete plan
+  const handleDeletePlan = async () => {
+    if (!activePlan?.id) return;
+    setManagingPlan(true);
+
+    try {
+      // Delete planned workouts first
+      await supabase
+        .from('planned_workouts')
+        .delete()
+        .eq('plan_id', activePlan.id);
+
+      // Delete the plan
+      const { error } = await supabase
+        .from('training_plans')
+        .delete()
+        .eq('id', activePlan.id);
+
+      if (error) throw error;
+
+      notifications.show({
+        title: 'Plan Removed',
+        message: 'Your training plan has been removed',
+        color: 'gray',
+      });
+
+      setConfirmDeleteOpen(false);
+
+      if (onPlanActivated) {
+        onPlanActivated(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete plan:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to remove plan',
+        color: 'red',
+      });
+    } finally {
+      setManagingPlan(false);
+    }
+  };
+
+  // End plan early (mark as completed)
+  const handleEndPlan = async () => {
+    if (!activePlan?.id) return;
+    setManagingPlan(true);
+
+    try {
+      const { error } = await supabase
+        .from('training_plans')
+        .update({
+          status: 'completed',
+          ended_at: new Date().toISOString(),
+        })
+        .eq('id', activePlan.id);
+
+      if (error) throw error;
+
+      notifications.show({
+        title: 'Plan Completed',
+        message: 'Great work! Your training plan has been marked as complete.',
+        color: 'lime',
+        icon: <IconCheck size={16} />,
+      });
+
+      if (onPlanActivated) {
+        onPlanActivated(null);
+      }
+    } catch (error) {
+      console.error('Failed to end plan:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to complete plan',
+        color: 'red',
+      });
+    } finally {
+      setManagingPlan(false);
+    }
+  };
 
   const filteredPlans = useMemo(() => {
     if (filter === 'all') return allPlans;
@@ -107,11 +259,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           user_id: user.id,
           template_id: plan.id,
           name: plan.name,
+          description: plan.description,
           duration_weeks: plan.duration,
           methodology: plan.methodology,
           goal: plan.goal,
           fitness_level: plan.fitnessLevel,
           started_at: startDate.toISOString(),
+          start_date: startDate.toISOString().split('T')[0], // For backward compatibility
           status: 'active',
         })
         .select()
@@ -484,25 +638,110 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         ))}
       </Group>
 
-      {/* Active Plan Banner */}
+      {/* Active Plan Card with Management */}
       {activePlan && (
-        <Alert
-          icon={<IconPlayerPlay size={16} />}
-          color="lime"
-          variant="light"
-          mb="md"
-        >
-          <Group justify="space-between">
-            <Box>
-              <Text size="sm" fw={500}>Active Plan: {activePlan.name}</Text>
-              <Text size="xs" c="dimmed">
-                Started {new Date(activePlan.started_at).toLocaleDateString()}
-              </Text>
-            </Box>
-            <Badge color="lime">{activePlan.status}</Badge>
+        <Card withBorder mb="md" p="md" style={{ borderColor: tokens.colors.electricLime, borderWidth: 2 }}>
+          <Group justify="space-between" mb="sm">
+            <Group gap="sm">
+              <ThemeIcon size="lg" color="lime" variant="light">
+                <IconPlayerPlay size={18} />
+              </ThemeIcon>
+              <Box>
+                <Text fw={600}>{activePlan.name}</Text>
+                <Text size="xs" c="dimmed">
+                  Started {getPlanStartDate(activePlan) ? new Date(getPlanStartDate(activePlan)).toLocaleDateString() : 'Not started'}
+                </Text>
+              </Box>
+            </Group>
+
+            <Group gap="xs">
+              <Badge
+                color={activePlan.status === 'paused' ? 'yellow' : 'lime'}
+                variant="filled"
+              >
+                {activePlan.status === 'paused' ? 'Paused' : 'Active'}
+              </Badge>
+
+              <Menu shadow="md" width={200} position="bottom-end">
+                <Menu.Target>
+                  <ActionIcon variant="subtle" color="gray">
+                    <IconDotsVertical size={16} />
+                  </ActionIcon>
+                </Menu.Target>
+
+                <Menu.Dropdown>
+                  <Menu.Label>Plan Actions</Menu.Label>
+                  <Menu.Item
+                    leftSection={activePlan.status === 'paused' ? <IconPlayerPlay size={14} /> : <IconPlayerPause size={14} />}
+                    onClick={handleTogglePause}
+                    disabled={managingPlan}
+                  >
+                    {activePlan.status === 'paused' ? 'Resume Plan' : 'Pause Plan'}
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconCheck size={14} />}
+                    onClick={handleEndPlan}
+                    disabled={managingPlan}
+                  >
+                    Mark as Complete
+                  </Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item
+                    color="red"
+                    leftSection={<IconTrash size={14} />}
+                    onClick={() => setConfirmDeleteOpen(true)}
+                    disabled={managingPlan}
+                  >
+                    Remove Plan
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
           </Group>
-        </Alert>
+
+          {/* Progress Bar */}
+          {(() => {
+            const { week, progress, daysRemaining } = getPlanProgress(activePlan);
+            return (
+              <Box>
+                <Group justify="space-between" mb={4}>
+                  <Text size="xs" c="dimmed">Week {week} of {activePlan.duration_weeks}</Text>
+                  <Text size="xs" c="dimmed">{daysRemaining} days remaining</Text>
+                </Group>
+                <Progress value={progress} color="lime" size="sm" radius="xl" />
+                {activePlan.compliance_percentage > 0 && (
+                  <Text size="xs" c="dimmed" mt={4}>
+                    Compliance: {Math.round(activePlan.compliance_percentage)}% ({activePlan.workouts_completed}/{activePlan.workouts_total} workouts)
+                  </Text>
+                )}
+              </Box>
+            );
+          })()}
+        </Card>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        opened={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        title="Remove Training Plan"
+        centered
+        size="sm"
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            Are you sure you want to remove "{activePlan?.name}"? This will delete all scheduled workouts and cannot be undone.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="subtle" onClick={() => setConfirmDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={handleDeletePlan} loading={managingPlan}>
+              Remove Plan
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {/* Plan Grid */}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
