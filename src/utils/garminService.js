@@ -253,6 +253,37 @@ export class GarminService {
       throw error;
     }
   }
+
+  /**
+   * Get webhook status and diagnostics
+   */
+  async getWebhookStatus() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-webhook-status`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get webhook status');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error getting webhook status:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance
