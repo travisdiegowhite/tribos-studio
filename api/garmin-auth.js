@@ -11,9 +11,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// Garmin Connect OAuth 2.0 endpoints
-const GARMIN_AUTHORIZE_URL = 'https://connect.garmin.com/oauthConfirm';
-const GARMIN_TOKEN_URL = 'https://connectapi.garmin.com/oauth-service/oauth/token';
+// Garmin Connect OAuth 2.0 endpoints (from official PKCE spec)
+const GARMIN_AUTHORIZE_URL = 'https://connect.garmin.com/oauth2Confirm';
+const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oauth/token';
 const GARMIN_API_BASE = 'https://apis.garmin.com';
 
 const getAllowedOrigins = () => {
