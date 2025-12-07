@@ -151,9 +151,7 @@ async function getWebhookStats(userId) {
       : false;
 
     return {
-      webhookEndpoint: process.env.NODE_ENV === 'production'
-        ? 'https://tribos-studio.vercel.app/api/garmin-webhook'
-        : 'http://localhost:3000/api/garmin-webhook',
+      webhookEndpoint: 'https://www.tribos.studio/api/garmin-webhook',
       integration: integration ? {
         garminUserId: integration.provider_user_id,
         hasGarminUserId: !!integration.provider_user_id,
