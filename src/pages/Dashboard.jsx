@@ -66,8 +66,8 @@ function Dashboard() {
   // Get display name from loaded profile
   const displayName = userProfile?.full_name || user?.email?.split('@')[0] || 'Rider';
 
-  // Get user's unit preference from loaded profile
-  const isImperial = userProfile?.units_preference === 'imperial';
+  // Get user's unit preference from loaded profile (default to imperial if not set)
+  const isImperial = userProfile?.units_preference !== 'metric';
   const formatDist = (km) => formatDistance(km, isImperial);
   const formatElev = (m) => formatElevation(m, isImperial);
 
