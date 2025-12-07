@@ -1823,17 +1823,6 @@ function RouteBuilder() {
               <IntervalCues cues={intervalCues} formatDistance={formatDist} />
             )}
 
-            {/* Elevation Profile */}
-            {routeGeometry?.coordinates && routeGeometry.coordinates.length > 1 && (
-              <ElevationProfile
-                coordinates={routeGeometry.coordinates}
-                elevationGain={routeStats.elevation}
-                isImperial={isImperial}
-                height={120}
-                showStats={true}
-              />
-            )}
-
             {/* Instructions */}
             <Box style={{ flex: 1 }}>
               <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="sm">
@@ -2117,6 +2106,15 @@ function RouteBuilder() {
         opened={preferencesOpen}
         onClose={() => setPreferencesOpen(false)}
       />
+
+      {/* Elevation Profile - Fixed at bottom of screen */}
+      {routeGeometry?.coordinates && routeGeometry.coordinates.length > 1 && (
+        <ElevationProfile
+          coordinates={routeGeometry.coordinates}
+          totalDistance={routeStats.distance}
+          isImperial={isImperial}
+        />
+      )}
     </AppShell>
   );
 }

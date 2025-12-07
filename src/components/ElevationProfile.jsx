@@ -1,368 +1,326 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Card, Text, Group, Skeleton, Stack, Box } from '@mantine/core';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+import { Paper, Text, Group, Badge, Stack, Box, Skeleton, Loader } from '@mantine/core';
 import { tokens } from '../theme';
-
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-
-/**
- * Fetch elevation data for a set of coordinates using Mapbox Tilequery API
- * Samples the route at regular intervals to avoid too many API calls
- */
-async function fetchElevationData(coordinates, maxPoints = 100) {
-  if (!MAPBOX_TOKEN || !coordinates || coordinates.length < 2) {
-    return null;
-  }
-
-  // Sample coordinates at regular intervals if there are too many points
-  const step = Math.max(1, Math.floor(coordinates.length / maxPoints));
-  const sampledCoords = [];
-  for (let i = 0; i < coordinates.length; i += step) {
-    sampledCoords.push(coordinates[i]);
-  }
-  // Always include the last point
-  if (sampledCoords[sampledCoords.length - 1] !== coordinates[coordinates.length - 1]) {
-    sampledCoords.push(coordinates[coordinates.length - 1]);
-  }
-
-  try {
-    // Fetch elevation for each sampled point using Mapbox Tilequery
-    const elevationPromises = sampledCoords.map(async ([lng, lat], index) => {
-      // Use Mapbox Terrain-DEM tileset for elevation
-      const url = `https://api.mapbox.com/v4/mapbox.mapbox-terrain-v2/tilequery/${lng},${lat}.json?layers=contour&access_token=${MAPBOX_TOKEN}`;
-
-      try {
-        const response = await fetch(url);
-        if (!response.ok) return { index, elevation: null };
-
-        const data = await response.json();
-        // Get the closest contour elevation
-        if (data.features && data.features.length > 0) {
-          // Find the feature with elevation data
-          const elevFeature = data.features.find(f => f.properties?.ele !== undefined);
-          return {
-            index,
-            lng,
-            lat,
-            elevation: elevFeature?.properties?.ele || null
-          };
-        }
-        return { index, lng, lat, elevation: null };
-      } catch {
-        return { index, lng, lat, elevation: null };
-      }
-    });
-
-    const results = await Promise.all(elevationPromises);
-    return results;
-  } catch (error) {
-    console.error('Error fetching elevation data:', error);
-    return null;
-  }
-}
+import { getElevationData, calculateElevationStats } from '../utils/elevation';
+import { formatDistance, formatElevation } from '../utils/units';
 
 /**
- * Calculate cumulative distance along a route
- */
-function calculateDistances(coordinates) {
-  const distances = [0];
-  let totalDistance = 0;
-
-  for (let i = 1; i < coordinates.length; i++) {
-    const [lng1, lat1] = coordinates[i - 1];
-    const [lng2, lat2] = coordinates[i];
-
-    // Haversine formula for distance
-    const R = 6371; // Earth's radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLng / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const segmentDistance = R * c;
-
-    totalDistance += segmentDistance;
-    distances.push(totalDistance);
-  }
-
-  return distances;
-}
-
-/**
- * Generate synthetic elevation data based on total elevation gain
- * Used as fallback when API elevation is unavailable
- */
-function generateSyntheticElevation(coordinates, totalElevationGain, distances) {
-  if (!coordinates || coordinates.length < 2) return null;
-
-  const totalDistance = distances[distances.length - 1];
-  const points = [];
-  const baseElevation = 100; // Starting elevation in meters
-
-  // Create a simple wave pattern that accumulates to the total elevation gain
-  const numWaves = Math.max(1, Math.floor(totalDistance / 10)); // One wave per ~10km
-
-  for (let i = 0; i < coordinates.length; i++) {
-    const progress = distances[i] / totalDistance;
-    // Create undulating terrain
-    const waveElevation = Math.sin(progress * numWaves * Math.PI) * (totalElevationGain / (numWaves * 2));
-    const trendElevation = progress * (totalElevationGain / 2);
-
-    points.push({
-      distance: distances[i],
-      elevation: Math.round(baseElevation + waveElevation + trendElevation),
-      lng: coordinates[i][0],
-      lat: coordinates[i][1],
-    });
-  }
-
-  return points;
-}
-
-/**
- * ElevationProfile Component
- * Displays an elevation profile chart for a route
+ * ElevationProfileBar Component
+ * Displays a fixed bottom bar with elevation profile chart
+ * Uses OpenTopoData API for accurate elevation data
  */
 const ElevationProfile = ({
   coordinates,
-  elevationGain = 0,
-  isImperial = false,
-  height = 150,
-  showStats = true
+  totalDistance = 0, // in km
+  isImperial = true,
+  onStatsUpdate = null,
 }) => {
   const [elevationData, setElevationData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [stats, setStats] = useState(null);
 
-  // Unit conversion helpers
-  const toDisplayElevation = (meters) => isImperial ? Math.round(meters * 3.28084) : Math.round(meters);
-  const toDisplayDistance = (km) => isImperial ? (km * 0.621371).toFixed(1) : km.toFixed(1);
+  // Formatting helpers
+  const formatDist = (km) => formatDistance(km, isImperial);
+  const formatElev = (m) => formatElevation(m, isImperial);
   const elevationUnit = isImperial ? 'ft' : 'm';
-  const distanceUnit = isImperial ? 'mi' : 'km';
 
-  // Calculate distances once
-  const distances = useMemo(() => {
-    if (!coordinates || coordinates.length < 2) return [];
-    return calculateDistances(coordinates);
-  }, [coordinates]);
-
-  // Fetch or generate elevation data
+  // Fetch elevation data when coordinates change
   useEffect(() => {
     if (!coordinates || coordinates.length < 2) {
       setElevationData(null);
+      setStats(null);
       return;
     }
 
-    const loadElevation = async () => {
+    let cancelled = false;
+
+    const fetchData = async () => {
       setLoading(true);
-      setError(null);
 
       try {
-        // First try to fetch real elevation data
-        const apiData = await fetchElevationData(coordinates, 50);
+        const data = await getElevationData(coordinates);
 
-        if (apiData && apiData.some(p => p.elevation !== null)) {
-          // We have some real elevation data
-          const validPoints = apiData.filter(p => p.elevation !== null);
+        if (cancelled) return;
 
-          // Interpolate missing values and map to distances
-          const points = [];
-          let lastValidElevation = validPoints[0]?.elevation || 100;
+        if (data && data.length > 0) {
+          setElevationData(data);
 
-          for (let i = 0; i < apiData.length; i++) {
-            const elevation = apiData[i].elevation ?? lastValidElevation;
-            if (apiData[i].elevation !== null) {
-              lastValidElevation = elevation;
-            }
+          // Calculate stats
+          const calculatedStats = calculateElevationStats(data);
+          setStats(calculatedStats);
 
-            // Find corresponding distance index
-            const step = Math.max(1, Math.floor(coordinates.length / 100));
-            const coordIndex = Math.min(i * step, coordinates.length - 1);
-
-            points.push({
-              distance: distances[coordIndex],
-              elevation,
-              lng: coordinates[coordIndex][0],
-              lat: coordinates[coordIndex][1],
-            });
+          // Notify parent of stats update
+          if (onStatsUpdate) {
+            onStatsUpdate(calculatedStats);
           }
-
-          setElevationData(points);
-        } else {
-          // Fall back to synthetic data
-          const synthetic = generateSyntheticElevation(coordinates, elevationGain || 100, distances);
-          setElevationData(synthetic);
         }
-      } catch (err) {
-        console.error('Error loading elevation:', err);
-        setError('Failed to load elevation data');
-        // Still show synthetic data on error
-        const synthetic = generateSyntheticElevation(coordinates, elevationGain || 100, distances);
-        setElevationData(synthetic);
+      } catch (error) {
+        console.error('Error fetching elevation:', error);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    loadElevation();
-  }, [coordinates, elevationGain, distances]);
+    fetchData();
 
-  // Calculate stats from elevation data
-  const stats = useMemo(() => {
+    return () => {
+      cancelled = true;
+    };
+  }, [coordinates, onStatsUpdate]);
+
+  // Calculate SVG path and chart dimensions
+  const chartConfig = useMemo(() => {
     if (!elevationData || elevationData.length < 2) return null;
 
-    let gain = 0;
-    let loss = 0;
-    let minElevation = elevationData[0].elevation;
-    let maxElevation = elevationData[0].elevation;
+    const padding = 15;
+    const chartHeight = 80;
 
-    for (let i = 1; i < elevationData.length; i++) {
-      const diff = elevationData[i].elevation - elevationData[i - 1].elevation;
-      if (diff > 0) gain += diff;
-      else loss += Math.abs(diff);
+    // Get elevation range
+    const elevations = elevationData.map(p => p.elevation);
+    const minElevation = Math.min(...elevations);
+    const maxElevation = Math.max(...elevations);
+    const elevationRange = Math.max(maxElevation - minElevation, 10);
 
-      minElevation = Math.min(minElevation, elevationData[i].elevation);
-      maxElevation = Math.max(maxElevation, elevationData[i].elevation);
-    }
+    // Add padding to range
+    const chartMin = minElevation - elevationRange * 0.05;
+    const chartMax = maxElevation + elevationRange * 0.05;
+    const chartRange = chartMax - chartMin;
+
+    // Get distance range
+    const maxDistance = elevationData[elevationData.length - 1].distance;
 
     return {
-      gain: Math.round(gain),
-      loss: Math.round(loss),
-      min: Math.round(minElevation),
-      max: Math.round(maxElevation),
+      padding,
+      chartHeight,
+      minElevation,
+      maxElevation,
+      chartMin,
+      chartMax,
+      chartRange,
+      maxDistance,
     };
   }, [elevationData]);
 
-  // Chart data formatted for display
-  const chartData = useMemo(() => {
-    if (!elevationData) return [];
+  // Create SVG path
+  const createPath = (width) => {
+    if (!elevationData || !chartConfig) return { line: '', area: '' };
 
-    return elevationData.map(point => ({
-      ...point,
-      displayDistance: toDisplayDistance(point.distance),
-      displayElevation: toDisplayElevation(point.elevation),
-    }));
-  }, [elevationData, isImperial]);
+    const { padding, chartHeight, chartMin, chartRange, maxDistance } = chartConfig;
+    const chartWidth = width - 2 * padding;
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }) => {
-    if (!active || !payload || payload.length === 0) return null;
+    let linePath = '';
+    let areaPath = '';
 
-    const data = payload[0].payload;
-    return (
-      <Card p="xs" style={{ backgroundColor: tokens.colors.bgSecondary, border: `1px solid ${tokens.colors.bgTertiary}` }}>
-        <Stack gap={4}>
-          <Text size="xs" fw={600} style={{ color: tokens.colors.textPrimary }}>
-            {data.displayElevation} {elevationUnit}
-          </Text>
-          <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-            {data.displayDistance} {distanceUnit}
-          </Text>
-        </Stack>
-      </Card>
-    );
+    elevationData.forEach((point, index) => {
+      const x = padding + (point.distance / maxDistance) * chartWidth;
+      const y = chartHeight - padding - ((point.elevation - chartMin) / chartRange) * (chartHeight - 2 * padding);
+
+      if (index === 0) {
+        linePath += `M ${x} ${y}`;
+      } else {
+        // Smooth curve
+        const prevPoint = elevationData[index - 1];
+        const prevX = padding + (prevPoint.distance / maxDistance) * chartWidth;
+        const prevY = chartHeight - padding - ((prevPoint.elevation - chartMin) / chartRange) * (chartHeight - 2 * padding);
+
+        const cpX1 = prevX + (x - prevX) * 0.4;
+        const cpX2 = prevX + (x - prevX) * 0.6;
+
+        linePath += ` C ${cpX1} ${prevY}, ${cpX2} ${y}, ${x} ${y}`;
+      }
+    });
+
+    // Create area path (close the path at the bottom)
+    const lastX = padding + chartWidth;
+    const firstX = padding;
+    areaPath = linePath + ` L ${lastX} ${chartHeight - padding} L ${firstX} ${chartHeight - padding} Z`;
+
+    return { line: linePath, area: areaPath };
   };
 
-  // Loading state
-  if (loading) {
-    return (
-      <Card p="md">
-        <Stack gap="sm">
-          <Skeleton height={12} width="30%" />
-          <Skeleton height={height} />
-        </Stack>
-      </Card>
-    );
-  }
-
-  // No data state
+  // Don't render if no coordinates
   if (!coordinates || coordinates.length < 2) {
     return null;
   }
 
-  return (
-    <Card p="md">
-      <Stack gap="sm">
-        <Group justify="space-between">
-          <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
-            Elevation Profile
+  // Loading state
+  if (loading && !elevationData) {
+    return (
+      <Paper
+        shadow="md"
+        p="sm"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100,
+          backgroundColor: tokens.colors.bgSecondary,
+          borderRadius: '12px 12px 0 0',
+          borderTop: `1px solid ${tokens.colors.bgTertiary}`,
+        }}
+      >
+        <Group justify="center" gap="sm" py="md">
+          <Loader size="sm" color="lime" />
+          <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+            Loading elevation profile...
           </Text>
-          {showStats && stats && (
-            <Group gap="md">
-              <Box>
-                <Text size="xs" style={{ color: tokens.colors.textMuted }}>Gain</Text>
-                <Text size="sm" fw={600} style={{ color: tokens.colors.success }}>
-                  +{toDisplayElevation(stats.gain)} {elevationUnit}
-                </Text>
-              </Box>
-              <Box>
-                <Text size="xs" style={{ color: tokens.colors.textMuted }}>Loss</Text>
-                <Text size="sm" fw={600} style={{ color: tokens.colors.error }}>
-                  -{toDisplayElevation(stats.loss)} {elevationUnit}
-                </Text>
-              </Box>
-              <Box>
-                <Text size="xs" style={{ color: tokens.colors.textMuted }}>Range</Text>
-                <Text size="sm" fw={600} style={{ color: tokens.colors.textSecondary }}>
-                  {toDisplayElevation(stats.min)}-{toDisplayElevation(stats.max)} {elevationUnit}
-                </Text>
-              </Box>
-            </Group>
-          )}
+        </Group>
+      </Paper>
+    );
+  }
+
+  // No data state
+  if (!elevationData || !chartConfig) {
+    return null;
+  }
+
+  const svgWidth = 800;
+  const { line, area } = createPath(svgWidth);
+
+  return (
+    <Paper
+      shadow="md"
+      p="sm"
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
+        backgroundColor: tokens.colors.bgSecondary,
+        borderRadius: '12px 12px 0 0',
+        borderTop: `1px solid ${tokens.colors.bgTertiary}`,
+      }}
+    >
+      <Stack gap="xs">
+        {/* Header with stats */}
+        <Group justify="space-between" align="center" wrap="wrap" gap="xs">
+          <Group gap="xs">
+            <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+              Elevation Profile
+            </Text>
+            {loading && <Loader size={12} color="lime" />}
+          </Group>
+
+          <Group gap="xs" wrap="wrap">
+            {totalDistance > 0 && (
+              <Badge variant="light" color="blue" size="sm">
+                {formatDist(totalDistance)}
+              </Badge>
+            )}
+            {stats?.gain > 0 && (
+              <Badge variant="light" color="green" size="sm">
+                ↗ {formatElev(stats.gain)}
+              </Badge>
+            )}
+            {stats?.loss > 0 && (
+              <Badge variant="light" color="red" size="sm">
+                ↘ {formatElev(stats.loss)}
+              </Badge>
+            )}
+          </Group>
         </Group>
 
-        {error && (
-          <Text size="xs" style={{ color: tokens.colors.warning }}>
-            {error} - showing estimated profile
-          </Text>
-        )}
+        {/* SVG Chart */}
+        <Box style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          {/* Chart area */}
+          <Box style={{ flex: 1, minWidth: 0 }}>
+            <svg
+              width="100%"
+              height={chartConfig.chartHeight}
+              viewBox={`0 0 ${svgWidth} ${chartConfig.chartHeight}`}
+              preserveAspectRatio="none"
+              style={{
+                background: `linear-gradient(to bottom, ${tokens.colors.bgTertiary} 0%, ${tokens.colors.bgPrimary} 100%)`,
+                borderRadius: '8px',
+              }}
+            >
+              {/* Gradient definition */}
+              <defs>
+                <linearGradient id="elevGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" style={{ stopColor: tokens.colors.electricLime, stopOpacity: 0.6 }} />
+                  <stop offset="50%" style={{ stopColor: tokens.colors.electricLime, stopOpacity: 0.3 }} />
+                  <stop offset="100%" style={{ stopColor: tokens.colors.electricLime, stopOpacity: 0.1 }} />
+                </linearGradient>
+                <pattern id="gridPattern" width="40" height="20" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 20" fill="none" stroke={tokens.colors.bgTertiary} strokeWidth="0.5" />
+                </pattern>
+              </defs>
 
-        <ResponsiveContainer width="100%" height={height}>
-          <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-            <defs>
-              <linearGradient id="elevationGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={tokens.colors.electricLime} stopOpacity={0.4} />
-                <stop offset="95%" stopColor={tokens.colors.electricLime} stopOpacity={0.05} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={tokens.colors.bgTertiary} />
-            <XAxis
-              dataKey="displayDistance"
-              tick={{ fontSize: 10, fill: tokens.colors.textMuted }}
-              tickFormatter={(value) => `${value}`}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              tick={{ fontSize: 10, fill: tokens.colors.textMuted }}
-              tickFormatter={(value) => `${value}`}
-              domain={['dataMin - 10', 'dataMax + 10']}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Area
-              type="monotone"
-              dataKey="displayElevation"
-              stroke={tokens.colors.electricLime}
-              strokeWidth={2}
-              fill="url(#elevationGradient)"
-              name="Elevation"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+              {/* Grid */}
+              <rect width="100%" height="100%" fill="url(#gridPattern)" opacity="0.5" />
 
-        <Text size="xs" style={{ color: tokens.colors.textMuted }} ta="center">
-          Distance ({distanceUnit})
-        </Text>
+              {/* Area fill */}
+              <path d={area} fill="url(#elevGradient)" />
+
+              {/* Line */}
+              <path
+                d={line}
+                fill="none"
+                stroke={tokens.colors.electricLime}
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+
+              {/* Elevation labels */}
+              <text
+                x={chartConfig.padding + 5}
+                y={chartConfig.padding + 10}
+                fontSize="11"
+                fill={tokens.colors.textSecondary}
+                fontWeight="500"
+              >
+                {formatElev(chartConfig.maxElevation)}
+              </text>
+              <text
+                x={chartConfig.padding + 5}
+                y={chartConfig.chartHeight - chartConfig.padding - 2}
+                fontSize="11"
+                fill={tokens.colors.textSecondary}
+                fontWeight="500"
+              >
+                {formatElev(chartConfig.minElevation)}
+              </text>
+            </svg>
+          </Box>
+
+          {/* Stats panel */}
+          <Box
+            style={{
+              minWidth: 100,
+              padding: '8px 12px',
+              backgroundColor: tokens.colors.bgTertiary,
+              borderRadius: '6px',
+            }}
+          >
+            <Stack gap={4}>
+              <Group justify="space-between" gap="xs">
+                <Text size="xs" style={{ color: tokens.colors.textMuted }}>Range:</Text>
+                <Text size="xs" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                  {formatElev(chartConfig.maxElevation - chartConfig.minElevation)}
+                </Text>
+              </Group>
+              <Group justify="space-between" gap="xs">
+                <Text size="xs" style={{ color: tokens.colors.textMuted }}>Min:</Text>
+                <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                  {formatElev(chartConfig.minElevation)}
+                </Text>
+              </Group>
+              <Group justify="space-between" gap="xs">
+                <Text size="xs" style={{ color: tokens.colors.textMuted }}>Max:</Text>
+                <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                  {formatElev(chartConfig.maxElevation)}
+                </Text>
+              </Group>
+            </Stack>
+          </Box>
+        </Box>
       </Stack>
-    </Card>
+    </Paper>
   );
 };
 
