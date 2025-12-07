@@ -1,0 +1,40 @@
+{
+  "name": "tribos.studio",
+  "short_name": "Tribos",
+  "description": "Cycling training platform - AI route planning, training analytics, and device sync",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#bef264",
+  "background_color": "#121212",
+  "categories": ["sports", "fitness", "health"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Plan a Route",
+      "short_name": "Routes",
+      "url": "/routes/new",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Training",
+      "short_name": "Training",
+      "url": "/training",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
