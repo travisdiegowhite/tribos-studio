@@ -206,7 +206,7 @@ const ImportWizard = ({ opened, onClose }) => {
               </Alert>
 
               <Card withBorder p="md">
-                <SimpleGrid cols={2} spacing="md">
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
                   <Stack gap="xs">
                     <Group gap="xs">
                       <ThemeIcon size="lg" radius="xl" color="orange" variant="light">

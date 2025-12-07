@@ -166,7 +166,7 @@ function MyRoutes() {
       <Container size="xl" py="xl">
         <Stack gap="xl">
           {/* Header */}
-          <Group justify="space-between" align="flex-start">
+          <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
             <Box>
               <Title order={1} style={{ color: tokens.colors.textPrimary }}>
                 My Routes
@@ -192,7 +192,7 @@ function MyRoutes() {
                 <Title order={3} style={{ color: tokens.colors.textPrimary }}>
                   No routes yet
                 </Title>
-                <Text style={{ color: tokens.colors.textSecondary, textAlign: 'center', maxWidth: 400 }}>
+                <Text style={{ color: tokens.colors.textSecondary, textAlign: 'center' }} maw={{ base: '100%', sm: 400 }}>
                   Create your first route using our AI-powered route builder or by drawing on the map.
                 </Text>
                 <Button
