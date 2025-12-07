@@ -16,7 +16,29 @@ import {
   Alert,
 } from '@mantine/core';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
+
+// Update beta_signups status when user activates their account
+async function markBetaSignupActivated(email) {
+  try {
+    const { error } = await supabase
+      .from('beta_signups')
+      .update({
+        status: 'activated',
+        activated_at: new Date().toISOString(),
+      })
+      .eq('email', email.toLowerCase())
+      .eq('status', 'pending'); // Only update if still pending
+
+    if (error) {
+      console.log('Beta signup update (may not exist):', error.message);
+    }
+  } catch (err) {
+    // Silently fail - user may not have signed up via landing page
+    console.log('Beta signup activation check:', err.message);
+  }
+}
 
 function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -48,6 +70,8 @@ function Auth() {
         const { error } = await signIn(email, password);
         console.log('Sign in completed, error:', error);
         if (error) throw error;
+        // Mark beta signup as activated on successful login
+        await markBetaSignupActivated(email);
         console.log('Navigating to dashboard...');
         navigate('/dashboard');
       }
