@@ -8,15 +8,19 @@ import { garminService } from '../../utils/garminService';
 function GarminCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [error, setError] = useState(null);
   const hasExchanged = useRef(false);
 
   useEffect(() => {
+    // Wait for auth to finish loading
+    if (loading) return;
+
     const handleCallback = async () => {
       // Prevent multiple executions (React StrictMode, dependency changes)
       if (hasExchanged.current) return;
       hasExchanged.current = true;
+
       // OAuth 2.0 PKCE flow - get code and state from URL
       const code = searchParams.get('code');
       const state = searchParams.get('state');
@@ -54,7 +58,7 @@ function GarminCallback() {
     };
 
     handleCallback();
-  }, [navigate, searchParams, user]);
+  }, [navigate, searchParams, user, loading]);
 
   return (
     <Box
