@@ -24,6 +24,7 @@ import AuthCallback from './pages/oauth/AuthCallback.jsx';
 
 // Components
 import BetaFeedbackWidget from './components/BetaFeedbackWidget.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 // Styles
 import '@mantine/core/styles.css';
@@ -160,13 +161,15 @@ function App() {
     <>
       <ColorSchemeScript defaultColorScheme="dark" />
       <MantineProvider theme={theme} defaultColorScheme="dark">
-        <Notifications position="top-right" />
-        <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-            <BetaFeedbackWidget />
-          </BrowserRouter>
-        </AuthProvider>
+        <ErrorBoundary>
+          <Notifications position="top-right" />
+          <AuthProvider>
+            <BrowserRouter>
+              <AppRoutes />
+              <BetaFeedbackWidget />
+            </BrowserRouter>
+          </AuthProvider>
+        </ErrorBoundary>
       </MantineProvider>
     </>
   );
