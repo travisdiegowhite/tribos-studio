@@ -95,9 +95,9 @@ const RideHistoryTable = ({
 
   return (
     <Card withBorder p="md">
-      <Group justify="space-between" mb="md">
+      <Group justify="space-between" mb="md" wrap="wrap" gap="xs">
         <Text size="sm" fw={600}>Ride History</Text>
-        <Group gap="xs">
+        <Group gap="xs" wrap="wrap">
           <Select
             size="xs"
             value={timeFilter}
@@ -109,7 +109,7 @@ const RideHistoryTable = ({
               { value: '90d', label: 'Last 90 Days' },
             ]}
             leftSection={<IconFilter size={12} />}
-            style={{ width: 130 }}
+            w={{ base: 'auto', sm: 130 }}
           />
           <TextInput
             placeholder="Search..."
@@ -117,7 +117,7 @@ const RideHistoryTable = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             size="xs"
-            style={{ width: 150 }}
+            w={{ base: '100%', xs: 'auto', sm: 150 }}
           />
         </Group>
       </Group>

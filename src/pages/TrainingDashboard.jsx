@@ -302,7 +302,7 @@ function TrainingDashboard() {
       <Container size="xl" py="xl">
         <Stack gap="lg">
           {/* Header */}
-          <Group justify="space-between" align="flex-start">
+          <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
             <Box>
               <Title order={1} style={{ color: tokens.colors.textPrimary }}>
                 Training Hub
@@ -311,7 +311,7 @@ function TrainingDashboard() {
                 Your personalized training command center
               </Text>
             </Box>
-            <Group gap="sm">
+            <Group gap="sm" wrap="wrap">
               <Select
                 size="xs"
                 value={timeRange}
@@ -321,7 +321,7 @@ function TrainingDashboard() {
                   { value: '30', label: 'Last 30 days' },
                   { value: '90', label: 'Last 90 days' },
                 ]}
-                style={{ width: 130 }}
+                w={{ base: 'auto', sm: 130 }}
               />
               <Button
                 variant="light"
@@ -358,7 +358,7 @@ function TrainingDashboard() {
           />
 
           {/* Quick Stats Row */}
-          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+          <SimpleGrid cols={{ base: 1, xs: 2, sm: 4 }} spacing="md">
             <QuickStatCard
               label="Fitness (CTL)"
               value={Math.round(trainingMetrics.ctl)}

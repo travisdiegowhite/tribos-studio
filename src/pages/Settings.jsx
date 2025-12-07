@@ -379,7 +379,7 @@ function Settings() {
       <ImportWizard opened={showImportWizard} onClose={() => setShowImportWizard(false)} />
       <Container size="md" py="xl">
         <Stack gap="xl">
-          <Group justify="space-between" align="flex-start">
+          <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
             <Box>
               <Title order={1} style={{ color: tokens.colors.textPrimary }}>
                 Settings
