@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -16,11 +16,18 @@ import {
   Alert,
 } from '@mantine/core';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
 
 function Auth() {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check if coming from beta signup flow
+  const { email: prefilledEmail, fromBetaSignup } = location.state || {};
+
+  const [isSignUp, setIsSignUp] = useState(fromBetaSignup || false);
+  const [email, setEmail] = useState(prefilledEmail || '');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,7 +35,6 @@ function Auth() {
   const [message, setMessage] = useState('');
 
   const { signIn, signUp, signInWithGoogle } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     console.log('handleSubmit called');
@@ -40,8 +46,26 @@ function Auth() {
     try {
       if (isSignUp) {
         console.log('Attempting sign up...');
-        const { error } = await signUp(email, password, { full_name: name });
+        const { data, error } = await signUp(email, password, { full_name: name });
         if (error) throw error;
+
+        // Link beta signup record to the new user account
+        if (fromBetaSignup && data?.user?.id) {
+          try {
+            await supabase
+              .from('beta_signups')
+              .update({
+                user_id: data.user.id,
+                status: 'activated',
+                activated_at: new Date().toISOString()
+              })
+              .eq('email', email);
+          } catch (linkError) {
+            console.error('Failed to link beta signup:', linkError);
+            // Non-blocking - don't prevent signup success
+          }
+        }
+
         setMessage('Check your email for the confirmation link!');
       } else {
         console.log('Attempting sign in...');
@@ -105,6 +129,12 @@ function Auth() {
               {message && (
                 <Alert color="green" variant="light">
                   {message}
+                </Alert>
+              )}
+
+              {fromBetaSignup && !message && (
+                <Alert color="lime" variant="light">
+                  Your email has been added to the beta list! Complete your account below.
                 </Alert>
               )}
 

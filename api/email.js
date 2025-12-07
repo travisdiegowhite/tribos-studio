@@ -335,11 +335,19 @@ function getBetaNotifyEmailHtml() {
                 <li><strong style="color: #10b981;">Professional route builder</strong> - elevation profiles, surface types, and more</li>
               </ul>
 
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="https://www.tribos.studio/auth" style="display: inline-block; padding: 16px 32px; background: linear-gradient(135deg, #10b981 0%, #22d3ee 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Create Your Account</a>
+                  </td>
+                </tr>
+              </table>
+
               <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #1e1e35; border-radius: 8px; margin: 30px 0;">
                 <tr>
                   <td style="padding: 25px;">
                     <p style="margin: 0 0 10px; font-size: 16px; font-weight: 600; color: #ffffff;">What happens next?</p>
-                    <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #9ca3af;">I'll email you when the beta is ready. Early supporters get locked-in pricing and direct access to shape what gets built next.</p>
+                    <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #9ca3af;">Create your account to get immediate access to Tribos.Studio. As a beta user, you'll get early access to new features and direct influence on what we build next.</p>
                   </td>
                 </tr>
               </table>

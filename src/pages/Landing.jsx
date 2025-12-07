@@ -70,10 +70,10 @@ function Landing() {
         if (error.code === '23505') {
           notifications.show({
             title: 'Welcome Back!',
-            message: "You're already on the list! Redirecting to create your account...",
+            message: "You're already on the list! Let's create your account...",
             color: 'blue',
           });
-          setTimeout(() => navigate('/auth'), 1500);
+          navigate('/auth', { state: { email: emailValue, fromBetaSignup: true } });
         } else {
           throw error;
         }
@@ -91,11 +91,11 @@ function Landing() {
 
         notifications.show({
           title: 'Welcome to the Beta!',
-          message: "You're in! Redirecting to create your account...",
+          message: "You're in! Let's create your account...",
           color: 'green',
         });
 
-        setTimeout(() => navigate('/auth'), 1500);
+        navigate('/auth', { state: { email: emailValue, fromBetaSignup: true } });
       }
     } catch (error) {
       console.error('Beta signup error:', error);
@@ -211,7 +211,7 @@ function Landing() {
                         loading={submitting}
                         rightSection={<IconChevronRight size={18} />}
                       >
-                        Join Beta
+                        Get Started for Free
                       </Button>
                     </Group>
                   </form>
@@ -581,7 +581,7 @@ function Landing() {
                     rightSection={<IconChevronRight size={20} />}
                     fullWidth
                   >
-                    Get Early Access
+                    Get Started for Free
                   </Button>
                 </Stack>
               </form>
