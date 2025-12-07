@@ -10,7 +10,7 @@ import { tokens } from '../theme';
  * Training Calendar Component
  * Displays monthly calendar with planned workouts and completed rides
  */
-const TrainingCalendar = ({ activePlan, rides = [] }) => {
+const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp }) => {
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
@@ -132,10 +132,8 @@ const TrainingCalendar = ({ activePlan, rides = [] }) => {
     }
   };
 
-  // Format distance
-  const formatDistance = (km) => {
-    return `${km?.toFixed(1) || 0} km`;
-  };
+  // Format distance - use prop if provided, otherwise default to simple format
+  const formatDistance = formatDistanceProp || ((km) => `${km?.toFixed(1) || 0} km`);
 
   const days = getDaysInMonth();
   const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });

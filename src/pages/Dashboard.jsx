@@ -23,8 +23,7 @@ import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
 
 function Dashboard() {
-  const { profile, user } = useAuth();
-  const displayName = profile?.full_name || user?.email?.split('@')[0] || 'Rider';
+  const { user } = useAuth();
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -33,18 +32,23 @@ function Dashboard() {
     totalActivities: 0,
   });
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
 
-  // Check if onboarding is needed
+  // Check if onboarding is needed and load user profile
   useEffect(() => {
-    const checkOnboarding = async () => {
+    const checkOnboardingAndLoadProfile = async () => {
       if (!user) return;
 
       try {
         const { data } = await supabase
           .from('user_profiles')
-          .select('onboarding_completed')
+          .select('onboarding_completed, full_name, units_preference')
           .eq('id', user.id)
           .single();
+
+        if (data) {
+          setUserProfile(data);
+        }
 
         // Show onboarding if profile doesn't exist or onboarding not completed
         if (!data || data.onboarding_completed !== true) {
@@ -56,11 +60,14 @@ function Dashboard() {
       }
     };
 
-    checkOnboarding();
+    checkOnboardingAndLoadProfile();
   }, [user]);
 
-  // Get user's unit preference
-  const isImperial = profile?.units_preference === 'imperial';
+  // Get display name from loaded profile
+  const displayName = userProfile?.full_name || user?.email?.split('@')[0] || 'Rider';
+
+  // Get user's unit preference from loaded profile
+  const isImperial = userProfile?.units_preference === 'imperial';
   const formatDist = (km) => formatDistance(km, isImperial);
   const formatElev = (m) => formatElevation(m, isImperial);
 
