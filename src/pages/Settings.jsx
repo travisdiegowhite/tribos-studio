@@ -22,6 +22,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
+import ImportWizard from '../components/ImportWizard.jsx';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
@@ -36,6 +37,7 @@ function Settings() {
   const [speedProfile, setSpeedProfile] = useState(null);
   const [garminStatus, setGarminStatus] = useState({ connected: false, loading: true });
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
+  const [showImportWizard, setShowImportWizard] = useState(false);
 
   // Form state
   const [displayName, setDisplayName] = useState('');
@@ -357,16 +359,26 @@ function Settings() {
 
   return (
     <AppShell>
+      <ImportWizard opened={showImportWizard} onClose={() => setShowImportWizard(false)} />
       <Container size="md" py="xl">
         <Stack gap="xl">
-          <Box>
-            <Title order={1} style={{ color: tokens.colors.textPrimary }}>
-              Settings
-            </Title>
-            <Text style={{ color: tokens.colors.textSecondary }}>
-              Manage your profile and connected services
-            </Text>
-          </Box>
+          <Group justify="space-between" align="flex-start">
+            <Box>
+              <Title order={1} style={{ color: tokens.colors.textPrimary }}>
+                Settings
+              </Title>
+              <Text style={{ color: tokens.colors.textSecondary }}>
+                Manage your profile and connected services
+              </Text>
+            </Box>
+            <Button
+              variant="gradient"
+              gradient={{ from: 'orange', to: 'cyan', deg: 90 }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              Import Wizard
+            </Button>
+          </Group>
 
           {/* Profile Settings */}
           <Card>
