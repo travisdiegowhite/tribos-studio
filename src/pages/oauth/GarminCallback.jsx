@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Text, Stack, Alert } from '@mantine/core';
 import { useAuth } from '../../contexts/AuthContext.jsx';
@@ -10,9 +10,13 @@ function GarminCallback() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [error, setError] = useState(null);
+  const hasExchanged = useRef(false);
 
   useEffect(() => {
     const handleCallback = async () => {
+      // Prevent multiple executions (React StrictMode, dependency changes)
+      if (hasExchanged.current) return;
+      hasExchanged.current = true;
       // OAuth 2.0 PKCE flow - get code and state from URL
       const code = searchParams.get('code');
       const state = searchParams.get('state');
