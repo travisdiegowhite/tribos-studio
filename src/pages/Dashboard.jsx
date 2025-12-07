@@ -18,6 +18,7 @@ import { IconChevronRight } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
+import OnboardingModal from '../components/OnboardingModal.jsx';
 import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
 
@@ -31,6 +32,32 @@ function Dashboard() {
     monthTime: 0,
     totalActivities: 0,
   });
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Check if onboarding is needed
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      if (!user) return;
+
+      try {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('onboarding_completed')
+          .eq('id', user.id)
+          .single();
+
+        // Show onboarding if profile doesn't exist or onboarding not completed
+        if (!data || data.onboarding_completed !== true) {
+          setShowOnboarding(true);
+        }
+      } catch (err) {
+        // If no profile exists, show onboarding
+        setShowOnboarding(true);
+      }
+    };
+
+    checkOnboarding();
+  }, [user]);
 
   // Get user's unit preference
   const isImperial = profile?.units_preference === 'imperial';
@@ -103,6 +130,10 @@ function Dashboard() {
 
   return (
     <AppShell>
+      <OnboardingModal
+        opened={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+      />
       <Container size="xl" py="xl">
         <Stack gap="xl">
           {/* Header */}

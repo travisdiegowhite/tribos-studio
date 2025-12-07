@@ -13,12 +13,17 @@ import MyRoutes from './pages/MyRoutes.jsx';
 import TrainingDashboard from './pages/TrainingDashboard.jsx';
 import Settings from './pages/Settings.jsx';
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
+import Terms from './pages/Terms.jsx';
+import NotFound from './pages/NotFound.jsx';
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
 import GarminCallback from './pages/oauth/GarminCallback.jsx';
 import WahooCallback from './pages/oauth/WahooCallback.jsx';
 import AuthCallback from './pages/oauth/AuthCallback.jsx';
+
+// Components
+import BetaFeedbackWidget from './components/BetaFeedbackWidget.jsx';
 
 // Styles
 import '@mantine/core/styles.css';
@@ -70,6 +75,7 @@ function AppRoutes() {
       {/* Public routes */}
       <Route path="/" element={<Landing />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<Terms />} />
       <Route
         path="/auth"
         element={
@@ -143,8 +149,8 @@ function AppRoutes() {
         }
       />
 
-      {/* Catch all - redirect to landing */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Catch all - 404 page */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
@@ -158,6 +164,7 @@ function App() {
         <AuthProvider>
           <BrowserRouter>
             <AppRoutes />
+            <BetaFeedbackWidget />
           </BrowserRouter>
         </AuthProvider>
       </MantineProvider>
