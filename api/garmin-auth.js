@@ -267,12 +267,17 @@ async function exchangeToken(req, res, userId, code, state) {
       code_verifier: codeVerifier
     });
 
+    // Log the full request for debugging (mask sensitive values)
+    const bodyString = tokenParams.toString();
+    console.log('Token request URL:', GARMIN_TOKEN_URL);
+    console.log('Token request body (masked):', bodyString.replace(/client_secret=[^&]+/, 'client_secret=***').replace(/code=[^&]+/, 'code=***'));
+
     const response = await fetch(GARMIN_TOKEN_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: tokenParams.toString()
+      body: bodyString
     });
 
     if (!response.ok) {
