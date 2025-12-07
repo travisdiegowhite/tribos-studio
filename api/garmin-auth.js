@@ -278,6 +278,27 @@ async function exchangeToken(req, res, userId, code, state) {
 
     const tokenData = await response.json();
 
+    // Fetch Garmin user ID - REQUIRED for webhook matching
+    let garminUserId = null;
+    try {
+      console.log('Fetching Garmin user ID...');
+      const userIdResponse = await fetch('https://apis.garmin.com/wellness-api/rest/user/id', {
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`
+        }
+      });
+
+      if (userIdResponse.ok) {
+        const userData = await userIdResponse.json();
+        garminUserId = userData.userId;
+        console.log('Garmin user ID retrieved:', garminUserId);
+      } else {
+        console.warn('Failed to fetch Garmin user ID:', await userIdResponse.text());
+      }
+    } catch (userIdError) {
+      console.warn('Error fetching Garmin user ID:', userIdError.message);
+    }
+
     // Calculate token expiration (Garmin tokens expire in 3 months)
     const expiresAt = new Date();
     expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7776000)); // Default 90 days
@@ -288,12 +309,14 @@ async function exchangeToken(req, res, userId, code, state) {
       .upsert({
         user_id: userId,
         provider: 'garmin',
+        provider_user_id: garminUserId, // Critical for webhook matching
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
         token_expires_at: expiresAt.toISOString(),
         provider_user_data: {
           connected_at: new Date().toISOString(),
-          scope: tokenData.scope
+          scope: tokenData.scope,
+          garmin_user_id: garminUserId
         },
         sync_enabled: true,
         updated_at: new Date().toISOString()
