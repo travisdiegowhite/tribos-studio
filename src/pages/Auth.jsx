@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Container,
@@ -14,10 +14,14 @@ import {
   Box,
   Anchor,
   Alert,
+  CopyButton,
+  ActionIcon,
+  Tooltip,
 } from '@mantine/core';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
+import { detectWebview, getWebviewInstructions } from '../utils/webviewDetection';
 
 // Update beta_signups status when user activates their account
 async function markBetaSignupActivated(email) {
@@ -54,8 +58,15 @@ function Auth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [webviewInfo, setWebviewInfo] = useState({ isWebview: false, appName: null });
 
   const { signIn, signUp, signInWithGoogle } = useAuth();
+
+  // Check if we're in an in-app browser/webview
+  useEffect(() => {
+    const info = detectWebview();
+    setWebviewInfo(info);
+  }, []);
 
   const handleSubmit = async (e) => {
     console.log('handleSubmit called');
@@ -108,6 +119,17 @@ function Auth() {
 
   const handleGoogleSignIn = async () => {
     setError('');
+
+    // Block Google OAuth in webviews - it will fail with 403 disallowed_useragent
+    if (webviewInfo.isWebview) {
+      setError(
+        `Google sign-in doesn't work in ${webviewInfo.appName}'s browser. ` +
+        `Please open this page in your regular browser (Safari, Chrome, etc.) to use Google sign-in, ` +
+        `or use email/password instead.`
+      );
+      return;
+    }
+
     const { error } = await signInWithGoogle();
     if (error) {
       setError(error.message);
@@ -143,6 +165,28 @@ function Auth() {
         <Paper p="xl" radius="lg" style={{ backgroundColor: tokens.colors.bgSecondary }}>
           <form onSubmit={handleSubmit}>
             <Stack gap="md">
+              {webviewInfo.isWebview && (
+                <Alert color="yellow" variant="light" title={`You're in ${webviewInfo.appName}'s browser`}>
+                  <Text size="sm" mb="xs">
+                    Google sign-in won't work here. To use Google, open this page in your regular browser.
+                  </Text>
+                  <Group gap="xs">
+                    <CopyButton value={window.location.href}>
+                      {({ copied, copy }) => (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color={copied ? 'green' : 'yellow'}
+                          onClick={copy}
+                        >
+                          {copied ? 'Copied!' : 'Copy link to open in browser'}
+                        </Button>
+                      )}
+                    </CopyButton>
+                  </Group>
+                </Alert>
+              )}
+
               {error && (
                 <Alert color="red" variant="light">
                   {error}
@@ -198,15 +242,21 @@ function Auth() {
           <Divider my="lg" label="or continue with" labelPosition="center" />
 
           <Stack gap="sm">
-            <Button
-              variant="outline"
-              color="gray"
-              fullWidth
-              onClick={handleGoogleSignIn}
-              leftSection={<span>🔵</span>}
+            <Tooltip
+              label={webviewInfo.isWebview ? `Google sign-in doesn't work in ${webviewInfo.appName}'s browser` : null}
+              disabled={!webviewInfo.isWebview}
             >
-              Google
-            </Button>
+              <Button
+                variant="outline"
+                color="gray"
+                fullWidth
+                onClick={handleGoogleSignIn}
+                leftSection={<span>🔵</span>}
+                style={webviewInfo.isWebview ? { opacity: 0.5 } : undefined}
+              >
+                Google {webviewInfo.isWebview && '(unavailable)'}
+              </Button>
+            </Tooltip>
           </Stack>
 
           <Text ta="center" mt="lg" size="sm" style={{ color: tokens.colors.textSecondary }}>
