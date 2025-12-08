@@ -1247,37 +1247,74 @@ function RouteBuilder() {
       {aiSuggestions.length > 0 && (
         <Box>
           <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
-            AI SUGGESTIONS
+            AI SUGGESTIONS ({aiSuggestions.length})
           </Text>
-          <Stack gap="xs" style={{ maxHeight: isMobile ? 150 : 200, overflowY: 'auto' }}>
+          <Stack
+            gap="sm"
+            style={{
+              maxHeight: isMobile ? 250 : 200,
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              paddingRight: 4,
+            }}
+          >
             {aiSuggestions.map((suggestion, index) => (
               <Card
                 key={index}
-                p="xs"
+                p="sm"
                 withBorder
                 style={{
-                  borderColor: tokens.colors.bgTertiary,
+                  borderColor: convertingRoute === index ? tokens.colors.electricLime : tokens.colors.bgTertiary,
                   backgroundColor: tokens.colors.bgPrimary,
-                  cursor: 'pointer',
+                  cursor: convertingRoute !== null ? 'wait' : 'pointer',
+                  opacity: convertingRoute !== null && convertingRoute !== index ? 0.5 : 1,
+                  transition: 'all 0.2s',
+                  minHeight: 70,
+                  touchAction: 'manipulation',
+                  WebkitTapHighlightColor: 'transparent',
                 }}
-                onClick={() => handleSelectSuggestion(index)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (convertingRoute === null) {
+                    handleSelectAISuggestion(suggestion, index);
+                  }
+                }}
               >
-                <Group justify="space-between" wrap="nowrap">
-                  <Box style={{ flex: 1 }}>
-                    <Text size="sm" fw={500} lineClamp={1}>
+                <Stack gap={6}>
+                  <Group justify="space-between" wrap="nowrap">
+                    <Text size="sm" fw={600} lineClamp={1} style={{ flex: 1 }}>
                       {suggestion.name}
                     </Text>
-                    <Group gap={4}>
-                      <Badge size="xs" variant="light">
-                        {suggestion.distance}
+                    {convertingRoute === index ? (
+                      <Loader size={16} color="lime" />
+                    ) : (
+                      <Badge size="xs" color={
+                        suggestion.difficulty === 'easy' ? 'green' :
+                        suggestion.difficulty === 'moderate' ? 'yellow' : 'red'
+                      }>
+                        {suggestion.difficulty || 'moderate'}
                       </Badge>
+                    )}
+                  </Group>
+                  <Group gap={6}>
+                    <Badge size="xs" variant="light" color="lime">
+                      {typeof suggestion.distance === 'number' ? `${suggestion.distance.toFixed(1)} km` : suggestion.distance}
+                    </Badge>
+                    {suggestion.elevationGain > 0 && (
                       <Badge size="xs" variant="light" color="gray">
-                        {suggestion.elevation}
+                        {suggestion.elevationGain}m ↗
                       </Badge>
-                    </Group>
-                  </Box>
-                  {convertingRoute === index && <Loader size={14} />}
-                </Group>
+                    )}
+                    {suggestion.estimatedTime && (
+                      <Badge size="xs" variant="outline">
+                        {suggestion.estimatedTime}min
+                      </Badge>
+                    )}
+                  </Group>
+                  <Text size="xs" c="lime" fw={500}>
+                    {convertingRoute === index ? 'Loading route...' : 'Tap to select'}
+                  </Text>
+                </Stack>
               </Card>
             ))}
           </Stack>

@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect } from 'react';
-import { Box, Paper, UnstyledButton, Text } from '@mantine/core';
+import { useState, useRef } from 'react';
+import { Box, Paper, Text } from '@mantine/core';
 import { IconChevronUp, IconChevronDown } from '@tabler/icons-react';
 import { tokens } from '../theme';
 
 /**
  * BottomSheet - A mobile-friendly bottom sheet component
  * Slides up from the bottom with drag-to-expand/collapse
+ *
+ * Fixed: Touch events properly separated from content to prevent click conflicts
  */
 function BottomSheet({
   children,
@@ -22,7 +24,7 @@ function BottomSheet({
 
   const toggleExpanded = () => setIsExpanded(!isExpanded);
 
-  // Handle touch start
+  // Handle touch start - only on the drag handle
   const handleTouchStart = (e) => {
     setIsDragging(true);
     setDragStart(e.touches[0].clientY);
@@ -82,41 +84,38 @@ function BottomSheet({
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        // Safe area for iOS devices
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
-      {/* Drag Handle */}
-      <UnstyledButton
-        onClick={toggleExpanded}
+      {/* Drag Handle Area - only this area responds to drag gestures */}
+      <Box
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onClick={toggleExpanded}
         style={{
           width: '100%',
-          padding: '12px 16px',
+          padding: '12px 16px 8px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           gap: 8,
           cursor: 'grab',
           touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
         }}
       >
         {/* Visual Handle Bar */}
         <Box
           style={{
-            width: 36,
-            height: 4,
+            width: 40,
+            height: 5,
             backgroundColor: tokens.colors.bgTertiary,
-            borderRadius: 2,
+            borderRadius: 3,
           }}
         />
-
-        {/* Peek Content - always visible */}
-        {peekContent && (
-          <Box style={{ width: '100%' }}>
-            {peekContent}
-          </Box>
-        )}
 
         {/* Expand/Collapse Indicator */}
         <Box
@@ -129,17 +128,32 @@ function BottomSheet({
         >
           {isExpanded ? (
             <>
-              <IconChevronDown size={16} />
-              <Text size="xs">Tap to collapse</Text>
+              <IconChevronDown size={14} />
+              <Text size="xs">Swipe down to collapse</Text>
             </>
           ) : (
             <>
-              <IconChevronUp size={16} />
-              <Text size="xs">Tap for more options</Text>
+              <IconChevronUp size={14} />
+              <Text size="xs">Swipe up for options</Text>
             </>
           )}
         </Box>
-      </UnstyledButton>
+      </Box>
+
+      {/* Peek Content - separate from drag handle, allows button clicks */}
+      {peekContent && (
+        <Box
+          style={{
+            width: '100%',
+            padding: '0 16px 12px',
+            // Ensure buttons inside are clickable
+            pointerEvents: 'auto',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {peekContent}
+        </Box>
+      )}
 
       {/* Expanded Content */}
       <Box
@@ -150,6 +164,9 @@ function BottomSheet({
           opacity: isExpanded ? 1 : 0,
           visibility: isExpanded ? 'visible' : 'hidden',
           transition: 'opacity 0.2s ease-out',
+          // Enable touch scrolling
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
         }}
       >
         {children}

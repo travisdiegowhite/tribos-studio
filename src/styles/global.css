@@ -131,3 +131,53 @@ button {
 .recharts-text {
   fill: #999;
 }
+
+/* Mobile touch improvements */
+@media (max-width: 768px) {
+  /* Prevent text selection during touch interactions */
+  .touch-none {
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Improve touch target size */
+  button,
+  [role="button"],
+  .mantine-Button-root {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Remove tap highlight on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Better scrolling on mobile */
+  .scroll-container {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Card touch feedback */
+  .mantine-Card-root {
+    transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+  }
+
+  .mantine-Card-root:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+  }
+
+  /* Hide scrollbars on mobile for cleaner look */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #3a3a3a;
+  }
+}
