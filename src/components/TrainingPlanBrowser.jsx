@@ -19,6 +19,7 @@ import {
   Menu,
   ActionIcon,
 } from '@mantine/core';
+import { DatePickerInput } from '@mantine/dates';
 import {
   IconTarget,
   IconClock,
@@ -54,6 +55,14 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
   const [activating, setActivating] = useState(false);
   const [managingPlan, setManagingPlan] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [selectedStartDate, setSelectedStartDate] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    return tomorrow;
+  });
+  const [planToActivate, setPlanToActivate] = useState(null);
 
   // Get all plans and filter
   const allPlans = useMemo(() => getAllPlans(), []);
@@ -296,6 +305,16 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
       const totalWeeks = activePlan.duration_weeks || template?.duration || 8;
       const methodology = activePlan.methodology || template?.methodology || 'endurance';
+      const planStartDate = new Date(getPlanStartDate(activePlan) || new Date());
+      planStartDate.setHours(0, 0, 0, 0);
+
+      // Helper to calculate scheduled date
+      const calculateScheduledDate = (weekNum, dayOfWeek) => {
+        const daysFromStart = (weekNum - 1) * 7 + dayOfWeek;
+        const workoutDate = new Date(planStartDate);
+        workoutDate.setDate(workoutDate.getDate() + daysFromStart);
+        return workoutDate.toISOString().split('T')[0];
+      };
 
       // Use template weekTemplates if available
       if (template?.weekTemplates) {
@@ -311,6 +330,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   plan_id: activePlan.id,
                   week_number: week,
                   day_of_week: dayIndex,
+                  scheduled_date: calculateScheduledDate(week, dayIndex),
                   workout_type: dayPlan.workout ? (workoutInfo?.category || 'endurance') : 'rest',
                   workout_id: dayPlan.workout || null,
                   notes: dayPlan.notes || '',
@@ -332,6 +352,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               plan_id: activePlan.id,
               week_number: week,
               day_of_week: dayOfWeek,
+              scheduled_date: calculateScheduledDate(week, dayOfWeek),
               workout_type: dayWorkout.type || 'rest',
               workout_id: dayWorkout.workout || null,
               notes: '',
@@ -442,8 +463,8 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
     return GOAL_TYPES[goal]?.icon || '🚴';
   };
 
-  // Activate a training plan
-  const handleActivatePlan = async (plan) => {
+  // Show date picker modal before activation
+  const handleShowDatePicker = (plan) => {
     if (!user?.id) {
       notifications.show({
         title: 'Sign In Required',
@@ -452,8 +473,23 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       });
       return;
     }
+    setPlanToActivate(plan);
+    // Reset date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    setSelectedStartDate(tomorrow);
+    setDatePickerOpen(true);
+  };
+
+  // Activate a training plan with specified start date
+  const handleActivatePlan = async (plan, startDate) => {
+    if (!user?.id || !startDate) {
+      return;
+    }
 
     setActivating(true);
+    setDatePickerOpen(false);
 
     try {
       // Deactivate any existing active plan
@@ -464,10 +500,9 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           .eq('id', activePlan.id);
       }
 
-      // Create new training plan
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() + 1); // Start tomorrow
-      startDate.setHours(0, 0, 0, 0);
+      // Use the provided start date
+      const planStartDate = new Date(startDate);
+      planStartDate.setHours(0, 0, 0, 0);
 
       const { data: newPlan, error: planError } = await supabase
         .from('training_plans')
@@ -479,8 +514,8 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           methodology: plan.methodology,
           goal: plan.goal,
           fitness_level: plan.fitnessLevel,
-          started_at: startDate.toISOString(),
-          start_date: startDate.toISOString(), // Include for backwards compatibility
+          started_at: planStartDate.toISOString(),
+          start_date: planStartDate.toISOString(), // Include for backwards compatibility
           status: 'active',
         })
         .select()
@@ -614,6 +649,17 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         return weekPattern[dayOfWeek] || { type: 'rest', workout: null };
       };
 
+      // Helper to calculate scheduled date for a workout
+      const calculateScheduledDate = (weekNum, dayOfWeek) => {
+        // Calculate days from plan start
+        // Week 1, Day 0 (Sunday) = start date
+        // Day of week: 0=Sunday, 1=Monday, etc.
+        const daysFromStart = (weekNum - 1) * 7 + dayOfWeek;
+        const workoutDate = new Date(planStartDate);
+        workoutDate.setDate(workoutDate.getDate() + daysFromStart);
+        return workoutDate.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+      };
+
       // Use explicit weekTemplates if available, otherwise generate
       if (plan.weekTemplates) {
         for (let week = 1; week <= plan.duration; week++) {
@@ -631,6 +677,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   plan_id: newPlan.id,
                   week_number: week,
                   day_of_week: dayIndex,
+                  scheduled_date: calculateScheduledDate(week, dayIndex),
                   workout_type: dayPlan.workout ? (workoutInfo?.category || 'endurance') : 'rest',
                   workout_id: dayPlan.workout || null,
                   notes: dayPlan.notes || '',
@@ -660,6 +707,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               plan_id: newPlan.id,
               week_number: week,
               day_of_week: dayOfWeek,
+              scheduled_date: calculateScheduledDate(week, dayOfWeek),
               workout_type: dayWorkout.type || 'rest',
               workout_id: dayWorkout.workout || null,
               notes: '',
@@ -683,15 +731,21 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         }
       }
 
+      const formattedDate = planStartDate.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric'
+      });
       notifications.show({
         title: 'Plan Activated',
-        message: `${plan.name} starts tomorrow!`,
+        message: `${plan.name} starts ${formattedDate}!`,
         color: 'lime',
         icon: <IconCheck size={16} />,
       });
 
       setPreviewOpen(false);
       setSelectedPlan(null);
+      setPlanToActivate(null);
 
       if (onPlanActivated) {
         onPlanActivated(newPlan);
@@ -904,7 +958,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             size="md"
             fullWidth
             leftSection={<IconPlayerPlay size={18} />}
-            onClick={() => handleActivatePlan(selectedPlan)}
+            onClick={() => handleShowDatePicker(selectedPlan)}
             loading={activating}
             disabled={activePlan?.template_id === selectedPlan.id}
           >
@@ -1113,6 +1167,86 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             </Button>
             <Button color="red" onClick={handleDeletePlan} loading={managingPlan}>
               Remove Plan
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Start Date Picker Modal */}
+      <Modal
+        opened={datePickerOpen}
+        onClose={() => {
+          setDatePickerOpen(false);
+          setPlanToActivate(null);
+        }}
+        title={
+          <Group gap="sm">
+            <IconCalendar size={20} />
+            <Text fw={600}>Choose Start Date</Text>
+          </Group>
+        }
+        centered
+        size="sm"
+      >
+        <Stack gap="md">
+          {planToActivate && (
+            <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
+              <Text size="sm">
+                <Text span fw={500}>{planToActivate.name}</Text> is a {planToActivate.duration}-week plan.
+                Choose when you'd like to start.
+              </Text>
+            </Alert>
+          )}
+
+          <DatePickerInput
+            label="Plan starts on"
+            description="Week 1 begins on this date"
+            placeholder="Select start date"
+            value={selectedStartDate}
+            onChange={setSelectedStartDate}
+            minDate={new Date()}
+            firstDayOfWeek={0}
+            size="md"
+          />
+
+          {selectedStartDate && planToActivate && (
+            <Paper p="sm" withBorder bg="gray.0">
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">Plan ends on</Text>
+                <Text size="sm" fw={500}>
+                  {(() => {
+                    const endDate = new Date(selectedStartDate);
+                    endDate.setDate(endDate.getDate() + (planToActivate.duration * 7) - 1);
+                    return endDate.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    });
+                  })()}
+                </Text>
+              </Stack>
+            </Paper>
+          )}
+
+          <Group justify="flex-end" gap="sm" mt="md">
+            <Button
+              variant="subtle"
+              onClick={() => {
+                setDatePickerOpen(false);
+                setPlanToActivate(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="lime"
+              leftSection={<IconPlayerPlay size={16} />}
+              onClick={() => handleActivatePlan(planToActivate, selectedStartDate)}
+              loading={activating}
+              disabled={!selectedStartDate}
+            >
+              Start Plan
             </Button>
           </Group>
         </Stack>
