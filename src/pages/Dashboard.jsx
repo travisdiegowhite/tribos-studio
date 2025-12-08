@@ -39,24 +39,41 @@ function Dashboard() {
     const checkOnboardingAndLoadProfile = async () => {
       if (!user) return;
 
+      // Simple check: if user has seen the popup before, don't show it again
+      const hasSeenWelcome = localStorage.getItem(`tribos_welcome_seen_${user.id}`);
+      if (hasSeenWelcome) {
+        // Still load profile for display name/units, but don't show onboarding
+        try {
+          const { data } = await supabase
+            .from('user_profiles')
+            .select('onboarding_completed, full_name, units_preference')
+            .eq('id', user.id)
+            .single();
+          if (data) {
+            setUserProfile(data);
+          }
+        } catch {
+          // Profile load failed, that's ok
+        }
+        return;
+      }
+
+      // First time user - show onboarding and mark as seen
+      localStorage.setItem(`tribos_welcome_seen_${user.id}`, 'true');
+      setShowOnboarding(true);
+
+      // Try to load profile data
       try {
         const { data } = await supabase
           .from('user_profiles')
           .select('onboarding_completed, full_name, units_preference')
           .eq('id', user.id)
           .single();
-
         if (data) {
           setUserProfile(data);
         }
-
-        // Show onboarding if profile doesn't exist or onboarding not completed
-        if (!data || data.onboarding_completed !== true) {
-          setShowOnboarding(true);
-        }
-      } catch (err) {
-        // If no profile exists, show onboarding
-        setShowOnboarding(true);
+      } catch {
+        // Profile doesn't exist yet, that's expected for new users
       }
     };
 

@@ -40,7 +40,6 @@ function OnboardingModal({ opened, onClose }) {
   const { user } = useAuth();
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [hasMarkedSeen, setHasMarkedSeen] = useState(false);
 
   // Form state
   const [ftp, setFtp] = useState(null);
@@ -50,28 +49,6 @@ function OnboardingModal({ opened, onClose }) {
   const [stravaConnected, setStravaConnected] = useState(false);
   const [garminConnected, setGarminConnected] = useState(false);
   const [wahooConnected, setWahooConnected] = useState(false);
-
-  // Mark onboarding as completed when modal is first shown
-  // This ensures the popup only shows once, even if user closes it early
-  useEffect(() => {
-    const markOnboardingSeen = async () => {
-      if (!user || !opened || hasMarkedSeen) return;
-
-      try {
-        await supabase
-          .from('user_profiles')
-          .upsert({
-            id: user.id,
-            onboarding_completed: true,
-          });
-        setHasMarkedSeen(true);
-      } catch (err) {
-        console.error('Error marking onboarding as seen:', err);
-      }
-    };
-
-    markOnboardingSeen();
-  }, [user, opened, hasMarkedSeen]);
 
   // Check connection status on mount
   useEffect(() => {
