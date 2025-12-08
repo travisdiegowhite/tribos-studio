@@ -260,6 +260,23 @@ function TrainingDashboard() {
     );
   }, [activities, timeRange, ftp]);
 
+  // Calculate true weekly stats (always 7 days, independent of timeRange)
+  const actualWeeklyStats = useMemo(() => {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const weeklyActivities = activities.filter(a => new Date(a.start_date) >= weekAgo);
+
+    return weeklyActivities.reduce(
+      (acc, a) => ({
+        totalDistance: acc.totalDistance + (a.distance || 0),
+        totalTime: acc.totalTime + (a.moving_time || 0),
+        rideCount: acc.rideCount + 1,
+      }),
+      { totalDistance: 0, totalTime: 0, rideCount: 0 }
+    );
+  }, [activities]);
+
   // Format helpers
   const formatTime = (seconds) => {
     if (!seconds) return '0h';
@@ -365,6 +382,7 @@ function TrainingDashboard() {
             trainingMetrics={trainingMetrics}
             formStatus={formStatus}
             weeklyStats={weeklyStats}
+            actualWeeklyStats={actualWeeklyStats}
             activities={activities}
             formatDist={formatDist}
             formatTime={formatTime}
@@ -435,6 +453,7 @@ function TrainingDashboard() {
                   trainingMetrics={trainingMetrics}
                   formStatus={formStatus}
                   weeklyStats={weeklyStats}
+                  actualWeeklyStats={actualWeeklyStats}
                   activities={activities}
                   ftp={ftp}
                   formatDist={formatDist}
@@ -537,7 +556,7 @@ function TrainingDashboard() {
 // ============================================================================
 // TODAY'S FOCUS HERO CARD
 // ============================================================================
-function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities, formatDist, formatTime, onAskCoach, suggestedWorkout, onViewWorkout }) {
+function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, onAskCoach, suggestedWorkout, onViewWorkout }) {
   const lastRide = activities[0];
   const FormIcon = formStatus.icon;
 
@@ -599,11 +618,11 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities,
             thickness={8}
             roundCaps
             sections={[
-              { value: Math.min((weeklyStats.rideCount / 5) * 100, 100), color: formStatus.color },
+              { value: Math.min((actualWeeklyStats.rideCount / 5) * 100, 100), color: formStatus.color },
             ]}
             label={
               <Text size="lg" fw={700} ta="center">
-                {weeklyStats.rideCount}/5
+                {actualWeeklyStats.rideCount}/5
               </Text>
             }
           />
@@ -649,7 +668,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities,
 // ============================================================================
 // TODAY TAB
 // ============================================================================
-function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, formatDist, formatElev, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, suggestedWorkout, onViewWorkout }) {
+function TodayTab({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, ftp, formatDist, formatElev, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, suggestedWorkout, onViewWorkout }) {
   const hasCheckedIn = !!todayHealthMetrics;
 
   return (
@@ -663,7 +682,7 @@ function TodayTab({ trainingMetrics, formStatus, weeklyStats, activities, ftp, f
           <Text fw={600}>AI Training Coach</Text>
         </Group>
         <AICoach
-          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, ftp, activities, formatDist, formatTime, isImperial)}
+          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial)}
           onAddWorkout={(workout) => {
             notifications.show({
               title: 'Workout Added',
@@ -1142,7 +1161,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
 }
 
 // Build training context for AI Coach
-function buildTrainingContext(trainingMetrics, weeklyStats, ftp, activities, formatDist, formatTime, isImperial) {
+function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial) {
   const context = [];
   const distanceUnit = isImperial ? 'mi' : 'km';
 
@@ -1155,8 +1174,8 @@ function buildTrainingContext(trainingMetrics, weeklyStats, ftp, activities, for
     }
   }
 
-  if (weeklyStats.rideCount > 0) {
-    context.push(`This week: ${weeklyStats.rideCount} rides, ${formatDist(weeklyStats.totalDistance / 1000)}, ${formatTime(weeklyStats.totalTime)}`);
+  if (actualWeeklyStats.rideCount > 0) {
+    context.push(`This week: ${actualWeeklyStats.rideCount} rides, ${formatDist(actualWeeklyStats.totalDistance / 1000)}, ${formatTime(actualWeeklyStats.totalTime)}`);
   }
 
   if (activities.length > 0) {
