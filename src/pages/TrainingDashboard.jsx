@@ -464,6 +464,7 @@ function TrainingDashboard() {
                   onOpenHealthCheckIn={() => setHealthCheckInOpen(true)}
                   suggestedWorkout={suggestedWorkout}
                   onViewWorkout={handleViewWorkout}
+                  activePlan={activePlan}
                 />
               </Tabs.Panel>
 
@@ -513,7 +514,26 @@ function TrainingDashboard() {
 
               {/* CALENDAR TAB */}
               <Tabs.Panel value="calendar">
-                <TrainingCalendar activePlan={activePlan} rides={activities} formatDistance={formatDist} />
+                <TrainingCalendar
+                  activePlan={activePlan}
+                  rides={activities}
+                  formatDistance={formatDist}
+                  ftp={ftp}
+                  onPlanUpdated={() => {
+                    // Reload the active plan to get updated compliance stats
+                    if (user?.id) {
+                      supabase
+                        .from('training_plans')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .eq('status', 'active')
+                        .single()
+                        .then(({ data }) => {
+                          if (data) setActivePlan(data);
+                        });
+                    }
+                  }}
+                />
               </Tabs.Panel>
             </Tabs>
           </Card>
@@ -668,7 +688,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
 // ============================================================================
 // TODAY TAB
 // ============================================================================
-function TodayTab({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, ftp, formatDist, formatElev, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, suggestedWorkout, onViewWorkout }) {
+function TodayTab({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, ftp, formatDist, formatElev, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, suggestedWorkout, onViewWorkout, activePlan }) {
   const hasCheckedIn = !!todayHealthMetrics;
 
   return (
@@ -682,7 +702,7 @@ function TodayTab({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats,
           <Text fw={600}>AI Training Coach</Text>
         </Group>
         <AICoach
-          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial)}
+          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan)}
           onAddWorkout={(workout) => {
             notifications.show({
               title: 'Workout Added',
@@ -1161,7 +1181,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
 }
 
 // Build training context for AI Coach
-function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial) {
+function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null) {
   const context = [];
   const distanceUnit = isImperial ? 'mi' : 'km';
 
@@ -1181,6 +1201,40 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
   if (activities.length > 0) {
     const lastRide = activities[0];
     context.push(`Last ride: ${lastRide.name} - ${formatDist(lastRide.distance / 1000)}`);
+  }
+
+  // Add active training plan context
+  if (activePlan) {
+    const planStart = new Date(activePlan.started_at || activePlan.start_date);
+    const daysSinceStart = Math.floor((new Date() - planStart) / (24 * 60 * 60 * 1000));
+    const currentWeek = Math.max(1, Math.floor(daysSinceStart / 7) + 1);
+    const totalWeeks = activePlan.duration_weeks || 8;
+    const progress = currentWeek / totalWeeks;
+
+    // Determine phase
+    let phase = 'Base';
+    if (progress > 0.3 && progress <= 0.6) phase = 'Build';
+    else if (progress > 0.6 && progress <= 0.85) phase = 'Peak';
+    else if (progress > 0.85) phase = 'Taper';
+
+    context.push(`\n--- Active Training Plan ---`);
+    context.push(`Plan: ${activePlan.name}`);
+    context.push(`Methodology: ${activePlan.methodology || 'mixed'}`);
+    context.push(`Goal: ${activePlan.goal || 'general fitness'}`);
+    context.push(`Current Week: ${currentWeek} of ${totalWeeks} (${phase} Phase)`);
+    context.push(`Compliance: ${Math.round(activePlan.compliance_percentage || 0)}%`);
+    context.push(`Workouts Completed: ${activePlan.workouts_completed || 0} of ${activePlan.workouts_total || 0}`);
+
+    if (activePlan.status === 'paused') {
+      context.push(`Status: PAUSED - Plan is currently on hold`);
+    }
+
+    // Add plan adjustment capability info
+    context.push(`\nYou can suggest plan adjustments based on the athlete's current form, compliance, and feedback. Consider:`);
+    context.push(`- If compliance is low, suggest reducing volume or intensity`);
+    context.push(`- If TSB is very negative (fatigued), recommend recovery`);
+    context.push(`- If TSB is very positive (fresh), suggest adding intensity`);
+    context.push(`- Consider the current training phase when making recommendations`);
   }
 
   return context.join('\n');

@@ -264,6 +264,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           goal: plan.goal,
           fitness_level: plan.fitnessLevel,
           started_at: startDate.toISOString(),
+          start_date: startDate.toISOString(), // Include for backwards compatibility
           status: 'active',
         })
         .select()
