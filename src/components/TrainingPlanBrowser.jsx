@@ -163,6 +163,222 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
     }
   };
 
+  // Regenerate workouts for existing plan
+  const handleRegenerateWorkouts = async () => {
+    if (!activePlan?.id) return;
+    setManagingPlan(true);
+
+    try {
+      // Delete existing planned workouts
+      await supabase
+        .from('planned_workouts')
+        .delete()
+        .eq('plan_id', activePlan.id);
+
+      // Get the template for this plan
+      const template = allPlans.find(p => p.id === activePlan.template_id);
+
+      // Generate workouts
+      const workouts = [];
+
+      // Helper to get workout based on methodology
+      const getWorkoutForDay = (methodology, dayOfWeek, weekNum, totalWeeks) => {
+        const isRecoveryWeek = weekNum % 4 === 0;
+
+        const defaultPatterns = {
+          polarized: {
+            regular: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'recovery', workout: 'easy_recovery_ride' },
+              2: { type: 'endurance', workout: 'endurance_base_build' },
+              3: { type: 'vo2max', workout: 'five_by_four_vo2' },
+              4: { type: 'recovery', workout: 'recovery_spin' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'endurance', workout: 'polarized_long_ride' },
+            },
+            recovery: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'rest', workout: null },
+              2: { type: 'recovery', workout: 'recovery_spin' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'easy_recovery_ride' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'rest', workout: null },
+            },
+          },
+          sweet_spot: {
+            regular: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'recovery', workout: 'easy_recovery_ride' },
+              2: { type: 'sweet_spot', workout: 'traditional_sst' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'recovery_spin' },
+              5: { type: 'sweet_spot', workout: 'four_by_twelve_sst' },
+              6: { type: 'endurance', workout: 'endurance_base_build' },
+            },
+            recovery: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'rest', workout: null },
+              2: { type: 'recovery', workout: 'recovery_spin' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'easy_recovery_ride' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'rest', workout: null },
+            },
+          },
+          threshold: {
+            regular: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'recovery', workout: 'easy_recovery_ride' },
+              2: { type: 'threshold', workout: 'two_by_twenty_ftp' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'recovery_spin' },
+              5: { type: 'tempo', workout: 'progressive_tempo' },
+              6: { type: 'endurance', workout: 'endurance_base_build' },
+            },
+            recovery: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'rest', workout: null },
+              2: { type: 'recovery', workout: 'recovery_spin' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'easy_recovery_ride' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'rest', workout: null },
+            },
+          },
+          pyramidal: {
+            regular: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'recovery', workout: 'easy_recovery_ride' },
+              2: { type: 'endurance', workout: 'endurance_base_build' },
+              3: { type: 'tempo', workout: 'progressive_tempo' },
+              4: { type: 'recovery', workout: 'recovery_spin' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'endurance', workout: 'polarized_long_ride' },
+            },
+            recovery: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'rest', workout: null },
+              2: { type: 'recovery', workout: 'recovery_spin' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'easy_recovery_ride' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'rest', workout: null },
+            },
+          },
+          endurance: {
+            regular: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'recovery', workout: 'easy_recovery_ride' },
+              2: { type: 'endurance', workout: 'foundation_miles' },
+              3: { type: 'endurance', workout: 'endurance_base_build' },
+              4: { type: 'rest', workout: null },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'endurance', workout: 'endurance_base_build' },
+            },
+            recovery: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'rest', workout: null },
+              2: { type: 'recovery', workout: 'recovery_spin' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'rest', workout: null },
+              5: { type: 'recovery', workout: 'easy_recovery_ride' },
+              6: { type: 'rest', workout: null },
+            },
+          },
+        };
+
+        const methodology_key = methodology || 'endurance';
+        const methodPattern = defaultPatterns[methodology_key] || defaultPatterns.endurance;
+        const weekPattern = isRecoveryWeek ? methodPattern.recovery : methodPattern.regular;
+        return weekPattern[dayOfWeek] || { type: 'rest', workout: null };
+      };
+
+      const totalWeeks = activePlan.duration_weeks || template?.duration || 8;
+      const methodology = activePlan.methodology || template?.methodology || 'endurance';
+
+      // Use template weekTemplates if available
+      if (template?.weekTemplates) {
+        for (let week = 1; week <= totalWeeks; week++) {
+          const weekTemplate = template.weekTemplates[week] || template.weekTemplates[1];
+          if (weekTemplate) {
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            dayNames.forEach((dayName, dayIndex) => {
+              const dayPlan = weekTemplate[dayName];
+              if (dayPlan) {
+                const workoutInfo = dayPlan.workout ? WORKOUT_LIBRARY[dayPlan.workout] : null;
+                workouts.push({
+                  plan_id: activePlan.id,
+                  week_number: week,
+                  day_of_week: dayIndex,
+                  workout_type: dayPlan.workout ? (workoutInfo?.category || 'endurance') : 'rest',
+                  workout_id: dayPlan.workout || null,
+                  notes: dayPlan.notes || '',
+                  target_tss: workoutInfo?.targetTSS || 0,
+                  target_duration: workoutInfo?.duration || 0,
+                  completed: false,
+                });
+              }
+            });
+          }
+        }
+      } else {
+        // Generate based on methodology
+        for (let week = 1; week <= totalWeeks; week++) {
+          for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+            const dayWorkout = getWorkoutForDay(methodology, dayOfWeek, week, totalWeeks);
+            const workoutInfo = dayWorkout.workout ? WORKOUT_LIBRARY[dayWorkout.workout] : null;
+            workouts.push({
+              plan_id: activePlan.id,
+              week_number: week,
+              day_of_week: dayOfWeek,
+              workout_type: dayWorkout.type || 'rest',
+              workout_id: dayWorkout.workout || null,
+              notes: '',
+              target_tss: workoutInfo?.targetTSS || 0,
+              target_duration: workoutInfo?.duration || 0,
+              completed: false,
+            });
+          }
+        }
+      }
+
+      if (workouts.length > 0) {
+        const { error: workoutError } = await supabase
+          .from('planned_workouts')
+          .insert(workouts);
+
+        if (workoutError) throw workoutError;
+      }
+
+      notifications.show({
+        title: 'Workouts Generated',
+        message: `Created ${workouts.length} workouts for your plan`,
+        color: 'lime',
+        icon: <IconCheck size={16} />,
+      });
+
+      // Refresh the plan
+      if (onPlanActivated) {
+        const { data: refreshedPlan } = await supabase
+          .from('training_plans')
+          .select('*')
+          .eq('id', activePlan.id)
+          .single();
+        if (refreshedPlan) onPlanActivated(refreshedPlan);
+      }
+    } catch (error) {
+      console.error('Failed to regenerate workouts:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to generate workouts',
+        color: 'red',
+      });
+    } finally {
+      setManagingPlan(false);
+    }
+  };
+
   // End plan early (mark as completed)
   const handleEndPlan = async () => {
     if (!activePlan?.id) return;
@@ -273,9 +489,133 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       if (planError) throw planError;
 
       // Generate planned workouts for each week
-      if (plan.weekTemplates) {
-        const workouts = [];
+      const workouts = [];
 
+      // Helper to get workout based on methodology and fitness level
+      const getWorkoutForDay = (methodology, fitnessLevel, dayOfWeek, weekNum, totalWeeks) => {
+        // Determine phase (base, build, peak, taper)
+        const progress = weekNum / totalWeeks;
+        let phase = 'base';
+        if (progress > 0.3 && progress <= 0.6) phase = 'build';
+        else if (progress > 0.6 && progress <= 0.85) phase = 'peak';
+        else if (progress > 0.85) phase = 'taper';
+
+        // Recovery week every 4th week
+        const isRecoveryWeek = weekNum % 4 === 0;
+
+        // Default workout patterns by day of week (0=Sun, 1=Mon, ...)
+        // Most plans: Mon=recovery, Tue=endurance, Wed=intensity, Thu=easy, Fri=tempo/sst, Sat=long, Sun=rest
+        const defaultPatterns = {
+          polarized: {
+            regular: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'recovery', workout: 'easy_recovery_ride' },
+              2: { type: 'endurance', workout: 'endurance_base_build' },
+              3: { type: 'vo2max', workout: 'five_by_four_vo2' },
+              4: { type: 'recovery', workout: 'recovery_spin' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'endurance', workout: 'polarized_long_ride' },
+            },
+            recovery: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'rest', workout: null },
+              2: { type: 'recovery', workout: 'recovery_spin' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'easy_recovery_ride' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'rest', workout: null },
+            },
+          },
+          sweet_spot: {
+            regular: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'recovery', workout: 'easy_recovery_ride' },
+              2: { type: 'sweet_spot', workout: 'traditional_sst' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'recovery_spin' },
+              5: { type: 'sweet_spot', workout: 'four_by_twelve_sst' },
+              6: { type: 'endurance', workout: 'endurance_base_build' },
+            },
+            recovery: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'rest', workout: null },
+              2: { type: 'recovery', workout: 'recovery_spin' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'easy_recovery_ride' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'rest', workout: null },
+            },
+          },
+          threshold: {
+            regular: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'recovery', workout: 'easy_recovery_ride' },
+              2: { type: 'threshold', workout: 'two_by_twenty_ftp' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'recovery_spin' },
+              5: { type: 'tempo', workout: 'progressive_tempo' },
+              6: { type: 'endurance', workout: 'endurance_base_build' },
+            },
+            recovery: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'rest', workout: null },
+              2: { type: 'recovery', workout: 'recovery_spin' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'easy_recovery_ride' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'rest', workout: null },
+            },
+          },
+          pyramidal: {
+            regular: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'recovery', workout: 'easy_recovery_ride' },
+              2: { type: 'endurance', workout: 'endurance_base_build' },
+              3: { type: 'tempo', workout: 'progressive_tempo' },
+              4: { type: 'recovery', workout: 'recovery_spin' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'endurance', workout: 'polarized_long_ride' },
+            },
+            recovery: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'rest', workout: null },
+              2: { type: 'recovery', workout: 'recovery_spin' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'recovery', workout: 'easy_recovery_ride' },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'rest', workout: null },
+            },
+          },
+          endurance: {
+            regular: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'recovery', workout: 'easy_recovery_ride' },
+              2: { type: 'endurance', workout: 'foundation_miles' },
+              3: { type: 'endurance', workout: 'endurance_base_build' },
+              4: { type: 'rest', workout: null },
+              5: { type: 'endurance', workout: 'foundation_miles' },
+              6: { type: 'endurance', workout: 'endurance_base_build' },
+            },
+            recovery: {
+              0: { type: 'rest', workout: null },
+              1: { type: 'rest', workout: null },
+              2: { type: 'recovery', workout: 'recovery_spin' },
+              3: { type: 'endurance', workout: 'foundation_miles' },
+              4: { type: 'rest', workout: null },
+              5: { type: 'recovery', workout: 'easy_recovery_ride' },
+              6: { type: 'rest', workout: null },
+            },
+          },
+        };
+
+        // Get the appropriate pattern
+        const methodPattern = defaultPatterns[methodology] || defaultPatterns.endurance;
+        const weekPattern = isRecoveryWeek ? methodPattern.recovery : methodPattern.regular;
+        return weekPattern[dayOfWeek] || { type: 'rest', workout: null };
+      };
+
+      // Use explicit weekTemplates if available, otherwise generate
+      if (plan.weekTemplates) {
         for (let week = 1; week <= plan.duration; week++) {
           const weekTemplate = plan.weekTemplates[week] || plan.weekTemplates[1];
 
@@ -291,8 +631,8 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   plan_id: newPlan.id,
                   week_number: week,
                   day_of_week: dayIndex,
-                  workout_type: dayPlan.workout || 'rest',
-                  workout_id: dayPlan.workout,
+                  workout_type: dayPlan.workout ? (workoutInfo?.category || 'endurance') : 'rest',
+                  workout_id: dayPlan.workout || null,
                   notes: dayPlan.notes || '',
                   target_tss: workoutInfo?.targetTSS || 0,
                   target_duration: workoutInfo?.duration || 0,
@@ -302,15 +642,44 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             });
           }
         }
+      } else {
+        // Generate workouts based on methodology
+        for (let week = 1; week <= plan.duration; week++) {
+          for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+            const dayWorkout = getWorkoutForDay(
+              plan.methodology,
+              plan.fitnessLevel,
+              dayOfWeek,
+              week,
+              plan.duration
+            );
 
-        if (workouts.length > 0) {
-          const { error: workoutError } = await supabase
-            .from('planned_workouts')
-            .insert(workouts);
+            const workoutInfo = dayWorkout.workout ? WORKOUT_LIBRARY[dayWorkout.workout] : null;
 
-          if (workoutError) {
-            console.error('Failed to create workouts:', workoutError);
+            workouts.push({
+              plan_id: newPlan.id,
+              week_number: week,
+              day_of_week: dayOfWeek,
+              workout_type: dayWorkout.type || 'rest',
+              workout_id: dayWorkout.workout || null,
+              notes: '',
+              target_tss: workoutInfo?.targetTSS || 0,
+              target_duration: workoutInfo?.duration || 0,
+              completed: false,
+            });
           }
+        }
+      }
+
+      if (workouts.length > 0) {
+        const { error: workoutError } = await supabase
+          .from('planned_workouts')
+          .insert(workouts);
+
+        if (workoutError) {
+          console.error('Failed to create workouts:', workoutError);
+        } else {
+          console.log(`Created ${workouts.length} workouts for plan`);
         }
       }
 
@@ -683,6 +1052,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                     disabled={managingPlan}
                   >
                     Mark as Complete
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconRefresh size={14} />}
+                    onClick={handleRegenerateWorkouts}
+                    disabled={managingPlan}
+                  >
+                    Regenerate Workouts
                   </Menu.Item>
                   <Menu.Divider />
                   <Menu.Item
