@@ -259,13 +259,11 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           user_id: user.id,
           template_id: plan.id,
           name: plan.name,
-          description: plan.description,
           duration_weeks: plan.duration,
           methodology: plan.methodology,
           goal: plan.goal,
           fitness_level: plan.fitnessLevel,
           started_at: startDate.toISOString(),
-          start_date: startDate.toISOString().split('T')[0], // For backward compatibility
           status: 'active',
         })
         .select()
