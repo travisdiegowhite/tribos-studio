@@ -618,15 +618,15 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             thickness={8}
             roundCaps
             sections={[
-              { value: Math.min((actualWeeklyStats.rideCount / 5) * 100, 100), color: formStatus.color },
+              { value: Math.min((actualWeeklyStats.rideCount / 7) * 100, 100), color: formStatus.color },
             ]}
             label={
               <Text size="lg" fw={700} ta="center">
-                {actualWeeklyStats.rideCount}/5
+                {actualWeeklyStats.rideCount}
               </Text>
             }
           />
-          <Text size="xs" c="dimmed" mt={4}>rides this week</Text>
+          <Text size="xs" c="dimmed" mt={4}>rides last week</Text>
         </Box>
       </Group>
 
