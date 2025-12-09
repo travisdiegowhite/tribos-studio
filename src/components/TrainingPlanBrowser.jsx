@@ -481,6 +481,9 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       });
       return;
     }
+    // Close the preview modal first
+    setPreviewOpen(false);
+
     setPlanToActivate(plan);
     // Reset date to tomorrow
     const tomorrow = new Date();
