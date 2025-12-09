@@ -33,6 +33,7 @@ import {
   IconRoute,
   IconCalendarEvent,
   IconTrendingUp,
+  IconGripVertical,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -63,6 +64,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     target_duration: 0,
     notes: '',
   });
+
+  // Drag and drop state
+  const [draggedWorkout, setDraggedWorkout] = useState(null);
+  const [dragOverDate, setDragOverDate] = useState(null);
 
   // Helper to get plan start date (supports both old and new schema)
   const getPlanStartDate = (plan) => plan?.started_at || plan?.start_date;
@@ -409,6 +414,147 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
   };
 
+  // Drag and drop handlers
+  const handleDragStart = (e, workout, date) => {
+    if (!workout || workout.workout_type === 'rest') {
+      e.preventDefault();
+      return;
+    }
+    setDraggedWorkout({ workout, sourceDate: date });
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', workout.id);
+  };
+
+  const handleDragOver = (e, date) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (date && draggedWorkout) {
+      setDragOverDate(date.toISOString());
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverDate(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedWorkout(null);
+    setDragOverDate(null);
+  };
+
+  const handleDrop = async (e, targetDate) => {
+    e.preventDefault();
+    setDragOverDate(null);
+
+    if (!draggedWorkout || !targetDate || !activePlan) {
+      setDraggedWorkout(null);
+      return;
+    }
+
+    const { workout, sourceDate } = draggedWorkout;
+
+    // Don't drop on same day
+    if (sourceDate.toDateString() === targetDate.toDateString()) {
+      setDraggedWorkout(null);
+      return;
+    }
+
+    try {
+      const planStartDate = new Date(getPlanStartDate(activePlan));
+
+      // Calculate new week number and day of week for target date
+      const daysSinceStart = Math.floor((targetDate - planStartDate) / (24 * 60 * 60 * 1000));
+      const newWeekNumber = Math.floor(daysSinceStart / 7) + 1;
+      const newDayOfWeek = targetDate.getDay();
+
+      // Check if target date is within plan duration
+      if (newWeekNumber < 1 || newWeekNumber > activePlan.duration_weeks) {
+        notifications.show({
+          title: 'Cannot Move Workout',
+          message: 'Target date is outside the plan duration',
+          color: 'yellow',
+        });
+        setDraggedWorkout(null);
+        return;
+      }
+
+      // Calculate new scheduled_date
+      const newScheduledDate = targetDate.toISOString().split('T')[0];
+
+      // Check if there's already a workout on target date
+      const existingWorkout = plannedWorkouts.find(
+        w => w.week_number === newWeekNumber && w.day_of_week === newDayOfWeek && w.id !== workout.id
+      );
+
+      if (existingWorkout && existingWorkout.workout_type !== 'rest') {
+        // Swap the workouts
+        const sourceWeekNumber = workout.week_number;
+        const sourceDayOfWeek = workout.day_of_week;
+        const sourceScheduledDate = sourceDate.toISOString().split('T')[0];
+
+        // Update dragged workout to new position
+        const { error: error1 } = await supabase
+          .from('planned_workouts')
+          .update({
+            week_number: newWeekNumber,
+            day_of_week: newDayOfWeek,
+            scheduled_date: newScheduledDate,
+          })
+          .eq('id', workout.id);
+
+        if (error1) throw error1;
+
+        // Update existing workout to old position
+        const { error: error2 } = await supabase
+          .from('planned_workouts')
+          .update({
+            week_number: sourceWeekNumber,
+            day_of_week: sourceDayOfWeek,
+            scheduled_date: sourceScheduledDate,
+          })
+          .eq('id', existingWorkout.id);
+
+        if (error2) throw error2;
+
+        notifications.show({
+          title: 'Workouts Swapped',
+          message: 'Workouts have been swapped between days',
+          color: 'lime',
+        });
+      } else {
+        // Simply move the workout
+        const { error } = await supabase
+          .from('planned_workouts')
+          .update({
+            week_number: newWeekNumber,
+            day_of_week: newDayOfWeek,
+            scheduled_date: newScheduledDate,
+          })
+          .eq('id', workout.id);
+
+        if (error) throw error;
+
+        notifications.show({
+          title: 'Workout Moved',
+          message: `Moved to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
+          color: 'lime',
+        });
+      }
+
+      loadPlannedWorkouts();
+      if (onPlanUpdated) onPlanUpdated();
+    } catch (error) {
+      console.error('Failed to move workout:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to move workout',
+        color: 'red',
+      });
+    } finally {
+      setDraggedWorkout(null);
+    }
+  };
+
   // When workout type changes, auto-fill from library
   const handleWorkoutTypeChange = (type) => {
     setEditForm(prev => ({ ...prev, workout_type: type }));
@@ -627,17 +773,28 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                   }
                 }
 
+                // Check if this date is a drop target
+                const isDropTarget = dragOverDate === date.toISOString();
+                const hasDraggableWorkout = workout && workout.workout_type !== 'rest';
+
                 return (
                   <Card
                     key={index}
                     withBorder
                     p="xs"
+                    draggable={hasDraggableWorkout}
+                    onDragStart={(e) => handleDragStart(e, workout, date)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => handleDragOver(e, date)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, date)}
                     style={{
                       minHeight: 80,
-                      backgroundColor: backgroundColor,
-                      border: `2px solid ${borderColor}`,
+                      backgroundColor: isDropTarget ? 'rgba(132, 216, 99, 0.3)' : backgroundColor,
+                      border: isDropTarget ? `2px dashed ${tokens.colors.electricLime}` : `2px solid ${borderColor}`,
                       opacity: isPast && !workout?.completed && !dayRides.length ? 0.7 : 1,
-                      cursor: activePlan ? 'pointer' : 'default',
+                      cursor: hasDraggableWorkout ? 'grab' : (activePlan ? 'pointer' : 'default'),
+                      transition: 'background-color 0.2s, border 0.2s',
                     }}
                     onClick={() => activePlan && openEditModal(workout, date)}
                   >
@@ -740,7 +897,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: `${tokens.colors.electricLime}15`, border: `2px solid ${tokens.colors.electricLime}` }} />
                     <Text size="xs" style={{ color: tokens.colors.textSecondary }}>Today</Text>
                   </Group>
-                  <Text size="xs" c="dimmed" ml="auto">Click any day to edit workout</Text>
+                  <Text size="xs" c="dimmed" ml="auto">Drag workouts to move • Click to edit</Text>
                 </Group>
               )}
             </Stack>
