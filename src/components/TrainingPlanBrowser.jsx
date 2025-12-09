@@ -328,6 +328,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                 const workoutInfo = dayPlan.workout ? WORKOUT_LIBRARY[dayPlan.workout] : null;
                 workouts.push({
                   plan_id: activePlan.id,
+                  user_id: user.id,
                   week_number: week,
                   day_of_week: dayIndex,
                   scheduled_date: calculateScheduledDate(week, dayIndex),
@@ -350,6 +351,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             const workoutInfo = dayWorkout.workout ? WORKOUT_LIBRARY[dayWorkout.workout] : null;
             workouts.push({
               plan_id: activePlan.id,
+              user_id: user.id,
               week_number: week,
               day_of_week: dayOfWeek,
               scheduled_date: calculateScheduledDate(week, dayOfWeek),
@@ -686,6 +688,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
                 workouts.push({
                   plan_id: newPlan.id,
+                  user_id: user.id,
                   week_number: week,
                   day_of_week: dayIndex,
                   scheduled_date: calculateScheduledDate(week, dayIndex),
@@ -716,6 +719,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
             workouts.push({
               plan_id: newPlan.id,
+              user_id: user.id,
               week_number: week,
               day_of_week: dayOfWeek,
               scheduled_date: calculateScheduledDate(week, dayOfWeek),
