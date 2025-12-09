@@ -369,7 +369,15 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           .from('planned_workouts')
           .insert(workouts);
 
-        if (workoutError) throw workoutError;
+        if (workoutError) {
+          console.error('Failed to insert workouts:', workoutError);
+          notifications.show({
+            title: 'Database Error',
+            message: 'Could not create workouts. The planned_workouts table may need to be created. Check database migrations.',
+            color: 'red',
+          });
+          return;
+        }
       }
 
       notifications.show({
@@ -726,6 +734,11 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
         if (workoutError) {
           console.error('Failed to create workouts:', workoutError);
+          notifications.show({
+            title: 'Workouts Not Created',
+            message: 'Plan activated but workouts could not be scheduled. The planned_workouts table may need to be created.',
+            color: 'yellow',
+          });
         } else {
           console.log(`Created ${workouts.length} workouts for plan`);
         }

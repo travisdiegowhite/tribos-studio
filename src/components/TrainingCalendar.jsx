@@ -105,14 +105,24 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         return;
       }
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('planned_workouts')
         .select('*')
         .eq('plan_id', activePlan.id)
         .in('week_number', weekNumbers);
 
+      if (error) {
+        console.error('Error loading planned workouts:', error);
+        // If table doesn't exist or other DB error, show empty state
+        setPlannedWorkouts([]);
+        return;
+      }
+
       if (data) {
+        console.log(`Loaded ${data.length} planned workouts for weeks:`, weekNumbers);
         setPlannedWorkouts(data);
+      } else {
+        setPlannedWorkouts([]);
       }
     } catch (error) {
       console.error('Failed to load planned workouts:', error);
