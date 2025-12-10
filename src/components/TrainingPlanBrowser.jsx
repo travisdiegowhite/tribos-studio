@@ -19,7 +19,7 @@ import {
   Menu,
   ActionIcon,
 } from '@mantine/core';
-import { DatePickerInput } from '@mantine/dates';
+import { Calendar } from '@mantine/dates';
 import {
   IconTarget,
   IconClock,
@@ -473,6 +473,8 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       });
       return;
     }
+    // Close the preview modal first
+    setPreviewOpen(false);
     setPlanToActivate(plan);
     // Reset date to tomorrow
     const tomorrow = new Date();
@@ -1181,55 +1183,80 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         }}
         title={
           <Group gap="sm">
-            <IconCalendar size={20} />
-            <Text fw={600}>Choose Start Date</Text>
+            <ThemeIcon size="lg" color="lime" variant="light">
+              <IconCalendar size={18} />
+            </ThemeIcon>
+            <Box>
+              <Text fw={600}>Choose Start Date</Text>
+              {planToActivate && (
+                <Text size="xs" c="dimmed">{planToActivate.name}</Text>
+              )}
+            </Box>
           </Group>
         }
         centered
-        size="sm"
+        size="md"
       >
         <Stack gap="md">
-          {planToActivate && (
-            <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
-              <Text size="sm">
-                <Text span fw={500}>{planToActivate.name}</Text> is a {planToActivate.duration}-week plan.
-                Choose when you'd like to start.
-              </Text>
-            </Alert>
-          )}
+          {/* Visual Calendar */}
+          <Box style={{ display: 'flex', justifyContent: 'center' }}>
+            <Calendar
+              value={selectedStartDate}
+              onChange={setSelectedStartDate}
+              minDate={new Date()}
+              firstDayOfWeek={0}
+              size="md"
+              styles={{
+                day: {
+                  '&[data-selected]': {
+                    backgroundColor: tokens.colors.electricLime,
+                    color: tokens.colors.bgPrimary,
+                  },
+                },
+              }}
+            />
+          </Box>
 
-          <DatePickerInput
-            label="Plan starts on"
-            description="Week 1 begins on this date"
-            placeholder="Select start date"
-            value={selectedStartDate}
-            onChange={setSelectedStartDate}
-            minDate={new Date()}
-            firstDayOfWeek={0}
-            size="md"
-          />
-
+          {/* Date Summary */}
           {selectedStartDate && planToActivate && (
-            <Paper p="sm" withBorder bg="gray.0">
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed">Plan ends on</Text>
-                <Text size="sm" fw={500}>
-                  {(() => {
-                    const endDate = new Date(selectedStartDate);
-                    endDate.setDate(endDate.getDate() + (planToActivate.duration * 7) - 1);
-                    return endDate.toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    });
-                  })()}
-                </Text>
-              </Stack>
+            <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${tokens.colors.electricLime}10` }}>
+              <SimpleGrid cols={2}>
+                <Box>
+                  <Text size="xs" c="dimmed" tt="uppercase">Starts</Text>
+                  <Text fw={600}>
+                    {selectedStartDate.toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </Text>
+                </Box>
+                <Box>
+                  <Text size="xs" c="dimmed" tt="uppercase">Ends</Text>
+                  <Text fw={600}>
+                    {(() => {
+                      const endDate = new Date(selectedStartDate);
+                      endDate.setDate(endDate.getDate() + (planToActivate.duration * 7) - 1);
+                      return endDate.toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      });
+                    })()}
+                  </Text>
+                </Box>
+              </SimpleGrid>
+              <Text size="xs" c="dimmed" ta="center" mt="sm">
+                {planToActivate.duration} weeks • {planToActivate.methodology?.replace('_', ' ')} training
+              </Text>
             </Paper>
           )}
 
-          <Group justify="flex-end" gap="sm" mt="md">
+          <Divider />
+
+          <Group justify="space-between">
             <Button
               variant="subtle"
               onClick={() => {
@@ -1241,12 +1268,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             </Button>
             <Button
               color="lime"
-              leftSection={<IconPlayerPlay size={16} />}
+              size="md"
+              leftSection={<IconPlayerPlay size={18} />}
               onClick={() => handleActivatePlan(planToActivate, selectedStartDate)}
               loading={activating}
               disabled={!selectedStartDate}
             >
-              Start Plan
+              Start Training
             </Button>
           </Group>
         </Stack>
