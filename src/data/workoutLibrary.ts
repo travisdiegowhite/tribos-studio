@@ -11,7 +11,16 @@
  * - Classic Coggan power zones
  */
 
-export const WORKOUT_LIBRARY = {
+import type {
+  WorkoutDefinition,
+  WorkoutLibrary as WorkoutLibraryType,
+  WorkoutCategory,
+  FitnessLevel,
+  TrainingPhase,
+  TrainingMethodologyDefinition,
+} from '../types/training';
+
+export const WORKOUT_LIBRARY: WorkoutLibraryType = {
   // ============================================================
   // RECOVERY & ACTIVE RECOVERY (Zone 1)
   // ============================================================
@@ -814,14 +823,14 @@ export const WORKOUT_LIBRARY = {
 // ============================================================
 // TRAINING METHODOLOGIES
 // ============================================================
-export const TRAINING_METHODOLOGIES = {
+export const TRAINING_METHODOLOGIES: Record<string, TrainingMethodologyDefinition> = {
   polarized: {
     name: 'Polarized Training',
     description: '80% low intensity (Zone 1-2), 20% high intensity (Zone 5+). Minimal time in tempo/threshold.',
     weeklyDistribution: {
-      zone1_2: 0.80,  // 80% in Z1-Z2
-      zone3_4: 0.05,  // 5% in Z3-Z4 (minimal)
-      zone5_plus: 0.15 // 15% in Z5+
+      zone1_2: 0.80,
+      zone3_4: 0.05,
+      zone5_plus: 0.15
     },
     bestFor: ['endurance events', 'time-constrained athletes', 'recovery-focused'],
     researchBasis: '2024-2025 polarized training research, Norwegian endurance studies',
@@ -832,7 +841,7 @@ export const TRAINING_METHODOLOGIES = {
       { day: 'Thursday', workout: 'recovery_spin' },
       { day: 'Friday', workout: 'foundation_miles' },
       { day: 'Saturday', workout: 'long_endurance_ride' },
-      { day: 'Sunday', workout: null } // Rest
+      { day: 'Sunday', workout: null }
     ]
   },
 
@@ -840,9 +849,9 @@ export const TRAINING_METHODOLOGIES = {
     name: 'Sweet Spot Base',
     description: 'Emphasizes 88-94% FTP work for time-efficient FTP gains.',
     weeklyDistribution: {
-      zone1_2: 0.50,  // 50% in Z1-Z2
-      zone3_sst: 0.35, // 35% in Z3-SST
-      zone4_plus: 0.15 // 15% in Z4+
+      zone1_2: 0.50,
+      zone3_sst: 0.35,
+      zone4_plus: 0.15
     },
     bestFor: ['FTP improvement', 'time-constrained athletes', 'century/gran fondo'],
     researchBasis: '2024-2025 sweet spot methodology: Time-efficient FTP gains, proven effective for sustained power development',
@@ -853,7 +862,7 @@ export const TRAINING_METHODOLOGIES = {
       { day: 'Thursday', workout: 'three_by_ten_sst' },
       { day: 'Friday', workout: 'recovery_spin' },
       { day: 'Saturday', workout: 'long_endurance_ride' },
-      { day: 'Sunday', workout: null } // Rest
+      { day: 'Sunday', workout: null }
     ]
   },
 
@@ -861,9 +870,9 @@ export const TRAINING_METHODOLOGIES = {
     name: 'Pyramidal Training',
     description: 'Balanced approach: 67.5% low, 23.4% moderate, 9.1% high intensity. Proven effective for recreational cyclists.',
     weeklyDistribution: {
-      zone1_2: 0.675,  // 67.5% in Z1-Z2
-      zone3_4: 0.234,  // 23.4% in Z3-Z4
-      zone5_plus: 0.091 // 9.1% in Z5+
+      zone1_2: 0.675,
+      zone3_4: 0.234,
+      zone5_plus: 0.091
     },
     bestFor: ['general fitness', 'varied events', 'sustainable long-term', 'recreational cyclists'],
     researchBasis: '2024 meta-analysis: Effective for recreational cyclists, balanced stress distribution for long-term sustainability',
@@ -874,7 +883,7 @@ export const TRAINING_METHODOLOGIES = {
       { day: 'Thursday', workout: 'threshold_pyramid' },
       { day: 'Friday', workout: 'recovery_spin' },
       { day: 'Saturday', workout: 'long_endurance_ride' },
-      { day: 'Sunday', workout: null } // Rest
+      { day: 'Sunday', workout: null }
     ]
   },
 
@@ -882,9 +891,9 @@ export const TRAINING_METHODOLOGIES = {
     name: 'Threshold-Focused',
     description: 'Classic FTP-building approach with frequent threshold intervals.',
     weeklyDistribution: {
-      zone1_2: 0.60,  // 60% in Z1-Z2
-      zone3_4: 0.30,  // 30% in Z3-Z4
-      zone5_plus: 0.10 // 10% in Z5+
+      zone1_2: 0.60,
+      zone3_4: 0.30,
+      zone5_plus: 0.10
     },
     bestFor: ['road racing', 'time trials', 'FTP development'],
     researchBasis: 'Coggan/Allen power-based training methodology: Proven race-specific FTP development and lactate threshold improvement',
@@ -895,7 +904,7 @@ export const TRAINING_METHODOLOGIES = {
       { day: 'Thursday', workout: 'two_by_twenty_ftp' },
       { day: 'Friday', workout: 'recovery_spin' },
       { day: 'Saturday', workout: 'long_endurance_ride' },
-      { day: 'Sunday', workout: null } // Rest
+      { day: 'Sunday', workout: null }
     ]
   }
 };
@@ -907,21 +916,21 @@ export const TRAINING_METHODOLOGIES = {
 /**
  * Get workouts by category
  */
-export function getWorkoutsByCategory(category) {
+export function getWorkoutsByCategory(category: WorkoutCategory): WorkoutDefinition[] {
   return Object.values(WORKOUT_LIBRARY).filter(w => w.category === category);
 }
 
 /**
  * Get workouts by difficulty
  */
-export function getWorkoutsByDifficulty(difficulty) {
+export function getWorkoutsByDifficulty(difficulty: FitnessLevel): WorkoutDefinition[] {
   return Object.values(WORKOUT_LIBRARY).filter(w => w.difficulty === difficulty);
 }
 
 /**
  * Get workouts by TSS range
  */
-export function getWorkoutsByTSS(minTSS, maxTSS) {
+export function getWorkoutsByTSS(minTSS: number, maxTSS: number): WorkoutDefinition[] {
   return Object.values(WORKOUT_LIBRARY).filter(
     w => w.targetTSS >= minTSS && w.targetTSS <= maxTSS
   );
@@ -930,7 +939,7 @@ export function getWorkoutsByTSS(minTSS, maxTSS) {
 /**
  * Get workouts by duration range (in minutes)
  */
-export function getWorkoutsByDuration(minDuration, maxDuration) {
+export function getWorkoutsByDuration(minDuration: number, maxDuration: number): WorkoutDefinition[] {
   return Object.values(WORKOUT_LIBRARY).filter(
     w => w.duration >= minDuration && w.duration <= maxDuration
   );
@@ -939,22 +948,22 @@ export function getWorkoutsByDuration(minDuration, maxDuration) {
 /**
  * Get a workout by its ID
  */
-export function getWorkoutById(id) {
+export function getWorkoutById(id: string): WorkoutDefinition | null {
   return WORKOUT_LIBRARY[id] || null;
 }
 
 /**
  * Search workouts by tags
  */
-export function searchWorkoutsByTag(tag) {
+export function searchWorkoutsByTag(tag: string): WorkoutDefinition[] {
   return Object.values(WORKOUT_LIBRARY).filter(w => w.tags.includes(tag));
 }
 
 /**
  * Get recommended workouts for training phase
  */
-export function getWorkoutsForPhase(phase, fitnessLevel) {
-  const phaseWorkouts = {
+export function getWorkoutsForPhase(phase: TrainingPhase, fitnessLevel?: FitnessLevel): WorkoutDefinition[] {
+  const phaseWorkouts: Record<TrainingPhase, WorkoutCategory[]> = {
     base: ['recovery', 'endurance', 'tempo'],
     build: ['sweet_spot', 'tempo', 'threshold'],
     peak: ['threshold', 'vo2max', 'racing'],
@@ -968,6 +977,20 @@ export function getWorkoutsForPhase(phase, fitnessLevel) {
     categories.includes(w.category) &&
     (fitnessLevel ? w.difficulty === fitnessLevel || w.difficulty === 'beginner' : true)
   );
+}
+
+/**
+ * Get all workout IDs in the library
+ */
+export function getAllWorkoutIds(): string[] {
+  return Object.keys(WORKOUT_LIBRARY);
+}
+
+/**
+ * Check if a workout ID exists in the library
+ */
+export function workoutExists(id: string): boolean {
+  return id in WORKOUT_LIBRARY;
 }
 
 export default WORKOUT_LIBRARY;

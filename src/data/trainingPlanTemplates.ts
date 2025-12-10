@@ -3,12 +3,20 @@
  * Pre-built structured training plans with complete week-by-week workout schedules
  *
  * Each plan includes:
- * - Goal-specific periodization (Base → Build → Peak → Taper)
+ * - Goal-specific periodization (Base -> Build -> Peak -> Taper)
  * - Progressive overload with recovery weeks every 3-4 weeks
  * - Complete weekTemplates with specific workouts for each day
  */
 
-export const TRAINING_PLAN_TEMPLATES = {
+import type {
+  TrainingPlanTemplate,
+  TrainingPlanTemplatesMap,
+  TrainingGoal,
+  FitnessLevel,
+  TrainingMethodology,
+} from '../types/training';
+
+export const TRAINING_PLAN_TEMPLATES: TrainingPlanTemplatesMap = {
   // ============================================================
   // POLARIZED TRAINING PLANS
   // ============================================================
@@ -752,43 +760,62 @@ export const TRAINING_PLAN_TEMPLATES = {
 /**
  * Get plan template by ID
  */
-export function getPlanTemplate(id) {
+export function getPlanTemplate(id: string): TrainingPlanTemplate | undefined {
   return TRAINING_PLAN_TEMPLATES[id];
 }
 
 /**
  * Get all plan templates
  */
-export function getAllPlans() {
+export function getAllPlans(): TrainingPlanTemplate[] {
   return Object.values(TRAINING_PLAN_TEMPLATES);
 }
 
 /**
  * Get plans by goal
  */
-export function getPlansByGoal(goal) {
+export function getPlansByGoal(goal: TrainingGoal): TrainingPlanTemplate[] {
   return Object.values(TRAINING_PLAN_TEMPLATES).filter(plan => plan.goal === goal);
 }
 
 /**
  * Get plans by fitness level
  */
-export function getPlansByFitnessLevel(level) {
+export function getPlansByFitnessLevel(level: FitnessLevel): TrainingPlanTemplate[] {
   return Object.values(TRAINING_PLAN_TEMPLATES).filter(plan => plan.fitnessLevel === level);
 }
 
 /**
  * Get plans by duration
  */
-export function getPlansByDuration(weeks) {
+export function getPlansByDuration(weeks: number): TrainingPlanTemplate[] {
   return Object.values(TRAINING_PLAN_TEMPLATES).filter(plan => plan.duration === weeks);
 }
 
 /**
  * Get plans by methodology
  */
-export function getPlansByMethodology(methodology) {
+export function getPlansByMethodology(methodology: TrainingMethodology): TrainingPlanTemplate[] {
   return Object.values(TRAINING_PLAN_TEMPLATES).filter(plan => plan.methodology === methodology);
+}
+
+/**
+ * Get all workout IDs used in templates (for validation)
+ */
+export function getAllWorkoutIdsFromTemplates(): Set<string> {
+  const workoutIds = new Set<string>();
+
+  for (const plan of Object.values(TRAINING_PLAN_TEMPLATES)) {
+    for (const week of Object.values(plan.weekTemplates)) {
+      for (const day of Object.values(week)) {
+        if (day.workout) {
+          workoutIds.add(day.workout);
+        }
+      }
+    }
+  }
+
+  return workoutIds;
 }
 
 export default TRAINING_PLAN_TEMPLATES;

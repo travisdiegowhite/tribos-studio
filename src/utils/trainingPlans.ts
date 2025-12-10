@@ -3,46 +3,59 @@
  * Defines training zones, workout types, and TSS calculation methods
  */
 
+import type {
+  TrainingZonesMap,
+  WorkoutTypesMap,
+  TrainingPhasesMap,
+  GoalTypesMap,
+  FitnessLevelsMap,
+  PowerZonesMap,
+  TSBInterpretation,
+  TSBStatus,
+  FitnessLevel,
+  TrainingZone,
+} from '../types/training';
+
 // Training Zones based on % of FTP
-export const TRAINING_ZONES = {
+export const TRAINING_ZONES: TrainingZonesMap = {
   1: {
     name: 'Recovery',
-    color: '#4ade80', // green
+    color: '#4ade80',
     ftp: { min: 0, max: 55 },
     description: 'Active recovery, easy spinning',
     icon: '😌'
   },
   2: {
     name: 'Endurance',
-    color: '#60a5fa', // blue
+    color: '#60a5fa',
     ftp: { min: 56, max: 75 },
     description: 'Aerobic base building, long steady rides',
     icon: '🚴'
   },
   3: {
     name: 'Tempo',
-    color: '#facc15', // yellow
+    color: '#facc15',
     ftp: { min: 76, max: 90 },
     description: 'Moderate intensity, sustainable pace',
     icon: '💪'
   },
   3.5: {
     name: 'Sweet Spot',
-    color: '#f59e0b', // orange
+    color: '#f59e0b',
     ftp: { min: 88, max: 94 },
     description: 'High aerobic load, time-efficient training',
     icon: '🍯'
   },
   4: {
     name: 'Threshold',
-    color: '#f97316', // dark orange
+    color: '#f97316',
     ftp: { min: 95, max: 105 },
     description: 'Lactate threshold, hard sustained effort',
     icon: '🔥'
   },
   5: {
     name: 'VO2 Max',
-    color: '#ef4444', // red
+    color: '#ef4444',
     ftp: { min: 106, max: 150 },
     description: 'Maximum aerobic capacity, very hard efforts',
     icon: '🚀'
@@ -50,7 +63,7 @@ export const TRAINING_ZONES = {
 };
 
 // Workout Types
-export const WORKOUT_TYPES = {
+export const WORKOUT_TYPES: WorkoutTypesMap = {
   rest: {
     name: 'Rest Day',
     description: 'Complete rest or very light activity',
@@ -143,7 +156,7 @@ export const WORKOUT_TYPES = {
 };
 
 // Training Phases
-export const TRAINING_PHASES = {
+export const TRAINING_PHASES: TrainingPhasesMap = {
   base: {
     name: 'Base Building',
     description: 'Build aerobic foundation with Zone 2 endurance',
@@ -182,7 +195,7 @@ export const TRAINING_PHASES = {
 };
 
 // Goal Types
-export const GOAL_TYPES = {
+export const GOAL_TYPES: GoalTypesMap = {
   endurance: {
     name: 'Endurance',
     description: 'Build aerobic base and distance capacity',
@@ -216,8 +229,7 @@ export const GOAL_TYPES = {
 };
 
 // Fitness Levels
-// Updated based on 2024-2025 research and best practices
-export const FITNESS_LEVELS = {
+export const FITNESS_LEVELS: FitnessLevelsMap = {
   beginner: {
     name: 'Beginner',
     description: '0-2 years cycling, 3-5 hours/week',
@@ -240,12 +252,12 @@ export const FITNESS_LEVELS = {
 
 /**
  * Calculate Training Stress Score (TSS) from power data
- * @param {number} durationSeconds - Duration in seconds
- * @param {number} normalizedPower - Normalized Power (NP)
- * @param {number} ftp - Functional Threshold Power
- * @returns {number} TSS
  */
-export function calculateTSS(durationSeconds, normalizedPower, ftp) {
+export function calculateTSS(
+  durationSeconds: number,
+  normalizedPower: number,
+  ftp: number
+): number | null {
   if (!ftp || ftp === 0) return null;
 
   const intensityFactor = normalizedPower / ftp;
@@ -256,14 +268,14 @@ export function calculateTSS(durationSeconds, normalizedPower, ftp) {
 }
 
 /**
- * Estimate TSS without power data (based on distance, elevation, and workout type)
- * @param {number} durationMinutes - Duration in minutes
- * @param {number} distanceKm - Distance in kilometers
- * @param {number} elevationGainM - Elevation gain in meters
- * @param {string} workoutType - Type of workout
- * @returns {number} Estimated TSS
+ * Estimate TSS without power data (based on duration, elevation, and workout type)
  */
-export function estimateTSS(durationMinutes, distanceKm, elevationGainM, workoutType = 'endurance') {
+export function estimateTSS(
+  durationMinutes: number,
+  distanceKm: number,
+  elevationGainM: number,
+  workoutType: string = 'endurance'
+): number {
   // Base TSS from duration (assuming endurance pace = ~50 TSS/hour)
   let baseTSS = (durationMinutes / 60) * 50;
 
@@ -271,7 +283,7 @@ export function estimateTSS(durationMinutes, distanceKm, elevationGainM, workout
   const elevationFactor = (elevationGainM / 300) * 10;
 
   // Intensity multiplier based on workout type
-  const intensityMultipliers = {
+  const intensityMultipliers: Record<string, number> = {
     recovery: 0.5,
     endurance: 1.0,
     tempo: 1.3,
@@ -290,13 +302,11 @@ export function estimateTSS(durationMinutes, distanceKm, elevationGainM, workout
 
 /**
  * Calculate power zones from FTP
- * @param {number} ftp - Functional Threshold Power
- * @returns {Object} Power zones
  */
-export function calculatePowerZones(ftp) {
+export function calculatePowerZones(ftp: number): PowerZonesMap | null {
   if (!ftp) return null;
 
-  const zones = {};
+  const zones: PowerZonesMap = {};
   Object.keys(TRAINING_ZONES).forEach(zoneNum => {
     const zone = TRAINING_ZONES[zoneNum];
     zones[zoneNum] = {
@@ -313,13 +323,11 @@ export function calculatePowerZones(ftp) {
 
 /**
  * Calculate Chronic Training Load (CTL) - 42-day exponentially weighted average
- * @param {Array} dailyTSS - Array of daily TSS values (last 42 days)
- * @returns {number} CTL
  */
-export function calculateCTL(dailyTSS) {
+export function calculateCTL(dailyTSS: number[]): number {
   if (!dailyTSS || dailyTSS.length === 0) return 0;
 
-  const decay = 1 / 42; // Time constant for 42-day average
+  const decay = 1 / 42;
   let ctl = 0;
 
   dailyTSS.forEach((tss, index) => {
@@ -332,13 +340,11 @@ export function calculateCTL(dailyTSS) {
 
 /**
  * Calculate Acute Training Load (ATL) - 7-day exponentially weighted average
- * @param {Array} dailyTSS - Array of daily TSS values (last 7 days)
- * @returns {number} ATL
  */
-export function calculateATL(dailyTSS) {
+export function calculateATL(dailyTSS: number[]): number {
   if (!dailyTSS || dailyTSS.length === 0) return 0;
 
-  const decay = 1 / 7; // Time constant for 7-day average
+  const decay = 1 / 7;
   let atl = 0;
 
   dailyTSS.forEach((tss, index) => {
@@ -351,20 +357,15 @@ export function calculateATL(dailyTSS) {
 
 /**
  * Calculate Training Stress Balance (TSB) - Form/Readiness
- * @param {number} ctl - Chronic Training Load
- * @param {number} atl - Acute Training Load
- * @returns {number} TSB
  */
-export function calculateTSB(ctl, atl) {
+export function calculateTSB(ctl: number, atl: number): number {
   return Math.round(ctl - atl);
 }
 
 /**
  * Interpret TSB for user feedback
- * @param {number} tsb - Training Stress Balance
- * @returns {Object} Interpretation
  */
-export function interpretTSB(tsb) {
+export function interpretTSB(tsb: number): TSBInterpretation {
   if (tsb > 25) {
     return {
       status: 'fresh',
@@ -405,11 +406,8 @@ export function interpretTSB(tsb) {
 
 /**
  * Get recommended weekly TSS based on fitness level
- * @param {string} fitnessLevel - beginner, intermediate, advanced
- * @param {number} hoursPerWeek - Available hours per week
- * @returns {number} Recommended weekly TSS
  */
-export function getRecommendedWeeklyTSS(fitnessLevel, hoursPerWeek) {
+export function getRecommendedWeeklyTSS(fitnessLevel: FitnessLevel, hoursPerWeek: number): number {
   const level = FITNESS_LEVELS[fitnessLevel];
   if (!level) return 300;
 
@@ -423,22 +421,54 @@ export function getRecommendedWeeklyTSS(fitnessLevel, hoursPerWeek) {
 
 /**
  * Determine which zone a power value falls into
- * @param {number} power - Power in watts
- * @param {number} ftp - Functional Threshold Power
- * @returns {number} Zone number
  */
-export function getPowerZone(power, ftp) {
+export function getPowerZone(power: number, ftp: number): TrainingZone | null {
   if (!ftp || !power) return null;
 
   const percentage = (power / ftp) * 100;
 
   for (const [zoneNum, zone] of Object.entries(TRAINING_ZONES)) {
     if (percentage >= zone.ftp.min && percentage <= zone.ftp.max) {
-      return parseFloat(zoneNum);
+      return parseFloat(zoneNum) as TrainingZone;
     }
   }
 
-  return percentage > 150 ? 6 : 1; // Anaerobic or recovery
+  return percentage > 150 ? 6 as TrainingZone : 1;
+}
+
+/**
+ * Get zone color for a given zone number
+ */
+export function getZoneColor(zone: number | string): string {
+  const zoneData = TRAINING_ZONES[zone];
+  return zoneData?.color || '#9ca3af';
+}
+
+/**
+ * Get zone name for a given zone number
+ */
+export function getZoneName(zone: number | string): string {
+  const zoneData = TRAINING_ZONES[zone];
+  return zoneData?.name || 'Unknown';
+}
+
+/**
+ * Calculate Intensity Factor (IF)
+ */
+export function calculateIntensityFactor(normalizedPower: number, ftp: number): number | null {
+  if (!ftp || !normalizedPower) return null;
+  return Math.round((normalizedPower / ftp) * 100) / 100;
+}
+
+/**
+ * Calculate Variability Index (VI)
+ */
+export function calculateVariabilityIndex(
+  normalizedPower: number,
+  averagePower: number
+): number | null {
+  if (!averagePower || !normalizedPower) return null;
+  return Math.round((normalizedPower / averagePower) * 100) / 100;
 }
 
 export default {
@@ -455,5 +485,9 @@ export default {
   calculateTSB,
   interpretTSB,
   getRecommendedWeeklyTSS,
-  getPowerZone
+  getPowerZone,
+  getZoneColor,
+  getZoneName,
+  calculateIntensityFactor,
+  calculateVariabilityIndex
 };
