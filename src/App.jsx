@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { MantineProvider, ColorSchemeScript } from '@mantine/core';
+import { DatesProvider } from '@mantine/dates';
 import { Notifications } from '@mantine/notifications';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { theme } from './theme';
@@ -31,6 +32,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import '@mantine/charts/styles.css';
+import '@mantine/dates/styles.css';
 import './styles/global.css';
 
 // Protected Route wrapper
@@ -170,15 +172,17 @@ function App() {
     <>
       <ColorSchemeScript defaultColorScheme="dark" />
       <MantineProvider theme={theme} defaultColorScheme="dark">
-        <ErrorBoundary>
-          <Notifications position="top-right" />
-          <AuthProvider>
-            <BrowserRouter>
-              <AppRoutes />
-              <BetaFeedbackWidget />
-            </BrowserRouter>
-          </AuthProvider>
-        </ErrorBoundary>
+        <DatesProvider settings={{ firstDayOfWeek: 0 }}>
+          <ErrorBoundary>
+            <Notifications position="top-right" />
+            <AuthProvider>
+              <BrowserRouter>
+                <AppRoutes />
+                <BetaFeedbackWidget />
+              </BrowserRouter>
+            </AuthProvider>
+          </ErrorBoundary>
+        </DatesProvider>
       </MantineProvider>
     </>
   );
