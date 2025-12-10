@@ -19,7 +19,7 @@ import {
   Menu,
   ActionIcon,
 } from '@mantine/core';
-import { Calendar } from '@mantine/dates';
+import { DatePicker } from '@mantine/dates';
 import {
   IconTarget,
   IconClock,
@@ -1200,20 +1200,12 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         <Stack gap="md">
           {/* Visual Calendar */}
           <Box style={{ display: 'flex', justifyContent: 'center' }}>
-            <Calendar
+            <DatePicker
               value={selectedStartDate}
               onChange={setSelectedStartDate}
               minDate={new Date()}
-              firstDayOfWeek={0}
               size="md"
-              styles={{
-                day: {
-                  '&[data-selected]': {
-                    backgroundColor: tokens.colors.electricLime,
-                    color: tokens.colors.bgPrimary,
-                  },
-                },
-              }}
+              highlightToday
             />
           </Box>
 
