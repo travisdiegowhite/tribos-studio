@@ -1203,19 +1203,24 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             <DatePicker
               value={selectedStartDate}
               onChange={(date) => {
-                // Only update if a valid date is selected (not null from deselection)
-                if (date instanceof Date && !isNaN(date.getTime())) {
-                  setSelectedStartDate(date);
+                // Handle date selection - date can be Date, null, or undefined
+                if (date) {
+                  // Ensure we have a proper Date object
+                  const dateObj = date instanceof Date ? date : new Date(date);
+                  if (!isNaN(dateObj.getTime())) {
+                    setSelectedStartDate(dateObj);
+                  }
                 }
               }}
               minDate={new Date()}
               size="md"
               highlightToday
+              allowDeselect={false}
             />
           </Box>
 
           {/* Date Summary */}
-          {selectedStartDate instanceof Date && !isNaN(selectedStartDate.getTime()) && planToActivate && (
+          {selectedStartDate && planToActivate && (
             <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${tokens.colors.electricLime}10` }}>
               <SimpleGrid cols={2}>
                 <Box>
@@ -1269,7 +1274,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               leftSection={<IconPlayerPlay size={18} />}
               onClick={() => handleActivatePlan(planToActivate, selectedStartDate)}
               loading={activating}
-              disabled={!(selectedStartDate instanceof Date && !isNaN(selectedStartDate.getTime()))}
+              disabled={!selectedStartDate}
             >
               Start Training
             </Button>
