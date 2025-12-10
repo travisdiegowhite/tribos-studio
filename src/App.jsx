@@ -15,6 +15,7 @@ import Settings from './pages/Settings.jsx';
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 import Terms from './pages/Terms.jsx';
 import NotFound from './pages/NotFound.jsx';
+import Admin from './pages/Admin.jsx';
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
@@ -146,6 +147,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <Admin />
           </ProtectedRoute>
         }
       />
