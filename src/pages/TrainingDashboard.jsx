@@ -59,6 +59,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
+import { TrainingNotifications } from '../components/training';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS } from '../utils/trainingPlans';
@@ -88,6 +89,7 @@ function TrainingDashboard() {
   const [workoutModalOpen, setWorkoutModalOpen] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [activePlan, setActivePlan] = useState(null);
+  const [plannedWorkouts, setPlannedWorkouts] = useState([]);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -214,6 +216,17 @@ function TrainingDashboard() {
         if (planData) {
           setActivePlan(planData);
           console.log('Active training plan loaded:', planData.name);
+
+          // Load planned workouts for the active plan
+          const { data: workoutsData } = await supabase
+            .from('planned_workouts')
+            .select('*')
+            .eq('plan_id', planData.id)
+            .order('scheduled_date', { ascending: true });
+
+          if (workoutsData) {
+            setPlannedWorkouts(workoutsData);
+          }
         }
       } catch (error) {
         console.error('Error loading training data:', error);
@@ -422,6 +435,16 @@ function TrainingDashboard() {
               subtitle={`${weeklyStats.rideCount} rides`}
             />
           </SimpleGrid>
+
+          {/* Training Notifications */}
+          {activePlan && plannedWorkouts.length > 0 && (
+            <TrainingNotifications
+              activePlan={activePlan}
+              plannedWorkouts={plannedWorkouts}
+              activities={activities}
+              onNavigateToCalendar={() => setActiveTab('calendar')}
+            />
+          )}
 
           {/* Main Tabs */}
           <Card>
