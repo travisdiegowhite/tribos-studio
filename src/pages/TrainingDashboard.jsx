@@ -495,8 +495,19 @@ function TrainingDashboard() {
               <Tabs.Panel value="plans">
                 <TrainingPlanBrowser
                   activePlan={activePlan}
-                  onPlanActivated={(plan) => {
+                  onPlanActivated={async (plan) => {
                     setActivePlan(plan);
+                    // Load planned workouts for the new plan
+                    if (plan?.id) {
+                      const { data: workoutsData } = await supabase
+                        .from('planned_workouts')
+                        .select('*')
+                        .eq('plan_id', plan.id)
+                        .order('scheduled_date', { ascending: true });
+                      if (workoutsData) {
+                        setPlannedWorkouts(workoutsData);
+                      }
+                    }
                     setActiveTab('calendar');
                   }}
                 />
