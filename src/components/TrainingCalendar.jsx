@@ -80,36 +80,26 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
   const loadPlannedWorkouts = async () => {
     try {
+      // Calculate date range for current month view (with buffer for prev/next month days shown)
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
 
-      // Calculate which week numbers are in this month
-      const planStartDate = new Date(getPlanStartDate(activePlan));
-      const weekNumbers = [];
-      for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 7)) {
-        const weeksSinceStart = Math.floor((d - planStartDate) / (7 * 24 * 60 * 60 * 1000)) + 1;
-        if (weeksSinceStart > 0 && weeksSinceStart <= activePlan.duration_weeks) {
-          weekNumbers.push(weeksSinceStart);
-        }
-      }
+      // Add buffer for calendar view (may show days from prev/next month)
+      const startDate = new Date(startOfMonth);
+      startDate.setDate(startDate.getDate() - 7);
+      const endDate = new Date(endOfMonth);
+      endDate.setDate(endDate.getDate() + 7);
 
-      // Also include edge weeks
-      const firstDayWeek = Math.floor((startOfMonth - planStartDate) / (7 * 24 * 60 * 60 * 1000)) + 1;
-      const lastDayWeek = Math.floor((endOfMonth - planStartDate) / (7 * 24 * 60 * 60 * 1000)) + 1;
-      for (let w = Math.max(1, firstDayWeek); w <= Math.min(activePlan.duration_weeks, lastDayWeek); w++) {
-        if (!weekNumbers.includes(w)) weekNumbers.push(w);
-      }
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
 
-      if (weekNumbers.length === 0) {
-        setPlannedWorkouts([]);
-        return;
-      }
-
+      // Query by scheduled_date range for simpler, more reliable matching
       const { data } = await supabase
         .from('planned_workouts')
         .select('*')
         .eq('plan_id', activePlan.id)
-        .in('week_number', weekNumbers);
+        .gte('scheduled_date', startDateStr)
+        .lte('scheduled_date', endDateStr);
 
       if (data) {
         setPlannedWorkouts(data);
@@ -145,14 +135,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const getWorkoutForDate = (date) => {
     if (!date || !activePlan) return null;
 
-    const planStartDate = new Date(getPlanStartDate(activePlan));
-    const daysSinceStart = Math.floor((date - planStartDate) / (24 * 60 * 60 * 1000));
-    const weekNumber = Math.floor(daysSinceStart / 7) + 1;
-    const dayOfWeek = date.getDay();
-
-    return plannedWorkouts.find(
-      w => w.week_number === weekNumber && w.day_of_week === dayOfWeek
-    );
+    // Match by scheduled_date for reliable date matching
+    const dateStr = date.toISOString().split('T')[0];
+    return plannedWorkouts.find(w => w.scheduled_date === dateStr);
   };
 
   // Get rides for a specific date
