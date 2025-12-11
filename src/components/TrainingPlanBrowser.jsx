@@ -309,11 +309,17 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       const planStartDate = new Date(getPlanStartDate(activePlan) || new Date());
       planStartDate.setHours(0, 0, 0, 0);
 
-      // Helper to calculate scheduled date
-      const calculateScheduledDate = (weekNum, dayOfWeek) => {
-        const daysFromStart = (weekNum - 1) * 7 + dayOfWeek;
+      // Helper to calculate scheduled date - aligns with actual calendar days
+      const calculateScheduledDate = (weekNum, templateDayOfWeek) => {
+        // templateDayOfWeek: 0=Sunday, 1=Monday, etc. from template
+        // Aligns workouts with actual calendar days of the week
+        const planStartDayOfWeek = planStartDate.getDay();
+        let daysUntilFirstOccurrence = templateDayOfWeek - planStartDayOfWeek;
+        if (daysUntilFirstOccurrence < 0) {
+          daysUntilFirstOccurrence += 7;
+        }
+        const daysFromStart = daysUntilFirstOccurrence + (weekNum - 1) * 7;
         const workoutDate = addDays(planStartDate, daysFromStart);
-        // Use formatLocalDate to avoid timezone issues
         return formatLocalDate(workoutDate);
       };
 
@@ -653,13 +659,26 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       };
 
       // Helper to calculate scheduled date for a workout
-      const calculateScheduledDate = (weekNum, dayOfWeek) => {
-        // Calculate days from plan start
-        // Week 1, Day 0 (Sunday) = start date
-        // Day of week: 0=Sunday, 1=Monday, etc.
-        const daysFromStart = (weekNum - 1) * 7 + dayOfWeek;
+      // Aligns template days with actual calendar days of the week
+      const calculateScheduledDate = (weekNum, templateDayOfWeek) => {
+        // templateDayOfWeek: 0=Sunday, 1=Monday, etc. from template
+        // We want workouts to fall on actual calendar days (Monday workout on a Monday)
+
+        // Find what day of week the plan starts on
+        const planStartDayOfWeek = planStartDate.getDay();
+
+        // Calculate days until the first occurrence of templateDayOfWeek
+        // on or after the plan start date
+        let daysUntilFirstOccurrence = templateDayOfWeek - planStartDayOfWeek;
+        if (daysUntilFirstOccurrence < 0) {
+          daysUntilFirstOccurrence += 7; // Next week
+        }
+
+        // Add additional weeks (weekNum - 1)
+        const daysFromStart = daysUntilFirstOccurrence + (weekNum - 1) * 7;
         const workoutDate = addDays(planStartDate, daysFromStart);
-        // Use formatLocalDate to avoid timezone issues (toISOString converts to UTC)
+
+        // Use formatLocalDate to avoid timezone issues
         return formatLocalDate(workoutDate);
       };
 
@@ -723,15 +742,26 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       }
 
       if (workouts.length > 0) {
+        console.log(`Inserting ${workouts.length} workouts for plan ${newPlan.id}`);
+        console.log('Sample workout:', workouts[0]);
+
         const { error: workoutError } = await supabase
           .from('planned_workouts')
           .insert(workouts);
 
         if (workoutError) {
           console.error('Failed to create workouts:', workoutError);
+          // Show error to user but don't fail the whole activation
+          notifications.show({
+            title: 'Warning',
+            message: 'Plan activated but some workouts may not have been created. Try regenerating workouts.',
+            color: 'yellow',
+          });
         } else {
-          console.log(`Created ${workouts.length} workouts for plan`);
+          console.log(`Successfully created ${workouts.length} workouts for plan`);
         }
+      } else {
+        console.warn('No workouts generated for plan - check template structure');
       }
 
       const formattedDate = planStartDate.toLocaleDateString('en-US', {
