@@ -744,19 +744,85 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       if (workouts.length > 0) {
         console.log(`Inserting ${workouts.length} workouts for plan ${newPlan.id}`);
         console.log('Sample workout:', workouts[0]);
+        console.log('Current user ID:', user.id);
 
+        // Verify the plan was created and is accessible
+        const { data: verifyPlan, error: verifyError } = await supabase
+          .from('training_plans')
+          .select('id, user_id')
+          .eq('id', newPlan.id)
+          .single();
+
+        if (verifyError || !verifyPlan) {
+          console.error('Plan verification failed:', verifyError);
+          throw new Error('Failed to verify plan was created');
+        }
+
+        console.log('Plan verified:', verifyPlan);
+
+        // Insert workouts - try bulk first, then fall back to individual inserts
         const { error: workoutError } = await supabase
           .from('planned_workouts')
           .insert(workouts);
 
         if (workoutError) {
-          console.error('Failed to create workouts:', workoutError);
-          // Show error to user but don't fail the whole activation
-          notifications.show({
-            title: 'Warning',
-            message: 'Plan activated but some workouts may not have been created. Try regenerating workouts.',
-            color: 'yellow',
-          });
+          console.error('Failed to create workouts (bulk):', workoutError);
+          console.error('Error details:', JSON.stringify(workoutError, null, 2));
+
+          // Try inserting in smaller batches
+          console.log('Attempting batch insert...');
+          const batchSize = 10;
+          let successCount = 0;
+
+          for (let i = 0; i < workouts.length; i += batchSize) {
+            const batch = workouts.slice(i, i + batchSize);
+            const { error: batchError } = await supabase
+              .from('planned_workouts')
+              .insert(batch);
+
+            if (batchError) {
+              console.error(`Batch ${i / batchSize + 1} failed:`, batchError);
+            } else {
+              successCount += batch.length;
+            }
+          }
+
+          if (successCount > 0) {
+            console.log(`Created ${successCount} of ${workouts.length} workouts via batch insert`);
+            notifications.show({
+              title: 'Partial Success',
+              message: `Created ${successCount} of ${workouts.length} workouts.`,
+              color: 'yellow',
+            });
+          } else {
+            // Try using the database function as last resort
+            console.log('Attempting database function fallback...');
+            try {
+              const { data: funcResult, error: funcError } = await supabase
+                .rpc('create_planned_workouts', {
+                  p_plan_id: newPlan.id,
+                  p_workouts: workouts,
+                });
+
+              if (funcError) {
+                console.error('Database function failed:', funcError);
+                notifications.show({
+                  title: 'Warning',
+                  message: 'Plan activated but workouts could not be created. Please run the database migration.',
+                  color: 'red',
+                });
+              } else {
+                console.log(`Created ${funcResult} workouts via database function`);
+              }
+            } catch (funcErr) {
+              console.error('Database function not available:', funcErr);
+              notifications.show({
+                title: 'Warning',
+                message: 'Plan activated but workouts could not be created. Please run database migration 011.',
+                color: 'red',
+              });
+            }
+          }
         } else {
           console.log(`Successfully created ${workouts.length} workouts for plan`);
         }

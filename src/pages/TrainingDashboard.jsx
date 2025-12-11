@@ -205,13 +205,19 @@ function TrainingDashboard() {
 
         if (healthData) setTodayHealthMetrics(healthData);
 
-        // Load active training plan
-        const { data: planData } = await supabase
+        // Load active training plan (use maybeSingle to handle 0 or 1 result gracefully)
+        const { data: planData, error: planError } = await supabase
           .from('training_plans')
           .select('*')
           .eq('user_id', user.id)
           .eq('status', 'active')
-          .single();
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (planError) {
+          console.error('Error loading active plan:', planError);
+        }
 
         if (planData) {
           setActivePlan(planData);
@@ -226,7 +232,10 @@ function TrainingDashboard() {
 
           if (workoutsData) {
             setPlannedWorkouts(workoutsData);
+            console.log(`Loaded ${workoutsData.length} planned workouts`);
           }
+        } else {
+          console.log('No active training plan found');
         }
       } catch (error) {
         console.error('Error loading training data:', error);
@@ -561,7 +570,9 @@ function TrainingDashboard() {
                         .select('*')
                         .eq('user_id', user.id)
                         .eq('status', 'active')
-                        .single()
+                        .order('started_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle()
                         .then(({ data }) => {
                           if (data) setActivePlan(data);
                         });
