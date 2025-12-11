@@ -20,6 +20,7 @@ import {
   ActionIcon,
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
+import { formatLocalDate, addDays } from '../utils/dateUtils';
 import {
   IconTarget,
   IconClock,
@@ -311,9 +312,9 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       // Helper to calculate scheduled date
       const calculateScheduledDate = (weekNum, dayOfWeek) => {
         const daysFromStart = (weekNum - 1) * 7 + dayOfWeek;
-        const workoutDate = new Date(planStartDate);
-        workoutDate.setDate(workoutDate.getDate() + daysFromStart);
-        return workoutDate.toISOString().split('T')[0];
+        const workoutDate = addDays(planStartDate, daysFromStart);
+        // Use formatLocalDate to avoid timezone issues
+        return formatLocalDate(workoutDate);
       };
 
       // Use template weekTemplates if available
@@ -657,9 +658,9 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         // Week 1, Day 0 (Sunday) = start date
         // Day of week: 0=Sunday, 1=Monday, etc.
         const daysFromStart = (weekNum - 1) * 7 + dayOfWeek;
-        const workoutDate = new Date(planStartDate);
-        workoutDate.setDate(workoutDate.getDate() + daysFromStart);
-        return workoutDate.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+        const workoutDate = addDays(planStartDate, daysFromStart);
+        // Use formatLocalDate to avoid timezone issues (toISOString converts to UTC)
+        return formatLocalDate(workoutDate);
       };
 
       // Use explicit weekTemplates if available, otherwise generate

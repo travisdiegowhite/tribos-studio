@@ -41,6 +41,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
 import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
+import { formatLocalDate, addDays, startOfMonth, endOfMonth } from '../utils/dateUtils';
 
 /**
  * Enhanced Training Calendar Component
@@ -81,17 +82,16 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const loadPlannedWorkouts = async () => {
     try {
       // Calculate date range for current month view (with buffer for prev/next month days shown)
-      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      const monthStart = startOfMonth(currentDate);
+      const monthEnd = endOfMonth(currentDate);
 
       // Add buffer for calendar view (may show days from prev/next month)
-      const startDate = new Date(startOfMonth);
-      startDate.setDate(startDate.getDate() - 7);
-      const endDate = new Date(endOfMonth);
-      endDate.setDate(endDate.getDate() + 7);
+      const rangeStart = addDays(monthStart, -7);
+      const rangeEnd = addDays(monthEnd, 7);
 
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
+      // Use formatLocalDate to avoid timezone issues
+      const startDateStr = formatLocalDate(rangeStart);
+      const endDateStr = formatLocalDate(rangeEnd);
 
       // Query by scheduled_date range for simpler, more reliable matching
       const { data } = await supabase
@@ -136,7 +136,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     if (!date || !activePlan) return null;
 
     // Match by scheduled_date for reliable date matching
-    const dateStr = date.toISOString().split('T')[0];
+    // Use formatLocalDate to avoid timezone issues
+    const dateStr = formatLocalDate(date);
     return plannedWorkouts.find(w => w.scheduled_date === dateStr);
   };
 
@@ -144,11 +145,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const getRidesForDate = (date) => {
     if (!date) return [];
 
-    const dateStr = date.toISOString().split('T')[0];
+    // Use formatLocalDate to avoid timezone issues
+    const dateStr = formatLocalDate(date);
 
     return rides.filter(ride => {
       const rideDate = new Date(ride.start_date || ride.recorded_at || ride.created_at);
-      const rideDateStr = rideDate.toISOString().split('T')[0];
+      const rideDateStr = formatLocalDate(rideDate);
       return rideDateStr === dateStr;
     });
   };
@@ -414,7 +416,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (date && draggedWorkout) {
-      setDragOverDate(date.toISOString());
+      // Use formatLocalDate for consistent date comparison
+      setDragOverDate(formatLocalDate(date));
     }
   };
 
@@ -463,8 +466,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         return;
       }
 
-      // Calculate new scheduled_date
-      const newScheduledDate = targetDate.toISOString().split('T')[0];
+      // Calculate new scheduled_date using formatLocalDate to avoid timezone issues
+      const newScheduledDate = formatLocalDate(targetDate);
 
       // Check if there's already a workout on target date
       const existingWorkout = plannedWorkouts.find(
@@ -475,7 +478,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         // Swap the workouts
         const sourceWeekNumber = workout.week_number;
         const sourceDayOfWeek = workout.day_of_week;
-        const sourceScheduledDate = sourceDate.toISOString().split('T')[0];
+        const sourceScheduledDate = formatLocalDate(sourceDate);
 
         // Update dragged workout to new position
         const { error: error1 } = await supabase
@@ -758,8 +761,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                   }
                 }
 
-                // Check if this date is a drop target
-                const isDropTarget = dragOverDate === date.toISOString();
+                // Check if this date is a drop target (use formatLocalDate for consistent comparison)
+                const isDropTarget = dragOverDate === formatLocalDate(date);
                 const hasDraggableWorkout = workout && workout.workout_type !== 'rest';
 
                 return (
