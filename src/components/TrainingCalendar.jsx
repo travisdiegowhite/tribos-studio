@@ -350,6 +350,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         if (error) throw error;
       } else {
         // Create new workout
+        const workoutInfo = editForm.workout_id ? WORKOUT_LIBRARY[editForm.workout_id] : null;
         const { error } = await supabase
           .from('planned_workouts')
           .insert({
@@ -359,6 +360,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             week_number: weekNumber,
             day_of_week: dayOfWeek,
             scheduled_date: formatLocalDate(selectedDate), // Critical: include date for calendar matching
+            name: workoutInfo?.name || (editForm.workout_type === 'rest' ? 'Rest Day' : `${editForm.workout_type} Workout`), // Required NOT NULL
+            duration_minutes: editForm.target_duration || 0, // Required NOT NULL
             completed: false,
           });
 
