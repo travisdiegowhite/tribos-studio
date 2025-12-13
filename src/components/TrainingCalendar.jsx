@@ -42,6 +42,8 @@ import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../ut
 import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
 import { formatLocalDate, addDays, startOfMonth, endOfMonth, parsePlanStartDate } from '../utils/dateUtils';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { formatLocalDateInTimezone, isDateTodayInTimezone } from '../utils/timezoneUtils';
 
 /**
  * Enhanced Training Calendar Component
@@ -50,6 +52,7 @@ import { formatLocalDate, addDays, startOfMonth, endOfMonth, parsePlanStartDate 
  */
 const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated }) => {
   const { user } = useAuth();
+  const { timezone } = useUserPreferences();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -843,31 +846,65 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                         )}
                       </Group>
 
-                      {/* Planned workout */}
+                      {/* Planned workout - enhanced details */}
                       {workout && (
                         <Tooltip
                           label={
-                            <Stack gap={2}>
-                              <Text size="xs">{WORKOUT_TYPES[workout.workout_type]?.name || workout.workout_type}</Text>
+                            <Stack gap={4}>
+                              <Text size="sm" fw={600}>{workout.name || WORKOUT_TYPES[workout.workout_type]?.name || workout.workout_type}</Text>
+                              <Text size="xs" c="dimmed">{WORKOUT_TYPES[workout.workout_type]?.name}</Text>
+                              {workout.duration_minutes > 0 && <Text size="xs">{workout.duration_minutes} min</Text>}
                               {workout.target_tss > 0 && <Text size="xs">Target: {workout.target_tss} TSS</Text>}
-                              {workout.target_duration > 0 && <Text size="xs">{workout.target_duration} min</Text>}
+                              {workout.notes && <Text size="xs" c="dimmed" style={{ maxWidth: 200 }}>{workout.notes}</Text>}
                               {workout.completed && <Badge size="xs" color="green">Completed</Badge>}
                             </Stack>
                           }
+                          multiline
+                          w={220}
                         >
-                          <Badge
-                            size="xs"
-                            color={WORKOUT_TYPES[workout.workout_type]?.color || 'gray'}
-                            variant={workout.completed ? 'filled' : 'light'}
-                          >
-                            {WORKOUT_TYPES[workout.workout_type]?.icon || '🚴'}
-                          </Badge>
+                          <Box>
+                            {/* Workout type badge with icon */}
+                            <Badge
+                              size="xs"
+                              color={WORKOUT_TYPES[workout.workout_type]?.color || 'gray'}
+                              variant={workout.completed ? 'filled' : 'light'}
+                              mb={2}
+                            >
+                              {WORKOUT_TYPES[workout.workout_type]?.icon || '🚴'}
+                            </Badge>
+                            {/* Workout name - truncated */}
+                            {workout.workout_type !== 'rest' && (
+                              <Text
+                                size="xs"
+                                fw={500}
+                                lineClamp={1}
+                                style={{
+                                  color: workout.completed ? tokens.colors.textSecondary : tokens.colors.textPrimary,
+                                  fontSize: '10px',
+                                  lineHeight: 1.2,
+                                }}
+                              >
+                                {workout.name || WORKOUT_TYPES[workout.workout_type]?.name}
+                              </Text>
+                            )}
+                          </Box>
                         </Tooltip>
                       )}
 
-                      {/* Show target TSS for future workouts */}
-                      {workout && isFuture && workout.target_tss > 0 && (
-                        <Text size="xs" c="dimmed">{workout.target_tss} TSS</Text>
+                      {/* Duration and TSS for non-rest workouts */}
+                      {workout && workout.workout_type !== 'rest' && (
+                        <Group gap={4} wrap="nowrap">
+                          {workout.duration_minutes > 0 && (
+                            <Text size="xs" c="dimmed" style={{ fontSize: '9px' }}>
+                              {workout.duration_minutes}m
+                            </Text>
+                          )}
+                          {workout.target_tss > 0 && (
+                            <Text size="xs" c="orange" fw={500} style={{ fontSize: '9px' }}>
+                              {workout.target_tss}TSS
+                            </Text>
+                          )}
+                        </Group>
                       )}
 
                       {/* Completed rides */}
