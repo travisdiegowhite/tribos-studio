@@ -1306,7 +1306,15 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   // Ensure we have a proper Date object
                   const dateObj = date instanceof Date ? date : new Date(date);
                   if (!isNaN(dateObj.getTime())) {
-                    setSelectedStartDate(dateObj);
+                    // CRITICAL: Normalize to midnight local time using year/month/day
+                    // This prevents timezone issues where the date shifts by a day
+                    const localDate = new Date(
+                      dateObj.getFullYear(),
+                      dateObj.getMonth(),
+                      dateObj.getDate(),
+                      0, 0, 0, 0
+                    );
+                    setSelectedStartDate(localDate);
                   }
                 }
               }}
