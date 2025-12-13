@@ -515,7 +515,9 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       }
 
       // Store the start date as YYYY-MM-DD string (simple, no timezone issues)
-      const startDateStr = formatLocalDate(new Date(startDate));
+      // Create a clean Date object at midnight from the selected date
+      const planStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+      const startDateStr = formatLocalDate(planStartDate);
 
       const { data: newPlan, error: planError } = await supabase
         .from('training_plans')
@@ -1295,7 +1297,14 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           <Box style={{ display: 'flex', justifyContent: 'center' }}>
             <DatePicker
               value={selectedStartDate}
-              onChange={setSelectedStartDate}
+              onChange={(date) => {
+                // Ensure we always store a valid Date object
+                if (date instanceof Date && !isNaN(date.getTime())) {
+                  // Create a clean Date at midnight to avoid any time-based issues
+                  const cleanDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                  setSelectedStartDate(cleanDate);
+                }
+              }}
               minDate={new Date()}
               size="md"
               highlightToday
@@ -1304,7 +1313,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           </Box>
 
           {/* Date Summary */}
-          {selectedStartDate && planToActivate && (
+          {selectedStartDate instanceof Date && !isNaN(selectedStartDate.getTime()) && planToActivate && (
             <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${tokens.colors.electricLime}10` }}>
               <SimpleGrid cols={2}>
                 <Box>
