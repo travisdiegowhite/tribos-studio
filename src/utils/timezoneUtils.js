@@ -3,69 +3,69 @@
  * Handles user timezone preferences and date conversions
  */
 
-// Common timezones organized by region
+// Common timezones organized by region (flat array for Mantine Select)
 export const TIMEZONE_OPTIONS = [
   // US Timezones
-  { value: 'America/New_York', label: 'Eastern Time (ET)', group: 'United States' },
-  { value: 'America/Chicago', label: 'Central Time (CT)', group: 'United States' },
-  { value: 'America/Denver', label: 'Mountain Time (MT)', group: 'United States' },
-  { value: 'America/Phoenix', label: 'Arizona (MST)', group: 'United States' },
-  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)', group: 'United States' },
-  { value: 'America/Anchorage', label: 'Alaska Time (AKT)', group: 'United States' },
-  { value: 'Pacific/Honolulu', label: 'Hawaii Time (HST)', group: 'United States' },
+  { value: 'America/New_York', label: 'US - Eastern Time (ET)' },
+  { value: 'America/Chicago', label: 'US - Central Time (CT)' },
+  { value: 'America/Denver', label: 'US - Mountain Time (MT)' },
+  { value: 'America/Phoenix', label: 'US - Arizona (MST)' },
+  { value: 'America/Los_Angeles', label: 'US - Pacific Time (PT)' },
+  { value: 'America/Anchorage', label: 'US - Alaska Time (AKT)' },
+  { value: 'Pacific/Honolulu', label: 'US - Hawaii Time (HST)' },
 
   // Canada
-  { value: 'America/Toronto', label: 'Toronto (ET)', group: 'Canada' },
-  { value: 'America/Vancouver', label: 'Vancouver (PT)', group: 'Canada' },
-  { value: 'America/Edmonton', label: 'Edmonton (MT)', group: 'Canada' },
+  { value: 'America/Toronto', label: 'Canada - Toronto (ET)' },
+  { value: 'America/Vancouver', label: 'Canada - Vancouver (PT)' },
+  { value: 'America/Edmonton', label: 'Canada - Edmonton (MT)' },
 
   // Europe
-  { value: 'Europe/London', label: 'London (GMT/BST)', group: 'Europe' },
-  { value: 'Europe/Paris', label: 'Paris (CET)', group: 'Europe' },
-  { value: 'Europe/Berlin', label: 'Berlin (CET)', group: 'Europe' },
-  { value: 'Europe/Amsterdam', label: 'Amsterdam (CET)', group: 'Europe' },
-  { value: 'Europe/Madrid', label: 'Madrid (CET)', group: 'Europe' },
-  { value: 'Europe/Rome', label: 'Rome (CET)', group: 'Europe' },
-  { value: 'Europe/Zurich', label: 'Zurich (CET)', group: 'Europe' },
-  { value: 'Europe/Brussels', label: 'Brussels (CET)', group: 'Europe' },
-  { value: 'Europe/Vienna', label: 'Vienna (CET)', group: 'Europe' },
-  { value: 'Europe/Stockholm', label: 'Stockholm (CET)', group: 'Europe' },
-  { value: 'Europe/Copenhagen', label: 'Copenhagen (CET)', group: 'Europe' },
-  { value: 'Europe/Oslo', label: 'Oslo (CET)', group: 'Europe' },
-  { value: 'Europe/Helsinki', label: 'Helsinki (EET)', group: 'Europe' },
-  { value: 'Europe/Athens', label: 'Athens (EET)', group: 'Europe' },
-  { value: 'Europe/Moscow', label: 'Moscow (MSK)', group: 'Europe' },
+  { value: 'Europe/London', label: 'UK - London (GMT/BST)' },
+  { value: 'Europe/Paris', label: 'Europe - Paris (CET)' },
+  { value: 'Europe/Berlin', label: 'Europe - Berlin (CET)' },
+  { value: 'Europe/Amsterdam', label: 'Europe - Amsterdam (CET)' },
+  { value: 'Europe/Madrid', label: 'Europe - Madrid (CET)' },
+  { value: 'Europe/Rome', label: 'Europe - Rome (CET)' },
+  { value: 'Europe/Zurich', label: 'Europe - Zurich (CET)' },
+  { value: 'Europe/Brussels', label: 'Europe - Brussels (CET)' },
+  { value: 'Europe/Vienna', label: 'Europe - Vienna (CET)' },
+  { value: 'Europe/Stockholm', label: 'Europe - Stockholm (CET)' },
+  { value: 'Europe/Copenhagen', label: 'Europe - Copenhagen (CET)' },
+  { value: 'Europe/Oslo', label: 'Europe - Oslo (CET)' },
+  { value: 'Europe/Helsinki', label: 'Europe - Helsinki (EET)' },
+  { value: 'Europe/Athens', label: 'Europe - Athens (EET)' },
+  { value: 'Europe/Moscow', label: 'Europe - Moscow (MSK)' },
 
   // Asia Pacific
-  { value: 'Asia/Tokyo', label: 'Tokyo (JST)', group: 'Asia Pacific' },
-  { value: 'Asia/Seoul', label: 'Seoul (KST)', group: 'Asia Pacific' },
-  { value: 'Asia/Shanghai', label: 'Shanghai (CST)', group: 'Asia Pacific' },
-  { value: 'Asia/Hong_Kong', label: 'Hong Kong (HKT)', group: 'Asia Pacific' },
-  { value: 'Asia/Singapore', label: 'Singapore (SGT)', group: 'Asia Pacific' },
-  { value: 'Asia/Dubai', label: 'Dubai (GST)', group: 'Asia Pacific' },
-  { value: 'Asia/Kolkata', label: 'Mumbai (IST)', group: 'Asia Pacific' },
-  { value: 'Asia/Bangkok', label: 'Bangkok (ICT)', group: 'Asia Pacific' },
+  { value: 'Asia/Tokyo', label: 'Asia - Tokyo (JST)' },
+  { value: 'Asia/Seoul', label: 'Asia - Seoul (KST)' },
+  { value: 'Asia/Shanghai', label: 'Asia - Shanghai (CST)' },
+  { value: 'Asia/Hong_Kong', label: 'Asia - Hong Kong (HKT)' },
+  { value: 'Asia/Singapore', label: 'Asia - Singapore (SGT)' },
+  { value: 'Asia/Dubai', label: 'Asia - Dubai (GST)' },
+  { value: 'Asia/Kolkata', label: 'Asia - Mumbai (IST)' },
+  { value: 'Asia/Bangkok', label: 'Asia - Bangkok (ICT)' },
 
   // Australia & New Zealand
-  { value: 'Australia/Sydney', label: 'Sydney (AEST)', group: 'Australia' },
-  { value: 'Australia/Melbourne', label: 'Melbourne (AEST)', group: 'Australia' },
-  { value: 'Australia/Brisbane', label: 'Brisbane (AEST)', group: 'Australia' },
-  { value: 'Australia/Perth', label: 'Perth (AWST)', group: 'Australia' },
-  { value: 'Australia/Adelaide', label: 'Adelaide (ACST)', group: 'Australia' },
-  { value: 'Pacific/Auckland', label: 'Auckland (NZST)', group: 'Australia' },
+  { value: 'Australia/Sydney', label: 'Australia - Sydney (AEST)' },
+  { value: 'Australia/Melbourne', label: 'Australia - Melbourne (AEST)' },
+  { value: 'Australia/Brisbane', label: 'Australia - Brisbane (AEST)' },
+  { value: 'Australia/Perth', label: 'Australia - Perth (AWST)' },
+  { value: 'Australia/Adelaide', label: 'Australia - Adelaide (ACST)' },
+  { value: 'Pacific/Auckland', label: 'New Zealand - Auckland (NZST)' },
 
   // South America
-  { value: 'America/Sao_Paulo', label: 'Sao Paulo (BRT)', group: 'South America' },
-  { value: 'America/Buenos_Aires', label: 'Buenos Aires (ART)', group: 'South America' },
-  { value: 'America/Santiago', label: 'Santiago (CLT)', group: 'South America' },
-  { value: 'America/Lima', label: 'Lima (PET)', group: 'South America' },
-  { value: 'America/Bogota', label: 'Bogota (COT)', group: 'South America' },
+  { value: 'America/Sao_Paulo', label: 'Brazil - Sao Paulo (BRT)' },
+  { value: 'America/Buenos_Aires', label: 'Argentina - Buenos Aires (ART)' },
+  { value: 'America/Santiago', label: 'Chile - Santiago (CLT)' },
+  { value: 'America/Lima', label: 'Peru - Lima (PET)' },
+  { value: 'America/Bogota', label: 'Colombia - Bogota (COT)' },
 
   // Africa & Middle East
-  { value: 'Africa/Johannesburg', label: 'Johannesburg (SAST)', group: 'Africa' },
-  { value: 'Africa/Cairo', label: 'Cairo (EET)', group: 'Africa' },
-  { value: 'Africa/Nairobi', label: 'Nairobi (EAT)', group: 'Africa' },
-  { value: 'Asia/Jerusalem', label: 'Jerusalem (IST)', group: 'Middle East' },
+  { value: 'Africa/Johannesburg', label: 'South Africa - Johannesburg (SAST)' },
+  { value: 'Africa/Cairo', label: 'Egypt - Cairo (EET)' },
+  { value: 'Africa/Nairobi', label: 'Kenya - Nairobi (EAT)' },
+  { value: 'Asia/Jerusalem', label: 'Israel - Jerusalem (IST)' },
 ];
 
 /**
