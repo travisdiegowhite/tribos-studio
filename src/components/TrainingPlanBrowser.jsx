@@ -20,7 +20,7 @@ import {
   ActionIcon,
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
-import { formatLocalDate, addDays } from '../utils/dateUtils';
+import { formatLocalDate, addDays, toNoonUTC, parsePlanStartDate } from '../utils/dateUtils';
 import {
   IconTarget,
   IconClock,
@@ -76,8 +76,12 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
     const planStart = getPlanStartDate(plan);
     if (!planStart) return { week: 1, progress: 0, daysRemaining: 0 };
 
-    const startDate = new Date(planStart);
+    // Use parsePlanStartDate for timezone-safe parsing
+    const startDate = parsePlanStartDate(planStart);
+    if (!startDate) return { week: 1, progress: 0, daysRemaining: 0 };
+
     const now = new Date();
+    now.setHours(0, 0, 0, 0); // Compare at midnight to avoid partial day issues
     const daysSinceStart = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
     const durationWeeks = plan.duration_weeks || 8;
     const currentWeek = Math.min(Math.floor(daysSinceStart / 7) + 1, durationWeeks);
@@ -306,19 +310,15 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
       const totalWeeks = activePlan.duration_weeks || template?.duration || 8;
       const methodology = activePlan.methodology || template?.methodology || 'endurance';
-      const planStartDate = new Date(getPlanStartDate(activePlan) || new Date());
+      // Use parsePlanStartDate for timezone-safe parsing
+      const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan)) || new Date();
       planStartDate.setHours(0, 0, 0, 0);
 
-      // Helper to calculate scheduled date - aligns with actual calendar days
-      const calculateScheduledDate = (weekNum, templateDayOfWeek) => {
-        // templateDayOfWeek: 0=Sunday, 1=Monday, etc. from template
-        // Aligns workouts with actual calendar days of the week
-        const planStartDayOfWeek = planStartDate.getDay();
-        let daysUntilFirstOccurrence = templateDayOfWeek - planStartDayOfWeek;
-        if (daysUntilFirstOccurrence < 0) {
-          daysUntilFirstOccurrence += 7;
-        }
-        const daysFromStart = daysUntilFirstOccurrence + (weekNum - 1) * 7;
+      // Helper to calculate scheduled date - simple offset from start date
+      const calculateScheduledDate = (weekNum, dayOfWeek) => {
+        // weekNum: 1, 2, 3... (which week of the plan)
+        // dayOfWeek: 0-6 (offset within the week)
+        const daysFromStart = (weekNum - 1) * 7 + dayOfWeek;
         const workoutDate = addDays(planStartDate, daysFromStart);
         return formatLocalDate(workoutDate);
       };
@@ -513,6 +513,9 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       const planStartDate = new Date(startDate);
       planStartDate.setHours(0, 0, 0, 0);
 
+      // Use toNoonUTC for timezone-safe date storage
+      const startDateISO = toNoonUTC(planStartDate);
+
       const { data: newPlan, error: planError } = await supabase
         .from('training_plans')
         .insert({
@@ -523,8 +526,8 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           methodology: plan.methodology,
           goal: plan.goal,
           fitness_level: plan.fitnessLevel,
-          started_at: planStartDate.toISOString(),
-          start_date: planStartDate.toISOString(), // Include for backwards compatibility
+          started_at: startDateISO,
+          start_date: startDateISO, // Include for backwards compatibility
           status: 'active',
         })
         .select()
@@ -659,26 +662,12 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       };
 
       // Helper to calculate scheduled date for a workout
-      // Aligns template days with actual calendar days of the week
-      const calculateScheduledDate = (weekNum, templateDayOfWeek) => {
-        // templateDayOfWeek: 0=Sunday, 1=Monday, etc. from template
-        // We want workouts to fall on actual calendar days (Monday workout on a Monday)
-
-        // Find what day of week the plan starts on
-        const planStartDayOfWeek = planStartDate.getDay();
-
-        // Calculate days until the first occurrence of templateDayOfWeek
-        // on or after the plan start date
-        let daysUntilFirstOccurrence = templateDayOfWeek - planStartDayOfWeek;
-        if (daysUntilFirstOccurrence < 0) {
-          daysUntilFirstOccurrence += 7; // Next week
-        }
-
-        // Add additional weeks (weekNum - 1)
-        const daysFromStart = daysUntilFirstOccurrence + (weekNum - 1) * 7;
+      // Simple offset: Day 0 of Week 1 = start date, Day 1 = start date + 1, etc.
+      const calculateScheduledDate = (weekNum, dayOfWeek) => {
+        // weekNum: 1, 2, 3... (which week of the plan)
+        // dayOfWeek: 0-6 (offset within the week)
+        const daysFromStart = (weekNum - 1) * 7 + dayOfWeek;
         const workoutDate = addDays(planStartDate, daysFromStart);
-
-        // Use formatLocalDate to avoid timezone issues
         return formatLocalDate(workoutDate);
       };
 
