@@ -355,6 +355,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           .insert({
             ...workoutData,
             plan_id: activePlan.id,
+            user_id: user.id, // Required by database schema
             week_number: weekNumber,
             day_of_week: dayOfWeek,
             scheduled_date: formatLocalDate(selectedDate), // Critical: include date for calendar matching
