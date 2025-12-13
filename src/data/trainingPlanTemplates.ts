@@ -14,6 +14,7 @@ import type {
   TrainingGoal,
   FitnessLevel,
   TrainingMethodology,
+  PlanCategory,
 } from '../types/training';
 
 export const TRAINING_PLAN_TEMPLATES: TrainingPlanTemplatesMap = {
@@ -28,8 +29,13 @@ export const TRAINING_PLAN_TEMPLATES: TrainingPlanTemplatesMap = {
     methodology: 'polarized',
     goal: 'general_fitness',
     fitnessLevel: 'intermediate',
+    category: 'foundation',
     hoursPerWeek: { min: 6, max: 10 },
     weeklyTSS: { min: 300, max: 500 },
+    researchBasis: [
+      'Seiler, S. (2010). What is Best Practice for Training Intensity and Duration Distribution in Endurance Athletes? IJSPP',
+      'Stöggl & Sperlich (2014). Polarized training has greater impact on key endurance variables. Frontiers in Physiology'
+    ],
     phases: [
       { weeks: [1, 2, 3], phase: 'base', focus: 'Build aerobic base with Zone 2' },
       { weeks: [4], phase: 'recovery', focus: 'Recovery week' },
@@ -129,8 +135,13 @@ export const TRAINING_PLAN_TEMPLATES: TrainingPlanTemplatesMap = {
     methodology: 'sweet_spot',
     goal: 'general_fitness',
     fitnessLevel: 'intermediate',
+    category: 'time_crunched',
     hoursPerWeek: { min: 6, max: 8 },
     weeklyTSS: { min: 300, max: 450 },
+    researchBasis: [
+      'Neal et al. (2013). Six weeks of polarized vs threshold training in trained cyclists. J Sports Sci',
+      'Seiler & Tønnessen (2009). Training intensity distribution: Performance outcomes. IJSPP'
+    ],
     phases: [
       { weeks: [1, 2, 3], phase: 'base', focus: 'Base + intro to SST' },
       { weeks: [4], phase: 'recovery', focus: 'Recovery week' },
@@ -268,8 +279,13 @@ export const TRAINING_PLAN_TEMPLATES: TrainingPlanTemplatesMap = {
     methodology: 'pyramidal',
     goal: 'century',
     fitnessLevel: 'intermediate',
+    category: 'endurance_events',
     hoursPerWeek: { min: 6, max: 12 },
     weeklyTSS: { min: 300, max: 600 },
+    researchBasis: [
+      'Seiler (2010). Pyramidal intensity distribution in elite endurance athletes. IJSPP',
+      'Esteve-Lanao et al. (2005). Impact of training intensity distribution on performance. Med Sci Sports Exerc'
+    ],
     phases: [
       { weeks: [1, 2, 3, 4], phase: 'base', focus: 'Build aerobic base' },
       { weeks: [5, 6, 7, 8], phase: 'base', focus: 'Increase endurance volume' },
@@ -444,8 +460,13 @@ export const TRAINING_PLAN_TEMPLATES: TrainingPlanTemplatesMap = {
     methodology: 'threshold',
     goal: 'climbing',
     fitnessLevel: 'intermediate',
+    category: 'road_racing',
     hoursPerWeek: { min: 6, max: 10 },
     weeklyTSS: { min: 300, max: 500 },
+    researchBasis: [
+      'Padilla et al. (1999). Exercise intensity during competition time trials in professional road cycling. Med Sci Sports Exerc',
+      'Rønnestad et al. (2010). Short intervals induce superior training adaptations. Scand J Med Sci Sports'
+    ],
     phases: [
       { weeks: [1, 2, 3], phase: 'base', focus: 'Build climbing endurance' },
       { weeks: [4], phase: 'recovery', focus: 'Recovery week' },
@@ -545,8 +566,14 @@ export const TRAINING_PLAN_TEMPLATES: TrainingPlanTemplatesMap = {
     methodology: 'threshold',
     goal: 'racing',
     fitnessLevel: 'advanced',
+    category: 'road_racing',
     hoursPerWeek: { min: 8, max: 12 },
     weeklyTSS: { min: 400, max: 650 },
+    researchBasis: [
+      'Laursen & Jenkins (2002). Scientific basis for high-intensity interval training. Sports Med',
+      'Seiler (2010). Training intensity distribution in elite endurance athletes. IJSPP',
+      'Billat (2001). Interval training at VO2max: effects on aerobic performance. Med Sci Sports Exerc'
+    ],
     phases: [
       { weeks: [1, 2, 3], phase: 'base', focus: 'Aerobic base with some intensity' },
       { weeks: [4], phase: 'recovery', focus: 'Recovery week' },
@@ -685,8 +712,13 @@ export const TRAINING_PLAN_TEMPLATES: TrainingPlanTemplatesMap = {
     methodology: 'endurance',
     goal: 'general_fitness',
     fitnessLevel: 'beginner',
+    category: 'foundation',
     hoursPerWeek: { min: 3, max: 5 },
     weeklyTSS: { min: 150, max: 250 },
+    researchBasis: [
+      'American College of Sports Medicine (2018). Guidelines for exercise prescription',
+      'Seiler (2010). The importance of progressive training overload. IJSPP'
+    ],
     phases: [
       { weeks: [1, 2], phase: 'base', focus: 'Easy rides to build habit' },
       { weeks: [3, 4], phase: 'base', focus: 'Increase ride duration' },
@@ -797,6 +829,26 @@ export function getPlansByDuration(weeks: number): TrainingPlanTemplate[] {
  */
 export function getPlansByMethodology(methodology: TrainingMethodology): TrainingPlanTemplate[] {
   return Object.values(TRAINING_PLAN_TEMPLATES).filter(plan => plan.methodology === methodology);
+}
+
+/**
+ * Get plans by category
+ */
+export function getPlansByCategory(category: PlanCategory): TrainingPlanTemplate[] {
+  return Object.values(TRAINING_PLAN_TEMPLATES).filter(plan => plan.category === category);
+}
+
+/**
+ * Get all unique categories from plans
+ */
+export function getAllCategories(): PlanCategory[] {
+  const categories = new Set<PlanCategory>();
+  Object.values(TRAINING_PLAN_TEMPLATES).forEach(plan => {
+    if (plan.category) {
+      categories.add(plan.category);
+    }
+  });
+  return Array.from(categories);
 }
 
 /**

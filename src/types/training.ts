@@ -20,9 +20,25 @@ export type TrainingGoal =
   | 'climbing'
   | 'racing'
   | 'endurance'
-  | 'gran_fondo';
+  | 'gran_fondo'
+  | 'gravel'
+  | 'criterium'
+  | 'time_trial';
 
 export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
+
+/**
+ * Plan categories for grouping and filtering
+ * Based on target audience and training focus
+ */
+export type PlanCategory =
+  | 'road_racing'      // Criterium, Road Race, TT - Cat 1-5 competitive
+  | 'endurance_events' // Century, Gran Fondo, Gravel - long distance
+  | 'masters'          // Age 35+ specific adaptations
+  | 'time_crunched'    // Limited training hours (≤6 hrs/week)
+  | 'indoor_focused'   // Trainer-optimized plans
+  | 'strength_power'   // Gym + bike integration
+  | 'foundation';      // Beginners and base building
 
 export type TrainingPhase = 'base' | 'build' | 'peak' | 'taper' | 'recovery';
 
@@ -138,6 +154,19 @@ export interface FitnessLevelDefinition {
 export type FitnessLevelsMap = Record<FitnessLevel, FitnessLevelDefinition>;
 
 // ============================================================
+// PLAN CATEGORIES
+// ============================================================
+
+export interface PlanCategoryDefinition {
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+}
+
+export type PlanCategoriesMap = Record<PlanCategory, PlanCategoryDefinition>;
+
+// ============================================================
 // WORKOUT STRUCTURE
 // ============================================================
 
@@ -219,12 +248,15 @@ export interface TrainingPlanTemplate {
   methodology: TrainingMethodology;
   goal: TrainingGoal;
   fitnessLevel: FitnessLevel;
+  category: PlanCategory; // For grouping in UI
   hoursPerWeek: Range;
   weeklyTSS: Range;
   phases: PlanPhase[];
   weekTemplates: Record<number, WeekTemplate>;
   expectedGains: ExpectedGains;
   targetAudience: string;
+  /** Research citations supporting this plan's methodology */
+  researchBasis?: string[];
 }
 
 export type TrainingPlanTemplatesMap = Record<string, TrainingPlanTemplate>;
