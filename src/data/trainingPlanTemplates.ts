@@ -786,6 +786,689 @@ export const TRAINING_PLAN_TEMPLATES: TrainingPlanTemplatesMap = {
       consistency: 'Establish training routine'
     },
     targetAudience: 'New cyclists or those returning after a long break'
+  },
+
+  // ============================================================
+  // MASTERS (35+) PLANS
+  // ============================================================
+  masters_endurance_12_week: {
+    id: 'masters_endurance_12_week',
+    name: '12-Week Masters Performance',
+    description: 'Age-appropriate training for cyclists 35+ with extended recovery periods and strength integration. Based on research showing masters athletes need more recovery but can maintain high performance.',
+    duration: 12,
+    methodology: 'polarized',
+    goal: 'general_fitness',
+    fitnessLevel: 'intermediate',
+    category: 'masters',
+    hoursPerWeek: { min: 6, max: 9 },
+    weeklyTSS: { min: 300, max: 450 },
+    researchBasis: [
+      'Tanaka & Seals (2008). Endurance exercise performance in Masters athletes. J Physiology',
+      'Louis et al. (2012). Strength training improves cycling efficiency in master endurance athletes. Scand J Med Sci Sports',
+      'Peiffer et al. (2008). Age-related decline in VO2max and impact of training. Eur Rev Aging Phys Act'
+    ],
+    phases: [
+      { weeks: [1, 2, 3], phase: 'base', focus: 'Aerobic foundation with strength' },
+      { weeks: [4], phase: 'recovery', focus: 'Extended recovery week' },
+      { weeks: [5, 6, 7], phase: 'build', focus: 'Add intensity with extra rest' },
+      { weeks: [8], phase: 'recovery', focus: 'Recovery week' },
+      { weeks: [9, 10, 11], phase: 'build', focus: 'Peak performance phase' },
+      { weeks: [12], phase: 'taper', focus: 'Taper and test' }
+    ],
+    weekTemplates: {
+      1: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Strength training day (off-bike)' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2 endurance' },
+        wednesday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        thursday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        friday: { workout: null, notes: 'Rest or strength' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long Zone 2' }
+      },
+      2: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Strength training day' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        thursday: { workout: 'polarized_intensity_day', notes: 'Hard day - VO2 intervals' },
+        friday: { workout: null, notes: 'Complete rest (48h before next hard session)' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long Zone 2' }
+      },
+      3: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Strength training day' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        wednesday: { workout: 'recovery_spin', notes: 'Easy recovery' },
+        thursday: { workout: 'four_by_eight_vo2', notes: 'VO2max intervals' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'polarized_long_ride', notes: 'Extended endurance' }
+      },
+      4: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Optional light strength' },
+        tuesday: { workout: 'recovery_spin', notes: 'Very easy' },
+        wednesday: { workout: null, notes: 'Complete rest' },
+        thursday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'endurance_base_build', notes: 'Moderate ride' }
+      },
+      5: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Strength training' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        thursday: { workout: 'thirty_thirty_intervals', notes: '30/30 intervals' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long ride' }
+      },
+      6: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Strength training' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        wednesday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        thursday: { workout: 'bossi_intervals', notes: 'Advanced VO2' },
+        friday: { workout: null, notes: 'Rest (72h recovery)' },
+        saturday: { workout: 'polarized_long_ride', notes: 'Long Zone 2' }
+      },
+      7: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Strength maintenance' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        thursday: { workout: 'four_by_eight_vo2', notes: 'VO2max' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Peak long ride' }
+      },
+      8: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Light strength only' },
+        tuesday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        wednesday: { workout: null, notes: 'Complete rest' },
+        thursday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'endurance_base_build', notes: 'Moderate ride' }
+      },
+      9: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Strength maintenance' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'recovery_spin', notes: 'Recovery' },
+        thursday: { workout: 'polarized_intensity_day', notes: 'Hard VO2 session' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long ride' }
+      },
+      10: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Strength maintenance' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        wednesday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        thursday: { workout: 'thirty_thirty_intervals', notes: '30/30 intervals' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'polarized_long_ride', notes: 'Long Zone 2' }
+      },
+      11: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Light strength' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        thursday: { workout: 'bossi_intervals', notes: 'Final hard session' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Last long ride' }
+      },
+      12: {
+        sunday: { workout: null, notes: 'FTP Test day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        wednesday: { workout: 'recovery_spin', notes: 'Light openers' },
+        thursday: { workout: null, notes: 'Rest' },
+        friday: { workout: 'easy_recovery_ride', notes: 'Short spin' },
+        saturday: { workout: null, notes: 'Rest before test' }
+      }
+    },
+    expectedGains: {
+      ftp: '8-12% (age-appropriate)',
+      strength: 'Improved muscular efficiency (+15-18%)',
+      endurance: 'Better fatigue resistance'
+    },
+    targetAudience: 'Cyclists age 35+ looking to maximize performance with appropriate recovery'
+  },
+
+  // ============================================================
+  // INDOOR / TRAINER FOCUSED PLANS
+  // ============================================================
+  indoor_winter_base_12_week: {
+    id: 'indoor_winter_base_12_week',
+    name: '12-Week Indoor Season Builder',
+    description: 'Structured trainer plan optimized for ERG mode and indoor training. Shorter, more intense sessions designed for the indoor environment where every pedal stroke counts.',
+    duration: 12,
+    methodology: 'sweet_spot',
+    goal: 'general_fitness',
+    fitnessLevel: 'intermediate',
+    category: 'indoor_focused',
+    hoursPerWeek: { min: 5, max: 7 },
+    weeklyTSS: { min: 300, max: 450 },
+    researchBasis: [
+      'Seiler (2010). Training intensity distribution in endurance athletes. IJSPP',
+      'Indoor training efficiency: 1 hour indoor = 1.25-1.5 hours outdoor due to constant load'
+    ],
+    phases: [
+      { weeks: [1, 2, 3], phase: 'base', focus: 'Build indoor base + sweet spot intro' },
+      { weeks: [4], phase: 'recovery', focus: 'Recovery week' },
+      { weeks: [5, 6, 7], phase: 'build', focus: 'Sweet spot progression' },
+      { weeks: [8], phase: 'recovery', focus: 'Recovery week' },
+      { weeks: [9, 10, 11], phase: 'build', focus: 'Peak indoor fitness' },
+      { weeks: [12], phase: 'taper', focus: 'Test week' }
+    ],
+    weekTemplates: {
+      1: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: '30min easy spin' },
+        tuesday: { workout: 'three_by_ten_sst', notes: 'Sweet Spot intro' },
+        wednesday: { workout: null, notes: 'Rest or cross-training' },
+        thursday: { workout: 'foundation_miles', notes: '60min Zone 2' },
+        friday: { workout: null, notes: 'Rest day' },
+        saturday: { workout: 'endurance_base_build', notes: '75min Zone 2' }
+      },
+      2: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Easy spin' },
+        tuesday: { workout: 'three_by_ten_sst', notes: 'Sweet Spot' },
+        wednesday: { workout: 'recovery_spin', notes: '30min recovery' },
+        thursday: { workout: 'traditional_sst', notes: 'Sustained Sweet Spot' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'endurance_base_build', notes: '90min Zone 2' }
+      },
+      3: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        tuesday: { workout: 'four_by_twelve_sst', notes: 'Extended SST' },
+        wednesday: { workout: null, notes: 'Rest' },
+        thursday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        friday: { workout: 'traditional_sst', notes: 'Sweet Spot' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long Zone 2' }
+      },
+      4: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'recovery_spin', notes: 'Easy' },
+        wednesday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        thursday: { workout: null, notes: 'Rest' },
+        friday: { workout: 'easy_recovery_ride', notes: 'Light spin' },
+        saturday: { workout: 'endurance_base_build', notes: 'Moderate' }
+      },
+      5: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        tuesday: { workout: 'four_by_twelve_sst', notes: 'SST intervals' },
+        wednesday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        thursday: { workout: 'sweet_spot_progression', notes: 'Progressive SST' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long ride' }
+      },
+      6: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        tuesday: { workout: 'traditional_sst', notes: 'Sweet Spot' },
+        wednesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        thursday: { workout: 'four_by_twelve_sst', notes: 'SST intervals' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'polarized_long_ride', notes: 'Extended ride' }
+      },
+      7: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        tuesday: { workout: 'sweet_spot_progression', notes: 'Peak SST' },
+        wednesday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        thursday: { workout: 'thirty_thirty_intervals', notes: '30/30 VO2 intro' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long Zone 2' }
+      },
+      8: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'recovery_spin', notes: 'Easy' },
+        wednesday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        thursday: { workout: null, notes: 'Rest' },
+        friday: { workout: 'three_by_ten_sst', notes: 'Light SST' },
+        saturday: { workout: 'endurance_base_build', notes: 'Moderate' }
+      },
+      9: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        tuesday: { workout: 'four_by_twelve_sst', notes: 'SST intervals' },
+        wednesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        thursday: { workout: 'four_by_eight_vo2', notes: 'VO2max work' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long ride' }
+      },
+      10: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        tuesday: { workout: 'sweet_spot_progression', notes: 'Progressive SST' },
+        wednesday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        thursday: { workout: 'thirty_thirty_intervals', notes: '30/30 intervals' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'polarized_long_ride', notes: 'Peak volume' }
+      },
+      11: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        tuesday: { workout: 'four_by_twelve_sst', notes: 'Final SST block' },
+        wednesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        thursday: { workout: 'bossi_intervals', notes: 'Peak VO2 session' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Final long ride' }
+      },
+      12: {
+        sunday: { workout: null, notes: 'FTP Test day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        wednesday: { workout: 'three_by_ten_sst', notes: 'Openers' },
+        thursday: { workout: null, notes: 'Rest' },
+        friday: { workout: 'recovery_spin', notes: 'Light spin' },
+        saturday: { workout: null, notes: 'Rest before test' }
+      }
+    },
+    expectedGains: {
+      ftp: '10-15%',
+      muscular_endurance: 'Significant improvement',
+      efficiency: 'Better power transfer'
+    },
+    targetAudience: 'Cyclists doing most training indoors on smart trainers'
+  },
+
+  // ============================================================
+  // GRAVEL / ENDURANCE EVENTS
+  // ============================================================
+  gravel_endurance_16_week: {
+    id: 'gravel_endurance_16_week',
+    name: '16-Week Gravel Endurance',
+    description: 'Prepare for 50-100 mile gravel events with focus on sustained power, muscular endurance, and fatigue resistance. Designed for mixed terrain racing demands.',
+    duration: 16,
+    methodology: 'pyramidal',
+    goal: 'gravel',
+    fitnessLevel: 'intermediate',
+    category: 'endurance_events',
+    hoursPerWeek: { min: 7, max: 12 },
+    weeklyTSS: { min: 350, max: 600 },
+    researchBasis: [
+      'Seiler (2010). Pyramidal intensity distribution in endurance athletes. IJSPP',
+      'Gravel racing demands: 50-70% FTP for 4-15 hours with intermittent surges'
+    ],
+    phases: [
+      { weeks: [1, 2, 3, 4], phase: 'base', focus: 'Build aerobic base and volume' },
+      { weeks: [5], phase: 'recovery', focus: 'Recovery week' },
+      { weeks: [6, 7, 8, 9], phase: 'build', focus: 'Add muscular endurance' },
+      { weeks: [10], phase: 'recovery', focus: 'Recovery week' },
+      { weeks: [11, 12, 13, 14], phase: 'peak', focus: 'Race-specific preparation' },
+      { weeks: [15, 16], phase: 'taper', focus: 'Taper for event' }
+    ],
+    weekTemplates: {
+      1: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Active recovery' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2 endurance' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Build base' },
+        thursday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        friday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        saturday: { workout: 'long_endurance_ride', notes: '2-2.5hr endurance' }
+      },
+      2: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Active recovery' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'tempo_ride', notes: 'Intro tempo' },
+        thursday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        friday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        saturday: { workout: 'long_endurance_ride', notes: '2.5hr endurance' }
+      },
+      3: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        wednesday: { workout: 'two_by_twenty_tempo', notes: 'Tempo intervals' },
+        thursday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        friday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        saturday: { workout: 'long_endurance_ride', notes: '3hr endurance' }
+      },
+      4: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Recovery' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'tempo_ride', notes: 'Tempo' },
+        thursday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        friday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        saturday: { workout: 'polarized_long_ride', notes: '3.5hr endurance' }
+      },
+      5: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'recovery_spin', notes: 'Easy' },
+        wednesday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        thursday: { workout: null, notes: 'Rest' },
+        friday: { workout: 'easy_recovery_ride', notes: 'Light spin' },
+        saturday: { workout: 'endurance_base_build', notes: '90min easy' }
+      },
+      6: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        tuesday: { workout: 'three_by_ten_sst', notes: 'Sweet Spot intro' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        thursday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        friday: { workout: 'tempo_ride', notes: 'Tempo' },
+        saturday: { workout: 'long_endurance_ride', notes: '3hr with tempo bursts' }
+      },
+      7: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Recovery' },
+        tuesday: { workout: 'traditional_sst', notes: 'Sweet Spot' },
+        wednesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        thursday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        friday: { workout: 'two_by_twenty_tempo', notes: 'Tempo intervals' },
+        saturday: { workout: 'polarized_long_ride', notes: '3.5hr endurance' }
+      },
+      8: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        tuesday: { workout: 'four_by_twelve_sst', notes: 'Extended SST' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        thursday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        friday: { workout: 'tempo_ride', notes: 'Tempo' },
+        saturday: { workout: 'long_endurance_ride', notes: '4hr with SST efforts' }
+      },
+      9: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Recovery' },
+        tuesday: { workout: 'sweet_spot_progression', notes: 'Progressive SST' },
+        wednesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        thursday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        friday: { workout: 'two_by_twenty_tempo', notes: 'Tempo' },
+        saturday: { workout: 'polarized_long_ride', notes: '4hr endurance' }
+      },
+      10: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'recovery_spin', notes: 'Easy' },
+        wednesday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        thursday: { workout: null, notes: 'Rest' },
+        friday: { workout: 'three_by_ten_sst', notes: 'Light SST' },
+        saturday: { workout: 'endurance_base_build', notes: '2hr moderate' }
+      },
+      11: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        tuesday: { workout: 'over_under_intervals', notes: 'Over-unders (surge practice)' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        thursday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        friday: { workout: 'four_by_twelve_sst', notes: 'SST intervals' },
+        saturday: { workout: 'long_endurance_ride', notes: '4hr gravel simulation' }
+      },
+      12: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Recovery' },
+        tuesday: { workout: 'sweet_spot_progression', notes: 'Peak SST' },
+        wednesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        thursday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        friday: { workout: 'three_by_twelve_threshold', notes: 'Threshold work' },
+        saturday: { workout: 'polarized_long_ride', notes: '4.5hr endurance' }
+      },
+      13: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        tuesday: { workout: 'over_under_intervals', notes: 'Race simulation' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        thursday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        friday: { workout: 'traditional_sst', notes: 'Sweet Spot' },
+        saturday: { workout: 'long_endurance_ride', notes: '5hr dress rehearsal' }
+      },
+      14: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Recovery' },
+        tuesday: { workout: 'four_by_twelve_sst', notes: 'Final SST block' },
+        wednesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        thursday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        friday: { workout: 'tempo_ride', notes: 'Tempo' },
+        saturday: { workout: 'long_endurance_ride', notes: '3.5hr moderate' }
+      },
+      15: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        wednesday: { workout: 'three_by_ten_sst', notes: 'Light SST' },
+        thursday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'endurance_base_build', notes: '2hr easy' }
+      },
+      16: {
+        sunday: { workout: null, notes: 'RACE DAY!' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        wednesday: { workout: null, notes: 'Rest' },
+        thursday: { workout: 'easy_recovery_ride', notes: 'Openers - 3x30s' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: null, notes: 'Complete rest' }
+      }
+    },
+    expectedGains: {
+      endurance: '4-6 hour sustained effort capacity',
+      muscular_endurance: 'High fatigue resistance',
+      efficiency: 'Improved fat oxidation'
+    },
+    targetAudience: 'Cyclists preparing for gravel races like Unbound, Belgian Waffle Ride, etc.'
+  },
+
+  // ============================================================
+  // CRITERIUM / SHORT CIRCUIT RACING
+  // ============================================================
+  criterium_race_8_week: {
+    id: 'criterium_race_8_week',
+    name: '8-Week Criterium Specialist',
+    description: 'Prepare for criterium racing with focus on anaerobic capacity, sprint power, and repeated surge ability. Designed for the demands of 30-60 minute high-intensity races.',
+    duration: 8,
+    methodology: 'threshold',
+    goal: 'criterium',
+    fitnessLevel: 'advanced',
+    category: 'road_racing',
+    hoursPerWeek: { min: 7, max: 10 },
+    weeklyTSS: { min: 400, max: 550 },
+    researchBasis: [
+      'Tabata et al. (1996). Effects of high-intensity intermittent training on anaerobic capacity. Med Sci Sports Exerc',
+      'Billat (2001). 30/30 intervals for VO2max development. Med Sci Sports Exerc',
+      'Criterium power profiles: 10-80 power spikes per race above threshold'
+    ],
+    phases: [
+      { weeks: [1, 2], phase: 'base', focus: 'Build race fitness foundation' },
+      { weeks: [3, 4, 5], phase: 'build', focus: 'VO2max and anaerobic work' },
+      { weeks: [6, 7], phase: 'peak', focus: 'Race simulation and sprints' },
+      { weeks: [8], phase: 'taper', focus: 'Race week' }
+    ],
+    weekTemplates: {
+      1: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Active recovery' },
+        tuesday: { workout: 'over_under_intervals', notes: 'Lactate clearance' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        thursday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        friday: { workout: 'two_by_twenty_ftp', notes: 'Threshold work' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long ride with sprints' }
+      },
+      2: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Recovery' },
+        tuesday: { workout: 'three_by_twelve_threshold', notes: 'Threshold intervals' },
+        wednesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        thursday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        friday: { workout: 'thirty_thirty_intervals', notes: '30/30 VO2max' },
+        saturday: { workout: 'endurance_base_build', notes: 'Group ride pace' }
+      },
+      3: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        tuesday: { workout: 'four_by_eight_vo2', notes: 'Long VO2 intervals' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        thursday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        friday: { workout: 'over_under_intervals', notes: 'Over-unders' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Hard group ride' }
+      },
+      4: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Recovery' },
+        tuesday: { workout: 'forty_twenty_intervals', notes: '40/20 anaerobic' },
+        wednesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        thursday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        friday: { workout: 'bossi_intervals', notes: 'Surging VO2' },
+        saturday: { workout: 'endurance_base_build', notes: 'Race pace efforts' }
+      },
+      5: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        tuesday: { workout: 'thirty_thirty_intervals', notes: '30/30 intervals' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        thursday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        friday: { workout: 'sprint_intervals', notes: 'Sprint work' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Race simulation' }
+      },
+      6: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'recovery_spin', notes: 'Recovery' },
+        tuesday: { workout: 'race_simulation', notes: 'Full race simulation' },
+        wednesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        thursday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        friday: { workout: 'forty_twenty_intervals', notes: '40/20 sharpening' },
+        saturday: { workout: 'endurance_base_build', notes: 'Race tactics practice' }
+      },
+      7: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'easy_recovery_ride', notes: 'Recovery' },
+        tuesday: { workout: 'sprint_intervals', notes: 'Sprint power' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        thursday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        friday: { workout: 'race_simulation', notes: 'Final race sim' },
+        saturday: { workout: 'foundation_miles', notes: 'Easy with openers' }
+      },
+      8: {
+        sunday: { workout: null, notes: 'RACE DAY!' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        wednesday: { workout: 'recovery_spin', notes: 'Light spin' },
+        thursday: { workout: 'sprint_intervals', notes: 'Short openers' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: null, notes: 'Complete rest' }
+      }
+    },
+    expectedGains: {
+      anaerobic_capacity: 'Significant improvement in sprint repeatability',
+      vo2max: '8-12% improvement',
+      race_fitness: 'Peak criterium form'
+    },
+    targetAudience: 'Competitive cyclists preparing for criterium racing'
+  },
+
+  // ============================================================
+  // TIME CRUNCHED / HIGH INTENSITY
+  // ============================================================
+  time_crunched_hiit_8_week: {
+    id: 'time_crunched_hiit_8_week',
+    name: '8-Week Maximum Impact (6 hrs/wk)',
+    description: 'Research-backed plan for cyclists with 6 hours or less per week. High-intensity intervals produce similar VO2max gains as traditional high-volume training.',
+    duration: 8,
+    methodology: 'polarized',
+    goal: 'general_fitness',
+    fitnessLevel: 'intermediate',
+    category: 'time_crunched',
+    hoursPerWeek: { min: 4, max: 6 },
+    weeklyTSS: { min: 250, max: 400 },
+    researchBasis: [
+      'Laursen & Jenkins (2002). The scientific basis for high-intensity interval training. Sports Med',
+      'Helgerud et al. (2007). Aerobic high-intensity intervals improve VO2max. Med Sci Sports Exerc',
+      'Carmichael CTS Time-Crunched methodology: 2-3 HIIT sessions per week optimal'
+    ],
+    phases: [
+      { weeks: [1, 2], phase: 'base', focus: 'Foundation with HIIT intro' },
+      { weeks: [3, 4, 5], phase: 'build', focus: 'HIIT progression' },
+      { weeks: [6, 7], phase: 'peak', focus: 'Peak intensity' },
+      { weeks: [8], phase: 'taper', focus: 'Test and recover' }
+    ],
+    weekTemplates: {
+      1: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest or cross-training' },
+        tuesday: { workout: 'thirty_thirty_intervals', notes: '45min: 30/30 VO2 intervals' },
+        wednesday: { workout: null, notes: 'Rest' },
+        thursday: { workout: 'traditional_sst', notes: '60min: Sweet Spot work' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'endurance_base_build', notes: '90min: Weekend endurance' }
+      },
+      2: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'four_by_eight_vo2', notes: '50min: VO2max intervals' },
+        wednesday: { workout: 'recovery_spin', notes: '30min: Easy spin' },
+        thursday: { workout: 'three_by_ten_sst', notes: '55min: Sweet Spot' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: '2hr: Long ride' }
+      },
+      3: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'bossi_intervals', notes: '50min: Surging VO2' },
+        wednesday: { workout: null, notes: 'Rest' },
+        thursday: { workout: 'four_by_twelve_sst', notes: '60min: Extended SST' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'endurance_base_build', notes: '90min: Endurance' }
+      },
+      4: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'thirty_thirty_intervals', notes: '45min: 30/30 intervals' },
+        wednesday: { workout: 'recovery_spin', notes: '30min: Easy spin' },
+        thursday: { workout: 'over_under_intervals', notes: '55min: Over-unders' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: '2hr: Long ride' }
+      },
+      5: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'four_by_eight_vo2', notes: '55min: VO2max peak' },
+        wednesday: { workout: null, notes: 'Rest' },
+        thursday: { workout: 'sweet_spot_progression', notes: '60min: Progressive SST' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'polarized_long_ride', notes: '2.5hr: Extended ride' }
+      },
+      6: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'bossi_intervals', notes: '55min: Peak VO2' },
+        wednesday: { workout: 'recovery_spin', notes: '30min: Easy spin' },
+        thursday: { workout: 'four_by_twelve_sst', notes: '60min: SST' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: '2hr: Long ride' }
+      },
+      7: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'forty_twenty_intervals', notes: '50min: 40/20 anaerobic' },
+        wednesday: { workout: null, notes: 'Rest' },
+        thursday: { workout: 'traditional_sst', notes: '55min: Sweet Spot' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'endurance_base_build', notes: '90min: Endurance' }
+      },
+      8: {
+        sunday: { workout: null, notes: 'FTP Test day' },
+        monday: { workout: null, notes: 'Rest' },
+        tuesday: { workout: 'recovery_spin', notes: '30min: Easy' },
+        wednesday: { workout: null, notes: 'Rest' },
+        thursday: { workout: 'thirty_thirty_intervals', notes: '40min: Openers' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: null, notes: 'Rest before test' }
+      }
+    },
+    expectedGains: {
+      ftp: '8-12%',
+      vo2max: '5-10%',
+      efficiency: 'Maximum gains per hour invested'
+    },
+    targetAudience: 'Busy cyclists with 6 hours or less per week to train'
   }
 };
 
