@@ -1298,13 +1298,11 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             <DatePicker
               value={selectedStartDate}
               onChange={(date) => {
-                console.log('DatePicker onChange:', date, typeof date);
                 if (date) {
-                  // Convert to Date if needed and create clean midnight date
-                  const d = date instanceof Date ? date : new Date(date);
-                  const cleanDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-                  console.log('Setting clean date:', cleanDate);
-                  setSelectedStartDate(cleanDate);
+                  // Fix timezone issue: DatePicker returns UTC midnight which shows as
+                  // previous day in local time. Add timezone offset to correct this.
+                  const corrected = new Date(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
+                  setSelectedStartDate(corrected);
                 }
               }}
               minDate={new Date()}
