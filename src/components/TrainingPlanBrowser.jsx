@@ -60,7 +60,6 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
   const [selectedStartDate, setSelectedStartDate] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(12, 0, 0, 0); // Use noon to avoid timezone boundary issues
     return tomorrow;
   });
   const [planToActivate, setPlanToActivate] = useState(null);
@@ -515,15 +514,8 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           .eq('id', activePlan.id);
       }
 
-      // Use the provided start date
-      const planStartDate = new Date(startDate);
-
-      // Extract the calendar day the user selected (in browser local time)
-      // and store at noon UTC - this preserves the intended date without timezone shifts
-      const year = planStartDate.getFullYear();
-      const month = planStartDate.getMonth();
-      const day = planStartDate.getDate();
-      const startDateISO = new Date(Date.UTC(year, month, day, 12, 0, 0, 0)).toISOString();
+      // Store the start date as YYYY-MM-DD string (simple, no timezone issues)
+      const startDateStr = formatLocalDate(new Date(startDate));
 
       const { data: newPlan, error: planError } = await supabase
         .from('training_plans')
@@ -535,8 +527,8 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           methodology: plan.methodology,
           goal: plan.goal,
           fitness_level: plan.fitnessLevel,
-          started_at: startDateISO,
-          start_date: startDateISO, // Include for backwards compatibility
+          started_at: startDateStr,
+          start_date: startDateStr,
           status: 'active',
         })
         .select()
@@ -1303,17 +1295,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           <Box style={{ display: 'flex', justifyContent: 'center' }}>
             <DatePicker
               value={selectedStartDate}
-              onChange={(date) => {
-                if (date) {
-                  // Mantine DatePicker returns dates at midnight UTC
-                  // Use UTC components to get the actual clicked date
-                  const year = date.getUTCFullYear();
-                  const month = date.getUTCMonth();
-                  const day = date.getUTCDate();
-                  // Create local date with those values
-                  setSelectedStartDate(new Date(year, month, day, 12, 0, 0, 0));
-                }
-              }}
+              onChange={setSelectedStartDate}
               minDate={new Date()}
               size="md"
               highlightToday
