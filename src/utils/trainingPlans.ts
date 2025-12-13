@@ -14,6 +14,8 @@ import type {
   TSBStatus,
   FitnessLevel,
   TrainingZone,
+  PlanCategoriesMap,
+  PlanCategory,
 } from '../types/training';
 
 // Training Zones based on % of FTP
@@ -208,8 +210,18 @@ export const GOAL_TYPES: GoalTypesMap = {
   },
   racing: {
     name: 'Racing',
-    description: 'Prepare for competitive events',
+    description: 'Prepare for competitive road racing',
     icon: '🏆'
+  },
+  criterium: {
+    name: 'Criterium',
+    description: 'Short circuit racing with repeated surges',
+    icon: '🔄'
+  },
+  time_trial: {
+    name: 'Time Trial',
+    description: 'Individual time trial performance',
+    icon: '⏱️'
   },
   general_fitness: {
     name: 'General Fitness',
@@ -225,6 +237,60 @@ export const GOAL_TYPES: GoalTypesMap = {
     name: 'Gran Fondo',
     description: 'Long sportive event preparation',
     icon: '🏔️'
+  },
+  gravel: {
+    name: 'Gravel Racing',
+    description: 'Mixed terrain endurance events',
+    icon: '🪨'
+  }
+};
+
+/**
+ * Plan Categories for grouping and filtering
+ * Each category targets a specific audience or training focus
+ */
+export const PLAN_CATEGORIES: PlanCategoriesMap = {
+  road_racing: {
+    name: 'Road Racing',
+    description: 'Criterium, road race, and time trial preparation for competitive cyclists',
+    icon: '🏆',
+    color: '#ef4444' // red
+  },
+  endurance_events: {
+    name: 'Endurance Events',
+    description: 'Century rides, gran fondos, and gravel racing preparation',
+    icon: '🚴',
+    color: '#3b82f6' // blue
+  },
+  masters: {
+    name: 'Masters (35+)',
+    description: 'Age-appropriate training with extended recovery and strength focus',
+    icon: '👴',
+    color: '#8b5cf6' // purple
+  },
+  time_crunched: {
+    name: 'Time Crunched',
+    description: 'Maximum results with ≤6 hours per week - research-backed HIIT focus',
+    icon: '⏰',
+    color: '#f59e0b' // amber
+  },
+  indoor_focused: {
+    name: 'Indoor Training',
+    description: 'Optimized for smart trainers with structured interval work',
+    icon: '🏠',
+    color: '#06b6d4' // cyan
+  },
+  strength_power: {
+    name: 'Strength & Power',
+    description: 'Integrated gym and bike training for power development',
+    icon: '🏋️',
+    color: '#ec4899' // pink
+  },
+  foundation: {
+    name: 'Foundation',
+    description: 'Beginner plans and aerobic base building for all levels',
+    icon: '🌱',
+    color: '#22c55e' // green
   }
 };
 
@@ -477,6 +543,7 @@ export default {
   TRAINING_PHASES,
   GOAL_TYPES,
   FITNESS_LEVELS,
+  PLAN_CATEGORIES,
   calculateTSS,
   estimateTSS,
   calculatePowerZones,
