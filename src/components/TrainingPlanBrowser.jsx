@@ -63,7 +63,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
   const [selectedStartDate, setSelectedStartDate] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
+    tomorrow.setHours(12, 0, 0, 0); // Use noon to avoid timezone boundary issues
     return tomorrow;
   });
   const [planToActivate, setPlanToActivate] = useState(null);
@@ -520,11 +520,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
       // Use the provided start date
       const planStartDate = new Date(startDate);
-      planStartDate.setHours(0, 0, 0, 0);
 
-      // Use toNoonUTCFromTimezone for timezone-safe date storage
-      // This ensures the date is stored correctly based on user's timezone
-      const startDateISO = toNoonUTCFromTimezone(planStartDate, timezone);
+      // Extract the calendar day the user selected (in browser local time)
+      // and store at noon UTC - this preserves the intended date without timezone shifts
+      const year = planStartDate.getFullYear();
+      const month = planStartDate.getMonth();
+      const day = planStartDate.getDate();
+      const startDateISO = new Date(Date.UTC(year, month, day, 12, 0, 0, 0)).toISOString();
 
       const { data: newPlan, error: planError } = await supabase
         .from('training_plans')
@@ -1310,19 +1312,23 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   // Ensure we have a proper Date object
                   const dateObj = date instanceof Date ? date : new Date(date);
                   if (!isNaN(dateObj.getTime())) {
-                    // CRITICAL: Normalize to midnight local time using year/month/day
-                    // This prevents timezone issues where the date shifts by a day
+                    // CRITICAL: Normalize to NOON local time using year/month/day
+                    // Using noon (not midnight) provides buffer against timezone boundary issues
                     const localDate = new Date(
                       dateObj.getFullYear(),
                       dateObj.getMonth(),
                       dateObj.getDate(),
-                      0, 0, 0, 0
+                      12, 0, 0, 0
                     );
                     setSelectedStartDate(localDate);
                   }
                 }
               }}
-              minDate={getTodayInTimezone(timezone)}
+              minDate={(() => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                return today;
+              })()}
               size="md"
               highlightToday
               allowDeselect={false}
