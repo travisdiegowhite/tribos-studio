@@ -20,9 +20,7 @@ import {
   ActionIcon,
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
-import { formatLocalDate, addDays, toNoonUTC, parsePlanStartDate } from '../utils/dateUtils';
-import { useUserPreferences } from '../contexts/UserPreferencesContext';
-import { toNoonUTCFromTimezone, formatLocalDateInTimezone, getTodayInTimezone } from '../utils/timezoneUtils';
+import { formatLocalDate, addDays, parsePlanStartDate } from '../utils/dateUtils';
 import {
   IconTarget,
   IconClock,
@@ -52,7 +50,6 @@ import { useAuth } from '../contexts/AuthContext';
  */
 const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) => {
   const { user } = useAuth();
-  const { timezone } = useUserPreferences();
   const [filter, setFilter] = useState('all');
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -1307,28 +1304,17 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             <DatePicker
               value={selectedStartDate}
               onChange={(date) => {
-                // Handle date selection - date can be Date, null, or undefined
                 if (date) {
-                  // Ensure we have a proper Date object
-                  const dateObj = date instanceof Date ? date : new Date(date);
-                  if (!isNaN(dateObj.getTime())) {
-                    // CRITICAL: Normalize to NOON local time using year/month/day
-                    // Using noon (not midnight) provides buffer against timezone boundary issues
-                    const localDate = new Date(
-                      dateObj.getFullYear(),
-                      dateObj.getMonth(),
-                      dateObj.getDate(),
-                      12, 0, 0, 0
-                    );
-                    setSelectedStartDate(localDate);
-                  }
+                  // Mantine DatePicker returns dates at midnight UTC
+                  // Use UTC components to get the actual clicked date
+                  const year = date.getUTCFullYear();
+                  const month = date.getUTCMonth();
+                  const day = date.getUTCDate();
+                  // Create local date with those values
+                  setSelectedStartDate(new Date(year, month, day, 12, 0, 0, 0));
                 }
               }}
-              minDate={(() => {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                return today;
-              })()}
+              minDate={new Date()}
               size="md"
               highlightToday
               allowDeselect={false}

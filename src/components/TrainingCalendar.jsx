@@ -42,8 +42,6 @@ import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../ut
 import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
 import { formatLocalDate, addDays, startOfMonth, endOfMonth, parsePlanStartDate } from '../utils/dateUtils';
-import { useUserPreferences } from '../contexts/UserPreferencesContext';
-import { formatLocalDateInTimezone, isDateTodayInTimezone } from '../utils/timezoneUtils';
 
 /**
  * Enhanced Training Calendar Component
@@ -52,7 +50,6 @@ import { formatLocalDateInTimezone, isDateTodayInTimezone } from '../utils/timez
  */
 const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated }) => {
   const { user } = useAuth();
-  const { timezone } = useUserPreferences();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -816,7 +813,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, date)}
                     style={{
-                      minHeight: 80,
+                      minHeight: 110,
                       backgroundColor: isDropTarget ? 'rgba(132, 216, 99, 0.3)' : backgroundColor,
                       border: isDropTarget ? `2px dashed ${tokens.colors.electricLime}` : `2px solid ${borderColor}`,
                       opacity: isPast && !workout?.completed && !dayRides.length ? 0.7 : 1,
@@ -825,15 +822,15 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     }}
                     onClick={() => activePlan && openEditModal(workout, date)}
                   >
-                    <Stack gap={2}>
-                      <Group justify="space-between" gap={2}>
-                        <Text size="xs" fw={600} style={{ color: tokens.colors.textPrimary }}>
+                    <Stack gap={4}>
+                      {/* Date and completion checkbox */}
+                      <Group justify="space-between" align="center">
+                        <Text size="sm" fw={700} style={{ color: tokens.colors.textPrimary }}>
                           {date.getDate()}
                         </Text>
-                        {/* Workout completion checkbox */}
                         {workout && workout.workout_type !== 'rest' && (
                           <ActionIcon
-                            size="xs"
+                            size="sm"
                             variant="subtle"
                             color={workout.completed ? 'green' : 'gray'}
                             onClick={(e) => {
@@ -841,69 +838,56 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               toggleWorkoutCompletion(workout);
                             }}
                           >
-                            {workout.completed ? <IconCheck size={12} /> : <IconCircle size={12} />}
+                            {workout.completed ? <IconCheck size={14} /> : <IconCircle size={14} />}
                           </ActionIcon>
                         )}
                       </Group>
 
-                      {/* Planned workout - enhanced details */}
-                      {workout && (
-                        <Tooltip
-                          label={
-                            <Stack gap={4}>
-                              <Text size="sm" fw={600}>{workout.name || WORKOUT_TYPES[workout.workout_type]?.name || workout.workout_type}</Text>
-                              <Text size="xs" c="dimmed">{WORKOUT_TYPES[workout.workout_type]?.name}</Text>
-                              {workout.duration_minutes > 0 && <Text size="xs">{workout.duration_minutes} min</Text>}
-                              {workout.target_tss > 0 && <Text size="xs">Target: {workout.target_tss} TSS</Text>}
-                              {workout.notes && <Text size="xs" c="dimmed" style={{ maxWidth: 200 }}>{workout.notes}</Text>}
-                              {workout.completed && <Badge size="xs" color="green">Completed</Badge>}
-                            </Stack>
-                          }
-                          multiline
-                          w={220}
-                        >
-                          <Box>
-                            {/* Workout type badge with icon */}
+                      {/* Workout info - visible at a glance */}
+                      {workout && workout.workout_type !== 'rest' && (
+                        <Box>
+                          {/* Workout type with icon */}
+                          <Group gap={4} mb={4}>
+                            <Text size="lg">{WORKOUT_TYPES[workout.workout_type]?.icon || '🚴'}</Text>
                             <Badge
-                              size="xs"
+                              size="sm"
                               color={WORKOUT_TYPES[workout.workout_type]?.color || 'gray'}
                               variant={workout.completed ? 'filled' : 'light'}
-                              mb={2}
                             >
-                              {WORKOUT_TYPES[workout.workout_type]?.icon || '🚴'}
+                              {WORKOUT_TYPES[workout.workout_type]?.name || workout.workout_type}
                             </Badge>
-                            {/* Workout name - truncated */}
-                            {workout.workout_type !== 'rest' && (
-                              <Text
-                                size="xs"
-                                fw={500}
-                                lineClamp={1}
-                                style={{
-                                  color: workout.completed ? tokens.colors.textSecondary : tokens.colors.textPrimary,
-                                  fontSize: '10px',
-                                  lineHeight: 1.2,
-                                }}
-                              >
-                                {workout.name || WORKOUT_TYPES[workout.workout_type]?.name}
+                          </Group>
+                          {/* Workout name */}
+                          <Text
+                            size="xs"
+                            fw={600}
+                            lineClamp={1}
+                            mb={2}
+                            style={{ color: workout.completed ? tokens.colors.textSecondary : tokens.colors.textPrimary }}
+                          >
+                            {workout.name || 'Workout'}
+                          </Text>
+                          {/* Duration and TSS - prominent */}
+                          <Group gap={8}>
+                            {workout.duration_minutes > 0 && (
+                              <Text size="xs" fw={500} style={{ color: tokens.colors.textSecondary }}>
+                                {workout.duration_minutes} min
                               </Text>
                             )}
-                          </Box>
-                        </Tooltip>
+                            {workout.target_tss > 0 && (
+                              <Text size="xs" fw={600} c="orange">
+                                {workout.target_tss} TSS
+                              </Text>
+                            )}
+                          </Group>
+                        </Box>
                       )}
 
-                      {/* Duration and TSS for non-rest workouts */}
-                      {workout && workout.workout_type !== 'rest' && (
-                        <Group gap={4} wrap="nowrap">
-                          {workout.duration_minutes > 0 && (
-                            <Text size="xs" c="dimmed" style={{ fontSize: '9px' }}>
-                              {workout.duration_minutes}m
-                            </Text>
-                          )}
-                          {workout.target_tss > 0 && (
-                            <Text size="xs" c="orange" fw={500} style={{ fontSize: '9px' }}>
-                              {workout.target_tss}TSS
-                            </Text>
-                          )}
+                      {/* Rest day indicator */}
+                      {workout && workout.workout_type === 'rest' && (
+                        <Group gap={4}>
+                          <Text size="lg">😴</Text>
+                          <Text size="xs" c="dimmed" fw={500}>Rest Day</Text>
                         </Group>
                       )}
 
