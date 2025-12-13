@@ -1298,10 +1298,12 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             <DatePicker
               value={selectedStartDate}
               onChange={(date) => {
-                // Ensure we always store a valid Date object
-                if (date instanceof Date && !isNaN(date.getTime())) {
-                  // Create a clean Date at midnight to avoid any time-based issues
-                  const cleanDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                console.log('DatePicker onChange:', date, typeof date);
+                if (date) {
+                  // Convert to Date if needed and create clean midnight date
+                  const d = date instanceof Date ? date : new Date(date);
+                  const cleanDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                  console.log('Setting clean date:', cleanDate);
                   setSelectedStartDate(cleanDate);
                 }
               }}
@@ -1313,7 +1315,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           </Box>
 
           {/* Date Summary */}
-          {selectedStartDate instanceof Date && !isNaN(selectedStartDate.getTime()) && planToActivate && (
+          {selectedStartDate && planToActivate && (
             <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${tokens.colors.electricLime}10` }}>
               <SimpleGrid cols={2}>
                 <Box>
