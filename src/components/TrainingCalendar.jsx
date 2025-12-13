@@ -41,7 +41,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
 import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
-import { formatLocalDate, addDays, startOfMonth, endOfMonth } from '../utils/dateUtils';
+import { formatLocalDate, addDays, startOfMonth, endOfMonth, parsePlanStartDate } from '../utils/dateUtils';
 
 /**
  * Enhanced Training Calendar Component
@@ -159,7 +159,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const weeklyStats = useMemo(() => {
     if (!activePlan) return {};
 
-    const planStartDate = new Date(getPlanStartDate(activePlan));
+    // Use parsePlanStartDate for timezone-safe parsing
+    const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan));
+    if (!planStartDate) return {};
+
     const stats = {};
 
     // Group workouts by week
@@ -226,8 +229,13 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Get current week number
   const getCurrentWeekNumber = () => {
     if (!activePlan) return 0;
-    const planStartDate = new Date(getPlanStartDate(activePlan));
-    const daysSinceStart = Math.floor((new Date() - planStartDate) / (24 * 60 * 60 * 1000));
+    // Use parsePlanStartDate for timezone-safe parsing
+    const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan));
+    if (!planStartDate) return 1;
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Compare at midnight
+    const daysSinceStart = Math.floor((now - planStartDate) / (24 * 60 * 60 * 1000));
     return Math.max(1, Math.floor(daysSinceStart / 7) + 1);
   };
 
@@ -310,8 +318,17 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setSaving(true);
 
     try {
-      const planStartDate = new Date(getPlanStartDate(activePlan));
-      const daysSinceStart = Math.floor((selectedDate - planStartDate) / (24 * 60 * 60 * 1000));
+      // Use parsePlanStartDate for timezone-safe parsing
+      const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan));
+      if (!planStartDate) {
+        throw new Error('Unable to parse plan start date');
+      }
+
+      // Normalize selectedDate to midnight for accurate comparison
+      const normalizedSelectedDate = new Date(selectedDate);
+      normalizedSelectedDate.setHours(0, 0, 0, 0);
+
+      const daysSinceStart = Math.floor((normalizedSelectedDate - planStartDate) / (24 * 60 * 60 * 1000));
       const weekNumber = Math.floor(daysSinceStart / 7) + 1;
       const dayOfWeek = selectedDate.getDay();
 
@@ -340,6 +357,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             plan_id: activePlan.id,
             week_number: weekNumber,
             day_of_week: dayOfWeek,
+            scheduled_date: formatLocalDate(selectedDate), // Critical: include date for calendar matching
             completed: false,
           });
 
@@ -448,10 +466,24 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
 
     try {
-      const planStartDate = new Date(getPlanStartDate(activePlan));
+      // Use parsePlanStartDate for timezone-safe parsing
+      const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan));
+      if (!planStartDate) {
+        notifications.show({
+          title: 'Error',
+          message: 'Unable to parse plan start date',
+          color: 'red',
+        });
+        setDraggedWorkout(null);
+        return;
+      }
+
+      // Normalize targetDate to midnight for accurate comparison
+      const normalizedTargetDate = new Date(targetDate);
+      normalizedTargetDate.setHours(0, 0, 0, 0);
 
       // Calculate new week number and day of week for target date
-      const daysSinceStart = Math.floor((targetDate - planStartDate) / (24 * 60 * 60 * 1000));
+      const daysSinceStart = Math.floor((normalizedTargetDate - planStartDate) / (24 * 60 * 60 * 1000));
       const newWeekNumber = Math.floor(daysSinceStart / 7) + 1;
       const newDayOfWeek = targetDate.getDay();
 

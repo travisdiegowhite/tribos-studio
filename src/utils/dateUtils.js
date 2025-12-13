@@ -99,3 +99,65 @@ export function startOfMonth(date) {
 export function endOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
+
+/**
+ * Create a timezone-safe ISO string for database storage.
+ * Uses noon UTC to ensure the date is the same in all timezones from UTC-12 to UTC+12.
+ *
+ * @param {Date} date - The local date to store
+ * @returns {string} ISO string at noon UTC of the given date
+ */
+export function toNoonUTC(date) {
+  if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+    return null;
+  }
+  // Get the local date components
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+
+  // Create a UTC date at noon
+  const noonUTC = new Date(Date.UTC(year, month, day, 12, 0, 0, 0));
+  return noonUTC.toISOString();
+}
+
+/**
+ * Parse a timestamp string (from database) and return a Date at midnight LOCAL time.
+ * This handles both old-style timestamps (midnight local stored as UTC) and
+ * new-style timestamps (noon UTC).
+ *
+ * @param {string} timestampStr - ISO timestamp string from database
+ * @returns {Date} Date at midnight local time
+ */
+export function parsePlanStartDate(timestampStr) {
+  if (!timestampStr || typeof timestampStr !== 'string') {
+    return null;
+  }
+
+  // If it's already a YYYY-MM-DD string, parse directly
+  if (/^\d{4}-\d{2}-\d{2}$/.test(timestampStr)) {
+    return parseLocalDate(timestampStr);
+  }
+
+  // Parse the full timestamp
+  const date = new Date(timestampStr);
+  if (isNaN(date.getTime())) {
+    return null;
+  }
+
+  // Extract the UTC date components
+  // This works correctly for both noon UTC storage and old midnight local storage
+  // because we extract the date the user intended, not the local conversion
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+
+  // If the UTC time is very early (before 6 AM UTC), this might be from a
+  // western timezone that stored midnight local. In that case, the UTC date
+  // is correct. If it's later (after 6 PM UTC), it might be from an eastern
+  // timezone, and the UTC date is also correct.
+  // For times in between (6 AM - 6 PM), the date is unambiguous.
+
+  // Create a local date at midnight with the extracted components
+  return new Date(year, month, day);
+}
