@@ -534,24 +534,31 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       const planStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
       const startDateStr = formatLocalDate(planStartDate);
 
+      const planData = {
+        user_id: user.id,
+        template_id: plan.id,
+        name: plan.name,
+        duration_weeks: plan.duration,
+        methodology: plan.methodology,
+        goal: plan.goal,
+        fitness_level: plan.fitnessLevel,
+        started_at: startDateStr,
+        start_date: startDateStr,
+        status: 'active',
+      };
+      console.log('Creating plan with data:', planData);
+
       const { data: newPlan, error: planError } = await supabase
         .from('training_plans')
-        .insert({
-          user_id: user.id,
-          template_id: plan.id,
-          name: plan.name,
-          duration_weeks: plan.duration,
-          methodology: plan.methodology,
-          goal: plan.goal,
-          fitness_level: plan.fitnessLevel,
-          started_at: startDateStr,
-          start_date: startDateStr,
-          status: 'active',
-        })
+        .insert(planData)
         .select()
         .single();
 
-      if (planError) throw planError;
+      if (planError) {
+        console.error('Plan creation error:', planError);
+        throw planError;
+      }
+      console.log('Plan created successfully:', newPlan?.id);
 
       // Generate planned workouts for each week
       const workouts = [];
@@ -864,9 +871,11 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       }
     } catch (error) {
       console.error('Failed to activate plan:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       notifications.show({
         title: 'Error',
-        message: 'Failed to activate training plan. Please try again.',
+        message: `Failed to activate training plan: ${error?.message || 'Unknown error'}`,
         color: 'red',
       });
     } finally {
