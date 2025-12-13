@@ -1299,9 +1299,10 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               value={selectedStartDate}
               onChange={(date) => {
                 if (date) {
-                  // Fix timezone issue: DatePicker returns UTC midnight which shows as
-                  // previous day in local time. Add timezone offset to correct this.
-                  const corrected = new Date(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
+                  // Convert to native Date first (Mantine may return dayjs object)
+                  const nativeDate = new Date(date);
+                  // Fix timezone: add offset to correct UTC-to-local shift
+                  const corrected = new Date(nativeDate.getTime() + nativeDate.getTimezoneOffset() * 60 * 1000);
                   setSelectedStartDate(corrected);
                 }
               }}
