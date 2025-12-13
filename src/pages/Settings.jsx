@@ -26,6 +26,7 @@ import ImportWizard from '../components/ImportWizard.jsx';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
+import { TIMEZONE_OPTIONS, getBrowserTimezone, getTimezoneOffset } from '../utils/timezoneUtils';
 
 function Settings() {
   const { user, signOut } = useAuth();
@@ -45,6 +46,7 @@ function Settings() {
   const [location, setLocation] = useState('');
   const [bio, setBio] = useState('');
   const [unitsPreference, setUnitsPreference] = useState('imperial');
+  const [timezone, setTimezone] = useState(() => getBrowserTimezone());
   const [ftp, setFtp] = useState(null);
   const [weightKg, setWeightKg] = useState(null);
   const [powerZones, setPowerZones] = useState(null);
@@ -68,6 +70,7 @@ function Settings() {
           setLocation(data.location || '');
           setBio(data.bio || '');
           setUnitsPreference(data.units_preference || 'imperial');
+          setTimezone(data.timezone || getBrowserTimezone());
           setFtp(data.ftp || null);
           setWeightKg(data.weight_kg || null);
           setPowerZones(data.power_zones || null);
@@ -152,6 +155,7 @@ function Settings() {
           location: location,
           bio: bio,
           units_preference: unitsPreference,
+          timezone: timezone,
           ftp: ftp || null,
           weight_kg: weightKg || null,
         })
@@ -441,6 +445,23 @@ function Settings() {
                   { value: 'imperial', label: 'Imperial (mi, lbs)' },
                 ]}
               />
+
+              <Select
+                label="Timezone"
+                description="Used for training calendar and workout scheduling"
+                placeholder="Select your timezone"
+                value={timezone}
+                onChange={setTimezone}
+                data={TIMEZONE_OPTIONS}
+                searchable
+                nothingFoundMessage="No timezone found"
+                maxDropdownHeight={300}
+              />
+              {timezone && (
+                <Text size="xs" c="dimmed" mt="-xs">
+                  Current offset: {getTimezoneOffset(timezone)}
+                </Text>
+              )}
 
               <Button color="lime" onClick={handleSaveProfile} loading={loading}>
                 Save Changes

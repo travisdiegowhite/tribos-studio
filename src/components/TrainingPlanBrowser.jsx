@@ -21,6 +21,8 @@ import {
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { formatLocalDate, addDays, toNoonUTC, parsePlanStartDate } from '../utils/dateUtils';
+import { useUserPreferences } from '../contexts/UserPreferencesContext';
+import { toNoonUTCFromTimezone, formatLocalDateInTimezone, getTodayInTimezone } from '../utils/timezoneUtils';
 import {
   IconTarget,
   IconClock,
@@ -50,6 +52,7 @@ import { useAuth } from '../contexts/AuthContext';
  */
 const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) => {
   const { user } = useAuth();
+  const { timezone } = useUserPreferences();
   const [filter, setFilter] = useState('all');
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -519,8 +522,9 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       const planStartDate = new Date(startDate);
       planStartDate.setHours(0, 0, 0, 0);
 
-      // Use toNoonUTC for timezone-safe date storage
-      const startDateISO = toNoonUTC(planStartDate);
+      // Use toNoonUTCFromTimezone for timezone-safe date storage
+      // This ensures the date is stored correctly based on user's timezone
+      const startDateISO = toNoonUTCFromTimezone(planStartDate, timezone);
 
       const { data: newPlan, error: planError } = await supabase
         .from('training_plans')
@@ -1318,7 +1322,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   }
                 }
               }}
-              minDate={new Date()}
+              minDate={getTodayInTimezone(timezone)}
               size="md"
               highlightToday
               allowDeselect={false}

@@ -3,6 +3,7 @@ import { MantineProvider, ColorSchemeScript } from '@mantine/core';
 import { DatesProvider } from '@mantine/dates';
 import { Notifications } from '@mantine/notifications';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
+import { UserPreferencesProvider } from './contexts/UserPreferencesContext.jsx';
 import { theme } from './theme';
 
 // Pages
@@ -176,10 +177,12 @@ function App() {
           <ErrorBoundary>
             <Notifications position="top-right" />
             <AuthProvider>
-              <BrowserRouter>
-                <AppRoutes />
-                <BetaFeedbackWidget />
-              </BrowserRouter>
+              <UserPreferencesProvider>
+                <BrowserRouter>
+                  <AppRoutes />
+                  <BetaFeedbackWidget />
+                </BrowserRouter>
+              </UserPreferencesProvider>
             </AuthProvider>
           </ErrorBoundary>
         </DatesProvider>
