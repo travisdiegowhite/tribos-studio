@@ -18,6 +18,8 @@ import {
   Alert,
   Menu,
   ActionIcon,
+  Tabs,
+  ScrollArea,
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { formatLocalDate, addDays, parsePlanStartDate } from '../utils/dateUtils';
@@ -38,8 +40,8 @@ import {
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
-import { getAllPlans, getPlansByGoal, getPlansByFitnessLevel } from '../data/trainingPlanTemplates';
-import { TRAINING_PHASES, GOAL_TYPES, FITNESS_LEVELS, WORKOUT_TYPES } from '../utils/trainingPlans';
+import { getAllPlans, getPlansByGoal, getPlansByFitnessLevel, getPlansByCategory } from '../data/trainingPlanTemplates';
+import { TRAINING_PHASES, GOAL_TYPES, FITNESS_LEVELS, WORKOUT_TYPES, PLAN_CATEGORIES } from '../utils/trainingPlans';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -50,6 +52,7 @@ import { useAuth } from '../contexts/AuthContext';
  */
 const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) => {
   const { user } = useAuth();
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [filter, setFilter] = useState('all');
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -451,12 +454,24 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
   };
 
   const filteredPlans = useMemo(() => {
-    if (filter === 'all') return allPlans;
-    if (['beginner', 'intermediate', 'advanced'].includes(filter)) {
-      return getPlansByFitnessLevel(filter);
+    let plans = allPlans;
+
+    // First filter by category
+    if (categoryFilter !== 'all') {
+      plans = getPlansByCategory(categoryFilter);
     }
-    return getPlansByGoal(filter);
-  }, [allPlans, filter]);
+
+    // Then filter by fitness level or goal
+    if (filter !== 'all') {
+      if (['beginner', 'intermediate', 'advanced'].includes(filter)) {
+        plans = plans.filter(p => p.fitnessLevel === filter);
+      } else {
+        plans = plans.filter(p => p.goal === filter);
+      }
+    }
+
+    return plans;
+  }, [allPlans, categoryFilter, filter]);
 
   // Get methodology color
   const getMethodologyColor = (methodology) => {
@@ -519,24 +534,31 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       const planStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
       const startDateStr = formatLocalDate(planStartDate);
 
+      const planData = {
+        user_id: user.id,
+        template_id: plan.id,
+        name: plan.name,
+        duration_weeks: plan.duration,
+        methodology: plan.methodology,
+        goal: plan.goal,
+        fitness_level: plan.fitnessLevel,
+        started_at: startDateStr,
+        start_date: startDateStr,
+        status: 'active',
+      };
+      console.log('Creating plan with data:', planData);
+
       const { data: newPlan, error: planError } = await supabase
         .from('training_plans')
-        .insert({
-          user_id: user.id,
-          template_id: plan.id,
-          name: plan.name,
-          duration_weeks: plan.duration,
-          methodology: plan.methodology,
-          goal: plan.goal,
-          fitness_level: plan.fitnessLevel,
-          started_at: startDateStr,
-          start_date: startDateStr,
-          status: 'active',
-        })
+        .insert(planData)
         .select()
         .single();
 
-      if (planError) throw planError;
+      if (planError) {
+        console.error('Plan creation error:', planError);
+        throw planError;
+      }
+      console.log('Plan created successfully:', newPlan?.id);
 
       // Generate planned workouts for each week
       const workouts = [];
@@ -849,9 +871,11 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       }
     } catch (error) {
       console.error('Failed to activate plan:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       notifications.show({
         title: 'Error',
-        message: 'Failed to activate training plan. Please try again.',
+        message: `Failed to activate training plan: ${error?.message || 'Unknown error'}`,
         color: 'red',
       });
     } finally {
@@ -894,6 +918,15 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         </Group>
 
         <Group gap="xs" wrap="wrap">
+          {plan.category && PLAN_CATEGORIES[plan.category] && (
+            <Badge
+              size="xs"
+              variant="filled"
+              style={{ backgroundColor: PLAN_CATEGORIES[plan.category].color }}
+            >
+              {PLAN_CATEGORIES[plan.category].icon} {PLAN_CATEGORIES[plan.category].name}
+            </Badge>
+          )}
           <Badge size="xs" color={getMethodologyColor(plan.methodology)} variant="light">
             {plan.methodology}
           </Badge>
@@ -1124,37 +1157,69 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
   // Full view
   return (
     <Box>
-      {/* Filter Controls */}
+      {/* Header */}
       <Group justify="space-between" mb="md" wrap="wrap" gap="sm">
         <Text fw={600} size="lg" style={{ color: tokens.colors.textPrimary }}>
           Training Plans
         </Text>
+        <Badge size="lg" color="lime" variant="light">
+          {filteredPlans.length} {filteredPlans.length === 1 ? 'plan' : 'plans'}
+        </Badge>
+      </Group>
+
+      {/* Category Tabs */}
+      <ScrollArea mb="md">
+        <Tabs
+          value={categoryFilter}
+          onChange={(value) => {
+            setCategoryFilter(value);
+            setFilter('all'); // Reset secondary filter when category changes
+          }}
+          variant="pills"
+          radius="xl"
+        >
+          <Tabs.List>
+            <Tabs.Tab value="all" leftSection="📋">
+              All Plans
+            </Tabs.Tab>
+            {Object.entries(PLAN_CATEGORIES).map(([key, cat]) => (
+              <Tabs.Tab
+                key={key}
+                value={key}
+                leftSection={cat.icon}
+                style={{
+                  '--tab-color': categoryFilter === key ? cat.color : undefined,
+                }}
+              >
+                {cat.name}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      </ScrollArea>
+
+      {/* Category Description */}
+      {categoryFilter !== 'all' && PLAN_CATEGORIES[categoryFilter] && (
+        <Paper p="sm" mb="md" withBorder radius="md" style={{ backgroundColor: `${PLAN_CATEGORIES[categoryFilter].color}10` }}>
+          <Text size="sm" c="dimmed">
+            {PLAN_CATEGORIES[categoryFilter].description}
+          </Text>
+        </Paper>
+      )}
+
+      {/* Secondary Filters */}
+      <Group justify="space-between" mb="md" wrap="wrap" gap="sm">
         <SegmentedControl
           size="xs"
           value={filter}
           onChange={setFilter}
           data={[
-            { label: 'All', value: 'all' },
+            { label: 'All Levels', value: 'all' },
             { label: 'Beginner', value: 'beginner' },
             { label: 'Intermediate', value: 'intermediate' },
             { label: 'Advanced', value: 'advanced' },
           ]}
         />
-      </Group>
-
-      {/* Goal Filter Badges */}
-      <Group gap="xs" mb="md">
-        {Object.entries(GOAL_TYPES).map(([key, goal]) => (
-          <Badge
-            key={key}
-            variant={filter === key ? 'filled' : 'light'}
-            color={filter === key ? 'lime' : 'gray'}
-            style={{ cursor: 'pointer' }}
-            onClick={() => setFilter(filter === key ? 'all' : key)}
-          >
-            {goal.icon} {goal.name}
-          </Badge>
-        ))}
       </Group>
 
       {/* Active Plan Card with Management */}
