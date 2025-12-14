@@ -275,7 +275,18 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       ],
       cooldown: { duration: 10, zone: 1, powerPctFTP: 50 }
     },
-    coachNotes: 'Most time-efficient training zone. Builds FTP without excessive fatigue. Maintain steady power.'
+    coachNotes: 'Most time-efficient training zone. Builds FTP without excessive fatigue. Maintain steady power.',
+    exportable: true,
+    exportFormats: ['zwo', 'mrc', 'json'],
+    cyclingStructure: {
+      totalDuration: 65,
+      steps: [
+        { name: 'Warmup', type: 'warmup', duration: 600, power: { type: 'percent_ftp', value: 65 }, cadence: { min: 85, max: 95 }, instructions: 'Easy spinning, gradually build power' },
+        { name: 'Sweet Spot Block', type: 'work', duration: 2700, power: { type: 'percent_ftp', value: 90 }, cadence: { min: 85, max: 95 }, instructions: '45 minutes at Sweet Spot. Stay smooth and steady. This is hard but sustainable.' },
+        { name: 'Cooldown', type: 'cooldown', duration: 600, power: { type: 'percent_ftp', value: 50 }, instructions: 'Easy spinning, let heart rate come down' }
+      ],
+      terrain: { type: 'flat', suggestedRoute: 'Find a flat road or path with minimal stops. Time trial bike or aero position recommended.' }
+    }
   },
 
   three_by_ten_sst: {
@@ -302,7 +313,26 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       ],
       cooldown: { duration: 10, zone: 1, powerPctFTP: 50 }
     },
-    coachNotes: 'Great introduction to Sweet Spot training. Builds threshold power progressively.'
+    coachNotes: 'Great introduction to Sweet Spot training. Builds threshold power progressively.',
+    exportable: true,
+    exportFormats: ['zwo', 'mrc', 'json'],
+    cyclingStructure: {
+      totalDuration: 60,
+      steps: [
+        { name: 'Warmup', type: 'warmup', duration: 900, power: { type: 'percent_ftp', value: 65 }, cadence: { min: 85, max: 95 }, instructions: 'Easy spinning, include a few 30-second pickups to 90%' },
+        {
+          type: 'repeat',
+          name: '3x10 Sweet Spot Intervals',
+          iterations: 3,
+          steps: [
+            { name: 'Sweet Spot', type: 'work', duration: 600, power: { type: 'percent_ftp', value: 90 }, cadence: { min: 85, max: 95 }, instructions: '10 minutes at Sweet Spot. Steady effort, focus on smooth pedaling.' },
+            { name: 'Recovery', type: 'recovery', duration: 300, power: { type: 'percent_ftp', value: 50 }, instructions: 'Easy spinning. Catch your breath but stay moving.' }
+          ]
+        },
+        { name: 'Cooldown', type: 'cooldown', duration: 600, power: { type: 'percent_ftp', value: 50 }, instructions: 'Easy spinning' }
+      ],
+      terrain: { type: 'flat', suggestedRoute: 'Flat road or trainer. Minimal stops needed.' }
+    }
   },
 
   four_by_twelve_sst: {
