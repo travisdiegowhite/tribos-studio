@@ -21,6 +21,9 @@ import {
   Alert,
   Modal,
   List,
+  Menu,
+  ActionIcon,
+  Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
@@ -45,6 +48,9 @@ import {
   IconUpload,
   IconList,
   IconBarbell,
+  IconDownload,
+  IconBrandZwift,
+  IconFileExport,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -65,6 +71,7 @@ import { TrainingNotifications, SupplementWorkoutModal } from '../components/tra
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
+import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 
 function TrainingDashboard() {
@@ -1316,6 +1323,115 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
               ))}
             </Group>
           </Box>
+        )}
+
+        {/* Export to Bike Computer */}
+        {workout.exportable && workout.cyclingStructure && (
+          <Paper p="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-7)' }}>
+            <Group justify="space-between" align="center">
+              <Box>
+                <Group gap="xs" mb={4}>
+                  <IconFileExport size={16} />
+                  <Text fw={500} size="sm">Export to Bike Computer</Text>
+                </Group>
+                <Text size="xs" c="dimmed">Download this workout for Zwift, TrainerRoad, or other apps</Text>
+              </Box>
+              <Menu shadow="md" width={200}>
+                <Menu.Target>
+                  <Button variant="light" color="cyan" leftSection={<IconDownload size={16} />}>
+                    Export
+                  </Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>Choose Format</Menu.Label>
+                  <Menu.Item
+                    leftSection={<IconBrandZwift size={16} />}
+                    onClick={() => {
+                      try {
+                        const result = exportWorkout(workout.cyclingStructure, {
+                          format: 'zwo',
+                          workoutName: workout.name,
+                          description: workout.description
+                        });
+                        downloadWorkout(result);
+                        notifications.show({
+                          title: 'Workout Exported',
+                          message: `${workout.name}.zwo downloaded for Zwift`,
+                          color: 'green'
+                        });
+                      } catch (err) {
+                        notifications.show({
+                          title: 'Export Failed',
+                          message: err.message,
+                          color: 'red'
+                        });
+                      }
+                    }}
+                  >
+                    Zwift (.zwo)
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconFileExport size={16} />}
+                    onClick={() => {
+                      try {
+                        const result = exportWorkout(workout.cyclingStructure, {
+                          format: 'mrc',
+                          workoutName: workout.name,
+                          description: workout.description
+                        });
+                        downloadWorkout(result);
+                        notifications.show({
+                          title: 'Workout Exported',
+                          message: `${workout.name}.mrc downloaded for TrainerRoad`,
+                          color: 'green'
+                        });
+                      } catch (err) {
+                        notifications.show({
+                          title: 'Export Failed',
+                          message: err.message,
+                          color: 'red'
+                        });
+                      }
+                    }}
+                  >
+                    TrainerRoad (.mrc)
+                  </Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item
+                    leftSection={<IconDownload size={16} />}
+                    onClick={() => {
+                      try {
+                        const result = exportWorkout(workout.cyclingStructure, {
+                          format: 'json',
+                          workoutName: workout.name,
+                          description: workout.description
+                        });
+                        downloadWorkout(result);
+                        notifications.show({
+                          title: 'Workout Exported',
+                          message: `${workout.name}.json downloaded`,
+                          color: 'green'
+                        });
+                      } catch (err) {
+                        notifications.show({
+                          title: 'Export Failed',
+                          message: err.message,
+                          color: 'red'
+                        });
+                      }
+                    }}
+                  >
+                    JSON (developer)
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
+            {workout.cyclingStructure.terrain?.suggestedRoute && (
+              <Alert mt="xs" variant="light" color="blue" p="xs" icon={null}>
+                <Text size="xs"><strong>Suggested terrain:</strong> {workout.cyclingStructure.terrain.suggestedRoute}</Text>
+              </Alert>
+            )}
+          </Paper>
         )}
 
         {/* Close Button */}
