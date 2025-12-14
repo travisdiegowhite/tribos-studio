@@ -829,7 +829,7 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
     category: 'strength',
     difficulty: 'beginner',
     duration: 45,
-    targetTSS: 0, // Off-bike workouts don't contribute to cycling TSS
+    targetTSS: 0,
     intensityFactor: 0,
     description: 'Foundation strength phase: high reps, low weight to prepare tissues and learn movement patterns.',
     focusArea: 'strength',
@@ -842,7 +842,36 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       ],
       cooldown: { duration: 5, zone: null, description: 'Light stretching' }
     },
-    coachNotes: 'Phase 1 (weeks 1-4): 20-30 reps, 2-3 sets, 60-90s rest. Focus on form, not weight. 2-3x/week.'
+    coachNotes: 'Phase 1 (weeks 1-4): 20-30 reps, 2-3 sets, 60-90s rest. Focus on form, not weight. 2-3x/week.',
+    exercises: {
+      warmup: {
+        duration: 10,
+        description: '5 minutes light cardio followed by dynamic stretches',
+        exercises: [
+          { name: 'Light Cardio', duration: 300, equipment: ['none'], muscleGroups: ['full_body'], instructions: 'Walk briskly, light jog, or use rowing machine. Get heart rate up and blood flowing to muscles.' },
+          { name: 'Leg Swings', duration: 60, sides: 'left_then_right', reps: 10, equipment: ['none'], muscleGroups: ['hip_flexors', 'hamstrings'], instructions: 'Hold wall for balance. Swing leg forward and back in controlled motion, gradually increasing range.' },
+          { name: 'Hip Circles', duration: 60, sides: 'left_then_right', reps: 10, equipment: ['none'], muscleGroups: ['hip_flexors', 'glutes'], instructions: 'Stand on one leg, draw large circles with knee of other leg. 10 clockwise, 10 counter-clockwise each side.' },
+          { name: 'Bodyweight Squats', duration: 60, reps: 10, equipment: ['none'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Slow controlled squats to warm up movement pattern. Focus on depth and keeping heels down.' }
+        ]
+      },
+      main: [
+        { name: 'Goblet Squat', sets: 3, reps: 15, weight: 'light dumbbell or kettlebell', restSeconds: 60, equipment: ['dumbbells', 'kettlebell'], muscleGroups: ['quadriceps', 'glutes', 'core'], instructions: 'Hold weight at chest with elbows tucked. Feet shoulder-width, toes slightly out. Squat deep, keeping chest up and heels down. Drive through whole foot to stand.', alternatives: ['Bodyweight Squat', 'TRX Squat'] },
+        { name: 'Single-Leg Press', sets: 3, reps: '12 each leg', weight: 'light (30-40% normal)', restSeconds: 60, equipment: ['cable_machine'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Use leg press machine with one leg. Keep non-working foot on floor. Press through heel, don\'t lock knee at top. Lower slowly with control.', alternatives: ['Step-Ups to Low Box'] },
+        { name: 'Romanian Deadlift', sets: 3, reps: 15, weight: 'light dumbbells or barbell', restSeconds: 60, tempo: '3-0-1', equipment: ['barbell', 'dumbbells'], muscleGroups: ['hamstrings', 'glutes', 'lower_back'], instructions: 'Stand with soft knees. Hinge at hips, pushing butt back. Lower weight along thighs until hamstring stretch. Keep back flat, core braced. Squeeze glutes to return.', alternatives: ['Kettlebell Deadlift'] },
+        { name: 'Walking Lunges', sets: 3, reps: '12 each leg', weight: 'bodyweight', restSeconds: 60, equipment: ['none'], muscleGroups: ['quadriceps', 'glutes', 'hip_flexors'], instructions: 'Step forward into lunge, back knee nearly touching ground. Front knee tracks over toes. Push through front heel to step forward into next lunge. Keep torso upright.', alternatives: ['Static Lunges', 'Reverse Lunges'] },
+        { name: 'Glute Bridge', sets: 3, reps: 15, weight: 'bodyweight', restSeconds: 45, equipment: ['yoga_mat'], muscleGroups: ['glutes', 'hamstrings', 'core'], instructions: 'Lie on back, knees bent, feet flat on floor hip-width. Press through heels, squeeze glutes to lift hips until body is straight from shoulders to knees. Hold 1 second at top, lower slowly.', alternatives: ['Hip Thrust off Bench'] },
+        { name: 'Standing Calf Raises', sets: 3, reps: 15, weight: 'bodyweight or light dumbbells', restSeconds: 45, equipment: ['none'], muscleGroups: ['calves'], instructions: 'Stand on edge of step or flat ground. Rise onto balls of feet, squeezing calves at top. Lower slowly until heels are below toes (if on step) for full stretch. Control the movement.', alternatives: ['Seated Calf Raises'] }
+      ],
+      cooldown: {
+        duration: 5,
+        description: 'Light static stretching for worked muscles',
+        exercises: [
+          { name: 'Quad Stretch', duration: 30, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['quadriceps'], instructions: 'Stand on one leg, pull opposite heel to glute. Keep knees together, push hip forward slightly.', breathingCue: 'Breathe deeply, exhale to relax into stretch' },
+          { name: 'Hamstring Stretch', duration: 30, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['hamstrings'], instructions: 'Place heel on low surface, leg straight. Hinge forward at hips keeping back flat until stretch felt.', breathingCue: 'Exhale as you lean forward' },
+          { name: 'Hip Flexor Stretch', duration: 30, sides: 'left_then_right', equipment: ['yoga_mat'], muscleGroups: ['hip_flexors'], instructions: 'Half-kneeling position. Push hips forward, squeeze glute of back leg. Keep torso upright.', breathingCue: 'Breathe into the stretch, avoid arching back' }
+        ]
+      }
+    }
   },
 
   strength_muscle_endurance: {
@@ -864,7 +893,36 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       ],
       cooldown: { duration: 5, zone: null, description: 'Static stretching - quads, hamstrings, hip flexors' }
     },
-    coachNotes: 'Phase 2 (weeks 5-10): 20-30 reps, 30-50% 1RM, 60-90s rest. Most important phase for cycling-specific endurance. 2-3x/week.'
+    coachNotes: 'Phase 2 (weeks 5-10): 20-30 reps, 30-50% 1RM, 60-90s rest. Most important phase for cycling-specific endurance. 2-3x/week.',
+    exercises: {
+      warmup: {
+        duration: 10,
+        description: '5 minutes cardio then dynamic movement prep',
+        exercises: [
+          { name: 'Stationary Bike or Rowing', duration: 300, equipment: ['none'], muscleGroups: ['full_body'], instructions: 'Light effort to increase body temperature and blood flow. Should be easy conversation pace.' },
+          { name: 'Leg Swings', duration: 60, sides: 'left_then_right', reps: 15, equipment: ['none'], muscleGroups: ['hip_flexors', 'hamstrings'], instructions: 'Forward/back and side-to-side. Gradually increase range of motion.' },
+          { name: 'Hip Circles', duration: 60, sides: 'left_then_right', reps: 10, equipment: ['none'], muscleGroups: ['hip_flexors', 'glutes'], instructions: 'Large circles with raised knee. Open up hip joint in all directions.' },
+          { name: 'Warm-up Squats', duration: 60, reps: 10, equipment: ['none'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Empty barbell or bodyweight. Focus on perfect form and full depth.' }
+        ]
+      },
+      main: [
+        { name: 'Back Squat', sets: 3, reps: 20, weight: '30-50% 1RM', restSeconds: 90, tempo: '2-0-2', equipment: ['barbell', 'squat_rack'], muscleGroups: ['quadriceps', 'glutes', 'core'], instructions: 'Bar on upper back (high bar) or across rear delts (low bar). Feet shoulder-width or slightly wider. Squat to at least parallel, keeping chest up and knees tracking over toes. Drive up through heels. 20 reps should burn but be completable.', alternatives: ['Goblet Squat', 'Leg Press'] },
+        { name: 'Single-Leg Romanian Deadlift', sets: 3, reps: '15 each leg', weight: 'light dumbbell', restSeconds: 60, equipment: ['dumbbells'], muscleGroups: ['hamstrings', 'glutes', 'core'], instructions: 'Hold dumbbell in opposite hand to standing leg. Hinge forward, extending free leg behind for balance. Keep hips square, slight bend in standing knee. Feel stretch in hamstring, return by squeezing glute.', alternatives: ['Two-Leg RDL'] },
+        { name: 'Step-Ups', sets: 3, reps: '15 each leg', weight: 'bodyweight or light dumbbells', restSeconds: 60, equipment: ['bench'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Use box/bench at knee height. Step up driving through heel of top foot. Don\'t push off back foot. Control the descent. Keep torso upright throughout.', alternatives: ['Box Step-Ups', 'Reverse Lunges'] },
+        { name: 'Leg Press', sets: 3, reps: 20, weight: '40-50% normal', restSeconds: 90, equipment: ['cable_machine'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Feet shoulder-width on platform. Lower weight until knees at 90 degrees. Press through whole foot, don\'t lock out at top. Maintain lower back contact with seat throughout.', alternatives: ['Hack Squat', 'Goblet Squat'] },
+        { name: 'Standing Hip Flexor March', sets: 3, reps: '12 each leg', weight: 'ankle weights optional', restSeconds: 45, equipment: ['none'], muscleGroups: ['hip_flexors', 'core'], instructions: 'Stand tall, drive knee up to hip height with control. Hold briefly at top, lower with control. Alternate legs. Keep standing leg straight, core tight. This directly mimics pedal stroke top.', alternatives: ['Seated Knee Raises'] },
+        { name: 'Plank', sets: 3, reps: '45 seconds', restSeconds: 45, equipment: ['yoga_mat'], muscleGroups: ['core'], instructions: 'Forearms on ground, body in straight line from head to heels. Don\'t let hips sag or pike up. Squeeze glutes, brace core as if expecting a punch. Breathe steadily.', progression: 'Add 10 seconds per week', regression: 'Knees on ground' }
+      ],
+      cooldown: {
+        duration: 5,
+        description: 'Static stretching focusing on worked muscles',
+        exercises: [
+          { name: 'Quad Stretch', duration: 45, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['quadriceps'], instructions: 'Stand, grab ankle behind you, pull heel toward glute. Push hip forward for deeper stretch.' },
+          { name: 'Hamstring Stretch', duration: 45, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['hamstrings'], instructions: 'Seated or standing, straighten leg and hinge forward at hips. Keep back flat.' },
+          { name: 'Hip Flexor Stretch', duration: 45, sides: 'left_then_right', equipment: ['yoga_mat'], muscleGroups: ['hip_flexors'], instructions: 'Half-kneeling, back knee on ground. Tuck pelvis and push hips forward gently.' }
+        ]
+      }
+    }
   },
 
   strength_max_lower: {
@@ -886,7 +944,39 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       ],
       cooldown: { duration: 5, zone: null, description: 'Foam rolling + stretching' }
     },
-    coachNotes: 'Phase 3 (weeks 11-16): 4-6 reps, 80-90% 1RM, 3-5 min rest. 2x/week max. Allow 48-72h before hard bike sessions.'
+    coachNotes: 'Phase 3 (weeks 11-16): 4-6 reps, 80-90% 1RM, 3-5 min rest. 2x/week max. Allow 48-72h before hard bike sessions.',
+    exercises: {
+      warmup: {
+        duration: 15,
+        description: 'Thorough warm-up including progressive loading',
+        exercises: [
+          { name: 'Light Cardio', duration: 300, equipment: ['none'], muscleGroups: ['full_body'], instructions: 'Bike or row at easy pace to increase core temperature and blood flow.' },
+          { name: 'Dynamic Leg Swings', duration: 60, reps: 15, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['hip_flexors', 'hamstrings'], instructions: 'Front-to-back and side-to-side. Progressively increase range.' },
+          { name: 'Bodyweight Squat', duration: 60, reps: 10, equipment: ['none'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Full depth, controlled pace. Wake up movement pattern.' },
+          { name: 'Empty Bar Squat', duration: 60, reps: 10, equipment: ['barbell'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Just the bar. Perfect form, feel the groove.' },
+          { name: 'Warm-up Set 1 (50%)', duration: 90, reps: 8, equipment: ['barbell'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Load bar to ~50% of working weight. 8 easy reps.' },
+          { name: 'Warm-up Set 2 (70%)', duration: 90, reps: 5, equipment: ['barbell'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Load to ~70%. 5 controlled reps. Start feeling resistance.' },
+          { name: 'Warm-up Set 3 (85%)', duration: 90, reps: 2, equipment: ['barbell'], muscleGroups: ['quadriceps', 'glutes'], instructions: '2 reps at ~85%. Groove the movement before working sets.' }
+        ]
+      },
+      main: [
+        { name: 'Back Squat', sets: 4, reps: 5, weight: '80-90% 1RM', restSeconds: 240, tempo: '2-1-X', equipment: ['barbell', 'squat_rack'], muscleGroups: ['quadriceps', 'glutes', 'core'], instructions: 'HEAVY. Unrack with confidence, brace hard. Controlled descent to parallel or below. Drive up explosively but controlled. If form breaks, reduce weight. Full 3-4 minute rest between sets. Spotter recommended.', alternatives: ['Front Squat', 'Safety Bar Squat'] },
+        { name: 'Romanian Deadlift', sets: 4, reps: 5, weight: '80% 1RM', restSeconds: 180, tempo: '3-0-1', equipment: ['barbell'], muscleGroups: ['hamstrings', 'glutes', 'lower_back'], instructions: 'Stand with bar at hip level. Soft knees, hinge at hips, push butt back. Lower bar along thighs until strong hamstring stretch. Keep back flat, core braced. Drive hips forward to return. Focus on hamstring loading.', alternatives: ['Trap Bar Deadlift'] },
+        { name: 'Bulgarian Split Squat', sets: 3, reps: '6 each leg', weight: 'dumbbells or barbell', restSeconds: 90, equipment: ['dumbbells', 'bench'], muscleGroups: ['quadriceps', 'glutes', 'hip_flexors'], instructions: 'Rear foot elevated on bench behind you. Front foot 2-3 feet ahead. Lower until back knee nearly touches ground, front thigh parallel. Drive through front heel. Keep torso upright. This builds single-leg strength critical for cycling.', alternatives: ['Rear Foot Elevated Split Squat with Barbell'] },
+        { name: 'Single-Leg Press', sets: 3, reps: '6 each leg', weight: '70-80% two-leg weight', restSeconds: 90, equipment: ['cable_machine'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'One foot on platform, other on floor. Press through whole foot. Control the descent. Don\'t let knee collapse inward. Builds unilateral strength matching cycling\'s single-leg demands.', alternatives: ['Single-Leg Squat to Box'] },
+        { name: 'Standing Calf Raise', sets: 4, reps: 8, weight: 'heavy', restSeconds: 90, equipment: ['squat_rack'], muscleGroups: ['calves'], instructions: 'Bar on back or machine. Rise onto balls of feet, squeeze hard at top for 1 second. Lower slowly for full stretch. Calves respond well to heavy loading and time under tension.' }
+      ],
+      cooldown: {
+        duration: 5,
+        description: 'Foam rolling and static stretching',
+        exercises: [
+          { name: 'Foam Roll Quads', duration: 60, equipment: ['foam_roller'], muscleGroups: ['quadriceps'], instructions: 'Roll entire quad, pausing on tight spots. Moderate pressure.' },
+          { name: 'Foam Roll Glutes', duration: 60, equipment: ['foam_roller'], muscleGroups: ['glutes'], instructions: 'Sit on roller, cross ankle over knee, roll each side.' },
+          { name: 'Hip Flexor Stretch', duration: 45, sides: 'left_then_right', equipment: ['yoga_mat'], muscleGroups: ['hip_flexors'], instructions: 'Half-kneeling, squeeze glute of back leg, push hips forward gently.' },
+          { name: 'Hamstring Stretch', duration: 45, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['hamstrings'], instructions: 'Prop leg on low surface, hinge forward at hips.' }
+        ]
+      }
+    }
   },
 
   strength_maintenance: {
@@ -908,7 +998,33 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       ],
       cooldown: { duration: 5, zone: null, description: 'Light stretching' }
     },
-    coachNotes: 'In-season: 1x/week, skip race weeks. 10-15 reps, 30-60% 1RM. Maintain, don\'t build.'
+    coachNotes: 'In-season: 1x/week, skip race weeks. 10-15 reps, 30-60% 1RM. Maintain, don\'t build.',
+    exercises: {
+      warmup: {
+        duration: 10,
+        description: 'Quick movement prep - don\'t fatigue yourself',
+        exercises: [
+          { name: 'Light Bike or Walk', duration: 300, equipment: ['none'], muscleGroups: ['full_body'], instructions: 'Easy effort to get blood flowing. This is maintenance, not a hard session.' },
+          { name: 'Leg Swings', duration: 60, reps: 10, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['hip_flexors', 'hamstrings'], instructions: 'Wake up the hips with controlled swings.' },
+          { name: 'Bodyweight Squats', duration: 60, reps: 8, equipment: ['none'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Easy warm-up squats to prime movement pattern.' }
+        ]
+      },
+      main: [
+        { name: 'Goblet Squat or Leg Press', sets: 2, reps: 10, weight: '50% 1RM', restSeconds: 90, equipment: ['dumbbells', 'kettlebell'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Choose based on what you have access to. Moderate weight, focus on quality movement. This maintains neural pathways and strength without building fatigue.', alternatives: ['Back Squat at light weight'] },
+        { name: 'Romanian Deadlift', sets: 2, reps: 10, weight: '50% 1RM', restSeconds: 90, equipment: ['barbell', 'dumbbells'], muscleGroups: ['hamstrings', 'glutes'], instructions: 'Hip hinge pattern maintenance. Keep it light and controlled.', alternatives: ['Kettlebell Deadlift', 'Good Mornings'] },
+        { name: 'Walking Lunges', sets: 2, reps: '8 each leg', weight: 'bodyweight', restSeconds: 60, equipment: ['none'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Single-leg work to maintain balance and unilateral strength. Keep torso upright.', alternatives: ['Step-Ups', 'Split Squats'] },
+        { name: 'Plank Hold', sets: 2, reps: '30 seconds', restSeconds: 30, equipment: ['yoga_mat'], muscleGroups: ['core'], instructions: 'Maintain core stability. Don\'t go to failure.' },
+        { name: 'Side Plank', sets: 2, reps: '20 seconds each side', restSeconds: 30, equipment: ['yoga_mat'], muscleGroups: ['core'], instructions: 'Brief hold on each side. Keep hips stacked.' }
+      ],
+      cooldown: {
+        duration: 5,
+        description: 'Light stretching only',
+        exercises: [
+          { name: 'Quad Stretch', duration: 30, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['quadriceps'], instructions: 'Brief stretch, nothing intense.' },
+          { name: 'Hip Flexor Stretch', duration: 30, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['hip_flexors'], instructions: 'Half-kneeling, gentle forward lean.' }
+        ]
+      }
+    }
   },
 
   strength_explosive_power: {
@@ -919,7 +1035,7 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
     duration: 45,
     targetTSS: 0,
     intensityFactor: 0,
-    description: 'Develop explosive power for sprints and attacks. Based on Tabata principles.',
+    description: 'Develop explosive power for sprints and attacks. Based on plyometric principles.',
     focusArea: 'strength',
     tags: ['strength', 'off-bike', 'gym', 'explosive', 'power', 'sprinting'],
     terrainType: 'flat',
@@ -930,7 +1046,38 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       ],
       cooldown: { duration: 5, zone: null, description: 'Walking + light stretching' }
     },
-    coachNotes: 'For sprint specialists. Focus on speed of movement, not fatigue. Full recovery between sets. 1-2x/week max.'
+    coachNotes: 'For sprint specialists. Focus on speed of movement, not fatigue. Full recovery between sets. 1-2x/week max.',
+    exercises: {
+      warmup: {
+        duration: 10,
+        description: 'Thorough activation before explosive work',
+        exercises: [
+          { name: 'Light Jog', duration: 180, equipment: ['none'], muscleGroups: ['full_body'], instructions: 'Easy jog to increase body temperature. Not too fast.' },
+          { name: 'Leg Swings', duration: 60, reps: 15, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['hip_flexors', 'hamstrings'], instructions: 'Dynamic swings front-back and side-to-side. Build range gradually.' },
+          { name: 'High Knees', duration: 30, equipment: ['none'], muscleGroups: ['hip_flexors', 'core'], instructions: '30 seconds of quick high knees to activate hip flexors.' },
+          { name: 'Butt Kicks', duration: 30, equipment: ['none'], muscleGroups: ['hamstrings', 'quadriceps'], instructions: 'Quick heel-to-glute contacts while jogging in place.' },
+          { name: 'Squat Jumps (submaximal)', duration: 60, reps: 5, equipment: ['none'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Easy jump squats at 70% effort to prime explosive pattern.' },
+          { name: 'Ankle Bounces', duration: 30, equipment: ['none'], muscleGroups: ['calves'], instructions: 'Small quick bounces on balls of feet. Wake up calf springs.' }
+        ]
+      },
+      main: [
+        { name: 'Jump Squats', sets: 4, reps: 6, weight: 'bodyweight', restSeconds: 120, tempo: 'explosive', equipment: ['none'], muscleGroups: ['quadriceps', 'glutes', 'calves'], instructions: 'Squat to parallel then EXPLODE upward, leaving the ground. Land softly with bent knees, immediately descend into next rep. Focus on height and speed, not grinding through fatigue. Full recovery between sets.', alternatives: ['Squat Jumps with light dumbbells'] },
+        { name: 'Box Jumps', sets: 4, reps: 5, weight: 'bodyweight', restSeconds: 120, equipment: ['bench'], muscleGroups: ['quadriceps', 'glutes', 'calves'], instructions: 'Stand facing sturdy box (18-24"). Swing arms, explode upward, land softly on top with full foot contact. Step down (don\'t jump down). Reset fully between reps. Height matters less than explosive intent.', alternatives: ['Broad Jumps', 'Tuck Jumps'] },
+        { name: 'Kettlebell Swings', sets: 4, reps: 10, weight: 'moderate kettlebell', restSeconds: 90, equipment: ['kettlebell'], muscleGroups: ['glutes', 'hamstrings', 'core'], instructions: 'Stand with feet shoulder-width. Hinge at hips, swing bell between legs. Explosively drive hips forward, squeezing glutes hard. Arms guide but don\'t lift—power comes from hips. Bell should reach chest height.', alternatives: ['Dumbbell Swings', 'Hip Thrusts'] },
+        { name: 'Medicine Ball Slams', sets: 3, reps: 8, weight: '10-15 lb med ball', restSeconds: 90, equipment: ['medicine_ball'], muscleGroups: ['full_body', 'core'], instructions: 'Hold ball overhead. Brace core, slam ball into ground with maximum force. Catch on bounce (or pick up) and immediately repeat. This builds explosive power and core stability. Controlled violence.', alternatives: ['Squat to Press Throw'] },
+        { name: 'Single-Leg Bounds', sets: 3, reps: '6 each leg', weight: 'bodyweight', restSeconds: 90, equipment: ['none'], muscleGroups: ['quadriceps', 'glutes', 'calves'], instructions: 'From standing, push off one leg and land on the same leg 3-4 feet forward. Immediately bound again. 6 total per leg. Focus on distance and power. This directly translates to pedal stroke force.', alternatives: ['Skipping for Height'] }
+      ],
+      cooldown: {
+        duration: 5,
+        description: 'Walking and light stretching',
+        exercises: [
+          { name: 'Walking', duration: 120, equipment: ['none'], muscleGroups: ['full_body'], instructions: 'Easy walking to bring heart rate down.' },
+          { name: 'Quad Stretch', duration: 30, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['quadriceps'], instructions: 'Gentle stretch, muscles may be fatigued.' },
+          { name: 'Hamstring Stretch', duration: 30, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['hamstrings'], instructions: 'Easy hamstring stretch.' },
+          { name: 'Calf Stretch', duration: 30, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['calves'], instructions: 'Lean against wall, back leg straight, heel down.' }
+        ]
+      }
+    }
   },
 
   // ============================================================
@@ -956,7 +1103,32 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       ],
       cooldown: { duration: 2, zone: null, description: 'Child\'s pose + gentle stretching' }
     },
-    coachNotes: 'Perform before rides for better activation (McGill research). Focus on bracing, not just holding.'
+    coachNotes: 'Perform before rides for better activation (McGill research). Focus on bracing, not just holding.',
+    exercises: {
+      warmup: {
+        duration: 3,
+        description: 'Gentle spine mobilization',
+        exercises: [
+          { name: 'Cat-Cow', duration: 60, reps: 10, equipment: ['yoga_mat'], muscleGroups: ['core', 'lower_back'], instructions: 'On hands and knees. Arch back up like a cat (exhale), then drop belly and look up like a cow (inhale). Move slowly between positions, feeling each vertebra.', breathingCue: 'Exhale on cat, inhale on cow' },
+          { name: 'Supine Twist', duration: 60, sides: 'left_then_right', equipment: ['yoga_mat'], muscleGroups: ['core', 'lower_back'], instructions: 'Lie on back, knees bent. Drop both knees to one side while keeping shoulders flat. Hold 30 seconds each side.', breathingCue: 'Deep breaths, relax into twist' }
+        ]
+      },
+      main: [
+        { name: 'Forearm Plank', sets: 3, duration: 30, restSeconds: 30, equipment: ['yoga_mat'], muscleGroups: ['core'], instructions: 'Forearms on ground, elbows under shoulders. Body in straight line from head to heels. Squeeze glutes, brace abs as if expecting a punch. Keep breathing! Don\'t let hips sag or pike.', progression: 'Add 5 seconds per week', regression: 'Knees on ground' },
+        { name: 'Side Plank', sets: 2, duration: 20, sides: 'left_then_right', restSeconds: 20, equipment: ['yoga_mat'], muscleGroups: ['core'], instructions: 'Lie on side, prop up on forearm. Lift hips so body forms straight line. Stack feet or stagger for balance. Keep top hip directly over bottom hip—don\'t let it drop back.', progression: 'Add leg lifts', regression: 'Bottom knee on ground' },
+        { name: 'Bird-Dog', sets: 3, reps: '8 each side', restSeconds: 20, equipment: ['yoga_mat'], muscleGroups: ['core', 'lower_back', 'glutes'], instructions: 'On hands and knees. Extend right arm forward and left leg back simultaneously. Hold 2 seconds at top, keeping hips square and back flat. Return and switch sides. Minimizes movement in spine—that\'s the goal.', progression: 'Add 2-second holds', regression: 'Arm only, then leg only' },
+        { name: 'Dead Bug', sets: 3, reps: '8 each side', restSeconds: 20, equipment: ['yoga_mat'], muscleGroups: ['core', 'hip_flexors'], instructions: 'Lie on back, arms pointing at ceiling, knees bent 90° above hips. Press lower back into floor. Slowly extend opposite arm and leg toward floor without losing back contact. Return and switch. Low back MUST stay flat.', progression: 'Straighten extending leg fully', regression: 'Smaller range of motion' },
+        { name: 'Glute Bridge', sets: 3, reps: 12, restSeconds: 30, equipment: ['yoga_mat'], muscleGroups: ['glutes', 'hamstrings', 'core'], instructions: 'Lie on back, knees bent, feet flat. Press through heels and squeeze glutes to lift hips until body is straight from shoulders to knees. Hold 1 second at top. Don\'t hyperextend—squeeze glutes, not back.', progression: 'Single-leg version', regression: 'Smaller range' }
+      ],
+      cooldown: {
+        duration: 2,
+        description: 'Gentle relaxation',
+        exercises: [
+          { name: 'Child\'s Pose', duration: 60, equipment: ['yoga_mat'], muscleGroups: ['lower_back', 'hip_flexors'], instructions: 'Kneel, sit back on heels, reach arms forward on floor. Relax and breathe deeply. Let spine decompress.', breathingCue: 'Slow deep breaths' },
+          { name: 'Supine Spinal Twist', duration: 30, sides: 'left_then_right', equipment: ['yoga_mat'], muscleGroups: ['core', 'lower_back'], instructions: 'Lie on back, drop knees to one side, look opposite direction. Relax completely.' }
+        ]
+      }
+    }
   },
 
   core_stability: {
@@ -978,7 +1150,33 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       ],
       cooldown: { duration: 2, zone: null, description: 'Supine twist + relaxation' }
     },
-    coachNotes: 'Swiss ball adds instability, replicating road dynamics. 2-3x/week ideal.'
+    coachNotes: 'Swiss ball adds instability, replicating road dynamics. 2-3x/week ideal.',
+    exercises: {
+      warmup: {
+        duration: 3,
+        description: 'Light movement to activate core',
+        exercises: [
+          { name: 'Cat-Cow', duration: 60, reps: 8, equipment: ['yoga_mat'], muscleGroups: ['core', 'lower_back'], instructions: 'Flow between cat and cow positions to mobilize spine.' },
+          { name: 'Hip Circles', duration: 60, reps: 10, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['hip_flexors', 'glutes'], instructions: 'Standing on one leg, make large circles with raised knee. 10 each direction, each leg.' }
+        ]
+      },
+      main: [
+        { name: 'Forearm Plank', sets: 3, duration: 45, restSeconds: 30, equipment: ['yoga_mat'], muscleGroups: ['core'], instructions: 'Perfect form: straight line, glutes squeezed, abs braced. Hold strong for full 45 seconds. If form breaks, take a break.', progression: 'Add arm or leg lifts', regression: 'Reduce to 30 seconds' },
+        { name: 'Side Plank with Hip Dip', sets: 3, reps: '10 each side', restSeconds: 30, equipment: ['yoga_mat'], muscleGroups: ['core'], instructions: 'Side plank position. Lower hip toward ground then lift back to straight line. Control the movement—don\'t just drop and bounce. This targets obliques dynamically.', progression: 'Hold dumbbell on hip', regression: 'Bottom knee down' },
+        { name: 'Pallof Press', sets: 3, reps: '10 each side', restSeconds: 30, equipment: ['resistance_band', 'cable_machine'], muscleGroups: ['core'], instructions: 'Stand sideways to cable/band anchor at chest height. Hold handle at chest. Press straight out in front of you and hold 2 seconds. Resist the rotation—don\'t let cable pull you around. Return to chest. This anti-rotation directly helps power transfer on bike.', alternatives: ['Band Pull-Apart with Rotation'] },
+        { name: 'Swiss Ball Plank', sets: 3, duration: 30, restSeconds: 30, equipment: ['stability_ball'], muscleGroups: ['core'], instructions: 'Forearms on stability ball, feet on ground. Hold plank position while ball tries to move. Keep everything still. This mimics stabilizing on rough roads—your core learns to react to instability.', regression: 'Knees on ground' },
+        { name: 'Single-Leg Glute Bridge', sets: 3, reps: '10 each leg', restSeconds: 30, equipment: ['yoga_mat'], muscleGroups: ['glutes', 'core', 'hamstrings'], instructions: 'Same as regular bridge but one leg extended off ground. Press through planted heel, squeeze glute, keep hips level—don\'t let raised side drop. Directly mimics single-leg power demand of cycling.', regression: 'Two-leg bridge with march' },
+        { name: 'Mountain Climbers', sets: 3, reps: 20, restSeconds: 30, equipment: ['yoga_mat'], muscleGroups: ['core', 'hip_flexors'], instructions: 'High plank position. Drive one knee toward chest, quickly switch legs. Keep hips down, core tight. Move quickly but maintain form. 20 total (10 each leg).', regression: 'Slower pace' }
+      ],
+      cooldown: {
+        duration: 2,
+        description: 'Relaxation stretches',
+        exercises: [
+          { name: 'Supine Twist', duration: 30, sides: 'left_then_right', equipment: ['yoga_mat'], muscleGroups: ['core', 'lower_back'], instructions: 'Lie on back, drop knees to side, breathe deeply.' },
+          { name: 'Child\'s Pose', duration: 30, equipment: ['yoga_mat'], muscleGroups: ['lower_back'], instructions: 'Sit back on heels, arms extended forward. Relax.' }
+        ]
+      }
+    }
   },
 
   core_power: {
@@ -1000,7 +1198,34 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       ],
       cooldown: { duration: 2, zone: null, description: 'Spinal decompression stretches' }
     },
-    coachNotes: 'For riders needing max power transfer. Prevents energy leakage during sprints and climbs.'
+    coachNotes: 'For riders needing max power transfer. Prevents energy leakage during sprints and climbs.',
+    exercises: {
+      warmup: {
+        duration: 3,
+        description: 'Dynamic movement prep',
+        exercises: [
+          { name: 'Cat-Cow', duration: 45, reps: 8, equipment: ['yoga_mat'], muscleGroups: ['core', 'lower_back'], instructions: 'Quick spine mobilization.' },
+          { name: 'Plank to Down Dog', duration: 45, reps: 6, equipment: ['yoga_mat'], muscleGroups: ['core', 'shoulders'], instructions: 'From high plank, push hips up and back into down dog. Return to plank. Flow smoothly.' },
+          { name: 'Dead Bug Slow', duration: 60, reps: 6, equipment: ['yoga_mat'], muscleGroups: ['core'], instructions: 'Slow controlled dead bugs to wake up deep stabilizers.' }
+        ]
+      },
+      main: [
+        { name: 'Plank with Arm/Leg Lift', sets: 3, reps: '8 each side', restSeconds: 30, equipment: ['yoga_mat'], muscleGroups: ['core', 'glutes'], instructions: 'High plank. Lift opposite arm and leg simultaneously, hold 2 seconds, return. Keep hips completely still—no rotation allowed. Switch sides. Much harder than it looks.', regression: 'Arm only, then leg only' },
+        { name: 'Cable Wood Chop', sets: 3, reps: '10 each side', restSeconds: 45, equipment: ['cable_machine'], muscleGroups: ['core'], instructions: 'Stand sideways to cable set high. Feet wider than shoulders. Pull handle diagonally across body from high to low, rotating through core. Control the return—don\'t let cable yank you back. This builds rotational power for climbing and sprinting.', alternatives: ['Band Wood Chop', 'Medicine Ball Rotation Throw'] },
+        { name: 'Hanging Knee Raise', sets: 3, reps: 10, restSeconds: 45, equipment: ['pull_up_bar'], muscleGroups: ['core', 'hip_flexors'], instructions: 'Hang from pull-up bar. Raise knees to chest by curling pelvis up—not just lifting legs. Lower with control. Don\'t swing. This builds the hip flexor strength critical for high-cadence cycling.', alternatives: ['Captain\'s Chair Knee Raise', 'Lying Leg Raise'] },
+        { name: 'Renegade Row', sets: 3, reps: '8 each side', restSeconds: 45, equipment: ['dumbbells'], muscleGroups: ['core', 'upper_back'], instructions: 'High plank with hands on dumbbells. Row one dumbbell to hip while keeping hips square—zero rotation. Lower and switch. Core must fight rotation while back works. Use moderate weight.', regression: 'Wider foot stance' },
+        { name: 'Ab Wheel Rollout', sets: 3, reps: 8, restSeconds: 45, equipment: ['none'], muscleGroups: ['core'], instructions: 'Kneel with ab wheel (or barbell with plates). Roll forward, extending body. Go as far as you can while maintaining flat back—stop before back arches! Roll back by squeezing abs. This is an advanced move.', regression: 'Partial range', alternatives: ['Stability Ball Rollout'] },
+        { name: 'Bicycle Crunches', sets: 3, reps: 20, restSeconds: 30, equipment: ['yoga_mat'], muscleGroups: ['core'], instructions: 'Lie on back, hands behind head. Bring knee to opposite elbow while other leg extends. Alternate with control—not speed. Focus on the twist and full extension. 20 total reps.', regression: 'Slower pace' }
+      ],
+      cooldown: {
+        duration: 2,
+        description: 'Spinal decompression',
+        exercises: [
+          { name: 'Child\'s Pose', duration: 45, equipment: ['yoga_mat'], muscleGroups: ['lower_back'], instructions: 'Deep relaxation, let spine decompress.' },
+          { name: 'Supine Knee Hug', duration: 30, equipment: ['yoga_mat'], muscleGroups: ['lower_back'], instructions: 'Lie on back, hug both knees to chest. Rock gently side to side.' }
+        ]
+      }
+    }
   },
 
   // ============================================================
@@ -1026,7 +1251,19 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       ],
       cooldown: null
     },
-    coachNotes: 'Perform after every ride while muscles are warm. Prevents adaptive shortening of hip flexors.'
+    coachNotes: 'Perform after every ride while muscles are warm. Prevents adaptive shortening of hip flexors.',
+    exercises: {
+      warmup: { duration: 0, description: 'Muscles are already warm from riding' },
+      main: [
+        { name: 'Hip Flexor Stretch', duration: 45, sides: 'left_then_right', equipment: ['yoga_mat'], muscleGroups: ['hip_flexors'], instructions: 'Half-kneeling position, back knee on mat/towel. Tuck pelvis under (posterior tilt), then push hips forward until you feel stretch in front of back hip. Keep torso upright, don\'t arch lower back. Squeeze glute of back leg for deeper stretch.', breathingCue: 'Exhale as you push hips forward', modifications: 'Place hand on wall for balance' },
+        { name: 'Standing Quad Stretch', duration: 30, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['quadriceps'], instructions: 'Stand on one leg (use wall for balance). Grab opposite ankle and pull heel toward glute. Keep knees together, push hip forward slightly. You should feel stretch in front of thigh.', breathingCue: 'Breathe normally', modifications: 'Use strap around ankle if hard to reach' },
+        { name: 'Standing Hamstring Stretch', duration: 45, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['hamstrings'], instructions: 'Place heel on low surface (step, curb, bench). Keep leg straight, flex foot toward you. Hinge forward at hips with flat back until stretch felt in back of thigh. Don\'t round back to get lower—keep spine neutral.', breathingCue: 'Exhale to fold deeper', modifications: 'Lower surface for less stretch' },
+        { name: 'Pigeon Pose', duration: 60, sides: 'left_then_right', equipment: ['yoga_mat'], muscleGroups: ['glutes', 'hip_flexors'], instructions: 'From hands and knees, bring right knee forward and out, shin angled across mat. Extend left leg straight back. Walk hands forward to lower chest toward floor. Feel deep stretch in right glute/hip. Keep hips square—don\'t let right hip drop.', breathingCue: 'Deep slow breaths, relax into stretch', modifications: 'Place cushion under hip for support, or do figure-4 on back instead' },
+        { name: 'Figure-4 Stretch (Supine Piriformis)', duration: 45, sides: 'left_then_right', equipment: ['yoga_mat'], muscleGroups: ['glutes', 'hip_flexors'], instructions: 'Lie on back. Cross right ankle over left knee (making a 4 shape). Grab behind left thigh and pull toward chest. You\'ll feel stretch in right glute. Keep right knee open.', breathingCue: 'Breathe deeply, relax glutes', modifications: 'Use strap around thigh if hard to reach' },
+        { name: 'Cat-Cow Flow', duration: 60, reps: 10, equipment: ['yoga_mat'], muscleGroups: ['core', 'lower_back'], instructions: 'On hands and knees. Inhale: drop belly, lift head and tailbone (Cow). Exhale: round spine toward ceiling, tuck chin and pelvis (Cat). Flow smoothly between positions, moving with breath. Releases lower back tension from riding position.', breathingCue: 'Inhale Cow, Exhale Cat' }
+      ],
+      cooldown: { duration: 0, description: 'This routine is itself a cooldown' }
+    }
   },
 
   flexibility_hip_mobility: {
