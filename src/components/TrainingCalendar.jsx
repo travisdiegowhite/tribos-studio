@@ -350,18 +350,14 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         if (error) throw error;
       } else {
         // Create new workout
-        const workoutInfo = editForm.workout_id ? WORKOUT_LIBRARY[editForm.workout_id] : null;
         const { error } = await supabase
           .from('planned_workouts')
           .insert({
             ...workoutData,
             plan_id: activePlan.id,
-            user_id: user.id, // Required by database schema
             week_number: weekNumber,
             day_of_week: dayOfWeek,
-            scheduled_date: formatLocalDate(selectedDate), // Critical: include date for calendar matching
-            name: workoutInfo?.name || (editForm.workout_type === 'rest' ? 'Rest Day' : `${editForm.workout_type} Workout`), // Required NOT NULL
-            duration_minutes: editForm.target_duration || 0, // Required NOT NULL
+            scheduled_date: formatLocalDate(selectedDate),
             completed: false,
           });
 
@@ -606,10 +602,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const currentWeek = getCurrentWeekNumber();
   const currentPhase = getCurrentPhase();
 
-  // Get workout type options for select
+  // Get workout type options for select (textValue needed for accessibility with emoji labels)
   const workoutTypeOptions = Object.entries(WORKOUT_TYPES).map(([key, type]) => ({
     value: key,
     label: `${type.icon} ${type.name}`,
+    textValue: type.name,
   }));
 
   return (
@@ -865,13 +862,13 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                             mb={2}
                             style={{ color: workout.completed ? tokens.colors.textSecondary : tokens.colors.textPrimary }}
                           >
-                            {workout.name || 'Workout'}
+                            {getWorkoutById(workout.workout_id)?.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
                           </Text>
                           {/* Duration and TSS - prominent */}
                           <Group gap={8}>
-                            {workout.duration_minutes > 0 && (
+                            {workout.target_duration > 0 && (
                               <Text size="xs" fw={500} style={{ color: tokens.colors.textSecondary }}>
-                                {workout.duration_minutes} min
+                                {workout.target_duration} min
                               </Text>
                             )}
                             {workout.target_tss > 0 && (
@@ -954,6 +951,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       <Modal
         opened={editModalOpen}
         onClose={() => setEditModalOpen(false)}
+        aria-label={selectedWorkout ? 'Edit workout' : 'Add workout'}
         title={
           <Group gap="sm">
             <ThemeIcon size="lg" color="lime" variant="light">
