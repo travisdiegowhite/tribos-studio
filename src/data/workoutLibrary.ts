@@ -817,6 +817,304 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
       cooldown: { duration: 15, zone: 1, powerPctFTP: 50 }
     },
     coachNotes: 'Practices race efforts: tempo, attacks, surges, and chases. Great pre-race workout.'
+  },
+
+  // ============================================================
+  // STRENGTH TRAINING (Off-Bike)
+  // Based on research: Rønnestad, Stöggl, Louis et al.
+  // ============================================================
+  strength_anatomical_adaptation: {
+    id: 'strength_anatomical_adaptation',
+    name: 'Anatomical Adaptation Strength',
+    category: 'strength',
+    difficulty: 'beginner',
+    duration: 45,
+    targetTSS: 0, // Off-bike workouts don't contribute to cycling TSS
+    intensityFactor: 0,
+    description: 'Foundation strength phase: high reps, low weight to prepare tissues and learn movement patterns.',
+    focusArea: 'strength',
+    tags: ['strength', 'off-bike', 'gym', 'foundation', 'beginner'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 10, zone: null, description: '5min cardio + dynamic stretches' },
+      main: [
+        { duration: 30, zone: null, description: 'Goblet Squat: 3x15 | Single-Leg Press: 3x12 each | Romanian Deadlift: 3x15 | Lunges: 3x12 each | Glute Bridge: 3x15 | Calf Raises: 3x15' }
+      ],
+      cooldown: { duration: 5, zone: null, description: 'Light stretching' }
+    },
+    coachNotes: 'Phase 1 (weeks 1-4): 20-30 reps, 2-3 sets, 60-90s rest. Focus on form, not weight. 2-3x/week.'
+  },
+
+  strength_muscle_endurance: {
+    id: 'strength_muscle_endurance',
+    name: 'Muscle Endurance Strength',
+    category: 'strength',
+    difficulty: 'intermediate',
+    duration: 50,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Build muscular endurance with moderate weight and high reps. Key phase for cyclists.',
+    focusArea: 'strength',
+    tags: ['strength', 'off-bike', 'gym', 'endurance', 'intermediate'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 10, zone: null, description: '5min bike/row + leg swings + hip circles' },
+      main: [
+        { duration: 35, zone: null, description: 'Back Squat: 3x20 @30-50% 1RM | Single-Leg Deadlift: 3x15 each | Step-Ups: 3x15 each | Leg Press: 3x20 | Hip Flexor March: 3x12 each | Plank: 3x45s' }
+      ],
+      cooldown: { duration: 5, zone: null, description: 'Static stretching - quads, hamstrings, hip flexors' }
+    },
+    coachNotes: 'Phase 2 (weeks 5-10): 20-30 reps, 30-50% 1RM, 60-90s rest. Most important phase for cycling-specific endurance. 2-3x/week.'
+  },
+
+  strength_max_lower: {
+    id: 'strength_max_lower',
+    name: 'Max Strength - Lower Body',
+    category: 'strength',
+    difficulty: 'advanced',
+    duration: 55,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Heavy lower body work for maximum power development. Research shows 6.5% TT power improvement.',
+    focusArea: 'strength',
+    tags: ['strength', 'off-bike', 'gym', 'max-strength', 'power', 'advanced'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 15, zone: null, description: '5min cardio + dynamic stretches + warm-up sets' },
+      main: [
+        { duration: 35, zone: null, description: 'Back Squat: 4x5 @80-90% 1RM | Romanian Deadlift: 4x5 @80% 1RM | Bulgarian Split Squat: 3x6 each | Single-Leg Press: 3x6 each | Standing Calf Raise: 4x8' }
+      ],
+      cooldown: { duration: 5, zone: null, description: 'Foam rolling + stretching' }
+    },
+    coachNotes: 'Phase 3 (weeks 11-16): 4-6 reps, 80-90% 1RM, 3-5 min rest. 2x/week max. Allow 48-72h before hard bike sessions.'
+  },
+
+  strength_maintenance: {
+    id: 'strength_maintenance',
+    name: 'Strength Maintenance',
+    category: 'strength',
+    difficulty: 'intermediate',
+    duration: 40,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Maintain strength gains during race season with reduced volume.',
+    focusArea: 'strength',
+    tags: ['strength', 'off-bike', 'gym', 'maintenance', 'in-season'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 10, zone: null, description: 'Light cardio + dynamic movement prep' },
+      main: [
+        { duration: 25, zone: null, description: 'Squat or Leg Press: 2x10 @50% 1RM | Deadlift or Hip Hinge: 2x10 | Single-Leg Work: 2x8 each | Core Circuit: 2 rounds' }
+      ],
+      cooldown: { duration: 5, zone: null, description: 'Light stretching' }
+    },
+    coachNotes: 'In-season: 1x/week, skip race weeks. 10-15 reps, 30-60% 1RM. Maintain, don\'t build.'
+  },
+
+  strength_explosive_power: {
+    id: 'strength_explosive_power',
+    name: 'Explosive Power Training',
+    category: 'strength',
+    difficulty: 'advanced',
+    duration: 45,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Develop explosive power for sprints and attacks. Based on Tabata principles.',
+    focusArea: 'strength',
+    tags: ['strength', 'off-bike', 'gym', 'explosive', 'power', 'sprinting'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 10, zone: null, description: 'Light jog + dynamic stretches + activation' },
+      main: [
+        { duration: 30, zone: null, description: 'Jump Squats: 4x6 | Box Jumps: 4x5 | Kettlebell Swings: 4x10 | Med Ball Slams: 3x8 | Single-Leg Bounds: 3x6 each' }
+      ],
+      cooldown: { duration: 5, zone: null, description: 'Walking + light stretching' }
+    },
+    coachNotes: 'For sprint specialists. Focus on speed of movement, not fatigue. Full recovery between sets. 1-2x/week max.'
+  },
+
+  // ============================================================
+  // CORE TRAINING
+  // Based on research: McGill, Penn State 2013
+  // ============================================================
+  core_foundation: {
+    id: 'core_foundation',
+    name: 'Core Foundation',
+    category: 'core',
+    difficulty: 'beginner',
+    duration: 20,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Basic core stability work for cycling efficiency. Integration exercises beat isolation.',
+    focusArea: 'core',
+    tags: ['core', 'off-bike', 'stability', 'beginner', 'foundation'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 3, zone: null, description: 'Cat-cow stretches + gentle twists' },
+      main: [
+        { duration: 15, zone: null, description: 'Plank: 3x30s | Side Plank: 2x20s each | Bird-Dog: 3x8 each | Dead Bug: 3x8 each | Glute Bridge: 3x12' }
+      ],
+      cooldown: { duration: 2, zone: null, description: 'Child\'s pose + gentle stretching' }
+    },
+    coachNotes: 'Perform before rides for better activation (McGill research). Focus on bracing, not just holding.'
+  },
+
+  core_stability: {
+    id: 'core_stability',
+    name: 'Core Stability Circuit',
+    category: 'core',
+    difficulty: 'intermediate',
+    duration: 25,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Intermediate core work with anti-rotation and dynamic stability challenges.',
+    focusArea: 'core',
+    tags: ['core', 'off-bike', 'stability', 'intermediate', 'anti-rotation'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 3, zone: null, description: 'Light movement + hip circles' },
+      main: [
+        { duration: 20, zone: null, description: 'Plank: 3x45s | Side Plank with Hip Dip: 3x10 each | Pallof Press: 3x10 each | Swiss Ball Plank: 3x30s | Single-Leg Glute Bridge: 3x10 each | Mountain Climbers: 3x20' }
+      ],
+      cooldown: { duration: 2, zone: null, description: 'Supine twist + relaxation' }
+    },
+    coachNotes: 'Swiss ball adds instability, replicating road dynamics. 2-3x/week ideal.'
+  },
+
+  core_power: {
+    id: 'core_power',
+    name: 'Core Power & Anti-Rotation',
+    category: 'core',
+    difficulty: 'advanced',
+    duration: 25,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Advanced core training for power transfer and pelvic stability during hard efforts.',
+    focusArea: 'core',
+    tags: ['core', 'off-bike', 'power', 'advanced', 'anti-rotation'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 3, zone: null, description: 'Dynamic warmup' },
+      main: [
+        { duration: 20, zone: null, description: 'Plank with Arm/Leg Lift: 3x8 each | Cable Wood Chop: 3x10 each | Hanging Knee Raise: 3x10 | Renegade Row: 3x8 each | Ab Wheel Rollout: 3x8 | Bicycle Crunches: 3x20' }
+      ],
+      cooldown: { duration: 2, zone: null, description: 'Spinal decompression stretches' }
+    },
+    coachNotes: 'For riders needing max power transfer. Prevents energy leakage during sprints and climbs.'
+  },
+
+  // ============================================================
+  // FLEXIBILITY & RECOVERY
+  // Based on research: Yoga Journal, BikeRadar studies
+  // ============================================================
+  flexibility_post_ride: {
+    id: 'flexibility_post_ride',
+    name: 'Post-Ride Stretch Routine',
+    category: 'flexibility',
+    difficulty: 'beginner',
+    duration: 15,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Essential post-ride stretching targeting cycling-specific tight areas.',
+    focusArea: 'flexibility',
+    tags: ['stretching', 'flexibility', 'recovery', 'post-ride', 'beginner'],
+    terrainType: 'flat',
+    structure: {
+      warmup: null,
+      main: [
+        { duration: 15, zone: null, description: 'Hip Flexor Stretch: 45s each | Quad Stretch: 30s each | Hamstring Stretch: 45s each | Pigeon Pose: 60s each | Figure-4 Stretch: 45s each | Cat-Cow: 10 cycles' }
+      ],
+      cooldown: null
+    },
+    coachNotes: 'Perform after every ride while muscles are warm. Prevents adaptive shortening of hip flexors.'
+  },
+
+  flexibility_hip_mobility: {
+    id: 'flexibility_hip_mobility',
+    name: 'Hip Mobility Flow',
+    category: 'flexibility',
+    difficulty: 'intermediate',
+    duration: 20,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Deep hip mobility work to counter cycling\'s limited range of motion.',
+    focusArea: 'flexibility',
+    tags: ['stretching', 'flexibility', 'mobility', 'hips', 'intermediate'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 3, zone: null, description: 'Light walking + leg swings' },
+      main: [
+        { duration: 15, zone: null, description: '90/90 Hip Stretch: 60s each | Couch Stretch: 60s each | Deep Squat Hold: 60s | Frog Stretch: 60s | World\'s Greatest Stretch: 5 each | Hip Circles: 10 each direction' }
+      ],
+      cooldown: { duration: 2, zone: null, description: 'Relaxed breathing in child\'s pose' }
+    },
+    coachNotes: 'Mobile hip flexors = more power, better position. Do 2-3x/week, especially if desk-bound.'
+  },
+
+  flexibility_yoga_cyclist: {
+    id: 'flexibility_yoga_cyclist',
+    name: 'Yoga for Cyclists',
+    category: 'flexibility',
+    difficulty: 'intermediate',
+    duration: 30,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Cyclist-specific yoga routine addressing all common tight areas.',
+    focusArea: 'flexibility',
+    tags: ['yoga', 'flexibility', 'recovery', 'full-body', 'intermediate'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 5, zone: null, description: 'Cat-Cow flow + gentle twists' },
+      main: [
+        { duration: 22, zone: null, description: 'Downward Dog: 60s | Runner\'s Lunge: 60s each | Pigeon Pose: 90s each | Reclined Twist: 60s each | Supine Figure-4: 60s each | Bridge Pose: 45s x2 | Forward Fold: 60s' }
+      ],
+      cooldown: { duration: 3, zone: null, description: 'Savasana - full body relaxation' }
+    },
+    coachNotes: 'Best on rest days or after rides. Research shows improved functional movement and reduced injury rates.'
+  },
+
+  flexibility_full_body_recovery: {
+    id: 'flexibility_full_body_recovery',
+    name: 'Full Body Recovery Session',
+    category: 'flexibility',
+    difficulty: 'beginner',
+    duration: 25,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Complete recovery session including foam rolling and stretching.',
+    focusArea: 'flexibility',
+    tags: ['recovery', 'flexibility', 'foam-rolling', 'full-body', 'beginner'],
+    terrainType: 'flat',
+    structure: {
+      warmup: null,
+      main: [
+        { duration: 25, zone: null, description: 'Foam Roll Quads: 2min | Foam Roll IT Band: 2min each | Foam Roll Glutes: 2min each | Hip Flexor Stretch: 60s each | Hamstring Stretch: 60s each | Chest Opener: 60s | Neck Rolls: 30s each direction | Child\'s Pose: 60s' }
+      ],
+      cooldown: null
+    },
+    coachNotes: 'Ideal after long/hard rides or on rest days. Foam rolling before stretching increases effectiveness.'
+  },
+
+  flexibility_dynamic_warmup: {
+    id: 'flexibility_dynamic_warmup',
+    name: 'Dynamic Pre-Ride Warmup',
+    category: 'flexibility',
+    difficulty: 'beginner',
+    duration: 10,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Dynamic stretching before rides. Prepares muscles without reducing power output.',
+    focusArea: 'flexibility',
+    tags: ['warmup', 'dynamic', 'pre-ride', 'activation', 'beginner'],
+    terrainType: 'flat',
+    structure: {
+      warmup: null,
+      main: [
+        { duration: 10, zone: null, description: 'Leg Swings Front-Back: 10 each | Leg Swings Side-Side: 10 each | Walking Lunges: 10 each | High Knees: 30s | Butt Kicks: 30s | Hip Circles: 10 each | Arm Circles: 10 each' }
+      ],
+      cooldown: null
+    },
+    coachNotes: 'Do BEFORE rides. Static stretching before exercise reduces power for up to 1 hour. Dynamic is safe and beneficial.'
   }
 };
 

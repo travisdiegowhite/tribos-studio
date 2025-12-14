@@ -537,6 +537,262 @@ export function calculateVariabilityIndex(
   return Math.round((normalizedPower / averagePower) * 100) / 100;
 }
 
+// ============================================================
+// SMART SUPPLEMENT PLACEMENT LOGIC
+// ============================================================
+
+/**
+ * Categories of workout intensity for placement logic
+ * Based on research: heavy leg work needs 48-72h before hard bike sessions
+ */
+type WorkoutIntensityLevel = 'hard' | 'moderate' | 'easy' | 'rest';
+
+/**
+ * Map workout categories/types to intensity levels
+ */
+export function getWorkoutIntensityLevel(workoutType: string | null, workoutId: string | null): WorkoutIntensityLevel {
+  if (!workoutType && !workoutId) return 'rest';
+  if (workoutType === 'rest') return 'rest';
+
+  // High intensity bike workouts
+  const hardWorkouts = ['vo2max', 'threshold', 'anaerobic', 'racing', 'criterium'];
+  // Moderate intensity bike workouts
+  const moderateWorkouts = ['sweet_spot', 'tempo', 'climbing', 'intervals'];
+  // Easy/Recovery workouts
+  const easyWorkouts = ['recovery', 'endurance', 'rest'];
+
+  if (hardWorkouts.includes(workoutType || '')) return 'hard';
+  if (moderateWorkouts.includes(workoutType || '')) return 'moderate';
+  if (easyWorkouts.includes(workoutType || '')) return 'easy';
+
+  // Check workout ID patterns
+  if (workoutId) {
+    if (workoutId.includes('vo2') || workoutId.includes('threshold') || workoutId.includes('anaerobic')) return 'hard';
+    if (workoutId.includes('sweet_spot') || workoutId.includes('tempo') || workoutId.includes('climbing')) return 'moderate';
+  }
+
+  return 'moderate'; // Default to moderate for unknown
+}
+
+/**
+ * Supplement workout types and their placement rules
+ */
+export type SupplementType = 'heavy_strength' | 'light_strength' | 'core' | 'flexibility';
+
+/**
+ * Get the supplement type from a workout ID
+ */
+export function getSupplementType(workoutId: string): SupplementType | null {
+  if (workoutId.startsWith('strength_max') || workoutId.startsWith('strength_explosive')) {
+    return 'heavy_strength';
+  }
+  if (workoutId.startsWith('strength_')) {
+    return 'light_strength';
+  }
+  if (workoutId.startsWith('core_')) {
+    return 'core';
+  }
+  if (workoutId.startsWith('flexibility_')) {
+    return 'flexibility';
+  }
+  return null;
+}
+
+/**
+ * Placement rules for supplement workouts
+ * Based on research: Rønnestad et al. (2014), Beattie et al. (2014), etc.
+ */
+interface PlacementRule {
+  /** Can this supplement be placed on days with these intensity levels? */
+  allowedDayIntensities: WorkoutIntensityLevel[];
+  /** Days to avoid before these intensity workouts */
+  avoidBeforeIntensities: WorkoutIntensityLevel[];
+  /** How many hours before a hard bike session should we avoid this? */
+  hoursBeforeHard: number;
+  /** Maximum times per week recommended */
+  maxPerWeek: number;
+  /** Minimum days between same workout type */
+  minDaysBetween: number;
+  /** Priority (higher = prefer these days) */
+  preferredDays: WorkoutIntensityLevel[];
+}
+
+const PLACEMENT_RULES: Record<SupplementType, PlacementRule> = {
+  heavy_strength: {
+    allowedDayIntensities: ['easy', 'rest', 'moderate'],
+    avoidBeforeIntensities: ['hard'],
+    hoursBeforeHard: 48, // 48-72h recovery needed
+    maxPerWeek: 2,
+    minDaysBetween: 2, // At least 48h between sessions
+    preferredDays: ['easy', 'rest']
+  },
+  light_strength: {
+    allowedDayIntensities: ['easy', 'rest', 'moderate'],
+    avoidBeforeIntensities: ['hard'],
+    hoursBeforeHard: 24,
+    maxPerWeek: 3,
+    minDaysBetween: 1,
+    preferredDays: ['easy', 'moderate']
+  },
+  core: {
+    allowedDayIntensities: ['easy', 'rest', 'moderate', 'hard'], // Can do core any day
+    avoidBeforeIntensities: [], // No restrictions
+    hoursBeforeHard: 0,
+    maxPerWeek: 4,
+    minDaysBetween: 1,
+    preferredDays: ['easy', 'moderate']
+  },
+  flexibility: {
+    allowedDayIntensities: ['easy', 'rest', 'moderate', 'hard'], // Can stretch any day
+    avoidBeforeIntensities: [],
+    hoursBeforeHard: 0,
+    maxPerWeek: 7, // Can do daily
+    minDaysBetween: 0,
+    preferredDays: ['easy', 'rest'] // Best after hard days for recovery
+  }
+};
+
+export interface PlannedWorkoutInfo {
+  date: string; // ISO date string
+  workoutType: string | null;
+  workoutId: string | null;
+}
+
+export interface SuggestedPlacement {
+  date: string;
+  reason: string;
+  score: number; // 0-100, higher is better
+}
+
+/**
+ * Find optimal days to place a supplement workout
+ * Returns suggested dates sorted by suitability score
+ */
+export function findOptimalSupplementDays(
+  supplementWorkoutId: string,
+  existingWorkouts: PlannedWorkoutInfo[],
+  startDate: Date,
+  weeksAhead: number = 4
+): SuggestedPlacement[] {
+  const supplementType = getSupplementType(supplementWorkoutId);
+  if (!supplementType) return [];
+
+  const rules = PLACEMENT_RULES[supplementType];
+  const suggestions: SuggestedPlacement[] = [];
+
+  // Create a map of dates to workouts for easy lookup
+  const workoutsByDate = new Map<string, PlannedWorkoutInfo>();
+  existingWorkouts.forEach(w => workoutsByDate.set(w.date, w));
+
+  // Check each day in the range
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + weeksAhead * 7);
+
+  const currentDate = new Date(startDate);
+  while (currentDate <= endDate) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    const existingWorkout = workoutsByDate.get(dateStr);
+    const dayIntensity = existingWorkout
+      ? getWorkoutIntensityLevel(existingWorkout.workoutType, existingWorkout.workoutId)
+      : 'rest';
+
+    // Check if this day is allowed
+    if (!rules.allowedDayIntensities.includes(dayIntensity)) {
+      currentDate.setDate(currentDate.getDate() + 1);
+      continue;
+    }
+
+    let score = 50; // Base score
+    let reason = '';
+
+    // Check day before (avoid placing before hard workouts if rule says so)
+    if (rules.avoidBeforeIntensities.length > 0) {
+      const nextDay = new Date(currentDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const nextDayStr = nextDay.toISOString().split('T')[0];
+      const nextWorkout = workoutsByDate.get(nextDayStr);
+
+      if (nextWorkout) {
+        const nextIntensity = getWorkoutIntensityLevel(nextWorkout.workoutType, nextWorkout.workoutId);
+        if (rules.avoidBeforeIntensities.includes(nextIntensity)) {
+          // Penalize heavily if next day is a hard bike day
+          score -= 40;
+          reason = 'Day before hard workout - not ideal';
+        }
+      }
+
+      // Check 2 days ahead for heavy strength
+      if (supplementType === 'heavy_strength') {
+        const twoDaysAhead = new Date(currentDate);
+        twoDaysAhead.setDate(twoDaysAhead.getDate() + 2);
+        const twoDaysStr = twoDaysAhead.toISOString().split('T')[0];
+        const twoDaysWorkout = workoutsByDate.get(twoDaysStr);
+
+        if (twoDaysWorkout) {
+          const twoDaysIntensity = getWorkoutIntensityLevel(twoDaysWorkout.workoutType, twoDaysWorkout.workoutId);
+          if (twoDaysIntensity === 'hard') {
+            score -= 20;
+            reason = 'Hard workout in 2 days - allow more recovery';
+          }
+        }
+      }
+    }
+
+    // Bonus for preferred day types
+    if (rules.preferredDays.includes(dayIntensity)) {
+      score += 20;
+      if (!reason) reason = `Good day for ${supplementType.replace('_', ' ')}`;
+    }
+
+    // Bonus for rest days (best for recovery-oriented supplements)
+    if (dayIntensity === 'rest') {
+      score += 10;
+      if (!reason) reason = 'Rest day - great for supplementary work';
+    }
+
+    // Only suggest days with positive scores
+    if (score > 30) {
+      suggestions.push({
+        date: dateStr,
+        reason: reason || 'Available day',
+        score: Math.min(100, Math.max(0, score))
+      });
+    }
+
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  // Sort by score (highest first), then by date
+  return suggestions.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.date.localeCompare(b.date);
+  });
+}
+
+/**
+ * Get all supplement workouts from the library
+ */
+export function getSupplementWorkouts(): string[] {
+  return [
+    // Strength
+    'strength_anatomical_adaptation',
+    'strength_muscle_endurance',
+    'strength_max_lower',
+    'strength_maintenance',
+    'strength_explosive_power',
+    // Core
+    'core_foundation',
+    'core_stability',
+    'core_power',
+    // Flexibility
+    'flexibility_post_ride',
+    'flexibility_hip_mobility',
+    'flexibility_yoga_cyclist',
+    'flexibility_full_body_recovery',
+    'flexibility_dynamic_warmup'
+  ];
+}
+
 export default {
   TRAINING_ZONES,
   WORKOUT_TYPES,
@@ -556,5 +812,10 @@ export default {
   getZoneColor,
   getZoneName,
   calculateIntensityFactor,
-  calculateVariabilityIndex
+  calculateVariabilityIndex,
+  // Supplement placement
+  getWorkoutIntensityLevel,
+  getSupplementType,
+  findOptimalSupplementDays,
+  getSupplementWorkouts
 };

@@ -44,6 +44,7 @@ import {
   IconSettings,
   IconUpload,
   IconList,
+  IconBarbell,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -60,10 +61,10 @@ import EmptyState from '../components/EmptyState.jsx';
 import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
-import { TrainingNotifications } from '../components/training';
+import { TrainingNotifications, SupplementWorkoutModal } from '../components/training';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
-import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS } from '../utils/trainingPlans';
+import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 
 function TrainingDashboard() {
@@ -91,6 +92,7 @@ function TrainingDashboard() {
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [activePlan, setActivePlan] = useState(null);
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
+  const [supplementModalOpen, setSupplementModalOpen] = useState(false);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -343,6 +345,85 @@ function TrainingDashboard() {
     setWorkoutModalOpen(true);
   };
 
+  // Handle adding supplement workout to plan
+  const handleAddSupplementWorkout = async (workoutId, scheduledDate) => {
+    if (!activePlan || !user) return false;
+
+    try {
+      const workout = getWorkoutById(workoutId);
+      if (!workout) return false;
+
+      // Calculate week number based on plan start date
+      const startDate = new Date(activePlan.started_at);
+      const diffTime = scheduledDate.getTime() - startDate.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const weekNumber = Math.floor(diffDays / 7) + 1;
+      const dayOfWeek = scheduledDate.getDay();
+
+      // Insert the supplement workout
+      const { error: insertError } = await supabase
+        .from('planned_workouts')
+        .insert({
+          plan_id: activePlan.id,
+          week_number: weekNumber,
+          day_of_week: dayOfWeek,
+          scheduled_date: scheduledDate.toISOString().split('T')[0],
+          workout_type: workout.category,
+          workout_id: workoutId,
+          target_tss: workout.targetTSS || 0,
+          target_duration: workout.duration,
+          completed: false,
+          notes: `Supplement: ${workout.name}`,
+        });
+
+      if (insertError) throw insertError;
+
+      // Update workout total in the plan
+      await supabase
+        .from('training_plans')
+        .update({
+          workouts_total: (activePlan.workouts_total || 0) + 1,
+        })
+        .eq('id', activePlan.id);
+
+      // Reload planned workouts
+      const { data: workoutsData } = await supabase
+        .from('planned_workouts')
+        .select('*')
+        .eq('plan_id', activePlan.id)
+        .order('scheduled_date', { ascending: true });
+
+      if (workoutsData) {
+        setPlannedWorkouts(workoutsData);
+      }
+
+      // Update active plan state
+      setActivePlan(prev => ({
+        ...prev,
+        workouts_total: (prev.workouts_total || 0) + 1,
+      }));
+
+      return true;
+    } catch (error) {
+      console.error('Error adding supplement workout:', error);
+      return false;
+    }
+  };
+
+  // Get suggested supplement days based on existing plan
+  const getSuggestedSupplementDays = (workoutId, weeksAhead = 4) => {
+    if (!activePlan) return [];
+
+    const workoutInfos = plannedWorkouts.map(w => ({
+      date: w.scheduled_date,
+      workoutType: w.workout_type,
+      workoutId: w.workout_id,
+    }));
+
+    const today = new Date();
+    return findOptimalSupplementDays(workoutId, workoutInfos, today, weeksAhead);
+  };
+
   if (loading) {
     return (
       <AppShell>
@@ -379,6 +460,17 @@ function TrainingDashboard() {
                 ]}
                 w={{ base: 'auto', sm: 130 }}
               />
+              {activePlan && (
+                <Button
+                  variant="light"
+                  color="pink"
+                  size="xs"
+                  leftSection={<IconBarbell size={14} />}
+                  onClick={() => setSupplementModalOpen(true)}
+                >
+                  Add Supplement
+                </Button>
+              )}
               <Button
                 variant="light"
                 color="orange"
@@ -614,6 +706,15 @@ function TrainingDashboard() {
         onClose={() => setWorkoutModalOpen(false)}
         workout={selectedWorkout}
         ftp={ftp}
+      />
+
+      {/* Supplement Workout Modal */}
+      <SupplementWorkoutModal
+        opened={supplementModalOpen}
+        onClose={() => setSupplementModalOpen(false)}
+        onAddWorkout={handleAddSupplementWorkout}
+        getSuggestedDays={getSuggestedSupplementDays}
+        activePlan={activePlan}
       />
     </AppShell>
   );
