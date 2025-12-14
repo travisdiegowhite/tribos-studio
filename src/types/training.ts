@@ -374,7 +374,7 @@ export interface CyclingWorkoutStructure {
 /**
  * Export format for bike computers
  */
-export type WorkoutExportFormat = 'fit' | 'zwo' | 'mrc' | 'erg' | 'json';
+export type WorkoutExportFormat = 'fit' | 'zwo' | 'mrc' | 'erg' | 'tcx' | 'json';
 
 // ============================================================
 // ENHANCED WORKOUT DEFINITION

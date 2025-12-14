@@ -51,6 +51,7 @@ import {
   IconDownload,
   IconBrandZwift,
   IconFileExport,
+  IconDeviceWatch,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -1369,6 +1370,32 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
                     }}
                   >
                     Zwift (.zwo)
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconDeviceWatch size={16} />}
+                    onClick={() => {
+                      try {
+                        const result = exportWorkout(workout.cyclingStructure, {
+                          format: 'tcx',
+                          workoutName: workout.name,
+                          description: workout.description
+                        });
+                        downloadWorkout(result);
+                        notifications.show({
+                          title: 'Workout Exported',
+                          message: `${workout.name}.tcx downloaded - Import to Garmin Connect`,
+                          color: 'green'
+                        });
+                      } catch (err) {
+                        notifications.show({
+                          title: 'Export Failed',
+                          message: err.message,
+                          color: 'red'
+                        });
+                      }
+                    }}
+                  >
+                    Garmin (.tcx)
                   </Menu.Item>
                   <Menu.Item
                     leftSection={<IconFileExport size={16} />}

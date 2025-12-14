@@ -2,6 +2,7 @@
  * Workout Export Utility
  * Generates workout files for bike computers in various formats:
  * - ZWO (Zwift Workout) - XML format for Zwift
+ * - TCX (Training Center XML) - Garmin format, widely supported
  * - MRC/ERG - Text format for TrainerRoad and other apps
  * - JSON - For custom integrations
  *
@@ -212,6 +213,127 @@ export function generateMRC(
 }
 
 // ============================================================
+// TCX (TRAINING CENTER XML) EXPORT - GARMIN FORMAT
+// ============================================================
+
+/**
+ * Map step type to TCX intensity
+ */
+function getTCXIntensity(stepType: string): 'Active' | 'Resting' {
+  switch (stepType) {
+    case 'rest':
+    case 'recovery':
+    case 'cooldown':
+      return 'Resting';
+    default:
+      return 'Active';
+  }
+}
+
+/**
+ * Get TCX step duration type
+ */
+function getTCXDurationType(step: CyclingIntervalStep): string {
+  // TCX supports: Time, Distance, HeartRateAbove, HeartRateBelow, CaloriesBurned, Open
+  return 'Time';
+}
+
+/**
+ * Generate Garmin Training Center XML (.tcx)
+ * Reference: https://www8.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd
+ *
+ * TCX workouts can be imported directly into Garmin Connect and synced to devices
+ */
+export function generateTCX(
+  workout: CyclingWorkoutStructure,
+  workoutName: string,
+  description: string,
+  author: string = 'Tribos Studio'
+): string {
+  const lines: string[] = [];
+  const now = new Date().toISOString();
+
+  lines.push('<?xml version="1.0" encoding="UTF-8"?>');
+  lines.push('<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2 http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">');
+  lines.push('  <Workouts>');
+  lines.push('    <Workout Sport="Biking">');
+  lines.push(`      <Name>${escapeXml(workoutName)}</Name>`);
+
+  // Generate workout steps
+  let stepId = 1;
+
+  for (const step of workout.steps) {
+    if (isRepeatBlock(step)) {
+      // TCX uses Repeat element for intervals
+      lines.push(`      <Step xsi:type="Repeat_t">`);
+      lines.push(`        <StepId>${stepId++}</StepId>`);
+      lines.push(`        <Repetitions>${step.iterations}</Repetitions>`);
+
+      // Child steps
+      for (const childStep of step.steps) {
+        lines.push(`        <Child xsi:type="Step_t">`);
+        lines.push(`          <StepId>${stepId++}</StepId>`);
+        lines.push(`          <Name>${escapeXml(childStep.name || childStep.type)}</Name>`);
+        lines.push(`          <Duration xsi:type="Time_t">`);
+        lines.push(`            <Seconds>${childStep.duration}</Seconds>`);
+        lines.push(`          </Duration>`);
+        lines.push(`          <Intensity>${getTCXIntensity(childStep.type)}</Intensity>`);
+        lines.push(`          <Target xsi:type="Speed_t">`);
+        lines.push(`            <SpeedZone xsi:type="PredefinedSpeedZone_t">`);
+        // Map power to speed zone (1-5 scale for Garmin)
+        const speedZone = Math.min(5, Math.max(1, Math.round(getPowerPercentageInt(childStep.power) / 25)));
+        lines.push(`              <Number>${speedZone}</Number>`);
+        lines.push(`            </SpeedZone>`);
+        lines.push(`          </Target>`);
+        lines.push(`        </Child>`);
+      }
+
+      lines.push(`      </Step>`);
+    } else {
+      // Single step
+      lines.push(`      <Step xsi:type="Step_t">`);
+      lines.push(`        <StepId>${stepId++}</StepId>`);
+      lines.push(`        <Name>${escapeXml(step.name || step.type)}</Name>`);
+      lines.push(`        <Duration xsi:type="Time_t">`);
+      lines.push(`          <Seconds>${step.duration}</Seconds>`);
+      lines.push(`        </Duration>`);
+      lines.push(`        <Intensity>${getTCXIntensity(step.type)}</Intensity>`);
+      lines.push(`        <Target xsi:type="Speed_t">`);
+      lines.push(`          <SpeedZone xsi:type="PredefinedSpeedZone_t">`);
+      const speedZone = Math.min(5, Math.max(1, Math.round(getPowerPercentageInt(step.power) / 25)));
+      lines.push(`            <Number>${speedZone}</Number>`);
+      lines.push(`          </SpeedZone>`);
+      lines.push(`        </Target>`);
+
+      // Add notes if available
+      if (step.instructions) {
+        lines.push(`        <Notes>${escapeXml(step.instructions)}</Notes>`);
+      }
+
+      lines.push(`      </Step>`);
+    }
+  }
+
+  lines.push('    </Workout>');
+  lines.push('  </Workouts>');
+
+  // Add Author info
+  lines.push('  <Author xsi:type="Application_t">');
+  lines.push(`    <Name>${escapeXml(author)}</Name>`);
+  lines.push('    <Build>');
+  lines.push('      <Version>');
+  lines.push('        <VersionMajor>1</VersionMajor>');
+  lines.push('        <VersionMinor>0</VersionMinor>');
+  lines.push('      </Version>');
+  lines.push('    </Build>');
+  lines.push('    <LangID>EN</LangID>');
+  lines.push('  </Author>');
+  lines.push('</TrainingCenterDatabase>');
+
+  return lines.join('\n');
+}
+
+// ============================================================
 // JSON EXPORT
 // ============================================================
 
@@ -285,6 +407,13 @@ export function exportWorkout(
         content: generateJSON(workout, workoutName, description),
         filename: `${cleanName}.json`,
         mimeType: 'application/json'
+      };
+
+    case 'tcx':
+      return {
+        content: generateTCX(workout, workoutName, description, author),
+        filename: `${cleanName}.tcx`,
+        mimeType: 'application/vnd.garmin.tcx+xml'
       };
 
     case 'fit':
@@ -402,6 +531,7 @@ export function createSimpleWorkout(params: {
 export default {
   generateZWO,
   generateMRC,
+  generateTCX,
   generateJSON,
   exportWorkout,
   downloadWorkout,
