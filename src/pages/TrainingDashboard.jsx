@@ -373,11 +373,14 @@ function TrainingDashboard() {
         .from('planned_workouts')
         .insert({
           plan_id: activePlan.id,
+          user_id: user.id,
           week_number: weekNumber,
           day_of_week: dayOfWeek,
           scheduled_date: scheduledDate.toISOString().split('T')[0],
           workout_type: workout.category,
           workout_id: workoutId,
+          name: workout.name || `${workout.category} Workout`,
+          duration_minutes: workout.duration || 0,
           target_tss: workout.targetTSS || 0,
           target_duration: workout.duration,
           completed: false,
