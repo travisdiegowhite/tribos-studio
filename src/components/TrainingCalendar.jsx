@@ -350,14 +350,22 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         if (error) throw error;
       } else {
         // Create new workout
+        const workoutInfo = editForm.workout_id ? getWorkoutById(editForm.workout_id) : null;
+        const workoutName = workoutInfo?.name ||
+          (editForm.workout_type === 'rest' ? 'Rest Day' :
+            `${WORKOUT_TYPES[editForm.workout_type]?.name || editForm.workout_type} Workout`);
+
         const { error } = await supabase
           .from('planned_workouts')
           .insert({
             ...workoutData,
             plan_id: activePlan.id,
+            user_id: user.id,
             week_number: weekNumber,
             day_of_week: dayOfWeek,
             scheduled_date: formatLocalDate(selectedDate),
+            name: workoutName,
+            duration_minutes: editForm.target_duration || 0,
             completed: false,
           });
 
