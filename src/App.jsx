@@ -94,7 +94,7 @@ function AppRoutes() {
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/oauth/strava/callback" element={<StravaCallback />} />
       <Route path="/oauth/garmin/callback" element={<GarminCallback />} />
-      <Route path="/oauth/wahoo/callback" element={<WahooCallback />} />
+      <Route path="/wahoo/callback" element={<WahooCallback />} />
 
       {/* Protected routes */}
       <Route

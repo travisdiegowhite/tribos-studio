@@ -19,7 +19,7 @@ const getApiBaseUrl = () => {
 export class WahooService {
   constructor() {
     this.clientId = import.meta.env.VITE_WAHOO_CLIENT_ID;
-    this.redirectUri = import.meta.env.VITE_WAHOO_REDIRECT_URI || `${window.location.origin}/oauth/wahoo/callback`;
+    this.redirectUri = import.meta.env.VITE_WAHOO_REDIRECT_URI || `${window.location.origin}/wahoo/callback`;
   }
 
   /**

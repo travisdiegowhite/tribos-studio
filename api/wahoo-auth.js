@@ -106,7 +106,7 @@ async function exchangeCodeForToken(req, res, code, userId) {
   }
 
   const redirectUri = process.env.WAHOO_REDIRECT_URI ||
-    `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/oauth/wahoo/callback`;
+    `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/wahoo/callback`;
 
   try {
     console.log('🔄 Exchanging Wahoo code for tokens...');
