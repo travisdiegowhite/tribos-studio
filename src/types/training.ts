@@ -62,7 +62,11 @@ export type WorkoutCategory =
   | 'vo2max'
   | 'climbing'
   | 'anaerobic'
-  | 'racing';
+  | 'racing'
+  | 'strength'      // Off-bike strength training
+  | 'core'          // Core stability workouts
+  | 'flexibility'   // Stretching and yoga
+  | 'rest';         // Complete rest day
 
 export type TerrainType = 'flat' | 'rolling' | 'hilly';
 

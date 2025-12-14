@@ -30,6 +30,7 @@ import {
   IconTarget,
   IconTrendingUp,
   IconAlertCircle,
+  IconBarbell,
 } from '@tabler/icons-react';
 import { TRAINING_PHASES } from '../../utils/trainingPlans';
 
@@ -44,6 +45,7 @@ export default function ActivePlanCard({
   onRegenerate,
   onDelete,
   onViewCalendar,
+  onAddSupplement,
   compact = false,
 }) {
   const isPaused = plan?.status === 'paused';
@@ -223,15 +225,24 @@ export default function ActivePlanCard({
         <Divider />
 
         {/* Actions */}
-        <Group>
+        <Group grow>
           <Button
             variant="light"
             leftIcon={<IconCalendar size={18} />}
-            flex={1}
             onClick={onViewCalendar}
           >
             View Calendar
           </Button>
+          {onAddSupplement && (
+            <Button
+              variant="light"
+              color="pink"
+              leftIcon={<IconBarbell size={18} />}
+              onClick={onAddSupplement}
+            >
+              Add Supplement
+            </Button>
+          )}
         </Group>
       </Stack>
     </Paper>

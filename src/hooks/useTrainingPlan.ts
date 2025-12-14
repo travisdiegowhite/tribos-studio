@@ -14,6 +14,12 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getPlanTemplate } from '../data/trainingPlanTemplates';
 import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
+import {
+  findOptimalSupplementDays,
+  getSupplementWorkouts,
+  type PlannedWorkoutInfo,
+  type SuggestedPlacement,
+} from '../utils/trainingPlans';
 import type {
   TrainingPlanDB,
   PlannedWorkoutDB,
@@ -63,6 +69,11 @@ interface UseTrainingPlanReturn {
   linkActivityToWorkout: (workoutId: string, activityId: string) => Promise<boolean>;
   getWorkoutsForDate: (date: Date) => PlannedWorkoutWithDetails[];
   getWorkoutsForWeek: (weekNumber: number) => PlannedWorkoutWithDetails[];
+
+  // Supplement workout operations
+  addSupplementWorkout: (workoutId: string, scheduledDate: Date, notes?: string) => Promise<boolean>;
+  getSuggestedSupplementDays: (workoutId: string, weeksAhead?: number) => SuggestedPlacement[];
+  getAvailableSupplementWorkouts: () => string[];
 
   // Utilities
   refreshPlan: () => Promise<void>;
@@ -487,6 +498,114 @@ export function useTrainingPlan({
   );
 
   // ============================================================
+  // SUPPLEMENT WORKOUT OPERATIONS
+  // ============================================================
+
+  /**
+   * Add a supplement workout (strength, core, flexibility) to the active plan
+   */
+  const addSupplementWorkout = useCallback(
+    async (workoutId: string, scheduledDate: Date, notes?: string): Promise<boolean> => {
+      if (!activePlan) {
+        setError('No active plan to add supplement workout to');
+        return false;
+      }
+
+      const workout = getWorkoutById(workoutId);
+      if (!workout) {
+        setError('Supplement workout not found');
+        return false;
+      }
+
+      try {
+        // Calculate week number based on plan start date
+        const startDate = new Date(activePlan.started_at);
+        const diffTime = scheduledDate.getTime() - startDate.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const weekNumber = Math.floor(diffDays / 7) + 1;
+        const dayOfWeek = scheduledDate.getDay(); // 0-6 (Sunday = 0)
+
+        // Check if date is within plan duration
+        if (weekNumber < 1 || weekNumber > activePlan.duration_weeks) {
+          setError('Selected date is outside the plan duration');
+          return false;
+        }
+
+        // Insert the supplement workout
+        const workoutInsert: PlannedWorkoutInsert = {
+          plan_id: activePlan.id,
+          week_number: weekNumber,
+          day_of_week: dayOfWeek,
+          scheduled_date: scheduledDate.toISOString().split('T')[0],
+          workout_type: workout.category,
+          workout_id: workoutId,
+          target_tss: workout.targetTSS || 0,
+          target_duration: workout.duration,
+          completed: false,
+          notes: notes || `Supplement: ${workout.name}`,
+        };
+
+        const { error: insertError } = await supabase
+          .from('planned_workouts')
+          .insert(workoutInsert);
+
+        if (insertError) throw insertError;
+
+        // Update workout total in the plan
+        const { error: updateError } = await supabase
+          .from('training_plans')
+          .update({
+            workouts_total: (activePlan.workouts_total || 0) + 1,
+          })
+          .eq('id', activePlan.id);
+
+        if (updateError) {
+          console.warn('Failed to update workout count:', updateError);
+        }
+
+        // Refresh workouts and plan
+        await loadPlannedWorkouts();
+        await loadActivePlan();
+
+        return true;
+      } catch (err: any) {
+        console.error('Error adding supplement workout:', err);
+        setError(err.message || 'Failed to add supplement workout');
+        return false;
+      }
+    },
+    [activePlan, loadPlannedWorkouts, loadActivePlan]
+  );
+
+  /**
+   * Get suggested days for placing a supplement workout
+   * Uses smart placement logic to avoid conflicts with hard bike days
+   */
+  const getSuggestedSupplementDays = useCallback(
+    (workoutId: string, weeksAhead: number = 4): SuggestedPlacement[] => {
+      if (!activePlan) return [];
+
+      // Convert planned workouts to the format expected by findOptimalSupplementDays
+      const workoutInfos: PlannedWorkoutInfo[] = plannedWorkouts.map((w) => ({
+        date: w.scheduled_date,
+        workoutType: w.workout_type,
+        workoutId: w.workout_id,
+      }));
+
+      const today = new Date();
+      return findOptimalSupplementDays(workoutId, workoutInfos, today, weeksAhead);
+    },
+    [activePlan, plannedWorkouts]
+  );
+
+  /**
+   * Get list of available supplement workout IDs
+   */
+  const getAvailableSupplementWorkouts = useCallback((): string[] => {
+    return getSupplementWorkouts();
+  }, []);
+
+  // ============================================================
   // UTILITY FUNCTIONS
   // ============================================================
   const getPlanStartDate = useCallback((): Date | null => {
@@ -629,6 +748,11 @@ export function useTrainingPlan({
     linkActivityToWorkout,
     getWorkoutsForDate,
     getWorkoutsForWeek,
+
+    // Supplement workout operations
+    addSupplementWorkout,
+    getSuggestedSupplementDays,
+    getAvailableSupplementWorkouts,
 
     // Utilities
     refreshPlan,

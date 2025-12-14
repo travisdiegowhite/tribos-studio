@@ -1469,6 +1469,253 @@ export const TRAINING_PLAN_TEMPLATES: TrainingPlanTemplatesMap = {
       efficiency: 'Maximum gains per hour invested'
     },
     targetAudience: 'Busy cyclists with 6 hours or less per week to train'
+  },
+
+  // ============================================================
+  // STRENGTH & POWER PLANS
+  // ============================================================
+  strength_power_12_week: {
+    id: 'strength_power_12_week',
+    name: '12-Week Strength & Power Development',
+    description: 'Integrated gym and bike training for maximum power gains. Research shows 6.5% improvement in 40-min TT power with proper strength training.',
+    duration: 12,
+    methodology: 'polarized',
+    goal: 'racing',
+    fitnessLevel: 'intermediate',
+    category: 'strength_power',
+    hoursPerWeek: { min: 7, max: 10 },
+    weeklyTSS: { min: 300, max: 450 },
+    researchBasis: [
+      'Rønnestad et al. (2010). Strength training improves cycling performance in competitive cyclists. Scand J Med Sci Sports',
+      'Louis et al. (2012). Strength training improves cycling efficiency in master endurance athletes. Scand J Med Sci Sports',
+      'Stöggl & Sperlich (2014). Polarized training for endurance athletes. Frontiers in Physiology'
+    ],
+    phases: [
+      { weeks: [1, 2, 3, 4], phase: 'base', focus: 'Anatomical adaptation + aerobic base' },
+      { weeks: [5, 6, 7, 8], phase: 'build', focus: 'Muscle endurance + threshold work' },
+      { weeks: [9, 10, 11], phase: 'peak', focus: 'Max strength + VO2max' },
+      { weeks: [12], phase: 'taper', focus: 'Strength maintenance + test' }
+    ],
+    weekTemplates: {
+      1: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'strength_anatomical_adaptation', notes: 'Gym: Foundation strength' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2 endurance' },
+        wednesday: { workout: 'core_foundation', notes: 'Core work + easy spin optional' },
+        thursday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        friday: { workout: 'strength_anatomical_adaptation', notes: 'Gym: Foundation strength' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long Zone 2' }
+      },
+      2: {
+        sunday: { workout: 'flexibility_yoga_cyclist', notes: 'Recovery yoga' },
+        monday: { workout: 'strength_anatomical_adaptation', notes: 'Gym: Foundation strength' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        thursday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        friday: { workout: 'strength_anatomical_adaptation', notes: 'Gym: Foundation strength' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long Zone 2' }
+      },
+      3: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'strength_anatomical_adaptation', notes: 'Gym: Foundation strength' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        wednesday: { workout: 'core_stability', notes: 'Core circuit' },
+        thursday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        friday: { workout: 'strength_anatomical_adaptation', notes: 'Gym: Foundation strength' },
+        saturday: { workout: 'polarized_long_ride', notes: 'Extended endurance' }
+      },
+      4: {
+        sunday: { workout: 'flexibility_full_body_recovery', notes: 'Recovery session' },
+        monday: { workout: null, notes: 'Complete rest' },
+        tuesday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        wednesday: { workout: 'core_foundation', notes: 'Light core work' },
+        thursday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'endurance_base_build', notes: 'Moderate ride' }
+      },
+      5: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'strength_muscle_endurance', notes: 'Gym: Muscle endurance phase' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'core_stability', notes: 'Core circuit' },
+        thursday: { workout: 'three_by_ten_sst', notes: 'Sweet Spot intro' },
+        friday: { workout: 'strength_muscle_endurance', notes: 'Gym: Muscle endurance' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long ride' }
+      },
+      6: {
+        sunday: { workout: 'flexibility_hip_mobility', notes: 'Hip mobility work' },
+        monday: { workout: 'strength_muscle_endurance', notes: 'Gym: Muscle endurance' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        wednesday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        thursday: { workout: 'traditional_sst', notes: 'Sweet Spot' },
+        friday: { workout: 'strength_muscle_endurance', notes: 'Gym: Muscle endurance' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long Zone 2' }
+      },
+      7: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'strength_muscle_endurance', notes: 'Gym: Muscle endurance' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'core_power', notes: 'Advanced core' },
+        thursday: { workout: 'four_by_twelve_sst', notes: 'Extended SST' },
+        friday: { workout: 'strength_muscle_endurance', notes: 'Gym: Muscle endurance' },
+        saturday: { workout: 'polarized_long_ride', notes: 'Long endurance' }
+      },
+      8: {
+        sunday: { workout: 'flexibility_yoga_cyclist', notes: 'Recovery yoga' },
+        monday: { workout: null, notes: 'Complete rest' },
+        tuesday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        wednesday: { workout: 'core_foundation', notes: 'Light core' },
+        thursday: { workout: 'three_by_ten_sst', notes: 'Light SST' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'endurance_base_build', notes: 'Moderate ride' }
+      },
+      9: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'strength_max_lower', notes: 'Gym: MAX STRENGTH - Heavy legs' },
+        tuesday: { workout: null, notes: 'Rest (48h recovery from heavy lifting)' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        thursday: { workout: 'four_by_eight_vo2', notes: 'VO2max intervals' },
+        friday: { workout: 'core_stability', notes: 'Core circuit' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long Zone 2' }
+      },
+      10: {
+        sunday: { workout: 'flexibility_full_body_recovery', notes: 'Recovery session' },
+        monday: { workout: 'strength_max_lower', notes: 'Gym: MAX STRENGTH' },
+        tuesday: { workout: null, notes: 'Rest (48h recovery)' },
+        wednesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        thursday: { workout: 'thirty_thirty_intervals', notes: '30/30 VO2' },
+        friday: { workout: 'core_power', notes: 'Core power' },
+        saturday: { workout: 'polarized_long_ride', notes: 'Long endurance' }
+      },
+      11: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'strength_max_lower', notes: 'Gym: Final heavy session' },
+        tuesday: { workout: null, notes: 'Rest (48h recovery)' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        thursday: { workout: 'bossi_intervals', notes: 'Peak VO2 session' },
+        friday: { workout: 'flexibility_hip_mobility', notes: 'Mobility work' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Last long ride' }
+      },
+      12: {
+        sunday: { workout: null, notes: 'FTP Test day' },
+        monday: { workout: 'strength_maintenance', notes: 'Gym: Maintenance (light)' },
+        tuesday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        wednesday: { workout: 'core_foundation', notes: 'Light core' },
+        thursday: { workout: 'three_by_ten_sst', notes: 'Openers' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: null, notes: 'Rest before test' }
+      }
+    },
+    expectedGains: {
+      ftp: '10-15%',
+      max_strength: '15-20% squat improvement',
+      power_transfer: 'Improved efficiency and fatigue resistance',
+      sprint_power: '5-10% improvement in peak power'
+    },
+    targetAudience: 'Cyclists wanting to integrate gym work with cycling for maximum power development'
+  },
+
+  strength_off_season_8_week: {
+    id: 'strength_off_season_8_week',
+    name: '8-Week Off-Season Strength Focus',
+    description: 'Heavy strength emphasis during off-season when cycling volume is reduced. Build foundation for next season.',
+    duration: 8,
+    methodology: 'endurance',
+    goal: 'general_fitness',
+    fitnessLevel: 'intermediate',
+    category: 'strength_power',
+    hoursPerWeek: { min: 5, max: 8 },
+    weeklyTSS: { min: 200, max: 350 },
+    researchBasis: [
+      'Rønnestad & Mujika (2014). Optimizing strength training for running and cycling endurance performance. Scand J Med Sci Sports',
+      'Off-season is optimal time for building strength with reduced cycling stress'
+    ],
+    phases: [
+      { weeks: [1, 2], phase: 'base', focus: 'Anatomical adaptation' },
+      { weeks: [3, 4, 5], phase: 'build', focus: 'Muscle endurance' },
+      { weeks: [6, 7], phase: 'peak', focus: 'Max strength' },
+      { weeks: [8], phase: 'recovery', focus: 'Transition week' }
+    ],
+    weekTemplates: {
+      1: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'strength_anatomical_adaptation', notes: 'Gym: Foundation' },
+        tuesday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        wednesday: { workout: 'strength_anatomical_adaptation', notes: 'Gym: Foundation' },
+        thursday: { workout: 'core_foundation', notes: 'Core work' },
+        friday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        saturday: { workout: 'endurance_base_build', notes: 'Zone 2 ride' }
+      },
+      2: {
+        sunday: { workout: 'flexibility_yoga_cyclist', notes: 'Yoga session' },
+        monday: { workout: 'strength_anatomical_adaptation', notes: 'Gym: Foundation' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'strength_anatomical_adaptation', notes: 'Gym: Foundation' },
+        thursday: { workout: 'flexibility_hip_mobility', notes: 'Hip mobility' },
+        friday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Longer Zone 2' }
+      },
+      3: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'strength_muscle_endurance', notes: 'Gym: Muscle endurance' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        wednesday: { workout: 'strength_muscle_endurance', notes: 'Gym: Muscle endurance' },
+        thursday: { workout: 'core_stability', notes: 'Core circuit' },
+        friday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        saturday: { workout: 'endurance_base_build', notes: 'Zone 2 ride' }
+      },
+      4: {
+        sunday: { workout: 'flexibility_full_body_recovery', notes: 'Full recovery' },
+        monday: { workout: 'strength_muscle_endurance', notes: 'Gym: Muscle endurance' },
+        tuesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        wednesday: { workout: 'strength_muscle_endurance', notes: 'Gym: Muscle endurance' },
+        thursday: { workout: 'core_stability', notes: 'Core work' },
+        friday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long Zone 2' }
+      },
+      5: {
+        sunday: { workout: null, notes: 'Rest day' },
+        monday: { workout: 'strength_muscle_endurance', notes: 'Gym: Final endurance phase' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        wednesday: { workout: 'strength_muscle_endurance', notes: 'Gym: Muscle endurance' },
+        thursday: { workout: 'core_power', notes: 'Advanced core' },
+        friday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        saturday: { workout: 'endurance_base_build', notes: 'Zone 2 ride' }
+      },
+      6: {
+        sunday: { workout: 'flexibility_yoga_cyclist', notes: 'Recovery yoga' },
+        monday: { workout: 'strength_max_lower', notes: 'Gym: MAX STRENGTH begins' },
+        tuesday: { workout: null, notes: 'Rest - 48h recovery' },
+        wednesday: { workout: 'foundation_miles', notes: 'Easy Zone 2' },
+        thursday: { workout: 'strength_max_lower', notes: 'Gym: MAX STRENGTH' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'long_endurance_ride', notes: 'Long Zone 2' }
+      },
+      7: {
+        sunday: { workout: 'flexibility_hip_mobility', notes: 'Hip mobility' },
+        monday: { workout: 'strength_max_lower', notes: 'Gym: MAX STRENGTH' },
+        tuesday: { workout: null, notes: 'Rest - 48h recovery' },
+        wednesday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        thursday: { workout: 'strength_max_lower', notes: 'Gym: Peak heavy session' },
+        friday: { workout: null, notes: 'Rest' },
+        saturday: { workout: 'polarized_long_ride', notes: 'Long endurance' }
+      },
+      8: {
+        sunday: { workout: 'flexibility_full_body_recovery', notes: 'Full recovery' },
+        monday: { workout: 'strength_maintenance', notes: 'Gym: Transition to maintenance' },
+        tuesday: { workout: 'foundation_miles', notes: 'Zone 2' },
+        wednesday: { workout: 'core_foundation', notes: 'Light core' },
+        thursday: { workout: 'endurance_base_build', notes: 'Zone 2' },
+        friday: { workout: 'recovery_spin', notes: 'Easy spin' },
+        saturday: { workout: 'endurance_base_build', notes: 'Moderate ride' }
+      }
+    },
+    expectedGains: {
+      max_strength: '20-30% squat/deadlift improvement',
+      foundation: 'Strong base for upcoming cycling season',
+      injury_prevention: 'Better tissue resilience'
+    },
+    targetAudience: 'Cyclists in off-season wanting to build strength foundation'
   }
 };
 
