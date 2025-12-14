@@ -202,6 +202,201 @@ export interface WorkoutStructure {
 }
 
 // ============================================================
+// DETAILED EXERCISE TYPES (for strength/core/flexibility)
+// ============================================================
+
+/**
+ * Equipment that may be needed for exercises
+ */
+export type ExerciseEquipment =
+  | 'none'
+  | 'barbell'
+  | 'dumbbells'
+  | 'kettlebell'
+  | 'resistance_band'
+  | 'stability_ball'
+  | 'foam_roller'
+  | 'yoga_mat'
+  | 'pull_up_bar'
+  | 'medicine_ball'
+  | 'bench'
+  | 'cable_machine'
+  | 'squat_rack';
+
+/**
+ * Muscle groups targeted by exercises
+ */
+export type MuscleGroup =
+  | 'quadriceps'
+  | 'hamstrings'
+  | 'glutes'
+  | 'calves'
+  | 'hip_flexors'
+  | 'core'
+  | 'lower_back'
+  | 'upper_back'
+  | 'chest'
+  | 'shoulders'
+  | 'arms'
+  | 'full_body';
+
+/**
+ * Individual exercise in a strength/core workout
+ */
+export interface StrengthExercise {
+  name: string;
+  sets: number;
+  reps: number | string; // number or "8-12" or "to failure"
+  weight?: string; // e.g., "bodyweight", "60-70% 1RM", "moderate"
+  restSeconds: number; // rest between sets
+  tempo?: string; // e.g., "3-1-1" (eccentric-pause-concentric)
+  equipment: ExerciseEquipment[];
+  muscleGroups: MuscleGroup[];
+  instructions: string; // Form cues and how to perform
+  alternatives?: string[]; // Alternative exercises if equipment unavailable
+  videoUrl?: string; // Link to demonstration video
+}
+
+/**
+ * Individual stretch in a flexibility workout
+ */
+export interface StretchExercise {
+  name: string;
+  duration: number; // seconds to hold
+  sides?: 'both' | 'left_then_right' | 'single'; // for unilateral stretches
+  reps?: number; // if doing multiple rounds
+  equipment: ExerciseEquipment[];
+  muscleGroups: MuscleGroup[];
+  instructions: string;
+  breathingCue?: string; // e.g., "exhale deeper into stretch"
+  modifications?: string; // easier/harder versions
+  videoUrl?: string;
+}
+
+/**
+ * Core exercise with time or rep-based
+ */
+export interface CoreExercise {
+  name: string;
+  sets: number;
+  reps?: number | string; // for rep-based exercises
+  duration?: number; // seconds, for time-based exercises (planks, etc.)
+  restSeconds: number;
+  equipment: ExerciseEquipment[];
+  muscleGroups: MuscleGroup[];
+  instructions: string;
+  progression?: string; // how to make harder
+  regression?: string; // how to make easier
+  videoUrl?: string;
+}
+
+/**
+ * Detailed structure for off-bike workouts
+ */
+export interface OffBikeWorkoutStructure {
+  warmup: {
+    duration: number; // minutes
+    description: string;
+    exercises?: (StrengthExercise | CoreExercise | StretchExercise)[];
+  };
+  main: (StrengthExercise | CoreExercise | StretchExercise)[];
+  cooldown?: {
+    duration: number;
+    description: string;
+    exercises?: StretchExercise[];
+  };
+}
+
+// ============================================================
+// CYCLING INTERVAL TYPES (for bike computer export)
+// ============================================================
+
+/**
+ * Power target can be absolute watts, % FTP, or a range
+ */
+export interface PowerTarget {
+  type: 'percent_ftp' | 'absolute_watts' | 'range';
+  value: number; // for percent_ftp or absolute_watts
+  min?: number; // for range type
+  max?: number; // for range type
+}
+
+/**
+ * Cadence target for interval
+ */
+export interface CadenceTarget {
+  min: number;
+  max: number;
+  preferred?: number;
+}
+
+/**
+ * Single interval step for bike computer export
+ */
+export interface CyclingIntervalStep {
+  name: string;
+  type: 'warmup' | 'work' | 'recovery' | 'cooldown' | 'rest';
+  duration: number; // seconds
+  power: PowerTarget;
+  cadence?: CadenceTarget;
+  heartRateZone?: number; // 1-5
+  instructions?: string; // cues shown on device
+}
+
+/**
+ * Repeat block for structured workouts
+ */
+export interface CyclingRepeatBlock {
+  type: 'repeat';
+  name: string;
+  iterations: number;
+  steps: CyclingIntervalStep[];
+}
+
+/**
+ * Complete cycling workout structure for export
+ */
+export interface CyclingWorkoutStructure {
+  /** Total planned duration in minutes */
+  totalDuration: number;
+  /** Steps that make up the workout */
+  steps: (CyclingIntervalStep | CyclingRepeatBlock)[];
+  /** FTP used when workout was created (for scaling) */
+  baseFTP?: number;
+  /** Target terrain if outdoor */
+  terrain?: {
+    type: 'flat' | 'rolling' | 'hilly' | 'climb';
+    elevationGain?: number; // meters
+    suggestedRoute?: string; // text description
+  };
+}
+
+/**
+ * Export format for bike computers
+ */
+export type WorkoutExportFormat = 'fit' | 'zwo' | 'mrc' | 'erg' | 'tcx' | 'json';
+
+// ============================================================
+// ENHANCED WORKOUT DEFINITION
+// ============================================================
+
+/**
+ * Extended workout definition with detailed exercise/interval data
+ */
+export interface WorkoutDefinitionExtended extends Omit<WorkoutDefinition, 'structure'> {
+  /** Original structure for backward compatibility */
+  structure: WorkoutStructure;
+  /** Detailed cycling intervals for export */
+  cyclingStructure?: CyclingWorkoutStructure;
+  /** Detailed exercises for strength/core/flexibility */
+  exercises?: OffBikeWorkoutStructure;
+  /** Whether this workout can be exported to bike computers */
+  exportable?: boolean;
+  /** Supported export formats */
+  exportFormats?: WorkoutExportFormat[];
+}
+
+// ============================================================
 // WORKOUT DEFINITION (from workoutLibrary)
 // ============================================================
 
