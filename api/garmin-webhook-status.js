@@ -1,5 +1,6 @@
 // Vercel API Route: Garmin Webhook Status
-// Returns diagnostic information about webhook delivery and processing
+// Returns diagnostic information about webhook delivery, processing, and connection health
+// Use this endpoint to debug connection issues
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -8,6 +9,9 @@ const supabase = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
+
+// Garmin token endpoint for health checks
+const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oauth/token';
 
 const getAllowedOrigins = () => {
   if (process.env.NODE_ENV === 'production') {
@@ -71,10 +75,10 @@ export default async function handler(req, res) {
 
 async function getWebhookStats(userId) {
   try {
-    // Get integration status first
+    // Get integration status first (including sync_error)
     const { data: integration, error: integrationError } = await supabase
       .from('bike_computer_integrations')
-      .select('provider_user_id, sync_enabled, last_sync_at, token_expires_at, access_token')
+      .select('id, provider_user_id, sync_enabled, last_sync_at, token_expires_at, access_token, sync_error, updated_at')
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .maybeSingle();
@@ -107,7 +111,7 @@ async function getWebhookStats(userId) {
         .eq('processed', true);
       processedEvents = processed || 0;
 
-      // Get failed events
+      // Get failed events (processed but with errors)
       const { count: failed } = await supabase
         .from('garmin_webhook_events')
         .select('*', { count: 'exact', head: true })
@@ -145,24 +149,83 @@ async function getWebhookStats(userId) {
       recentEventDetails = details || [];
     }
 
-    // Check token validity
-    const tokenValid = integration?.token_expires_at
-      ? new Date(integration.token_expires_at) > new Date()
-      : false;
+    // Check token validity and calculate time until expiration
+    const now = new Date();
+    const tokenExpiresAt = integration?.token_expires_at ? new Date(integration.token_expires_at) : null;
+    const tokenValid = tokenExpiresAt ? tokenExpiresAt > now : false;
+    const tokenExpiresInDays = tokenExpiresAt ? Math.floor((tokenExpiresAt - now) / (1000 * 60 * 60 * 24)) : null;
+    const tokenExpiresInHours = tokenExpiresAt ? Math.floor((tokenExpiresAt - now) / (1000 * 60 * 60)) : null;
+
+    // Build troubleshooting messages based on current state
+    const troubleshooting = [];
+
+    if (!integration) {
+      troubleshooting.push('❌ No Garmin integration found. Please connect your Garmin account.');
+    } else if (!integration.provider_user_id) {
+      troubleshooting.push('⚠️ CRITICAL: No Garmin User ID stored. Webhooks cannot be matched to your account.');
+      troubleshooting.push('Solution: Disconnect and reconnect your Garmin account to fetch the Garmin User ID.');
+    } else if (!tokenValid) {
+      troubleshooting.push('⚠️ Access token has expired. Activities may not sync.');
+      troubleshooting.push('The system will attempt to refresh the token automatically on next webhook.');
+      troubleshooting.push('If issues persist, try disconnecting and reconnecting your Garmin account.');
+    } else if (tokenExpiresInDays !== null && tokenExpiresInDays < 7) {
+      troubleshooting.push(`⚠️ Token expires in ${tokenExpiresInDays} days. It will be refreshed automatically.`);
+    }
+
+    if (integration?.sync_error) {
+      troubleshooting.push(`❌ Last sync error: ${integration.sync_error}`);
+    }
+
+    if (totalEvents === 0 && integration?.provider_user_id) {
+      troubleshooting.push('ℹ️ No webhooks received yet. Possible causes:');
+      troubleshooting.push('   1. Webhook URL not registered in Garmin Developer Portal');
+      troubleshooting.push('   2. No activities synced since connecting');
+      troubleshooting.push('   3. Complete an activity and sync Garmin Connect to trigger a webhook');
+    }
+
+    if (failedEvents > 0) {
+      troubleshooting.push(`⚠️ ${failedEvents} webhook(s) failed to process. Check recent events for details.`);
+    }
 
     return {
-      webhookEndpoint: 'https://www.tribos.studio/api/garmin-webhook',
+      webhookEndpoint: process.env.NODE_ENV === 'production'
+        ? 'https://www.tribos.studio/api/garmin-webhook'
+        : 'http://localhost:3000/api/garmin-webhook',
+      connectionHealth: {
+        status: !integration ? 'not_connected' :
+                !integration.provider_user_id ? 'missing_user_id' :
+                !tokenValid ? 'token_expired' :
+                integration.sync_error ? 'has_errors' :
+                'healthy',
+        statusEmoji: !integration ? '❌' :
+                     !integration.provider_user_id ? '⚠️' :
+                     !tokenValid ? '🔄' :
+                     integration.sync_error ? '⚠️' : '✅',
+        message: !integration ? 'Not connected to Garmin' :
+                 !integration.provider_user_id ? 'Missing Garmin User ID - reconnect required' :
+                 !tokenValid ? 'Token expired - will refresh on next sync' :
+                 integration.sync_error ? 'Connected but experiencing errors' :
+                 'Connected and healthy'
+      },
       integration: integration ? {
         garminUserId: integration.provider_user_id,
         hasGarminUserId: !!integration.provider_user_id,
         syncEnabled: integration.sync_enabled,
         lastSyncAt: integration.last_sync_at,
+        lastUpdatedAt: integration.updated_at,
+        syncError: integration.sync_error,
         tokenExpiresAt: integration.token_expires_at,
-        tokenValid: tokenValid
+        tokenValid: tokenValid,
+        tokenExpiresIn: tokenExpiresInHours !== null
+          ? (tokenExpiresInHours < 0 ? 'Expired' :
+             tokenExpiresInDays > 0 ? `${tokenExpiresInDays} days` :
+             `${tokenExpiresInHours} hours`)
+          : 'Unknown'
       } : null,
       webhookStats: {
         totalEvents,
         processedEvents,
+        successfulEvents: processedEvents - failedEvents,
         failedEvents,
         pendingEvents: totalEvents - processedEvents,
         recentEvents24h: recentEvents
@@ -173,22 +236,12 @@ async function getWebhookStats(userId) {
         processed: lastEvent.processed,
         error: lastEvent.process_error
       } : null,
-      recentEvents: recentEventDetails,
-      diagnostics: {
-        hasIntegration: !!integration,
-        hasGarminUserId: !!integration?.provider_user_id,
-        tokenValid: tokenValid,
-        webhookTableExists: true, // If we got here, table exists
-        troubleshooting: !integration?.provider_user_id ? [
-          'CRITICAL: No Garmin User ID stored. Webhooks cannot be matched to your account.',
-          'Solution: Disconnect and reconnect your Garmin account to fetch the Garmin User ID.'
-        ] : totalEvents === 0 ? [
-          'No webhooks received yet. Possible causes:',
-          '1. Webhook URL not registered in Garmin Developer Portal',
-          '2. Garmin Connect app needs to sync after your ride',
-          '3. Make sure webhook URL is: https://tribos-studio.vercel.app/api/garmin-webhook'
-        ] : []
-      }
+      recentEvents: recentEventDetails.map(e => ({
+        ...e,
+        statusEmoji: e.processed && !e.process_error ? '✅' :
+                     e.processed && e.process_error ? '❌' : '⏳'
+      })),
+      troubleshooting: troubleshooting.length > 0 ? troubleshooting : ['✅ No issues detected']
     };
 
   } catch (error) {
