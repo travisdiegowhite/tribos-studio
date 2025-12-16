@@ -18,6 +18,8 @@ import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { googleCalendarService } from '../utils/googleCalendarService';
+import { useAuth } from '../contexts/AuthContext.jsx';
+import { supabase } from '../lib/supabase';
 
 // Get the API base URL
 const getApiBaseUrl = () => {
@@ -28,10 +30,19 @@ const getApiBaseUrl = () => {
 };
 
 function AICoach({ trainingContext, onAddWorkout, activePlan }) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const scrollAreaRef = useRef(null);
+
+  // Load conversation history on mount
+  useEffect(() => {
+    if (user?.id) {
+      loadConversationHistory();
+    }
+  }, [user?.id]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -39,6 +50,58 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
     }
   }, [messages]);
+
+  // Load recent conversation history from database
+  const loadConversationHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      const { data, error } = await supabase
+        .from('coach_conversations')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('message_type', 'training_coach') // Filter to training coach messages
+        .order('timestamp', { ascending: true })
+        .limit(50);
+
+      if (error) {
+        console.error('Error loading conversation history:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setMessages(data.map(msg => ({
+          id: msg.id,
+          role: msg.role === 'coach' ? 'assistant' : msg.role,
+          content: msg.message,
+          timestamp: msg.timestamp,
+          workoutRecommendations: msg.context_snapshot?.workoutRecommendations || null,
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to load conversation history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Save a message to the database
+  const saveMessage = async (role, content, workoutRecommendations = null) => {
+    if (!user?.id) return;
+
+    try {
+      await supabase
+        .from('coach_conversations')
+        .insert({
+          user_id: user.id,
+          role: role === 'assistant' ? 'coach' : role,
+          message: content,
+          message_type: 'training_coach',
+          context_snapshot: workoutRecommendations ? { workoutRecommendations } : null,
+        });
+    } catch (error) {
+      console.error('Error saving message:', error);
+    }
+  };
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
@@ -50,6 +113,9 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
     const newUserMessage = { role: 'user', content: userMessage };
     setMessages(prev => [...prev, newUserMessage]);
     setIsLoading(true);
+
+    // Save user message to database
+    await saveMessage('user', userMessage);
 
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/coach`, {
@@ -81,6 +147,9 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+
+      // Save assistant message to database
+      await saveMessage('assistant', data.message, data.workoutRecommendations);
     } catch (error) {
       console.error('Error sending message:', error);
       notifications.show({
@@ -207,7 +276,16 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         viewportRef={scrollAreaRef}
       >
         <Stack gap="md" pr="xs">
-          {messages.length === 0 && (
+          {loadingHistory && (
+            <Box style={{ padding: tokens.spacing.xl, textAlign: 'center' }}>
+              <Loader size="sm" color="lime" type="dots" />
+              <Text size="sm" style={{ color: tokens.colors.textMuted, marginTop: 8 }}>
+                Loading conversation history...
+              </Text>
+            </Box>
+          )}
+
+          {!loadingHistory && messages.length === 0 && (
             <Box
               style={{
                 padding: tokens.spacing.xl,
