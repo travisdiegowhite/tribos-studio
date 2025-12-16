@@ -588,11 +588,56 @@ async function createCalendarEvent(req, res, { userId, workout }) {
     return res.status(400).json({ error: 'Workout name and scheduledDate required' });
   }
 
-  if (!planId) {
-    return res.status(400).json({ error: 'planId required - user must have an active training plan' });
-  }
+  let activePlanId = planId;
+  let planCreated = false;
 
   try {
+    // If no planId provided, find or create a "Coach Workouts" plan for the user
+    if (!activePlanId) {
+      // First, check if user has any active plan
+      const { data: existingPlan } = await supabase
+        .from('training_plans')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (existingPlan) {
+        activePlanId = existingPlan.id;
+      } else {
+        // Create a new "Coach Workouts" plan for the user
+        const { data: newPlan, error: planError } = await supabase
+          .from('training_plans')
+          .insert({
+            user_id: userId,
+            template_id: 'coach_recommended',
+            name: 'Coach Recommended Workouts',
+            duration_weeks: 52, // Ongoing plan
+            methodology: 'coach_guided',
+            goal: 'general_fitness',
+            fitness_level: 'intermediate',
+            status: 'active',
+            started_at: new Date().toISOString(),
+            current_week: 1,
+            workouts_completed: 0,
+            workouts_total: 0,
+            notes: 'Auto-created plan for AI coach workout recommendations'
+          })
+          .select()
+          .single();
+
+        if (planError) {
+          console.error('Error creating coach plan:', planError);
+          return res.status(500).json({ error: 'Failed to create training plan for workouts' });
+        }
+
+        activePlanId = newPlan.id;
+        planCreated = true;
+        console.log('Created new Coach Workouts plan:', activePlanId);
+      }
+    }
     // Get user settings to check if calendar is connected
     const { data: settings, error: settingsError } = await supabase
       .from('user_coach_settings')
@@ -696,7 +741,7 @@ async function createCalendarEvent(req, res, { userId, workout }) {
     const { data: planData } = await supabase
       .from('training_plans')
       .select('started_at')
-      .eq('id', planId)
+      .eq('id', activePlanId)
       .single();
 
     let weekNumber = 1;
@@ -710,7 +755,7 @@ async function createCalendarEvent(req, res, { userId, workout }) {
     const { data: workoutRecord, error: dbError } = await supabase
       .from('planned_workouts')
       .insert({
-        plan_id: planId,
+        plan_id: activePlanId,
         user_id: userId,
         scheduled_date: scheduledDate,
         week_number: weekNumber,
@@ -740,11 +785,15 @@ async function createCalendarEvent(req, res, { userId, workout }) {
     return res.status(200).json({
       success: true,
       workoutId: workoutRecord.id,
+      planId: activePlanId,
+      planCreated: planCreated,
       calendarEventId: calendarEventId,
       calendarSynced: !!calendarEventId,
-      message: calendarEventId
-        ? 'Workout added to calendar and database'
-        : 'Workout saved (calendar not connected)'
+      message: planCreated
+        ? 'Workout added and training plan created'
+        : calendarEventId
+          ? 'Workout added to calendar and database'
+          : 'Workout saved (calendar not connected)'
     });
 
   } catch (error) {

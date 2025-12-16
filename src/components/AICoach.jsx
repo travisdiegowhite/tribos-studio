@@ -122,20 +122,8 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
     });
 
     try {
-      // Check if user has an active plan
-      if (!activePlan?.id) {
-        notifications.update({
-          id: notificationId,
-          title: 'No Training Plan',
-          message: 'Please create or activate a training plan first to add workouts to your calendar',
-          color: 'orange',
-          loading: false,
-          autoClose: 5000
-        });
-        return;
-      }
-
       // Create workout event via the calendar service (which also saves to DB)
+      // If no active plan exists, the API will auto-create a "Coach Workouts" plan
       const result = await googleCalendarService.createWorkoutEvent({
         name: workout.name,
         description: workout.description,
@@ -143,21 +131,27 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         scheduledDate: recommendation.scheduled_date,
         workoutType: workout.workoutType || workout.category,
         reason: recommendation.reason,
-        planId: activePlan.id,
+        planId: activePlan?.id, // Optional - API will find/create plan if not provided
         targetTss: workout.targetTSS
       });
+
+      // Build success message based on what happened
+      let successMessage = `${workout.name} scheduled for ${recommendation.scheduled_date}`;
+      if (result.planCreated) {
+        successMessage = `${workout.name} added! A "Coach Recommended Workouts" plan was created for you.`;
+      } else if (result.calendarSynced) {
+        successMessage = `${workout.name} added to your calendar for ${recommendation.scheduled_date}`;
+      }
 
       // Update notification to success
       notifications.update({
         id: notificationId,
-        title: 'Workout Scheduled!',
-        message: result.calendarSynced
-          ? `${workout.name} added to your calendar for ${recommendation.scheduled_date}`
-          : `${workout.name} scheduled for ${recommendation.scheduled_date} (connect Google Calendar to sync)`,
+        title: result.planCreated ? 'Plan Created & Workout Added!' : 'Workout Scheduled!',
+        message: successMessage,
         color: 'lime',
         icon: result.calendarSynced ? <IconCalendarCheck size={18} /> : <IconCheck size={18} />,
         loading: false,
-        autoClose: 4000
+        autoClose: result.planCreated ? 6000 : 4000
       });
 
       // Call parent callback if provided
