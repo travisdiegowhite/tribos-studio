@@ -86,6 +86,9 @@ export default async function handler(req, res) {
       case 'get_available_windows':
         return await getAvailableWindows(req, res, params);
 
+      case 'create_event':
+        return await createCalendarEvent(req, res, params);
+
       default:
         return res.status(400).json({ error: 'Invalid action' });
     }
@@ -567,6 +570,234 @@ async function getAvailableWindows(req, res, { userId, date }) {
 
   } catch (error) {
     console.error('Get available windows error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Create a workout event in Google Calendar and save to database
+ */
+async function createCalendarEvent(req, res, { userId, workout }) {
+  if (!userId || !workout) {
+    return res.status(400).json({ error: 'userId and workout required' });
+  }
+
+  const { name, description, duration, scheduledDate, scheduledTime, workoutType, reason, planId, targetTss } = workout;
+
+  if (!name || !scheduledDate) {
+    return res.status(400).json({ error: 'Workout name and scheduledDate required' });
+  }
+
+  let activePlanId = planId;
+  let planCreated = false;
+
+  try {
+    // If no planId provided, find or create a "Coach Workouts" plan for the user
+    if (!activePlanId) {
+      // First, check if user has any active plan
+      const { data: existingPlan } = await supabase
+        .from('training_plans')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (existingPlan) {
+        activePlanId = existingPlan.id;
+      } else {
+        // Create a new "Coach Workouts" plan for the user
+        const { data: newPlan, error: planError } = await supabase
+          .from('training_plans')
+          .insert({
+            user_id: userId,
+            template_id: 'coach_recommended',
+            name: 'Coach Recommended Workouts',
+            duration_weeks: 52, // Ongoing plan
+            methodology: 'coach_guided',
+            goal: 'general_fitness',
+            fitness_level: 'intermediate',
+            status: 'active',
+            started_at: new Date().toISOString(),
+            current_week: 1,
+            workouts_completed: 0,
+            workouts_total: 0,
+            notes: 'Auto-created plan for AI coach workout recommendations'
+          })
+          .select()
+          .single();
+
+        if (planError) {
+          console.error('Error creating coach plan:', planError);
+          return res.status(500).json({ error: 'Failed to create training plan for workouts' });
+        }
+
+        activePlanId = newPlan.id;
+        planCreated = true;
+        console.log('Created new Coach Workouts plan:', activePlanId);
+      }
+    }
+    // Get user settings to check if calendar is connected
+    const { data: settings, error: settingsError } = await supabase
+      .from('user_coach_settings')
+      .select('google_calendar_connected, google_calendar_id, google_refresh_token')
+      .eq('user_id', userId)
+      .single();
+
+    let calendarEventId = null;
+
+    // Only create calendar event if Google Calendar is connected
+    if (settings?.google_calendar_connected && settings?.google_refresh_token) {
+      const accessToken = await refreshAccessToken(settings.google_refresh_token);
+      const calendarId = settings.google_calendar_id || 'primary';
+
+      // Build event start/end times
+      const eventDate = new Date(scheduledDate);
+      let startDateTime, endDateTime;
+
+      if (scheduledTime) {
+        // If specific time provided, create timed event
+        const [hours, minutes] = scheduledTime.split(':').map(Number);
+        startDateTime = new Date(eventDate);
+        startDateTime.setHours(hours, minutes, 0, 0);
+
+        endDateTime = new Date(startDateTime);
+        endDateTime.setMinutes(endDateTime.getMinutes() + (duration || 60));
+      } else {
+        // Create all-day event if no time specified
+        startDateTime = eventDate;
+        endDateTime = eventDate;
+      }
+
+      // Build event description
+      const eventDescription = [
+        description || '',
+        reason ? `\nCoach's Recommendation: ${reason}` : '',
+        workoutType ? `\nWorkout Type: ${workoutType}` : '',
+        duration ? `\nDuration: ${duration} minutes` : ''
+      ].filter(Boolean).join('');
+
+      // Create Google Calendar event
+      const event = {
+        summary: `🚴 ${name}`,
+        description: eventDescription,
+        colorId: '11', // Red color for workouts (can be customized)
+      };
+
+      if (scheduledTime) {
+        event.start = {
+          dateTime: startDateTime.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+        };
+        event.end = {
+          dateTime: endDateTime.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+        };
+      } else {
+        // All-day event
+        event.start = { date: scheduledDate };
+        event.end = { date: scheduledDate };
+      }
+
+      const calendarResponse = await fetch(
+        `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(event)
+        }
+      );
+
+      if (calendarResponse.ok) {
+        const eventData = await calendarResponse.json();
+        calendarEventId = eventData.id;
+        console.log('Created Google Calendar event:', calendarEventId);
+      } else {
+        const errorText = await calendarResponse.text();
+        console.error('Failed to create calendar event:', errorText);
+        // Continue - we'll still save to database even if calendar fails
+      }
+    }
+
+    // Map workout type to valid enum value
+    const validWorkoutTypes = [
+      'endurance', 'tempo', 'threshold', 'intervals', 'recovery',
+      'sweet_spot', 'vo2max', 'anaerobic', 'sprint', 'rest'
+    ];
+    const normalizedWorkoutType = workoutType?.toLowerCase().replace(/[\s-]/g, '_');
+    const dbWorkoutType = validWorkoutTypes.includes(normalizedWorkoutType)
+      ? normalizedWorkoutType
+      : 'endurance'; // Default to endurance if type doesn't match
+
+    // Calculate week_number and day_of_week from scheduled date
+    const schedDate = new Date(scheduledDate);
+    const dayOfWeek = schedDate.getDay(); // 0=Sunday, 6=Saturday
+
+    // Get plan start date to calculate week number
+    const { data: planData } = await supabase
+      .from('training_plans')
+      .select('started_at')
+      .eq('id', activePlanId)
+      .single();
+
+    let weekNumber = 1;
+    if (planData?.started_at) {
+      const planStart = new Date(planData.started_at);
+      const daysSinceStart = Math.floor((schedDate - planStart) / (24 * 60 * 60 * 1000));
+      weekNumber = Math.max(1, Math.floor(daysSinceStart / 7) + 1);
+    }
+
+    // Save workout to planned_workouts table (this is what TrainingCalendar reads)
+    const { data: workoutRecord, error: dbError } = await supabase
+      .from('planned_workouts')
+      .insert({
+        plan_id: activePlanId,
+        user_id: userId,
+        scheduled_date: scheduledDate,
+        week_number: weekNumber,
+        day_of_week: dayOfWeek,
+        workout_type: dbWorkoutType,
+        target_duration: duration || 60,
+        target_tss: targetTss || null,
+        name: name,
+        notes: reason ? `Coach recommendation: ${reason}` : null,
+        completed: false
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('Database error saving workout:', dbError);
+      // If we created a calendar event but DB failed, try to clean up
+      // (In production you might want to handle this more gracefully)
+      return res.status(500).json({
+        error: 'Failed to save workout to database',
+        calendarEventCreated: !!calendarEventId
+      });
+    }
+
+    console.log('Workout saved successfully:', workoutRecord.id);
+
+    return res.status(200).json({
+      success: true,
+      workoutId: workoutRecord.id,
+      planId: activePlanId,
+      planCreated: planCreated,
+      calendarEventId: calendarEventId,
+      calendarSynced: !!calendarEventId,
+      message: planCreated
+        ? 'Workout added and training plan created'
+        : calendarEventId
+          ? 'Workout added to calendar and database'
+          : 'Workout saved (calendar not connected)'
+    });
+
+  } catch (error) {
+    console.error('Create calendar event error:', error);
     return res.status(500).json({ error: error.message });
   }
 }

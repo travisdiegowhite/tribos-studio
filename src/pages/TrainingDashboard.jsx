@@ -861,7 +861,10 @@ function TodayTab({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats,
         </Group>
         <AICoach
           trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan)}
+          activePlan={activePlan}
           onAddWorkout={(workout) => {
+            // Refresh the calendar to show the new workout
+            loadPlannedWorkouts?.();
             notifications.show({
               title: 'Workout Added',
               message: `${workout.name} has been added to your plan`,
