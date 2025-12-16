@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Container,
   Title,
@@ -80,6 +80,7 @@ function TrainingDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('today');
+  const aiCoachRef = useRef(null);
   const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);
   const [speedProfile, setSpeedProfile] = useState(null);
@@ -512,7 +513,17 @@ function TrainingDashboard() {
             activities={activities}
             formatDist={formatDist}
             formatTime={formatTime}
-            onAskCoach={() => setActiveTab('today')}
+            onAskCoach={() => {
+              setActiveTab('today');
+              // Scroll to AI Coach with a slight delay to ensure tab is active
+              setTimeout(() => {
+                aiCoachRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Focus the input after scrolling
+                setTimeout(() => {
+                  aiCoachRef.current?.querySelector('input')?.focus();
+                }, 300);
+              }, 100);
+            }}
             suggestedWorkout={suggestedWorkout}
             onViewWorkout={handleViewWorkout}
           />
@@ -587,20 +598,17 @@ function TrainingDashboard() {
               <Tabs.Panel value="today">
                 <TodayTab
                   trainingMetrics={trainingMetrics}
-                  formStatus={formStatus}
                   weeklyStats={weeklyStats}
                   actualWeeklyStats={actualWeeklyStats}
                   activities={activities}
                   ftp={ftp}
                   formatDist={formatDist}
-                  formatElev={formatElev}
                   formatTime={formatTime}
                   isImperial={isImperial}
                   todayHealthMetrics={todayHealthMetrics}
                   onOpenHealthCheckIn={() => setHealthCheckInOpen(true)}
-                  suggestedWorkout={suggestedWorkout}
-                  onViewWorkout={handleViewWorkout}
                   activePlan={activePlan}
+                  aiCoachRef={aiCoachRef}
                 />
               </Tabs.Panel>
 
@@ -846,13 +854,13 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
 // ============================================================================
 // TODAY TAB
 // ============================================================================
-function TodayTab({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, ftp, formatDist, formatElev, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, suggestedWorkout, onViewWorkout, activePlan }) {
+function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities, ftp, formatDist, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, activePlan, aiCoachRef }) {
   const hasCheckedIn = !!todayHealthMetrics;
 
   return (
     <Stack gap="lg">
       {/* AI Coach Section */}
-      <Box>
+      <Box ref={aiCoachRef}>
         <Group gap="xs" mb="md">
           <ThemeIcon size="md" color="lime" variant="light">
             <IconMessageCircle size={16} />
@@ -874,69 +882,46 @@ function TodayTab({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats,
         />
       </Box>
 
-      {/* Quick Actions */}
-      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-        <Card withBorder p="md">
-          <Group gap="sm" mb="sm">
-            <ThemeIcon size="lg" color="blue" variant="light">
-              <IconTarget size={18} />
-            </ThemeIcon>
-            <Text fw={600}>Suggested Workout</Text>
-          </Group>
-          <Text size="sm" c="dimmed" mb="md">
-            Based on your current form ({formStatus.label}), we recommend:
-          </Text>
-          <Paper p="sm" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
-            <Text fw={500} size="sm">{suggestedWorkout?.name || 'Sweet Spot Intervals'}</Text>
-            <Text size="xs" c="dimmed">
-              {suggestedWorkout ? `${suggestedWorkout.duration} min · ~${suggestedWorkout.targetTSS} TSS · ${suggestedWorkout.description}` : '90 min · ~85 TSS · Builds threshold fitness'}
+      {/* Body Check-in Card */}
+      <Card withBorder p="md">
+        <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+          <Box style={{ flex: 1, minWidth: 200 }}>
+            <Group gap="sm" mb="sm">
+              <ThemeIcon size="lg" color="violet" variant="light">
+                <IconHeart size={18} />
+              </ThemeIcon>
+              <Text fw={600}>Body Check-in</Text>
+              {hasCheckedIn && (
+                <Badge color="green" variant="light" size="xs">Done</Badge>
+              )}
+            </Group>
+            <Text size="sm" c="dimmed">
+              {hasCheckedIn ? 'Today\'s metrics recorded' : 'Log your daily metrics for better AI coaching recommendations'}
             </Text>
-          </Paper>
-          <Button
-            variant="light"
-            color="lime"
-            fullWidth
-            mt="md"
-            onClick={() => suggestedWorkout && onViewWorkout(suggestedWorkout)}
-          >
-            View Workout
-          </Button>
-        </Card>
-
-        <Card withBorder p="md">
-          <Group gap="sm" mb="sm">
-            <ThemeIcon size="lg" color="violet" variant="light">
-              <IconHeart size={18} />
-            </ThemeIcon>
-            <Text fw={600}>Body Check-in</Text>
-            {hasCheckedIn && (
-              <Badge color="green" variant="light" size="xs">Done</Badge>
-            )}
+          </Box>
+          <Group gap="md" wrap="wrap">
+            <SimpleGrid cols={3} spacing="xs">
+              <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)', minWidth: 60 }}>
+                <Text size="xs" c="dimmed">HRV</Text>
+                <Text fw={600}>{todayHealthMetrics?.hrv_ms ? `${todayHealthMetrics.hrv_ms}ms` : '--'}</Text>
+              </Paper>
+              <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)', minWidth: 60 }}>
+                <Text size="xs" c="dimmed">Sleep</Text>
+                <Text fw={600}>{todayHealthMetrics?.sleep_hours ? `${todayHealthMetrics.sleep_hours}h` : '--'}</Text>
+              </Paper>
+              <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)', minWidth: 60 }}>
+                <Text size="xs" c="dimmed">Readiness</Text>
+                <Text fw={600} c={todayHealthMetrics?.readiness_score >= 60 ? 'green' : todayHealthMetrics?.readiness_score >= 40 ? 'yellow' : 'red'}>
+                  {todayHealthMetrics?.readiness_score ? `${todayHealthMetrics.readiness_score}%` : '--'}
+                </Text>
+              </Paper>
+            </SimpleGrid>
+            <Button variant="light" color="violet" onClick={onOpenHealthCheckIn}>
+              {hasCheckedIn ? 'Update' : 'Log Metrics'}
+            </Button>
           </Group>
-          <Text size="sm" c="dimmed" mb="md">
-            {hasCheckedIn ? 'Today\'s metrics recorded' : 'Log your daily metrics for better recommendations'}
-          </Text>
-          <SimpleGrid cols={3} spacing="xs">
-            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
-              <Text size="xs" c="dimmed">HRV</Text>
-              <Text fw={600}>{todayHealthMetrics?.hrv_ms ? `${todayHealthMetrics.hrv_ms}ms` : '--'}</Text>
-            </Paper>
-            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
-              <Text size="xs" c="dimmed">Sleep</Text>
-              <Text fw={600}>{todayHealthMetrics?.sleep_hours ? `${todayHealthMetrics.sleep_hours}h` : '--'}</Text>
-            </Paper>
-            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
-              <Text size="xs" c="dimmed">Readiness</Text>
-              <Text fw={600} c={todayHealthMetrics?.readiness_score >= 60 ? 'green' : todayHealthMetrics?.readiness_score >= 40 ? 'yellow' : 'red'}>
-                {todayHealthMetrics?.readiness_score ? `${todayHealthMetrics.readiness_score}%` : '--'}
-              </Text>
-            </Paper>
-          </SimpleGrid>
-          <Button variant="light" color="violet" fullWidth mt="md" onClick={onOpenHealthCheckIn}>
-            {hasCheckedIn ? 'Update Check-in' : 'Log Metrics'}
-          </Button>
-        </Card>
-      </SimpleGrid>
+        </Group>
+      </Card>
     </Stack>
   );
 }
