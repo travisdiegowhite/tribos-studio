@@ -15,6 +15,7 @@ import {
   Divider,
   SegmentedControl,
   Alert,
+  Loader,
 } from '@mantine/core';
 import {
   IconHeart,
@@ -26,11 +27,14 @@ import {
   IconCheck,
   IconBrandSpeedtest,
   IconInfoCircle,
+  IconRefresh,
+  IconBrandApple,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useUserPreferences } from '../contexts/UserPreferencesContext.jsx';
+import { garminService } from '../utils/garminService';
 
 const EMOJI_SCALE = {
   1: { emoji: '1', label: 'Very Low', color: 'red' },
@@ -57,6 +61,8 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
   const { unitsPreference } = useUserPreferences();
   const isImperial = unitsPreference === 'imperial';
   const [loading, setLoading] = useState(false);
+  const [garminConnected, setGarminConnected] = useState(false);
+  const [garminLoading, setGarminLoading] = useState(false);
   const [formData, setFormData] = useState({
     resting_heart_rate: null,
     hrv_score: null,
@@ -71,6 +77,15 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
 
   // For display - store weight in user's preferred unit
   const [displayWeight, setDisplayWeight] = useState(null);
+
+  // Check Garmin connection status when modal opens
+  useEffect(() => {
+    if (opened) {
+      garminService.getConnectionStatus().then(status => {
+        setGarminConnected(status.connected && !status.tokenExpired);
+      });
+    }
+  }, [opened]);
 
   // Load existing data if editing
   useEffect(() => {
@@ -91,6 +106,80 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
       setDisplayWeight(weightKg ? (isImperial ? Math.round(weightKg * KG_TO_LBS * 10) / 10 : weightKg) : null);
     }
   }, [existingData, isImperial]);
+
+  // Sync data from Garmin
+  const handleGarminSync = async () => {
+    setGarminLoading(true);
+    try {
+      const result = await garminService.getHealthData();
+
+      if (!result.success) {
+        notifications.show({
+          title: 'Garmin Sync',
+          message: result.error || 'Could not fetch data from Garmin',
+          color: 'orange'
+        });
+        return;
+      }
+
+      if (!result.hasData) {
+        notifications.show({
+          title: 'No Data Available',
+          message: 'No health data found in Garmin for today. Make sure you\'ve synced your device.',
+          color: 'yellow'
+        });
+        return;
+      }
+
+      const garminData = result.healthData;
+      let updatedFields = 0;
+
+      // Update form with Garmin data (only non-null values)
+      if (garminData.resting_heart_rate != null) {
+        updateField('resting_heart_rate', garminData.resting_heart_rate);
+        updatedFields++;
+      }
+      if (garminData.hrv_score != null) {
+        updateField('hrv_score', garminData.hrv_score);
+        updatedFields++;
+      }
+      if (garminData.sleep_hours != null) {
+        updateField('sleep_hours', garminData.sleep_hours);
+        updatedFields++;
+      }
+      if (garminData.sleep_quality != null) {
+        updateField('sleep_quality', garminData.sleep_quality);
+        updatedFields++;
+      }
+      if (garminData.stress_level != null) {
+        updateField('stress_level', garminData.stress_level);
+        updatedFields++;
+      }
+      if (garminData.weight_kg != null) {
+        updateField('weight_kg', garminData.weight_kg);
+        // Update display weight
+        setDisplayWeight(isImperial ? Math.round(garminData.weight_kg * KG_TO_LBS * 10) / 10 : garminData.weight_kg);
+        updatedFields++;
+      }
+
+      notifications.show({
+        title: 'Garmin Data Synced',
+        message: `Updated ${updatedFields} field${updatedFields !== 1 ? 's' : ''} from Garmin`,
+        color: 'teal',
+        icon: <IconCheck size={16} />
+      });
+
+    } catch (error) {
+      console.error('Garmin sync error:', error);
+      notifications.show({
+        title: 'Sync Error',
+        message: 'Failed to sync data from Garmin',
+        color: 'red'
+      });
+    } finally {
+      setGarminLoading(false);
+    }
+  };
 
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -211,11 +300,31 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
           Log how you're feeling today. This helps personalize your training recommendations.
         </Text>
 
-        <Alert variant="light" color="blue" icon={<IconInfoCircle size={16} />} p="xs">
-          <Text size="xs">
-            Find your Resting HR and HRV in your Garmin Connect, Whoop, or Apple Health app from this morning's data.
-          </Text>
-        </Alert>
+        {garminConnected ? (
+          <Alert variant="light" color="teal" p="xs">
+            <Group justify="space-between" align="center">
+              <Text size="xs">
+                Garmin connected - sync today's health data automatically
+              </Text>
+              <Button
+                size="xs"
+                variant="light"
+                color="teal"
+                leftSection={garminLoading ? <Loader size={12} /> : <IconRefresh size={14} />}
+                onClick={handleGarminSync}
+                disabled={garminLoading}
+              >
+                {garminLoading ? 'Syncing...' : 'Sync from Garmin'}
+              </Button>
+            </Group>
+          </Alert>
+        ) : (
+          <Alert variant="light" color="blue" icon={<IconInfoCircle size={16} />} p="xs">
+            <Text size="xs">
+              Find your Resting HR and HRV in your Garmin Connect, Whoop, or Apple Health app from this morning's data.
+            </Text>
+          </Alert>
+        )}
 
         {/* Core Metrics */}
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
