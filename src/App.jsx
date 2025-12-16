@@ -24,6 +24,7 @@ import StravaCallback from './pages/oauth/StravaCallback.jsx';
 import GarminCallback from './pages/oauth/GarminCallback.jsx';
 import WahooCallback from './pages/oauth/WahooCallback.jsx';
 import AuthCallback from './pages/oauth/AuthCallback.jsx';
+import GoogleCalendarCallback from './pages/oauth/GoogleCalendarCallback.jsx';
 
 // Components
 import BetaFeedbackWidget from './components/BetaFeedbackWidget.jsx';
@@ -94,6 +95,7 @@ function AppRoutes() {
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/oauth/strava/callback" element={<StravaCallback />} />
       <Route path="/oauth/garmin/callback" element={<GarminCallback />} />
+      <Route path="/oauth/google/callback" element={<GoogleCalendarCallback />} />
       <Route path="/wahoo/callback" element={<WahooCallback />} />
 
       {/* Protected routes */}
