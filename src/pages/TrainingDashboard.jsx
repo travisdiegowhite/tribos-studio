@@ -903,7 +903,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
             <SimpleGrid cols={3} spacing="xs">
               <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)', minWidth: 60 }}>
                 <Text size="xs" c="dimmed">HRV</Text>
-                <Text fw={600}>{todayHealthMetrics?.hrv_ms ? `${todayHealthMetrics.hrv_ms}ms` : '--'}</Text>
+                <Text fw={600}>{todayHealthMetrics?.hrv_score ? `${todayHealthMetrics.hrv_score}ms` : '--'}</Text>
               </Paper>
               <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)', minWidth: 60 }}>
                 <Text size="xs" c="dimmed">Sleep</Text>

@@ -14,6 +14,7 @@ import {
   Badge,
   Divider,
   SegmentedControl,
+  Alert,
 } from '@mantine/core';
 import {
   IconHeart,
@@ -23,11 +24,13 @@ import {
   IconBrain,
   IconScale,
   IconCheck,
-  IconBattery,
+  IconBrandSpeedtest,
+  IconInfoCircle,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useUserPreferences } from '../contexts/UserPreferencesContext.jsx';
 
 const EMOJI_SCALE = {
   1: { emoji: '1', label: 'Very Low', color: 'red' },
@@ -45,42 +48,64 @@ const SORENESS_SCALE = {
   5: { label: 'Severe', color: 'red' },
 };
 
+// Weight conversion helpers
+const KG_TO_LBS = 2.20462;
+const LBS_TO_KG = 0.453592;
+
 function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
   const { user } = useAuth();
+  const { unitsPreference } = useUserPreferences();
+  const isImperial = unitsPreference === 'imperial';
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    resting_hr: null,
-    hrv_ms: null,
+    resting_heart_rate: null,
+    hrv_score: null,
     sleep_hours: null,
     sleep_quality: 3,
     energy_level: 3,
     muscle_soreness: 1,
     stress_level: 3,
     weight_kg: null,
-    body_battery: null,
     notes: '',
   });
+
+  // For display - store weight in user's preferred unit
+  const [displayWeight, setDisplayWeight] = useState(null);
 
   // Load existing data if editing
   useEffect(() => {
     if (existingData) {
+      const weightKg = existingData.weight_kg || null;
       setFormData({
-        resting_hr: existingData.resting_hr || null,
-        hrv_ms: existingData.hrv_ms || null,
+        resting_heart_rate: existingData.resting_heart_rate || null,
+        hrv_score: existingData.hrv_score || null,
         sleep_hours: existingData.sleep_hours || null,
         sleep_quality: existingData.sleep_quality || 3,
         energy_level: existingData.energy_level || 3,
         muscle_soreness: existingData.muscle_soreness || 1,
         stress_level: existingData.stress_level || 3,
-        weight_kg: existingData.weight_kg || null,
-        body_battery: existingData.body_battery || null,
+        weight_kg: weightKg,
         notes: existingData.notes || '',
       });
+      // Convert weight for display
+      setDisplayWeight(weightKg ? (isImperial ? Math.round(weightKg * KG_TO_LBS * 10) / 10 : weightKg) : null);
     }
-  }, [existingData]);
+  }, [existingData, isImperial]);
 
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Handle weight input change - convert to kg for storage
+  const handleWeightChange = (value) => {
+    setDisplayWeight(value || null);
+    if (value) {
+      // Convert to kg for storage
+      const weightKg = isImperial ? value * LBS_TO_KG : value;
+      updateField('weight_kg', Math.round(weightKg * 100) / 100);
+    } else {
+      updateField('weight_kg', null);
+    }
   };
 
   const handleSave = async () => {
@@ -90,14 +115,24 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
     try {
       const today = new Date().toISOString().split('T')[0];
 
+      // Only include fields that exist in the database schema
+      const dataToSave = {
+        user_id: user.id,
+        recorded_date: today,
+        resting_heart_rate: formData.resting_heart_rate,
+        hrv_score: formData.hrv_score,
+        sleep_hours: formData.sleep_hours,
+        sleep_quality: formData.sleep_quality,
+        energy_level: formData.energy_level,
+        muscle_soreness: formData.muscle_soreness,
+        stress_level: formData.stress_level,
+        weight_kg: formData.weight_kg,
+        notes: formData.notes || null,
+      };
+
       const { data, error } = await supabase
         .from('health_metrics')
-        .upsert({
-          user_id: user.id,
-          recorded_date: today,
-          source: 'manual',
-          ...formData,
-        }, {
+        .upsert(dataToSave, {
           onConflict: 'user_id,recorded_date',
         })
         .select()
@@ -176,14 +211,20 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
           Log how you're feeling today. This helps personalize your training recommendations.
         </Text>
 
+        <Alert variant="light" color="blue" icon={<IconInfoCircle size={16} />} p="xs">
+          <Text size="xs">
+            Find your Resting HR and HRV in your Garmin Connect, Whoop, or Apple Health app from this morning's data.
+          </Text>
+        </Alert>
+
         {/* Core Metrics */}
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
           <NumberInput
             label="Resting HR"
             placeholder="bpm"
             leftSection={<IconHeart size={14} />}
-            value={formData.resting_hr || ''}
-            onChange={(v) => updateField('resting_hr', v || null)}
+            value={formData.resting_heart_rate || ''}
+            onChange={(v) => updateField('resting_heart_rate', v || null)}
             min={30}
             max={120}
             suffix=" bpm"
@@ -191,11 +232,12 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
           <NumberInput
             label="HRV"
             placeholder="ms"
-            leftSection={<IconBolt size={14} />}
-            value={formData.hrv_ms || ''}
-            onChange={(v) => updateField('hrv_ms', v || null)}
+            leftSection={<IconBrandSpeedtest size={14} />}
+            value={formData.hrv_score || ''}
+            onChange={(v) => updateField('hrv_score', v || null)}
             min={0}
             max={200}
+            suffix=" ms"
           />
           <NumberInput
             label="Sleep Hours"
@@ -228,29 +270,19 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
 
         <Divider />
 
-        {/* Optional */}
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-          <NumberInput
-            label="Weight (optional)"
-            placeholder="kg"
-            leftSection={<IconScale size={14} />}
-            value={formData.weight_kg || ''}
-            onChange={(v) => updateField('weight_kg', v || null)}
-            min={30}
-            max={200}
-            decimalScale={1}
-            suffix=" kg"
-          />
-          <NumberInput
-            label="Body Battery (optional)"
-            placeholder="0-100"
-            leftSection={<IconBattery size={14} />}
-            value={formData.body_battery || ''}
-            onChange={(v) => updateField('body_battery', v || null)}
-            min={0}
-            max={100}
-          />
-        </SimpleGrid>
+        {/* Optional - Weight */}
+        <NumberInput
+          label={`Weight (optional)`}
+          placeholder={isImperial ? 'lbs' : 'kg'}
+          leftSection={<IconScale size={14} />}
+          value={displayWeight || ''}
+          onChange={handleWeightChange}
+          min={isImperial ? 66 : 30}
+          max={isImperial ? 440 : 200}
+          decimalScale={1}
+          suffix={isImperial ? ' lbs' : ' kg'}
+          description={isImperial ? 'Stored as kg internally' : null}
+        />
 
         <Textarea
           label="Notes (optional)"
@@ -326,9 +358,9 @@ function ReadinessPreview({ formData }) {
       factorCount++;
     }
 
-    // HRV contribution
-    if (formData.hrv_ms) {
-      score += Math.min(25, formData.hrv_ms / 4);
+    // HRV contribution (using hrv_score which is what the DB stores)
+    if (formData.hrv_score) {
+      score += Math.min(25, formData.hrv_score / 4);
       factorCount++;
     }
 
