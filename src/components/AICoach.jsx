@@ -27,7 +27,7 @@ const getApiBaseUrl = () => {
   return 'http://localhost:3000';
 };
 
-function AICoach({ trainingContext, onAddWorkout }) {
+function AICoach({ trainingContext, onAddWorkout, activePlan }) {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -122,6 +122,19 @@ function AICoach({ trainingContext, onAddWorkout }) {
     });
 
     try {
+      // Check if user has an active plan
+      if (!activePlan?.id) {
+        notifications.update({
+          id: notificationId,
+          title: 'No Training Plan',
+          message: 'Please create or activate a training plan first to add workouts to your calendar',
+          color: 'orange',
+          loading: false,
+          autoClose: 5000
+        });
+        return;
+      }
+
       // Create workout event via the calendar service (which also saves to DB)
       const result = await googleCalendarService.createWorkoutEvent({
         name: workout.name,
@@ -129,7 +142,9 @@ function AICoach({ trainingContext, onAddWorkout }) {
         duration: workout.duration,
         scheduledDate: recommendation.scheduled_date,
         workoutType: workout.workoutType || workout.category,
-        reason: recommendation.reason
+        reason: recommendation.reason,
+        planId: activePlan.id,
+        targetTss: workout.targetTSS
       });
 
       // Update notification to success

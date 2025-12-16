@@ -582,10 +582,14 @@ async function createCalendarEvent(req, res, { userId, workout }) {
     return res.status(400).json({ error: 'userId and workout required' });
   }
 
-  const { name, description, duration, scheduledDate, scheduledTime, workoutType, reason } = workout;
+  const { name, description, duration, scheduledDate, scheduledTime, workoutType, reason, planId, targetTss } = workout;
 
   if (!name || !scheduledDate) {
     return res.status(400).json({ error: 'Workout name and scheduledDate required' });
+  }
+
+  if (!planId) {
+    return res.status(400).json({ error: 'planId required - user must have an active training plan' });
   }
 
   try {
@@ -684,19 +688,39 @@ async function createCalendarEvent(req, res, { userId, workout }) {
       ? normalizedWorkoutType
       : 'endurance'; // Default to endurance if type doesn't match
 
-    // Save workout to scheduled_workouts table
+    // Calculate week_number and day_of_week from scheduled date
+    const schedDate = new Date(scheduledDate);
+    const dayOfWeek = schedDate.getDay(); // 0=Sunday, 6=Saturday
+
+    // Get plan start date to calculate week number
+    const { data: planData } = await supabase
+      .from('training_plans')
+      .select('started_at')
+      .eq('id', planId)
+      .single();
+
+    let weekNumber = 1;
+    if (planData?.started_at) {
+      const planStart = new Date(planData.started_at);
+      const daysSinceStart = Math.floor((schedDate - planStart) / (24 * 60 * 60 * 1000));
+      weekNumber = Math.max(1, Math.floor(daysSinceStart / 7) + 1);
+    }
+
+    // Save workout to planned_workouts table (this is what TrainingCalendar reads)
     const { data: workoutRecord, error: dbError } = await supabase
-      .from('scheduled_workouts')
+      .from('planned_workouts')
       .insert({
+        plan_id: planId,
         user_id: userId,
         scheduled_date: scheduledDate,
+        week_number: weekNumber,
+        day_of_week: dayOfWeek,
         workout_type: dbWorkoutType,
-        target_duration_mins: duration || 60,
-        description: `${name}${description ? ': ' + description : ''}${reason ? ' - ' + reason : ''}`,
-        status: 'planned',
-        committed_time: scheduledTime || null,
-        google_calendar_event_id: calendarEventId,
-        notes: reason || null
+        target_duration: duration || 60,
+        target_tss: targetTss || null,
+        name: name,
+        notes: reason ? `Coach recommendation: ${reason}` : null,
+        completed: false
       })
       .select()
       .single();
