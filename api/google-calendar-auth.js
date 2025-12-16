@@ -86,6 +86,9 @@ export default async function handler(req, res) {
       case 'get_available_windows':
         return await getAvailableWindows(req, res, params);
 
+      case 'create_event':
+        return await createCalendarEvent(req, res, params);
+
       default:
         return res.status(400).json({ error: 'Invalid action' });
     }
@@ -567,6 +570,161 @@ async function getAvailableWindows(req, res, { userId, date }) {
 
   } catch (error) {
     console.error('Get available windows error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Create a workout event in Google Calendar and save to database
+ */
+async function createCalendarEvent(req, res, { userId, workout }) {
+  if (!userId || !workout) {
+    return res.status(400).json({ error: 'userId and workout required' });
+  }
+
+  const { name, description, duration, scheduledDate, scheduledTime, workoutType, reason } = workout;
+
+  if (!name || !scheduledDate) {
+    return res.status(400).json({ error: 'Workout name and scheduledDate required' });
+  }
+
+  try {
+    // Get user settings to check if calendar is connected
+    const { data: settings, error: settingsError } = await supabase
+      .from('user_coach_settings')
+      .select('google_calendar_connected, google_calendar_id, google_refresh_token')
+      .eq('user_id', userId)
+      .single();
+
+    let calendarEventId = null;
+
+    // Only create calendar event if Google Calendar is connected
+    if (settings?.google_calendar_connected && settings?.google_refresh_token) {
+      const accessToken = await refreshAccessToken(settings.google_refresh_token);
+      const calendarId = settings.google_calendar_id || 'primary';
+
+      // Build event start/end times
+      const eventDate = new Date(scheduledDate);
+      let startDateTime, endDateTime;
+
+      if (scheduledTime) {
+        // If specific time provided, create timed event
+        const [hours, minutes] = scheduledTime.split(':').map(Number);
+        startDateTime = new Date(eventDate);
+        startDateTime.setHours(hours, minutes, 0, 0);
+
+        endDateTime = new Date(startDateTime);
+        endDateTime.setMinutes(endDateTime.getMinutes() + (duration || 60));
+      } else {
+        // Create all-day event if no time specified
+        startDateTime = eventDate;
+        endDateTime = eventDate;
+      }
+
+      // Build event description
+      const eventDescription = [
+        description || '',
+        reason ? `\nCoach's Recommendation: ${reason}` : '',
+        workoutType ? `\nWorkout Type: ${workoutType}` : '',
+        duration ? `\nDuration: ${duration} minutes` : ''
+      ].filter(Boolean).join('');
+
+      // Create Google Calendar event
+      const event = {
+        summary: `🚴 ${name}`,
+        description: eventDescription,
+        colorId: '11', // Red color for workouts (can be customized)
+      };
+
+      if (scheduledTime) {
+        event.start = {
+          dateTime: startDateTime.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+        };
+        event.end = {
+          dateTime: endDateTime.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+        };
+      } else {
+        // All-day event
+        event.start = { date: scheduledDate };
+        event.end = { date: scheduledDate };
+      }
+
+      const calendarResponse = await fetch(
+        `${GOOGLE_CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(event)
+        }
+      );
+
+      if (calendarResponse.ok) {
+        const eventData = await calendarResponse.json();
+        calendarEventId = eventData.id;
+        console.log('Created Google Calendar event:', calendarEventId);
+      } else {
+        const errorText = await calendarResponse.text();
+        console.error('Failed to create calendar event:', errorText);
+        // Continue - we'll still save to database even if calendar fails
+      }
+    }
+
+    // Map workout type to valid enum value
+    const validWorkoutTypes = [
+      'endurance', 'tempo', 'threshold', 'intervals', 'recovery',
+      'sweet_spot', 'vo2max', 'anaerobic', 'sprint', 'rest'
+    ];
+    const normalizedWorkoutType = workoutType?.toLowerCase().replace(/[\s-]/g, '_');
+    const dbWorkoutType = validWorkoutTypes.includes(normalizedWorkoutType)
+      ? normalizedWorkoutType
+      : 'endurance'; // Default to endurance if type doesn't match
+
+    // Save workout to scheduled_workouts table
+    const { data: workoutRecord, error: dbError } = await supabase
+      .from('scheduled_workouts')
+      .insert({
+        user_id: userId,
+        scheduled_date: scheduledDate,
+        workout_type: dbWorkoutType,
+        target_duration_mins: duration || 60,
+        description: `${name}${description ? ': ' + description : ''}${reason ? ' - ' + reason : ''}`,
+        status: 'planned',
+        committed_time: scheduledTime || null,
+        google_calendar_event_id: calendarEventId,
+        notes: reason || null
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('Database error saving workout:', dbError);
+      // If we created a calendar event but DB failed, try to clean up
+      // (In production you might want to handle this more gracefully)
+      return res.status(500).json({
+        error: 'Failed to save workout to database',
+        calendarEventCreated: !!calendarEventId
+      });
+    }
+
+    console.log('Workout saved successfully:', workoutRecord.id);
+
+    return res.status(200).json({
+      success: true,
+      workoutId: workoutRecord.id,
+      calendarEventId: calendarEventId,
+      calendarSynced: !!calendarEventId,
+      message: calendarEventId
+        ? 'Workout added to calendar and database'
+        : 'Workout saved (calendar not connected)'
+    });
+
+  } catch (error) {
+    console.error('Create calendar event error:', error);
     return res.status(500).json({ error: error.message });
   }
 }

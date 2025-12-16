@@ -40,7 +40,7 @@ export class GoogleCalendarService {
 
   /**
    * Generate Google OAuth authorization URL
-   * Only requests calendar.readonly scope for reading busy times
+   * Requests full calendar access for reading and creating events
    */
   getAuthorizationUrl(state = null) {
     if (!this.isConfigured()) {
@@ -58,7 +58,7 @@ export class GoogleCalendarService {
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
       response_type: 'code',
-      scope: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email',
+      scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email',
       access_type: 'offline', // Required for refresh token
       prompt: 'consent', // Force consent to get refresh token
     });
@@ -345,6 +345,51 @@ export class GoogleCalendarService {
 
     } catch (error) {
       console.error('Error calculating available windows:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a workout event in Google Calendar
+   * @param {Object} workout - Workout details
+   * @param {string} workout.name - Workout name
+   * @param {string} workout.description - Workout description
+   * @param {number} workout.duration - Duration in minutes
+   * @param {string} workout.scheduledDate - Date in YYYY-MM-DD format
+   * @param {string} workout.scheduledTime - Optional time in HH:MM format
+   * @param {string} workout.workoutType - Type of workout (endurance, intervals, etc.)
+   * @returns {Object} Created event details including event ID
+   */
+  async createWorkoutEvent(workout) {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/google-calendar-auth`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'create_event',
+          userId,
+          workout
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create calendar event');
+      }
+
+      const data = await response.json();
+      return data;
+
+    } catch (error) {
+      console.error('Error creating calendar event:', error);
       throw error;
     }
   }

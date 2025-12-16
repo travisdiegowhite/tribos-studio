@@ -13,10 +13,11 @@ import {
   Loader,
   Paper,
 } from '@mantine/core';
-import { IconSend, IconRobot, IconUser, IconPlus, IconClock, IconFlame } from '@tabler/icons-react';
+import { IconSend, IconRobot, IconUser, IconPlus, IconClock, IconFlame, IconCalendarCheck, IconCheck } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { getWorkoutById } from '../data/workoutLibrary';
+import { googleCalendarService } from '../utils/googleCalendarService';
 
 // Get the API base URL
 const getApiBaseUrl = () => {
@@ -101,19 +102,70 @@ function AICoach({ trainingContext, onAddWorkout }) {
     }
   };
 
-  const handleAddWorkout = (recommendation) => {
+  const handleAddWorkout = async (recommendation) => {
     const workout = getWorkoutById(recommendation.workout_id);
-    if (workout && onAddWorkout) {
-      onAddWorkout({
-        ...workout,
-        scheduledDate: recommendation.scheduled_date,
-        reason: recommendation.reason,
-        priority: recommendation.priority
-      });
+    if (!workout) {
       notifications.show({
-        title: 'Workout Added',
-        message: `${workout.name} scheduled for ${recommendation.scheduled_date}`,
-        color: 'lime'
+        title: 'Error',
+        message: 'Workout not found',
+        color: 'red'
+      });
+      return;
+    }
+
+    // Show loading notification
+    const notificationId = notifications.show({
+      title: 'Adding Workout',
+      message: `Scheduling ${workout.name}...`,
+      loading: true,
+      autoClose: false
+    });
+
+    try {
+      // Create workout event via the calendar service (which also saves to DB)
+      const result = await googleCalendarService.createWorkoutEvent({
+        name: workout.name,
+        description: workout.description,
+        duration: workout.duration,
+        scheduledDate: recommendation.scheduled_date,
+        workoutType: workout.workoutType || workout.category,
+        reason: recommendation.reason
+      });
+
+      // Update notification to success
+      notifications.update({
+        id: notificationId,
+        title: 'Workout Scheduled!',
+        message: result.calendarSynced
+          ? `${workout.name} added to your calendar for ${recommendation.scheduled_date}`
+          : `${workout.name} scheduled for ${recommendation.scheduled_date} (connect Google Calendar to sync)`,
+        color: 'lime',
+        icon: result.calendarSynced ? <IconCalendarCheck size={18} /> : <IconCheck size={18} />,
+        loading: false,
+        autoClose: 4000
+      });
+
+      // Call parent callback if provided
+      if (onAddWorkout) {
+        onAddWorkout({
+          ...workout,
+          scheduledDate: recommendation.scheduled_date,
+          reason: recommendation.reason,
+          priority: recommendation.priority,
+          workoutId: result.workoutId,
+          calendarEventId: result.calendarEventId
+        });
+      }
+
+    } catch (error) {
+      console.error('Error adding workout:', error);
+      notifications.update({
+        id: notificationId,
+        title: 'Error',
+        message: error.message || 'Failed to schedule workout',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
       });
     }
   };
