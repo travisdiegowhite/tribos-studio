@@ -255,6 +255,42 @@ export class GarminService {
   }
 
   /**
+   * Fetch health data from Garmin (dailies, sleep, body composition)
+   * Returns resting HR, HRV, sleep hours/quality, stress, and weight
+   */
+  async getHealthData() {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'get_health_data',
+          userId
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return { success: false, error: errorData.error || 'Failed to fetch health data' };
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching Garmin health data:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Get webhook status and diagnostics
    */
   async getWebhookStatus() {
