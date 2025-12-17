@@ -568,7 +568,6 @@ async function repairConnection(req, res, userId) {
           repaired_at: new Date().toISOString(),
           garmin_user_id: garminUserId
         },
-        sync_error: null, // Clear any previous errors
         updated_at: new Date().toISOString()
       })
       .eq('user_id', userId)
@@ -606,7 +605,7 @@ async function getConnectionStatus(req, res, userId) {
   try {
     const { data: integration, error } = await supabase
       .from('bike_computer_integrations')
-      .select('provider_user_id, provider_user_data, updated_at, sync_enabled, token_expires_at, sync_error')
+      .select('provider_user_id, provider_user_data, updated_at, sync_enabled, token_expires_at')
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .maybeSingle();
@@ -640,9 +639,6 @@ async function getConnectionStatus(req, res, userId) {
     } else if (isExpired) {
       healthStatus = 'token_expired';
       healthMessage = 'Token expired - try refreshing or reconnecting.';
-    } else if (integration.sync_error) {
-      healthStatus = 'has_errors';
-      healthMessage = integration.sync_error;
     }
 
     return res.status(200).json({
@@ -655,8 +651,7 @@ async function getConnectionStatus(req, res, userId) {
       hasGarminUserId: hasUserID,
       healthStatus,
       healthMessage,
-      requiresReconnect,
-      syncError: integration.sync_error
+      requiresReconnect
     });
 
   } catch (error) {
