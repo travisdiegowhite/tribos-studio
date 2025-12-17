@@ -75,10 +75,10 @@ export default async function handler(req, res) {
 
 async function getWebhookStats(userId) {
   try {
-    // Get integration status first (including sync_error)
+    // Get integration status first
     const { data: integration, error: integrationError } = await supabase
       .from('bike_computer_integrations')
-      .select('id, provider_user_id, sync_enabled, last_sync_at, token_expires_at, access_token, sync_error, updated_at')
+      .select('id, provider_user_id, sync_enabled, last_sync_at, token_expires_at, access_token, updated_at')
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .maybeSingle();
@@ -172,10 +172,6 @@ async function getWebhookStats(userId) {
       troubleshooting.push(`⚠️ Token expires in ${tokenExpiresInDays} days. It will be refreshed automatically.`);
     }
 
-    if (integration?.sync_error) {
-      troubleshooting.push(`❌ Last sync error: ${integration.sync_error}`);
-    }
-
     if (totalEvents === 0 && integration?.provider_user_id) {
       troubleshooting.push('ℹ️ No webhooks received yet. Possible causes:');
       troubleshooting.push('   1. Webhook URL not registered in Garmin Developer Portal');
@@ -195,16 +191,13 @@ async function getWebhookStats(userId) {
         status: !integration ? 'not_connected' :
                 !integration.provider_user_id ? 'missing_user_id' :
                 !tokenValid ? 'token_expired' :
-                integration.sync_error ? 'has_errors' :
                 'healthy',
         statusEmoji: !integration ? '❌' :
                      !integration.provider_user_id ? '⚠️' :
-                     !tokenValid ? '🔄' :
-                     integration.sync_error ? '⚠️' : '✅',
+                     !tokenValid ? '🔄' : '✅',
         message: !integration ? 'Not connected to Garmin' :
                  !integration.provider_user_id ? 'Missing Garmin User ID - reconnect required' :
                  !tokenValid ? 'Token expired - will refresh on next sync' :
-                 integration.sync_error ? 'Connected but experiencing errors' :
                  'Connected and healthy'
       },
       integration: integration ? {
@@ -213,7 +206,6 @@ async function getWebhookStats(userId) {
         syncEnabled: integration.sync_enabled,
         lastSyncAt: integration.last_sync_at,
         lastUpdatedAt: integration.updated_at,
-        syncError: integration.sync_error,
         tokenExpiresAt: integration.token_expires_at,
         tokenValid: tokenValid,
         tokenExpiresIn: tokenExpiresInHours !== null
