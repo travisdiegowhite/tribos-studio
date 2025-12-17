@@ -184,6 +184,49 @@ export class GarminService {
   }
 
   /**
+   * Repair a broken Garmin connection
+   * Use when connection shows "Missing User ID" or "Token Expired"
+   * This refreshes the token and re-fetches the Garmin User ID
+   */
+  async repairConnection() {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'repair_connection',
+          userId
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Return the error info so UI can decide whether to show reconnect option
+        return {
+          success: false,
+          error: data.error || 'Failed to repair connection',
+          requiresReconnect: data.requiresReconnect || false
+        };
+      }
+
+      console.log('✅ Garmin connection repaired');
+      return data;
+    } catch (error) {
+      console.error('Error repairing Garmin connection:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Sync activities from Garmin Connect
    */
   async syncActivities() {

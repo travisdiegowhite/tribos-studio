@@ -129,6 +129,9 @@ export default async function handler(req, res) {
       case 'refresh_token':
         return await refreshToken(req, res, userId);
 
+      case 'repair_connection':
+        return await repairConnection(req, res, userId);
+
       case 'sync_activities':
         return await syncActivities(req, res, userId);
 
@@ -282,24 +285,49 @@ async function exchangeToken(req, res, userId, code, state) {
     const tokenData = await response.json();
 
     // Fetch Garmin user ID - REQUIRED for webhook matching
+    // This is critical - without the User ID, webhooks cannot be matched to the user
     let garminUserId = null;
-    try {
-      console.log('Fetching Garmin user ID...');
-      const userIdResponse = await fetch('https://apis.garmin.com/wellness-api/rest/user/id', {
-        headers: {
-          'Authorization': `Bearer ${tokenData.access_token}`
-        }
-      });
+    const maxRetries = 3;
+    let lastError = null;
 
-      if (userIdResponse.ok) {
-        const userData = await userIdResponse.json();
-        garminUserId = userData.userId;
-        console.log('Garmin user ID retrieved:', garminUserId);
-      } else {
-        console.warn('Failed to fetch Garmin user ID:', await userIdResponse.text());
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Fetching Garmin user ID (attempt ${attempt}/${maxRetries})...`);
+        const userIdResponse = await fetch('https://apis.garmin.com/wellness-api/rest/user/id', {
+          headers: {
+            'Authorization': `Bearer ${tokenData.access_token}`
+          }
+        });
+
+        if (userIdResponse.ok) {
+          const userData = await userIdResponse.json();
+          garminUserId = userData.userId;
+          console.log('Garmin user ID retrieved successfully:', garminUserId);
+          break; // Success - exit retry loop
+        } else {
+          const errorText = await userIdResponse.text();
+          lastError = `HTTP ${userIdResponse.status}: ${errorText}`;
+          console.warn(`Attempt ${attempt} failed to fetch Garmin user ID:`, lastError);
+        }
+      } catch (userIdError) {
+        lastError = userIdError.message;
+        console.warn(`Attempt ${attempt} error fetching Garmin user ID:`, lastError);
       }
-    } catch (userIdError) {
-      console.warn('Error fetching Garmin user ID:', userIdError.message);
+
+      // Wait before retrying (exponential backoff: 1s, 2s, 4s)
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
+      }
+    }
+
+    // CRITICAL: Fail the connection if we couldn't get the Garmin User ID
+    // Without this ID, webhooks cannot be matched to the user's account
+    if (!garminUserId) {
+      console.error('CRITICAL: Failed to fetch Garmin User ID after all retries. Last error:', lastError);
+      throw new Error(
+        'Failed to retrieve your Garmin User ID. This is required for activity sync. ' +
+        'Please try connecting again. If the problem persists, Garmin services may be temporarily unavailable.'
+      );
     }
 
     // Calculate token expiration (Garmin tokens expire in 3 months)
@@ -422,6 +450,154 @@ async function refreshToken(req, res, userId) {
   }
 }
 
+// Repair a broken connection by refreshing token and re-fetching Garmin User ID
+// Use this when the connection shows "Missing User ID" or "Token Expired"
+async function repairConnection(req, res, userId) {
+  if (!userId) {
+    return res.status(400).json({ error: 'UserId required' });
+  }
+
+  try {
+    // Get stored integration data
+    const { data: integration, error: fetchError } = await supabase
+      .from('bike_computer_integrations')
+      .select('access_token, refresh_token, provider_user_id, token_expires_at')
+      .eq('user_id', userId)
+      .eq('provider', 'garmin')
+      .single();
+
+    if (fetchError || !integration) {
+      return res.status(400).json({
+        error: 'No Garmin connection found. Please connect your account first.',
+        requiresReconnect: true
+      });
+    }
+
+    if (!integration.refresh_token) {
+      return res.status(400).json({
+        error: 'No refresh token available. Please reconnect your Garmin account.',
+        requiresReconnect: true
+      });
+    }
+
+    // Step 1: Refresh the token
+    console.log('Repair: Refreshing token...');
+    const tokenParams = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: process.env.GARMIN_CONSUMER_KEY,
+      client_secret: process.env.GARMIN_CONSUMER_SECRET,
+      refresh_token: integration.refresh_token
+    });
+
+    const tokenResponse = await fetch(GARMIN_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: tokenParams.toString()
+    });
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('Repair: Token refresh failed:', errorText);
+      return res.status(400).json({
+        error: 'Failed to refresh token. Your Garmin authorization may have been revoked. Please reconnect.',
+        requiresReconnect: true,
+        details: tokenResponse.status
+      });
+    }
+
+    const tokenData = await tokenResponse.json();
+    const newAccessToken = tokenData.access_token;
+    console.log('Repair: Token refreshed successfully');
+
+    // Step 2: Fetch Garmin User ID with the new token
+    console.log('Repair: Fetching Garmin User ID...');
+    let garminUserId = null;
+    let lastError = null;
+    const maxRetries = 3;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const userIdResponse = await fetch('https://apis.garmin.com/wellness-api/rest/user/id', {
+          headers: {
+            'Authorization': `Bearer ${newAccessToken}`
+          }
+        });
+
+        if (userIdResponse.ok) {
+          const userData = await userIdResponse.json();
+          garminUserId = userData.userId;
+          console.log('Repair: Garmin User ID retrieved:', garminUserId);
+          break;
+        } else {
+          lastError = await userIdResponse.text();
+          console.warn(`Repair: Attempt ${attempt} failed:`, lastError);
+        }
+      } catch (err) {
+        lastError = err.message;
+        console.warn(`Repair: Attempt ${attempt} error:`, lastError);
+      }
+
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
+      }
+    }
+
+    if (!garminUserId) {
+      return res.status(500).json({
+        error: 'Token refreshed but failed to retrieve Garmin User ID. Please try again or reconnect.',
+        tokenRefreshed: true,
+        userIdFetched: false,
+        requiresReconnect: true
+      });
+    }
+
+    // Step 3: Update the database with new token and User ID
+    const expiresAt = new Date();
+    expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7776000));
+
+    const { error: updateError } = await supabase
+      .from('bike_computer_integrations')
+      .update({
+        access_token: newAccessToken,
+        refresh_token: tokenData.refresh_token || integration.refresh_token,
+        token_expires_at: expiresAt.toISOString(),
+        provider_user_id: garminUserId,
+        provider_user_data: {
+          repaired_at: new Date().toISOString(),
+          garmin_user_id: garminUserId
+        },
+        sync_error: null, // Clear any previous errors
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('provider', 'garmin');
+
+    if (updateError) {
+      console.error('Repair: Database update failed:', updateError);
+      throw new Error('Failed to save repaired connection');
+    }
+
+    console.log('Repair: Connection successfully repaired for user', userId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Connection repaired successfully! Your Garmin account is now fully connected.',
+      tokenRefreshed: true,
+      userIdFetched: true,
+      garminUserId: garminUserId
+    });
+
+  } catch (error) {
+    console.error('Repair connection error:', error);
+    return res.status(500).json({
+      error: error.message || 'Failed to repair connection',
+      requiresReconnect: true
+    });
+  }
+}
+
 async function getConnectionStatus(req, res, userId) {
   if (!userId) {
     return res.status(400).json({ error: 'UserId required' });
@@ -430,7 +606,7 @@ async function getConnectionStatus(req, res, userId) {
   try {
     const { data: integration, error } = await supabase
       .from('bike_computer_integrations')
-      .select('provider_user_id, provider_user_data, updated_at, sync_enabled, token_expires_at')
+      .select('provider_user_id, provider_user_data, updated_at, sync_enabled, token_expires_at, sync_error')
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .maybeSingle();
@@ -445,13 +621,42 @@ async function getConnectionStatus(req, res, userId) {
     }
 
     // Check if token is expired
-    const isExpired = integration.token_expires_at && new Date(integration.token_expires_at) < new Date();
+    const now = new Date();
+    const tokenExpiresAt = integration.token_expires_at ? new Date(integration.token_expires_at) : null;
+    const isExpired = tokenExpiresAt ? tokenExpiresAt < now : true;
+
+    // Check if User ID is missing (critical for webhooks)
+    const hasUserID = !!integration.provider_user_id;
+
+    // Determine connection health status
+    let healthStatus = 'healthy';
+    let healthMessage = 'Connected and working';
+    let requiresReconnect = false;
+
+    if (!hasUserID) {
+      healthStatus = 'missing_user_id';
+      healthMessage = 'Missing Garmin User ID - activity sync will not work. Please reconnect.';
+      requiresReconnect = true;
+    } else if (isExpired) {
+      healthStatus = 'token_expired';
+      healthMessage = 'Token expired - try refreshing or reconnecting.';
+    } else if (integration.sync_error) {
+      healthStatus = 'has_errors';
+      healthMessage = integration.sync_error;
+    }
 
     return res.status(200).json({
       connected: true,
       syncEnabled: integration.sync_enabled,
       lastUpdated: integration.updated_at,
-      tokenExpired: isExpired
+      tokenExpired: isExpired,
+      // New detailed status fields
+      garminUserId: integration.provider_user_id,
+      hasGarminUserId: hasUserID,
+      healthStatus,
+      healthMessage,
+      requiresReconnect,
+      syncError: integration.sync_error
     });
 
   } catch (error) {
