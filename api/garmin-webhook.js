@@ -106,6 +106,36 @@ export default async function handler(req, res) {
     const webhookData = req.body;
     const clientIP = req.headers['x-forwarded-for']?.split(',')[0].trim() || 'unknown';
 
+    // Detect Health API Push notifications (dailies, sleeps, bodyComps, etc.)
+    const healthDataTypes = ['dailies', 'epochs', 'sleeps', 'bodyComps', 'stressDetails', 'userMetrics', 'hrv'];
+    const detectedHealthType = healthDataTypes.find(type => webhookData[type] && webhookData[type].length > 0);
+
+    if (detectedHealthType) {
+      console.log('📥 Garmin Health Push received:', {
+        type: detectedHealthType,
+        count: webhookData[detectedHealthType].length,
+        ip: clientIP,
+        timestamp: lastWebhookReceived
+      });
+
+      // Process health data immediately (it's already in the payload - no callback needed)
+      // Respond quickly to Garmin, then process
+      res.status(200).json({
+        success: true,
+        message: `Health data received: ${detectedHealthType}`,
+        count: webhookData[detectedHealthType].length
+      });
+
+      // Process health data asynchronously
+      setImmediate(() => {
+        processHealthPushData(detectedHealthType, webhookData[detectedHealthType]).catch(err => {
+          console.error('❌ Health data processing error:', err);
+        });
+      });
+
+      return;
+    }
+
     // Garmin sends different payload structures for different webhook types
     // Parse the payload to extract activity data from various formats
     let activityData = null;
@@ -555,4 +585,274 @@ function mapGarminActivityType(garminType) {
 
   const lowerType = (garminType || '').toLowerCase();
   return typeMap[lowerType] || 'Ride';
+}
+
+// ============================================================================
+// HEALTH DATA PUSH PROCESSING
+// Handles Push notifications from Garmin Health API (dailies, sleeps, bodyComps, etc.)
+// ============================================================================
+
+async function processHealthPushData(dataType, dataArray) {
+  console.log(`🏥 Processing ${dataArray.length} ${dataType} records`);
+
+  for (const record of dataArray) {
+    try {
+      const garminUserId = record.userId;
+
+      // Find the user by Garmin user ID
+      const { data: integration, error: integrationError } = await supabase
+        .from('bike_computer_integrations')
+        .select('user_id')
+        .eq('provider', 'garmin')
+        .eq('provider_user_id', garminUserId)
+        .maybeSingle();
+
+      if (integrationError || !integration) {
+        console.warn(`⚠️ No integration found for Garmin user: ${garminUserId}`);
+        continue;
+      }
+
+      const userId = integration.user_id;
+
+      // Process based on data type
+      switch (dataType) {
+        case 'dailies':
+          await processDailySummary(userId, record);
+          break;
+        case 'sleeps':
+          await processSleepSummary(userId, record);
+          break;
+        case 'bodyComps':
+          await processBodyCompSummary(userId, record);
+          break;
+        case 'stressDetails':
+          await processStressDetails(userId, record);
+          break;
+        case 'hrv':
+          await processHrvSummary(userId, record);
+          break;
+        default:
+          console.log(`ℹ️ Unhandled health data type: ${dataType}`);
+      }
+
+    } catch (err) {
+      console.error(`❌ Error processing ${dataType} record:`, err);
+    }
+  }
+}
+
+async function processDailySummary(userId, data) {
+  const metricDate = data.calendarDate;
+  if (!metricDate) {
+    console.warn('Daily summary missing calendarDate');
+    return;
+  }
+
+  console.log(`📊 Processing daily summary for ${metricDate}:`, {
+    restingHR: data.restingHeartRateInBeatsPerMinute,
+    avgStress: data.averageStressLevel,
+    steps: data.steps
+  });
+
+  // Upsert health metrics - using production column names
+  const healthData = {
+    user_id: userId,
+    metric_date: metricDate,
+    resting_hr: data.restingHeartRateInBeatsPerMinute || null,
+    stress_level: data.averageStressLevel != null
+      ? Math.max(1, Math.min(5, Math.round(data.averageStressLevel / 20)))
+      : null,
+    body_battery: data.bodyBatteryChargedValue || null,
+    source: 'garmin',
+    updated_at: new Date().toISOString()
+  };
+
+  // Remove null values to avoid overwriting existing data
+  Object.keys(healthData).forEach(key => {
+    if (healthData[key] === null && key !== 'user_id' && key !== 'metric_date' && key !== 'source') {
+      delete healthData[key];
+    }
+  });
+
+  const { error } = await supabase
+    .from('health_metrics')
+    .upsert(healthData, { onConflict: 'user_id,metric_date' });
+
+  if (error) {
+    console.error('❌ Error saving daily summary:', error);
+  } else {
+    console.log(`✅ Daily summary saved for ${metricDate}`);
+  }
+}
+
+async function processSleepSummary(userId, data) {
+  const metricDate = data.calendarDate;
+  if (!metricDate) {
+    console.warn('Sleep summary missing calendarDate');
+    return;
+  }
+
+  // Convert sleep duration from seconds to hours
+  const sleepHours = data.durationInSeconds
+    ? Math.round((data.durationInSeconds / 3600) * 10) / 10
+    : null;
+
+  // Convert sleep score to 1-5 scale if available
+  let sleepQuality = null;
+  if (data.overallSleepScore?.value != null) {
+    sleepQuality = Math.max(1, Math.min(5, Math.round(data.overallSleepScore.value / 20)));
+  }
+
+  console.log(`😴 Processing sleep summary for ${metricDate}:`, {
+    duration: sleepHours,
+    score: data.overallSleepScore?.value,
+    quality: sleepQuality
+  });
+
+  const healthData = {
+    user_id: userId,
+    metric_date: metricDate,
+    sleep_hours: sleepHours,
+    sleep_quality: sleepQuality,
+    source: 'garmin',
+    updated_at: new Date().toISOString()
+  };
+
+  // Remove null values
+  Object.keys(healthData).forEach(key => {
+    if (healthData[key] === null && key !== 'user_id' && key !== 'metric_date' && key !== 'source') {
+      delete healthData[key];
+    }
+  });
+
+  const { error } = await supabase
+    .from('health_metrics')
+    .upsert(healthData, { onConflict: 'user_id,metric_date' });
+
+  if (error) {
+    console.error('❌ Error saving sleep summary:', error);
+  } else {
+    console.log(`✅ Sleep summary saved for ${metricDate}`);
+  }
+}
+
+async function processBodyCompSummary(userId, data) {
+  // Body comp uses measurementTimeInSeconds, not calendarDate
+  const measurementTime = data.measurementTimeInSeconds
+    ? new Date(data.measurementTimeInSeconds * 1000)
+    : new Date();
+  const metricDate = measurementTime.toISOString().split('T')[0];
+
+  const weightKg = data.weightInGrams
+    ? Math.round((data.weightInGrams / 1000) * 10) / 10
+    : null;
+
+  const bodyFatPercent = data.bodyFatInPercent || null;
+
+  console.log(`⚖️ Processing body comp for ${metricDate}:`, {
+    weight: weightKg,
+    bodyFat: bodyFatPercent
+  });
+
+  if (!weightKg && !bodyFatPercent) {
+    console.log('No useful body comp data to save');
+    return;
+  }
+
+  const healthData = {
+    user_id: userId,
+    metric_date: metricDate,
+    weight_kg: weightKg,
+    body_fat_percent: bodyFatPercent,
+    source: 'garmin',
+    updated_at: new Date().toISOString()
+  };
+
+  // Remove null values
+  Object.keys(healthData).forEach(key => {
+    if (healthData[key] === null && key !== 'user_id' && key !== 'metric_date' && key !== 'source') {
+      delete healthData[key];
+    }
+  });
+
+  const { error } = await supabase
+    .from('health_metrics')
+    .upsert(healthData, { onConflict: 'user_id,metric_date' });
+
+  if (error) {
+    console.error('❌ Error saving body comp:', error);
+  } else {
+    console.log(`✅ Body comp saved for ${metricDate}`);
+  }
+}
+
+async function processStressDetails(userId, data) {
+  const metricDate = data.calendarDate;
+  if (!metricDate) return;
+
+  // Extract body battery values if present
+  const bodyBatteryValues = data.timeOffsetBodyBatteryValues;
+  let latestBodyBattery = null;
+
+  if (bodyBatteryValues && Object.keys(bodyBatteryValues).length > 0) {
+    // Get the latest body battery reading
+    const sortedOffsets = Object.keys(bodyBatteryValues).map(Number).sort((a, b) => b - a);
+    latestBodyBattery = bodyBatteryValues[sortedOffsets[0]];
+  }
+
+  console.log(`😰 Processing stress details for ${metricDate}:`, {
+    bodyBattery: latestBodyBattery
+  });
+
+  if (latestBodyBattery == null) return;
+
+  const healthData = {
+    user_id: userId,
+    metric_date: metricDate,
+    body_battery: latestBodyBattery,
+    source: 'garmin',
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabase
+    .from('health_metrics')
+    .upsert(healthData, { onConflict: 'user_id,metric_date' });
+
+  if (error) {
+    console.error('❌ Error saving stress details:', error);
+  } else {
+    console.log(`✅ Stress details saved for ${metricDate}`);
+  }
+}
+
+async function processHrvSummary(userId, data) {
+  const metricDate = data.calendarDate;
+  if (!metricDate) return;
+
+  // HRV is measured in milliseconds
+  const hrvMs = data.lastNightAvg || null;
+
+  console.log(`💓 Processing HRV summary for ${metricDate}:`, {
+    hrv: hrvMs
+  });
+
+  if (hrvMs == null) return;
+
+  const healthData = {
+    user_id: userId,
+    metric_date: metricDate,
+    hrv_ms: hrvMs,
+    source: 'garmin',
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabase
+    .from('health_metrics')
+    .upsert(healthData, { onConflict: 'user_id,metric_date' });
+
+  if (error) {
+    console.error('❌ Error saving HRV summary:', error);
+  } else {
+    console.log(`✅ HRV summary saved for ${metricDate}`);
+  }
 }

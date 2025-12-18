@@ -315,27 +315,15 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         </Text>
 
         {garminConnected ? (
-          <Alert variant="light" color="teal" p="xs">
-            <Group justify="space-between" align="center">
-              <Text size="xs">
-                Garmin connected - sync today's health data automatically
-              </Text>
-              <Button
-                size="xs"
-                variant="light"
-                color="teal"
-                leftSection={garminLoading ? <Loader size={12} /> : <IconRefresh size={14} />}
-                onClick={handleGarminSync}
-                disabled={garminLoading}
-              >
-                {garminLoading ? 'Syncing...' : 'Sync from Garmin'}
-              </Button>
-            </Group>
+          <Alert variant="light" color="teal" icon={<IconCheck size={16} />} p="xs">
+            <Text size="xs">
+              <strong>Garmin connected</strong> - Health data (HR, sleep, HRV, weight) syncs automatically when you sync your device. Any Garmin data will appear below.
+            </Text>
           </Alert>
         ) : (
           <Alert variant="light" color="blue" icon={<IconInfoCircle size={16} />} p="xs">
             <Text size="xs">
-              Find your Resting HR and HRV in your Garmin Connect, Whoop, or Apple Health app from this morning's data.
+              Connect Garmin in Settings to auto-sync health data, or enter values manually from your Garmin Connect app.
             </Text>
           </Alert>
         )}
