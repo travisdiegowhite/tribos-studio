@@ -712,6 +712,47 @@ async function pushRoute(req, res, userId, routeData) {
   });
 }
 
+// Helper function to refresh Garmin token
+async function refreshGarminToken(userId, refreshToken) {
+  const tokenParams = new URLSearchParams({
+    grant_type: 'refresh_token',
+    client_id: process.env.GARMIN_CONSUMER_KEY,
+    client_secret: process.env.GARMIN_CONSUMER_SECRET,
+    refresh_token: refreshToken
+  });
+
+  const tokenResponse = await fetch(GARMIN_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: tokenParams.toString()
+  });
+
+  if (!tokenResponse.ok) {
+    const errorText = await tokenResponse.text();
+    console.error('Token refresh failed:', tokenResponse.status, errorText);
+    return null;
+  }
+
+  const tokenData = await tokenResponse.json();
+
+  // Update stored tokens
+  const expiresAt = new Date();
+  expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7776000));
+
+  await supabase
+    .from('bike_computer_integrations')
+    .update({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token || refreshToken,
+      token_expires_at: expiresAt.toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('user_id', userId)
+    .eq('provider', 'garmin');
+
+  return tokenData.access_token;
+}
+
 // Fetch health data from Garmin (dailies, sleep, body composition)
 async function getHealthData(req, res, userId) {
   if (!userId) {
@@ -737,45 +778,19 @@ async function getHealthData(req, res, userId) {
 
     // Check if token needs refresh
     let accessToken = integration.access_token;
+    let refreshToken = integration.refresh_token;
     const tokenExpired = integration.token_expires_at && new Date(integration.token_expires_at) < new Date();
+    let tokenRefreshAttempted = false;
+    let authError = null;
 
-    if (tokenExpired && integration.refresh_token) {
+    if (tokenExpired && refreshToken) {
       console.log('Token expired, refreshing...');
-      try {
-        const tokenParams = new URLSearchParams({
-          grant_type: 'refresh_token',
-          client_id: process.env.GARMIN_CONSUMER_KEY,
-          client_secret: process.env.GARMIN_CONSUMER_SECRET,
-          refresh_token: integration.refresh_token
-        });
-
-        const tokenResponse = await fetch(GARMIN_TOKEN_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: tokenParams.toString()
-        });
-
-        if (tokenResponse.ok) {
-          const tokenData = await tokenResponse.json();
-          accessToken = tokenData.access_token;
-
-          // Update stored tokens
-          const expiresAt = new Date();
-          expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7776000));
-
-          await supabase
-            .from('bike_computer_integrations')
-            .update({
-              access_token: tokenData.access_token,
-              refresh_token: tokenData.refresh_token || integration.refresh_token,
-              token_expires_at: expiresAt.toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', userId)
-            .eq('provider', 'garmin');
-        }
-      } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError);
+      const newToken = await refreshGarminToken(userId, refreshToken);
+      if (newToken) {
+        accessToken = newToken;
+        tokenRefreshAttempted = true;
+      } else {
+        authError = 'Token refresh failed';
       }
     }
 
@@ -797,36 +812,89 @@ async function getHealthData(req, res, userId) {
       source: 'garmin'
     };
 
+    // Helper to check if error indicates invalid token
+    const isTokenInvalid = (responseText) => {
+      return responseText.includes('InvalidPullTokenException') ||
+             responseText.includes('invalid_token') ||
+             responseText.includes('token expired') ||
+             responseText.includes('unauthorized');
+    };
+
+    // Helper to make authenticated request with retry on token error
+    const fetchWithTokenRetry = async (url, description) => {
+      let response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+
+      if (response.ok) {
+        return { success: true, data: await response.json() };
+      }
+
+      const responseText = await response.text();
+      console.log(`${description} API response:`, response.status, responseText);
+
+      // Check if it's a token error and we haven't tried refreshing yet
+      if (response.status === 400 && isTokenInvalid(responseText) && !tokenRefreshAttempted && refreshToken) {
+        console.log(`${description}: Token invalid, attempting refresh...`);
+        const newToken = await refreshGarminToken(userId, refreshToken);
+
+        if (newToken) {
+          accessToken = newToken;
+          tokenRefreshAttempted = true;
+
+          // Retry with new token
+          response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
+
+          if (response.ok) {
+            console.log(`${description}: Retry successful after token refresh`);
+            return { success: true, data: await response.json() };
+          }
+        } else {
+          // Token refresh failed - user needs to reconnect
+          authError = 'Your Garmin authorization has expired or been revoked. Please reconnect your account.';
+        }
+      }
+
+      // Check if it's still a token error after refresh attempt
+      if (response.status === 400 && isTokenInvalid(responseText)) {
+        authError = authError || 'Your Garmin authorization has expired or been revoked. Please reconnect your account.';
+      }
+
+      return { success: false, status: response.status, error: responseText };
+    };
+
     // Fetch Daily Summaries (contains resting HR, stress, steps)
     try {
       const dailiesUrl = `${GARMIN_API_BASE}/wellness-api/rest/dailies?uploadStartTimeInSeconds=${uploadStartTimeInSeconds}&uploadEndTimeInSeconds=${uploadEndTimeInSeconds}`;
       console.log('Fetching Garmin dailies:', dailiesUrl);
 
-      const dailiesResponse = await fetch(dailiesUrl, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
+      const result = await fetchWithTokenRetry(dailiesUrl, 'Dailies');
 
-      if (dailiesResponse.ok) {
-        const dailies = await dailiesResponse.json();
-        console.log('Garmin dailies response:', JSON.stringify(dailies).substring(0, 500));
+      if (result.success && result.data && result.data.length > 0) {
+        const today = result.data[result.data.length - 1]; // Most recent
+        healthData.resting_heart_rate = today.restingHeartRateInBeatsPerMinute || today.restingHeartRate || null;
 
-        if (dailies && dailies.length > 0) {
-          const today = dailies[dailies.length - 1]; // Most recent
-          healthData.resting_heart_rate = today.restingHeartRateInBeatsPerMinute || today.restingHeartRate || null;
-
-          // Garmin stress is 0-100, we'll convert to approximate HRV-like score
-          // Lower stress = higher HRV generally
-          if (today.averageStressLevel != null) {
-            // Convert stress (0-100, lower is better) to pseudo-HRV (higher is better)
-            // This is an approximation - real HRV requires the HRV API
-            healthData.stress_level = Math.round(today.averageStressLevel / 20); // Convert to 1-5 scale
-          }
+        // Garmin stress is 0-100, we'll convert to approximate HRV-like score
+        if (today.averageStressLevel != null) {
+          healthData.stress_level = Math.round(today.averageStressLevel / 20); // Convert to 1-5 scale
         }
-      } else {
-        console.log('Dailies API response:', dailiesResponse.status, await dailiesResponse.text());
       }
     } catch (dailiesError) {
       console.error('Error fetching dailies:', dailiesError);
+    }
+
+    // If we already know auth failed, return early with clear error
+    if (authError && !tokenRefreshAttempted) {
+      return res.status(200).json({
+        success: false,
+        connected: true,
+        authError: true,
+        requiresReconnect: true,
+        error: authError,
+        message: 'Please disconnect and reconnect your Garmin account to restore access.'
+      });
     }
 
     // Fetch Sleep data
@@ -834,37 +902,27 @@ async function getHealthData(req, res, userId) {
       const sleepUrl = `${GARMIN_API_BASE}/wellness-api/rest/sleeps?uploadStartTimeInSeconds=${uploadStartTimeInSeconds}&uploadEndTimeInSeconds=${uploadEndTimeInSeconds}`;
       console.log('Fetching Garmin sleep:', sleepUrl);
 
-      const sleepResponse = await fetch(sleepUrl, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
+      const result = await fetchWithTokenRetry(sleepUrl, 'Sleep');
 
-      if (sleepResponse.ok) {
-        const sleepData = await sleepResponse.json();
-        console.log('Garmin sleep response:', JSON.stringify(sleepData).substring(0, 500));
-
-        if (sleepData && sleepData.length > 0) {
-          const lastSleep = sleepData[sleepData.length - 1];
-          // Convert seconds to hours
-          const totalSleepSeconds = lastSleep.durationInSeconds || lastSleep.sleepDurationInSeconds;
-          if (totalSleepSeconds) {
-            healthData.sleep_hours = Math.round((totalSleepSeconds / 3600) * 10) / 10;
-          }
-
-          // Garmin sleep scores (if available)
-          if (lastSleep.overallSleepScore != null) {
-            // Convert 0-100 score to 1-5 scale
-            healthData.sleep_quality = Math.max(1, Math.min(5, Math.round(lastSleep.overallSleepScore / 20)));
-          }
-
-          // HRV during sleep (more accurate than daily stress)
-          if (lastSleep.avgSleepStress != null) {
-            // Lower sleep stress correlates with higher HRV
-            // Approximate HRV from sleep stress (inverse relationship)
-            healthData.hrv_score = Math.round(100 - lastSleep.avgSleepStress);
-          }
+      if (result.success && result.data && result.data.length > 0) {
+        const lastSleep = result.data[result.data.length - 1];
+        // Convert seconds to hours
+        const totalSleepSeconds = lastSleep.durationInSeconds || lastSleep.sleepDurationInSeconds;
+        if (totalSleepSeconds) {
+          healthData.sleep_hours = Math.round((totalSleepSeconds / 3600) * 10) / 10;
         }
-      } else {
-        console.log('Sleep API response:', sleepResponse.status);
+
+        // Garmin sleep scores (if available)
+        if (lastSleep.overallSleepScore != null) {
+          // Convert 0-100 score to 1-5 scale
+          healthData.sleep_quality = Math.max(1, Math.min(5, Math.round(lastSleep.overallSleepScore / 20)));
+        }
+
+        // HRV during sleep (more accurate than daily stress)
+        if (lastSleep.avgSleepStress != null) {
+          // Lower sleep stress correlates with higher HRV
+          healthData.hrv_score = Math.round(100 - lastSleep.avgSleepStress);
+        }
       }
     } catch (sleepError) {
       console.error('Error fetching sleep:', sleepError);
@@ -875,23 +933,14 @@ async function getHealthData(req, res, userId) {
       const bodyCompUrl = `${GARMIN_API_BASE}/wellness-api/rest/bodyComps?uploadStartTimeInSeconds=${uploadStartTimeInSeconds - 86400 * 7}&uploadEndTimeInSeconds=${uploadEndTimeInSeconds}`;
       console.log('Fetching Garmin body comp:', bodyCompUrl);
 
-      const bodyCompResponse = await fetch(bodyCompUrl, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
+      const result = await fetchWithTokenRetry(bodyCompUrl, 'Body comp');
 
-      if (bodyCompResponse.ok) {
-        const bodyComps = await bodyCompResponse.json();
-        console.log('Garmin body comp response:', JSON.stringify(bodyComps).substring(0, 500));
-
-        if (bodyComps && bodyComps.length > 0) {
-          const latest = bodyComps[bodyComps.length - 1];
-          // Weight is in grams in Garmin API
-          if (latest.weightInGrams) {
-            healthData.weight_kg = Math.round((latest.weightInGrams / 1000) * 10) / 10;
-          }
+      if (result.success && result.data && result.data.length > 0) {
+        const latest = result.data[result.data.length - 1];
+        // Weight is in grams in Garmin API
+        if (latest.weightInGrams) {
+          healthData.weight_kg = Math.round((latest.weightInGrams / 1000) * 10) / 10;
         }
-      } else {
-        console.log('Body comp API response:', bodyCompResponse.status);
       }
     } catch (bodyError) {
       console.error('Error fetching body comp:', bodyError);
@@ -900,11 +949,27 @@ async function getHealthData(req, res, userId) {
     // Check if we got any data
     const hasData = Object.values(healthData).some(v => v !== null && v !== 'garmin');
 
+    // If we have an auth error and no data, return the auth error
+    if (authError && !hasData) {
+      return res.status(200).json({
+        success: false,
+        connected: true,
+        hasData: false,
+        authError: true,
+        requiresReconnect: true,
+        error: authError,
+        message: 'Please disconnect and reconnect your Garmin account to restore access.',
+        healthData,
+        fetchedAt: new Date().toISOString()
+      });
+    }
+
     return res.status(200).json({
       success: true,
       connected: true,
       hasData,
       healthData,
+      tokenRefreshed: tokenRefreshAttempted,
       fetchedAt: new Date().toISOString()
     });
 

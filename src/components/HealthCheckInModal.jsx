@@ -114,6 +114,18 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
       const result = await garminService.getHealthData();
 
       if (!result.success) {
+        // Check if user needs to reconnect their Garmin account
+        if (result.requiresReconnect || result.authError) {
+          notifications.show({
+            title: 'Garmin Connection Expired',
+            message: result.message || 'Please go to Settings > Integrations to disconnect and reconnect your Garmin account.',
+            color: 'red',
+            autoClose: 10000
+          });
+          // Update connection status
+          setGarminConnected(false);
+          return;
+        }
         notifications.show({
           title: 'Garmin Sync',
           message: result.error || 'Could not fetch data from Garmin',
