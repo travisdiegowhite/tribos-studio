@@ -714,6 +714,8 @@ async function pushRoute(req, res, userId, routeData) {
 
 // Helper function to refresh Garmin token
 async function refreshGarminToken(userId, refreshToken) {
+  console.log('Attempting to refresh Garmin token...');
+
   const tokenParams = new URLSearchParams({
     grant_type: 'refresh_token',
     client_id: process.env.GARMIN_CONSUMER_KEY,
@@ -734,12 +736,13 @@ async function refreshGarminToken(userId, refreshToken) {
   }
 
   const tokenData = await tokenResponse.json();
+  console.log('Token refresh successful, new token received');
 
   // Update stored tokens
   const expiresAt = new Date();
   expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7776000));
 
-  await supabase
+  const { error: updateError } = await supabase
     .from('bike_computer_integrations')
     .update({
       access_token: tokenData.access_token,
@@ -749,6 +752,12 @@ async function refreshGarminToken(userId, refreshToken) {
     })
     .eq('user_id', userId)
     .eq('provider', 'garmin');
+
+  if (updateError) {
+    console.error('Failed to save refreshed token to database:', updateError);
+  } else {
+    console.log('Refreshed token saved to database');
+  }
 
   return tokenData.access_token;
 }
@@ -928,9 +937,9 @@ async function getHealthData(req, res, userId) {
       console.error('Error fetching sleep:', sleepError);
     }
 
-    // Fetch Body Composition (weight)
+    // Fetch Body Composition (weight) - Garmin allows max 86400 seconds (1 day)
     try {
-      const bodyCompUrl = `${GARMIN_API_BASE}/wellness-api/rest/bodyComps?uploadStartTimeInSeconds=${uploadStartTimeInSeconds - 86400 * 7}&uploadEndTimeInSeconds=${uploadEndTimeInSeconds}`;
+      const bodyCompUrl = `${GARMIN_API_BASE}/wellness-api/rest/bodyComps?uploadStartTimeInSeconds=${uploadStartTimeInSeconds}&uploadEndTimeInSeconds=${uploadEndTimeInSeconds}`;
       console.log('Fetching Garmin body comp:', bodyCompUrl);
 
       const result = await fetchWithTokenRetry(bodyCompUrl, 'Body comp');
