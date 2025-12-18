@@ -212,13 +212,19 @@ function TrainingDashboard() {
           .from('health_metrics')
           .select('*')
           .eq('user_id', user.id)
-          .eq('recorded_date', today)
+          .eq('metric_date', today)
           .maybeSingle();
 
         if (healthError) {
-          console.warn('Health metrics query failed (table may not exist):', healthError.message);
+          console.warn('Health metrics query failed:', healthError.message);
         } else if (healthData) {
-          setTodayHealthMetrics(healthData);
+          // Map production column names to what the app expects
+          setTodayHealthMetrics({
+            ...healthData,
+            recorded_date: healthData.metric_date,
+            resting_heart_rate: healthData.resting_hr,
+            hrv_score: healthData.hrv_ms
+          });
         }
 
         // Load active training plan (use maybeSingle to handle 0 or 1 result gracefully)
