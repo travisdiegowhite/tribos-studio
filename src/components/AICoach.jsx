@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Card,
   Stack,
@@ -18,6 +18,8 @@ import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { googleCalendarService } from '../utils/googleCalendarService';
+import { useAuth } from '../contexts/AuthContext.jsx';
+import { supabase } from '../lib/supabase';
 
 // Get the API base URL
 const getApiBaseUrl = () => {
@@ -28,10 +30,93 @@ const getApiBaseUrl = () => {
 };
 
 function AICoach({ trainingContext, onAddWorkout, activePlan }) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const scrollAreaRef = useRef(null);
+
+  // Load conversation history on mount
+  const loadConversationHistory = useCallback(async () => {
+    if (!user?.id) {
+      setLoadingHistory(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('coach_conversations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('timestamp', { ascending: true })
+        .limit(100); // Get more messages to filter
+
+      if (error) {
+        console.error('Error loading conversation history:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        // Filter to training coach messages only (identified by context_snapshot.coach_type)
+        const trainingMessages = data.filter(msg =>
+          msg.context_snapshot?.coach_type === 'training'
+        );
+
+        setMessages(trainingMessages.map(msg => ({
+          id: msg.id,
+          role: msg.role === 'coach' ? 'assistant' : msg.role,
+          content: msg.message,
+          timestamp: msg.timestamp,
+          workoutRecommendations: msg.context_snapshot?.workoutRecommendations || null,
+        })));
+      }
+    } catch (err) {
+      console.error('Error loading history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [user?.id]);
+
+  // Save message to database
+  const saveMessage = async (role, content, workoutRecommendations = null) => {
+    if (!user?.id) return null;
+
+    try {
+      // Use context_snapshot to identify training coach messages and store workout recommendations
+      const contextSnapshot = {
+        coach_type: 'training', // Distinguish from accountability coach
+        ...(workoutRecommendations && { workoutRecommendations })
+      };
+
+      const { data, error } = await supabase
+        .from('coach_conversations')
+        .insert({
+          user_id: user.id,
+          role: role === 'assistant' ? 'coach' : role,
+          message: content,
+          message_type: 'chat', // Use valid message_type from schema
+          context_snapshot: contextSnapshot,
+          timestamp: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error saving message:', error);
+      }
+
+      return data;
+    } catch (err) {
+      console.error('Error saving message:', err);
+      return null;
+    }
+  };
+
+  // Load history when user is available
+  useEffect(() => {
+    loadConversationHistory();
+  }, [loadConversationHistory]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -47,11 +132,14 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
     setInputMessage('');
 
     // Add user message to chat
-    const newUserMessage = { role: 'user', content: userMessage };
+    const newUserMessage = { role: 'user', content: userMessage, timestamp: new Date().toISOString() };
     setMessages(prev => [...prev, newUserMessage]);
     setIsLoading(true);
 
     try {
+      // Save user message to database
+      await saveMessage('user', userMessage);
+
       const response = await fetch(`${getApiBaseUrl()}/api/coach`, {
         method: 'POST',
         headers: {
@@ -60,7 +148,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         credentials: 'include',
         body: JSON.stringify({
           message: userMessage,
-          conversationHistory: messages,
+          conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
           trainingContext: trainingContext,
           maxTokens: 2048
         })
@@ -77,10 +165,14 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       const assistantMessage = {
         role: 'assistant',
         content: data.message,
-        workoutRecommendations: data.workoutRecommendations
+        workoutRecommendations: data.workoutRecommendations,
+        timestamp: new Date().toISOString()
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+
+      // Save assistant message to database
+      await saveMessage('assistant', data.message, data.workoutRecommendations);
     } catch (error) {
       console.error('Error sending message:', error);
       notifications.show({
@@ -207,7 +299,14 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         viewportRef={scrollAreaRef}
       >
         <Stack gap="md" pr="xs">
-          {messages.length === 0 && (
+          {loadingHistory && (
+            <Box style={{ textAlign: 'center', padding: tokens.spacing.xl }}>
+              <Loader size="sm" color="lime" />
+              <Text size="sm" c="dimmed" mt="sm">Loading conversation history...</Text>
+            </Box>
+          )}
+
+          {!loadingHistory && messages.length === 0 && (
             <Box
               style={{
                 padding: tokens.spacing.xl,
