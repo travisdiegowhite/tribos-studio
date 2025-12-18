@@ -87,13 +87,14 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
     }
   }, [opened]);
 
-  // Load existing data if editing
+  // Load existing data if editing (handle both mapped and production column names)
   useEffect(() => {
     if (existingData) {
       const weightKg = existingData.weight_kg || null;
       setFormData({
-        resting_heart_rate: existingData.resting_heart_rate || null,
-        hrv_score: existingData.hrv_score || null,
+        // Support both mapped names and production column names
+        resting_heart_rate: existingData.resting_heart_rate || existingData.resting_hr || null,
+        hrv_score: existingData.hrv_score || existingData.hrv_ms || null,
         sleep_hours: existingData.sleep_hours || null,
         sleep_quality: existingData.sleep_quality || 3,
         energy_level: existingData.energy_level || 3,
@@ -216,12 +217,12 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
     try {
       const today = new Date().toISOString().split('T')[0];
 
-      // Only include fields that exist in the database schema
+      // Use production column names (metric_date, resting_hr, hrv_ms)
       const dataToSave = {
         user_id: user.id,
-        recorded_date: today,
-        resting_heart_rate: formData.resting_heart_rate,
-        hrv_score: formData.hrv_score,
+        metric_date: today,
+        resting_hr: formData.resting_heart_rate,
+        hrv_ms: formData.hrv_score,
         sleep_hours: formData.sleep_hours,
         sleep_quality: formData.sleep_quality,
         energy_level: formData.energy_level,
@@ -229,12 +230,13 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         stress_level: formData.stress_level,
         weight_kg: formData.weight_kg,
         notes: formData.notes || null,
+        source: 'manual',
       };
 
       const { data, error } = await supabase
         .from('health_metrics')
         .upsert(dataToSave, {
-          onConflict: 'user_id,recorded_date',
+          onConflict: 'user_id,metric_date',
         })
         .select()
         .single();
