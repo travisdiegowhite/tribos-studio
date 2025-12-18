@@ -208,14 +208,18 @@ function TrainingDashboard() {
 
         // Load today's health metrics
         const today = new Date().toISOString().split('T')[0];
-        const { data: healthData } = await supabase
+        const { data: healthData, error: healthError } = await supabase
           .from('health_metrics')
           .select('*')
           .eq('user_id', user.id)
           .eq('recorded_date', today)
-          .single();
+          .maybeSingle();
 
-        if (healthData) setTodayHealthMetrics(healthData);
+        if (healthError) {
+          console.warn('Health metrics query failed (table may not exist):', healthError.message);
+        } else if (healthData) {
+          setTodayHealthMetrics(healthData);
+        }
 
         // Load active training plan (use maybeSingle to handle 0 or 1 result gracefully)
         const { data: planData, error: planError } = await supabase
