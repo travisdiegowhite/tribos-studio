@@ -881,11 +881,10 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
           trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan)}
           activePlan={activePlan}
           onAddWorkout={(workout) => {
-            // Refresh the calendar to show the new workout
-            loadPlannedWorkouts?.();
+            // Show success notification - calendar will update on next load
             notifications.show({
-              title: 'Workout Added',
-              message: `${workout.name} has been added to your plan`,
+              title: 'Workout Added to Calendar',
+              message: `${workout.name} scheduled for ${workout.scheduledDate}`,
               color: 'lime'
             });
           }}
