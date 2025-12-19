@@ -69,6 +69,7 @@ import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
 import { TrainingNotifications, SupplementWorkoutModal } from '../components/training';
+import RaceGoalsPanel from '../components/RaceGoalsPanel.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
@@ -102,6 +103,7 @@ function TrainingDashboard() {
   const [activePlan, setActivePlan] = useState(null);
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
   const [supplementModalOpen, setSupplementModalOpen] = useState(false);
+  const [raceGoals, setRaceGoals] = useState([]);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -267,6 +269,43 @@ function TrainingDashboard() {
     };
 
     loadData();
+  }, [user]);
+
+  // Load race goals for AI coach context
+  useEffect(() => {
+    const loadRaceGoals = async () => {
+      if (!user) return;
+
+      try {
+        // Load upcoming race goals (next 6 months)
+        const { data, error } = await supabase
+          .from('race_goals')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'upcoming')
+          .gte('race_date', new Date().toISOString().split('T')[0])
+          .order('race_date', { ascending: true })
+          .limit(10);
+
+        if (error) {
+          // Table might not exist yet - fail silently
+          if (error.code === '42P01' || error.message?.includes('does not exist')) {
+            console.log('race_goals table not yet available');
+            return;
+          }
+          throw error;
+        }
+
+        if (data) {
+          setRaceGoals(data);
+          console.log(`Loaded ${data.length} upcoming race goals`);
+        }
+      } catch (error) {
+        console.error('Error loading race goals:', error);
+      }
+    };
+
+    loadRaceGoals();
   }, [user]);
 
   // Calculate weekly stats
@@ -619,6 +658,7 @@ function TrainingDashboard() {
                   onOpenHealthCheckIn={() => setHealthCheckInOpen(true)}
                   activePlan={activePlan}
                   aiCoachRef={aiCoachRef}
+                  raceGoals={raceGoals}
                 />
               </Tabs.Panel>
 
@@ -684,6 +724,7 @@ function TrainingDashboard() {
                   rides={activities}
                   formatDistance={formatDist}
                   ftp={ftp}
+                  isImperial={isImperial}
                   onPlanUpdated={() => {
                     // Reload the active plan to get updated compliance stats
                     if (user?.id) {
@@ -864,11 +905,14 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
 // ============================================================================
 // TODAY TAB
 // ============================================================================
-function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities, ftp, formatDist, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, activePlan, aiCoachRef }) {
+function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities, ftp, formatDist, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, activePlan, aiCoachRef, raceGoals }) {
   const hasCheckedIn = !!todayHealthMetrics;
 
   return (
     <Stack gap="lg">
+      {/* Race Goals Panel */}
+      <RaceGoalsPanel isImperial={isImperial} />
+
       {/* AI Coach Section */}
       <Box ref={aiCoachRef}>
         <Group gap="xs" mb="md">
@@ -878,7 +922,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
           <Text fw={600}>AI Training Coach</Text>
         </Group>
         <AICoach
-          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan)}
+          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan, raceGoals)}
           activePlan={activePlan}
           onAddWorkout={(workout) => {
             // Show success notification - calendar will update on next load
@@ -1471,7 +1515,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
 }
 
 // Build training context for AI Coach
-function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null) {
+function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null, raceGoals = []) {
   const context = [];
   const distanceUnit = isImperial ? 'mi' : 'km';
 
@@ -1491,6 +1535,73 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
   if (activities.length > 0) {
     const lastRide = activities[0];
     context.push(`Last ride: ${lastRide.name} - ${formatDist(lastRide.distance / 1000)}`);
+  }
+
+  // Add upcoming race goals context
+  if (raceGoals && raceGoals.length > 0) {
+    context.push(`\n--- Upcoming Race Goals ---`);
+    context.push(`IMPORTANT: The athlete has ${raceGoals.length} upcoming race(s). Training should be periodized around these events.`);
+
+    raceGoals.forEach((race, index) => {
+      const raceDate = new Date(race.race_date + 'T00:00:00');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const daysUntil = Math.ceil((raceDate - today) / (1000 * 60 * 60 * 24));
+      const weeksUntil = Math.ceil(daysUntil / 7);
+
+      const priorityLabel = race.priority === 'A' ? 'A-RACE (MAIN GOAL)' :
+                           race.priority === 'B' ? 'B-Race (Important)' : 'C-Race (Training)';
+
+      context.push(`\n${index + 1}. ${race.name} - ${priorityLabel}`);
+      context.push(`   Date: ${raceDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`);
+      context.push(`   Time Until: ${daysUntil} days (${weeksUntil} weeks)`);
+      context.push(`   Type: ${race.race_type?.replace('_', ' ') || 'race'}`);
+
+      if (race.distance_km) {
+        const distance = isImperial ? Math.round(race.distance_km * 0.621371) : Math.round(race.distance_km);
+        context.push(`   Distance: ${distance} ${distanceUnit}`);
+      }
+      if (race.elevation_gain_m) {
+        const elevation = isImperial ? Math.round(race.elevation_gain_m * 3.28084) : Math.round(race.elevation_gain_m);
+        context.push(`   Elevation: ${elevation} ${isImperial ? 'ft' : 'm'}`);
+      }
+      if (race.goal_time_minutes) {
+        const hours = Math.floor(race.goal_time_minutes / 60);
+        const mins = race.goal_time_minutes % 60;
+        context.push(`   Goal Time: ${hours}h ${mins}m`);
+      }
+      if (race.goal_power_watts) {
+        context.push(`   Goal Power: ${race.goal_power_watts}W`);
+      }
+      if (race.goal_placement) {
+        context.push(`   Goal: ${race.goal_placement}`);
+      }
+      if (race.course_description) {
+        context.push(`   Course: ${race.course_description}`);
+      }
+    });
+
+    // Add race-specific coaching guidance
+    const nextARace = raceGoals.find(r => r.priority === 'A');
+    if (nextARace) {
+      const raceDate = new Date(nextARace.race_date + 'T00:00:00');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const daysUntil = Math.ceil((raceDate - today) / (1000 * 60 * 60 * 24));
+
+      context.push(`\n--- Race Preparation Guidance ---`);
+      if (daysUntil <= 7) {
+        context.push(`RACE WEEK: Focus on rest, openers, and mental preparation. Keep TSS very low.`);
+      } else if (daysUntil <= 14) {
+        context.push(`TAPER PERIOD: Reduce volume by 40-60%, maintain some intensity. Focus on feeling fresh.`);
+      } else if (daysUntil <= 28) {
+        context.push(`FINAL BUILD: Last chance for hard training blocks. After this, begin tapering.`);
+      } else if (daysUntil <= 56) {
+        context.push(`BUILD PHASE: Focus on race-specific intensity. Include race-pace efforts.`);
+      } else {
+        context.push(`BASE/EARLY BUILD: Good time to build aerobic base and address limiters.`);
+      }
+    }
   }
 
   // Add active training plan context
@@ -1528,6 +1639,9 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     context.push(`- If TSB is very negative (fatigued), recommend recovery`);
     context.push(`- If TSB is very positive (fresh), suggest adding intensity`);
     context.push(`- Consider the current training phase when making recommendations`);
+    if (raceGoals && raceGoals.length > 0) {
+      context.push(`- PRIORITIZE upcoming race goals when planning workouts and recovery`);
+    }
   }
 
   return context.join('\n');

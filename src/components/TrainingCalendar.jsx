@@ -34,6 +34,7 @@ import {
   IconCalendarEvent,
   IconTrendingUp,
   IconGripVertical,
+  IconTrophy,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -42,13 +43,14 @@ import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../ut
 import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
 import { formatLocalDate, addDays, startOfMonth, endOfMonth, parsePlanStartDate } from '../utils/dateUtils';
+import RaceGoalModal from './RaceGoalModal';
 
 /**
  * Enhanced Training Calendar Component
  * Displays monthly calendar with planned workouts, completed rides,
- * weekly summaries, and workout editing capabilities
+ * weekly summaries, race goals, and workout editing capabilities
  */
-const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated }) => {
+const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false }) => {
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
@@ -56,6 +58,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  // Race goals state
+  const [raceGoals, setRaceGoals] = useState([]);
+  const [raceGoalModalOpen, setRaceGoalModalOpen] = useState(false);
+  const [selectedRaceGoal, setSelectedRaceGoal] = useState(null);
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -107,6 +114,62 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     } catch (error) {
       console.error('Failed to load planned workouts:', error);
     }
+  };
+
+  // Load race goals for current month view
+  useEffect(() => {
+    if (!user?.id) return;
+    loadRaceGoals();
+  }, [user?.id, currentDate]);
+
+  const loadRaceGoals = async () => {
+    try {
+      // Calculate date range for current month view (with buffer)
+      const monthStart = startOfMonth(currentDate);
+      const monthEnd = endOfMonth(currentDate);
+      const rangeStart = addDays(monthStart, -7);
+      const rangeEnd = addDays(monthEnd, 7);
+
+      const startDateStr = formatLocalDate(rangeStart);
+      const endDateStr = formatLocalDate(rangeEnd);
+
+      const { data, error } = await supabase
+        .from('race_goals')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('race_date', startDateStr)
+        .lte('race_date', endDateStr)
+        .order('race_date', { ascending: true });
+
+      if (error) {
+        // Table might not exist yet - fail silently
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.log('race_goals table not yet available');
+          return;
+        }
+        throw error;
+      }
+
+      if (data) {
+        setRaceGoals(data);
+      }
+    } catch (error) {
+      console.error('Failed to load race goals:', error);
+    }
+  };
+
+  // Get race goal for a specific date
+  const getRaceGoalForDate = (date) => {
+    if (!date) return null;
+    const dateStr = formatLocalDate(date);
+    return raceGoals.find(r => r.race_date === dateStr);
+  };
+
+  // Open race goal modal
+  const openRaceGoalModal = (raceGoal, date) => {
+    setSelectedRaceGoal(raceGoal);
+    setSelectedDate(date);
+    setRaceGoalModalOpen(true);
   };
 
   // Get days in month
@@ -769,6 +832,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
                 const workout = getWorkoutForDate(date);
                 const dayRides = getRidesForDate(date);
+                const raceGoal = getRaceGoalForDate(date);
                 const isToday = date.toDateString() === new Date().toDateString();
                 const isPast = date < new Date() && !isToday;
                 const isFuture = date > new Date();
@@ -788,11 +852,21 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                   }
                 });
 
-                // Determine border color based on workout completion
+                // Determine border color based on workout completion and race goals
                 let borderColor = isToday ? tokens.colors.electricLime : tokens.colors.bgTertiary;
                 let backgroundColor = isToday ? `${tokens.colors.electricLime}15` : isPast ? tokens.colors.bgSecondary : tokens.colors.bgTertiary;
 
-                if (workout && isPast) {
+                // Race day gets special styling
+                if (raceGoal) {
+                  const priorityColors = {
+                    'A': { border: '#fa5252', bg: 'rgba(250, 82, 82, 0.15)' },
+                    'B': { border: '#fd7e14', bg: 'rgba(253, 126, 20, 0.15)' },
+                    'C': { border: '#868e96', bg: 'rgba(134, 142, 150, 0.15)' },
+                  };
+                  const colors = priorityColors[raceGoal.priority] || priorityColors['B'];
+                  borderColor = colors.border;
+                  backgroundColor = colors.bg;
+                } else if (workout && isPast) {
                   if (workout.completed) {
                     borderColor = '#51cf66';
                     backgroundColor = 'rgba(81, 207, 102, 0.15)';
@@ -889,11 +963,64 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       )}
 
                       {/* Rest day indicator */}
-                      {workout && workout.workout_type === 'rest' && (
+                      {workout && workout.workout_type === 'rest' && !raceGoal && (
                         <Group gap={4}>
                           <Text size="lg">😴</Text>
                           <Text size="xs" c="dimmed" fw={500}>Rest Day</Text>
                         </Group>
+                      )}
+
+                      {/* Race Goal indicator */}
+                      {raceGoal && (
+                        <Tooltip
+                          label={`${raceGoal.name}${raceGoal.distance_km ? ` • ${Math.round(raceGoal.distance_km)}km` : ''}${raceGoal.goal_placement ? ` • Goal: ${raceGoal.goal_placement}` : ''}`}
+                          multiline
+                          w={200}
+                        >
+                          <Paper
+                            p={4}
+                            style={{
+                              backgroundColor: raceGoal.priority === 'A' ? 'rgba(250, 82, 82, 0.2)' :
+                                              raceGoal.priority === 'B' ? 'rgba(253, 126, 20, 0.2)' : 'rgba(134, 142, 150, 0.2)',
+                              cursor: 'pointer',
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openRaceGoalModal(raceGoal, date);
+                            }}
+                          >
+                            <Group gap={4} wrap="nowrap">
+                              <IconTrophy
+                                size={14}
+                                style={{
+                                  color: raceGoal.priority === 'A' ? '#fa5252' :
+                                         raceGoal.priority === 'B' ? '#fd7e14' : '#868e96'
+                                }}
+                              />
+                              <Badge
+                                size="xs"
+                                color={raceGoal.priority === 'A' ? 'red' : raceGoal.priority === 'B' ? 'orange' : 'gray'}
+                                variant="filled"
+                              >
+                                {raceGoal.priority}
+                              </Badge>
+                            </Group>
+                            <Text
+                              size="xs"
+                              fw={600}
+                              lineClamp={1}
+                              mt={2}
+                              style={{ color: tokens.colors.textPrimary }}
+                            >
+                              {raceGoal.name}
+                            </Text>
+                            {raceGoal.race_type && (
+                              <Text size="xs" c="dimmed" lineClamp={1}>
+                                {raceGoal.race_type.replace('_', ' ')}
+                              </Text>
+                            )}
+                          </Paper>
+                        </Tooltip>
                       )}
 
                       {/* Completed rides */}
@@ -932,6 +1059,37 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                   </Group>
                 ))}
               </Group>
+
+              {/* Race goals legend */}
+              <Group gap="md">
+                <Text size="xs" style={{ color: tokens.colors.textMuted }} fw={600}>Race Priority:</Text>
+                <Group gap={4}>
+                  <IconTrophy size={14} style={{ color: '#fa5252' }} />
+                  <Badge size="xs" color="red" variant="filled">A</Badge>
+                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>Main Goal</Text>
+                </Group>
+                <Group gap={4}>
+                  <IconTrophy size={14} style={{ color: '#fd7e14' }} />
+                  <Badge size="xs" color="orange" variant="filled">B</Badge>
+                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>Important</Text>
+                </Group>
+                <Group gap={4}>
+                  <IconTrophy size={14} style={{ color: '#868e96' }} />
+                  <Badge size="xs" color="gray" variant="filled">C</Badge>
+                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>Training</Text>
+                </Group>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="orange"
+                  leftSection={<IconTrophy size={14} />}
+                  ml="auto"
+                  onClick={() => openRaceGoalModal(null, null)}
+                >
+                  Add Race Goal
+                </Button>
+              </Group>
+
               {activePlan && (
                 <Group gap="md">
                   <Text size="xs" style={{ color: tokens.colors.textMuted }} fw={600}>Status:</Text>
@@ -1040,6 +1198,21 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           </Group>
         </Stack>
       </Modal>
+
+      {/* Race Goal Modal */}
+      <RaceGoalModal
+        opened={raceGoalModalOpen}
+        onClose={() => {
+          setRaceGoalModalOpen(false);
+          setSelectedRaceGoal(null);
+        }}
+        raceGoal={selectedRaceGoal}
+        onSaved={() => {
+          loadRaceGoals();
+          if (onPlanUpdated) onPlanUpdated();
+        }}
+        isImperial={isImperial}
+      />
     </Stack>
   );
 };

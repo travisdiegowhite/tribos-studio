@@ -56,6 +56,7 @@ function AccountabilityCoach({ onOpenMemories, onOpenSchedule }) {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [todaysWorkout, setTodaysWorkout] = useState(null);
   const [coachSettings, setCoachSettings] = useState(null);
+  const [raceGoals, setRaceGoals] = useState([]);
   const scrollAreaRef = useRef(null);
 
   // Load conversation history and context on mount
@@ -64,6 +65,7 @@ function AccountabilityCoach({ onOpenMemories, onOpenSchedule }) {
       loadConversationHistory();
       loadTodaysWorkout();
       loadCoachSettings();
+      loadRaceGoals();
     }
   }, [user?.id]);
 
@@ -139,6 +141,36 @@ function AccountabilityCoach({ onOpenMemories, onOpenSchedule }) {
       }
     } catch (err) {
       // No settings yet is fine
+    }
+  };
+
+  // Load upcoming race goals
+  const loadRaceGoals = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('race_goals')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'upcoming')
+        .gte('race_date', new Date().toISOString().split('T')[0])
+        .order('race_date', { ascending: true })
+        .limit(5);
+
+      if (error) {
+        // Table might not exist yet - fail silently
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.log('race_goals table not yet available');
+          return;
+        }
+        throw error;
+      }
+
+      if (data) {
+        setRaceGoals(data);
+      }
+    } catch (err) {
+      // Race goals not available yet
+      console.log('Could not load race goals:', err);
     }
   };
 
@@ -230,12 +262,33 @@ function AccountabilityCoach({ onOpenMemories, onOpenSchedule }) {
         };
       }
 
+      // Add upcoming race goals
+      if (raceGoals && raceGoals.length > 0) {
+        context.raceGoals = raceGoals.map(race => {
+          const raceDate = new Date(race.race_date + 'T00:00:00');
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const daysUntil = Math.ceil((raceDate - today) / (1000 * 60 * 60 * 24));
+
+          return {
+            name: race.name,
+            date: race.race_date,
+            daysUntil,
+            priority: race.priority,
+            type: race.race_type,
+            distance: race.distance_km,
+            goalPlacement: race.goal_placement,
+            notes: race.notes
+          };
+        });
+      }
+
     } catch (err) {
       console.error('Error assembling context:', err);
     }
 
     return context;
-  }, [user?.id, todaysWorkout, coachSettings]);
+  }, [user?.id, todaysWorkout, coachSettings, raceGoals]);
 
   // Build accountability coach system prompt
   const buildSystemPrompt = (context) => {
@@ -283,6 +336,25 @@ WHAT I REMEMBER ABOUT YOU:
 ${context.memories.map(m => `- [${m.category}] ${m.content}`).join('\n')}`;
     }
 
+    let raceGoalsContext = '';
+    if (context.raceGoals && context.raceGoals.length > 0) {
+      const nextARace = context.raceGoals.find(r => r.priority === 'A');
+      raceGoalsContext = `
+UPCOMING RACE GOALS:
+${context.raceGoals.map(race => {
+  const priorityLabel = race.priority === 'A' ? '*** A-RACE (MAIN GOAL)' :
+                       race.priority === 'B' ? 'B-Race' : 'C-Race (training)';
+  return `- ${race.name} (${priorityLabel}) - ${race.daysUntil} days away${race.goalPlacement ? ` | Goal: ${race.goalPlacement}` : ''}`;
+}).join('\n')}
+
+${nextARace ? `IMPORTANT: Their main goal race "${nextARace.name}" is in ${nextARace.daysUntil} days. ${
+  nextARace.daysUntil <= 7 ? 'RACE WEEK! Focus on rest and mental prep.' :
+  nextARace.daysUntil <= 14 ? 'Taper time - reduce volume, keep them fresh.' :
+  nextARace.daysUntil <= 28 ? 'Final build phase - last hard efforts before taper.' :
+  'Plenty of time to build fitness.'
+}` : ''}`;
+    }
+
     return `You are ${coachName}, an AI cycling accountability coach for ${preferredName}. Your job is to help them execute their training plan despite a busy life.
 
 PERSONALITY:
@@ -301,6 +373,7 @@ CURRENT CONTEXT:
 Date: ${context.today}
 ${workoutContext}
 ${weekContext}
+${raceGoalsContext}
 ${memoriesContext}
 
 CONSTRAINTS:
