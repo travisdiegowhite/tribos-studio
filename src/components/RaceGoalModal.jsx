@@ -176,10 +176,13 @@ const RaceGoalModal = ({
       return;
     }
 
-    if (!form.name || !form.race_date) {
+    // Validate required fields - check if date is valid
+    const formattedDate = form.race_date ? formatLocalDate(form.race_date) : null;
+
+    if (!form.name?.trim() || !formattedDate) {
       notifications.show({
         title: 'Missing Information',
-        message: 'Please enter a race name and date',
+        message: 'Please enter a race name and select a date',
         color: 'yellow',
       });
       return;
@@ -191,7 +194,7 @@ const RaceGoalModal = ({
       const raceData = {
         user_id: user.id,
         name: form.name.trim(),
-        race_date: formatLocalDate(form.race_date),
+        race_date: formattedDate,
         race_type: form.race_type,
         distance_km: form.distance_km || null,
         elevation_gain_m: form.elevation_gain_m || null,
