@@ -255,28 +255,21 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           planId = existingPlan.id;
         } else {
           // Create a new "Coach Recommended Workouts" plan
+          // Only include essential fields to avoid schema mismatch issues
           const { data: newPlan, error: planError } = await supabase
             .from('training_plans')
             .insert({
               user_id: user.id,
-              template_id: 'coach_recommended',
               name: 'Coach Recommended Workouts',
-              duration_weeks: 52,
-              methodology: 'coach_guided',
-              goal: 'general_fitness',
-              fitness_level: 'intermediate',
               status: 'active',
-              started_at: new Date().toISOString(),
-              current_week: 1,
-              workouts_completed: 0,
-              workouts_total: 0,
-              notes: 'Auto-created plan for AI coach workout recommendations'
+              started_at: new Date().toISOString()
             })
             .select()
             .single();
 
           if (planError) {
-            throw new Error('Failed to create training plan');
+            console.error('Training plan creation error:', planError);
+            throw new Error(`Failed to create training plan: ${planError.message}`);
           }
 
           planId = newPlan.id;
@@ -334,7 +327,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
 
       if (dbError) {
         console.error('Database error saving workout:', dbError);
-        throw new Error('Failed to save workout to calendar');
+        throw new Error(`Failed to save workout: ${dbError.message}`);
       }
 
       // Build success message
