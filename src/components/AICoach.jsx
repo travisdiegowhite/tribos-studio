@@ -255,6 +255,10 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           planId = existingPlan.id;
         } else {
           // Create a new "Coach Recommended Workouts" plan
+          // Match the format used by TrainingPlanBrowser
+          const today = new Date();
+          const startDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
           const { data: newPlan, error: planError } = await supabase
             .from('training_plans')
             .insert({
@@ -265,18 +269,16 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
               methodology: 'coach_guided',
               goal: 'general_fitness',
               fitness_level: 'intermediate',
-              status: 'active',
-              started_at: new Date().toISOString(),
-              current_week: 1,
-              workouts_completed: 0,
-              workouts_total: 0,
-              notes: 'Auto-created plan for AI coach workout recommendations'
+              started_at: startDateStr,
+              start_date: startDateStr,
+              status: 'active'
             })
             .select()
             .single();
 
           if (planError) {
-            throw new Error('Failed to create training plan');
+            console.error('Training plan creation error:', planError);
+            throw new Error(`Failed to create training plan: ${planError.message}`);
           }
 
           planId = newPlan.id;
@@ -313,6 +315,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       }
 
       // Save workout directly to planned_workouts table (Tribos calendar)
+      // Match the format used by TrainingPlanBrowser
       const { data: workoutRecord, error: dbError } = await supabase
         .from('planned_workouts')
         .insert({
@@ -323,10 +326,11 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           day_of_week: dayOfWeek,
           workout_type: dbWorkoutType,
           workout_id: recommendation.workout_id,
-          target_duration: workout.duration || 60,
-          target_tss: workout.targetTSS || null,
           name: workout.name,
-          notes: recommendation.reason ? `Coach recommendation: ${recommendation.reason}` : null,
+          duration_minutes: workout.duration || 60,
+          target_duration: workout.duration || 60,
+          target_tss: workout.targetTSS || 0,
+          notes: recommendation.reason ? `Coach recommendation: ${recommendation.reason}` : '',
           completed: false
         })
         .select()
@@ -334,7 +338,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
 
       if (dbError) {
         console.error('Database error saving workout:', dbError);
-        throw new Error('Failed to save workout to calendar');
+        throw new Error(`Failed to save workout: ${dbError.message}`);
       }
 
       // Build success message
