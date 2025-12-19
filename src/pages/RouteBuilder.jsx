@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -29,8 +29,13 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 /**
  * Build a prompt for Claude to parse natural language route requests
  * Returns waypoint NAMES that will be geocoded, not generic route suggestions
+ * @param {string} userRequest - The user's natural language request
+ * @param {object} weatherData - Current weather conditions
+ * @param {object} userLocation - User's location {latitude, longitude}
+ * @param {string} userAddress - User's address for regional context
+ * @param {object} calendarData - Calendar context with upcoming workouts
  */
-function buildNaturalLanguagePrompt(userRequest, weatherData, userLocation, userAddress) {
+function buildNaturalLanguagePrompt(userRequest, weatherData, userLocation, userAddress, calendarData = null) {
   // Extract region/area from user's address for context
   let regionContext = '';
   let gravelExamples = '';
@@ -70,9 +75,34 @@ function buildNaturalLanguagePrompt(userRequest, weatherData, userLocation, user
    - Use actual town names that will geocode reliably`;
   }
 
+  // Build calendar context string if available
+  let calendarContext = '';
+  if (calendarData?.todaysWorkout || calendarData?.upcomingWorkouts?.length > 0) {
+    calendarContext = `
+TRAINING CALENDAR CONTEXT:
+The cyclist has a training plan. When they reference "today's workout", "my scheduled ride", "this week's long ride", etc., use this information:
+`;
+    if (calendarData.todaysWorkout) {
+      const tw = calendarData.todaysWorkout;
+      calendarContext += `
+- TODAY'S WORKOUT: ${tw.name || tw.workout_type} (${tw.target_duration || 60} minutes, ${tw.workout_type} type)`;
+    }
+    if (calendarData.upcomingWorkouts?.length > 0) {
+      calendarContext += `
+- UPCOMING WORKOUTS:`;
+      calendarData.upcomingWorkouts.slice(0, 5).forEach(w => {
+        const date = new Date(w.scheduled_date + 'T00:00:00');
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+        calendarContext += `
+  * ${dayName}: ${w.name || w.workout_type} (${w.target_duration || 60} min)`;
+      });
+    }
+  }
+
   return `You are an expert cycling route planner. A cyclist has requested: "${userRequest}"
 
 ${regionContext}
+${calendarContext}
 
 Your task is to extract the route requirements and return a structured JSON response with ACTUAL WAYPOINT NAMES that can be geocoded.
 
@@ -141,10 +171,33 @@ Response:
   "surfaceType": "gravel"
 }
 
+User: "Create a route for today's workout" (when today's workout is a 90-minute endurance ride)
+Response:
+{
+  "startLocation": null,
+  "waypoints": [],
+  "routeType": "loop",
+  "timeAvailable": 90,
+  "trainingGoal": "endurance",
+  "surfaceType": "mixed"
+}
+
+User: "Route for my Saturday long ride" (when Saturday has a 3-hour endurance workout scheduled)
+Response:
+{
+  "startLocation": null,
+  "waypoints": [],
+  "routeType": "loop",
+  "timeAvailable": 180,
+  "trainingGoal": "endurance",
+  "surfaceType": "mixed"
+}
+
 CRITICAL RULES:
 1. If user mentions a TRAIL NAME (Coal Creek Path, Boulder Creek, etc.), it MUST be in waypoints
 2. Return ONLY valid JSON, no extra text
-3. Waypoints should be actual place names that can be geocoded`;
+3. Waypoints should be actual place names that can be geocoded
+4. If user references their training calendar (today's workout, this week's ride, etc.), use the TRAINING CALENDAR CONTEXT above`;
 }
 
 /**
@@ -311,9 +364,13 @@ async function geocodeWaypoint(waypointName, proximityLocation) {
 function RouteBuilder() {
   const { routeId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [routeName, setRouteName] = useState('Untitled Route');
+
+  // Calendar context state (when navigating from training calendar)
+  const [calendarContext, setCalendarContext] = useState(null);
   const [waypoints, setWaypoints] = useState([]);
   const [routeGeometry, setRouteGeometry] = useState(null);
   const [routeStats, setRouteStats] = useState({ distance: 0, elevation: 0, duration: 0 });
@@ -351,6 +408,10 @@ function RouteBuilder() {
 
   // Weather state
   const [weatherData, setWeatherData] = useState(null);
+
+  // Calendar workouts for NL context (today's workout and upcoming)
+  const [todaysWorkout, setTodaysWorkout] = useState(null);
+  const [upcomingWorkouts, setUpcomingWorkouts] = useState([]);
 
   // Memoize workout options for Select component
   const workoutOptions = useMemo(() => {
@@ -435,6 +496,45 @@ function RouteBuilder() {
     loadUnitsPreference();
   }, [user]);
 
+  // Read calendar context from URL params (when navigating from training calendar)
+  useEffect(() => {
+    const fromCalendar = searchParams.get('from') === 'calendar';
+    if (!fromCalendar) return;
+
+    // Extract calendar context from URL params
+    const context = {
+      workoutType: searchParams.get('workoutType') || 'endurance',
+      trainingGoal: searchParams.get('trainingGoal') || 'endurance',
+      duration: parseInt(searchParams.get('duration') || '60', 10),
+      distance: searchParams.get('distance') ? parseFloat(searchParams.get('distance')) : null,
+      workoutId: searchParams.get('workoutId') || null,
+      workoutName: searchParams.get('workoutName') || null,
+      scheduledDate: searchParams.get('scheduledDate') || null,
+    };
+
+    console.log('📅 Route Builder opened from calendar with context:', context);
+
+    // Set the calendar context for display
+    setCalendarContext(context);
+
+    // Pre-populate route builder settings from calendar context
+    setTrainingGoal(context.trainingGoal);
+    setTimeAvailable(context.duration);
+
+    // Auto-select workout for interval cues if workoutId is provided
+    if (context.workoutId && WORKOUT_LIBRARY[context.workoutId]) {
+      setSelectedWorkout(WORKOUT_LIBRARY[context.workoutId]);
+    }
+
+    // Set route name based on workout
+    if (context.workoutName) {
+      setRouteName(`Route for ${context.workoutName}`);
+    }
+
+    // Clear the URL params after reading (keeps URL clean)
+    setSearchParams({}, { replace: true });
+  }, []);
+
   // Geolocate user on mount
   useEffect(() => {
     if (routeId) return; // Don't geolocate if loading existing route
@@ -492,6 +592,55 @@ function RouteBuilder() {
     };
 
     loadSpeedProfile();
+  }, [user]);
+
+  // Load upcoming planned workouts for natural language context
+  useEffect(() => {
+    const loadUpcomingWorkouts = async () => {
+      if (!user) return;
+
+      try {
+        // Get today's date in YYYY-MM-DD format
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+
+        // Get date 7 days from now
+        const weekLater = new Date(today);
+        weekLater.setDate(weekLater.getDate() + 7);
+        const weekLaterStr = weekLater.toISOString().split('T')[0];
+
+        // Query planned workouts for the next 7 days
+        const { data, error } = await supabase
+          .from('planned_workouts')
+          .select('*, training_plans!inner(user_id)')
+          .eq('training_plans.user_id', user.id)
+          .gte('scheduled_date', todayStr)
+          .lte('scheduled_date', weekLaterStr)
+          .neq('workout_type', 'rest')
+          .order('scheduled_date', { ascending: true });
+
+        if (error) {
+          console.error('Error loading upcoming workouts:', error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          // Find today's workout
+          const todayWorkout = data.find(w => w.scheduled_date === todayStr);
+          if (todayWorkout) {
+            setTodaysWorkout(todayWorkout);
+          }
+
+          // Store all upcoming workouts
+          setUpcomingWorkouts(data);
+          console.log('📅 Loaded upcoming workouts for NL context:', data.length);
+        }
+      } catch (error) {
+        console.error('Error loading upcoming workouts:', error);
+      }
+    };
+
+    loadUpcomingWorkouts();
   }, [user]);
 
   // Load existing route if editing
@@ -818,9 +967,10 @@ function RouteBuilder() {
       // Step 1: Build prompt for Claude to extract waypoint names
       const prompt = buildNaturalLanguagePrompt(
         naturalLanguageInput,
-        null, // weatherData
+        weatherData,
         [viewport.longitude, viewport.latitude],
-        null // userAddress - could add reverse geocoding later
+        null, // userAddress - could add reverse geocoding later
+        { todaysWorkout, upcomingWorkouts } // Calendar context for NL understanding
       );
 
       // Step 2: Call Claude API to parse the request
@@ -1070,6 +1220,39 @@ function RouteBuilder() {
   // Render the sidebar/bottom sheet controls
   const renderControls = () => (
     <Stack gap="md">
+      {/* Calendar Context Banner (mobile) */}
+      {calendarContext && (
+        <Paper
+          p="sm"
+          style={{
+            backgroundColor: `${tokens.colors.electricLime}15`,
+            border: `1px solid ${tokens.colors.electricLime}`,
+          }}
+          radius="md"
+        >
+          <Group justify="space-between" align="flex-start">
+            <Group gap="xs">
+              <IconCalendar size={16} style={{ color: tokens.colors.electricLime }} />
+              <Box>
+                <Text size="xs" fw={600} style={{ color: tokens.colors.electricLime }}>
+                  Creating route for scheduled workout
+                </Text>
+                <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                  {calendarContext.workoutName || calendarContext.workoutType} • {calendarContext.duration} min
+                </Text>
+              </Box>
+            </Group>
+            <ActionIcon
+              size="xs"
+              variant="subtle"
+              onClick={() => setCalendarContext(null)}
+            >
+              <IconX size={12} />
+            </ActionIcon>
+          </Group>
+        </Paper>
+      )}
+
       <Box>
         <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
           ROUTE NAME
@@ -1562,6 +1745,40 @@ function RouteBuilder() {
           p="md"
         >
           <Stack gap="md" style={{ flex: 1 }}>
+            {/* Calendar Context Banner */}
+            {calendarContext && (
+              <Paper
+                p="sm"
+                style={{
+                  backgroundColor: `${tokens.colors.electricLime}15`,
+                  border: `1px solid ${tokens.colors.electricLime}`,
+                }}
+                radius="md"
+              >
+                <Group justify="space-between" align="flex-start">
+                  <Group gap="xs">
+                    <IconCalendar size={16} style={{ color: tokens.colors.electricLime }} />
+                    <Box>
+                      <Text size="xs" fw={600} style={{ color: tokens.colors.electricLime }}>
+                        Creating route for scheduled workout
+                      </Text>
+                      <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                        {calendarContext.workoutName || calendarContext.workoutType} • {calendarContext.duration} min
+                        {calendarContext.scheduledDate && ` • ${new Date(calendarContext.scheduledDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
+                      </Text>
+                    </Box>
+                  </Group>
+                  <ActionIcon
+                    size="xs"
+                    variant="subtle"
+                    onClick={() => setCalendarContext(null)}
+                  >
+                    <IconX size={12} />
+                  </ActionIcon>
+                </Group>
+              </Paper>
+            )}
+
             <Box>
               <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
                 ROUTE NAME
