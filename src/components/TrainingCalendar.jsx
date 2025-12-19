@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card,
   Text,
@@ -52,6 +53,7 @@ import RaceGoalModal from './RaceGoalModal';
  */
 const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -174,6 +176,44 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setSelectedRaceGoal(raceGoal);
     setSelectedDate(date);
     setRaceGoalModalOpen(true);
+  };
+
+  // Navigate to Route Builder with workout context
+  const handleCreateRoute = (e, workout, date) => {
+    e.stopPropagation(); // Prevent opening edit modal
+
+    // Map workout type to training goal
+    const workoutTypeToGoal = {
+      endurance: 'endurance',
+      tempo: 'endurance',
+      threshold: 'intervals',
+      vo2max: 'intervals',
+      anaerobic: 'intervals',
+      recovery: 'recovery',
+      climbing: 'hills',
+      racing: 'endurance',
+    };
+
+    const params = new URLSearchParams({
+      from: 'calendar',
+      workoutType: workout.workout_type || 'endurance',
+      trainingGoal: workoutTypeToGoal[workout.workout_type] || 'endurance',
+      duration: workout.target_duration || 60,
+      scheduledDate: formatLocalDate(date),
+    });
+
+    // Add optional params if they exist
+    if (workout.workout_id) {
+      params.set('workoutId', workout.workout_id);
+    }
+    if (workout.target_distance_km) {
+      params.set('distance', workout.target_distance_km);
+    }
+    if (workout.name) {
+      params.set('workoutName', workout.name);
+    }
+
+    navigate(`/routes/new?${params.toString()}`);
   };
 
   // Get days in month
@@ -963,6 +1003,20 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               </Text>
                             )}
                           </Group>
+                          {/* Create Route button - only for today or future workouts */}
+                          {!isPast && (
+                            <Tooltip label="Create route for this workout" withArrow>
+                              <ActionIcon
+                                size="xs"
+                                variant="light"
+                                color="lime"
+                                mt={4}
+                                onClick={(e) => handleCreateRoute(e, workout, date)}
+                              >
+                                <IconRoute size={12} />
+                              </ActionIcon>
+                            </Tooltip>
+                          )}
                         </Box>
                       )}
 
