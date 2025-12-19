@@ -193,7 +193,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange }) => {
             {raceGoals.map((race) => {
               const daysUntil = getDaysUntil(race.race_date);
               const raceTypeInfo = RACE_TYPE_INFO[race.race_type] || RACE_TYPE_INFO.other;
-              const weeksUntil = Math.ceil(daysUntil / 7);
+              const weeksUntil = Math.round(daysUntil / 7);
 
               return (
                 <Paper
