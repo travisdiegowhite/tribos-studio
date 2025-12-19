@@ -28,6 +28,69 @@ const getApiBaseUrl = () => {
   return 'http://localhost:3000';
 };
 
+// Convert relative date strings to YYYY-MM-DD format
+const resolveScheduledDate = (dateStr) => {
+  if (!dateStr) return null;
+
+  // If already in YYYY-MM-DD format, return as-is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr;
+  }
+
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0=Sunday, 1=Monday, etc.
+
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+  const formatDate = (date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  const lowerDate = dateStr.toLowerCase().replace(/\s+/g, '_');
+
+  // Handle "today" and "tomorrow"
+  if (lowerDate === 'today') {
+    return formatDate(today);
+  }
+  if (lowerDate === 'tomorrow') {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return formatDate(tomorrow);
+  }
+
+  // Handle "this_monday", "this_saturday", "next_tuesday", etc.
+  const thisMatch = lowerDate.match(/^this_(\w+)$/);
+  const nextMatch = lowerDate.match(/^next_(\w+)$/);
+
+  if (thisMatch || nextMatch) {
+    const targetDayName = (thisMatch || nextMatch)[1];
+    const targetDayIndex = dayNames.indexOf(targetDayName);
+
+    if (targetDayIndex !== -1) {
+      let daysToAdd;
+
+      if (thisMatch) {
+        // "this_X" means the next occurrence of that day within this week or the coming days
+        daysToAdd = (targetDayIndex - dayOfWeek + 7) % 7;
+        if (daysToAdd === 0) daysToAdd = 0; // If today is that day, use today
+      } else {
+        // "next_X" means the occurrence in the next week
+        daysToAdd = (targetDayIndex - dayOfWeek + 7) % 7;
+        if (daysToAdd === 0) daysToAdd = 7; // If today is that day, go to next week
+        else daysToAdd += 7; // Add a week
+      }
+
+      const targetDate = new Date(today);
+      targetDate.setDate(targetDate.getDate() + daysToAdd);
+      return formatDate(targetDate);
+    }
+  }
+
+  // If we can't parse it, return null and log warning
+  console.warn('Could not parse scheduled date:', dateStr);
+  return null;
+};
+
 function AICoach({ trainingContext, onAddWorkout, activePlan }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -286,6 +349,12 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         }
       }
 
+      // Resolve relative date (e.g., "this_saturday") to actual date (e.g., "2025-12-21")
+      const scheduledDate = resolveScheduledDate(recommendation.scheduled_date);
+      if (!scheduledDate) {
+        throw new Error(`Could not understand the date "${recommendation.scheduled_date}". Please try again.`);
+      }
+
       // Map workout type to valid database enum value
       const validWorkoutTypes = [
         'endurance', 'tempo', 'threshold', 'intervals', 'recovery',
@@ -297,7 +366,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         : 'endurance';
 
       // Calculate week_number and day_of_week from scheduled date
-      const schedDate = new Date(recommendation.scheduled_date);
+      const schedDate = new Date(scheduledDate);
       const dayOfWeek = schedDate.getDay();
 
       // Get plan start date to calculate week number
@@ -321,7 +390,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         .insert({
           plan_id: planId,
           user_id: user.id,
-          scheduled_date: recommendation.scheduled_date,
+          scheduled_date: scheduledDate,
           week_number: weekNumber,
           day_of_week: dayOfWeek,
           workout_type: dbWorkoutType,
@@ -342,7 +411,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       }
 
       // Build success message
-      let successMessage = `${workout.name} added for ${recommendation.scheduled_date}`;
+      let successMessage = `${workout.name} added for ${scheduledDate}`;
       if (planCreated) {
         successMessage = `${workout.name} added! A "Coach Recommended Workouts" plan was created for you.`;
       }
@@ -362,7 +431,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       if (onAddWorkout) {
         onAddWorkout({
           ...workout,
-          scheduledDate: recommendation.scheduled_date,
+          scheduledDate: scheduledDate,
           reason: recommendation.reason,
           priority: recommendation.priority,
           workoutId: workoutRecord.id
