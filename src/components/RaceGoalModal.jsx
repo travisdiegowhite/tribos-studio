@@ -169,8 +169,20 @@ const RaceGoalModal = ({
   const getFormattedDate = (date) => {
     if (!date) return null;
     try {
-      // Handle both Date objects and date strings
-      const d = date instanceof Date ? date : new Date(date);
+      let d;
+      if (date instanceof Date) {
+        d = date;
+      } else if (typeof date === 'string') {
+        // If it's already a YYYY-MM-DD string, return it directly
+        if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return date;
+        }
+        // Parse date string as LOCAL time by appending T00:00:00
+        d = new Date(date + 'T00:00:00');
+      } else {
+        d = new Date(date);
+      }
+
       if (isNaN(d.getTime())) return null;
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');

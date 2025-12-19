@@ -133,6 +133,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       const startDateStr = formatLocalDate(rangeStart);
       const endDateStr = formatLocalDate(rangeEnd);
 
+      console.log('Calendar loading race goals for range:', startDateStr, 'to', endDateStr);
+
       const { data, error } = await supabase
         .from('race_goals')
         .select('*')
@@ -149,6 +151,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         }
         throw error;
       }
+
+      console.log('Calendar loaded race goals:', data?.length || 0, data);
 
       if (data) {
         setRaceGoals(data);
