@@ -165,6 +165,22 @@ const RaceGoalModal = ({
 
   const daysUntil = getDaysUntil();
 
+  // Format date to YYYY-MM-DD string (more robust than relying on formatLocalDate)
+  const getFormattedDate = (date) => {
+    if (!date) return null;
+    try {
+      // Handle both Date objects and date strings
+      const d = date instanceof Date ? date : new Date(date);
+      if (isNaN(d.getTime())) return null;
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } catch {
+      return null;
+    }
+  };
+
   // Save race goal
   const handleSave = async () => {
     if (!user?.id) {
@@ -177,7 +193,14 @@ const RaceGoalModal = ({
     }
 
     // Validate required fields - check if date is valid
-    const formattedDate = form.race_date ? formatLocalDate(form.race_date) : null;
+    const formattedDate = getFormattedDate(form.race_date);
+
+    console.log('Saving race goal:', {
+      race_date_raw: form.race_date,
+      race_date_formatted: formattedDate,
+      race_date_type: typeof form.race_date,
+      race_date_instanceof: form.race_date instanceof Date
+    });
 
     if (!form.name?.trim() || !formattedDate) {
       notifications.show({
