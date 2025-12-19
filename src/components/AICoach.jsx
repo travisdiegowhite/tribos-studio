@@ -49,10 +49,15 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         .select('*')
         .eq('user_id', user.id)
         .order('timestamp', { ascending: true })
-        .limit(100); // Get more messages to filter
+        .limit(100);
 
       if (error) {
-        console.error('Error loading conversation history:', error);
+        // Table may not exist yet - fail silently
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.log('coach_conversations table not yet available');
+        } else {
+          console.error('Error loading conversation history:', error);
+        }
         return;
       }
 
@@ -71,13 +76,14 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         })));
       }
     } catch (err) {
-      console.error('Error loading history:', err);
+      // Fail silently - chat history is not critical
+      console.log('Could not load conversation history:', err.message);
     } finally {
       setLoadingHistory(false);
     }
   }, [user?.id]);
 
-  // Save message to database
+  // Save message to database (fails silently if table doesn't exist)
   const saveMessage = async (role, content, workoutRecommendations = null) => {
     if (!user?.id) return null;
 
@@ -94,7 +100,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           user_id: user.id,
           role: role === 'assistant' ? 'coach' : role,
           message: content,
-          message_type: 'chat', // Use valid message_type from schema
+          message_type: 'chat',
           context_snapshot: contextSnapshot,
           timestamp: new Date().toISOString()
         })
@@ -102,12 +108,16 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         .single();
 
       if (error) {
-        console.error('Error saving message:', error);
+        // Fail silently - message persistence is not critical for core functionality
+        if (error.code !== '42P01' && !error.message?.includes('does not exist')) {
+          console.log('Could not persist message:', error.message);
+        }
+        return null;
       }
 
       return data;
     } catch (err) {
-      console.error('Error saving message:', err);
+      // Fail silently - chat history is not critical
       return null;
     }
   };
@@ -227,15 +237,19 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
 
       // If no active plan, find or create a "Coach Recommended Workouts" plan
       if (!planId) {
-        // Check for existing active plan
-        const { data: existingPlan } = await supabase
+        // Check for existing active plan - use maybeSingle() to handle no results gracefully
+        const { data: existingPlan, error: planQueryError } = await supabase
           .from('training_plans')
           .select('id')
           .eq('user_id', user.id)
           .eq('status', 'active')
           .order('created_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
+
+        if (planQueryError) {
+          console.error('Error checking for existing plan:', planQueryError);
+        }
 
         if (existingPlan) {
           planId = existingPlan.id;
@@ -289,7 +303,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         .from('training_plans')
         .select('started_at')
         .eq('id', planId)
-        .single();
+        .maybeSingle();
 
       let weekNumber = 1;
       if (planData?.started_at) {
