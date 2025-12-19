@@ -13,11 +13,10 @@ import {
   Loader,
   Paper,
 } from '@mantine/core';
-import { IconSend, IconRobot, IconUser, IconPlus, IconClock, IconFlame, IconCalendarCheck, IconCheck } from '@tabler/icons-react';
+import { IconSend, IconRobot, IconUser, IconPlus, IconClock, IconFlame, IconCalendarPlus, IconCheck } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { getWorkoutById } from '../data/workoutLibrary';
-import { googleCalendarService } from '../utils/googleCalendarService';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 
@@ -205,45 +204,140 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       return;
     }
 
+    if (!user?.id) {
+      notifications.show({
+        title: 'Error',
+        message: 'You must be logged in to add workouts',
+        color: 'red'
+      });
+      return;
+    }
+
     // Show loading notification
     const notificationId = notifications.show({
       title: 'Adding Workout',
-      message: `Scheduling ${workout.name}...`,
+      message: `Adding ${workout.name} to your training calendar...`,
       loading: true,
       autoClose: false
     });
 
     try {
-      // Create workout event via the calendar service (which also saves to DB)
-      // If no active plan exists, the API will auto-create a "Coach Workouts" plan
-      const result = await googleCalendarService.createWorkoutEvent({
-        name: workout.name,
-        description: workout.description,
-        duration: workout.duration,
-        scheduledDate: recommendation.scheduled_date,
-        workoutType: workout.workoutType || workout.category,
-        reason: recommendation.reason,
-        planId: activePlan?.id, // Optional - API will find/create plan if not provided
-        targetTss: workout.targetTSS
-      });
+      let planId = activePlan?.id;
+      let planCreated = false;
 
-      // Build success message based on what happened
-      let successMessage = `${workout.name} scheduled for ${recommendation.scheduled_date}`;
-      if (result.planCreated) {
+      // If no active plan, find or create a "Coach Recommended Workouts" plan
+      if (!planId) {
+        // Check for existing active plan
+        const { data: existingPlan } = await supabase
+          .from('training_plans')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (existingPlan) {
+          planId = existingPlan.id;
+        } else {
+          // Create a new "Coach Recommended Workouts" plan
+          const { data: newPlan, error: planError } = await supabase
+            .from('training_plans')
+            .insert({
+              user_id: user.id,
+              template_id: 'coach_recommended',
+              name: 'Coach Recommended Workouts',
+              duration_weeks: 52,
+              methodology: 'coach_guided',
+              goal: 'general_fitness',
+              fitness_level: 'intermediate',
+              status: 'active',
+              started_at: new Date().toISOString(),
+              current_week: 1,
+              workouts_completed: 0,
+              workouts_total: 0,
+              notes: 'Auto-created plan for AI coach workout recommendations'
+            })
+            .select()
+            .single();
+
+          if (planError) {
+            throw new Error('Failed to create training plan');
+          }
+
+          planId = newPlan.id;
+          planCreated = true;
+        }
+      }
+
+      // Map workout type to valid database enum value
+      const validWorkoutTypes = [
+        'endurance', 'tempo', 'threshold', 'intervals', 'recovery',
+        'sweet_spot', 'vo2max', 'anaerobic', 'sprint', 'rest'
+      ];
+      const normalizedWorkoutType = (workout.workoutType || workout.category)?.toLowerCase().replace(/[\s-]/g, '_');
+      const dbWorkoutType = validWorkoutTypes.includes(normalizedWorkoutType)
+        ? normalizedWorkoutType
+        : 'endurance';
+
+      // Calculate week_number and day_of_week from scheduled date
+      const schedDate = new Date(recommendation.scheduled_date);
+      const dayOfWeek = schedDate.getDay();
+
+      // Get plan start date to calculate week number
+      const { data: planData } = await supabase
+        .from('training_plans')
+        .select('started_at')
+        .eq('id', planId)
+        .single();
+
+      let weekNumber = 1;
+      if (planData?.started_at) {
+        const planStart = new Date(planData.started_at);
+        const daysSinceStart = Math.floor((schedDate - planStart) / (24 * 60 * 60 * 1000));
+        weekNumber = Math.max(1, Math.floor(daysSinceStart / 7) + 1);
+      }
+
+      // Save workout directly to planned_workouts table (Tribos calendar)
+      const { data: workoutRecord, error: dbError } = await supabase
+        .from('planned_workouts')
+        .insert({
+          plan_id: planId,
+          user_id: user.id,
+          scheduled_date: recommendation.scheduled_date,
+          week_number: weekNumber,
+          day_of_week: dayOfWeek,
+          workout_type: dbWorkoutType,
+          workout_id: recommendation.workout_id,
+          target_duration: workout.duration || 60,
+          target_tss: workout.targetTSS || null,
+          name: workout.name,
+          notes: recommendation.reason ? `Coach recommendation: ${recommendation.reason}` : null,
+          completed: false
+        })
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error('Database error saving workout:', dbError);
+        throw new Error('Failed to save workout to calendar');
+      }
+
+      // Build success message
+      let successMessage = `${workout.name} added for ${recommendation.scheduled_date}`;
+      if (planCreated) {
         successMessage = `${workout.name} added! A "Coach Recommended Workouts" plan was created for you.`;
-      } else if (result.calendarSynced) {
-        successMessage = `${workout.name} added to your calendar for ${recommendation.scheduled_date}`;
       }
 
       // Update notification to success
       notifications.update({
         id: notificationId,
-        title: result.planCreated ? 'Plan Created & Workout Added!' : 'Workout Scheduled!',
+        title: planCreated ? 'Plan Created & Workout Added!' : 'Workout Added!',
         message: successMessage,
         color: 'lime',
-        icon: result.calendarSynced ? <IconCalendarCheck size={18} /> : <IconCheck size={18} />,
+        icon: <IconCalendarPlus size={18} />,
         loading: false,
-        autoClose: result.planCreated ? 6000 : 4000
+        autoClose: planCreated ? 6000 : 4000
       });
 
       // Call parent callback if provided
@@ -253,8 +347,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           scheduledDate: recommendation.scheduled_date,
           reason: recommendation.reason,
           priority: recommendation.priority,
-          workoutId: result.workoutId,
-          calendarEventId: result.calendarEventId
+          workoutId: workoutRecord.id
         });
       }
 
@@ -263,7 +356,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       notifications.update({
         id: notificationId,
         title: 'Error',
-        message: error.message || 'Failed to schedule workout',
+        message: error.message || 'Failed to add workout to calendar',
         color: 'red',
         loading: false,
         autoClose: 5000
