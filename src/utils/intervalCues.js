@@ -833,30 +833,61 @@ function generateTempoSegments(coordinates, totalDistance, startDistance, target
 
 /**
  * Get zone color for display
+ * Handles decimal zones (3.5 = Sweet Spot) and high zones (6, 7 = anaerobic/sprint)
  */
 export function getZoneColor(zone) {
+  // Handle null/undefined zones (off-bike workouts)
+  if (zone === null || zone === undefined) {
+    return '#9ca3af'; // grey
+  }
+
   const colors = {
-    1: '#4ade80', // green - recovery
-    2: '#60a5fa', // blue - endurance
-    3: '#facc15', // yellow - tempo
-    4: '#fb923c', // orange - threshold
-    5: '#ef4444', // red - VO2 max
+    1: '#4ade80',   // green - recovery
+    2: '#60a5fa',   // blue - endurance
+    3: '#facc15',   // yellow - tempo
+    3.5: '#f59e0b', // amber - sweet spot (between tempo and threshold)
+    4: '#fb923c',   // orange - threshold
+    5: '#ef4444',   // red - VO2 max
+    6: '#dc2626',   // dark red - anaerobic
+    7: '#7c3aed',   // purple - neuromuscular/sprint
   };
-  return colors[zone] || '#9ca3af';
+
+  // Try exact match first
+  if (colors[zone]) {
+    return colors[zone];
+  }
+
+  // For other decimal zones, round to nearest and interpolate
+  const roundedZone = Math.round(zone);
+  return colors[roundedZone] || '#9ca3af';
 }
 
 /**
  * Get zone name
+ * Handles decimal zones (3.5 = Sweet Spot) and high zones (6, 7 = anaerobic/sprint)
  */
 export function getZoneName(zone) {
+  if (zone === null || zone === undefined) {
+    return 'Active';
+  }
+
   const names = {
     1: 'Recovery',
     2: 'Endurance',
     3: 'Tempo',
+    3.5: 'Sweet Spot',
     4: 'Threshold',
     5: 'VO2 Max',
+    6: 'Anaerobic',
+    7: 'Sprint',
   };
-  return names[zone] || 'Unknown';
+
+  if (names[zone]) {
+    return names[zone];
+  }
+
+  const roundedZone = Math.round(zone);
+  return names[roundedZone] || `Zone ${zone}`;
 }
 
 /**
