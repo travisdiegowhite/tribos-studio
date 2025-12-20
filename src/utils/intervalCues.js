@@ -94,9 +94,38 @@ export function generateCuesFromWorkoutStructure(route, workout) {
 
   const totalDistance = route.distance || calculateTotalDistance(route.coordinates);
 
-  // Calculate total workout duration from structure
+  // Calculate total workout duration from structure (handles nested repeats)
   const calculateTotalWorkoutTime = () => {
     let total = 0;
+
+    // Recursive function to calculate duration of a repeat block
+    const calculateRepeatDuration = (repeatBlock) => {
+      const { sets, work, rest } = repeatBlock;
+      let blockDuration = 0;
+
+      // Calculate work duration
+      if (work) {
+        const workSegments = Array.isArray(work) ? work : [work];
+        workSegments.forEach(w => {
+          if (w.type === 'repeat') {
+            // Nested repeat - recurse
+            blockDuration += calculateRepeatDuration(w);
+          } else {
+            blockDuration += (w.duration || 0);
+          }
+        });
+      }
+
+      // Multiply by sets
+      blockDuration *= (sets || 1);
+
+      // Add rest between sets (not after last set)
+      if (rest?.duration && sets > 1) {
+        blockDuration += rest.duration * (sets - 1);
+      }
+
+      return blockDuration;
+    };
 
     if (workout.structure.warmup?.duration) {
       total += workout.structure.warmup.duration;
@@ -105,15 +134,7 @@ export function generateCuesFromWorkoutStructure(route, workout) {
     if (workout.structure.main && Array.isArray(workout.structure.main)) {
       workout.structure.main.forEach(segment => {
         if (segment.type === 'repeat') {
-          const sets = segment.sets || 1;
-          if (Array.isArray(segment.work)) {
-            segment.work.forEach(w => {
-              total += (w.duration || 0) * sets;
-            });
-          }
-          if (segment.rest?.duration && sets > 1) {
-            total += segment.rest.duration * (sets - 1);
-          }
+          total += calculateRepeatDuration(segment);
         } else {
           total += segment.duration || 0;
         }
@@ -145,6 +166,11 @@ export function generateCuesFromWorkoutStructure(route, workout) {
 
   // Helper to process a segment
   const processSegment = (segment, segmentIndex, segmentType) => {
+    // Skip segments without duration (shouldn't happen but be safe)
+    if (!segment.duration || segment.duration <= 0) {
+      return false;
+    }
+
     const segmentDistance = timeToDistance(segment.duration);
 
     if (currentDistance + segmentDistance > totalDistance + 0.1) {
@@ -154,6 +180,19 @@ export function generateCuesFromWorkoutStructure(route, workout) {
 
     const endDistance = Math.min(currentDistance + segmentDistance, totalDistance);
 
+    // Build instruction string, handling null zones (off-bike workouts)
+    let instruction = segment.description || formatSegmentType(segmentType);
+    if (segment.zone !== null && segment.zone !== undefined) {
+      instruction += `: Zone ${segment.zone}`;
+    }
+    instruction += ` for ${segment.duration}min (${segmentDistance.toFixed(1)}km)`;
+    if (segment.powerPctFTP) {
+      instruction += ` @ ${segment.powerPctFTP}% FTP`;
+    }
+    if (segment.cadence) {
+      instruction += ` | ${segment.cadence} rpm`;
+    }
+
     cues.push({
       type: segmentType,
       zone: segment.zone,
@@ -161,7 +200,7 @@ export function generateCuesFromWorkoutStructure(route, workout) {
       startDistance: currentDistance,
       endDistance: endDistance,
       coordinate: findCoordinateAtDistance(route.coordinates, endDistance).coordinate,
-      instruction: `${segment.description || formatSegmentType(segmentType)}: Zone ${segment.zone} for ${segment.duration}min (${segmentDistance.toFixed(1)}km)${segment.powerPctFTP ? ` @ ${segment.powerPctFTP}% FTP` : ''}${segment.cadence ? ` | ${segment.cadence} rpm` : ''}`,
+      instruction,
       duration: segment.duration,
       powerPctFTP: segment.powerPctFTP,
       cadence: segment.cadence
@@ -190,9 +229,10 @@ export function generateCuesFromWorkoutStructure(route, workout) {
     const { sets, work, rest } = repeatBlock;
 
     for (let setNum = 1; setNum <= sets; setNum++) {
-      // Process work portion
-      if (Array.isArray(work)) {
-        work.forEach((workSegment, workIdx) => {
+      // Process work portion - handle both single object and array
+      if (work) {
+        const workSegments = Array.isArray(work) ? work : [work];
+        workSegments.forEach((workSegment, workIdx) => {
           if (workSegment.type === 'repeat') {
             // Nested repeats (like 30/30 intervals)
             processRepeatStructure(workSegment, `${blockIndex}-${setNum}-${workIdx}`);
