@@ -1624,19 +1624,15 @@ function RouteBuilder() {
                 {/* Colored route segments */}
                 {coloredSegments && (
                   <Source id="colored-route" type="geojson" data={coloredSegments}>
-                    {[1, 2, 3, 4, 5].map(zone => (
-                      <Layer
-                        key={`zone-${zone}`}
-                        id={`route-zone-${zone}`}
-                        type="line"
-                        filter={['==', ['get', 'zone'], zone]}
-                        paint={{
-                          'line-color': ['get', 'color'],
-                          'line-width': 6,
-                          'line-opacity': 0.9
-                        }}
-                      />
-                    ))}
+                    <Layer
+                      id="route-colored"
+                      type="line"
+                      paint={{
+                        'line-color': ['get', 'color'],
+                        'line-width': 6,
+                        'line-opacity': 0.9
+                      }}
+                    />
                   </Source>
                 )}
 
@@ -2356,19 +2352,15 @@ function RouteBuilder() {
               {/* Render colored route segments when workout is selected */}
               {coloredSegments && (
                 <Source id="colored-route" type="geojson" data={coloredSegments}>
-                  {[1, 2, 3, 4, 5].map(zone => (
-                    <Layer
-                      key={`zone-${zone}`}
-                      id={`route-zone-${zone}`}
-                      type="line"
-                      filter={['==', ['get', 'zone'], zone]}
-                      paint={{
-                        'line-color': ['get', 'color'],
-                        'line-width': 6,
-                        'line-opacity': 0.9
-                      }}
-                    />
-                  ))}
+                  <Layer
+                    id="route-colored"
+                    type="line"
+                    paint={{
+                      'line-color': ['get', 'color'],
+                      'line-width': 6,
+                      'line-opacity': 0.9
+                    }}
+                  />
                 </Source>
               )}
 
