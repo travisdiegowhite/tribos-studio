@@ -2,6 +2,126 @@
 // Uses API proxy to avoid CORS issues
 
 /**
+ * Weather tolerance presets for different rider types
+ * All temperatures in Celsius, wind speeds in km/h
+ */
+export const WEATHER_TOLERANCE_PRESETS = {
+  iron_rider: {
+    id: 'iron_rider',
+    name: 'Iron Rider',
+    description: "I'll ride in almost anything",
+    thresholds: {
+      wind: { caution: 45, warning: 55 },      // ~28 mph / ~34 mph
+      coldTemp: { caution: -5, warning: -10 }, // 23°F / 14°F
+      hotTemp: { caution: 38, warning: 42 },   // 100°F / 108°F
+    },
+    rainTolerance: 'any',  // none, light, any
+    useWindChill: false,
+  },
+  hardy: {
+    id: 'hardy',
+    name: 'Hardy',
+    description: "Weather doesn't stop me much",
+    thresholds: {
+      wind: { caution: 35, warning: 45 },      // ~22 mph / ~28 mph
+      coldTemp: { caution: 0, warning: -5 },   // 32°F / 23°F
+      hotTemp: { caution: 35, warning: 40 },   // 95°F / 104°F
+    },
+    rainTolerance: 'light',
+    useWindChill: false,
+  },
+  balanced: {
+    id: 'balanced',
+    name: 'Balanced',
+    description: 'Reasonable conditions preferred',
+    thresholds: {
+      wind: { caution: 25, warning: 35 },      // ~16 mph / ~22 mph
+      coldTemp: { caution: 5, warning: 0 },    // 41°F / 32°F
+      hotTemp: { caution: 32, warning: 37 },   // 90°F / 99°F
+    },
+    rainTolerance: 'light',
+    useWindChill: true,
+  },
+  fair_weather: {
+    id: 'fair_weather',
+    name: 'Fair Weather',
+    description: 'I prefer comfortable rides',
+    thresholds: {
+      wind: { caution: 18, warning: 25 },      // ~11 mph / ~16 mph
+      coldTemp: { caution: 10, warning: 5 },   // 50°F / 41°F
+      hotTemp: { caution: 30, warning: 33 },   // 86°F / 91°F
+    },
+    rainTolerance: 'none',
+    useWindChill: true,
+  },
+  ideal_only: {
+    id: 'ideal_only',
+    name: 'Ideal Only',
+    description: 'Only when conditions are perfect',
+    thresholds: {
+      wind: { caution: 12, warning: 18 },      // ~7 mph / ~11 mph
+      coldTemp: { caution: 15, warning: 10 },  // 59°F / 50°F
+      hotTemp: { caution: 27, warning: 30 },   // 81°F / 86°F
+    },
+    rainTolerance: 'none',
+    useWindChill: true,
+  },
+};
+
+// Default preset for new users
+export const DEFAULT_WEATHER_PRESET = 'balanced';
+
+/**
+ * Calculate wind chill temperature (Celsius)
+ * Uses the North American wind chill formula
+ * Only applicable when temp <= 10°C and wind >= 4.8 km/h
+ */
+export function calculateWindChill(tempCelsius, windSpeedKmh) {
+  // Wind chill formula only valid for temps <= 10°C and wind >= 4.8 km/h
+  if (tempCelsius > 10 || windSpeedKmh < 4.8) {
+    return tempCelsius;
+  }
+
+  // North American wind chill index formula (for Celsius and km/h)
+  const windChill = 13.12 +
+    (0.6215 * tempCelsius) -
+    (11.37 * Math.pow(windSpeedKmh, 0.16)) +
+    (0.3965 * tempCelsius * Math.pow(windSpeedKmh, 0.16));
+
+  return Math.round(windChill * 10) / 10;
+}
+
+/**
+ * Get user's weather preferences from localStorage
+ */
+export function getWeatherPreferences() {
+  try {
+    const savedPrefs = localStorage.getItem('routePreferences');
+    if (savedPrefs) {
+      const prefs = JSON.parse(savedPrefs);
+      if (prefs.weatherTolerance) {
+        // If it's a preset ID, return the preset
+        if (typeof prefs.weatherTolerance === 'string' && WEATHER_TOLERANCE_PRESETS[prefs.weatherTolerance]) {
+          return {
+            ...WEATHER_TOLERANCE_PRESETS[prefs.weatherTolerance],
+            useWindChill: prefs.useWindChill ?? WEATHER_TOLERANCE_PRESETS[prefs.weatherTolerance].useWindChill,
+            rainTolerance: prefs.rainTolerance ?? WEATHER_TOLERANCE_PRESETS[prefs.weatherTolerance].rainTolerance,
+          };
+        }
+        // If it's a custom object, return it
+        if (typeof prefs.weatherTolerance === 'object') {
+          return prefs.weatherTolerance;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error loading weather preferences:', error);
+  }
+  // Return default preset
+  return WEATHER_TOLERANCE_PRESETS[DEFAULT_WEATHER_PRESET];
+}
+
+/**
  * Get weather data for a location via our API proxy
  */
 export async function getWeatherData(latitude, longitude) {
@@ -190,47 +310,190 @@ export function analyzeWindForRoute(coordinates, windDegrees, windSpeed) {
 
 /**
  * Get weather condition severity for cycling
+ * Now uses user preferences for personalized assessment
+ * @param {Object} weather - Weather data object
+ * @param {Object} preferences - Optional preferences override (uses stored prefs if not provided)
  */
-export function getWeatherSeverity(weather) {
-  if (!weather) return { level: 'unknown', color: 'gray' };
+export function getWeatherSeverity(weather, preferences = null) {
+  if (!weather) return { level: 'unknown', color: 'gray', message: 'Weather data unavailable' };
+
+  // Get user preferences or use provided/default
+  const prefs = preferences || getWeatherPreferences();
+  const thresholds = prefs.thresholds;
 
   const conditions = weather.conditions?.toLowerCase() || '';
   const temp = weather.temperature;
   const windSpeed = weather.windSpeed;
 
-  // Check for dangerous conditions first
+  // Calculate effective temperature (with wind chill if enabled)
+  const effectiveTemp = prefs.useWindChill
+    ? calculateWindChill(temp, windSpeed)
+    : temp;
+
+  // Track all issues for comprehensive messaging
+  const issues = [];
+
+  // UNIVERSAL DANGEROUS CONDITIONS - these override all preferences
   if (conditions.includes('thunder') || conditions.includes('storm')) {
-    return { level: 'dangerous', color: 'red', message: 'Thunderstorms - avoid riding' };
+    return {
+      level: 'dangerous',
+      color: 'red',
+      message: 'Thunderstorms - avoid riding',
+      universal: true,
+    };
   }
 
-  if (conditions.includes('snow') || conditions.includes('ice')) {
-    return { level: 'dangerous', color: 'red', message: 'Snow/Ice - avoid riding' };
+  if (conditions.includes('ice') || (conditions.includes('freezing') && conditions.includes('rain'))) {
+    return {
+      level: 'dangerous',
+      color: 'red',
+      message: 'Ice/Freezing rain - avoid riding',
+      universal: true,
+    };
   }
 
-  // Check temperature extremes
-  if (temp < 0) {
-    return { level: 'caution', color: 'orange', message: 'Freezing - dress warmly' };
+  // Severe snow conditions
+  if (conditions.includes('blizzard') || conditions.includes('heavy snow')) {
+    return {
+      level: 'dangerous',
+      color: 'red',
+      message: 'Severe winter weather - avoid riding',
+      universal: true,
+    };
   }
-  if (temp > 35) {
-    return { level: 'caution', color: 'orange', message: 'Extreme heat - stay hydrated' };
+
+  // USER-PREFERENCE-BASED ASSESSMENT
+
+  // Check cold temperature (using effective temp if wind chill enabled)
+  const tempToCheck = prefs.useWindChill ? effectiveTemp : temp;
+  if (tempToCheck <= thresholds.coldTemp.warning) {
+    issues.push({
+      severity: 'warning',
+      type: 'cold',
+      message: prefs.useWindChill && effectiveTemp < temp
+        ? `Very cold (feels like ${Math.round(effectiveTemp)}°C)`
+        : `Very cold (${Math.round(temp)}°C)`,
+    });
+  } else if (tempToCheck <= thresholds.coldTemp.caution) {
+    issues.push({
+      severity: 'caution',
+      type: 'cold',
+      message: prefs.useWindChill && effectiveTemp < temp
+        ? `Cold (feels like ${Math.round(effectiveTemp)}°C)`
+        : `Cold (${Math.round(temp)}°C)`,
+    });
+  }
+
+  // Check hot temperature
+  if (temp >= thresholds.hotTemp.warning) {
+    issues.push({
+      severity: 'warning',
+      type: 'heat',
+      message: `Extreme heat (${Math.round(temp)}°C)`,
+    });
+  } else if (temp >= thresholds.hotTemp.caution) {
+    issues.push({
+      severity: 'caution',
+      type: 'heat',
+      message: `Hot (${Math.round(temp)}°C)`,
+    });
   }
 
   // Check wind
-  if (windSpeed > 40) {
-    return { level: 'caution', color: 'orange', message: 'High winds - challenging conditions' };
+  if (windSpeed >= thresholds.wind.warning) {
+    issues.push({
+      severity: 'warning',
+      type: 'wind',
+      message: `High winds (${Math.round(windSpeed)} km/h)`,
+    });
+  } else if (windSpeed >= thresholds.wind.caution) {
+    issues.push({
+      severity: 'caution',
+      type: 'wind',
+      message: `Windy (${Math.round(windSpeed)} km/h)`,
+    });
   }
 
-  // Rain check
-  if (conditions.includes('rain') || conditions.includes('drizzle')) {
-    return { level: 'caution', color: 'yellow', message: 'Wet conditions - ride carefully' };
+  // Check rain based on tolerance
+  const hasRain = conditions.includes('rain') || conditions.includes('drizzle');
+  const hasHeavyRain = conditions.includes('heavy rain') || conditions.includes('downpour');
+  const hasLightRain = conditions.includes('light rain') || conditions.includes('drizzle');
+
+  if (hasRain) {
+    if (prefs.rainTolerance === 'none') {
+      issues.push({
+        severity: hasHeavyRain ? 'warning' : 'caution',
+        type: 'rain',
+        message: hasHeavyRain ? 'Heavy rain' : 'Wet conditions',
+      });
+    } else if (prefs.rainTolerance === 'light' && !hasLightRain) {
+      issues.push({
+        severity: 'caution',
+        type: 'rain',
+        message: 'Rain',
+      });
+    }
+    // If rainTolerance is 'any', no issue added
   }
 
-  // Good conditions
-  if (temp >= 15 && temp <= 25 && windSpeed < 20) {
-    return { level: 'ideal', color: 'green', message: 'Perfect cycling weather!' };
+  // Check snow (less severe than ice for preferences)
+  if (conditions.includes('snow') && !conditions.includes('heavy')) {
+    issues.push({
+      severity: 'caution',
+      type: 'snow',
+      message: 'Light snow',
+    });
   }
 
-  return { level: 'good', color: 'lime', message: 'Good conditions for riding' };
+  // Determine overall severity based on issues
+  const hasWarning = issues.some((i) => i.severity === 'warning');
+  const hasCaution = issues.some((i) => i.severity === 'caution');
+
+  if (hasWarning) {
+    const warningIssues = issues.filter((i) => i.severity === 'warning');
+    return {
+      level: 'not_recommended',
+      color: 'orange',
+      message: warningIssues.map((i) => i.message).join(' • '),
+      issues,
+      effectiveTemp: prefs.useWindChill ? effectiveTemp : null,
+    };
+  }
+
+  if (hasCaution) {
+    const cautionIssues = issues.filter((i) => i.severity === 'caution');
+    return {
+      level: 'marginal',
+      color: 'yellow',
+      message: cautionIssues.map((i) => i.message).join(' • '),
+      issues,
+      effectiveTemp: prefs.useWindChill ? effectiveTemp : null,
+    };
+  }
+
+  // Check for ideal conditions (within comfortable range)
+  const idealTempMin = Math.max(15, thresholds.coldTemp.caution + 5);
+  const idealTempMax = Math.min(25, thresholds.hotTemp.caution - 5);
+  const idealWindMax = Math.min(15, thresholds.wind.caution - 5);
+
+  if (temp >= idealTempMin && temp <= idealTempMax && windSpeed < idealWindMax && !hasRain) {
+    return {
+      level: 'ideal',
+      color: 'green',
+      message: 'Perfect cycling weather!',
+      issues: [],
+      effectiveTemp: prefs.useWindChill ? effectiveTemp : null,
+    };
+  }
+
+  // Good conditions (within user's comfort zone but not ideal)
+  return {
+    level: 'good',
+    color: 'lime',
+    message: 'Good conditions for you',
+    issues: [],
+    effectiveTemp: prefs.useWindChill ? effectiveTemp : null,
+  };
 }
 
 /**

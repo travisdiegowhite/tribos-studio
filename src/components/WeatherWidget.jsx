@@ -289,12 +289,22 @@ const WeatherWidget = ({
 
         {/* Main Stats */}
         <Group gap="lg" justify="center">
-          <Tooltip label="Temperature">
+          <Tooltip label={severity.effectiveTemp && severity.effectiveTemp < weather.temperature
+            ? `Actual: ${formatTemperature(weather.temperature, isImperial)}, Feels like: ${formatTemperature(severity.effectiveTemp, isImperial)}`
+            : "Temperature"
+          }>
             <Group gap={4}>
               <IconTemperature size={16} style={{ color: tokens.colors.textMuted }} />
-              <Text size="lg" fw={600} style={{ color: tokens.colors.textPrimary }}>
-                {formatTemperature(weather.temperature, isImperial)}
-              </Text>
+              <Box>
+                <Text size="lg" fw={600} style={{ color: tokens.colors.textPrimary }}>
+                  {formatTemperature(weather.temperature, isImperial)}
+                </Text>
+                {severity.effectiveTemp && severity.effectiveTemp < weather.temperature && (
+                  <Text size="xs" c="dimmed">
+                    Feels {formatTemperature(severity.effectiveTemp, isImperial)}
+                  </Text>
+                )}
+              </Box>
             </Group>
           </Tooltip>
 
