@@ -166,6 +166,11 @@ export function generateCuesFromWorkoutStructure(route, workout) {
 
   // Helper to process a segment
   const processSegment = (segment, segmentIndex, segmentType) => {
+    // Skip segments without duration (shouldn't happen but be safe)
+    if (!segment.duration || segment.duration <= 0) {
+      return false;
+    }
+
     const segmentDistance = timeToDistance(segment.duration);
 
     if (currentDistance + segmentDistance > totalDistance + 0.1) {
@@ -175,6 +180,19 @@ export function generateCuesFromWorkoutStructure(route, workout) {
 
     const endDistance = Math.min(currentDistance + segmentDistance, totalDistance);
 
+    // Build instruction string, handling null zones (off-bike workouts)
+    let instruction = segment.description || formatSegmentType(segmentType);
+    if (segment.zone !== null && segment.zone !== undefined) {
+      instruction += `: Zone ${segment.zone}`;
+    }
+    instruction += ` for ${segment.duration}min (${segmentDistance.toFixed(1)}km)`;
+    if (segment.powerPctFTP) {
+      instruction += ` @ ${segment.powerPctFTP}% FTP`;
+    }
+    if (segment.cadence) {
+      instruction += ` | ${segment.cadence} rpm`;
+    }
+
     cues.push({
       type: segmentType,
       zone: segment.zone,
@@ -182,7 +200,7 @@ export function generateCuesFromWorkoutStructure(route, workout) {
       startDistance: currentDistance,
       endDistance: endDistance,
       coordinate: findCoordinateAtDistance(route.coordinates, endDistance).coordinate,
-      instruction: `${segment.description || formatSegmentType(segmentType)}: Zone ${segment.zone} for ${segment.duration}min (${segmentDistance.toFixed(1)}km)${segment.powerPctFTP ? ` @ ${segment.powerPctFTP}% FTP` : ''}${segment.cadence ? ` | ${segment.cadence} rpm` : ''}`,
+      instruction,
       duration: segment.duration,
       powerPctFTP: segment.powerPctFTP,
       cadence: segment.cadence
