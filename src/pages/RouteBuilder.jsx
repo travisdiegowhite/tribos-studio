@@ -9,7 +9,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import BottomSheet from '../components/BottomSheet.jsx';
-import { generateAIRoutes } from '../utils/aiRouteGenerator';
+import { generateAIRoutes, generateSmartWaypoints } from '../utils/aiRouteGenerator';
 import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
 import { matchRouteToOSM } from '../utils/osmCyclingService';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -1015,33 +1015,62 @@ function RouteBuilder() {
 
       // Step 4: Geocode each waypoint name to coordinates
       const startLocation = [viewport.longitude, viewport.latitude];
-      const waypointCoords = [startLocation]; // Start with user's current location
+      let waypointCoords = [];
+      let routeDescription = '';
 
-      for (const waypointName of parsed.waypoints) {
-        const geocoded = await geocodeWaypoint(waypointName, startLocation);
-        if (geocoded) {
-          waypointCoords.push(geocoded.coordinates);
-        } else {
-          console.warn(`Could not geocode waypoint: ${waypointName}`);
+      // Check if we have explicit waypoints to geocode
+      if (parsed.waypoints && parsed.waypoints.length > 0) {
+        waypointCoords = [startLocation]; // Start with user's current location
+
+        for (const waypointName of parsed.waypoints) {
+          const geocoded = await geocodeWaypoint(waypointName, startLocation);
+          if (geocoded) {
+            waypointCoords.push(geocoded.coordinates);
+          } else {
+            console.warn(`Could not geocode waypoint: ${waypointName}`);
+          }
         }
-      }
 
-      // For loop routes, return to start
-      if (parsed.routeType === 'loop' || parsed.routeType === 'out_back') {
-        waypointCoords.push(startLocation);
+        // For loop routes, return to start
+        if (parsed.routeType === 'loop' || parsed.routeType === 'out_back') {
+          waypointCoords.push(startLocation);
+        }
+
+        routeDescription = parsed.waypoints.join(', ');
+      } else {
+        // No explicit waypoints - generate smart geometric waypoints based on duration
+        console.log('🎯 No waypoints provided, generating smart route based on duration...');
+
+        const duration = parsed.timeAvailable || timeAvailable || 60;
+        const goal = parsed.trainingGoal || trainingGoal || 'endurance';
+        const type = parsed.routeType || 'loop';
+        const direction = parsed.direction || null;
+
+        waypointCoords = generateSmartWaypoints(
+          startLocation,
+          duration,
+          type,
+          goal,
+          speedProfile,
+          direction
+        );
+
+        // Create a description for the route
+        const distanceEstimate = Math.round(duration * 0.33); // Rough km estimate
+        routeDescription = `${duration}min ${goal} ${type}`;
       }
 
       console.log(`📍 Routing through ${waypointCoords.length} waypoints:`, waypointCoords);
 
       if (waypointCoords.length < 2) {
-        throw new Error('Could not find any of the specified locations. Try using different place names.');
+        throw new Error('Could not generate route waypoints. Please try again.');
       }
 
-      // Step 5: Generate route through the geocoded waypoints
+      // Step 5: Generate route through the waypoints
       notifications.show({
         id: 'generating-route',
         title: 'Generating Route',
-        message: `Routing through ${parsed.waypoints.join(', ')}...`,
+        message: `Creating ${routeDescription} route...`,
         loading: true,
         autoClose: false
       });
@@ -1053,11 +1082,14 @@ function RouteBuilder() {
       });
 
       if (!routeResult || !routeResult.coordinates || routeResult.coordinates.length < 10) {
-        throw new Error('Could not generate a route through those waypoints. Try different locations.');
+        throw new Error('Could not generate a route. Try a different duration or location.');
       }
 
       // Step 6: Create route object and display
-      const routeName = `${parsed.waypoints.join(' → ')} ${parsed.routeType}`;
+      const distanceKm = (routeResult.distance / 1000).toFixed(1);
+      const generatedRouteName = parsed.waypoints?.length > 0
+        ? `${parsed.waypoints.join(' → ')} ${parsed.routeType}`
+        : `${distanceKm}km ${parsed.trainingGoal || 'endurance'} ${parsed.routeType || 'loop'}`;
 
       setRouteGeometry({
         type: 'LineString',
@@ -1065,19 +1097,22 @@ function RouteBuilder() {
       });
 
       setRouteStats({
-        distance: (routeResult.distance / 1000).toFixed(1),
+        distance: distanceKm,
         elevation: routeResult.elevationGain || 0,
         duration: Math.round(routeResult.duration / 60)
       });
 
-      setRouteName(routeName);
+      // Only update route name if not already set from calendar context
+      if (!calendarContext) {
+        setRouteName(generatedRouteName);
+      }
       setRoutingSource(routeResult.source);
       setWaypoints([]); // Clear manual waypoints since we're using AI route
 
       notifications.update({
         id: 'generating-route',
         title: 'Route Generated!',
-        message: `${(routeResult.distance / 1000).toFixed(1)} km route through ${parsed.waypoints.join(', ')}`,
+        message: `${distanceKm} km ${parsed.routeType || 'loop'} route created`,
         color: 'lime',
         loading: false,
         autoClose: 3000
