@@ -73,6 +73,9 @@ function findCoordinateAtDistance(coordinates, targetDistance) {
 /**
  * Generate interval cues from a workout library structure
  * Converts workout.structure into detailed cues mapped to route distance
+ *
+ * KEY: Cues are scaled proportionally to route distance, not calculated from time.
+ * This ensures the workout structure always matches the route length.
  */
 export function generateCuesFromWorkoutStructure(route, workout) {
   if (!route || !route.coordinates || route.coordinates.length < 2) {
@@ -90,49 +93,96 @@ export function generateCuesFromWorkoutStructure(route, workout) {
   });
 
   const totalDistance = route.distance || calculateTotalDistance(route.coordinates);
+
+  // Calculate total workout duration from structure
+  const calculateTotalWorkoutTime = () => {
+    let total = 0;
+
+    if (workout.structure.warmup?.duration) {
+      total += workout.structure.warmup.duration;
+    }
+
+    if (workout.structure.main && Array.isArray(workout.structure.main)) {
+      workout.structure.main.forEach(segment => {
+        if (segment.type === 'repeat') {
+          const sets = segment.sets || 1;
+          if (Array.isArray(segment.work)) {
+            segment.work.forEach(w => {
+              total += (w.duration || 0) * sets;
+            });
+          }
+          if (segment.rest?.duration && sets > 1) {
+            total += segment.rest.duration * (sets - 1);
+          }
+        } else {
+          total += segment.duration || 0;
+        }
+      });
+    }
+
+    if (workout.structure.cooldown?.duration) {
+      total += workout.structure.cooldown.duration;
+    }
+
+    return total || workout.duration || 60;
+  };
+
+  const totalWorkoutTime = calculateTotalWorkoutTime();
+
+  // Scale factor: how much distance per minute of workout
+  const distancePerMinute = totalDistance / totalWorkoutTime;
+
+  console.log(`📏 Scaling workout: ${totalWorkoutTime}min workout → ${totalDistance.toFixed(1)}km route (${distancePerMinute.toFixed(2)}km/min)`);
+
   const cues = [];
   let currentDistance = 0;
-  let currentTime = 0; // Track time in minutes
+  let currentTime = 0;
 
-  // Helper to convert time-based segment to distance
-  const timeToDistance = (minutes, zone) => {
-    // Estimate speed based on zone
-    const zoneSpeed = {
-      1: 22,  // km/h - recovery
-      2: 25,  // km/h - endurance
-      3: 27,  // km/h - tempo
-      4: 28,  // km/h - threshold
-      5: 30,  // km/h - VO2max
-    };
-    const speed = zoneSpeed[zone] || 25;
-    return (speed / 60) * minutes;
+  // Helper to convert time-based segment to SCALED distance
+  const timeToDistance = (minutes) => {
+    return distancePerMinute * minutes;
   };
 
   // Helper to process a segment
   const processSegment = (segment, segmentIndex, segmentType) => {
-    const segmentDistance = timeToDistance(segment.duration, segment.zone);
+    const segmentDistance = timeToDistance(segment.duration);
 
-    if (currentDistance + segmentDistance > totalDistance) {
-      // Don't add segments beyond route distance
+    if (currentDistance + segmentDistance > totalDistance + 0.1) {
+      // Don't add segments beyond route distance (with small tolerance)
       return false;
     }
+
+    const endDistance = Math.min(currentDistance + segmentDistance, totalDistance);
 
     cues.push({
       type: segmentType,
       zone: segment.zone,
       distance: segmentDistance,
       startDistance: currentDistance,
-      endDistance: currentDistance + segmentDistance,
-      coordinate: findCoordinateAtDistance(route.coordinates, currentDistance + segmentDistance).coordinate,
-      instruction: `${segment.description || segmentType}: Zone ${segment.zone} for ${segment.duration}min (${segmentDistance.toFixed(1)}km)${segment.powerPctFTP ? ` @ ${segment.powerPctFTP}% FTP` : ''}${segment.cadence ? ` | ${segment.cadence} rpm` : ''}`,
+      endDistance: endDistance,
+      coordinate: findCoordinateAtDistance(route.coordinates, endDistance).coordinate,
+      instruction: `${segment.description || formatSegmentType(segmentType)}: Zone ${segment.zone} for ${segment.duration}min (${segmentDistance.toFixed(1)}km)${segment.powerPctFTP ? ` @ ${segment.powerPctFTP}% FTP` : ''}${segment.cadence ? ` | ${segment.cadence} rpm` : ''}`,
       duration: segment.duration,
       powerPctFTP: segment.powerPctFTP,
       cadence: segment.cadence
     });
 
-    currentDistance += segmentDistance;
+    currentDistance = endDistance;
     currentTime += segment.duration;
     return true;
+  };
+
+  // Helper to format segment type for display
+  const formatSegmentType = (type) => {
+    const formats = {
+      'warmup': 'Warmup',
+      'main': 'Main',
+      'cooldown': 'Cooldown',
+      'interval-hard': 'Interval',
+      'interval-recovery': 'Recovery',
+      'steady': 'Steady'
+    };
+    return formats[type] || type;
   };
 
   // Helper to process repeating segments
@@ -182,9 +232,10 @@ export function generateCuesFromWorkoutStructure(route, workout) {
     processSegment(workout.structure.cooldown, 'cooldown', 'cooldown');
   }
 
-  // If we haven't used all the route distance, add a steady segment
+  // Log any remaining distance (should be minimal with proportional scaling)
   if (currentDistance < totalDistance - 0.5) {
     const remainingDist = totalDistance - currentDistance;
+    console.log(`⚠️ ${remainingDist.toFixed(1)}km unaccounted for - adding steady segment`);
     cues.push({
       type: 'steady',
       zone: 2,
@@ -196,7 +247,7 @@ export function generateCuesFromWorkoutStructure(route, workout) {
     });
   }
 
-  console.log(`✅ Generated ${cues.length} cues from workout structure`);
+  console.log(`✅ Generated ${cues.length} cues from workout structure (${currentTime}min scaled to ${totalDistance.toFixed(1)}km)`);
   return cues;
 }
 
