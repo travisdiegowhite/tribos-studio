@@ -722,7 +722,7 @@ function RouteBuilder() {
         const route = data.routes[0];
         setRouteGeometry(route.geometry);
         setRouteStats({
-          distance: (route.distance / 1000).toFixed(1), // Convert to km
+          distance: parseFloat((route.distance / 1000).toFixed(1)), // Convert to km (as number)
           elevation: 0, // Mapbox doesn't provide elevation in basic API
           duration: Math.round(route.duration / 60) // Convert to minutes
         });
@@ -910,7 +910,7 @@ function RouteBuilder() {
 
         // Update route stats from the pre-computed route data
         setRouteStats({
-          distance: (suggestion.distance || 0).toFixed(1),
+          distance: parseFloat((suggestion.distance || 0).toFixed(1)),
           elevation: suggestion.elevationGain || 0,
           duration: Math.round((suggestion.distance || 0) / 25 * 60) // Estimate based on 25km/h
         });
@@ -1086,7 +1086,7 @@ function RouteBuilder() {
       }
 
       // Step 6: Create route object and display
-      const distanceKm = (routeResult.distance / 1000).toFixed(1);
+      const distanceKm = parseFloat((routeResult.distance / 1000).toFixed(1));
       const generatedRouteName = parsed.waypoints?.length > 0
         ? `${parsed.waypoints.join(' → ')} ${parsed.routeType}`
         : `${distanceKm}km ${parsed.trainingGoal || 'endurance'} ${parsed.routeType || 'loop'}`;
@@ -1097,7 +1097,7 @@ function RouteBuilder() {
       });
 
       setRouteStats({
-        distance: distanceKm,
+        distance: distanceKm, // Now a number, not string
         elevation: routeResult.elevationGain || 0,
         duration: Math.round(routeResult.duration / 60)
       });
