@@ -2599,3 +2599,102 @@ function calculateTemplateScore(template, targetDistance, trainingGoal) {
 
   return score;
 }
+
+/**
+ * Generate geometric waypoints for a route when no explicit waypoints are provided
+ * Uses duration and training goal to create an appropriate route shape
+ * @param {Array} startLocation - [lng, lat] starting coordinates
+ * @param {number} durationMinutes - Target ride duration in minutes
+ * @param {string} routeType - 'loop', 'out_back', or 'point_to_point'
+ * @param {string} trainingGoal - 'endurance', 'recovery', 'intervals', 'hills'
+ * @param {object} speedProfile - User's speed profile from Strava
+ * @param {string} direction - Optional preferred direction ('north', 'south', 'east', 'west')
+ * @returns {Array} Array of [lng, lat] waypoints
+ */
+export function generateSmartWaypoints(startLocation, durationMinutes, routeType = 'loop', trainingGoal = 'endurance', speedProfile = null, direction = null) {
+  // Calculate target distance
+  const targetDistance = calculateTargetDistance(durationMinutes, trainingGoal, null, speedProfile, 1.0);
+
+  console.log(`🎯 Generating smart waypoints: ${durationMinutes}min → ${targetDistance.toFixed(1)}km ${routeType}`);
+
+  // Generate waypoints based on route type
+  if (routeType === 'out_back') {
+    return generateOutAndBackWaypointsSimple(startLocation, targetDistance, direction);
+  }
+
+  // Default to loop
+  return generateLoopWaypointsSimple(startLocation, targetDistance, direction);
+}
+
+// Simplified loop waypoint generation for NL requests
+function generateLoopWaypointsSimple(startLocation, targetDistance, preferredDirection = null) {
+  const waypoints = [startLocation];
+  const numWaypoints = Math.min(5, Math.max(3, Math.floor(targetDistance / 10)));
+
+  // Calculate radius for the loop
+  const circumference = targetDistance;
+  const baseRadius = circumference / (2 * Math.PI) * 0.85; // Slightly smaller for road curvature
+
+  // Determine starting angle based on preferred direction
+  let startAngle = Math.random() * 360;
+  if (preferredDirection) {
+    const directionAngles = {
+      'north': 0, 'northeast': 45, 'east': 90, 'southeast': 135,
+      'south': 180, 'southwest': 225, 'west': 270, 'northwest': 315
+    };
+    startAngle = directionAngles[preferredDirection] || startAngle;
+  }
+
+  for (let i = 1; i <= numWaypoints; i++) {
+    const progress = i / (numWaypoints + 1);
+    const angle = startAngle + (progress * 360);
+
+    // Vary radius slightly for more natural shape
+    const radiusVariation = 0.85 + Math.random() * 0.3;
+    const distance = baseRadius * radiusVariation;
+
+    const waypoint = calculateDestinationPoint(startLocation, distance, angle);
+    waypoints.push(waypoint);
+  }
+
+  // Return to start
+  waypoints.push(startLocation);
+
+  console.log(`📍 Generated ${waypoints.length} loop waypoints for ${targetDistance.toFixed(1)}km route`);
+  return waypoints;
+}
+
+// Simplified out-and-back waypoint generation
+function generateOutAndBackWaypointsSimple(startLocation, targetDistance, preferredDirection = null) {
+  const waypoints = [startLocation];
+  const outboundDistance = targetDistance / 2;
+
+  // Determine bearing
+  let bearing = Math.random() * 360;
+  if (preferredDirection) {
+    const directionAngles = {
+      'north': 0, 'northeast': 45, 'east': 90, 'southeast': 135,
+      'south': 180, 'southwest': 225, 'west': 270, 'northwest': 315
+    };
+    bearing = directionAngles[preferredDirection] + (Math.random() * 30 - 15);
+  }
+
+  // Add 2-3 waypoints outbound
+  const numOutbound = Math.min(3, Math.max(2, Math.floor(outboundDistance / 8)));
+
+  for (let i = 1; i <= numOutbound; i++) {
+    const progress = i / numOutbound;
+    const distance = outboundDistance * progress;
+    const waypoint = calculateDestinationPoint(startLocation, distance, bearing + (Math.random() * 10 - 5));
+    waypoints.push(waypoint);
+  }
+
+  // Return to start (routing will handle the actual path)
+  waypoints.push(startLocation);
+
+  console.log(`📍 Generated ${waypoints.length} out-and-back waypoints for ${targetDistance.toFixed(1)}km route`);
+  return waypoints;
+}
+
+// Export the target distance calculator for external use
+export { calculateTargetDistance };
