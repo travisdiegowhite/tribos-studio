@@ -2629,11 +2629,16 @@ export function generateSmartWaypoints(startLocation, durationMinutes, routeType
 // Simplified loop waypoint generation for NL requests
 function generateLoopWaypointsSimple(startLocation, targetDistance, preferredDirection = null) {
   const waypoints = [startLocation];
-  const numWaypoints = Math.min(5, Math.max(3, Math.floor(targetDistance / 10)));
 
-  // Calculate radius for the loop
-  const circumference = targetDistance;
-  const baseRadius = circumference / (2 * Math.PI) * 0.85; // Slightly smaller for road curvature
+  // More waypoints for longer routes, fewer for shorter
+  const numWaypoints = Math.min(6, Math.max(3, Math.floor(targetDistance / 8)));
+
+  // Roads are curvy! Actual routed distance is typically 60-70% of straight-line waypoint distances.
+  // So we need to place waypoints FURTHER apart to achieve target road distance.
+  // For a loop: perimeter = target distance, but road adds ~40% over straight lines
+  // So we size the geometric shape for ~1.5x the target distance
+  const effectiveCircumference = targetDistance * 1.5;
+  const baseRadius = effectiveCircumference / (2 * Math.PI);
 
   // Determine starting angle based on preferred direction
   let startAngle = Math.random() * 360;
@@ -2649,8 +2654,8 @@ function generateLoopWaypointsSimple(startLocation, targetDistance, preferredDir
     const progress = i / (numWaypoints + 1);
     const angle = startAngle + (progress * 360);
 
-    // Vary radius slightly for more natural shape
-    const radiusVariation = 0.85 + Math.random() * 0.3;
+    // Vary radius for more natural shape (0.9 to 1.1x base)
+    const radiusVariation = 0.9 + Math.random() * 0.2;
     const distance = baseRadius * radiusVariation;
 
     const waypoint = calculateDestinationPoint(startLocation, distance, angle);
@@ -2660,14 +2665,18 @@ function generateLoopWaypointsSimple(startLocation, targetDistance, preferredDir
   // Return to start
   waypoints.push(startLocation);
 
-  console.log(`📍 Generated ${waypoints.length} loop waypoints for ${targetDistance.toFixed(1)}km route`);
+  console.log(`📍 Generated ${waypoints.length} loop waypoints for ${targetDistance.toFixed(1)}km target (radius: ${baseRadius.toFixed(1)}km)`);
   return waypoints;
 }
 
 // Simplified out-and-back waypoint generation
 function generateOutAndBackWaypointsSimple(startLocation, targetDistance, preferredDirection = null) {
   const waypoints = [startLocation];
-  const outboundDistance = targetDistance / 2;
+
+  // Roads are curvy - actual distance is ~65-75% of straight-line distance
+  // For out-and-back: we go out half distance, return same way (but routed on roads)
+  // So geometric outbound distance should be ~0.7x the target one-way distance
+  const outboundGeometricDistance = (targetDistance / 2) * 0.7;
 
   // Determine bearing
   let bearing = Math.random() * 360;
@@ -2679,20 +2688,22 @@ function generateOutAndBackWaypointsSimple(startLocation, targetDistance, prefer
     bearing = directionAngles[preferredDirection] + (Math.random() * 30 - 15);
   }
 
-  // Add 2-3 waypoints outbound
-  const numOutbound = Math.min(3, Math.max(2, Math.floor(outboundDistance / 8)));
+  // Add 2-3 waypoints outbound with slight meanders for more interesting route
+  const numOutbound = Math.min(3, Math.max(2, Math.floor(targetDistance / 15)));
 
   for (let i = 1; i <= numOutbound; i++) {
     const progress = i / numOutbound;
-    const distance = outboundDistance * progress;
-    const waypoint = calculateDestinationPoint(startLocation, distance, bearing + (Math.random() * 10 - 5));
+    const distance = outboundGeometricDistance * progress;
+    // Add slight bearing variations for more interesting route
+    const bearingVariation = (Math.random() * 20 - 10) * (1 - progress); // Less variation near turnaround
+    const waypoint = calculateDestinationPoint(startLocation, distance, bearing + bearingVariation);
     waypoints.push(waypoint);
   }
 
   // Return to start (routing will handle the actual path)
   waypoints.push(startLocation);
 
-  console.log(`📍 Generated ${waypoints.length} out-and-back waypoints for ${targetDistance.toFixed(1)}km route`);
+  console.log(`📍 Generated ${waypoints.length} out-and-back waypoints for ${targetDistance.toFixed(1)}km target (outbound: ${outboundGeometricDistance.toFixed(1)}km geometric)`);
   return waypoints;
 }
 
