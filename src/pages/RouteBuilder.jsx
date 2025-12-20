@@ -531,6 +531,13 @@ function RouteBuilder() {
       setRouteName(`Route for ${context.workoutName}`);
     }
 
+    // Pre-fill natural language input with workout description
+    const workoutDesc = context.workoutName || context.workoutType;
+    const goalText = context.trainingGoal === 'intervals' ? 'with intervals' :
+                     context.trainingGoal === 'hills' ? 'with climbing' :
+                     context.trainingGoal === 'recovery' ? 'easy recovery' : '';
+    setNaturalLanguageInput(`Create a ${context.duration} minute ${workoutDesc} route ${goalText}`.trim());
+
     // Clear the URL params after reading (keeps URL clean)
     setSearchParams({}, { replace: true });
   }, []);
@@ -1292,14 +1299,32 @@ function RouteBuilder() {
           loading={generatingAI}
           leftSection={<IconSparkles size={16} />}
           color="lime"
-          variant="light"
+          variant={calendarContext ? 'filled' : 'light'}
           size="xs"
           mt="xs"
           fullWidth
+          style={calendarContext ? {
+            animation: 'pulse-glow 2s ease-in-out infinite',
+            boxShadow: `0 0 20px ${tokens.colors.electricLime}40`,
+          } : undefined}
         >
-          Generate from Description
+          {calendarContext ? '✨ Generate Route for Workout' : 'Generate from Description'}
         </Button>
       </Box>
+
+      {/* Pulse animation styles */}
+      <style>{`
+        @keyframes pulse-glow {
+          0%, 100% {
+            box-shadow: 0 0 5px ${tokens.colors.electricLime}40;
+            transform: scale(1);
+          }
+          50% {
+            box-shadow: 0 0 25px ${tokens.colors.electricLime}80;
+            transform: scale(1.02);
+          }
+        }
+      `}</style>
 
       <Divider label="or configure manually" labelPosition="center" size="xs" />
 
@@ -1818,14 +1843,32 @@ function RouteBuilder() {
                 loading={generatingAI}
                 leftSection={<IconSparkles size={16} />}
                 color="lime"
-                variant="light"
+                variant={calendarContext ? 'filled' : 'light'}
                 size="xs"
                 mt="xs"
                 fullWidth
+                style={calendarContext ? {
+                  animation: 'pulse-glow 2s ease-in-out infinite',
+                  boxShadow: `0 0 20px ${tokens.colors.electricLime}40`,
+                } : undefined}
               >
-                Generate from Description
+                {calendarContext ? '✨ Generate Route for Workout' : 'Generate from Description'}
               </Button>
             </Box>
+
+            {/* Pulse animation styles (desktop) */}
+            <style>{`
+              @keyframes pulse-glow {
+                0%, 100% {
+                  box-shadow: 0 0 5px ${tokens.colors.electricLime}40;
+                  transform: scale(1);
+                }
+                50% {
+                  box-shadow: 0 0 25px ${tokens.colors.electricLime}80;
+                  transform: scale(1.02);
+                }
+              }
+            `}</style>
 
             <Divider label="or configure manually" labelPosition="center" size="xs" />
 
