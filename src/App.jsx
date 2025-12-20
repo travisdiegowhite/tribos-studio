@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { MantineProvider, ColorSchemeScript } from '@mantine/core';
 import { DatesProvider } from '@mantine/dates';
 import { Notifications } from '@mantine/notifications';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { UserPreferencesProvider } from './contexts/UserPreferencesContext.jsx';
 import { theme } from './theme';
@@ -184,6 +186,8 @@ function App() {
                   <AppRoutes />
                   <BetaFeedbackWidget />
                 </BrowserRouter>
+                <Analytics />
+                <SpeedInsights />
               </UserPreferencesProvider>
             </AuthProvider>
           </ErrorBoundary>
