@@ -24,7 +24,9 @@ import {
   IconCamera,
   IconHeart,
   IconAlertCircle,
+  IconCloud,
 } from '@tabler/icons-react';
+import { WEATHER_TOLERANCE_PRESETS, DEFAULT_WEATHER_PRESET, formatTemperature, formatWindSpeed } from '../utils/weather';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { notifications } from '@mantine/notifications';
 
@@ -66,6 +68,11 @@ const PreferenceSettings = ({ opened, onClose }) => {
   const [weeklyVolume, setWeeklyVolume] = useState(100);
   const [fatigueLevel, setFatigueLevel] = useState('fresh');
 
+  // Weather tolerance preferences
+  const [weatherTolerance, setWeatherTolerance] = useState(DEFAULT_WEATHER_PRESET);
+  const [useWindChill, setUseWindChill] = useState(true);
+  const [rainTolerance, setRainTolerance] = useState('light');
+
   // Load existing preferences from localStorage
   useEffect(() => {
     if (!opened) return;
@@ -102,6 +109,11 @@ const PreferenceSettings = ({ opened, onClose }) => {
         setTrainingPhase(prefs.trainingPhase || 'base_building');
         setWeeklyVolume(prefs.weeklyVolume || 100);
         setFatigueLevel(prefs.fatigueLevel || 'fresh');
+
+        // Weather tolerance
+        setWeatherTolerance(prefs.weatherTolerance || DEFAULT_WEATHER_PRESET);
+        setUseWindChill(prefs.useWindChill !== false);
+        setRainTolerance(prefs.rainTolerance || 'light');
       }
     } catch (error) {
       console.error('Error loading preferences:', error);
@@ -132,6 +144,10 @@ const PreferenceSettings = ({ opened, onClose }) => {
         trainingPhase,
         weeklyVolume,
         fatigueLevel,
+        // Weather tolerance
+        weatherTolerance,
+        useWindChill,
+        rainTolerance,
       };
 
       localStorage.setItem('routePreferences', JSON.stringify(preferences));
@@ -195,6 +211,9 @@ const PreferenceSettings = ({ opened, onClose }) => {
             </Tabs.Tab>
             <Tabs.Tab value="training" leftSection={<IconHeart size={16} />}>
               Training
+            </Tabs.Tab>
+            <Tabs.Tab value="weather" leftSection={<IconCloud size={16} />}>
+              Weather
             </Tabs.Tab>
           </Tabs.List>
 
@@ -450,6 +469,78 @@ const PreferenceSettings = ({ opened, onClose }) => {
                   { value: 'exhausted', label: 'Exhausted - Recovery only' },
                 ]}
               />
+            </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="weather" pt="md">
+            <Stack>
+              <Text size="sm" c="dimmed" mb="xs">
+                Set your weather comfort zone. The route builder will assess conditions based on your personal tolerances.
+              </Text>
+
+              <Select
+                label="Weather Tolerance"
+                description="How adventurous are you with weather?"
+                value={weatherTolerance}
+                onChange={setWeatherTolerance}
+                data={Object.values(WEATHER_TOLERANCE_PRESETS).map((preset) => ({
+                  value: preset.id,
+                  label: `${preset.name} - ${preset.description}`,
+                }))}
+              />
+
+              {weatherTolerance && WEATHER_TOLERANCE_PRESETS[weatherTolerance] && (
+                <Paper p="sm" withBorder radius="md" bg="dark.7">
+                  <Text size="sm" fw={500} mb="xs">
+                    Your thresholds:
+                  </Text>
+                  <Group gap="lg">
+                    <div>
+                      <Text size="xs" c="dimmed">Wind caution</Text>
+                      <Text size="sm">
+                        {formatWindSpeed(WEATHER_TOLERANCE_PRESETS[weatherTolerance].thresholds.wind.caution, true)}
+                      </Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">Cold caution</Text>
+                      <Text size="sm">
+                        {formatTemperature(WEATHER_TOLERANCE_PRESETS[weatherTolerance].thresholds.coldTemp.caution, true)}
+                      </Text>
+                    </div>
+                    <div>
+                      <Text size="xs" c="dimmed">Heat caution</Text>
+                      <Text size="sm">
+                        {formatTemperature(WEATHER_TOLERANCE_PRESETS[weatherTolerance].thresholds.hotTemp.caution, true)}
+                      </Text>
+                    </div>
+                  </Group>
+                </Paper>
+              )}
+
+              <Switch
+                label="Account for wind chill"
+                description="Factor in how cold it feels with wind, not just the actual temperature"
+                checked={useWindChill}
+                onChange={(e) => setUseWindChill(e.currentTarget.checked)}
+              />
+
+              <Select
+                label="Rain Tolerance"
+                description="How do you feel about riding in the rain?"
+                value={rainTolerance}
+                onChange={setRainTolerance}
+                data={[
+                  { value: 'none', label: 'None - I avoid wet conditions' },
+                  { value: 'light', label: 'Light - Drizzle is okay' },
+                  { value: 'any', label: 'Any - Rain doesn\'t bother me' },
+                ]}
+              />
+
+              <Alert icon={<IconAlertCircle size={16} />} color="gray" variant="light">
+                <Text size="xs">
+                  <strong>Note:</strong> Dangerous conditions like thunderstorms, ice, and blizzards will always show warnings regardless of your tolerance settings.
+                </Text>
+              </Alert>
             </Stack>
           </Tabs.Panel>
         </Tabs>
