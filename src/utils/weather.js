@@ -313,8 +313,9 @@ export function analyzeWindForRoute(coordinates, windDegrees, windSpeed) {
  * Now uses user preferences for personalized assessment
  * @param {Object} weather - Weather data object
  * @param {Object} preferences - Optional preferences override (uses stored prefs if not provided)
+ * @param {boolean} useImperial - Whether to format temperatures in imperial units (default: true)
  */
-export function getWeatherSeverity(weather, preferences = null) {
+export function getWeatherSeverity(weather, preferences = null, useImperial = true) {
   if (!weather) return { level: 'unknown', color: 'gray', message: 'Weather data unavailable' };
 
   // Get user preferences or use provided/default
@@ -371,16 +372,16 @@ export function getWeatherSeverity(weather, preferences = null) {
       severity: 'warning',
       type: 'cold',
       message: prefs.useWindChill && effectiveTemp < temp
-        ? `Very cold (feels like ${Math.round(effectiveTemp)}°C)`
-        : `Very cold (${Math.round(temp)}°C)`,
+        ? `Very cold (feels like ${formatTemperature(effectiveTemp, useImperial)})`
+        : `Very cold (${formatTemperature(temp, useImperial)})`,
     });
   } else if (tempToCheck <= thresholds.coldTemp.caution) {
     issues.push({
       severity: 'caution',
       type: 'cold',
       message: prefs.useWindChill && effectiveTemp < temp
-        ? `Cold (feels like ${Math.round(effectiveTemp)}°C)`
-        : `Cold (${Math.round(temp)}°C)`,
+        ? `Cold (feels like ${formatTemperature(effectiveTemp, useImperial)})`
+        : `Cold (${formatTemperature(temp, useImperial)})`,
     });
   }
 
@@ -389,13 +390,13 @@ export function getWeatherSeverity(weather, preferences = null) {
     issues.push({
       severity: 'warning',
       type: 'heat',
-      message: `Extreme heat (${Math.round(temp)}°C)`,
+      message: `Extreme heat (${formatTemperature(temp, useImperial)})`,
     });
   } else if (temp >= thresholds.hotTemp.caution) {
     issues.push({
       severity: 'caution',
       type: 'heat',
-      message: `Hot (${Math.round(temp)}°C)`,
+      message: `Hot (${formatTemperature(temp, useImperial)})`,
     });
   }
 
@@ -404,13 +405,13 @@ export function getWeatherSeverity(weather, preferences = null) {
     issues.push({
       severity: 'warning',
       type: 'wind',
-      message: `High winds (${Math.round(windSpeed)} km/h)`,
+      message: `High winds (${formatWindSpeed(windSpeed, useImperial)})`,
     });
   } else if (windSpeed >= thresholds.wind.caution) {
     issues.push({
       severity: 'caution',
       type: 'wind',
-      message: `Windy (${Math.round(windSpeed)} km/h)`,
+      message: `Windy (${formatWindSpeed(windSpeed, useImperial)})`,
     });
   }
 

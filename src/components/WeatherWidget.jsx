@@ -38,7 +38,7 @@ function WindArrow({ degrees, size = 24 }) {
 export function WeatherBadge({ weather, isImperial = true, onClick }) {
   if (!weather) return null;
 
-  const severity = getWeatherSeverity(weather);
+  const severity = getWeatherSeverity(weather, null, isImperial);
 
   return (
     <Tooltip label={severity.message} position="bottom">
@@ -221,7 +221,7 @@ const WeatherWidget = ({
 
   if (!weather) return null;
 
-  const severity = getWeatherSeverity(weather);
+  const severity = getWeatherSeverity(weather, null, isImperial);
 
   // Compact mode for map overlay
   if (compact) {
