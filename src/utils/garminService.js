@@ -363,6 +363,122 @@ export class GarminService {
       throw error;
     }
   }
+
+  /**
+   * Sync recent activities from Garmin (last N days)
+   * @param {number} days - Number of days to sync (default 30)
+   * @returns {Promise<{success: boolean, fetched: number, stored: number}>}
+   */
+  async syncRecentActivities(days = 30) {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'sync_activities',
+          userId,
+          days
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to sync activities');
+      }
+
+      const data = await response.json();
+      console.log(`✅ Synced ${data.stored} Garmin activities`);
+      return data;
+    } catch (error) {
+      console.error('Error syncing Garmin activities:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Backfill historical activities from Garmin
+   * @param {number} days - Number of days to backfill (default 90)
+   * @returns {Promise<{success: boolean, fetched: number, stored: number, method: string}>}
+   */
+  async backfillActivities(days = 90) {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'backfill_activities',
+          userId,
+          days
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to backfill activities');
+      }
+
+      const data = await response.json();
+      console.log(`✅ Backfilled Garmin activities:`, data);
+      return data;
+    } catch (error) {
+      console.error('Error backfilling Garmin activities:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get details for a specific Garmin activity
+   * @param {string} activityId - The Garmin activity/summary ID
+   * @returns {Promise<{success: boolean, activity: object}>}
+   */
+  async getActivityDetails(activityId) {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'get_activity',
+          userId,
+          activityId
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get activity details');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error getting Garmin activity details:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance
