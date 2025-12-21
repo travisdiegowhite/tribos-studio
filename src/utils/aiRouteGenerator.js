@@ -171,7 +171,8 @@ export async function generateAIRoutes(params) {
           routeType,
           pastRidePatterns: ridingPatterns
         };
-        const enhancedRoute = await convertClaudeToFullRoute(routeWithContext, startLocation, targetDistance, userPreferences);
+        const userSpeed = speedProfile?.road_speed || speedProfile?.average_speed || null;
+        const enhancedRoute = await convertClaudeToFullRoute(routeWithContext, startLocation, targetDistance, userPreferences, userSpeed);
         if (enhancedRoute) {
           console.log(`✅ Successfully converted: ${enhancedRoute.name}`);
           routes.push(enhancedRoute);
@@ -258,7 +259,8 @@ export async function generateAIRoutes(params) {
       routeType,
       weatherData,
       ridingPatterns,
-      patternBasedSuggestions
+      patternBasedSuggestions,
+      speedProfile
     });
     
     routes.push(...mapboxRoutes);
@@ -430,8 +432,11 @@ function calculateTargetDistance(timeMinutes, trainingGoal, performanceMetrics =
 
 // Generate routes using Mapbox Directions API (NO geometric patterns)
 async function generateMapboxBasedRoutes(params) {
-  const { startLocation, targetDistance, trainingGoal, routeType, weatherData, patternBasedSuggestions, userPreferences } = params;
+  const { startLocation, targetDistance, trainingGoal, routeType, weatherData, patternBasedSuggestions, userPreferences, speedProfile } = params;
   const routes = [];
+
+  // Calculate user's actual cycling speed from speed profile
+  const userSpeed = speedProfile?.road_speed || speedProfile?.average_speed || null;
   
   console.log('Generating routes using Mapbox cycling intelligence');
   
@@ -445,15 +450,15 @@ async function generateMapboxBasedRoutes(params) {
   try {
     // Generate different route types using Mapbox
     if (routeType === 'loop') {
-      const loopRoutes = await generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences);
+      const loopRoutes = await generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
       routes.push(...loopRoutes);
     } else if (routeType === 'out_back') {
-      const outBackRoutes = await generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences);
+      const outBackRoutes = await generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
       routes.push(...outBackRoutes);
     } else {
       // Generate both types
-      const loopRoutes = await generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences);
-      const outBackRoutes = await generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences);
+      const loopRoutes = await generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
+      const outBackRoutes = await generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
       routes.push(...loopRoutes.slice(0, 2), ...outBackRoutes.slice(0, 1));
     }
     
@@ -560,10 +565,14 @@ async function generateSmartDestinations(startLocation, targetDistance, isochron
 }
 
 // Generate Mapbox-based loop routes
-async function generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null) {
+async function generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
   const routes = [];
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
-  
+
+  if (userSpeed) {
+    console.log(`🚴 Using personalized cycling speed: ${userSpeed.toFixed(1)} km/h`);
+  }
+
   // Generate different loop patterns using strategic waypoints
   const loopPatterns = [
     { name: 'Route A', bearing: 0, radius: 0.7 },
@@ -571,7 +580,7 @@ async function generateMapboxLoops(startLocation, targetDistance, trainingGoal, 
     { name: 'Route C', bearing: 180, radius: 0.7 },
     { name: 'Route D', bearing: 270, radius: 0.8 }
   ];
-  
+
   // Prioritize directions based on user patterns if available
   if (patternBasedSuggestions?.preferredDirection?.source === 'historical') {
     const preferredBearing = patternBasedSuggestions.preferredDirection.bearing;
@@ -581,12 +590,12 @@ async function generateMapboxLoops(startLocation, targetDistance, trainingGoal, 
       return aDiff - bDiff;
     });
   }
-  
+
   for (let i = 0; i < Math.min(3, loopPatterns.length); i++) {
     const pattern = loopPatterns[i];
 
     try {
-      const route = await generateMapboxLoop(startLocation, targetDistance, pattern, trainingGoal, mapboxToken, userPreferences);
+      const route = await generateMapboxLoop(startLocation, targetDistance, pattern, trainingGoal, mapboxToken, userPreferences, userSpeed);
       if (route && route.coordinates && route.coordinates.length > 20) {
         routes.push(route);
         console.log(`✅ Successfully generated ${pattern.name} with ${route.coordinates.length} points`);
@@ -604,10 +613,10 @@ async function generateMapboxLoops(startLocation, targetDistance, trainingGoal, 
 }
 
 // Generate Mapbox-based out-and-back routes
-async function generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null) {
+async function generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
   const routes = [];
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
-  
+
   // Generate different directional out-and-back routes
   const directions = [
     { name: 'North Route', bearing: 0 },
@@ -615,7 +624,7 @@ async function generateMapboxOutAndBack(startLocation, targetDistance, trainingG
     { name: 'East Route', bearing: 90 },
     { name: 'Southeast Route', bearing: 135 }
   ];
-  
+
   // Prioritize preferred direction if available
   if (patternBasedSuggestions?.preferredDirection?.source === 'historical') {
     const preferredBearing = patternBasedSuggestions.preferredDirection.bearing;
@@ -625,12 +634,12 @@ async function generateMapboxOutAndBack(startLocation, targetDistance, trainingG
       return aDiff - bDiff;
     });
   }
-  
+
   for (let i = 0; i < Math.min(3, directions.length); i++) {
     const direction = directions[i];
-    
+
     try {
-      const route = await generateMapboxOutBack(startLocation, targetDistance, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences);
+      const route = await generateMapboxOutBack(startLocation, targetDistance, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences, userSpeed);
       if (route && route.coordinates && route.coordinates.length > 10) {
         routes.push(route);
         console.log(`Successfully generated ${direction.name} with ${route.coordinates.length} points`);
@@ -644,7 +653,7 @@ async function generateMapboxOutAndBack(startLocation, targetDistance, trainingG
 }
 
 // Generate single Mapbox loop with strategic waypoints
-async function generateMapboxLoop(startLocation, targetDistance, pattern, trainingGoal, mapboxToken, userPreferences = null) {
+async function generateMapboxLoop(startLocation, targetDistance, pattern, trainingGoal, mapboxToken, userPreferences = null, userSpeed = null) {
   const [startLon, startLat] = startLocation;
 
   // Calculate strategic waypoints for a realistic loop
@@ -706,7 +715,8 @@ async function generateMapboxLoop(startLocation, targetDistance, pattern, traini
       profile: routingProfile,
       preferences: userPreferences,
       trainingGoal: trainingGoal,
-      mapboxToken: mapboxToken
+      mapboxToken: mapboxToken,
+      userSpeed: userSpeed
     });
 
     // Check if route is null (routing failed completely)
@@ -775,7 +785,7 @@ async function generateMapboxLoop(startLocation, targetDistance, pattern, traini
 }
 
 // Generate single Mapbox out-and-back route
-async function generateMapboxOutBack(startLocation, targetDistance, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences = null) {
+async function generateMapboxOutBack(startLocation, targetDistance, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
   const [startLon, startLat] = startLocation;
   const halfDistance = targetDistance / 2;
   
@@ -889,7 +899,7 @@ function calculateDestinationPoint(start, distanceKm, bearingDegrees) {
 }
 
 // Convert Claude route suggestion to full route with coordinates
-async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistance, preferences = null) {
+async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistance, preferences = null, userSpeed = null) {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for Claude route conversion');
@@ -933,7 +943,8 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
       profile: routingProfile,
       preferences: preferences,
       trainingGoal: claudeRoute.trainingGoal,
-      mapboxToken: mapboxToken
+      mapboxToken: mapboxToken,
+      userSpeed: userSpeed
     });
 
     if (route) {
