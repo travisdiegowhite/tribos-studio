@@ -375,65 +375,81 @@ async function downloadAndProcessActivity(event, integration) {
   try {
     // Parse activity data from various webhook payload formats
     const payload = event.payload;
-    let activityInfo = null;
+    let webhookInfo = null;
 
-    // Extract activity info from different Garmin payload structures
+    // Extract webhook info from different Garmin payload structures
     if (payload.activities && payload.activities.length > 0) {
-      activityInfo = payload.activities[0];
+      webhookInfo = payload.activities[0];
     } else if (payload.activityDetails && payload.activityDetails.length > 0) {
-      activityInfo = payload.activityDetails[0];
+      webhookInfo = payload.activityDetails[0];
     } else if (payload.activityFiles && payload.activityFiles.length > 0) {
-      activityInfo = payload.activityFiles[0];
+      webhookInfo = payload.activityFiles[0];
     } else {
       // Fallback to flat payload structure
-      activityInfo = payload;
+      webhookInfo = payload;
     }
 
-    // Construct file URL if not provided
-    let fileUrl = event.file_url;
-    if (!fileUrl && event.activity_id) {
-      const summaryId = activityInfo?.summaryId || event.activity_id;
-      fileUrl = `https://apis.garmin.com/wellness-api/rest/activityFile?id=${summaryId}`;
-      console.log('📎 Constructed FIT file URL:', fileUrl);
-    }
+    // Get the summary ID (Garmin uses summaryId for API calls)
+    const summaryId = webhookInfo?.summaryId || event.activity_id;
 
     console.log('📥 Processing Garmin activity:', {
       activityId: event.activity_id,
-      activityType: activityInfo?.activityType,
-      activityName: activityInfo?.activityName,
-      hasFileUrl: !!fileUrl
+      summaryId: summaryId,
+      activityType: webhookInfo?.activityType,
+      hasAccessToken: !!integration.access_token
     });
 
-    // Extract activity data from webhook payload (summary data)
-    // Note: Full FIT file processing would require downloading and parsing
+    // CRITICAL: Garmin webhooks only contain minimal data (userId, activityId, activityType, startTime)
+    // We MUST call the Garmin API to fetch the actual activity details
+    let activityDetails = null;
+
+    if (integration.access_token && summaryId) {
+      activityDetails = await fetchGarminActivityDetails(integration.access_token, summaryId);
+    }
+
+    // If API call failed, try to use what limited data we have from webhook
+    const activityInfo = activityDetails || webhookInfo || {};
+
+    // Build activity data from API response (or fallback to webhook data)
     const activityData = {
       user_id: integration.user_id,
       provider: 'garmin',
       provider_activity_id: event.activity_id,
-      name: activityInfo?.activityName || `Garmin Activity - ${new Date().toLocaleDateString()}`,
-      type: mapGarminActivityType(activityInfo?.activityType),
-      sport_type: activityInfo?.activityType,
-      start_date: activityInfo?.startTimeInSeconds
+      name: activityInfo.activityName ||
+            activityInfo.activityDescription ||
+            generateActivityName(activityInfo.activityType, activityInfo.startTimeInSeconds),
+      type: mapGarminActivityType(activityInfo.activityType),
+      sport_type: activityInfo.activityType,
+      start_date: activityInfo.startTimeInSeconds
         ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
         : new Date().toISOString(),
-      distance: activityInfo?.distanceInMeters || activityInfo?.distance,
-      moving_time: activityInfo?.durationInSeconds || activityInfo?.duration || activityInfo?.movingDurationInSeconds,
-      elapsed_time: activityInfo?.durationInSeconds || activityInfo?.duration || activityInfo?.elapsedDurationInSeconds,
-      total_elevation_gain: activityInfo?.totalElevationGain || activityInfo?.elevationGainInMeters,
-      total_elevation_loss: activityInfo?.totalElevationLoss || activityInfo?.elevationLossInMeters,
-      average_speed: activityInfo?.averageSpeedInMetersPerSecond || activityInfo?.averageSpeed,
-      max_speed: activityInfo?.maxSpeedInMetersPerSecond || activityInfo?.maxSpeed,
-      average_watts: activityInfo?.averagePower || activityInfo?.averageBikingPowerInWatts,
-      max_watts: activityInfo?.maxPower || activityInfo?.maxBikingPowerInWatts,
-      average_heartrate: activityInfo?.averageHeartRate || activityInfo?.averageHeartRateInBeatsPerMinute,
-      max_heartrate: activityInfo?.maxHeartRate || activityInfo?.maxHeartRateInBeatsPerMinute,
-      average_cadence: activityInfo?.averageBikingCadenceInRPM,
-      calories: activityInfo?.activeKilocalories || activityInfo?.caloriesBurned,
-      trainer: activityInfo?.indoor || false,
+      // Distance (Garmin sends in meters)
+      distance: activityInfo.distanceInMeters ?? activityInfo.distance ?? null,
+      // Duration (Garmin sends in seconds)
+      moving_time: activityInfo.movingDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
+      elapsed_time: activityInfo.elapsedDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
+      // Elevation (meters)
+      total_elevation_gain: activityInfo.elevationGainInMeters ?? activityInfo.totalElevationGain ?? null,
+      total_elevation_loss: activityInfo.elevationLossInMeters ?? activityInfo.totalElevationLoss ?? null,
+      // Speed (m/s)
+      average_speed: activityInfo.averageSpeedInMetersPerSecond ?? activityInfo.averageSpeed ?? null,
+      max_speed: activityInfo.maxSpeedInMetersPerSecond ?? activityInfo.maxSpeed ?? null,
+      // Power (watts)
+      average_watts: activityInfo.averageBikingPowerInWatts ?? activityInfo.averagePower ?? null,
+      max_watts: activityInfo.maxBikingPowerInWatts ?? activityInfo.maxPower ?? null,
+      // Heart rate (bpm)
+      average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute ?? activityInfo.averageHeartRate ?? null,
+      max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? activityInfo.maxHeartRate ?? null,
+      // Cadence (rpm)
+      average_cadence: activityInfo.averageBikingCadenceInRPM ?? activityInfo.averageRunningCadenceInStepsPerMinute ?? null,
+      // Calories
+      calories: activityInfo.activeKilocalories ?? activityInfo.caloriesBurned ?? activityInfo.calories ?? null,
+      // Training metrics
+      trainer: activityInfo.isParent === false || activityInfo.deviceName?.toLowerCase().includes('indoor') || false,
       garmin_activity_url: event.activity_id
         ? `https://connect.garmin.com/modern/activity/${event.activity_id}`
         : null,
-      raw_data: payload
+      raw_data: { webhook: payload, api: activityDetails }
     };
 
     const { data: activity, error: insertError } = await supabase
@@ -452,7 +468,10 @@ async function downloadAndProcessActivity(event, integration) {
       name: activity.name,
       type: activity.type,
       distance: activity.distance ? `${(activity.distance / 1000).toFixed(2)} km` : 'N/A',
-      duration: activity.moving_time ? `${Math.round(activity.moving_time / 60)} min` : 'N/A'
+      duration: activity.moving_time ? `${Math.round(activity.moving_time / 60)} min` : 'N/A',
+      avgHR: activity.average_heartrate || 'N/A',
+      avgPower: activity.average_watts || 'N/A',
+      dataSource: activityDetails ? 'Garmin API' : 'Webhook only'
     });
 
     // Mark webhook as processed
@@ -470,6 +489,99 @@ async function downloadAndProcessActivity(event, integration) {
     await markEventProcessed(event.id, error.message);
     throw error;
   }
+}
+
+/**
+ * Fetch activity details from Garmin Health API
+ * The webhook only contains minimal data - we need to call the API to get full details
+ */
+async function fetchGarminActivityDetails(accessToken, summaryId) {
+  try {
+    console.log('🔍 Fetching activity details from Garmin API for summaryId:', summaryId);
+
+    // Garmin Health API endpoint for activity summaries
+    // Note: This endpoint returns the activity summary data
+    const apiUrl = `https://apis.garmin.com/wellness-api/rest/activities?summaryId=${summaryId}`;
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Garmin API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+
+      // If unauthorized, the token might need refresh (already handled upstream)
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`Garmin API authentication failed: ${response.status}`);
+      }
+
+      // For other errors, log but don't fail completely - we can still store webhook data
+      console.warn('⚠️ Could not fetch activity details from Garmin API, will use webhook data');
+      return null;
+    }
+
+    const activities = await response.json();
+
+    // The API returns an array of activities
+    if (Array.isArray(activities) && activities.length > 0) {
+      const activity = activities[0];
+      console.log('✅ Fetched activity details from Garmin API:', {
+        activityName: activity.activityName,
+        activityType: activity.activityType,
+        distance: activity.distanceInMeters ? `${(activity.distanceInMeters / 1000).toFixed(2)} km` : 'N/A',
+        duration: activity.durationInSeconds ? `${Math.round(activity.durationInSeconds / 60)} min` : 'N/A',
+        avgHR: activity.averageHeartRateInBeatsPerMinute || 'N/A',
+        avgPower: activity.averageBikingPowerInWatts || 'N/A',
+        elevation: activity.elevationGainInMeters || 'N/A'
+      });
+      return activity;
+    }
+
+    console.warn('⚠️ Garmin API returned empty or unexpected response:', activities);
+    return null;
+
+  } catch (error) {
+    console.error('❌ Error fetching activity from Garmin API:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Generate a descriptive activity name if Garmin doesn't provide one
+ */
+function generateActivityName(activityType, startTimeInSeconds) {
+  const date = startTimeInSeconds
+    ? new Date(startTimeInSeconds * 1000)
+    : new Date();
+
+  const timeOfDay = date.getHours() < 12 ? 'Morning' :
+                    date.getHours() < 17 ? 'Afternoon' : 'Evening';
+
+  const typeNames = {
+    'cycling': 'Ride',
+    'road_biking': 'Road Ride',
+    'mountain_biking': 'Mountain Bike Ride',
+    'gravel_cycling': 'Gravel Ride',
+    'indoor_cycling': 'Indoor Ride',
+    'virtual_ride': 'Virtual Ride',
+    'running': 'Run',
+    'trail_running': 'Trail Run',
+    'walking': 'Walk',
+    'hiking': 'Hike',
+    'swimming': 'Swim'
+  };
+
+  const activityName = typeNames[(activityType || '').toLowerCase()] || 'Activity';
+  return `${timeOfDay} ${activityName}`;
 }
 
 async function ensureValidAccessToken(integration) {
