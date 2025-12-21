@@ -23,6 +23,7 @@ import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { supabase } from '../lib/supabase';
+import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -367,36 +368,49 @@ function RouteBuilder() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
-  const [routeName, setRouteName] = useState('Untitled Route');
 
+  // === Persisted State (from Zustand store) ===
+  const {
+    routeGeometry, setRouteGeometry,
+    routeName, setRouteName,
+    routeStats, setRouteStats,
+    waypoints, setWaypoints,
+    viewport, setViewport,
+    trainingGoal, setTrainingGoal,
+    timeAvailable, setTimeAvailable,
+    routeType, setRouteType,
+    routeProfile, setRouteProfile,
+    aiSuggestions, setAiSuggestions,
+    selectedWorkoutId, setSelectedWorkoutId,
+    routingSource, setRoutingSource,
+    clearRoute,
+  } = useRouteBuilderStore();
+
+  // Resolve selectedWorkout from ID
+  const selectedWorkout = selectedWorkoutId ? WORKOUT_LIBRARY[selectedWorkoutId] : null;
+  const setSelectedWorkout = useCallback((workout) => {
+    setSelectedWorkoutId(workout?.id || null);
+  }, [setSelectedWorkoutId]);
+
+  // === Transient State (not persisted) ===
   // Calendar context state (when navigating from training calendar)
   const [calendarContext, setCalendarContext] = useState(null);
-  const [waypoints, setWaypoints] = useState([]);
-  const [routeGeometry, setRouteGeometry] = useState(null);
-  const [routeStats, setRouteStats] = useState({ distance: 0, elevation: 0, duration: 0 });
   const [isCalculating, setIsCalculating] = useState(false);
   const mapRef = useRef();
   const isEditing = !!routeId;
 
-  // AI Route Generation State
-  const [trainingGoal, setTrainingGoal] = useState('endurance');
-  const [timeAvailable, setTimeAvailable] = useState(60);
-  const [routeType, setRouteType] = useState('loop');
-  const [routeProfile, setRouteProfile] = useState('road'); // 'road', 'gravel', 'mountain', 'commuting'
-  const [aiSuggestions, setAiSuggestions] = useState([]);
+  // AI Route Generation transient state
   const [generatingAI, setGeneratingAI] = useState(false);
   const [convertingRoute, setConvertingRoute] = useState(null); // Index of suggestion being converted
   const [naturalLanguageInput, setNaturalLanguageInput] = useState('');
-  const [routingSource, setRoutingSource] = useState(null); // 'stadia_maps', 'brouter', 'mapbox'
 
-  // Speed profile from Strava sync
+  // Speed profile from Strava sync (fetched fresh)
   const [speedProfile, setSpeedProfile] = useState(null);
 
   // Preferences modal state
   const [preferencesOpen, setPreferencesOpen] = useState(false);
 
-  // Workout and interval cues state
-  const [selectedWorkout, setSelectedWorkout] = useState(null);
+  // Interval cues (derived from selectedWorkout)
   const [intervalCues, setIntervalCues] = useState(null);
 
   // Units preference state
@@ -445,11 +459,7 @@ function RouteBuilder() {
   const [isLocating, setIsLocating] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
 
-  const [viewport, setViewport] = useState({
-    latitude: 37.7749,
-    longitude: -122.4194,
-    zoom: 12
-  });
+  // viewport comes from the store (persisted)
 
   // Generate colored route segments when workout is selected and route exists
   const coloredSegments = useMemo(() => {
@@ -755,12 +765,7 @@ function RouteBuilder() {
     calculateRoute(newWaypoints);
   }, [waypoints, calculateRoute]);
 
-  // Clear all waypoints
-  const clearRoute = useCallback(() => {
-    setWaypoints([]);
-    setRouteGeometry(null);
-    setRouteStats({ distance: 0, elevation: 0, duration: 0 });
-  }, []);
+  // clearRoute comes from the store (clears waypoints, geometry, stats, etc.)
 
   // Export GPX
   const exportGPX = useCallback(() => {
