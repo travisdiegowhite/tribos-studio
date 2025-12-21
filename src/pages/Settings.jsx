@@ -352,16 +352,35 @@ function Settings() {
       // Sync last 90 days of activities
       const result = await garminService.backfillActivities(90);
 
-      notifications.update({
-        id: 'garmin-sync',
-        title: 'Sync Complete!',
-        message: result.method === 'direct_fetch'
-          ? `Synced ${result.stored} activities from Garmin.`
-          : 'Backfill requested. Activities will sync via webhooks shortly.',
-        color: 'lime',
-        loading: false,
-        autoClose: 5000
-      });
+      if (result.success && result.method === 'direct_fetch') {
+        notifications.update({
+          id: 'garmin-sync',
+          title: 'Sync Complete!',
+          message: `Synced ${result.stored} activities from Garmin.`,
+          color: 'lime',
+          loading: false,
+          autoClose: 5000
+        });
+      } else if (result.success && result.method === 'webhook_backfill') {
+        notifications.update({
+          id: 'garmin-sync',
+          title: 'Backfill Requested',
+          message: 'Activities will sync via webhooks over the next few minutes.',
+          color: 'cyan',
+          loading: false,
+          autoClose: 5000
+        });
+      } else {
+        // API returned but couldn't fetch - show hint
+        notifications.update({
+          id: 'garmin-sync',
+          title: 'Sync Pending',
+          message: result.hint || 'Activities will sync automatically when you complete new rides.',
+          color: 'yellow',
+          loading: false,
+          autoClose: 8000
+        });
+      }
 
       // Refresh webhook status
       await checkGarminWebhookStatus();

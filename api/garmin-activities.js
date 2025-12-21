@@ -244,9 +244,14 @@ async function backfillActivities(req, res, userId, days) {
     const endTimestamp = Math.floor(end.getTime() / 1000);
 
     console.log(`📥 Requesting Garmin backfill for last ${days} days`);
+    console.log(`   Start: ${start.toISOString()} (${startTimestamp})`);
+    console.log(`   End: ${end.toISOString()} (${endTimestamp})`);
 
-    // First, try to fetch activities directly (more reliable)
+    // Try to fetch activities directly using the activities endpoint
+    // Garmin Health API: GET /activities with uploadStartTimeInSeconds & uploadEndTimeInSeconds
     const directUrl = `${GARMIN_API_BASE}/activities?uploadStartTimeInSeconds=${startTimestamp}&uploadEndTimeInSeconds=${endTimestamp}`;
+
+    console.log('🔍 Fetching activities directly:', directUrl);
 
     const directResponse = await fetch(directUrl, {
       headers: {
@@ -257,9 +262,9 @@ async function backfillActivities(req, res, userId, days) {
 
     if (directResponse.ok) {
       const activities = await directResponse.json();
-      console.log(`📦 Direct fetch: ${activities.length} activities`);
+      console.log(`📦 Direct fetch successful: ${activities.length} activities`);
 
-      // Store all activities
+      // Store all activities (not just cycling)
       const storedCount = await storeActivities(userId, activities);
 
       return res.status(200).json({
@@ -275,9 +280,21 @@ async function backfillActivities(req, res, userId, days) {
       });
     }
 
-    // If direct fetch fails, try the backfill endpoint
+    // Log the error from direct fetch
+    const directErrorText = await directResponse.text();
+    console.log(`⚠️ Direct fetch returned ${directResponse.status}:`, directErrorText);
+
+    // If direct fetch failed with 401/403, token issue
+    if (directResponse.status === 401 || directResponse.status === 403) {
+      return res.status(401).json({
+        error: 'Garmin authentication failed. Please reconnect your account.',
+        status: directResponse.status
+      });
+    }
+
+    // Try the backfill endpoint as fallback
     // This triggers Garmin to send data via webhooks (async)
-    console.log('📤 Direct fetch failed, requesting async backfill via webhooks...');
+    console.log('📤 Trying async backfill via webhooks...');
 
     const backfillUrl = `${GARMIN_API_BASE}/backfill/activities?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
 
@@ -289,17 +306,32 @@ async function backfillActivities(req, res, userId, days) {
       }
     });
 
-    if (!backfillResponse.ok) {
-      const errorText = await backfillResponse.text();
-      console.error('Garmin backfill error:', backfillResponse.status, errorText);
-      throw new Error(`Garmin backfill failed: ${backfillResponse.status}`);
+    if (backfillResponse.ok) {
+      // Backfill request submitted - data will arrive via webhooks
+      return res.status(200).json({
+        success: true,
+        method: 'webhook_backfill',
+        message: 'Backfill request submitted. Activities will be synced via webhooks over the next few minutes.',
+        dateRange: {
+          start: start.toISOString(),
+          end: end.toISOString(),
+          days: days
+        }
+      });
     }
 
-    // Backfill request submitted - data will arrive via webhooks
+    // Both methods failed - log and return helpful error
+    const backfillErrorText = await backfillResponse.text();
+    console.error('❌ Backfill also failed:', backfillResponse.status, backfillErrorText);
+
+    // Return a helpful message about what to do
     return res.status(200).json({
-      success: true,
-      method: 'webhook_backfill',
-      message: 'Backfill request submitted. Activities will be synced via webhooks over the next few minutes.',
+      success: false,
+      method: 'none',
+      message: 'Could not fetch activities from Garmin. Activities will sync automatically when you complete new rides.',
+      directFetchStatus: directResponse.status,
+      backfillStatus: backfillResponse.status,
+      hint: 'Try completing a new activity on your Garmin device and syncing it to Garmin Connect. This will trigger the webhook.',
       dateRange: {
         start: start.toISOString(),
         end: end.toISOString(),
