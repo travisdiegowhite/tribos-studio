@@ -159,28 +159,57 @@ export async function generateAIRoutes(params) {
     });
     
     console.log(`✅ Claude returned ${claudeRoutes.length} route suggestions`);
-    
+
     if (claudeRoutes.length > 0) {
-      console.log(`Converting ${claudeRoutes.length} Claude suggestions to full routes...`);
-      // Convert Claude suggestions to full routes with coordinates
-      for (const claudeRoute of claudeRoutes) {
-        console.log('Converting Claude route:', claudeRoute.name);
-        // Pass route type and riding patterns to the conversion
-        const routeWithContext = {
-          ...claudeRoute,
-          routeType,
-          pastRidePatterns: ridingPatterns
-        };
-        const userSpeed = speedProfile?.road_speed || speedProfile?.average_speed || null;
-        const enhancedRoute = await convertClaudeToFullRoute(routeWithContext, startLocation, targetDistance, userPreferences, userSpeed);
-        if (enhancedRoute) {
-          console.log(`✅ Successfully converted: ${enhancedRoute.name}`);
-          routes.push(enhancedRoute);
-        } else {
-          console.warn(`❌ Failed to convert: ${claudeRoute.name}`);
+      // Filter out Claude routes that are obviously bad (missing data or way off target)
+      const validClaudeRoutes = claudeRoutes.filter(route => {
+        const routeDistance = route.distance || route.estimatedDistance;
+        const hasValidName = route.name && !route.name.match(/^Claude Route \d+$/i);
+        const hasValidDistance = routeDistance && routeDistance > 10;
+        const isCloseToTarget = hasValidDistance &&
+          routeDistance >= targetDistance * 0.4 &&
+          routeDistance <= targetDistance * 2.0;
+
+        if (!hasValidDistance) {
+          console.warn(`🚫 Filtering out "${route.name}": missing or invalid distance (${routeDistance}km)`);
+          return false;
         }
+        if (!isCloseToTarget) {
+          console.warn(`🚫 Filtering out "${route.name}": distance ${routeDistance}km is too far from target ${targetDistance.toFixed(1)}km`);
+          return false;
+        }
+        if (!hasValidName) {
+          console.warn(`⚠️ Route has fallback name "${route.name}" - Claude may not have returned proper data`);
+        }
+        return true;
+      });
+
+      console.log(`📊 ${validClaudeRoutes.length}/${claudeRoutes.length} Claude routes passed validation`);
+
+      if (validClaudeRoutes.length > 0) {
+        console.log(`Converting ${validClaudeRoutes.length} Claude suggestions to full routes...`);
+        // Convert Claude suggestions to full routes with coordinates
+        for (const claudeRoute of validClaudeRoutes) {
+          console.log('Converting Claude route:', claudeRoute.name);
+          // Pass route type and riding patterns to the conversion
+          const routeWithContext = {
+            ...claudeRoute,
+            routeType,
+            pastRidePatterns: ridingPatterns
+          };
+          const userSpeed = speedProfile?.road_speed || speedProfile?.average_speed || null;
+          const enhancedRoute = await convertClaudeToFullRoute(routeWithContext, startLocation, targetDistance, userPreferences, userSpeed);
+          if (enhancedRoute) {
+            console.log(`✅ Successfully converted: ${enhancedRoute.name}`);
+            routes.push(enhancedRoute);
+          } else {
+            console.warn(`❌ Failed to convert: ${claudeRoute.name}`);
+          }
+        }
+        console.log(`✅ Total routes after Claude conversion: ${routes.length}`);
+      } else {
+        console.warn('❌ All Claude routes filtered out due to invalid data, will use fallback generation');
       }
-      console.log(`✅ Total routes after Claude conversion: ${routes.length}`);
     } else {
       console.warn('❌ Claude returned no routes, will use fallback generation');
     }
@@ -903,19 +932,36 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for Claude route conversion');
-    return {
+    const noTokenRoute = {
       ...claudeRoute,
       coordinates: generateMockCoordinates(startLocation, claudeRoute.distance),
       confidence: 0.6
     };
+
+    // Apply smart naming if needed
+    const isFallbackName = /^Claude Route \d+$/i.test(claudeRoute.name);
+    if (isFallbackName && noTokenRoute.coordinates && noTokenRoute.coordinates.length >= 10) {
+      const trainingGoal = claudeRoute.trainingGoal || claudeRoute.trainingFocus || 'endurance';
+      noTokenRoute.name = generateSmartRouteName(noTokenRoute, claudeRoute.pattern, trainingGoal);
+    }
+
+    return noTokenRoute;
   }
 
   try {
     // Generate strategic waypoints based on Claude's directions
+    // IMPORTANT: Use actual targetDistance, not claudeRoute.distance which may be a fallback default
+    const routeDistance = claudeRoute.distance || claudeRoute.estimatedDistance;
+    const effectiveDistance = (routeDistance && routeDistance > 10 && Math.abs(routeDistance - targetDistance) / targetDistance < 0.5)
+      ? routeDistance
+      : targetDistance; // Use target if Claude's distance is missing or way off
+
+    console.log(`📏 Claude route distance: ${routeDistance}km, target: ${targetDistance}km, using: ${effectiveDistance}km`);
+
     const waypoints = await generateWaypointsFromDirections(
-      claudeRoute.keyDirections, 
-      startLocation, 
-      claudeRoute.distance || claudeRoute.estimatedDistance,
+      claudeRoute.keyDirections,
+      startLocation,
+      effectiveDistance,
       claudeRoute.routeType || 'loop',
       claudeRoute.pastRidePatterns
     );
@@ -956,7 +1002,8 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
       const elevationProfile = await fetchElevationProfile(route.coordinates, mapboxToken);
       const elevationStats = calculateElevationStats(elevationProfile);
 
-      return {
+      // Build the route object with actual data
+      const fullRoute = {
         ...claudeRoute,
         distance: route.distance / 1000,
         elevationGain: elevationStats.gain,
@@ -966,18 +1013,38 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
         elevationProfile,
         source: 'claude_mapbox'
       };
+
+      // Apply smart naming if the route has a fallback name like "Claude Route 1"
+      const isFallbackName = /^Claude Route \d+$/i.test(claudeRoute.name);
+      if (isFallbackName) {
+        const trainingGoal = claudeRoute.trainingGoal || claudeRoute.trainingFocus || 'endurance';
+        fullRoute.name = generateSmartRouteName(fullRoute, claudeRoute.pattern, trainingGoal);
+        console.log(`🏷️ Renamed "${claudeRoute.name}" to "${fullRoute.name}" using smart naming`);
+      }
+
+      return fullRoute;
     }
   } catch (error) {
     console.warn('Failed to convert Claude route to full route:', error);
   }
 
   // Fallback to mock route if Mapbox fails
-  return {
+  const mockRoute = {
     ...claudeRoute,
     coordinates: generateMockCoordinates(startLocation, claudeRoute.distance),
     confidence: 0.5,
     source: 'claude_mock'
   };
+
+  // Apply smart naming for fallback routes too if needed
+  const isFallbackName = /^Claude Route \d+$/i.test(claudeRoute.name);
+  if (isFallbackName && mockRoute.coordinates && mockRoute.coordinates.length >= 10) {
+    const trainingGoal = claudeRoute.trainingGoal || claudeRoute.trainingFocus || 'endurance';
+    mockRoute.name = generateSmartRouteName(mockRoute, claudeRoute.pattern, trainingGoal);
+    console.log(`🏷️ Renamed fallback "${claudeRoute.name}" to "${mockRoute.name}" using smart naming`);
+  }
+
+  return mockRoute;
 }
 
 // Generate waypoints from Claude's turn-by-turn directions with route type awareness

@@ -468,6 +468,9 @@ FORMAT YOUR RESPONSE AS JSON:
 }
 
 CRITICAL REQUIREMENTS:
+- Each route MUST have a unique descriptive "name" (do NOT use generic names like "Route 1")
+- Each route MUST have an accurate "estimatedDistance" within 20% of the target distance (${targetDistance.toFixed(1)}km)
+- Respond with raw JSON only - do NOT wrap in markdown code blocks (no \`\`\`json)
 - Prioritize rider safety above all else
 - Ensure routes match specified surface and traffic preferences${
   safetyPreferences.bikeInfrastructure === 'required' ? `
