@@ -1,0 +1,495 @@
+// Vercel API Route: Garmin Activities
+// Fetches/backfills activities from Garmin Health API and stores them in Supabase
+// Similar to strava-activities.js but for Garmin
+
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase (server-side)
+const supabase = createClient(
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
+
+const GARMIN_API_BASE = 'https://apis.garmin.com/wellness-api/rest';
+const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oauth/token';
+
+const getAllowedOrigins = () => {
+  if (process.env.NODE_ENV === 'production') {
+    return ['https://www.tribos.studio', 'https://tribos-studio.vercel.app'];
+  }
+  return ['http://localhost:3000', 'http://localhost:5173'];
+};
+
+export default async function handler(req, res) {
+  // Handle CORS
+  const origin = req.headers.origin;
+  const allowedOrigins = getAllowedOrigins();
+
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { action, userId, startDate, endDate, days = 30 } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId required' });
+    }
+
+    switch (action) {
+      case 'sync_activities':
+        return await syncActivities(req, res, userId, startDate, endDate, days);
+
+      case 'backfill_activities':
+        return await backfillActivities(req, res, userId, days);
+
+      case 'get_activity':
+        const { activityId } = req.body;
+        if (!activityId) {
+          return res.status(400).json({ error: 'activityId required' });
+        }
+        return await getActivityDetails(req, res, userId, activityId);
+
+      default:
+        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, get_activity' });
+    }
+
+  } catch (error) {
+    console.error('Garmin activities error:', error);
+    return res.status(500).json({
+      error: 'Failed to process request',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+}
+
+/**
+ * Get valid access token, refreshing if needed
+ */
+async function getValidAccessToken(userId) {
+  // Get stored tokens
+  const { data: integration, error } = await supabase
+    .from('bike_computer_integrations')
+    .select('id, access_token, refresh_token, token_expires_at, provider_user_id')
+    .eq('user_id', userId)
+    .eq('provider', 'garmin')
+    .single();
+
+  if (error || !integration) {
+    throw new Error('Garmin not connected');
+  }
+
+  if (!integration.access_token) {
+    throw new Error('No Garmin access token found. Please reconnect your Garmin account.');
+  }
+
+  // Check if token is expired (with 5 min buffer)
+  const expiresAt = integration.token_expires_at ? new Date(integration.token_expires_at) : new Date(0);
+  const now = new Date();
+  const isExpired = (expiresAt.getTime() - 300000) < now.getTime();
+
+  if (!isExpired) {
+    return { accessToken: integration.access_token, integration };
+  }
+
+  // Refresh the token
+  console.log('🔄 Refreshing Garmin access token...');
+
+  if (!integration.refresh_token) {
+    throw new Error('No refresh token available. Please reconnect your Garmin account.');
+  }
+
+  const response = await fetch(GARMIN_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: process.env.GARMIN_CONSUMER_KEY,
+      client_secret: process.env.GARMIN_CONSUMER_SECRET,
+      refresh_token: integration.refresh_token
+    }).toString()
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Garmin token refresh failed:', errorText);
+    throw new Error('Failed to refresh Garmin token. Please reconnect your Garmin account.');
+  }
+
+  const tokenData = await response.json();
+
+  // Update stored tokens
+  const expiresInSeconds = tokenData.expires_in || 7776000; // Default 90 days
+  const newExpiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+
+  await supabase
+    .from('bike_computer_integrations')
+    .update({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token || integration.refresh_token,
+      token_expires_at: newExpiresAt,
+      sync_error: null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', integration.id);
+
+  console.log('✅ Garmin token refreshed');
+  return { accessToken: tokenData.access_token, integration };
+}
+
+/**
+ * Sync activities from Garmin for a date range
+ */
+async function syncActivities(req, res, userId, startDate, endDate, days) {
+  try {
+    const { accessToken, integration } = await getValidAccessToken(userId);
+
+    // Calculate date range
+    // Garmin uses Unix timestamps (seconds since epoch)
+    const end = endDate ? new Date(endDate) : new Date();
+    const start = startDate ? new Date(startDate) : new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+
+    const startTimestamp = Math.floor(start.getTime() / 1000);
+    const endTimestamp = Math.floor(end.getTime() / 1000);
+
+    console.log(`📥 Fetching Garmin activities from ${start.toISOString()} to ${end.toISOString()}`);
+
+    // Fetch activities from Garmin Health API
+    // The activities endpoint returns activities within the specified time range
+    const url = `${GARMIN_API_BASE}/activities?uploadStartTimeInSeconds=${startTimestamp}&uploadEndTimeInSeconds=${endTimestamp}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Garmin API error:', response.status, errorText);
+
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Garmin authentication failed. Please reconnect your account.');
+      }
+
+      throw new Error(`Garmin API error: ${response.status}`);
+    }
+
+    const activities = await response.json();
+    console.log(`📦 Received ${activities.length} activities from Garmin`);
+
+    // Filter to cycling activities
+    const cyclingTypes = ['cycling', 'road_biking', 'mountain_biking', 'gravel_cycling', 'indoor_cycling', 'virtual_ride', 'e_biking'];
+    const cyclingActivities = activities.filter(a =>
+      cyclingTypes.includes((a.activityType || '').toLowerCase())
+    );
+
+    console.log(`🚴 ${cyclingActivities.length} cycling activities`);
+
+    // Store activities in Supabase
+    const storedCount = await storeActivities(userId, cyclingActivities);
+
+    // Update last sync timestamp
+    await supabase
+      .from('bike_computer_integrations')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        sync_error: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', integration.id);
+
+    return res.status(200).json({
+      success: true,
+      fetched: activities.length,
+      cyclingActivities: cyclingActivities.length,
+      stored: storedCount,
+      dateRange: {
+        start: start.toISOString(),
+        end: end.toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Sync activities error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Backfill historical activities using Garmin's backfill endpoint
+ * This requests Garmin to send historical data via webhooks
+ */
+async function backfillActivities(req, res, userId, days) {
+  try {
+    const { accessToken, integration } = await getValidAccessToken(userId);
+
+    // Calculate date range for backfill
+    const end = new Date();
+    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+
+    const startTimestamp = Math.floor(start.getTime() / 1000);
+    const endTimestamp = Math.floor(end.getTime() / 1000);
+
+    console.log(`📥 Requesting Garmin backfill for last ${days} days`);
+
+    // First, try to fetch activities directly (more reliable)
+    const directUrl = `${GARMIN_API_BASE}/activities?uploadStartTimeInSeconds=${startTimestamp}&uploadEndTimeInSeconds=${endTimestamp}`;
+
+    const directResponse = await fetch(directUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (directResponse.ok) {
+      const activities = await directResponse.json();
+      console.log(`📦 Direct fetch: ${activities.length} activities`);
+
+      // Store all activities
+      const storedCount = await storeActivities(userId, activities);
+
+      return res.status(200).json({
+        success: true,
+        method: 'direct_fetch',
+        fetched: activities.length,
+        stored: storedCount,
+        dateRange: {
+          start: start.toISOString(),
+          end: end.toISOString(),
+          days: days
+        }
+      });
+    }
+
+    // If direct fetch fails, try the backfill endpoint
+    // This triggers Garmin to send data via webhooks (async)
+    console.log('📤 Direct fetch failed, requesting async backfill via webhooks...');
+
+    const backfillUrl = `${GARMIN_API_BASE}/backfill/activities?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
+
+    const backfillResponse = await fetch(backfillUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!backfillResponse.ok) {
+      const errorText = await backfillResponse.text();
+      console.error('Garmin backfill error:', backfillResponse.status, errorText);
+      throw new Error(`Garmin backfill failed: ${backfillResponse.status}`);
+    }
+
+    // Backfill request submitted - data will arrive via webhooks
+    return res.status(200).json({
+      success: true,
+      method: 'webhook_backfill',
+      message: 'Backfill request submitted. Activities will be synced via webhooks over the next few minutes.',
+      dateRange: {
+        start: start.toISOString(),
+        end: end.toISOString(),
+        days: days
+      }
+    });
+
+  } catch (error) {
+    console.error('Backfill activities error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Get details for a specific activity
+ */
+async function getActivityDetails(req, res, userId, activityId) {
+  try {
+    const { accessToken } = await getValidAccessToken(userId);
+
+    console.log(`📥 Fetching Garmin activity details for: ${activityId}`);
+
+    const url = `${GARMIN_API_BASE}/activities?summaryId=${activityId}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Garmin API error:', response.status, errorText);
+      throw new Error(`Failed to fetch activity: ${response.status}`);
+    }
+
+    const activities = await response.json();
+
+    if (!Array.isArray(activities) || activities.length === 0) {
+      return res.status(404).json({ error: 'Activity not found' });
+    }
+
+    const activity = activities[0];
+
+    return res.status(200).json({
+      success: true,
+      activity: {
+        id: activity.summaryId || activityId,
+        name: activity.activityName,
+        type: activity.activityType,
+        startTime: activity.startTimeInSeconds ? new Date(activity.startTimeInSeconds * 1000).toISOString() : null,
+        distance: activity.distanceInMeters,
+        duration: activity.durationInSeconds,
+        movingDuration: activity.movingDurationInSeconds,
+        elevation: activity.elevationGainInMeters,
+        avgSpeed: activity.averageSpeedInMetersPerSecond,
+        maxSpeed: activity.maxSpeedInMetersPerSecond,
+        avgHeartRate: activity.averageHeartRateInBeatsPerMinute,
+        maxHeartRate: activity.maxHeartRateInBeatsPerMinute,
+        avgPower: activity.averageBikingPowerInWatts,
+        avgCadence: activity.averageBikingCadenceInRPM,
+        calories: activity.activeKilocalories,
+        raw: activity
+      }
+    });
+
+  } catch (error) {
+    console.error('Get activity details error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Store activities in Supabase
+ */
+async function storeActivities(userId, activities) {
+  if (!activities || activities.length === 0) return 0;
+
+  let storedCount = 0;
+
+  for (const a of activities) {
+    try {
+      const activityId = a.summaryId?.toString() || a.activityId?.toString();
+      if (!activityId) {
+        console.warn('Skipping activity without ID:', a);
+        continue;
+      }
+
+      const activityData = {
+        user_id: userId,
+        provider: 'garmin',
+        provider_activity_id: activityId,
+        name: a.activityName || generateActivityName(a.activityType, a.startTimeInSeconds),
+        type: mapGarminActivityType(a.activityType),
+        sport_type: a.activityType,
+        start_date: a.startTimeInSeconds
+          ? new Date(a.startTimeInSeconds * 1000).toISOString()
+          : new Date().toISOString(),
+        start_date_local: a.startTimeInSeconds
+          ? new Date(a.startTimeInSeconds * 1000).toISOString()
+          : new Date().toISOString(),
+        distance: a.distanceInMeters ?? a.distance ?? null,
+        moving_time: a.movingDurationInSeconds ?? a.durationInSeconds ?? null,
+        elapsed_time: a.elapsedDurationInSeconds ?? a.durationInSeconds ?? null,
+        total_elevation_gain: a.elevationGainInMeters ?? a.totalElevationGain ?? null,
+        average_speed: a.averageSpeedInMetersPerSecond ?? a.averageSpeed ?? null,
+        max_speed: a.maxSpeedInMetersPerSecond ?? a.maxSpeed ?? null,
+        average_watts: a.averageBikingPowerInWatts ?? a.averagePower ?? null,
+        average_heartrate: a.averageHeartRateInBeatsPerMinute ?? a.averageHeartRate ?? null,
+        max_heartrate: a.maxHeartRateInBeatsPerMinute ?? a.maxHeartRate ?? null,
+        average_cadence: a.averageBikingCadenceInRPM ?? null,
+        kilojoules: a.activeKilocalories ? a.activeKilocalories * 4.184 : null,
+        trainer: a.isParent === false || (a.deviceName || '').toLowerCase().includes('indoor'),
+        raw_data: a,
+        imported_from: 'garmin_sync',
+        updated_at: new Date().toISOString()
+      };
+
+      // Upsert (update if exists)
+      const { error } = await supabase
+        .from('activities')
+        .upsert(activityData, {
+          onConflict: 'user_id,provider_activity_id',
+          ignoreDuplicates: false
+        });
+
+      if (error) {
+        console.error('Error storing activity:', activityId, error.message);
+      } else {
+        storedCount++;
+      }
+    } catch (err) {
+      console.error('Error processing activity:', err);
+    }
+  }
+
+  console.log(`✅ Stored ${storedCount}/${activities.length} activities`);
+  return storedCount;
+}
+
+/**
+ * Map Garmin activity type to standard format
+ */
+function mapGarminActivityType(garminType) {
+  const typeMap = {
+    'cycling': 'Ride',
+    'road_biking': 'Ride',
+    'road_cycling': 'Ride',
+    'virtual_ride': 'VirtualRide',
+    'indoor_cycling': 'VirtualRide',
+    'mountain_biking': 'MountainBikeRide',
+    'gravel_cycling': 'GravelRide',
+    'cyclocross': 'Ride',
+    'e_biking': 'EBikeRide',
+    'running': 'Run',
+    'walking': 'Walk',
+    'hiking': 'Hike',
+    'swimming': 'Swim'
+  };
+
+  const lowerType = (garminType || '').toLowerCase().replace(/ /g, '_');
+  return typeMap[lowerType] || 'Ride';
+}
+
+/**
+ * Generate activity name if not provided
+ */
+function generateActivityName(activityType, startTimeInSeconds) {
+  const date = startTimeInSeconds
+    ? new Date(startTimeInSeconds * 1000)
+    : new Date();
+
+  const timeOfDay = date.getHours() < 12 ? 'Morning' :
+                    date.getHours() < 17 ? 'Afternoon' : 'Evening';
+
+  const typeNames = {
+    'cycling': 'Ride',
+    'road_biking': 'Road Ride',
+    'mountain_biking': 'Mountain Bike Ride',
+    'gravel_cycling': 'Gravel Ride',
+    'indoor_cycling': 'Indoor Ride',
+    'virtual_ride': 'Virtual Ride',
+    'running': 'Run',
+    'trail_running': 'Trail Run',
+    'walking': 'Walk',
+    'hiking': 'Hike',
+    'swimming': 'Swim'
+  };
+
+  const activityName = typeNames[(activityType || '').toLowerCase()] || 'Activity';
+  return `${timeOfDay} ${activityName}`;
+}
