@@ -305,19 +305,48 @@ export async function generateAIRoutes(params) {
 
 // Calculate target distance based on time, training goal, and performance metrics
 function calculateTargetDistance(timeMinutes, trainingGoal, performanceMetrics = null, speedProfile = null, speedModifier = 1.0) {
-  // If user has a speed profile, use their actual speed
-  if (speedProfile?.effectiveRoadSpeed && speedProfile.hasSufficientData) {
-    let userSpeed = speedProfile.effectiveRoadSpeed;
+  // Check if user has sufficient speed profile data (at least 5 rides analyzed)
+  const hasSufficientData = speedProfile?.has_sufficient_data || (speedProfile?.rides_analyzed >= 5);
+  const hasSpeedData = speedProfile?.road_speed || speedProfile?.average_speed;
 
-    // Adjust based on training goal
-    const speedMultipliers = {
-      recovery: 0.8,   // 20% slower for recovery
-      endurance: 1.0,  // Normal pace for endurance
-      intervals: 0.9,  // 10% slower due to rest periods
-      hills: 0.75      // 25% slower for hills
-    };
+  // If user has a speed profile with sufficient data, use their actual speed
+  if (hasSpeedData && hasSufficientData) {
+    // Use training-specific speeds if available, otherwise fall back to road_speed or average_speed
+    let userSpeed;
 
-    const adjustedSpeed = userSpeed * (speedMultipliers[trainingGoal] || 1.0) * speedModifier;
+    // Try to use the most appropriate speed for the training goal
+    switch (trainingGoal) {
+      case 'recovery':
+        userSpeed = speedProfile.easy_speed || speedProfile.road_speed || speedProfile.average_speed;
+        break;
+      case 'endurance':
+        userSpeed = speedProfile.endurance_speed || speedProfile.road_speed || speedProfile.average_speed;
+        break;
+      case 'intervals':
+      case 'tempo':
+        userSpeed = speedProfile.tempo_speed || speedProfile.road_speed || speedProfile.average_speed;
+        break;
+      case 'hills':
+        // For hills, use a reduced speed based on road speed
+        userSpeed = (speedProfile.road_speed || speedProfile.average_speed) * 0.75;
+        break;
+      default:
+        userSpeed = speedProfile.road_speed || speedProfile.average_speed;
+    }
+
+    // If we still don't have a specific training speed, apply multipliers to base speed
+    if (!userSpeed && (speedProfile.road_speed || speedProfile.average_speed)) {
+      const baseSpeed = speedProfile.road_speed || speedProfile.average_speed;
+      const speedMultipliers = {
+        recovery: 0.8,   // 20% slower for recovery
+        endurance: 1.0,  // Normal pace for endurance
+        intervals: 0.9,  // 10% slower due to rest periods
+        hills: 0.75      // 25% slower for hills
+      };
+      userSpeed = baseSpeed * (speedMultipliers[trainingGoal] || 1.0);
+    }
+
+    const adjustedSpeed = userSpeed * speedModifier;
     const hours = timeMinutes / 60;
     const targetDistance = hours * adjustedSpeed;
 
@@ -326,7 +355,15 @@ function calculateTargetDistance(timeMinutes, trainingGoal, performanceMetrics =
       trainingGoal,
       speedModifier,
       adjustedSpeed,
-      targetDistance
+      targetDistance,
+      ridesAnalyzed: speedProfile.rides_analyzed,
+      availableSpeeds: {
+        road: speedProfile.road_speed,
+        average: speedProfile.average_speed,
+        easy: speedProfile.easy_speed,
+        endurance: speedProfile.endurance_speed,
+        tempo: speedProfile.tempo_speed
+      }
     });
 
     return targetDistance;
