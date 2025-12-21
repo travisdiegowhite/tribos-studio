@@ -72,10 +72,13 @@ export const useRouteBuilderStore = create(
       }),
 
       // === Viewport Actions ===
-      setViewport: (viewport) => set({
-        viewport,
+      // Supports both direct object and functional updates: setViewport({...}) or setViewport(prev => ({...prev, ...}))
+      setViewport: (viewportOrUpdater) => set((state) => ({
+        viewport: typeof viewportOrUpdater === 'function'
+          ? viewportOrUpdater(state.viewport)
+          : viewportOrUpdater,
         // Don't update lastSaved for viewport changes (too frequent)
-      }),
+      })),
 
       // === Route Settings Actions ===
       setTrainingGoal: (goal) => set({

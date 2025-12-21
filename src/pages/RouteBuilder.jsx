@@ -566,59 +566,39 @@ function RouteBuilder() {
   const hasGeolocatedRef = useRef(false);
 
   useEffect(() => {
-    // Wait for store hydration before deciding whether to geolocate
+    // Wait for store hydration to complete before geolocating
     if (!storeHydrated) return;
     if (routeId) return; // Don't geolocate if loading existing route
     if (hasGeolocatedRef.current) return; // Only attempt once per session
 
-    // Default San Francisco coordinates from store initialState
-    const DEFAULT_LAT = 37.7749;
-    const DEFAULT_LNG = -122.4194;
-
-    // Only geolocate if viewport is still at default coordinates
-    // This respects user's saved map position while ensuring fresh sessions geolocate
-    const isDefaultViewport =
-      Math.abs(viewport.latitude - DEFAULT_LAT) < 0.001 &&
-      Math.abs(viewport.longitude - DEFAULT_LNG) < 0.001;
-
-    if (!isDefaultViewport) {
-      console.log('📍 Using saved viewport position:', viewport.latitude.toFixed(4), viewport.longitude.toFixed(4));
+    if (!navigator.geolocation) {
+      console.log('Geolocation not supported');
       hasGeolocatedRef.current = true;
       return;
     }
 
-    const geolocateUser = () => {
-      if (!navigator.geolocation) {
-        console.log('Geolocation not supported');
-        hasGeolocatedRef.current = true;
-        return;
-      }
-
-      hasGeolocatedRef.current = true;
-      setIsLocating(true);
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setUserLocation({ latitude, longitude });
-          setViewport(v => ({
-            ...v,
-            latitude,
-            longitude,
-            zoom: 13
-          }));
-          setIsLocating(false);
-          console.log('📍 Geolocated to:', latitude, longitude);
-        },
-        (error) => {
-          console.log('Geolocation error:', error.message);
-          setIsLocating(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
-      );
-    };
-
-    geolocateUser();
-  }, [storeHydrated, routeId, viewport.latitude, viewport.longitude, setViewport]);
+    hasGeolocatedRef.current = true;
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ latitude, longitude });
+        setViewport(v => ({
+          ...v,
+          latitude,
+          longitude,
+          zoom: 13
+        }));
+        setIsLocating(false);
+        console.log('📍 Geolocated to:', latitude, longitude);
+      },
+      (error) => {
+        console.log('Geolocation error:', error.message);
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+    );
+  }, [storeHydrated, routeId, setViewport]);
 
   // Load user's speed profile on mount
   useEffect(() => {
