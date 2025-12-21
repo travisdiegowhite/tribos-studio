@@ -903,11 +903,20 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for Claude route conversion');
-    return {
+    const noTokenRoute = {
       ...claudeRoute,
       coordinates: generateMockCoordinates(startLocation, claudeRoute.distance),
       confidence: 0.6
     };
+
+    // Apply smart naming if needed
+    const isFallbackName = /^Claude Route \d+$/i.test(claudeRoute.name);
+    if (isFallbackName && noTokenRoute.coordinates && noTokenRoute.coordinates.length >= 10) {
+      const trainingGoal = claudeRoute.trainingGoal || claudeRoute.trainingFocus || 'endurance';
+      noTokenRoute.name = generateSmartRouteName(noTokenRoute, claudeRoute.pattern, trainingGoal);
+    }
+
+    return noTokenRoute;
   }
 
   try {
@@ -956,7 +965,8 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
       const elevationProfile = await fetchElevationProfile(route.coordinates, mapboxToken);
       const elevationStats = calculateElevationStats(elevationProfile);
 
-      return {
+      // Build the route object with actual data
+      const fullRoute = {
         ...claudeRoute,
         distance: route.distance / 1000,
         elevationGain: elevationStats.gain,
@@ -966,18 +976,38 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
         elevationProfile,
         source: 'claude_mapbox'
       };
+
+      // Apply smart naming if the route has a fallback name like "Claude Route 1"
+      const isFallbackName = /^Claude Route \d+$/i.test(claudeRoute.name);
+      if (isFallbackName) {
+        const trainingGoal = claudeRoute.trainingGoal || claudeRoute.trainingFocus || 'endurance';
+        fullRoute.name = generateSmartRouteName(fullRoute, claudeRoute.pattern, trainingGoal);
+        console.log(`🏷️ Renamed "${claudeRoute.name}" to "${fullRoute.name}" using smart naming`);
+      }
+
+      return fullRoute;
     }
   } catch (error) {
     console.warn('Failed to convert Claude route to full route:', error);
   }
 
   // Fallback to mock route if Mapbox fails
-  return {
+  const mockRoute = {
     ...claudeRoute,
     coordinates: generateMockCoordinates(startLocation, claudeRoute.distance),
     confidence: 0.5,
     source: 'claude_mock'
   };
+
+  // Apply smart naming for fallback routes too if needed
+  const isFallbackName = /^Claude Route \d+$/i.test(claudeRoute.name);
+  if (isFallbackName && mockRoute.coordinates && mockRoute.coordinates.length >= 10) {
+    const trainingGoal = claudeRoute.trainingGoal || claudeRoute.trainingFocus || 'endurance';
+    mockRoute.name = generateSmartRouteName(mockRoute, claudeRoute.pattern, trainingGoal);
+    console.log(`🏷️ Renamed fallback "${claudeRoute.name}" to "${mockRoute.name}" using smart naming`);
+  }
+
+  return mockRoute;
 }
 
 // Generate waypoints from Claude's turn-by-turn directions with route type awareness
