@@ -476,6 +476,12 @@ function RouteBuilder() {
     return null;
   }, [routeGeometry, selectedWorkout, routeStats.distance]);
 
+  // Memoize route GeoJSON to prevent re-creating on every map move/render
+  const routeGeoJSON = useMemo(() => {
+    if (!routeGeometry) return null;
+    return { type: 'Feature', geometry: routeGeometry };
+  }, [routeGeometry]);
+
   // Load user's units preference
   useEffect(() => {
     const loadUnitsPreference = async () => {
@@ -1628,7 +1634,7 @@ function RouteBuilder() {
               >
                 {/* Colored route segments */}
                 {coloredSegments && (
-                  <Source id="colored-route" type="geojson" data={coloredSegments}>
+                  <Source key={routeName || 'colored-route'} id="colored-route" type="geojson" data={coloredSegments}>
                     <Layer
                       id="route-colored"
                       type="line"
@@ -1642,8 +1648,8 @@ function RouteBuilder() {
                 )}
 
                 {/* Route line */}
-                {routeGeometry && !coloredSegments && (
-                  <Source id="route" type="geojson" data={{ type: 'Feature', geometry: routeGeometry }}>
+                {routeGeoJSON && !coloredSegments && (
+                  <Source key={routeName || 'route'} id="route" type="geojson" data={routeGeoJSON}>
                     <Layer
                       id="route-line"
                       type="line"
@@ -2361,7 +2367,7 @@ function RouteBuilder() {
             >
               {/* Render colored route segments when workout is selected */}
               {coloredSegments && (
-                <Source id="colored-route" type="geojson" data={coloredSegments}>
+                <Source key={routeName || 'colored-route'} id="colored-route" type="geojson" data={coloredSegments}>
                   <Layer
                     id="route-colored"
                     type="line"
@@ -2375,8 +2381,8 @@ function RouteBuilder() {
               )}
 
               {/* Render route line (shown when no workout selected, or as outline) */}
-              {routeGeometry && !coloredSegments && (
-                <Source id="route" type="geojson" data={{ type: 'Feature', geometry: routeGeometry }}>
+              {routeGeoJSON && !coloredSegments && (
+                <Source key={routeName || 'route'} id="route" type="geojson" data={routeGeoJSON}>
                   <Layer
                     id="route-line"
                     type="line"
