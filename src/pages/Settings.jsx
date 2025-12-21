@@ -38,6 +38,7 @@ function Settings() {
   const [speedProfile, setSpeedProfile] = useState(null);
   const [garminStatus, setGarminStatus] = useState({ connected: false, loading: true });
   const [garminWebhookStatus, setGarminWebhookStatus] = useState(null);
+  const [garminSyncing, setGarminSyncing] = useState(false);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
   const [showImportWizard, setShowImportWizard] = useState(false);
 
@@ -337,6 +338,49 @@ function Settings() {
     }
   };
 
+  const syncGarminActivities = async () => {
+    setGarminSyncing(true);
+    try {
+      notifications.show({
+        id: 'garmin-sync',
+        title: 'Syncing Garmin Activities',
+        message: 'Fetching your recent activities from Garmin...',
+        loading: true,
+        autoClose: false
+      });
+
+      // Sync last 90 days of activities
+      const result = await garminService.backfillActivities(90);
+
+      notifications.update({
+        id: 'garmin-sync',
+        title: 'Sync Complete!',
+        message: result.method === 'direct_fetch'
+          ? `Synced ${result.stored} activities from Garmin.`
+          : 'Backfill requested. Activities will sync via webhooks shortly.',
+        color: 'lime',
+        loading: false,
+        autoClose: 5000
+      });
+
+      // Refresh webhook status
+      await checkGarminWebhookStatus();
+
+    } catch (error) {
+      console.error('Error syncing Garmin:', error);
+      notifications.update({
+        id: 'garmin-sync',
+        title: 'Sync Failed',
+        message: error.message || 'Failed to sync activities',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    } finally {
+      setGarminSyncing(false);
+    }
+  };
+
   const connectWahoo = () => {
     try {
       if (!wahooService.isConfigured()) {
@@ -621,6 +665,8 @@ function Settings() {
                 loading={garminStatus.loading}
                 onConnect={connectGarmin}
                 onDisconnect={disconnectGarmin}
+                onSync={syncGarminActivities}
+                syncing={garminSyncing}
                 onCheckWebhook={checkGarminWebhookStatus}
                 webhookStatus={garminWebhookStatus}
               />
@@ -733,7 +779,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
         </Group>
       </Group>
 
-      {/* Sync and Speed Profile (only for Strava when connected) */}
+      {/* Sync Activities Button */}
       {connected && onSync && (
         <Box
           style={{
@@ -754,7 +800,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 </Text>
               ) : (
                 <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                  Sync to calculate your speed profile
+                  {onCheckWebhook ? 'Sync last 90 days of activities' : 'Sync to calculate your speed profile'}
                 </Text>
               )}
             </Box>
