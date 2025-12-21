@@ -230,56 +230,40 @@ async function syncActivities(req, res, userId, startDate, endDate, days) {
 
 /**
  * Backfill historical activities using Garmin's backfill endpoint
- * This requests Garmin to send historical data via webhooks
+ * Per Garmin docs: The Activity API is Push/Ping based - you don't directly fetch activities.
+ * Backfill requests Garmin to send historical data via webhooks asynchronously.
+ *
+ * - Uses summaryStartTimeInSeconds and summaryEndTimeInSeconds (when data was RECORDED)
+ * - Returns HTTP 202 immediately, data arrives via Push/Ping webhooks
+ * - Maximum 30 days per request
+ * - Rate limited: 100 days/minute for eval keys, 10,000 days/minute for production
  */
 async function backfillActivities(req, res, userId, days) {
   try {
     const { accessToken, integration } = await getValidAccessToken(userId);
 
     // Calculate date range for backfill
+    // Garmin limits backfill to 30 days per request, so we may need multiple requests
     const end = new Date();
-    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+    const requestedStart = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+
+    // Limit to 30 days per Garmin API docs
+    const maxDays = 30;
+    const actualDays = Math.min(days, maxDays);
+    const start = new Date(end.getTime() - actualDays * 24 * 60 * 60 * 1000);
 
     const startTimestamp = Math.floor(start.getTime() / 1000);
     const endTimestamp = Math.floor(end.getTime() / 1000);
 
-    console.log(`📥 Requesting Garmin backfill for last ${days} days`);
+    console.log(`📥 Requesting Garmin backfill for last ${actualDays} days (requested: ${days})`);
+    console.log(`   Start: ${start.toISOString()} (${startTimestamp})`);
+    console.log(`   End: ${end.toISOString()} (${endTimestamp})`);
 
-    // First, try to fetch activities directly (more reliable)
-    const directUrl = `${GARMIN_API_BASE}/activities?uploadStartTimeInSeconds=${startTimestamp}&uploadEndTimeInSeconds=${endTimestamp}`;
-
-    const directResponse = await fetch(directUrl, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
-      }
-    });
-
-    if (directResponse.ok) {
-      const activities = await directResponse.json();
-      console.log(`📦 Direct fetch: ${activities.length} activities`);
-
-      // Store all activities
-      const storedCount = await storeActivities(userId, activities);
-
-      return res.status(200).json({
-        success: true,
-        method: 'direct_fetch',
-        fetched: activities.length,
-        stored: storedCount,
-        dateRange: {
-          start: start.toISOString(),
-          end: end.toISOString(),
-          days: days
-        }
-      });
-    }
-
-    // If direct fetch fails, try the backfill endpoint
-    // This triggers Garmin to send data via webhooks (async)
-    console.log('📤 Direct fetch failed, requesting async backfill via webhooks...');
-
+    // Garmin Activity API backfill endpoint
+    // Per docs: GET /wellness-api/rest/backfill/activities?summaryStartTimeInSeconds=X&summaryEndTimeInSeconds=Y
     const backfillUrl = `${GARMIN_API_BASE}/backfill/activities?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
+
+    console.log('📤 Requesting backfill:', backfillUrl);
 
     const backfillResponse = await fetch(backfillUrl, {
       method: 'GET',
@@ -289,21 +273,84 @@ async function backfillActivities(req, res, userId, days) {
       }
     });
 
-    if (!backfillResponse.ok) {
-      const errorText = await backfillResponse.text();
-      console.error('Garmin backfill error:', backfillResponse.status, errorText);
-      throw new Error(`Garmin backfill failed: ${backfillResponse.status}`);
+    // Per docs: Successful backfill returns 202 (Accepted)
+    if (backfillResponse.status === 202 || backfillResponse.ok) {
+      console.log('✅ Backfill request accepted by Garmin');
+
+      // Update last sync attempt
+      await supabase
+        .from('bike_computer_integrations')
+        .update({
+          last_sync_at: new Date().toISOString(),
+          sync_error: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', integration.id);
+
+      return res.status(200).json({
+        success: true,
+        method: 'webhook_backfill',
+        message: `Backfill request accepted. Garmin will send activities for the last ${actualDays} days via webhooks.`,
+        note: days > maxDays ? `Note: Garmin limits backfill to ${maxDays} days per request. Request again for older data.` : undefined,
+        dateRange: {
+          start: start.toISOString(),
+          end: end.toISOString(),
+          days: actualDays,
+          requestedDays: days
+        }
+      });
     }
 
-    // Backfill request submitted - data will arrive via webhooks
+    // Handle specific error codes per Garmin docs
+    const errorText = await backfillResponse.text();
+    console.error('❌ Backfill failed:', backfillResponse.status, errorText);
+
+    // 401 - Unauthorized
+    if (backfillResponse.status === 401) {
+      return res.status(401).json({
+        success: false,
+        error: 'Garmin authorization failed. Please reconnect your account.',
+        status: 401
+      });
+    }
+
+    // 403 - User hasn't given permission for this data type
+    if (backfillResponse.status === 403) {
+      return res.status(200).json({
+        success: false,
+        method: 'none',
+        message: 'Garmin permissions issue. Please reconnect your Garmin account and ensure activity sharing is enabled.',
+        status: 403
+      });
+    }
+
+    // 409 - Duplicate backfill request (already requested this time range)
+    if (backfillResponse.status === 409) {
+      return res.status(200).json({
+        success: true,
+        method: 'webhook_backfill',
+        message: 'Backfill already requested for this time range. Activities will arrive via webhooks shortly.',
+        note: 'Duplicate request - Garmin is already processing this time range.',
+        dateRange: {
+          start: start.toISOString(),
+          end: end.toISOString(),
+          days: actualDays
+        }
+      });
+    }
+
+    // Other errors
     return res.status(200).json({
-      success: true,
-      method: 'webhook_backfill',
-      message: 'Backfill request submitted. Activities will be synced via webhooks over the next few minutes.',
+      success: false,
+      method: 'none',
+      message: 'Could not request activity backfill from Garmin.',
+      error: errorText,
+      status: backfillResponse.status,
+      hint: 'Activities will still sync automatically when you complete new rides and sync your Garmin device.',
       dateRange: {
         start: start.toISOString(),
         end: end.toISOString(),
-        days: days
+        days: actualDays
       }
     });
 
