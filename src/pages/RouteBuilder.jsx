@@ -1464,6 +1464,11 @@ function RouteBuilder() {
             if (value) {
               const workout = WORKOUT_LIBRARY[value];
               setSelectedWorkout(workout);
+              // Auto-set time available from workout duration
+              if (workout.duration) {
+                setTimeAvailable(workout.duration);
+                console.log(`⏱️ Set time available to workout duration: ${workout.duration} min`);
+              }
             } else {
               setSelectedWorkout(null);
               setIntervalCues(null);
@@ -2004,6 +2009,11 @@ function RouteBuilder() {
                   if (value) {
                     const workout = WORKOUT_LIBRARY[value];
                     setSelectedWorkout(workout);
+                    // Auto-set time available from workout duration
+                    if (workout.duration) {
+                      setTimeAvailable(workout.duration);
+                      console.log(`⏱️ Set time available to workout duration: ${workout.duration} min`);
+                    }
                   } else {
                     setSelectedWorkout(null);
                     setIntervalCues(null);
