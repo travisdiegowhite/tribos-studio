@@ -23,7 +23,7 @@ import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { supabase } from '../lib/supabase';
-import { useRouteBuilderStore } from '../stores/routeBuilderStore';
+import { useRouteBuilderStore, useRouteBuilderHydrated } from '../stores/routeBuilderStore';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -386,6 +386,9 @@ function RouteBuilder() {
     clearRoute,
   } = useRouteBuilderStore();
 
+  // Check if store has been hydrated from localStorage
+  const storeHydrated = useRouteBuilderHydrated();
+
   // Resolve selectedWorkout from ID
   const selectedWorkout = selectedWorkoutId ? WORKOUT_LIBRARY[selectedWorkoutId] : null;
   const setSelectedWorkout = useCallback((workout) => {
@@ -558,16 +561,40 @@ function RouteBuilder() {
     setSearchParams({}, { replace: true });
   }, []);
 
-  // Geolocate user on mount
+  // Geolocate user on mount (after store hydration)
+  // Track if we've already attempted geolocation this session
+  const hasGeolocatedRef = useRef(false);
+
   useEffect(() => {
+    // Wait for store hydration before deciding whether to geolocate
+    if (!storeHydrated) return;
     if (routeId) return; // Don't geolocate if loading existing route
+    if (hasGeolocatedRef.current) return; // Only attempt once per session
+
+    // Default San Francisco coordinates from store initialState
+    const DEFAULT_LAT = 37.7749;
+    const DEFAULT_LNG = -122.4194;
+
+    // Only geolocate if viewport is still at default coordinates
+    // This respects user's saved map position while ensuring fresh sessions geolocate
+    const isDefaultViewport =
+      Math.abs(viewport.latitude - DEFAULT_LAT) < 0.001 &&
+      Math.abs(viewport.longitude - DEFAULT_LNG) < 0.001;
+
+    if (!isDefaultViewport) {
+      console.log('📍 Using saved viewport position:', viewport.latitude.toFixed(4), viewport.longitude.toFixed(4));
+      hasGeolocatedRef.current = true;
+      return;
+    }
 
     const geolocateUser = () => {
       if (!navigator.geolocation) {
         console.log('Geolocation not supported');
+        hasGeolocatedRef.current = true;
         return;
       }
 
+      hasGeolocatedRef.current = true;
       setIsLocating(true);
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -591,7 +618,7 @@ function RouteBuilder() {
     };
 
     geolocateUser();
-  }, [routeId]);
+  }, [storeHydrated, routeId, viewport.latitude, viewport.longitude, setViewport]);
 
   // Load user's speed profile on mount
   useEffect(() => {
