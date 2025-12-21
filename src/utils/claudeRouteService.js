@@ -245,7 +245,9 @@ IMPORTANT:
 - Explain route benefits clearly
 - Account for weather impact on route choice
 - Provide specific turn-by-turn guidance
-- Keep routes within 20% of target distance`;
+- Keep routes within 20% of target distance
+- CRITICAL: Each route MUST have a descriptive "name" and accurate "estimatedDistance" matching the target
+- Respond with raw JSON only - do NOT wrap in markdown code blocks`;
 
   return prompt;
 }
@@ -305,11 +307,17 @@ function getTrainingGoalDescription(goal) {
 
 /**
  * Extract and repair JSON from Claude's response
- * Handles common formatting issues like trailing commas, incomplete arrays, etc.
+ * Handles common formatting issues like trailing commas, incomplete arrays, markdown wrapping, etc.
  */
 function extractAndRepairJSON(text) {
+  // First, strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+  let cleanedText = text
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
+
   // Try to find the JSON object containing routes
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return null;
 
   let jsonStr = jsonMatch[0];
@@ -477,8 +485,12 @@ export async function enhanceRouteWithClaude(route, params) {
       throw new Error(data.error || 'Unknown enhancement error');
     }
 
-    // Parse the enhancement response
-    const enhancement = JSON.parse(data.enhancement);
+    // Parse the enhancement response (strip markdown if present)
+    const cleanedEnhancement = data.enhancement
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+    const enhancement = JSON.parse(cleanedEnhancement);
 
     return {
       ...route,
@@ -547,7 +559,13 @@ Analyze their patterns and provide recommendations in JSON format:
       throw new Error(data.error || 'Unknown analysis error');
     }
 
-    return JSON.parse(data.content);
+    // Strip markdown code blocks before parsing
+    const cleanedContent = data.content
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
+    return JSON.parse(cleanedContent);
 
   } catch (error) {
     console.warn('Failed to analyze patterns with Claude:', error);
