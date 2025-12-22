@@ -740,6 +740,8 @@ function Settings() {
                 syncing={garminSyncing}
                 onCheckWebhook={checkGarminWebhookStatus}
                 webhookStatus={garminWebhookStatus}
+                onRepair={repairGarminConnection}
+                repairing={garminRepairing}
               />
 
               <Divider />
@@ -805,7 +807,7 @@ function Settings() {
   );
 }
 
-function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus }) {
+function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing }) {
   if (loading) {
     return (
       <Group justify="space-between">
@@ -961,13 +963,13 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                       ))}
                     </Box>
                   )}
-                  {(!webhookStatus.integration?.tokenValid || !webhookStatus.integration?.hasGarminUserId) && (
+                  {onRepair && (!webhookStatus.integration?.tokenValid || !webhookStatus.integration?.hasGarminUserId) && (
                     <Button
                       size="xs"
                       variant="outline"
                       color="yellow"
-                      onClick={repairGarminConnection}
-                      loading={garminRepairing}
+                      onClick={onRepair}
+                      loading={repairing}
                       style={{ marginTop: 8 }}
                     >
                       🔧 Repair Connection
