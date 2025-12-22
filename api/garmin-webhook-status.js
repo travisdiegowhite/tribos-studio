@@ -52,8 +52,11 @@ export default async function handler(req, res) {
     // Verify token and get user
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
+      console.error('Auth error in webhook-status:', authError);
       return res.status(401).json({ error: 'Invalid token' });
     }
+
+    console.log('Webhook status - checking for user:', user.id);
 
     // Get webhook statistics
     const stats = await getWebhookStats(user.id);
@@ -61,7 +64,11 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       stats,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      debug: {
+        userId: user.id,
+        userEmail: user.email
+      }
     });
 
   } catch (error) {
@@ -86,6 +93,12 @@ async function getWebhookStats(userId) {
     if (integrationError) {
       console.error('Error fetching integration:', integrationError);
     }
+
+    console.log('Webhook status - integration query result for user', userId, ':', {
+      found: !!integration,
+      provider_user_id: integration?.provider_user_id,
+      sync_enabled: integration?.sync_enabled
+    });
 
     // Get total webhook events for this user's Garmin ID
     let totalEvents = 0;
