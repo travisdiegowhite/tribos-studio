@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -390,6 +390,7 @@ function RouteBuilder() {
     selectedWorkoutId, setSelectedWorkoutId,
     routingSource, setRoutingSource,
     clearRoute,
+    resetAll,
   } = useRouteBuilderStore();
 
   // Check if store has been hydrated from localStorage
@@ -486,7 +487,7 @@ function RouteBuilder() {
   const currentWizardStep = useMemo(() => {
     if (savedRouteId) return 3; // Saved
     if (routeGeometry) return 2; // Route created
-    if (naturalLanguageInput || routeName !== 'My New Route') return 1; // Configured
+    if (naturalLanguageInput || routeName !== 'Untitled Route') return 1; // Configured
     return 0; // Just starting
   }, [savedRouteId, routeGeometry, naturalLanguageInput, routeName]);
 
@@ -883,6 +884,29 @@ function RouteBuilder() {
       setIsSaving(false);
     }
   }, [routeGeometry, routeName, routeStats, routeType, trainingGoal, routeProfile, waypoints, aiSuggestions, savedRouteId, user, routeId, navigate]);
+
+  // Clear session / Start new route - resets all state
+  const handleClearSession = useCallback(() => {
+    // Reset all persisted store state
+    resetAll();
+
+    // Reset local component state
+    setSavedRouteId(null);
+    setNaturalLanguageInput('');
+    setCalendarContext(null);
+    setIntervalCues(null);
+
+    // Navigate to clean route builder URL (remove any route ID from URL)
+    if (routeId) {
+      navigate('/routes/new', { replace: true });
+    }
+
+    notifications.show({
+      title: 'Session Cleared',
+      message: 'Ready to create a new route',
+      color: 'lime'
+    });
+  }, [resetAll, routeId, navigate]);
 
   // Generate AI Routes using the comprehensive aiRouteGenerator
   const handleGenerateAIRoutes = useCallback(async () => {
@@ -1630,6 +1654,17 @@ function RouteBuilder() {
 
       {/* Actions */}
       <Stack gap="sm">
+        <Button
+          color="lime"
+          fullWidth
+          size="sm"
+          disabled={!routeGeometry}
+          onClick={handleSaveRoute}
+          loading={isSaving}
+          leftSection={<IconDeviceFloppy size={16} />}
+        >
+          {savedRouteId ? 'Update Route' : 'Save Route'}
+        </Button>
         <Group grow>
           <Button
             variant="light"
@@ -1637,19 +1672,31 @@ function RouteBuilder() {
             size="sm"
             disabled={!routeGeometry}
             onClick={exportGPX}
+            leftSection={<IconDownload size={14} />}
           >
             Export GPX
           </Button>
           <Button
             variant="outline"
-            color="red"
+            color="gray"
             size="sm"
             disabled={!routeGeometry && waypoints.length === 0}
             onClick={clearRoute}
+            leftSection={<IconTrash size={14} />}
           >
-            Clear
+            Clear Route
           </Button>
         </Group>
+        <Button
+          variant="subtle"
+          color="gray"
+          size="xs"
+          onClick={handleClearSession}
+          leftSection={<IconRefresh size={14} />}
+          fullWidth
+        >
+          New Route (Clear Session)
+        </Button>
       </Stack>
     </Stack>
   );
@@ -1913,7 +1960,7 @@ function RouteBuilder() {
                       '&:focus': { borderColor: tokens.colors.electricLime },
                     }
                   }}
-                  rightSection={routeName.length > 0 && routeName !== 'My New Route' && (
+                  rightSection={routeName.length > 0 && routeName !== 'Untitled Route' && (
                     <Box style={{ color: tokens.colors.electricLime }}>✓</Box>
                   )}
                 />
@@ -2268,16 +2315,26 @@ function RouteBuilder() {
                 </Button>
                 <Button
                   variant="outline"
-                  color="red"
+                  color="gray"
                   size="sm"
                   disabled={!routeGeometry && waypoints.length === 0}
                   onClick={clearRoute}
                   leftSection={<IconTrash size={16} />}
                   style={{ height: 40 }}
                 >
-                  Clear
+                  Clear Route
                 </Button>
               </Group>
+              <Button
+                variant="subtle"
+                color="gray"
+                size="xs"
+                onClick={handleClearSession}
+                leftSection={<IconRefresh size={14} />}
+                fullWidth
+              >
+                New Route (Clear Session)
+              </Button>
             </Stack>
           </Box>
         </Paper>
