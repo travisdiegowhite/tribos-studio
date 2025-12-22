@@ -664,10 +664,13 @@ async function ensureValidAccessToken(integration) {
     .eq('id', integration.id);
 
   if (updateError) {
-    console.error('⚠️ Failed to update tokens in database:', updateError);
-    // Don't throw - we still have a valid token to return
+    console.error('❌ CRITICAL: Failed to update tokens in database:', updateError);
+    // Throw error - we can't continue with tokens that aren't persisted
+    // Otherwise next webhook will use old expired tokens
+    throw new Error(`Failed to persist refreshed tokens: ${updateError.message || updateError}`);
   }
 
+  console.log('✅ Tokens persisted to database');
   return tokenData.access_token;
 }
 

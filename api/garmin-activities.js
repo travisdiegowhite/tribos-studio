@@ -133,7 +133,7 @@ async function getValidAccessToken(userId) {
   const expiresInSeconds = tokenData.expires_in || 7776000; // Default 90 days
   const newExpiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
 
-  await supabase
+  const { error: updateError } = await supabase
     .from('bike_computer_integrations')
     .update({
       access_token: tokenData.access_token,
@@ -144,7 +144,12 @@ async function getValidAccessToken(userId) {
     })
     .eq('id', integration.id);
 
-  console.log('✅ Garmin token refreshed');
+  if (updateError) {
+    console.error('❌ CRITICAL: Failed to persist tokens:', updateError);
+    throw new Error(`Failed to persist refreshed tokens: ${updateError.message || updateError}`);
+  }
+
+  console.log('✅ Garmin token refreshed and persisted');
   return { accessToken: tokenData.access_token, integration };
 }
 
