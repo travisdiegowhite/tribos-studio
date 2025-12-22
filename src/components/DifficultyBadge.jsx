@@ -1,0 +1,37 @@
+import { Badge } from '@mantine/core';
+
+/**
+ * DifficultyBadge - Standardized difficulty badge with consistent colors
+ * @param {string} difficulty - easy, moderate, or hard
+ * @param {string} size - Badge size (xs, sm, md)
+ */
+function DifficultyBadge({ difficulty, size = 'sm' }) {
+  const colorMap = {
+    easy: '#10b981',      // Green
+    moderate: '#f59e0b',  // Amber
+    hard: '#ef4444',      // Red
+    recovery: '#3b82f6',  // Blue
+    intervals: '#8b5cf6', // Purple
+  };
+
+  const backgroundColor = colorMap[difficulty?.toLowerCase()] || colorMap.moderate;
+
+  return (
+    <Badge
+      size={size}
+      style={{
+        backgroundColor,
+        color: 'white',
+        fontWeight: 600,
+        textTransform: 'capitalize',
+        height: size === 'xs' ? '22px' : '28px',
+        padding: '4px 12px',
+        borderRadius: '16px',
+      }}
+    >
+      {difficulty || 'moderate'}
+    </Badge>
+  );
+}
+
+export default DifficultyBadge;
