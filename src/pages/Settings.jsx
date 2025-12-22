@@ -39,6 +39,7 @@ function Settings() {
   const [garminStatus, setGarminStatus] = useState({ connected: false, loading: true });
   const [garminWebhookStatus, setGarminWebhookStatus] = useState(null);
   const [garminSyncing, setGarminSyncing] = useState(false);
+  const [garminRepairing, setGarminRepairing] = useState(false);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
   const [showImportWizard, setShowImportWizard] = useState(false);
 
@@ -335,6 +336,57 @@ function Settings() {
         message: 'Failed to check webhook status',
         color: 'red',
       });
+    }
+  };
+
+  const repairGarminConnection = async () => {
+    setGarminRepairing(true);
+    try {
+      notifications.show({
+        id: 'garmin-repair',
+        title: 'Repairing Connection',
+        message: 'Refreshing token and fetching Garmin User ID...',
+        loading: true,
+        autoClose: false
+      });
+
+      const result = await garminService.repairConnection();
+
+      if (result.success) {
+        notifications.update({
+          id: 'garmin-repair',
+          title: 'Connection Repaired!',
+          message: 'Token refreshed and User ID fetched successfully.',
+          color: 'lime',
+          loading: false,
+          autoClose: 5000
+        });
+        // Refresh status
+        await checkGarminWebhookStatus();
+        const status = await garminService.getConnectionStatus();
+        setGarminStatus({ ...status, loading: false });
+      } else {
+        notifications.update({
+          id: 'garmin-repair',
+          title: 'Repair Failed',
+          message: result.error || 'Please try disconnecting and reconnecting.',
+          color: 'red',
+          loading: false,
+          autoClose: 5000
+        });
+      }
+    } catch (error) {
+      console.error('Error repairing Garmin connection:', error);
+      notifications.update({
+        id: 'garmin-repair',
+        title: 'Repair Failed',
+        message: error.message || 'Please try disconnecting and reconnecting.',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    } finally {
+      setGarminRepairing(false);
     }
   };
 
@@ -893,14 +945,33 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                       {webhookStatus.webhookStats?.totalEvents || 0}
                     </Text>
                   </Group>
-                  {webhookStatus.diagnostics?.troubleshooting?.length > 0 && (
+                  {webhookStatus.connectionHealth?.syncError && (
                     <Box style={{ marginTop: 4 }}>
-                      {webhookStatus.diagnostics.troubleshooting.map((tip, i) => (
+                      <Text size="xs" style={{ color: 'red' }}>
+                        ❌ {webhookStatus.connectionHealth.syncError}
+                      </Text>
+                    </Box>
+                  )}
+                  {webhookStatus.troubleshooting?.length > 0 && (
+                    <Box style={{ marginTop: 4 }}>
+                      {webhookStatus.troubleshooting.map((tip, i) => (
                         <Text key={i} size="xs" style={{ color: 'orange' }}>
-                          ⚠ {tip}
+                          {tip}
                         </Text>
                       ))}
                     </Box>
+                  )}
+                  {(!webhookStatus.integration?.tokenValid || !webhookStatus.integration?.hasGarminUserId) && (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      color="yellow"
+                      onClick={repairGarminConnection}
+                      loading={garminRepairing}
+                      style={{ marginTop: 8 }}
+                    >
+                      🔧 Repair Connection
+                    </Button>
                   )}
                 </Stack>
               </Box>
