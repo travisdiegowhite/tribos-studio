@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -24,6 +24,12 @@ import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '..
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { supabase } from '../lib/supabase';
 import { useRouteBuilderStore, useRouteBuilderHydrated } from '../stores/routeBuilderStore';
+import CollapsibleSection from '../components/CollapsibleSection.jsx';
+import StepIndicator from '../components/StepIndicator.jsx';
+import DifficultyBadge from '../components/DifficultyBadge.jsx';
+import RouteStatsPanel from '../components/RouteStatsPanel.jsx';
+import AISuggestionCard from '../components/AISuggestionCard.jsx';
+import MapTutorialOverlay from '../components/MapTutorialOverlay.jsx';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -461,6 +467,28 @@ function RouteBuilder() {
   const [isSearching, setIsSearching] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
+
+  // Tutorial overlay state
+  const [showTutorial, setShowTutorial] = useLocalStorage({
+    key: 'tribos-route-builder-tutorial-shown',
+    defaultValue: true,
+  });
+
+  // Step indicator - determine current step based on form state
+  const wizardSteps = useMemo(() => [
+    { id: 1, label: 'Describe', icon: '📝' },
+    { id: 2, label: 'Configure', icon: '⚙️' },
+    { id: 3, label: 'Route', icon: '🗺️' },
+    { id: 4, label: 'Save', icon: '💾' },
+  ], []);
+
+  // Calculate current wizard step based on state
+  const currentWizardStep = useMemo(() => {
+    if (savedRouteId) return 3; // Saved
+    if (routeGeometry) return 2; // Route created
+    if (naturalLanguageInput || routeName !== 'My New Route') return 1; // Configured
+    return 0; // Just starting
+  }, [savedRouteId, routeGeometry, naturalLanguageInput, routeName]);
 
   // viewport comes from the store (persisted)
 
@@ -1813,429 +1841,416 @@ function RouteBuilder() {
         {/* Sidebar */}
         <Paper
           style={{
-            width: 360,
+            width: 380,
             backgroundColor: tokens.colors.bgSecondary,
             borderRight: `1px solid ${tokens.colors.bgTertiary}`,
             display: 'flex',
             flexDirection: 'column',
-            overflowY: 'auto',
           }}
           radius={0}
-          p="md"
         >
-          <Stack gap="md" style={{ flex: 1 }}>
-            {/* Calendar Context Banner */}
-            {calendarContext && (
-              <Paper
-                p="sm"
-                style={{
-                  backgroundColor: `${tokens.colors.electricLime}15`,
-                  border: `1px solid ${tokens.colors.electricLime}`,
-                }}
-                radius="md"
-              >
-                <Group justify="space-between" align="flex-start">
-                  <Group gap="xs">
-                    <IconCalendar size={16} style={{ color: tokens.colors.electricLime }} />
-                    <Box>
-                      <Text size="xs" fw={600} style={{ color: tokens.colors.electricLime }}>
-                        Creating route for scheduled workout
-                      </Text>
-                      <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                        {calendarContext.workoutName || calendarContext.workoutType} • {calendarContext.duration} min
-                        {calendarContext.scheduledDate && ` • ${new Date(calendarContext.scheduledDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
-                      </Text>
-                    </Box>
-                  </Group>
-                  <ActionIcon
-                    size="xs"
-                    variant="subtle"
-                    onClick={() => setCalendarContext(null)}
-                  >
-                    <IconX size={12} />
-                  </ActionIcon>
-                </Group>
-              </Paper>
-            )}
-
-            <Box>
-              <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
-                ROUTE NAME
-              </Text>
-              <TextInput
-                value={routeName}
-                onChange={(e) => setRouteName(e.target.value)}
-                variant="filled"
-                size="md"
+          {/* Scrollable content area */}
+          <Box style={{ flex: 1, overflowY: 'auto', padding: tokens.spacing.md }}>
+            <Stack gap="md">
+              {/* Step Indicator */}
+              <StepIndicator
+                currentStep={currentWizardStep}
+                steps={wizardSteps}
               />
-            </Box>
 
-            <Divider label="AI Route Generator" labelPosition="center" />
-
-            {/* Natural Language Input */}
-            <Box>
-              <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
-                DESCRIBE YOUR RIDE
-              </Text>
-              <Textarea
-                placeholder="e.g., '40 mile gravel loop' or '2 hour recovery ride on bike paths'"
-                value={naturalLanguageInput}
-                onChange={(e) => setNaturalLanguageInput(e.target.value)}
-                minRows={2}
-                maxRows={3}
-                size="sm"
-                variant="filled"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleNaturalLanguageGenerate();
-                  }
-                }}
-              />
-              <Button
-                onClick={handleNaturalLanguageGenerate}
-                loading={generatingAI}
-                leftSection={<IconSparkles size={16} />}
-                color="lime"
-                variant={calendarContext ? 'filled' : 'light'}
-                size="xs"
-                mt="xs"
-                fullWidth
-                style={calendarContext ? {
-                  animation: 'pulse-glow 2s ease-in-out infinite',
-                  boxShadow: `0 0 20px ${tokens.colors.electricLime}40`,
-                } : undefined}
-              >
-                {calendarContext ? '✨ Generate Route for Workout' : 'Generate from Description'}
-              </Button>
-            </Box>
-
-            {/* Pulse animation styles (desktop) */}
-            <style>{`
-              @keyframes pulse-glow {
-                0%, 100% {
-                  box-shadow: 0 0 5px ${tokens.colors.electricLime}40;
-                  transform: scale(1);
-                }
-                50% {
-                  box-shadow: 0 0 25px ${tokens.colors.electricLime}80;
-                  transform: scale(1.02);
-                }
-              }
-            `}</style>
-
-            <Divider label="or configure manually" labelPosition="center" size="xs" />
-
-            {/* Route Profile Selector */}
-            <Box>
-              <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
-                ROUTE PROFILE
-              </Text>
-              <SegmentedControl
-                value={routeProfile}
-                onChange={setRouteProfile}
-                fullWidth
-                size="xs"
-                data={[
-                  { label: '🚴 Road', value: 'road' },
-                  { label: '🌲 Gravel', value: 'gravel' },
-                  { label: '⛰️ MTB', value: 'mountain' },
-                  { label: '🏙️ Commute', value: 'commuting' }
-                ]}
-                styles={{
-                  root: { backgroundColor: tokens.colors.bgTertiary }
-                }}
-              />
-            </Box>
-
-            {/* AI Route Generation Controls */}
-            <Box>
-              <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
-                TRAINING GOAL
-              </Text>
-              <SegmentedControl
-                value={trainingGoal}
-                onChange={setTrainingGoal}
-                fullWidth
-                size="xs"
-                data={[
-                  { label: 'Recovery', value: 'recovery' },
-                  { label: 'Endurance', value: 'endurance' },
-                  { label: 'Intervals', value: 'intervals' },
-                  { label: 'Hills', value: 'hills' }
-                ]}
-                styles={{
-                  root: { backgroundColor: tokens.colors.bgTertiary }
-                }}
-              />
-            </Box>
-
-            <Group grow>
-              <Box>
-                <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
-                  TIME (MIN)
-                </Text>
-                <NumberInput
-                  value={timeAvailable}
-                  onChange={setTimeAvailable}
-                  min={15}
-                  max={480}
-                  step={15}
-                  size="sm"
-                  variant="filled"
-                />
-              </Box>
-
-              <Box>
-                <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
-                  ROUTE TYPE
-                </Text>
-                <Select
-                  value={routeType}
-                  onChange={setRouteType}
-                  size="sm"
-                  variant="filled"
-                  data={[
-                    { value: 'loop', label: 'Loop' },
-                    { value: 'out_back', label: 'Out & Back' },
-                    { value: 'point_to_point', label: 'Point to Point' }
-                  ]}
-                />
-              </Box>
-            </Group>
-
-            {/* Workout Selection for Color-Coded Routes */}
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                  WORKOUT (OPTIONAL)
-                </Text>
-                <Tooltip label="Route Preferences">
-                  <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    onClick={() => setPreferencesOpen(true)}
-                  >
-                    <IconSettings size={16} />
-                  </ActionIcon>
-                </Tooltip>
-              </Group>
-              <Select
-                placeholder="Select a workout for color-coded route..."
-                value={selectedWorkout?.id || null}
-                onChange={(value) => {
-                  if (value) {
-                    const workout = WORKOUT_LIBRARY[value];
-                    setSelectedWorkout(workout);
-                    // Auto-set time available from workout duration
-                    if (workout.duration) {
-                      setTimeAvailable(workout.duration);
-                      console.log(`⏱️ Set time available to workout duration: ${workout.duration} min`);
-                    }
-                  } else {
-                    setSelectedWorkout(null);
-                    setIntervalCues(null);
-                  }
-                }}
-                clearable
-                size="sm"
-                variant="filled"
-                data={workoutOptions}
-              />
-              {selectedWorkout && (
-                <Text size="xs" c="dimmed" mt="xs">
-                  Route will show color-coded segments for: {selectedWorkout.name}
-                </Text>
-              )}
-            </Box>
-
-            <Button
-              onClick={handleGenerateAIRoutes}
-              loading={generatingAI}
-              leftSection={<IconSparkles size={18} />}
-              color="lime"
-              fullWidth
-            >
-              {generatingAI ? 'Generating Routes...' : 'Generate AI Routes'}
-            </Button>
-
-            {/* AI Suggestions Display */}
-            {aiSuggestions.length > 0 && (
-              <Box>
-                <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
-                  AI SUGGESTIONS ({aiSuggestions.length})
-                </Text>
-                <Stack gap="xs" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                  {aiSuggestions.map((suggestion, index) => (
-                    <Card
-                      key={index}
-                      padding="sm"
-                      style={{
-                        backgroundColor: tokens.colors.bgTertiary,
-                        cursor: convertingRoute !== null ? 'wait' : 'pointer',
-                        border: `1px solid ${convertingRoute === index ? tokens.colors.electricLime : tokens.colors.bgPrimary}`,
-                        transition: 'all 0.2s',
-                        opacity: convertingRoute !== null && convertingRoute !== index ? 0.5 : 1
-                      }}
-                      onClick={() => convertingRoute === null && handleSelectAISuggestion(suggestion, index)}
-                    >
-                      <Stack gap="xs">
-                        <Group justify="space-between" align="flex-start">
-                          <Text fw={600} size="sm" style={{ color: tokens.colors.textPrimary, flex: 1 }}>
-                            {suggestion.name}
-                          </Text>
-                          <Badge
-                            size="xs"
-                            color={
-                              suggestion.difficulty === 'easy' ? 'green' :
-                              suggestion.difficulty === 'moderate' ? 'yellow' :
-                              'red'
-                            }
-                          >
-                            {suggestion.difficulty}
-                          </Badge>
-                        </Group>
-                        <Text size="xs" style={{ color: tokens.colors.textSecondary }} lineClamp={2}>
-                          {suggestion.description}
+              {/* Calendar Context Banner */}
+              {calendarContext && (
+                <Paper
+                  p="sm"
+                  style={{
+                    backgroundColor: `${tokens.colors.electricLime}15`,
+                    border: `1px solid ${tokens.colors.electricLime}`,
+                  }}
+                  radius="md"
+                >
+                  <Group justify="space-between" align="flex-start">
+                    <Group gap="xs">
+                      <IconCalendar size={16} style={{ color: tokens.colors.electricLime }} />
+                      <Box>
+                        <Text size="xs" fw={600} style={{ color: tokens.colors.electricLime }}>
+                          Creating route for scheduled workout
                         </Text>
-                        <Group gap="xs">
-                          <Badge variant="outline" size="xs">
-                            {suggestion.distance} km
-                          </Badge>
-                          {suggestion.elevationGain > 0 && (
-                            <Badge variant="outline" size="xs">
-                              {suggestion.elevationGain}m ↗
-                            </Badge>
-                          )}
-                          <Badge variant="light" size="xs" color="lime">
-                            {suggestion.estimatedTime}min
-                          </Badge>
-                        </Group>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          color="lime"
-                          leftSection={convertingRoute === index ? <Loader size={14} /> : <IconRoute size={14} />}
-                          fullWidth
-                          disabled={convertingRoute !== null}
-                          loading={convertingRoute === index}
-                        >
-                          {convertingRoute === index ? 'Converting...' : 'Select & Generate Route'}
-                        </Button>
-                      </Stack>
-                    </Card>
-                  ))}
+                        <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                          {calendarContext.workoutName || calendarContext.workoutType} • {calendarContext.duration} min
+                          {calendarContext.scheduledDate && ` • ${new Date(calendarContext.scheduledDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
+                        </Text>
+                      </Box>
+                    </Group>
+                    <ActionIcon
+                      size="xs"
+                      variant="subtle"
+                      onClick={() => setCalendarContext(null)}
+                    >
+                      <IconX size={12} />
+                    </ActionIcon>
+                  </Group>
+                </Paper>
+              )}
+
+              {/* Route Name Input with validation */}
+              <Box>
+                <Group justify="space-between" mb="xs">
+                  <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                    ROUTE NAME
+                  </Text>
+                  <Text size="xs" style={{ color: routeName.length > 40 ? tokens.colors.warning : tokens.colors.textMuted }}>
+                    {routeName.length}/50
+                  </Text>
+                </Group>
+                <TextInput
+                  value={routeName}
+                  onChange={(e) => setRouteName(e.target.value.slice(0, 50))}
+                  variant="filled"
+                  size="md"
+                  styles={{
+                    input: {
+                      borderColor: routeName.length > 0 ? tokens.colors.electricLime : undefined,
+                      '&:focus': { borderColor: tokens.colors.electricLime },
+                    }
+                  }}
+                  rightSection={routeName.length > 0 && routeName !== 'My New Route' && (
+                    <Box style={{ color: tokens.colors.electricLime }}>✓</Box>
+                  )}
+                />
+              </Box>
+
+              {/* AI Route Generator Section - Visual Card */}
+              <Box
+                style={{
+                  backgroundColor: `${tokens.colors.electricLime}08`,
+                  border: `1px solid ${tokens.colors.electricLime}25`,
+                  borderRadius: tokens.radius.md,
+                  padding: tokens.spacing.md,
+                }}
+              >
+                <Group gap="xs" mb="md">
+                  <IconRobot size={20} style={{ color: tokens.colors.electricLime }} />
+                  <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+                    AI Route Generator
+                  </Text>
+                </Group>
+
+                <Stack gap="sm">
+                  <Textarea
+                    placeholder="e.g., '40 mile gravel loop' or '2 hour recovery ride on bike paths'"
+                    value={naturalLanguageInput}
+                    onChange={(e) => setNaturalLanguageInput(e.target.value)}
+                    minRows={2}
+                    maxRows={3}
+                    size="sm"
+                    variant="filled"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleNaturalLanguageGenerate();
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={handleNaturalLanguageGenerate}
+                    loading={generatingAI}
+                    leftSection={<IconSparkles size={16} />}
+                    color="lime"
+                    variant={calendarContext ? 'filled' : 'light'}
+                    size="sm"
+                    fullWidth
+                    style={calendarContext ? {
+                      animation: 'pulse-glow 2s ease-in-out infinite',
+                      boxShadow: `0 0 20px ${tokens.colors.electricLime}40`,
+                    } : undefined}
+                  >
+                    {calendarContext ? '✨ Generate Route for Workout' : 'Generate from Description'}
+                  </Button>
                 </Stack>
               </Box>
-            )}
 
-            <Divider />
+              {/* Pulse animation styles (desktop) */}
+              <style>{`
+                @keyframes pulse-glow {
+                  0%, 100% {
+                    box-shadow: 0 0 5px ${tokens.colors.electricLime}40;
+                    transform: scale(1);
+                  }
+                  50% {
+                    box-shadow: 0 0 25px ${tokens.colors.electricLime}80;
+                    transform: scale(1.02);
+                  }
+                }
+              `}</style>
 
-            {/* Route Stats */}
-            <Box
-              style={{
-                padding: tokens.spacing.md,
-                backgroundColor: tokens.colors.bgTertiary,
-                borderRadius: tokens.radius.md,
-              }}
-            >
-              <Group justify="space-between" mb="xs">
-                <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                  Distance
-                </Text>
-                <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
-                  {formatDist(routeStats.distance)}
-                </Text>
-              </Group>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                  Elevation
-                </Text>
-                <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
-                  {routeStats.elevation > 0 ? `${formatElev(routeStats.elevation)} ↗` : '--'}
-                </Text>
-              </Group>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                  Est. Time
-                </Text>
-                <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
-                  {routeStats.duration > 0 ? `${Math.floor(routeStats.duration / 60)}h ${routeStats.duration % 60}m` : '--:--'}
-                </Text>
-              </Group>
-              {routingSource && (
-                <Group justify="space-between">
-                  <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                    Powered by
-                  </Text>
-                  <Tooltip label={getRoutingSourceLabel(routingSource)}>
-                    <Badge size="xs" variant="light" color="blue">
-                      {routingSource === 'stadia_maps' ? 'Valhalla' :
-                       routingSource === 'brouter' || routingSource === 'brouter_gravel' ? 'BRouter' :
-                       'Mapbox'}
-                    </Badge>
-                  </Tooltip>
-                </Group>
+              {/* Manual Configuration Section - Collapsible */}
+              <CollapsibleSection
+                title="Manual Configuration"
+                icon={<IconAdjustments size={18} />}
+                defaultExpanded={!naturalLanguageInput}
+              >
+                <Stack gap="sm" mt="sm">
+                  {/* Route Profile Selector */}
+                  <Box>
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                      ROUTE PROFILE
+                    </Text>
+                    <SegmentedControl
+                      value={routeProfile}
+                      onChange={setRouteProfile}
+                      fullWidth
+                      size="xs"
+                      data={[
+                        { label: '🚴 Road', value: 'road' },
+                        { label: '🌲 Gravel', value: 'gravel' },
+                        { label: '⛰️ MTB', value: 'mountain' },
+                        { label: '🏙️ Commute', value: 'commuting' }
+                      ]}
+                      styles={{
+                        root: { backgroundColor: tokens.colors.bgSecondary }
+                      }}
+                    />
+                  </Box>
+
+                  {/* Training Goal */}
+                  <Box>
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                      TRAINING GOAL
+                    </Text>
+                    <SegmentedControl
+                      value={trainingGoal}
+                      onChange={setTrainingGoal}
+                      fullWidth
+                      size="xs"
+                      data={[
+                        { label: 'Recovery', value: 'recovery' },
+                        { label: 'Endurance', value: 'endurance' },
+                        { label: 'Intervals', value: 'intervals' },
+                        { label: 'Hills', value: 'hills' }
+                      ]}
+                      styles={{
+                        root: { backgroundColor: tokens.colors.bgSecondary }
+                      }}
+                    />
+                  </Box>
+
+                  <Group grow>
+                    <Box>
+                      <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                        TIME (MIN)
+                      </Text>
+                      <NumberInput
+                        value={timeAvailable}
+                        onChange={setTimeAvailable}
+                        min={15}
+                        max={480}
+                        step={15}
+                        size="sm"
+                        variant="filled"
+                      />
+                      {(timeAvailable < 30 || timeAvailable > 300) && (
+                        <Text size="xs" style={{ color: tokens.colors.warning }} mt={4}>
+                          {timeAvailable < 30 ? 'Very short ride' : 'Long ride!'}
+                        </Text>
+                      )}
+                    </Box>
+
+                    <Box>
+                      <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                        ROUTE TYPE
+                      </Text>
+                      <Select
+                        value={routeType}
+                        onChange={setRouteType}
+                        size="sm"
+                        variant="filled"
+                        data={[
+                          { value: 'loop', label: 'Loop' },
+                          { value: 'out_back', label: 'Out & Back' },
+                          { value: 'point_to_point', label: 'Point to Point' }
+                        ]}
+                      />
+                    </Box>
+                  </Group>
+
+                  {/* Workout Selection for Color-Coded Routes */}
+                  <Box>
+                    <Group justify="space-between" mb="xs">
+                      <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                        WORKOUT (OPTIONAL)
+                      </Text>
+                      <Tooltip label="Route Preferences">
+                        <ActionIcon
+                          variant="subtle"
+                          size="sm"
+                          onClick={() => setPreferencesOpen(true)}
+                        >
+                          <IconSettings size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                    <Select
+                      placeholder="Select a workout for color-coded route..."
+                      value={selectedWorkout?.id || null}
+                      onChange={(value) => {
+                        if (value) {
+                          const workout = WORKOUT_LIBRARY[value];
+                          setSelectedWorkout(workout);
+                          if (workout.duration) {
+                            setTimeAvailable(workout.duration);
+                          }
+                        } else {
+                          setSelectedWorkout(null);
+                          setIntervalCues(null);
+                        }
+                      }}
+                      clearable
+                      size="sm"
+                      variant="filled"
+                      data={workoutOptions}
+                    />
+                    {selectedWorkout && (
+                      <Text size="xs" c="dimmed" mt="xs">
+                        Route will show color-coded segments for: {selectedWorkout.name}
+                      </Text>
+                    )}
+                  </Box>
+
+                  <Button
+                    onClick={handleGenerateAIRoutes}
+                    loading={generatingAI}
+                    leftSection={<IconSparkles size={18} />}
+                    color="lime"
+                    fullWidth
+                  >
+                    {generatingAI ? 'Generating Routes...' : 'Generate AI Routes'}
+                  </Button>
+                </Stack>
+              </CollapsibleSection>
+
+              {/* AI Suggestions Section - Collapsible with enhanced cards */}
+              {aiSuggestions.length > 0 && (
+                <CollapsibleSection
+                  title="AI Suggestions"
+                  icon={<IconSparkles size={18} />}
+                  badge={`${aiSuggestions.length}`}
+                  defaultExpanded={true}
+                  accentColor={tokens.colors.electricLime}
+                >
+                  <Stack gap="sm" mt="sm" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                    {aiSuggestions.map((suggestion, index) => (
+                      <AISuggestionCard
+                        key={index}
+                        suggestion={suggestion}
+                        index={index}
+                        isConverting={convertingRoute === index}
+                        isDisabled={convertingRoute !== null}
+                        onSelect={handleSelectAISuggestion}
+                      />
+                    ))}
+                  </Stack>
+                </CollapsibleSection>
               )}
-              {speedProfile && (
-                <Group justify="space-between">
-                  <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-                    Your Speed
-                  </Text>
-                  <Tooltip label={`Based on ${speedProfile.rides_analyzed} Strava rides`}>
-                    <Badge size="xs" variant="light" color="lime">
-                      {formatSpd(getUserSpeedForProfile(routeProfile) || speedProfile.average_speed)}
-                    </Badge>
-                  </Tooltip>
-                </Group>
+
+              {/* Route Stats Section - Collapsible */}
+              <CollapsibleSection
+                title="Route Stats"
+                icon={<IconRoute size={18} />}
+                defaultExpanded={!!routeGeometry}
+              >
+                <Box mt="sm">
+                  <RouteStatsPanel
+                    stats={routeStats}
+                    routingSource={routingSource}
+                    speedProfile={speedProfile}
+                    formatDist={formatDist}
+                    formatElev={formatElev}
+                    formatSpd={formatSpd}
+                    getUserSpeedForProfile={getUserSpeedForProfile}
+                    routeProfile={routeProfile}
+                  />
+                </Box>
+              </CollapsibleSection>
+
+              {/* Weather Section - Collapsible */}
+              {userLocation && (
+                <CollapsibleSection
+                  title="Weather & Conditions"
+                  icon={<Text size="sm">🌤️</Text>}
+                  defaultExpanded={false}
+                >
+                  <Box mt="sm">
+                    <WeatherWidget
+                      latitude={userLocation.latitude}
+                      longitude={userLocation.longitude}
+                      coordinates={routeGeometry?.coordinates}
+                      isImperial={isImperial}
+                      showWindAnalysis={routeGeometry?.coordinates?.length >= 2}
+                      onWeatherUpdate={setWeatherData}
+                    />
+                  </Box>
+                </CollapsibleSection>
               )}
-            </Box>
 
-            {/* Weather Widget - Shows current conditions and wind analysis */}
-            {userLocation && (
-              <WeatherWidget
-                latitude={userLocation.latitude}
-                longitude={userLocation.longitude}
-                coordinates={routeGeometry?.coordinates}
-                isImperial={isImperial}
-                showWindAnalysis={routeGeometry?.coordinates?.length >= 2}
-                onWeatherUpdate={setWeatherData}
-              />
-            )}
+              {/* Workout Structure Section - Collapsible */}
+              {intervalCues && intervalCues.length > 0 && (
+                <CollapsibleSection
+                  title="Workout Structure"
+                  icon={<Text size="sm">🏋️</Text>}
+                  badge={`${intervalCues.length}`}
+                  defaultExpanded={false}
+                >
+                  <Box mt="sm">
+                    <IntervalCues cues={intervalCues} formatDistance={formatDist} />
+                  </Box>
+                </CollapsibleSection>
+              )}
 
-            {/* Interval Cues Display (when workout selected) */}
-            {intervalCues && intervalCues.length > 0 && (
-              <IntervalCues cues={intervalCues} formatDistance={formatDist} />
-            )}
-
-            {/* Instructions */}
-            <Box style={{ flex: 1 }}>
-              <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="sm">
-                INSTRUCTIONS
-              </Text>
-              <Stack gap="xs">
-                <Text style={{ color: tokens.colors.textSecondary }} size="sm">
+              {/* Map Instructions */}
+              <Box
+                style={{
+                  padding: tokens.spacing.md,
+                  backgroundColor: tokens.colors.bgTertiary,
+                  borderRadius: tokens.radius.md,
+                  borderLeft: `3px solid ${tokens.colors.electricLime}`,
+                }}
+              >
+                <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
                   {waypoints.length === 0 ? '📍 Click on the map to add your first waypoint' :
                    waypoints.length === 1 ? '📍 Add another waypoint to create a route' :
                    `✅ Route created! ${isCalculating ? 'Calculating...' : ''}`}
                 </Text>
                 {waypoints.length > 0 && (
-                  <Text style={{ color: tokens.colors.textMuted }} size="xs">
+                  <Text size="xs" style={{ color: tokens.colors.textMuted }} mt={4}>
                     Click waypoint markers to remove them
                   </Text>
                 )}
-              </Stack>
-            </Box>
+              </Box>
+            </Stack>
+          </Box>
 
-            {/* Actions */}
+          {/* Sticky Action Buttons Footer */}
+          <Box
+            style={{
+              padding: tokens.spacing.md,
+              borderTop: `1px solid ${tokens.colors.bgTertiary}`,
+              backgroundColor: tokens.colors.bgSecondary,
+            }}
+          >
             <Stack gap="sm">
               <Button
                 color="lime"
                 fullWidth
+                size="md"
                 disabled={!routeGeometry}
                 onClick={handleSaveRoute}
                 loading={isSaving}
-                leftSection={<IconDeviceFloppy size={18} />}
+                leftSection={<IconDeviceFloppy size={20} />}
+                style={{
+                  height: 48,
+                  fontWeight: 600,
+                  fontSize: '15px',
+                }}
               >
                 {savedRouteId ? 'Update Route' : 'Save Route'}
               </Button>
@@ -2243,22 +2258,28 @@ function RouteBuilder() {
                 <Button
                   variant="light"
                   color="lime"
+                  size="sm"
                   disabled={!routeGeometry}
                   onClick={exportGPX}
+                  leftSection={<IconDownload size={16} />}
+                  style={{ height: 40 }}
                 >
                   Export GPX
                 </Button>
                 <Button
                   variant="outline"
                   color="red"
+                  size="sm"
                   disabled={!routeGeometry && waypoints.length === 0}
                   onClick={clearRoute}
+                  leftSection={<IconTrash size={16} />}
+                  style={{ height: 40 }}
                 >
                   Clear
                 </Button>
               </Group>
             </Stack>
-          </Stack>
+          </Box>
         </Paper>
 
         {/* Map Container */}
@@ -2478,6 +2499,15 @@ function RouteBuilder() {
                 </Text>
               </Stack>
             </Box>
+          )}
+
+          {/* Map Tutorial Overlay */}
+          {MAPBOX_TOKEN && showTutorial && waypoints.length === 0 && !routeGeometry && (
+            <MapTutorialOverlay
+              show={showTutorial}
+              onDismiss={() => setShowTutorial(false)}
+              waypointCount={waypoints.length}
+            />
           )}
         </Box>
       </Box>
