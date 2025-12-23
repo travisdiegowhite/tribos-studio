@@ -116,8 +116,11 @@ export default async function handler(req, res) {
       case 'reprocess_failed':
         return await reprocessFailedEvents(req, res, userId);
 
+      case 'diagnose':
+        return await diagnoseActivities(req, res, userId);
+
       default:
-        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, get_activity, reprocess_failed' });
+        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, get_activity, reprocess_failed, diagnose' });
     }
 
   } catch (error) {
@@ -709,6 +712,107 @@ async function reprocessFailedEvents(req, res, userId) {
 
   } catch (error) {
     console.error('Reprocess failed events error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Diagnose Garmin sync issues
+ * Returns detailed info about activities and webhook events
+ */
+async function diagnoseActivities(req, res, userId) {
+  try {
+    // Get the user's Garmin integration
+    const { data: integration, error: integrationError } = await supabase
+      .from('bike_computer_integrations')
+      .select('id, provider_user_id, last_sync_at')
+      .eq('user_id', userId)
+      .eq('provider', 'garmin')
+      .single();
+
+    if (integrationError || !integration) {
+      return res.status(404).json({ error: 'Garmin integration not found' });
+    }
+
+    // Get all Garmin activities for this user
+    const { data: activities, error: activitiesError } = await supabase
+      .from('activities')
+      .select('id, provider_activity_id, name, type, start_date, distance, moving_time, created_at')
+      .eq('user_id', userId)
+      .eq('provider', 'garmin')
+      .order('start_date', { ascending: false })
+      .limit(20);
+
+    // Get all webhook events for this user
+    const { data: webhookEvents, error: webhookError } = await supabase
+      .from('garmin_webhook_events')
+      .select('id, event_type, activity_id, processed, process_error, activity_imported_id, created_at, payload')
+      .eq('garmin_user_id', integration.provider_user_id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    // Analyze webhook events
+    const eventAnalysis = (webhookEvents || []).map(event => {
+      const payload = event.payload || {};
+      let activityInfo = null;
+      let dataSource = 'unknown';
+
+      if (payload.activities && payload.activities.length > 0) {
+        activityInfo = payload.activities[0];
+        dataSource = 'activities (PUSH)';
+      } else if (payload.activityDetails && payload.activityDetails.length > 0) {
+        activityInfo = payload.activityDetails[0];
+        dataSource = 'activityDetails (PUSH)';
+      } else if (payload.activityFiles && payload.activityFiles.length > 0) {
+        activityInfo = payload.activityFiles[0];
+        dataSource = 'activityFiles (PING - needs callback)';
+      }
+
+      return {
+        id: event.id,
+        event_type: event.event_type,
+        activity_id: event.activity_id,
+        processed: event.processed,
+        error: event.process_error,
+        imported_id: event.activity_imported_id,
+        created_at: event.created_at,
+        dataSource,
+        hasActivityData: !!activityInfo,
+        activityName: activityInfo?.activityName || null,
+        activityType: activityInfo?.activityType || null,
+        distance: activityInfo?.distanceInMeters ? `${(activityInfo.distanceInMeters / 1000).toFixed(1)} km` : null,
+        startTime: activityInfo?.startTimeInSeconds ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString() : null
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      integration: {
+        id: integration.id,
+        garminUserId: integration.provider_user_id,
+        lastSyncAt: integration.last_sync_at
+      },
+      activities: {
+        count: activities?.length || 0,
+        list: activities || []
+      },
+      webhookEvents: {
+        count: webhookEvents?.length || 0,
+        analysis: eventAnalysis
+      },
+      summary: {
+        totalWebhooks: webhookEvents?.length || 0,
+        withActivityData: eventAnalysis.filter(e => e.hasActivityData).length,
+        processed: eventAnalysis.filter(e => e.processed).length,
+        withErrors: eventAnalysis.filter(e => e.error).length,
+        imported: eventAnalysis.filter(e => e.imported_id).length,
+        pushEvents: eventAnalysis.filter(e => e.dataSource.includes('PUSH')).length,
+        pingEvents: eventAnalysis.filter(e => e.dataSource.includes('PING')).length
+      }
+    });
+
+  } catch (error) {
+    console.error('Diagnose error:', error);
     return res.status(500).json({ error: error.message });
   }
 }
