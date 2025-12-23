@@ -40,6 +40,7 @@ function Settings() {
   const [garminWebhookStatus, setGarminWebhookStatus] = useState(null);
   const [garminSyncing, setGarminSyncing] = useState(false);
   const [garminRepairing, setGarminRepairing] = useState(false);
+  const [garminRecovering, setGarminRecovering] = useState(false);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
   const [showImportWizard, setShowImportWizard] = useState(false);
 
@@ -387,6 +388,62 @@ function Settings() {
       });
     } finally {
       setGarminRepairing(false);
+    }
+  };
+
+  const recoverGarminActivities = async () => {
+    setGarminRecovering(true);
+    try {
+      notifications.show({
+        id: 'garmin-recover',
+        title: 'Recovering Activities',
+        message: 'Reprocessing failed webhook events...',
+        loading: true,
+        autoClose: false
+      });
+
+      const result = await garminService.reprocessFailedEvents();
+
+      if (result.success) {
+        const reprocessed = result.reprocessed || 0;
+        const skipped = result.skipped || 0;
+        const message = reprocessed > 0
+          ? `Recovered ${reprocessed} ${reprocessed === 1 ? 'activity' : 'activities'}.${skipped > 0 ? ` (${skipped} skipped)` : ''}`
+          : result.message || 'No failed events to recover.';
+
+        notifications.update({
+          id: 'garmin-recover',
+          title: reprocessed > 0 ? 'Recovery Complete!' : 'Up to Date',
+          message,
+          color: reprocessed > 0 ? 'lime' : 'cyan',
+          loading: false,
+          autoClose: 5000
+        });
+
+        // Refresh webhook status
+        await checkGarminWebhookStatus();
+      } else {
+        notifications.update({
+          id: 'garmin-recover',
+          title: 'Recovery Failed',
+          message: result.error || 'Could not recover activities.',
+          color: 'red',
+          loading: false,
+          autoClose: 5000
+        });
+      }
+    } catch (error) {
+      console.error('Error recovering Garmin activities:', error);
+      notifications.update({
+        id: 'garmin-recover',
+        title: 'Recovery Failed',
+        message: error.message || 'Failed to recover activities',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    } finally {
+      setGarminRecovering(false);
     }
   };
 
@@ -743,6 +800,8 @@ function Settings() {
                 webhookStatus={garminWebhookStatus}
                 onRepair={repairGarminConnection}
                 repairing={garminRepairing}
+                onRecover={recoverGarminActivities}
+                recovering={garminRecovering}
               />
 
               <Divider />
@@ -808,7 +867,7 @@ function Settings() {
   );
 }
 
-function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing }) {
+function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering }) {
   if (loading) {
     return (
       <Group justify="space-between">
@@ -967,6 +1026,18 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                       style={{ marginTop: 8 }}
                     >
                       🔧 Repair Connection
+                    </Button>
+                  )}
+                  {onRecover && webhookStatus.integration?.tokenValid && (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      color="orange"
+                      onClick={onRecover}
+                      loading={recovering}
+                      style={{ marginTop: 8 }}
+                    >
+                      🔄 Recover Failed Events
                     </Button>
                   )}
                 </Stack>
