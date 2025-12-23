@@ -448,6 +448,44 @@ export class GarminService {
   }
 
   /**
+   * Reprocess failed webhook events
+   * This recovers activities from webhooks that failed due to "Invalid download token" errors
+   * by extracting activity data directly from the stored webhook payloads
+   * @returns {Promise<{success: boolean, reprocessed: number, skipped: number, errors: array}>}
+   */
+  async reprocessFailedEvents() {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'reprocess_failed',
+          userId
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to reprocess events');
+      }
+
+      const data = await response.json();
+      console.log(`✅ Reprocessed ${data.reprocessed} Garmin events`);
+      return data;
+    } catch (error) {
+      console.error('Error reprocessing failed events:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get details for a specific Garmin activity
    * @param {string} activityId - The Garmin activity/summary ID
    * @returns {Promise<{success: boolean, activity: object}>}
