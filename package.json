@@ -8,7 +8,12 @@
     "dev:vercel": "vercel dev",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint src --ext .js,.jsx"
+    "lint": "eslint src --ext .js,.jsx",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
@@ -38,13 +43,19 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.10.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.0",
+    "@vitest/coverage-v8": "^4.0.16",
     "eslint": "^9.0.0",
+    "jsdom": "^27.3.0",
     "typescript": "^5.9.3",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.0.16"
   },
   "engines": {
     "node": ">=20.0.0"
