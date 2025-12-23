@@ -947,13 +947,6 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                       {webhookStatus.webhookStats?.totalEvents || 0}
                     </Text>
                   </Group>
-                  {webhookStatus.connectionHealth?.syncError && (
-                    <Box style={{ marginTop: 4 }}>
-                      <Text size="xs" style={{ color: 'red' }}>
-                        ❌ {webhookStatus.connectionHealth.syncError}
-                      </Text>
-                    </Box>
-                  )}
                   {webhookStatus.troubleshooting?.length > 0 && (
                     <Box style={{ marginTop: 4 }}>
                       {webhookStatus.troubleshooting.map((tip, i) => (
