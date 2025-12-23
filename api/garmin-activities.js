@@ -139,7 +139,6 @@ async function getValidAccessToken(userId) {
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token || integration.refresh_token,
       token_expires_at: newExpiresAt,
-      sync_error: null,
       updated_at: new Date().toISOString()
     })
     .eq('id', integration.id);
@@ -211,7 +210,6 @@ async function syncActivities(req, res, userId, startDate, endDate, days) {
       .from('bike_computer_integrations')
       .update({
         last_sync_at: new Date().toISOString(),
-        sync_error: null,
         updated_at: new Date().toISOString()
       })
       .eq('id', integration.id);
@@ -287,7 +285,6 @@ async function backfillActivities(req, res, userId, days) {
         .from('bike_computer_integrations')
         .update({
           last_sync_at: new Date().toISOString(),
-          sync_error: null,
           updated_at: new Date().toISOString()
         })
         .eq('id', integration.id);
