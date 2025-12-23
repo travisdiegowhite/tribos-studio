@@ -38,6 +38,20 @@ export class StravaService {
   }
 
   /**
+   * Get authorization headers with Supabase session token
+   */
+  async getAuthHeaders() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      return { 'Content-Type': 'application/json' };
+    }
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    };
+  }
+
+  /**
    * Generate Strava OAuth authorization URL
    */
   getAuthorizationUrl(state = null) {
@@ -242,11 +256,10 @@ export class StravaService {
     try {
       console.log('📥 Syncing Strava activities...');
 
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'sync_activities',
@@ -309,11 +322,10 @@ export class StravaService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'get_speed_profile',
@@ -344,11 +356,10 @@ export class StravaService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'calculate_speed_profile',

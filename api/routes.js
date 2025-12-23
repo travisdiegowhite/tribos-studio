@@ -9,6 +9,52 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+/**
+ * Extract and validate user from Authorization header
+ * Returns user object or null if not authenticated
+ */
+async function getUserFromAuthHeader(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.substring(7);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    console.error('Auth token validation failed:', error?.message);
+    return null;
+  }
+
+  return user;
+}
+
+/**
+ * Validate that authenticated user matches the requested userId
+ * Returns error response if validation fails, null if valid
+ */
+async function validateUserAccess(req, res, requestedUserId) {
+  const authUser = await getUserFromAuthHeader(req);
+
+  if (!authUser) {
+    // No auth header - log warning but allow for backwards compatibility
+    // TODO: Make this required after frontend is updated
+    console.warn('⚠️ No Authorization header provided for routes request');
+    return null;
+  }
+
+  if (authUser.id !== requestedUserId) {
+    console.error(`🚨 User ID mismatch: auth user ${authUser.id} requested data for ${requestedUserId}`);
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'You can only access your own data'
+    });
+  }
+
+  return null; // Validation passed
+}
+
 const getAllowedOrigins = () => {
   if (process.env.NODE_ENV === 'production') {
     return ['https://www.tribos.studio', 'https://tribos-studio.vercel.app'];
@@ -41,6 +87,12 @@ export default async function handler(req, res) {
 
     if (!userId) {
       return res.status(400).json({ error: 'userId required' });
+    }
+
+    // Validate that authenticated user matches requested userId
+    const validationError = await validateUserAccess(req, res, userId);
+    if (validationError) {
+      return; // Response already sent
     }
 
     switch (action) {
