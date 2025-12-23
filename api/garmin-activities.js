@@ -205,104 +205,16 @@ async function getValidAccessToken(userId) {
 }
 
 /**
- * Sync activities from Garmin for a date range
- * Per Garmin docs: "All summary data endpoints have a maximum query range of 24 hours by upload time"
- * So we split requests into 24-hour chunks
+ * Sync activities from Garmin using the backfill endpoint
+ *
+ * Per Garmin Activity API docs: The Activity API is push-based only.
+ * Direct queries require a "pull token" which is only provided in Ping notifications.
+ * The only way to request historical activities is via the backfill endpoint,
+ * which triggers Garmin to send activities via Push/Ping webhooks.
  */
 async function syncActivities(req, res, userId, startDate, endDate, days) {
-  try {
-    const { accessToken, integration } = await getValidAccessToken(userId);
-
-    // Calculate date range
-    // Garmin uses Unix timestamps (seconds since epoch)
-    const end = endDate ? new Date(endDate) : new Date();
-    const start = startDate ? new Date(startDate) : new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
-
-    console.log(`📥 Fetching Garmin activities from ${start.toISOString()} to ${end.toISOString()}`);
-
-    // Garmin API has a 24-hour (86400 seconds) maximum query range
-    // Split the request into 24-hour chunks
-    const MAX_RANGE_SECONDS = 86400;
-    const startTimestamp = Math.floor(start.getTime() / 1000);
-    const endTimestamp = Math.floor(end.getTime() / 1000);
-
-    let allActivities = [];
-    let currentStart = startTimestamp;
-    let chunkCount = 0;
-
-    while (currentStart < endTimestamp) {
-      const currentEnd = Math.min(currentStart + MAX_RANGE_SECONDS, endTimestamp);
-      chunkCount++;
-
-      console.log(`📥 Fetching chunk ${chunkCount}: ${new Date(currentStart * 1000).toISOString()} to ${new Date(currentEnd * 1000).toISOString()}`);
-
-      const url = `${GARMIN_API_BASE}/activities?uploadStartTimeInSeconds=${currentStart}&uploadEndTimeInSeconds=${currentEnd}`;
-
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Garmin API error:', response.status, errorText);
-
-        if (response.status === 401 || response.status === 403) {
-          throw new Error('Garmin authentication failed. Please reconnect your account.');
-        }
-
-        // Log but continue with other chunks
-        console.warn(`⚠️ Chunk ${chunkCount} failed, continuing...`);
-      } else {
-        const activities = await response.json();
-        console.log(`📦 Chunk ${chunkCount}: ${activities.length} activities`);
-        allActivities = allActivities.concat(activities);
-      }
-
-      // Move to next chunk
-      currentStart = currentEnd;
-    }
-
-    console.log(`📦 Total received: ${allActivities.length} activities from ${chunkCount} chunks`);
-
-    // Filter to cycling activities
-    const cyclingTypes = ['cycling', 'road_biking', 'mountain_biking', 'gravel_cycling', 'indoor_cycling', 'virtual_ride', 'e_biking', 'e_bike_fitness', 'e_bike_mountain', 'gravel_cycling', 'track_cycling', 'recumbent_cycling'];
-    const cyclingActivities = allActivities.filter(a =>
-      cyclingTypes.includes((a.activityType || '').toLowerCase())
-    );
-
-    console.log(`🚴 ${cyclingActivities.length} cycling activities`);
-
-    // Store activities in Supabase
-    const storedCount = await storeActivities(userId, cyclingActivities);
-
-    // Update last sync timestamp
-    await supabase
-      .from('bike_computer_integrations')
-      .update({
-        last_sync_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', integration.id);
-
-    return res.status(200).json({
-      success: true,
-      fetched: allActivities.length,
-      cyclingActivities: cyclingActivities.length,
-      stored: storedCount,
-      chunks: chunkCount,
-      dateRange: {
-        start: start.toISOString(),
-        end: end.toISOString()
-      }
-    });
-
-  } catch (error) {
-    console.error('Sync activities error:', error);
-    return res.status(500).json({ error: error.message });
-  }
+  // Delegate to backfillActivities since direct queries are not supported
+  return await backfillActivities(req, res, userId, days);
 }
 
 /**
