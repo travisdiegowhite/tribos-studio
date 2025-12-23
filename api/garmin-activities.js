@@ -206,8 +206,6 @@ async function getValidAccessToken(userId) {
 
 /**
  * Sync activities from Garmin for a date range
- * Note: Garmin Health API limits queries to 24 hours per request
- * Uses summaryStartTimeInSeconds/summaryEndTimeInSeconds (when activity was RECORDED)
  */
 async function syncActivities(req, res, userId, startDate, endDate, days) {
   try {
@@ -218,67 +216,39 @@ async function syncActivities(req, res, userId, startDate, endDate, days) {
     const end = endDate ? new Date(endDate) : new Date();
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
 
+    const startTimestamp = Math.floor(start.getTime() / 1000);
+    const endTimestamp = Math.floor(end.getTime() / 1000);
+
     console.log(`📥 Fetching Garmin activities from ${start.toISOString()} to ${end.toISOString()}`);
 
-    // Garmin API limits queries to 24 hours per request
-    // Split into daily chunks
-    const MAX_HOURS_PER_REQUEST = 24;
-    const allActivities = [];
-    let currentStart = new Date(start);
+    // Fetch activities from Garmin Health API
+    // The activities endpoint returns activities within the specified time range
+    const url = `${GARMIN_API_BASE}/activities?uploadStartTimeInSeconds=${startTimestamp}&uploadEndTimeInSeconds=${endTimestamp}`;
 
-    while (currentStart < end) {
-      const currentEnd = new Date(Math.min(
-        currentStart.getTime() + MAX_HOURS_PER_REQUEST * 60 * 60 * 1000,
-        end.getTime()
-      ));
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
 
-      const startTimestamp = Math.floor(currentStart.getTime() / 1000);
-      const endTimestamp = Math.floor(currentEnd.getTime() / 1000);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Garmin API error:', response.status, errorText);
 
-      // Use summaryStartTimeInSeconds/summaryEndTimeInSeconds (when activity was RECORDED)
-      const url = `${GARMIN_API_BASE}/activities?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
-
-      console.log(`📡 Querying Garmin: ${currentStart.toISOString()} to ${currentEnd.toISOString()}`);
-
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Garmin API error:', response.status, errorText);
-
-        if (response.status === 401 || response.status === 403) {
-          throw new Error('Garmin authentication failed. Please reconnect your account.');
-        }
-
-        // Log but continue with other chunks
-        console.warn(`⚠️ Chunk failed: ${response.status} - continuing with next chunk`);
-      } else {
-        const activities = await response.json();
-        if (Array.isArray(activities)) {
-          allActivities.push(...activities);
-          console.log(`📦 Got ${activities.length} activities from this chunk`);
-        }
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Garmin authentication failed. Please reconnect your account.');
       }
 
-      // Move to next chunk
-      currentStart = currentEnd;
-
-      // Small delay between requests to avoid rate limiting
-      if (currentStart < end) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
+      throw new Error(`Garmin API error: ${response.status}`);
     }
 
-    console.log(`📦 Total: ${allActivities.length} activities from Garmin`);
+    const activities = await response.json();
+    console.log(`📦 Received ${activities.length} activities from Garmin`);
 
     // Filter to cycling activities
     const cyclingTypes = ['cycling', 'road_biking', 'mountain_biking', 'gravel_cycling', 'indoor_cycling', 'virtual_ride', 'e_biking'];
-    const cyclingActivities = allActivities.filter(a =>
+    const cyclingActivities = activities.filter(a =>
       cyclingTypes.includes((a.activityType || '').toLowerCase())
     );
 
