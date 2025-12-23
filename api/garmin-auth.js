@@ -256,6 +256,8 @@ async function getAuthorizationUrl(req, res, userId) {
 
 // OAuth 2.0 PKCE Step 2: Exchange authorization code for tokens
 async function exchangeToken(req, res, userId, code, state) {
+  console.log('exchangeToken called with userId:', userId);
+
   if (!userId || !code) {
     return res.status(400).json({ error: 'Missing required parameters' });
   }
@@ -267,9 +269,15 @@ async function exchangeToken(req, res, userId, code, state) {
     // Retrieve the stored PKCE verifier
     const { data: tempData, error: tempError } = await supabase
       .from('garmin_oauth_temp')
-      .select('request_token, request_token_secret')
+      .select('request_token, request_token_secret, user_id')
       .eq('user_id', userId)
       .single();
+
+    console.log('PKCE lookup for userId:', userId, 'result:', {
+      found: !!tempData,
+      error: tempError?.message,
+      storedUserId: tempData?.user_id
+    });
 
     if (tempError || !tempData) {
       throw new Error('Authorization session not found. Please start the authorization flow again.');
@@ -385,9 +393,11 @@ async function exchangeToken(req, res, userId, code, state) {
       });
 
     if (dbError) {
-      console.error('Database error:', dbError);
+      console.error('Database error storing integration:', dbError);
       throw new Error('Failed to store Garmin connection');
     }
+
+    console.log('✅ Integration stored successfully for user:', userId, 'with Garmin User ID:', garminUserId);
 
     // Clean up temp data
     await supabase
