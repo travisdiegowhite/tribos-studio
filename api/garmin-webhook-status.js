@@ -85,7 +85,7 @@ async function getWebhookStats(userId) {
     // Get integration status first
     const { data: integration, error: integrationError } = await supabase
       .from('bike_computer_integrations')
-      .select('id, provider_user_id, sync_enabled, last_sync_at, token_expires_at, access_token, updated_at, sync_error, refresh_token')
+      .select('id, provider_user_id, sync_enabled, last_sync_at, token_expires_at, access_token, updated_at, refresh_token')
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .maybeSingle();
@@ -179,11 +179,7 @@ async function getWebhookStats(userId) {
       troubleshooting.push('Solution: Disconnect and reconnect your Garmin account to fetch the Garmin User ID.');
     } else if (!tokenValid) {
       troubleshooting.push('⚠️ Access token has expired. Activities may not sync.');
-      if (integration.sync_error) {
-        troubleshooting.push(`❌ Last refresh error: ${integration.sync_error}`);
-        troubleshooting.push('The refresh token may have expired or been revoked.');
-        troubleshooting.push('👉 Solution: Disconnect and reconnect your Garmin account to get new tokens.');
-      } else if (!integration.refresh_token) {
+      if (!integration.refresh_token) {
         troubleshooting.push('❌ No refresh token available. Cannot auto-refresh.');
         troubleshooting.push('👉 Solution: Disconnect and reconnect your Garmin account.');
       } else {
@@ -212,21 +208,18 @@ async function getWebhookStats(userId) {
       connectionHealth: {
         status: !integration ? 'not_connected' :
                 !integration.provider_user_id ? 'missing_user_id' :
-                (!tokenValid && integration.sync_error) ? 'token_refresh_failed' :
                 (!tokenValid && !integration.refresh_token) ? 'missing_refresh_token' :
                 !tokenValid ? 'token_expired' :
                 'healthy',
         statusEmoji: !integration ? '❌' :
                      !integration.provider_user_id ? '⚠️' :
-                     (!tokenValid && (integration.sync_error || !integration.refresh_token)) ? '❌' :
+                     (!tokenValid && !integration.refresh_token) ? '❌' :
                      !tokenValid ? '🔄' : '✅',
         message: !integration ? 'Not connected to Garmin' :
                  !integration.provider_user_id ? 'Missing Garmin User ID - reconnect required' :
-                 (!tokenValid && integration.sync_error) ? 'Token refresh failed - reconnect required' :
                  (!tokenValid && !integration.refresh_token) ? 'No refresh token - reconnect required' :
                  !tokenValid ? 'Token expired - will refresh on next sync' :
-                 'Connected and healthy',
-        syncError: integration?.sync_error || null
+                 'Connected and healthy'
       },
       integration: integration ? {
         garminUserId: integration.provider_user_id,
@@ -241,8 +234,7 @@ async function getWebhookStats(userId) {
              tokenExpiresInDays > 0 ? `${tokenExpiresInDays} days` :
              `${tokenExpiresInHours} hours`)
           : 'Unknown',
-        hasRefreshToken: !!integration.refresh_token,
-        syncError: integration.sync_error || null
+        hasRefreshToken: !!integration.refresh_token
       } : null,
       webhookStats: {
         totalEvents,
