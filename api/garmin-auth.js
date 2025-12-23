@@ -602,6 +602,8 @@ async function getConnectionStatus(req, res, userId) {
     return res.status(400).json({ error: 'UserId required' });
   }
 
+  console.log('getConnectionStatus - checking for userId:', userId);
+
   try {
     const { data: integration, error } = await supabase
       .from('bike_computer_integrations')
@@ -609,6 +611,12 @@ async function getConnectionStatus(req, res, userId) {
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .maybeSingle();
+
+    console.log('getConnectionStatus - query result:', {
+      found: !!integration,
+      provider_user_id: integration?.provider_user_id,
+      error: error?.message
+    });
 
     if (error) {
       console.error('Error fetching integration:', error);
@@ -651,7 +659,9 @@ async function getConnectionStatus(req, res, userId) {
       hasGarminUserId: hasUserID,
       healthStatus,
       healthMessage,
-      requiresReconnect
+      requiresReconnect,
+      // Debug
+      debug: { queriedUserId: userId }
     });
 
   } catch (error) {
