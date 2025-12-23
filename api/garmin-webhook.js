@@ -118,27 +118,20 @@ export default async function handler(req, res) {
         timestamp: lastWebhookReceived
       });
 
-      // Process health data immediately (it's already in the payload - no callback needed)
-      // Respond quickly to Garmin, then process
-      res.status(200).json({
+      // Process health data synchronously (Vercel terminates after response)
+      try {
+        await processHealthPushData(detectedHealthType, webhookData[detectedHealthType]);
+        console.log('✅ Health data processed successfully');
+      } catch (err) {
+        console.error('❌ Health data processing error:', err);
+      }
+
+      // Respond to Garmin
+      return res.status(200).json({
         success: true,
-        message: `Health data received: ${detectedHealthType}`,
+        message: `Health data received and processed: ${detectedHealthType}`,
         count: webhookData[detectedHealthType].length
       });
-
-      // Process health data asynchronously
-      setImmediate(() => {
-        processHealthPushData(detectedHealthType, webhookData[detectedHealthType]).catch(err => {
-          console.error('❌ Health data processing error:', {
-            type: detectedHealthType,
-            error: err.message,
-            stack: err.stack,
-            timestamp: new Date().toISOString()
-          });
-        });
-      });
-
-      return;
     }
 
     // Garmin sends different payload structures for different webhook types
@@ -234,46 +227,23 @@ export default async function handler(req, res) {
 
     console.log('✅ Webhook event stored:', event.id);
 
-    // CRITICAL: Respond immediately to Garmin (within 5 seconds)
-    // Garmin will disable webhooks that don't respond quickly
-    res.status(200).json({
+    // Process the webhook event synchronously
+    // Vercel serverless functions terminate after response, so setImmediate doesn't work reliably
+    // We process BEFORE responding to ensure the activity is actually imported
+    try {
+      await processWebhookEvent(event.id);
+      console.log('✅ Webhook processed successfully:', event.id);
+    } catch (err) {
+      console.error('❌ Webhook processing error:', err);
+      // Error is already logged in processWebhookEvent, just continue
+    }
+
+    // CRITICAL: Respond to Garmin (within 5 seconds)
+    // Processing should be fast since we use webhook payload data directly for PUSH notifications
+    return res.status(200).json({
       success: true,
       eventId: event.id,
-      message: 'Webhook received and queued for processing'
-    });
-
-    // Process asynchronously - but note Vercel may kill this after response
-    // For more reliable processing, consider using Vercel Background Functions
-    // or a separate processing queue (e.g., Supabase Edge Functions, Cloudflare Workers)
-    setImmediate(() => {
-      processWebhookEvent(event.id).catch(err => {
-        console.error('❌ Async webhook processing error:', err);
-        // Update event with error - log if this also fails
-        supabase
-          .from('garmin_webhook_events')
-          .update({
-            processed: true,
-            processed_at: new Date().toISOString(),
-            process_error: `Async processing failed: ${err.message}`
-          })
-          .eq('id', event.id)
-          .then(({ error: updateError }) => {
-            if (updateError) {
-              console.error('❌ CRITICAL: Failed to persist processing error to database:', {
-                eventId: event.id,
-                originalError: err.message,
-                updateError: updateError.message || updateError
-              });
-            }
-          })
-          .catch(dbErr => {
-            console.error('❌ CRITICAL: Database error when persisting processing error:', {
-              eventId: event.id,
-              originalError: err.message,
-              dbError: dbErr.message || dbErr
-            });
-          });
-      });
+      message: 'Webhook received and processed'
     });
 
   } catch (error) {
@@ -386,17 +356,24 @@ async function downloadAndProcessActivity(event, integration) {
     // Parse activity data from various webhook payload formats
     const payload = event.payload;
     let webhookInfo = null;
+    let isPushNotification = false;
 
     // Extract webhook info from different Garmin payload structures
+    // CONNECT_ACTIVITY and ACTIVITY_DETAIL are PUSH notifications - data is in the payload
+    // ACTIVITY_FILE_DATA is a PING notification - needs callback URL to fetch data
     if (payload.activities && payload.activities.length > 0) {
       webhookInfo = payload.activities[0];
+      isPushNotification = true; // CONNECT_ACTIVITY - summary data in payload
     } else if (payload.activityDetails && payload.activityDetails.length > 0) {
       webhookInfo = payload.activityDetails[0];
+      isPushNotification = true; // ACTIVITY_DETAIL - detailed data in payload
     } else if (payload.activityFiles && payload.activityFiles.length > 0) {
       webhookInfo = payload.activityFiles[0];
+      isPushNotification = false; // ACTIVITY_FILE_DATA - needs to fetch from callbackURL
     } else {
       // Fallback to flat payload structure
       webhookInfo = payload;
+      isPushNotification = true; // Assume data is in payload
     }
 
     // Get the summary ID (Garmin uses summaryId for API calls)
@@ -406,18 +383,30 @@ async function downloadAndProcessActivity(event, integration) {
       activityId: event.activity_id,
       summaryId: summaryId,
       activityType: webhookInfo?.activityType,
+      isPushNotification,
       hasAccessToken: !!integration.access_token
     });
 
-    // CRITICAL: Garmin webhooks only contain minimal data (userId, activityId, activityType, startTime)
-    // We MUST call the Garmin API to fetch the actual activity details
+    // For PUSH notifications (CONNECT_ACTIVITY, ACTIVITY_DETAIL), use payload data directly
+    // This is faster and avoids "Invalid download token" errors
+    // Only fetch from API for PING notifications or if we're missing critical data
     let activityDetails = null;
+    const hasSufficientData = webhookInfo &&
+      (webhookInfo.distanceInMeters || webhookInfo.durationInSeconds || webhookInfo.startTimeInSeconds);
 
-    if (integration.access_token && summaryId) {
+    if (!isPushNotification && integration.access_token && webhookInfo?.callbackURL) {
+      // PING notification - fetch activity data from callback URL
+      console.log('📥 Fetching activity from callback URL (PING)...');
+      activityDetails = await fetchFromCallbackURL(webhookInfo.callbackURL, integration.access_token);
+    } else if (!hasSufficientData && integration.access_token && summaryId) {
+      // Missing data - try to fetch from API as fallback
+      console.log('📥 Fetching additional data from Garmin API...');
       activityDetails = await fetchGarminActivityDetails(integration.access_token, summaryId);
+    } else {
+      console.log('✅ Using webhook payload data directly (PUSH notification)');
     }
 
-    // If API call failed, try to use what limited data we have from webhook
+    // Use API data if available, otherwise use webhook payload data
     const activityInfo = activityDetails || webhookInfo || {};
 
     // Build activity data from API response (or fallback to webhook data)
@@ -561,6 +550,42 @@ async function fetchGarminActivityDetails(accessToken, summaryId) {
 
   } catch (error) {
     console.error('❌ Error fetching activity from Garmin API:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Fetch activity data from Garmin callback URL (for PING notifications)
+ * PING notifications include a callbackURL with an embedded token that's valid for 24 hours
+ */
+async function fetchFromCallbackURL(callbackURL, accessToken) {
+  try {
+    console.log('📥 Fetching from callback URL:', callbackURL.substring(0, 50) + '...');
+
+    const response = await fetch(callbackURL, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Callback URL fetch error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      return null;
+    }
+
+    const data = await response.json();
+    console.log('✅ Fetched data from callback URL');
+    return data;
+
+  } catch (error) {
+    console.error('❌ Error fetching from callback URL:', error.message);
     return null;
   }
 }
