@@ -113,8 +113,11 @@ export default async function handler(req, res) {
         }
         return await getActivityDetails(req, res, userId, activityId);
 
+      case 'reprocess_failed':
+        return await reprocessFailedEvents(req, res, userId);
+
       default:
-        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, get_activity' });
+        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, get_activity, reprocess_failed' });
     }
 
   } catch (error) {
@@ -527,4 +530,185 @@ function generateActivityName(activityType, startTimeInSeconds) {
 
   const activityName = typeNames[(activityType || '').toLowerCase()] || 'Activity';
   return `${timeOfDay} ${activityName}`;
+}
+
+/**
+ * Reprocess failed webhook events using payload data
+ * This is for events that failed with "Invalid download token" errors
+ * because the old code tried to download FIT files instead of using payload data
+ */
+async function reprocessFailedEvents(req, res, userId) {
+  try {
+    // Get the user's Garmin integration
+    const { data: integration, error: integrationError } = await supabase
+      .from('bike_computer_integrations')
+      .select('id, provider_user_id')
+      .eq('user_id', userId)
+      .eq('provider', 'garmin')
+      .single();
+
+    if (integrationError || !integration) {
+      return res.status(404).json({ error: 'Garmin integration not found' });
+    }
+
+    // Find failed webhook events for this user that have payload data
+    const { data: failedEvents, error: eventsError } = await supabase
+      .from('garmin_webhook_events')
+      .select('*')
+      .eq('garmin_user_id', integration.provider_user_id)
+      .not('process_error', 'is', null)
+      .is('activity_imported_id', null)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (eventsError) {
+      console.error('Error fetching failed events:', eventsError);
+      return res.status(500).json({ error: 'Failed to fetch events' });
+    }
+
+    if (!failedEvents || failedEvents.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'No failed events to reprocess',
+        reprocessed: 0
+      });
+    }
+
+    console.log(`📥 Found ${failedEvents.length} failed events to reprocess`);
+
+    let reprocessed = 0;
+    let skipped = 0;
+    let errors = [];
+
+    for (const event of failedEvents) {
+      try {
+        // Extract activity data from payload
+        const payload = event.payload;
+        if (!payload) {
+          console.log(`⚠️ No payload for event ${event.id}`);
+          skipped++;
+          continue;
+        }
+
+        // Get activity info from various payload structures
+        let activityInfo = null;
+        if (payload.activities && payload.activities.length > 0) {
+          activityInfo = payload.activities[0];
+        } else if (payload.activityDetails && payload.activityDetails.length > 0) {
+          activityInfo = payload.activityDetails[0];
+        } else if (payload.activityFiles && payload.activityFiles.length > 0) {
+          // For file notifications, we can't reprocess without the callback URL token
+          console.log(`⚠️ Event ${event.id} is a file notification - cannot reprocess`);
+          skipped++;
+          continue;
+        }
+
+        if (!activityInfo) {
+          console.log(`⚠️ No activity info in payload for event ${event.id}`);
+          skipped++;
+          continue;
+        }
+
+        // Check if activity already exists
+        const activityId = event.activity_id || activityInfo.summaryId?.toString() || activityInfo.activityId?.toString();
+        if (activityId) {
+          const { data: existing } = await supabase
+            .from('activities')
+            .select('id')
+            .eq('provider_activity_id', activityId)
+            .eq('user_id', userId)
+            .eq('provider', 'garmin')
+            .maybeSingle();
+
+          if (existing) {
+            console.log(`⚠️ Activity ${activityId} already exists`);
+            // Update event to mark it processed
+            await supabase
+              .from('garmin_webhook_events')
+              .update({
+                processed: true,
+                processed_at: new Date().toISOString(),
+                activity_imported_id: existing.id,
+                process_error: null
+              })
+              .eq('id', event.id);
+            skipped++;
+            continue;
+          }
+        }
+
+        // Build activity data from payload
+        const activityData = {
+          user_id: userId,
+          provider: 'garmin',
+          provider_activity_id: activityId,
+          name: activityInfo.activityName || generateActivityName(activityInfo.activityType, activityInfo.startTimeInSeconds),
+          type: mapGarminActivityType(activityInfo.activityType),
+          sport_type: activityInfo.activityType,
+          start_date: activityInfo.startTimeInSeconds
+            ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
+            : new Date().toISOString(),
+          distance: activityInfo.distanceInMeters ?? null,
+          moving_time: activityInfo.movingDurationInSeconds ?? activityInfo.durationInSeconds ?? null,
+          elapsed_time: activityInfo.elapsedDurationInSeconds ?? activityInfo.durationInSeconds ?? null,
+          total_elevation_gain: activityInfo.elevationGainInMeters ?? null,
+          total_elevation_loss: activityInfo.elevationLossInMeters ?? null,
+          average_speed: activityInfo.averageSpeedInMetersPerSecond ?? null,
+          max_speed: activityInfo.maxSpeedInMetersPerSecond ?? null,
+          average_watts: activityInfo.averageBikingPowerInWatts ?? null,
+          max_watts: activityInfo.maxBikingPowerInWatts ?? null,
+          average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute ?? null,
+          max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? null,
+          average_cadence: activityInfo.averageBikingCadenceInRPM ?? null,
+          calories: activityInfo.activeKilocalories ?? null,
+          garmin_activity_url: activityId ? `https://connect.garmin.com/modern/activity/${activityId}` : null,
+          raw_data: { payload: payload, reprocessed: true }
+        };
+
+        // Insert activity
+        const { data: activity, error: insertError } = await supabase
+          .from('activities')
+          .insert(activityData)
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error(`❌ Failed to insert activity for event ${event.id}:`, insertError);
+          errors.push({ eventId: event.id, error: insertError.message });
+          continue;
+        }
+
+        // Update webhook event
+        await supabase
+          .from('garmin_webhook_events')
+          .update({
+            processed: true,
+            processed_at: new Date().toISOString(),
+            activity_imported_id: activity.id,
+            process_error: null
+          })
+          .eq('id', event.id);
+
+        console.log(`✅ Reprocessed event ${event.id} -> activity ${activity.id}`);
+        reprocessed++;
+
+      } catch (err) {
+        console.error(`❌ Error reprocessing event ${event.id}:`, err);
+        errors.push({ eventId: event.id, error: err.message });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Reprocessed ${reprocessed} events`,
+      total: failedEvents.length,
+      reprocessed,
+      skipped,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('Reprocess failed events error:', error);
+    return res.status(500).json({ error: error.message });
+  }
 }
