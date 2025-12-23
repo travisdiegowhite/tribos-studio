@@ -448,6 +448,43 @@ export class GarminService {
   }
 
   /**
+   * Diagnose Garmin sync issues
+   * Returns detailed info about activities and webhook events in the database
+   * @returns {Promise<{success: boolean, activities: object, webhookEvents: object, summary: object}>}
+   */
+  async diagnose() {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'diagnose',
+          userId
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to diagnose');
+      }
+
+      const data = await response.json();
+      console.log('🔍 Garmin Diagnosis:', data);
+      return data;
+    } catch (error) {
+      console.error('Error diagnosing Garmin:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Reprocess failed webhook events
    * This recovers activities from webhooks that failed due to "Invalid download token" errors
    * by extracting activity data directly from the stored webhook payloads
