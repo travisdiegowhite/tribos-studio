@@ -343,14 +343,6 @@ async function processWebhookEvent(eventId) {
     } catch (tokenError) {
       console.error('❌ Token refresh failed:', tokenError.message);
       await markEventProcessed(eventId, `Token refresh failed: ${tokenError.message}. User may need to reconnect Garmin.`);
-      // Mark the integration as having sync issues
-      await supabase
-        .from('bike_computer_integrations')
-        .update({
-          sync_error: `Token refresh failed at ${new Date().toISOString()}: ${tokenError.message}`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', integration.id);
       return;
     }
 
@@ -379,7 +371,6 @@ async function processWebhookEvent(eventId) {
       .from('bike_computer_integrations')
       .update({
         last_sync_at: new Date().toISOString(),
-        sync_error: null,
         updated_at: new Date().toISOString()
       })
       .eq('id', integration.id);
@@ -677,7 +668,6 @@ async function ensureValidAccessToken(integration) {
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token || integration.refresh_token,
       token_expires_at: newExpiresAt,
-      sync_error: null, // Clear any previous sync errors
       updated_at: new Date().toISOString()
     })
     .eq('id', integration.id);

@@ -401,34 +401,35 @@ function Settings() {
         autoClose: false
       });
 
-      // Sync last 90 days of activities
-      const result = await garminService.backfillActivities(90);
+      // Use direct API fetch to sync activities (more reliable than webhook backfill)
+      // syncRecentActivities directly calls Garmin API instead of waiting for webhooks
+      const result = await garminService.syncRecentActivities(30);
 
-      if (result.success && result.method === 'direct_fetch') {
+      if (result.success) {
+        // Show detailed results from direct API fetch
+        const storedCount = result.stored || 0;
+        const cyclingCount = result.cyclingActivities || 0;
+        const message = storedCount > 0
+          ? `Synced ${storedCount} cycling ${storedCount === 1 ? 'activity' : 'activities'} from Garmin.`
+          : cyclingCount === 0
+            ? 'No new cycling activities found in the last 30 days.'
+            : 'All activities already synced.';
+
         notifications.update({
           id: 'garmin-sync',
-          title: 'Sync Complete!',
-          message: `Synced ${result.stored} activities from Garmin.`,
-          color: 'lime',
-          loading: false,
-          autoClose: 5000
-        });
-      } else if (result.success && result.method === 'webhook_backfill') {
-        notifications.update({
-          id: 'garmin-sync',
-          title: 'Backfill Requested',
-          message: 'Activities will sync via webhooks over the next few minutes.',
-          color: 'cyan',
+          title: storedCount > 0 ? 'Sync Complete!' : 'Up to Date',
+          message,
+          color: storedCount > 0 ? 'lime' : 'cyan',
           loading: false,
           autoClose: 5000
         });
       } else {
-        // API returned but couldn't fetch - show hint
+        // API call failed
         notifications.update({
           id: 'garmin-sync',
-          title: 'Sync Pending',
-          message: result.hint || 'Activities will sync automatically when you complete new rides.',
-          color: 'yellow',
+          title: 'Sync Failed',
+          message: result.error || 'Could not fetch activities from Garmin.',
+          color: 'red',
           loading: false,
           autoClose: 8000
         });
