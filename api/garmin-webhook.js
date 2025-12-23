@@ -129,7 +129,12 @@ export default async function handler(req, res) {
       // Process health data asynchronously
       setImmediate(() => {
         processHealthPushData(detectedHealthType, webhookData[detectedHealthType]).catch(err => {
-          console.error('❌ Health data processing error:', err);
+          console.error('❌ Health data processing error:', {
+            type: detectedHealthType,
+            error: err.message,
+            stack: err.stack,
+            timestamp: new Date().toISOString()
+          });
         });
       });
 
@@ -243,7 +248,7 @@ export default async function handler(req, res) {
     setImmediate(() => {
       processWebhookEvent(event.id).catch(err => {
         console.error('❌ Async webhook processing error:', err);
-        // Update event with error
+        // Update event with error - log if this also fails
         supabase
           .from('garmin_webhook_events')
           .update({
@@ -252,8 +257,22 @@ export default async function handler(req, res) {
             process_error: `Async processing failed: ${err.message}`
           })
           .eq('id', event.id)
-          .then(() => {})
-          .catch(() => {});
+          .then(({ error: updateError }) => {
+            if (updateError) {
+              console.error('❌ CRITICAL: Failed to persist processing error to database:', {
+                eventId: event.id,
+                originalError: err.message,
+                updateError: updateError.message || updateError
+              });
+            }
+          })
+          .catch(dbErr => {
+            console.error('❌ CRITICAL: Database error when persisting processing error:', {
+              eventId: event.id,
+              originalError: err.message,
+              dbError: dbErr.message || dbErr
+            });
+          });
       });
     });
 
@@ -751,7 +770,13 @@ async function processHealthPushData(dataType, dataArray) {
       }
 
     } catch (err) {
-      console.error(`❌ Error processing ${dataType} record:`, err);
+      console.error(`❌ Error processing ${dataType} record:`, {
+        garminUserId: record.userId,
+        calendarDate: record.calendarDate,
+        error: err.message,
+        stack: err.stack
+      });
+      // Continue processing other records - don't let one failure stop the batch
     }
   }
 }

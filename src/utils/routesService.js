@@ -18,6 +18,20 @@ async function getCurrentUserId() {
 }
 
 /**
+ * Get authorization headers with Supabase session token
+ */
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    return { 'Content-Type': 'application/json' };
+  }
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${session.access_token}`
+  };
+}
+
+/**
  * Save a route (create or update)
  * @param {Object} routeData - Route data to save
  * @returns {Promise<Object>} - Saved route
@@ -28,11 +42,10 @@ export async function saveRoute(routeData) {
     throw new Error('User must be authenticated');
   }
 
+  const headers = await getAuthHeaders();
   const response = await fetch(`${getApiBaseUrl()}/api/routes`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     credentials: 'include',
     body: JSON.stringify({
       action: 'save_route',
@@ -60,11 +73,10 @@ export async function listRoutes() {
     throw new Error('User must be authenticated');
   }
 
+  const headers = await getAuthHeaders();
   const response = await fetch(`${getApiBaseUrl()}/api/routes`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     credentials: 'include',
     body: JSON.stringify({
       action: 'list_routes',
@@ -92,11 +104,10 @@ export async function getRoute(routeId) {
     throw new Error('User must be authenticated');
   }
 
+  const headers = await getAuthHeaders();
   const response = await fetch(`${getApiBaseUrl()}/api/routes`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     credentials: 'include',
     body: JSON.stringify({
       action: 'get_route',
@@ -125,11 +136,10 @@ export async function deleteRoute(routeId) {
     throw new Error('User must be authenticated');
   }
 
+  const headers = await getAuthHeaders();
   const response = await fetch(`${getApiBaseUrl()}/api/routes`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     credentials: 'include',
     body: JSON.stringify({
       action: 'delete_route',
