@@ -29,6 +29,24 @@ const corsHeaders = {
   'Access-Control-Allow-Credentials': 'true',
 };
 
+// Helper to get user ID from Authorization header (more secure than trusting request body)
+async function getUserFromAuthHeader(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.substring(7);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    console.error('Auth token validation failed:', error?.message);
+    return null;
+  }
+
+  return user;
+}
+
 // Base64 URL encoding (without padding) - matches Garmin spec exactly
 function base64URLEncode(buffer) {
   return buffer.toString('base64')
@@ -113,33 +131,44 @@ export default async function handler(req, res) {
       });
     }
 
+    // For user-specific actions, prefer auth token over request body userId
+    // This is more secure and ensures consistency with other endpoints
+    let authenticatedUserId = userId; // Fall back to request body for backwards compatibility
+    const authUser = await getUserFromAuthHeader(req);
+    if (authUser) {
+      authenticatedUserId = authUser.id;
+      if (userId && userId !== authUser.id) {
+        console.warn('User ID mismatch - request body:', userId, 'auth token:', authUser.id);
+      }
+    }
+
     switch (action) {
       case 'get_authorization_url':
-        return await getAuthorizationUrl(req, res, userId);
+        return await getAuthorizationUrl(req, res, authenticatedUserId);
 
       case 'exchange_token':
-        return await exchangeToken(req, res, userId, code, state);
+        return await exchangeToken(req, res, authenticatedUserId, code, state);
 
       case 'get_connection_status':
-        return await getConnectionStatus(req, res, userId);
+        return await getConnectionStatus(req, res, authenticatedUserId);
 
       case 'disconnect':
-        return await disconnect(req, res, userId);
+        return await disconnect(req, res, authenticatedUserId);
 
       case 'refresh_token':
-        return await refreshToken(req, res, userId);
+        return await refreshToken(req, res, authenticatedUserId);
 
       case 'repair_connection':
-        return await repairConnection(req, res, userId);
+        return await repairConnection(req, res, authenticatedUserId);
 
       case 'sync_activities':
-        return await syncActivities(req, res, userId);
+        return await syncActivities(req, res, authenticatedUserId);
 
       case 'push_route':
-        return await pushRoute(req, res, userId, routeData);
+        return await pushRoute(req, res, authenticatedUserId, routeData);
 
       case 'get_health_data':
-        return await getHealthData(req, res, userId);
+        return await getHealthData(req, res, authenticatedUserId);
 
       default:
         return res.status(400).json({ error: 'Invalid action' });
@@ -602,6 +631,8 @@ async function getConnectionStatus(req, res, userId) {
     return res.status(400).json({ error: 'UserId required' });
   }
 
+  console.log('getConnectionStatus - checking for userId:', userId);
+
   try {
     const { data: integration, error } = await supabase
       .from('bike_computer_integrations')
@@ -609,6 +640,12 @@ async function getConnectionStatus(req, res, userId) {
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .maybeSingle();
+
+    console.log('getConnectionStatus - query result:', {
+      found: !!integration,
+      provider_user_id: integration?.provider_user_id,
+      error: error?.message
+    });
 
     if (error) {
       console.error('Error fetching integration:', error);
@@ -651,7 +688,9 @@ async function getConnectionStatus(req, res, userId) {
       hasGarminUserId: hasUserID,
       healthStatus,
       healthMessage,
-      requiresReconnect
+      requiresReconnect,
+      // Debug
+      debug: { queriedUserId: userId }
     });
 
   } catch (error) {

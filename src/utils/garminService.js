@@ -36,6 +36,21 @@ export class GarminService {
   }
 
   /**
+   * Get auth headers for API requests
+   * Uses session access token for consistent auth with all endpoints
+   */
+  async getAuthHeaders() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      return { 'Content-Type': 'application/json' };
+    }
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    };
+  }
+
+  /**
    * Initiate Garmin OAuth flow
    * Returns the authorization URL to redirect the user to
    */
@@ -47,11 +62,10 @@ export class GarminService {
 
     try {
       // Request authorization URL from the server (OAuth 2.0 PKCE)
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'get_authorization_url',
@@ -88,11 +102,10 @@ export class GarminService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'exchange_token',
@@ -125,11 +138,10 @@ export class GarminService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'get_connection_status',
@@ -159,11 +171,10 @@ export class GarminService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'disconnect',
@@ -195,11 +206,10 @@ export class GarminService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'repair_connection',
@@ -236,11 +246,10 @@ export class GarminService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'sync_activities',
@@ -271,11 +280,10 @@ export class GarminService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'push_route',
@@ -308,11 +316,10 @@ export class GarminService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'get_health_data',
@@ -376,11 +383,10 @@ export class GarminService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'sync_activities',
@@ -415,11 +421,10 @@ export class GarminService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'backfill_activities',
@@ -454,11 +459,10 @@ export class GarminService {
     }
 
     try {
+      const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           action: 'get_activity',
