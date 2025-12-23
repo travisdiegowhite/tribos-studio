@@ -206,6 +206,8 @@ async function getValidAccessToken(userId) {
 
 /**
  * Sync activities from Garmin for a date range
+ * Per Garmin docs: "All summary data endpoints have a maximum query range of 24 hours by upload time"
+ * So we split requests into 24-hour chunks
  */
 async function syncActivities(req, res, userId, startDate, endDate, days) {
   try {
@@ -216,39 +218,58 @@ async function syncActivities(req, res, userId, startDate, endDate, days) {
     const end = endDate ? new Date(endDate) : new Date();
     const start = startDate ? new Date(startDate) : new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
 
+    console.log(`📥 Fetching Garmin activities from ${start.toISOString()} to ${end.toISOString()}`);
+
+    // Garmin API has a 24-hour (86400 seconds) maximum query range
+    // Split the request into 24-hour chunks
+    const MAX_RANGE_SECONDS = 86400;
     const startTimestamp = Math.floor(start.getTime() / 1000);
     const endTimestamp = Math.floor(end.getTime() / 1000);
 
-    console.log(`📥 Fetching Garmin activities from ${start.toISOString()} to ${end.toISOString()}`);
+    let allActivities = [];
+    let currentStart = startTimestamp;
+    let chunkCount = 0;
 
-    // Fetch activities from Garmin Health API
-    // The activities endpoint returns activities within the specified time range
-    const url = `${GARMIN_API_BASE}/activities?uploadStartTimeInSeconds=${startTimestamp}&uploadEndTimeInSeconds=${endTimestamp}`;
+    while (currentStart < endTimestamp) {
+      const currentEnd = Math.min(currentStart + MAX_RANGE_SECONDS, endTimestamp);
+      chunkCount++;
 
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
+      console.log(`📥 Fetching chunk ${chunkCount}: ${new Date(currentStart * 1000).toISOString()} to ${new Date(currentEnd * 1000).toISOString()}`);
+
+      const url = `${GARMIN_API_BASE}/activities?uploadStartTimeInSeconds=${currentStart}&uploadEndTimeInSeconds=${currentEnd}`;
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Garmin API error:', response.status, errorText);
+
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Garmin authentication failed. Please reconnect your account.');
+        }
+
+        // Log but continue with other chunks
+        console.warn(`⚠️ Chunk ${chunkCount} failed, continuing...`);
+      } else {
+        const activities = await response.json();
+        console.log(`📦 Chunk ${chunkCount}: ${activities.length} activities`);
+        allActivities = allActivities.concat(activities);
       }
-    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Garmin API error:', response.status, errorText);
-
-      if (response.status === 401 || response.status === 403) {
-        throw new Error('Garmin authentication failed. Please reconnect your account.');
-      }
-
-      throw new Error(`Garmin API error: ${response.status}`);
+      // Move to next chunk
+      currentStart = currentEnd;
     }
 
-    const activities = await response.json();
-    console.log(`📦 Received ${activities.length} activities from Garmin`);
+    console.log(`📦 Total received: ${allActivities.length} activities from ${chunkCount} chunks`);
 
     // Filter to cycling activities
-    const cyclingTypes = ['cycling', 'road_biking', 'mountain_biking', 'gravel_cycling', 'indoor_cycling', 'virtual_ride', 'e_biking'];
-    const cyclingActivities = activities.filter(a =>
+    const cyclingTypes = ['cycling', 'road_biking', 'mountain_biking', 'gravel_cycling', 'indoor_cycling', 'virtual_ride', 'e_biking', 'e_bike_fitness', 'e_bike_mountain', 'gravel_cycling', 'track_cycling', 'recumbent_cycling'];
+    const cyclingActivities = allActivities.filter(a =>
       cyclingTypes.includes((a.activityType || '').toLowerCase())
     );
 
@@ -268,9 +289,10 @@ async function syncActivities(req, res, userId, startDate, endDate, days) {
 
     return res.status(200).json({
       success: true,
-      fetched: activities.length,
+      fetched: allActivities.length,
       cyclingActivities: cyclingActivities.length,
       stored: storedCount,
+      chunks: chunkCount,
       dateRange: {
         start: start.toISOString(),
         end: end.toISOString()
