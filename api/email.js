@@ -2,35 +2,55 @@
 // Routes: /api/email?action=confirmation|import|welcome
 
 import { Resend } from 'resend';
+import { setupCors } from './utils/cors.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const getAllowedOrigins = () => {
-  if (process.env.NODE_ENV === 'production') {
-    return ['https://www.tribos.studio', 'https://cycling-ai-app-v2.vercel.app'];
-  }
-  return ['http://localhost:3000'];
-};
+/**
+ * Escape HTML special characters to prevent XSS
+ * @param {string} str - String to escape
+ * @returns {string} - HTML-safe string
+ */
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
-function setCorsHeaders(req, res) {
-  const origin = req.headers.origin;
-  const allowedOrigins = getAllowedOrigins();
-
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+/**
+ * Validate and sanitize URL - only allow http/https URLs
+ * @param {string} url - URL to validate
+ * @returns {string} - Safe URL or empty string
+ */
+function sanitizeUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  // Only allow http:// or https:// URLs
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) {
+    return escapeHtml(trimmed);
   }
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+  console.warn('Rejected unsafe URL in email:', trimmed.substring(0, 50));
+  return '';
+}
+
+/**
+ * Ensure value is a safe integer for display
+ * @param {any} value - Value to sanitize
+ * @returns {number} - Safe integer
+ */
+function sanitizeNumber(value) {
+  const num = parseInt(value, 10);
+  return isNaN(num) ? 0 : num;
 }
 
 export default async function handler(req, res) {
-  setCorsHeaders(req, res);
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  // Handle CORS
+  if (setupCors(req, res)) {
+    return; // Was an OPTIONS request, already handled
   }
 
   if (req.method !== 'POST') {
@@ -178,6 +198,11 @@ async function sendWelcomeEmail(req, res) {
 // ============ EMAIL TEMPLATES ============
 
 function getConfirmationEmailHtml(confirmationUrl) {
+  const safeUrl = sanitizeUrl(confirmationUrl);
+  if (!safeUrl) {
+    console.error('Invalid confirmation URL provided');
+    return '<p>Error: Invalid confirmation link</p>';
+  }
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -210,7 +235,7 @@ function getConfirmationEmailHtml(confirmationUrl) {
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 35px 0;">
                 <tr>
                   <td align="center">
-                    <a href="${confirmationUrl}" style="display: inline-block; padding: 18px 48px; background: linear-gradient(135deg, #10b981 0%, #22d3ee 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 18px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">Confirm My Email</a>
+                    <a href="${safeUrl}" style="display: inline-block; padding: 18px 48px; background: linear-gradient(135deg, #10b981 0%, #22d3ee 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 18px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">Confirm My Email</a>
                   </td>
                 </tr>
               </table>
@@ -239,6 +264,12 @@ function getConfirmationEmailHtml(confirmationUrl) {
 }
 
 function getImportEmailHtml(total, imported, skipped, errors) {
+  // Sanitize all numeric inputs
+  const safeTotal = sanitizeNumber(total);
+  const safeImported = sanitizeNumber(imported);
+  const safeSkipped = sanitizeNumber(skipped);
+  const safeErrors = sanitizeNumber(errors);
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -257,14 +288,14 @@ function getImportEmailHtml(total, imported, skipped, errors) {
       <table style="width: 100%; border-collapse: collapse;">
         <tr style="border-bottom: 1px solid #eee;">
           <td style="padding: 10px 0; font-weight: 600;">Total Activities Processed:</td>
-          <td style="padding: 10px 0; text-align: right; font-size: 18px; color: #007CC3;">${total}</td>
+          <td style="padding: 10px 0; text-align: right; font-size: 18px; color: #007CC3;">${safeTotal}</td>
         </tr>
         <tr style="border-bottom: 1px solid #eee;">
           <td style="padding: 10px 0;">Successfully Imported:</td>
-          <td style="padding: 10px 0; text-align: right; font-size: 18px; color: #28a745;">${imported}</td>
+          <td style="padding: 10px 0; text-align: right; font-size: 18px; color: #28a745;">${safeImported}</td>
         </tr>
-        ${skipped > 0 ? `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 0;">Skipped (duplicates):</td><td style="padding: 10px 0; text-align: right; color: #6c757d;">${skipped}</td></tr>` : ''}
-        ${errors > 0 ? `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 0;">Errors:</td><td style="padding: 10px 0; text-align: right; color: #dc3545;">${errors}</td></tr>` : ''}
+        ${safeSkipped > 0 ? `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 0;">Skipped (duplicates):</td><td style="padding: 10px 0; text-align: right; color: #6c757d;">${safeSkipped}</td></tr>` : ''}
+        ${safeErrors > 0 ? `<tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 0;">Errors:</td><td style="padding: 10px 0; text-align: right; color: #dc3545;">${safeErrors}</td></tr>` : ''}
       </table>
     </div>
     <p style="margin: 25px 0;">Your cycling activities are now available in tribos.studio!</p>
@@ -279,15 +310,21 @@ function getImportEmailHtml(total, imported, skipped, errors) {
 }
 
 function getImportEmailText(total, imported, skipped, errors) {
+  // Sanitize all numeric inputs
+  const safeTotal = sanitizeNumber(total);
+  const safeImported = sanitizeNumber(imported);
+  const safeSkipped = sanitizeNumber(skipped);
+  const safeErrors = sanitizeNumber(errors);
+
   return `Import Complete! 🚴
 
 Your Strava activity import has finished processing.
 
 IMPORT SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Total Activities Processed: ${total}
-Successfully Imported: ${imported}
-${skipped > 0 ? `Skipped (duplicates): ${skipped}\n` : ''}${errors > 0 ? `Errors: ${errors}\n` : ''}
+Total Activities Processed: ${safeTotal}
+Successfully Imported: ${safeImported}
+${safeSkipped > 0 ? `Skipped (duplicates): ${safeSkipped}\n` : ''}${safeErrors > 0 ? `Errors: ${safeErrors}\n` : ''}
 
 View Your Rides: https://www.tribos.studio/dashboard
 
@@ -373,6 +410,7 @@ function getBetaNotifyEmailHtml() {
 }
 
 function getWelcomeEmailHtml(name) {
+  const safeName = escapeHtml(name);
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -392,7 +430,7 @@ function getWelcomeEmailHtml(name) {
           </tr>
           <tr>
             <td style="padding: 40px;">
-              <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #374151;">Hi ${name},</p>
+              <p style="margin: 0 0 20px; font-size: 16px; line-height: 1.6; color: #374151;">Hi ${safeName},</p>
               <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #d1fae5; border-left: 4px solid #10b981; margin: 0 0 25px 0; border-radius: 4px;">
                 <tr>
                   <td style="padding: 20px;">

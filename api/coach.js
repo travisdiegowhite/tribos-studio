@@ -4,19 +4,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { WORKOUT_LIBRARY_FOR_AI, WORKOUT_TOOLS } from './utils/workoutLibrary.js';
-
-const getAllowedOrigins = () => {
-  if (process.env.NODE_ENV === 'production') {
-    return ['https://www.tribos.studio', 'https://tribos-studio.vercel.app'];
-  }
-  return ['http://localhost:3000', 'http://localhost:5173'];
-};
-
-const corsHeaders = {
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Credentials': 'true',
-};
+import { setupCors } from './utils/cors.js';
 
 // System prompt for the AI coach
 const COACHING_SYSTEM_PROMPT = `You are an expert cycling coach with deep knowledge of:
@@ -78,21 +66,9 @@ When you recommend specific workouts, you MUST use the recommend_workout tool. N
 Remember: The tool is how athletes add workouts to their calendar. Without it, they can't act on your advice!`;
 
 export default async function handler(req, res) {
-  // Get client origin
-  const origin = req.headers.origin;
-  const allowedOrigins = getAllowedOrigins();
-
-  // Set CORS headers
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', corsHeaders['Access-Control-Allow-Methods']);
-  res.setHeader('Access-Control-Allow-Headers', corsHeaders['Access-Control-Allow-Headers']);
-  res.setHeader('Access-Control-Allow-Credentials', corsHeaders['Access-Control-Allow-Credentials']);
-
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(200).json({}).end();
+  // Handle CORS
+  if (setupCors(req, res)) {
+    return; // Was an OPTIONS request, already handled
   }
 
   // Only allow POST requests
