@@ -23,7 +23,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import {
-  IconHeartRateFilled,
+  IconHeart,
   IconTrendingUp,
   IconTrendingDown,
   IconInfoCircle,
@@ -282,7 +282,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconHeartRateFilled size={20} color="#ef4444" />
+          <IconHeart size={20} color="#ef4444" />
           <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
             Aerobic Efficiency (Pw:Hr)
           </Text>
@@ -296,7 +296,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
         <Paper p="sm" style={{ backgroundColor: tokens.colors.bgTertiary }}>
           <Group gap="xs" mb={2}>
-            <IconHeartRateFilled size={14} color="#ef4444" />
+            <IconHeart size={14} color="#ef4444" />
             <Text size="xs" c="dimmed">Avg EF</Text>
           </Group>
           <Text size="lg" fw={700}>{analysis.avgEF}</Text>
@@ -453,7 +453,7 @@ export function EfficiencyBadge({ avgPower, avgHR }) {
 
   return (
     <Tooltip label={`Efficiency Factor: ${ef} W/bpm - Power divided by Heart Rate`}>
-      <Badge color="pink" variant="light" size="sm" leftSection={<IconHeartRateFilled size={10} />}>
+      <Badge color="pink" variant="light" size="sm" leftSection={<IconHeart size={10} />}>
         EF {ef}
       </Badge>
     </Tooltip>

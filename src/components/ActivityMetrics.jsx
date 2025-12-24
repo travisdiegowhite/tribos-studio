@@ -12,7 +12,7 @@ import {
 import {
   IconBolt,
   IconActivity,
-  IconHeartRateFilled,
+  IconHeart,
   IconFlame,
   IconGauge,
 } from '@tabler/icons-react';
@@ -311,7 +311,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
         {/* Heart Rate Metrics */}
         {metrics.avgHr && (
           <MetricCard
-            icon={<IconHeartRateFilled size={16} color="#ef4444" />}
+            icon={<IconHeart size={16} color="#ef4444" />}
             label="Avg HR"
             value={`${Math.round(metrics.avgHr)} bpm`}
             subValue={metrics.maxHr ? `Max: ${Math.round(metrics.maxHr)}` : null}
