@@ -2,6 +2,7 @@
 // Routes: /api/email?action=confirmation|import|welcome
 
 import { Resend } from 'resend';
+import { setupCors } from './utils/cors.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -46,32 +47,10 @@ function sanitizeNumber(value) {
   return isNaN(num) ? 0 : num;
 }
 
-const getAllowedOrigins = () => {
-  if (process.env.NODE_ENV === 'production') {
-    return ['https://www.tribos.studio', 'https://cycling-ai-app-v2.vercel.app'];
-  }
-  return ['http://localhost:3000'];
-};
-
-function setCorsHeaders(req, res) {
-  const origin = req.headers.origin;
-  const allowedOrigins = getAllowedOrigins();
-
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
-}
-
 export default async function handler(req, res) {
-  setCorsHeaders(req, res);
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  // Handle CORS
+  if (setupCors(req, res)) {
+    return; // Was an OPTIONS request, already handled
   }
 
   if (req.method !== 'POST') {

@@ -3,6 +3,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
+import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -12,33 +13,10 @@ const supabase = createClient(
 
 const STRAVA_OAUTH_BASE = 'https://www.strava.com/oauth';
 
-const getAllowedOrigins = () => {
-  if (process.env.NODE_ENV === 'production') {
-    return ['https://www.tribos.studio', 'https://tribos-studio.vercel.app'];
-  }
-  return ['http://localhost:3000', 'http://localhost:5173'];
-};
-
-const corsHeaders = {
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Credentials': 'true',
-};
-
 export default async function handler(req, res) {
   // Handle CORS
-  const origin = req.headers.origin;
-  const allowedOrigins = getAllowedOrigins();
-
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', corsHeaders['Access-Control-Allow-Methods']);
-  res.setHeader('Access-Control-Allow-Headers', corsHeaders['Access-Control-Allow-Headers']);
-  res.setHeader('Access-Control-Allow-Credentials', corsHeaders['Access-Control-Allow-Credentials']);
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (setupCors(req, res)) {
+    return; // Was an OPTIONS request, already handled
   }
 
   if (req.method !== 'POST') {

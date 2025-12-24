@@ -3,6 +3,7 @@
 // Use this endpoint to debug connection issues
 
 import { createClient } from '@supabase/supabase-js';
+import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -13,27 +14,10 @@ const supabase = createClient(
 // Garmin token endpoint for health checks
 const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oauth/token';
 
-const getAllowedOrigins = () => {
-  if (process.env.NODE_ENV === 'production') {
-    return ['https://www.tribos.studio', 'https://tribos-studio.vercel.app'];
-  }
-  return ['http://localhost:3000', 'http://localhost:5173'];
-};
-
 export default async function handler(req, res) {
   // CORS handling
-  const origin = req.headers.origin;
-  const allowedOrigins = getAllowedOrigins();
-
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (setupCors(req, res, { allowedMethods: ['GET', 'OPTIONS'] })) {
+    return; // Was an OPTIONS request, already handled
   }
 
   if (req.method !== 'GET') {

@@ -2,6 +2,7 @@
 // Fetches activities from Strava and stores them in Supabase
 
 import { createClient } from '@supabase/supabase-js';
+import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -57,27 +58,10 @@ async function validateUserAccess(req, res, requestedUserId) {
   return null; // Validation passed
 }
 
-const getAllowedOrigins = () => {
-  if (process.env.NODE_ENV === 'production') {
-    return ['https://www.tribos.studio', 'https://tribos-studio.vercel.app'];
-  }
-  return ['http://localhost:3000', 'http://localhost:5173'];
-};
-
 export default async function handler(req, res) {
   // Handle CORS
-  const origin = req.headers.origin;
-  const allowedOrigins = getAllowedOrigins();
-
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (setupCors(req, res)) {
+    return; // Was an OPTIONS request, already handled
   }
 
   if (req.method !== 'POST') {

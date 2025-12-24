@@ -7,6 +7,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -28,22 +29,8 @@ let lastWebhookReceived = null;
 
 export default async function handler(req, res) {
   // CORS - Allow Garmin servers (no origin header) and browser origins
-  const origin = req.headers.origin;
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['https://www.tribos.studio', 'https://tribos-studio.vercel.app']
-    : ['http://localhost:3000', 'http://localhost:5173'];
-
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else if (!origin && req.method !== 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
-
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (setupCors(req, res, { allowedMethods: ['POST', 'GET', 'OPTIONS'] })) {
+    return; // Was an OPTIONS request, already handled
   }
 
   if (req.method === 'GET') {
