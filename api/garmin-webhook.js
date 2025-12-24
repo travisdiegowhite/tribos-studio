@@ -433,42 +433,11 @@ async function downloadAndProcessActivity(event, integration) {
     // Build activity data from API response (or fallback to webhook data)
     const activityInfo = activityDetails || webhookInfo || {};
 
-    // Build activity data - ONLY use columns that exist in the schema
-    // Based on strava-activities.js which works
-    const activityData = {
-      user_id: integration.user_id,
-      provider: 'garmin',
-      provider_activity_id: event.activity_id,
-      name: activityInfo.activityName ||
-            activityInfo.activityDescription ||
-            generateActivityName(activityInfo.activityType, activityInfo.startTimeInSeconds),
-      type: mapGarminActivityType(activityInfo.activityType),
-      sport_type: activityInfo.activityType,
-      start_date: activityInfo.startTimeInSeconds
-        ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
-        : new Date().toISOString(),
-      // Distance (Garmin sends in meters)
-      distance: activityInfo.distanceInMeters ?? activityInfo.distance ?? null,
-      // Duration (Garmin sends in seconds)
-      moving_time: activityInfo.movingDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
-      elapsed_time: activityInfo.elapsedDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
-      // Elevation (meters) - only total_elevation_gain exists
-      total_elevation_gain: activityInfo.elevationGainInMeters ?? activityInfo.totalElevationGain ?? null,
-      // Speed (m/s)
-      average_speed: activityInfo.averageSpeedInMetersPerSecond ?? activityInfo.averageSpeed ?? null,
-      max_speed: activityInfo.maxSpeedInMetersPerSecond ?? activityInfo.maxSpeed ?? null,
-      // Power (watts) - only average_watts exists, not max_watts
-      average_watts: activityInfo.averageBikingPowerInWatts ?? activityInfo.averagePower ?? null,
-      // Heart rate (bpm)
-      average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute ?? activityInfo.averageHeartRate ?? null,
-      max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? activityInfo.maxHeartRate ?? null,
-      // Calories (convert to kilojoules for storage: 1 kcal = 4.184 kJ)
-      kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
-      // Training metrics
-      trainer: activityInfo.isParent === false || activityInfo.deviceName?.toLowerCase().includes('indoor') || false,
-      raw_data: { webhook: payload, api: activityDetails },
-      updated_at: new Date().toISOString()
-    };
+    // Build activity data using centralized helper - ONLY uses columns that exist in the schema
+    const source = activityDetails ? 'webhook_with_api' : 'webhook_push';
+    const activityData = buildActivityData(integration.user_id, event.activity_id, activityInfo, source);
+    // Override raw_data to include both webhook and API data
+    activityData.raw_data = { webhook: payload, api: activityDetails };
 
     const { data: activity, error: insertError } = await supabase
       .from('activities')
@@ -987,10 +956,64 @@ function mapGarminActivityType(garminType) {
     'transition': 'Workout'
   };
 
-  const lowerType = (garminType || '').toLowerCase();
+  // Normalize: lowercase and replace spaces with underscores for matching
+  const lowerType = (garminType || '').toLowerCase().replace(/ /g, '_');
 
   // Return mapped type, or 'Workout' as a generic fallback (NOT 'Ride')
   return typeMap[lowerType] || 'Workout';
+}
+
+/**
+ * Build activity data object with only columns that exist in the schema
+ * This prevents insert failures due to unknown columns
+ * Centralized here to ensure all activity inserts use the same safe column list
+ */
+function buildActivityData(userId, activityId, activityInfo, source = 'webhook') {
+  // These are the ONLY columns that exist in the activities table
+  // If a column doesn't exist in the schema, don't include it here
+  const safeData = {
+    user_id: userId,
+    provider: 'garmin',
+    provider_activity_id: activityId,
+    name: activityInfo.activityName ||
+          activityInfo.activityDescription ||
+          generateActivityName(activityInfo.activityType, activityInfo.startTimeInSeconds),
+    type: mapGarminActivityType(activityInfo.activityType),
+    sport_type: activityInfo.activityType || null,
+    start_date: activityInfo.startTimeInSeconds
+      ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
+      : new Date().toISOString(),
+    start_date_local: activityInfo.startTimeInSeconds
+      ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
+      : new Date().toISOString(),
+    // Distance (Garmin sends in meters)
+    distance: activityInfo.distanceInMeters ?? activityInfo.distance ?? null,
+    // Duration (Garmin sends in seconds)
+    moving_time: activityInfo.movingDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
+    elapsed_time: activityInfo.elapsedDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
+    // Elevation (only total_elevation_gain exists)
+    total_elevation_gain: activityInfo.elevationGainInMeters ?? activityInfo.totalElevationGain ?? null,
+    // Speed (m/s)
+    average_speed: activityInfo.averageSpeedInMetersPerSecond ?? activityInfo.averageSpeed ?? null,
+    max_speed: activityInfo.maxSpeedInMetersPerSecond ?? activityInfo.maxSpeed ?? null,
+    // Power (only average_watts exists, not max_watts)
+    average_watts: activityInfo.averageBikingPowerInWatts ?? activityInfo.averagePower ?? null,
+    // Calories -> kilojoules (1 kcal = 4.184 kJ)
+    kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
+    // Heart rate (bpm)
+    average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute ?? activityInfo.averageHeartRate ?? null,
+    max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? activityInfo.maxHeartRate ?? null,
+    // Cadence
+    average_cadence: activityInfo.averageBikingCadenceInRPM ?? activityInfo.averageRunningCadenceInStepsPerMinute ?? null,
+    // Training flags
+    trainer: activityInfo.isParent === false || (activityInfo.deviceName || '').toLowerCase().includes('indoor') || false,
+    // Store ALL original data in raw_data so nothing is lost
+    raw_data: activityInfo,
+    imported_from: source,
+    updated_at: new Date().toISOString()
+  };
+
+  return safeData;
 }
 
 // ============================================================================
