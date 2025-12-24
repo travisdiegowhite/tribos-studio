@@ -403,7 +403,7 @@ async function getActivityDetails(req, res, userId, activityId) {
         maxHeartRate: activity.maxHeartRateInBeatsPerMinute,
         avgPower: activity.averageBikingPowerInWatts,
         avgCadence: activity.averageBikingCadenceInRPM,
-        calories: activity.activeKilocalories,
+        kilojoules: activity.activeKilocalories ? activity.activeKilocalories * 4.184 : null,
         raw: activity
       }
     });
@@ -663,7 +663,7 @@ async function reprocessFailedEvents(req, res, userId) {
           average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute ?? null,
           max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? null,
           average_cadence: activityInfo.averageBikingCadenceInRPM ?? null,
-          calories: activityInfo.activeKilocalories ?? null,
+          kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
           garmin_activity_url: activityId ? `https://connect.garmin.com/modern/activity/${activityId}` : null,
           raw_data: { payload: payload, reprocessed: true }
         };
