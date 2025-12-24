@@ -379,21 +379,35 @@ async function downloadAndProcessActivity(event, integration) {
       distance: webhookInfo?.distanceInMeters
     });
 
-    // FILTER 1: Check if this is a health/monitoring activity type that should be skipped
+    // FILTER 1: Check if this is a health/monitoring activity type
+    // These shouldn't be imported as activities, but we DO want to extract health metrics
     if (shouldFilterActivityType(activityType)) {
-      console.log('⏭️ Skipping health/monitoring activity type:', activityType);
-      await markEventProcessed(event.id, `Filtered: health/monitoring activity type "${activityType}"`);
+      console.log('💚 Health/monitoring activity detected:', activityType);
+
+      // Extract and save any health metrics to Body Check-in before skipping
+      const savedHealthData = await extractAndSaveHealthMetrics(integration.user_id, webhookInfo || {});
+
+      const message = savedHealthData
+        ? `Health activity "${activityType}" - metrics saved to Body Check-in`
+        : `Health activity "${activityType}" - no metrics to extract`;
+
+      console.log('⏭️ Skipping activity import (health data handled separately)');
+      await markEventProcessed(event.id, message);
       return;
     }
 
     // FILTER 2: Check if activity has minimum metrics (filters trivial auto-detected movements)
     if (!hasMinimumActivityMetrics(webhookInfo || {})) {
-      console.log('⏭️ Skipping activity with insufficient metrics:', {
+      console.log('⏭️ Activity too short for import:', {
         type: activityType,
         duration: webhookInfo?.durationInSeconds || webhookInfo?.movingDurationInSeconds || 0,
         distance: webhookInfo?.distanceInMeters || 0
       });
-      await markEventProcessed(event.id, `Filtered: insufficient metrics (duration/distance too short)`);
+
+      // Still try to extract any health data from short activities
+      await extractAndSaveHealthMetrics(integration.user_id, webhookInfo || {});
+
+      await markEventProcessed(event.id, `Filtered: activity too short, any health data saved`);
       return;
     }
 
@@ -779,7 +793,7 @@ async function markEventProcessed(eventId, error = null, activityId = null) {
 
 /**
  * Check if an activity type should be filtered out (health/monitoring data, not real workouts)
- * Returns true if the activity should be SKIPPED
+ * Returns true if the activity should be SKIPPED as an activity import
  */
 function shouldFilterActivityType(garminType) {
   const lowerType = (garminType || '').toLowerCase();
@@ -800,6 +814,90 @@ function shouldFilterActivityType(garminType) {
   ];
 
   return healthMonitoringTypes.includes(lowerType);
+}
+
+/**
+ * Extract health metrics from activity data and save to health_metrics table
+ * This captures useful data from health/monitoring activities for Body Check-in
+ */
+async function extractAndSaveHealthMetrics(userId, activityInfo) {
+  try {
+    // Extract the date from the activity
+    const activityDate = activityInfo.startTimeInSeconds
+      ? new Date(activityInfo.startTimeInSeconds * 1000)
+      : new Date();
+    const metricDate = activityDate.toISOString().split('T')[0];
+
+    // Extract any health-relevant metrics from the activity data
+    const healthData = {
+      user_id: userId,
+      metric_date: metricDate,
+      source: 'garmin',
+      updated_at: new Date().toISOString()
+    };
+
+    let hasData = false;
+
+    // Heart rate data
+    if (activityInfo.averageHeartRateInBeatsPerMinute || activityInfo.averageHeartRate) {
+      // Could be used for resting HR estimate from sedentary periods
+      const avgHR = activityInfo.averageHeartRateInBeatsPerMinute || activityInfo.averageHeartRate;
+      // Only use as resting HR if it's from a sedentary/monitoring activity
+      const activityType = (activityInfo.activityType || '').toLowerCase();
+      if (['sedentary', 'monitoring', 'all_day_tracking'].includes(activityType) && avgHR < 100) {
+        healthData.resting_hr = avgHR;
+        hasData = true;
+      }
+    }
+
+    // Stress data (if available in activity)
+    if (activityInfo.averageStressLevel != null) {
+      // Convert to 1-5 scale (Garmin uses 0-100)
+      healthData.stress_level = Math.max(1, Math.min(5, Math.round(activityInfo.averageStressLevel / 20)));
+      hasData = true;
+    }
+
+    // Body battery (if available)
+    if (activityInfo.bodyBatteryChargedValue != null) {
+      healthData.body_battery = activityInfo.bodyBatteryChargedValue;
+      hasData = true;
+    }
+
+    // Calories burned (could contribute to daily energy expenditure)
+    if (activityInfo.activeKilocalories) {
+      // Store as additional data - might be useful for energy tracking
+      console.log(`📊 Health activity calories: ${activityInfo.activeKilocalories} kcal`);
+    }
+
+    // Only save if we have meaningful health data
+    if (!hasData) {
+      console.log('ℹ️ No health metrics to extract from activity');
+      return false;
+    }
+
+    console.log(`💚 Extracting health metrics for ${metricDate}:`, {
+      resting_hr: healthData.resting_hr,
+      stress_level: healthData.stress_level,
+      body_battery: healthData.body_battery
+    });
+
+    // Upsert to health_metrics table
+    const { error } = await supabase
+      .from('health_metrics')
+      .upsert(healthData, { onConflict: 'user_id,metric_date' });
+
+    if (error) {
+      console.error('❌ Error saving health metrics from activity:', error);
+      return false;
+    }
+
+    console.log(`✅ Health metrics saved to Body Check-in for ${metricDate}`);
+    return true;
+
+  } catch (err) {
+    console.error('❌ Error extracting health metrics:', err);
+    return false;
+  }
 }
 
 /**
