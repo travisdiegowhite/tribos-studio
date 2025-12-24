@@ -445,9 +445,6 @@ async function downloadAndProcessActivity(event, integration) {
       kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
       // Training metrics
       trainer: activityInfo.isParent === false || activityInfo.deviceName?.toLowerCase().includes('indoor') || false,
-      garmin_activity_url: event.activity_id
-        ? `https://connect.garmin.com/modern/activity/${event.activity_id}`
-        : null,
       raw_data: { webhook: payload, api: activityDetails }
     };
 

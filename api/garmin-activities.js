@@ -537,8 +537,8 @@ function generateActivityName(activityType, startTimeInSeconds) {
 
 /**
  * Reprocess failed webhook events using payload data
- * This is for events that failed with "Invalid download token" errors
- * because the old code tried to download FIT files instead of using payload data
+ * This is for events that failed due to "Invalid download token" or schema errors
+ * by extracting activity data directly from the stored webhook payloads
  */
 async function reprocessFailedEvents(req, res, userId) {
   try {
@@ -554,13 +554,13 @@ async function reprocessFailedEvents(req, res, userId) {
       return res.status(404).json({ error: 'Garmin integration not found' });
     }
 
-    // Find failed webhook events for this user that have payload data
+    // Find failed webhook events for this user
+    // Include events with errors OR events that have no imported activity
     const { data: failedEvents, error: eventsError } = await supabase
       .from('garmin_webhook_events')
       .select('*')
       .eq('garmin_user_id', integration.provider_user_id)
-      .not('process_error', 'is', null)
-      .is('activity_imported_id', null)
+      .or('process_error.not.is.null,activity_imported_id.is.null')
       .order('created_at', { ascending: false })
       .limit(100);
 
@@ -577,43 +577,51 @@ async function reprocessFailedEvents(req, res, userId) {
       });
     }
 
-    console.log(`📥 Found ${failedEvents.length} failed events to reprocess`);
+    console.log(`📥 Found ${failedEvents.length} events to check for reprocessing`);
 
     let reprocessed = 0;
     let skipped = 0;
+    let alreadyImported = 0;
     let errors = [];
+    let details = [];
 
     for (const event of failedEvents) {
       try {
         // Extract activity data from payload
         const payload = event.payload;
         if (!payload) {
-          console.log(`⚠️ No payload for event ${event.id}`);
+          details.push({ id: event.id, status: 'skipped', reason: 'No payload' });
           skipped++;
           continue;
         }
 
         // Get activity info from various payload structures
         let activityInfo = null;
+        let dataSource = 'unknown';
+
         if (payload.activities && payload.activities.length > 0) {
           activityInfo = payload.activities[0];
+          dataSource = 'activities';
         } else if (payload.activityDetails && payload.activityDetails.length > 0) {
           activityInfo = payload.activityDetails[0];
+          dataSource = 'activityDetails';
         } else if (payload.activityFiles && payload.activityFiles.length > 0) {
           // For file notifications, we can't reprocess without the callback URL token
-          console.log(`⚠️ Event ${event.id} is a file notification - cannot reprocess`);
+          details.push({ id: event.id, status: 'skipped', reason: 'PING notification - needs callback URL' });
           skipped++;
           continue;
         }
 
         if (!activityInfo) {
-          console.log(`⚠️ No activity info in payload for event ${event.id}`);
+          details.push({ id: event.id, status: 'skipped', reason: 'No activity data in payload' });
           skipped++;
           continue;
         }
 
-        // Check if activity already exists
+        // Get activity ID
         const activityId = event.activity_id || activityInfo.summaryId?.toString() || activityInfo.activityId?.toString();
+
+        // Check if activity already exists in database
         if (activityId) {
           const { data: existing } = await supabase
             .from('activities')
@@ -624,8 +632,7 @@ async function reprocessFailedEvents(req, res, userId) {
             .maybeSingle();
 
           if (existing) {
-            console.log(`⚠️ Activity ${activityId} already exists`);
-            // Update event to mark it processed
+            // Activity already imported - just update the webhook event
             await supabase
               .from('garmin_webhook_events')
               .update({
@@ -635,7 +642,9 @@ async function reprocessFailedEvents(req, res, userId) {
                 process_error: null
               })
               .eq('id', event.id);
-            skipped++;
+
+            details.push({ id: event.id, activityId, status: 'already_imported', activityDbId: existing.id });
+            alreadyImported++;
             continue;
           }
         }
@@ -664,9 +673,10 @@ async function reprocessFailedEvents(req, res, userId) {
           max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? null,
           average_cadence: activityInfo.averageBikingCadenceInRPM ?? null,
           kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
-          garmin_activity_url: activityId ? `https://connect.garmin.com/modern/activity/${activityId}` : null,
-          raw_data: { payload: payload, reprocessed: true }
+          raw_data: { payload: payload, reprocessed: true, dataSource }
         };
+
+        console.log(`📥 Importing activity: ${activityData.name} (${activityId}) from ${dataSource}`);
 
         // Insert activity
         const { data: activity, error: insertError } = await supabase
@@ -677,11 +687,19 @@ async function reprocessFailedEvents(req, res, userId) {
 
         if (insertError) {
           console.error(`❌ Failed to insert activity for event ${event.id}:`, insertError);
-          errors.push({ eventId: event.id, error: insertError.message });
+          errors.push({ eventId: event.id, activityId, error: insertError.message });
+
+          // Update the webhook event with the new error
+          await supabase
+            .from('garmin_webhook_events')
+            .update({
+              process_error: `Reprocess failed: ${insertError.message}`
+            })
+            .eq('id', event.id);
           continue;
         }
 
-        // Update webhook event
+        // Update webhook event to mark success
         await supabase
           .from('garmin_webhook_events')
           .update({
@@ -692,7 +710,8 @@ async function reprocessFailedEvents(req, res, userId) {
           })
           .eq('id', event.id);
 
-        console.log(`✅ Reprocessed event ${event.id} -> activity ${activity.id}`);
+        console.log(`✅ Imported activity ${activity.id}: ${activity.name}`);
+        details.push({ id: event.id, activityId, status: 'imported', activityDbId: activity.id, name: activity.name });
         reprocessed++;
 
       } catch (err) {
@@ -706,8 +725,10 @@ async function reprocessFailedEvents(req, res, userId) {
       message: `Reprocessed ${reprocessed} events`,
       total: failedEvents.length,
       reprocessed,
+      alreadyImported,
       skipped,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
+      details: details.slice(0, 10) // Return first 10 details for debugging
     });
 
   } catch (error) {
