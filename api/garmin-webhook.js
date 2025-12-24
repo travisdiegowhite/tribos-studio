@@ -366,13 +366,36 @@ async function downloadAndProcessActivity(event, integration) {
     // Get the summary ID (Garmin uses summaryId for API calls)
     const summaryId = webhookInfo?.summaryId || event.activity_id;
 
+    const activityType = webhookInfo?.activityType;
+
     console.log('📥 Processing Garmin activity:', {
       activityId: event.activity_id,
       summaryId: summaryId,
-      activityType: webhookInfo?.activityType,
+      activityType: activityType,
+      activityName: webhookInfo?.activityName,
       isPushNotification,
-      hasAccessToken: !!integration.access_token
+      hasAccessToken: !!integration.access_token,
+      duration: webhookInfo?.durationInSeconds || webhookInfo?.movingDurationInSeconds,
+      distance: webhookInfo?.distanceInMeters
     });
+
+    // FILTER 1: Check if this is a health/monitoring activity type that should be skipped
+    if (shouldFilterActivityType(activityType)) {
+      console.log('⏭️ Skipping health/monitoring activity type:', activityType);
+      await markEventProcessed(event.id, `Filtered: health/monitoring activity type "${activityType}"`);
+      return;
+    }
+
+    // FILTER 2: Check if activity has minimum metrics (filters trivial auto-detected movements)
+    if (!hasMinimumActivityMetrics(webhookInfo || {})) {
+      console.log('⏭️ Skipping activity with insufficient metrics:', {
+        type: activityType,
+        duration: webhookInfo?.durationInSeconds || webhookInfo?.movingDurationInSeconds || 0,
+        distance: webhookInfo?.distanceInMeters || 0
+      });
+      await markEventProcessed(event.id, `Filtered: insufficient metrics (duration/distance too short)`);
+      return;
+    }
 
     // For PUSH notifications (CONNECT_ACTIVITY, ACTIVITY_DETAIL), use payload data directly
     // This is faster and avoids "Invalid download token" errors
@@ -584,20 +607,72 @@ function generateActivityName(activityType, startTimeInSeconds) {
                     date.getHours() < 17 ? 'Afternoon' : 'Evening';
 
   const typeNames = {
+    // Cycling
     'cycling': 'Ride',
     'road_biking': 'Road Ride',
+    'road_cycling': 'Road Ride',
     'mountain_biking': 'Mountain Bike Ride',
     'gravel_cycling': 'Gravel Ride',
     'indoor_cycling': 'Indoor Ride',
     'virtual_ride': 'Virtual Ride',
+    'e_biking': 'E-Bike Ride',
+    'bmx': 'BMX Ride',
+    'recumbent_cycling': 'Recumbent Ride',
+    'track_cycling': 'Track Ride',
+    'cyclocross': 'Cyclocross Ride',
+
+    // Running
     'running': 'Run',
     'trail_running': 'Trail Run',
+    'treadmill_running': 'Treadmill Run',
+    'indoor_running': 'Indoor Run',
+    'track_running': 'Track Run',
+    'ultra_run': 'Ultra Run',
+
+    // Walking
     'walking': 'Walk',
+    'casual_walking': 'Walk',
+    'speed_walking': 'Speed Walk',
+    'indoor_walking': 'Indoor Walk',
+    'treadmill_walking': 'Treadmill Walk',
+
+    // Other cardio
     'hiking': 'Hike',
-    'swimming': 'Swim'
+    'swimming': 'Swim',
+    'lap_swimming': 'Lap Swim',
+    'open_water_swimming': 'Open Water Swim',
+    'pool_swimming': 'Pool Swim',
+
+    // Gym/fitness
+    'strength_training': 'Strength Training',
+    'cardio': 'Cardio Workout',
+    'elliptical': 'Elliptical',
+    'stair_climbing': 'Stair Climbing',
+    'rowing': 'Row',
+    'indoor_rowing': 'Indoor Row',
+    'yoga': 'Yoga',
+    'pilates': 'Pilates',
+    'fitness_equipment': 'Workout',
+
+    // Winter sports
+    'resort_skiing': 'Ski',
+    'resort_snowboarding': 'Snowboard',
+    'cross_country_skiing': 'Nordic Ski',
+    'backcountry_skiing': 'Backcountry Ski',
+
+    // Water sports
+    'stand_up_paddleboarding': 'Paddleboard',
+    'kayaking': 'Kayak',
+    'surfing': 'Surf',
+
+    // Multi-sport
+    'multi_sport': 'Workout',
+    'triathlon': 'Triathlon',
+    'duathlon': 'Duathlon',
+    'transition': 'Transition'
   };
 
-  const activityName = typeNames[(activityType || '').toLowerCase()] || 'Activity';
+  const activityName = typeNames[(activityType || '').toLowerCase()] || 'Workout';
   return `${timeOfDay} ${activityName}`;
 }
 
@@ -702,20 +777,122 @@ async function markEventProcessed(eventId, error = null, activityId = null) {
     .eq('id', eventId);
 }
 
+/**
+ * Check if an activity type should be filtered out (health/monitoring data, not real workouts)
+ * Returns true if the activity should be SKIPPED
+ */
+function shouldFilterActivityType(garminType) {
+  const lowerType = (garminType || '').toLowerCase();
+
+  // Activity types that are health monitoring, not actual workouts
+  const healthMonitoringTypes = [
+    'sedentary',           // Sitting/inactive periods
+    'sleep',               // Sleep tracking
+    'uncategorized',       // Generic monitoring data
+    'generic',             // Non-specific activity
+    'all_day_tracking',    // 24/7 monitoring
+    'monitoring',          // Device monitoring
+    'daily_summary',       // Daily health summary
+    'respiration',         // Breathing exercises
+    'breathwork',          // Breathing exercises
+    'meditation',          // Mental wellness
+    'nap',                 // Short sleep
+  ];
+
+  return healthMonitoringTypes.includes(lowerType);
+}
+
+/**
+ * Check if activity has minimum metrics to be considered a real workout
+ * Filters out trivial auto-detected movements
+ */
+function hasMinimumActivityMetrics(activityInfo) {
+  const durationSeconds = activityInfo.durationInSeconds ||
+                          activityInfo.movingDurationInSeconds ||
+                          activityInfo.elapsedDurationInSeconds || 0;
+  const distanceMeters = activityInfo.distanceInMeters || activityInfo.distance || 0;
+
+  // Require at least 2 minutes duration OR 100 meters distance
+  // This filters out trivial auto-detected movements
+  const MIN_DURATION_SECONDS = 120; // 2 minutes
+  const MIN_DISTANCE_METERS = 100;  // 100 meters
+
+  return durationSeconds >= MIN_DURATION_SECONDS || distanceMeters >= MIN_DISTANCE_METERS;
+}
+
 function mapGarminActivityType(garminType) {
   const typeMap = {
+    // Cycling activities
     'cycling': 'Ride',
     'road_biking': 'Ride',
+    'road_cycling': 'Ride',
     'virtual_ride': 'VirtualRide',
     'indoor_cycling': 'VirtualRide',
     'mountain_biking': 'MountainBikeRide',
     'gravel_cycling': 'GravelRide',
     'cyclocross': 'Ride',
-    'e_biking': 'EBikeRide'
+    'e_biking': 'EBikeRide',
+    'bmx': 'Ride',
+    'recumbent_cycling': 'Ride',
+    'track_cycling': 'Ride',
+
+    // Running activities
+    'running': 'Run',
+    'trail_running': 'TrailRun',
+    'treadmill_running': 'Run',
+    'indoor_running': 'Run',
+    'track_running': 'Run',
+    'ultra_run': 'Run',
+
+    // Walking activities
+    'walking': 'Walk',
+    'casual_walking': 'Walk',
+    'speed_walking': 'Walk',
+    'indoor_walking': 'Walk',
+    'treadmill_walking': 'Walk',
+
+    // Hiking
+    'hiking': 'Hike',
+
+    // Swimming
+    'swimming': 'Swim',
+    'lap_swimming': 'Swim',
+    'open_water_swimming': 'Swim',
+    'pool_swimming': 'Swim',
+
+    // Other sports
+    'strength_training': 'WeightTraining',
+    'cardio': 'Workout',
+    'elliptical': 'Elliptical',
+    'stair_climbing': 'StairStepper',
+    'rowing': 'Rowing',
+    'indoor_rowing': 'Rowing',
+    'yoga': 'Yoga',
+    'pilates': 'Workout',
+    'fitness_equipment': 'Workout',
+
+    // Winter sports
+    'resort_skiing': 'AlpineSki',
+    'resort_snowboarding': 'Snowboard',
+    'cross_country_skiing': 'NordicSki',
+    'backcountry_skiing': 'BackcountrySki',
+
+    // Water sports
+    'stand_up_paddleboarding': 'StandUpPaddling',
+    'kayaking': 'Kayaking',
+    'surfing': 'Surfing',
+
+    // Multi-sport
+    'multi_sport': 'Workout',
+    'triathlon': 'Workout',
+    'duathlon': 'Workout',
+    'transition': 'Workout'
   };
 
   const lowerType = (garminType || '').toLowerCase();
-  return typeMap[lowerType] || 'Ride';
+
+  // Return mapped type, or 'Workout' as a generic fallback (NOT 'Ride')
+  return typeMap[lowerType] || 'Workout';
 }
 
 // ============================================================================
