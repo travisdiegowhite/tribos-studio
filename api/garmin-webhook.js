@@ -406,10 +406,11 @@ async function downloadAndProcessActivity(event, integration) {
       console.log('✅ Using webhook payload data directly (PUSH notification)');
     }
 
-    // Use API data if available, otherwise use webhook payload data
+    // Build activity data from API response (or fallback to webhook data)
     const activityInfo = activityDetails || webhookInfo || {};
 
-    // Build activity data from API response (or fallback to webhook data)
+    // Build activity data - ONLY use columns that exist in the schema
+    // Based on strava-activities.js which works
     const activityData = {
       user_id: integration.user_id,
       provider: 'garmin',
@@ -427,25 +428,22 @@ async function downloadAndProcessActivity(event, integration) {
       // Duration (Garmin sends in seconds)
       moving_time: activityInfo.movingDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
       elapsed_time: activityInfo.elapsedDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
-      // Elevation (meters)
+      // Elevation (meters) - only total_elevation_gain exists
       total_elevation_gain: activityInfo.elevationGainInMeters ?? activityInfo.totalElevationGain ?? null,
-      total_elevation_loss: activityInfo.elevationLossInMeters ?? activityInfo.totalElevationLoss ?? null,
       // Speed (m/s)
       average_speed: activityInfo.averageSpeedInMetersPerSecond ?? activityInfo.averageSpeed ?? null,
       max_speed: activityInfo.maxSpeedInMetersPerSecond ?? activityInfo.maxSpeed ?? null,
-      // Power (watts)
+      // Power (watts) - only average_watts exists, not max_watts
       average_watts: activityInfo.averageBikingPowerInWatts ?? activityInfo.averagePower ?? null,
-      max_watts: activityInfo.maxBikingPowerInWatts ?? activityInfo.maxPower ?? null,
       // Heart rate (bpm)
       average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute ?? activityInfo.averageHeartRate ?? null,
       max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? activityInfo.maxHeartRate ?? null,
-      // Cadence (rpm)
-      average_cadence: activityInfo.averageBikingCadenceInRPM ?? activityInfo.averageRunningCadenceInStepsPerMinute ?? null,
       // Calories (convert to kilojoules for storage: 1 kcal = 4.184 kJ)
       kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
       // Training metrics
       trainer: activityInfo.isParent === false || activityInfo.deviceName?.toLowerCase().includes('indoor') || false,
-      raw_data: { webhook: payload, api: activityDetails }
+      raw_data: { webhook: payload, api: activityDetails },
+      updated_at: new Date().toISOString()
     };
 
     const { data: activity, error: insertError } = await supabase
