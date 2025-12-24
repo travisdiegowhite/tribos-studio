@@ -366,13 +366,50 @@ async function downloadAndProcessActivity(event, integration) {
     // Get the summary ID (Garmin uses summaryId for API calls)
     const summaryId = webhookInfo?.summaryId || event.activity_id;
 
+    const activityType = webhookInfo?.activityType;
+
     console.log('📥 Processing Garmin activity:', {
       activityId: event.activity_id,
       summaryId: summaryId,
-      activityType: webhookInfo?.activityType,
+      activityType: activityType,
+      activityName: webhookInfo?.activityName,
       isPushNotification,
-      hasAccessToken: !!integration.access_token
+      hasAccessToken: !!integration.access_token,
+      duration: webhookInfo?.durationInSeconds || webhookInfo?.movingDurationInSeconds,
+      distance: webhookInfo?.distanceInMeters
     });
+
+    // FILTER 1: Check if this is a health/monitoring activity type
+    // These shouldn't be imported as activities, but we DO want to extract health metrics
+    if (shouldFilterActivityType(activityType)) {
+      console.log('💚 Health/monitoring activity detected:', activityType);
+
+      // Extract and save any health metrics to Body Check-in before skipping
+      const savedHealthData = await extractAndSaveHealthMetrics(integration.user_id, webhookInfo || {});
+
+      const message = savedHealthData
+        ? `Health activity "${activityType}" - metrics saved to Body Check-in`
+        : `Health activity "${activityType}" - no metrics to extract`;
+
+      console.log('⏭️ Skipping activity import (health data handled separately)');
+      await markEventProcessed(event.id, message);
+      return;
+    }
+
+    // FILTER 2: Check if activity has minimum metrics (filters trivial auto-detected movements)
+    if (!hasMinimumActivityMetrics(webhookInfo || {})) {
+      console.log('⏭️ Activity too short for import:', {
+        type: activityType,
+        duration: webhookInfo?.durationInSeconds || webhookInfo?.movingDurationInSeconds || 0,
+        distance: webhookInfo?.distanceInMeters || 0
+      });
+
+      // Still try to extract any health data from short activities
+      await extractAndSaveHealthMetrics(integration.user_id, webhookInfo || {});
+
+      await markEventProcessed(event.id, `Filtered: activity too short, any health data saved`);
+      return;
+    }
 
     // For PUSH notifications (CONNECT_ACTIVITY, ACTIVITY_DETAIL), use payload data directly
     // This is faster and avoids "Invalid download token" errors
@@ -584,20 +621,72 @@ function generateActivityName(activityType, startTimeInSeconds) {
                     date.getHours() < 17 ? 'Afternoon' : 'Evening';
 
   const typeNames = {
+    // Cycling
     'cycling': 'Ride',
     'road_biking': 'Road Ride',
+    'road_cycling': 'Road Ride',
     'mountain_biking': 'Mountain Bike Ride',
     'gravel_cycling': 'Gravel Ride',
     'indoor_cycling': 'Indoor Ride',
     'virtual_ride': 'Virtual Ride',
+    'e_biking': 'E-Bike Ride',
+    'bmx': 'BMX Ride',
+    'recumbent_cycling': 'Recumbent Ride',
+    'track_cycling': 'Track Ride',
+    'cyclocross': 'Cyclocross Ride',
+
+    // Running
     'running': 'Run',
     'trail_running': 'Trail Run',
+    'treadmill_running': 'Treadmill Run',
+    'indoor_running': 'Indoor Run',
+    'track_running': 'Track Run',
+    'ultra_run': 'Ultra Run',
+
+    // Walking
     'walking': 'Walk',
+    'casual_walking': 'Walk',
+    'speed_walking': 'Speed Walk',
+    'indoor_walking': 'Indoor Walk',
+    'treadmill_walking': 'Treadmill Walk',
+
+    // Other cardio
     'hiking': 'Hike',
-    'swimming': 'Swim'
+    'swimming': 'Swim',
+    'lap_swimming': 'Lap Swim',
+    'open_water_swimming': 'Open Water Swim',
+    'pool_swimming': 'Pool Swim',
+
+    // Gym/fitness
+    'strength_training': 'Strength Training',
+    'cardio': 'Cardio Workout',
+    'elliptical': 'Elliptical',
+    'stair_climbing': 'Stair Climbing',
+    'rowing': 'Row',
+    'indoor_rowing': 'Indoor Row',
+    'yoga': 'Yoga',
+    'pilates': 'Pilates',
+    'fitness_equipment': 'Workout',
+
+    // Winter sports
+    'resort_skiing': 'Ski',
+    'resort_snowboarding': 'Snowboard',
+    'cross_country_skiing': 'Nordic Ski',
+    'backcountry_skiing': 'Backcountry Ski',
+
+    // Water sports
+    'stand_up_paddleboarding': 'Paddleboard',
+    'kayaking': 'Kayak',
+    'surfing': 'Surf',
+
+    // Multi-sport
+    'multi_sport': 'Workout',
+    'triathlon': 'Triathlon',
+    'duathlon': 'Duathlon',
+    'transition': 'Transition'
   };
 
-  const activityName = typeNames[(activityType || '').toLowerCase()] || 'Activity';
+  const activityName = typeNames[(activityType || '').toLowerCase()] || 'Workout';
   return `${timeOfDay} ${activityName}`;
 }
 
@@ -702,20 +791,206 @@ async function markEventProcessed(eventId, error = null, activityId = null) {
     .eq('id', eventId);
 }
 
+/**
+ * Check if an activity type should be filtered out (health/monitoring data, not real workouts)
+ * Returns true if the activity should be SKIPPED as an activity import
+ */
+function shouldFilterActivityType(garminType) {
+  const lowerType = (garminType || '').toLowerCase();
+
+  // Activity types that are health monitoring, not actual workouts
+  const healthMonitoringTypes = [
+    'sedentary',           // Sitting/inactive periods
+    'sleep',               // Sleep tracking
+    'uncategorized',       // Generic monitoring data
+    'generic',             // Non-specific activity
+    'all_day_tracking',    // 24/7 monitoring
+    'monitoring',          // Device monitoring
+    'daily_summary',       // Daily health summary
+    'respiration',         // Breathing exercises
+    'breathwork',          // Breathing exercises
+    'meditation',          // Mental wellness
+    'nap',                 // Short sleep
+  ];
+
+  return healthMonitoringTypes.includes(lowerType);
+}
+
+/**
+ * Extract health metrics from activity data and save to health_metrics table
+ * This captures useful data from health/monitoring activities for Body Check-in
+ */
+async function extractAndSaveHealthMetrics(userId, activityInfo) {
+  try {
+    // Extract the date from the activity
+    const activityDate = activityInfo.startTimeInSeconds
+      ? new Date(activityInfo.startTimeInSeconds * 1000)
+      : new Date();
+    const metricDate = activityDate.toISOString().split('T')[0];
+
+    // Extract any health-relevant metrics from the activity data
+    const healthData = {
+      user_id: userId,
+      metric_date: metricDate,
+      source: 'garmin',
+      updated_at: new Date().toISOString()
+    };
+
+    let hasData = false;
+
+    // Heart rate data
+    if (activityInfo.averageHeartRateInBeatsPerMinute || activityInfo.averageHeartRate) {
+      // Could be used for resting HR estimate from sedentary periods
+      const avgHR = activityInfo.averageHeartRateInBeatsPerMinute || activityInfo.averageHeartRate;
+      // Only use as resting HR if it's from a sedentary/monitoring activity
+      const activityType = (activityInfo.activityType || '').toLowerCase();
+      if (['sedentary', 'monitoring', 'all_day_tracking'].includes(activityType) && avgHR < 100) {
+        healthData.resting_hr = avgHR;
+        hasData = true;
+      }
+    }
+
+    // Stress data (if available in activity)
+    if (activityInfo.averageStressLevel != null) {
+      // Convert to 1-5 scale (Garmin uses 0-100)
+      healthData.stress_level = Math.max(1, Math.min(5, Math.round(activityInfo.averageStressLevel / 20)));
+      hasData = true;
+    }
+
+    // Body battery (if available)
+    if (activityInfo.bodyBatteryChargedValue != null) {
+      healthData.body_battery = activityInfo.bodyBatteryChargedValue;
+      hasData = true;
+    }
+
+    // Calories burned (could contribute to daily energy expenditure)
+    if (activityInfo.activeKilocalories) {
+      // Store as additional data - might be useful for energy tracking
+      console.log(`📊 Health activity calories: ${activityInfo.activeKilocalories} kcal`);
+    }
+
+    // Only save if we have meaningful health data
+    if (!hasData) {
+      console.log('ℹ️ No health metrics to extract from activity');
+      return false;
+    }
+
+    console.log(`💚 Extracting health metrics for ${metricDate}:`, {
+      resting_hr: healthData.resting_hr,
+      stress_level: healthData.stress_level,
+      body_battery: healthData.body_battery
+    });
+
+    // Upsert to health_metrics table
+    const { error } = await supabase
+      .from('health_metrics')
+      .upsert(healthData, { onConflict: 'user_id,metric_date' });
+
+    if (error) {
+      console.error('❌ Error saving health metrics from activity:', error);
+      return false;
+    }
+
+    console.log(`✅ Health metrics saved to Body Check-in for ${metricDate}`);
+    return true;
+
+  } catch (err) {
+    console.error('❌ Error extracting health metrics:', err);
+    return false;
+  }
+}
+
+/**
+ * Check if activity has minimum metrics to be considered a real workout
+ * Filters out trivial auto-detected movements
+ */
+function hasMinimumActivityMetrics(activityInfo) {
+  const durationSeconds = activityInfo.durationInSeconds ||
+                          activityInfo.movingDurationInSeconds ||
+                          activityInfo.elapsedDurationInSeconds || 0;
+  const distanceMeters = activityInfo.distanceInMeters || activityInfo.distance || 0;
+
+  // Require at least 2 minutes duration OR 100 meters distance
+  // This filters out trivial auto-detected movements
+  const MIN_DURATION_SECONDS = 120; // 2 minutes
+  const MIN_DISTANCE_METERS = 100;  // 100 meters
+
+  return durationSeconds >= MIN_DURATION_SECONDS || distanceMeters >= MIN_DISTANCE_METERS;
+}
+
 function mapGarminActivityType(garminType) {
   const typeMap = {
+    // Cycling activities
     'cycling': 'Ride',
     'road_biking': 'Ride',
+    'road_cycling': 'Ride',
     'virtual_ride': 'VirtualRide',
     'indoor_cycling': 'VirtualRide',
     'mountain_biking': 'MountainBikeRide',
     'gravel_cycling': 'GravelRide',
     'cyclocross': 'Ride',
-    'e_biking': 'EBikeRide'
+    'e_biking': 'EBikeRide',
+    'bmx': 'Ride',
+    'recumbent_cycling': 'Ride',
+    'track_cycling': 'Ride',
+
+    // Running activities
+    'running': 'Run',
+    'trail_running': 'TrailRun',
+    'treadmill_running': 'Run',
+    'indoor_running': 'Run',
+    'track_running': 'Run',
+    'ultra_run': 'Run',
+
+    // Walking activities
+    'walking': 'Walk',
+    'casual_walking': 'Walk',
+    'speed_walking': 'Walk',
+    'indoor_walking': 'Walk',
+    'treadmill_walking': 'Walk',
+
+    // Hiking
+    'hiking': 'Hike',
+
+    // Swimming
+    'swimming': 'Swim',
+    'lap_swimming': 'Swim',
+    'open_water_swimming': 'Swim',
+    'pool_swimming': 'Swim',
+
+    // Other sports
+    'strength_training': 'WeightTraining',
+    'cardio': 'Workout',
+    'elliptical': 'Elliptical',
+    'stair_climbing': 'StairStepper',
+    'rowing': 'Rowing',
+    'indoor_rowing': 'Rowing',
+    'yoga': 'Yoga',
+    'pilates': 'Workout',
+    'fitness_equipment': 'Workout',
+
+    // Winter sports
+    'resort_skiing': 'AlpineSki',
+    'resort_snowboarding': 'Snowboard',
+    'cross_country_skiing': 'NordicSki',
+    'backcountry_skiing': 'BackcountrySki',
+
+    // Water sports
+    'stand_up_paddleboarding': 'StandUpPaddling',
+    'kayaking': 'Kayaking',
+    'surfing': 'Surfing',
+
+    // Multi-sport
+    'multi_sport': 'Workout',
+    'triathlon': 'Workout',
+    'duathlon': 'Workout',
+    'transition': 'Workout'
   };
 
   const lowerType = (garminType || '').toLowerCase();
-  return typeMap[lowerType] || 'Ride';
+
+  // Return mapped type, or 'Workout' as a generic fallback (NOT 'Ride')
+  return typeMap[lowerType] || 'Workout';
 }
 
 // ============================================================================
