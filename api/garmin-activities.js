@@ -446,6 +446,12 @@ async function storeActivities(userId, activities) {
 function buildActivityData(userId, activityId, activityInfo, source = 'webhook') {
   // These are the ONLY columns that exist in the activities table
   // Based on the actual schema - if a column doesn't exist, don't include it
+
+  // Garmin uses different field names in different contexts:
+  // - Webhook PUSH: elevationGainInMeters, averageBikingPowerInWatts
+  // - API response: totalElevationGainInMeters, avgPower
+  // - Various: totalElevationGain, averagePower
+
   const safeData = {
     user_id: userId,
     provider: 'garmin',
@@ -459,17 +465,47 @@ function buildActivityData(userId, activityId, activityInfo, source = 'webhook')
     start_date_local: activityInfo.startTimeInSeconds
       ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
       : new Date().toISOString(),
+    // Distance (Garmin sends in meters)
     distance: activityInfo.distanceInMeters ?? activityInfo.distance ?? null,
-    moving_time: activityInfo.movingDurationInSeconds ?? activityInfo.durationInSeconds ?? null,
-    elapsed_time: activityInfo.elapsedDurationInSeconds ?? activityInfo.durationInSeconds ?? null,
-    total_elevation_gain: activityInfo.elevationGainInMeters ?? activityInfo.totalElevationGain ?? null,
-    average_speed: activityInfo.averageSpeedInMetersPerSecond ?? activityInfo.averageSpeed ?? null,
-    max_speed: activityInfo.maxSpeedInMetersPerSecond ?? activityInfo.maxSpeed ?? null,
-    average_watts: activityInfo.averageBikingPowerInWatts ?? activityInfo.averagePower ?? null,
-    kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
-    average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute ?? activityInfo.averageHeartRate ?? null,
-    max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? activityInfo.maxHeartRate ?? null,
-    average_cadence: activityInfo.averageBikingCadenceInRPM ?? activityInfo.averageRunningCadenceInStepsPerMinute ?? null,
+    // Duration (Garmin sends in seconds)
+    moving_time: activityInfo.movingDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
+    elapsed_time: activityInfo.elapsedDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
+    // Elevation (multiple possible field names from Garmin)
+    total_elevation_gain: activityInfo.elevationGainInMeters
+      ?? activityInfo.totalElevationGainInMeters
+      ?? activityInfo.totalElevationGain
+      ?? activityInfo.total_ascent
+      ?? null,
+    // Speed (m/s)
+    average_speed: activityInfo.averageSpeedInMetersPerSecond ?? activityInfo.averageSpeed ?? activityInfo.avg_speed ?? null,
+    max_speed: activityInfo.maxSpeedInMetersPerSecond ?? activityInfo.maxSpeed ?? activityInfo.max_speed ?? null,
+    // Power (multiple possible field names from Garmin)
+    average_watts: activityInfo.averageBikingPowerInWatts
+      ?? activityInfo.averagePower
+      ?? activityInfo.avgPower
+      ?? activityInfo.avg_power
+      ?? null,
+    // Calories -> kilojoules (1 kcal = 4.184 kJ)
+    kilojoules: activityInfo.activeKilocalories
+      ? activityInfo.activeKilocalories * 4.184
+      : (activityInfo.calories ? activityInfo.calories * 4.184 : null),
+    // Heart rate (bpm)
+    average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute
+      ?? activityInfo.averageHeartRate
+      ?? activityInfo.avgHeartRate
+      ?? activityInfo.avg_heart_rate
+      ?? null,
+    max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute
+      ?? activityInfo.maxHeartRate
+      ?? activityInfo.max_heart_rate
+      ?? null,
+    // Cadence
+    average_cadence: activityInfo.averageBikingCadenceInRPM
+      ?? activityInfo.averageRunningCadenceInStepsPerMinute
+      ?? activityInfo.avgCadence
+      ?? activityInfo.avg_cadence
+      ?? null,
+    // Training flags
     trainer: activityInfo.isParent === false || (activityInfo.deviceName || '').toLowerCase().includes('indoor') || false,
     // Store ALL original data in raw_data so nothing is lost
     raw_data: activityInfo,
