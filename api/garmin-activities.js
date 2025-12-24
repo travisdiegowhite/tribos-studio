@@ -673,7 +673,6 @@ async function reprocessFailedEvents(req, res, userId) {
           max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? null,
           average_cadence: activityInfo.averageBikingCadenceInRPM ?? null,
           kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
-          garmin_activity_url: activityId ? `https://connect.garmin.com/modern/activity/${activityId}` : null,
           raw_data: { payload: payload, reprocessed: true, dataSource }
         };
 
