@@ -414,34 +414,8 @@ async function storeActivities(userId, activities) {
         continue;
       }
 
-      // Build activity data - ONLY use columns that exist in the schema
-      const activityData = {
-        user_id: userId,
-        provider: 'garmin',
-        provider_activity_id: activityId,
-        name: a.activityName || generateActivityName(a.activityType, a.startTimeInSeconds),
-        type: mapGarminActivityType(a.activityType),
-        sport_type: a.activityType,
-        start_date: a.startTimeInSeconds
-          ? new Date(a.startTimeInSeconds * 1000).toISOString()
-          : new Date().toISOString(),
-        start_date_local: a.startTimeInSeconds
-          ? new Date(a.startTimeInSeconds * 1000).toISOString()
-          : new Date().toISOString(),
-        distance: a.distanceInMeters ?? a.distance ?? null,
-        moving_time: a.movingDurationInSeconds ?? a.durationInSeconds ?? null,
-        elapsed_time: a.elapsedDurationInSeconds ?? a.durationInSeconds ?? null,
-        total_elevation_gain: a.elevationGainInMeters ?? a.totalElevationGain ?? null,
-        average_speed: a.averageSpeedInMetersPerSecond ?? a.averageSpeed ?? null,
-        max_speed: a.maxSpeedInMetersPerSecond ?? a.maxSpeed ?? null,
-        average_watts: a.averageBikingPowerInWatts ?? a.averagePower ?? null,
-        average_heartrate: a.averageHeartRateInBeatsPerMinute ?? a.averageHeartRate ?? null,
-        max_heartrate: a.maxHeartRateInBeatsPerMinute ?? a.maxHeartRate ?? null,
-        kilojoules: a.activeKilocalories ? a.activeKilocalories * 4.184 : null,
-        trainer: a.isParent === false || (a.deviceName || '').toLowerCase().includes('indoor'),
-        raw_data: a,
-        updated_at: new Date().toISOString()
-      };
+      // Build activity data using only columns known to exist in the schema
+      const activityData = buildActivityData(userId, activityId, a, 'garmin_sync');
 
       // Upsert (update if exists)
       const { error } = await supabase
@@ -463,6 +437,83 @@ async function storeActivities(userId, activities) {
 
   console.log(`✅ Stored ${storedCount}/${activities.length} activities`);
   return storedCount;
+}
+
+/**
+ * Build activity data object with only columns that exist in the schema
+ * This prevents insert failures due to unknown columns
+ */
+function buildActivityData(userId, activityId, activityInfo, source = 'webhook') {
+  // These are the ONLY columns that exist in the activities table
+  // Based on the actual schema - if a column doesn't exist, don't include it
+
+  // Garmin uses different field names in different contexts:
+  // - Webhook PUSH: elevationGainInMeters, averageBikingPowerInWatts
+  // - API response: totalElevationGainInMeters, avgPower
+  // - Various: totalElevationGain, averagePower
+
+  const safeData = {
+    user_id: userId,
+    provider: 'garmin',
+    provider_activity_id: activityId,
+    name: activityInfo.activityName || generateActivityName(activityInfo.activityType, activityInfo.startTimeInSeconds),
+    type: mapGarminActivityType(activityInfo.activityType),
+    sport_type: activityInfo.activityType || null,
+    start_date: activityInfo.startTimeInSeconds
+      ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
+      : new Date().toISOString(),
+    start_date_local: activityInfo.startTimeInSeconds
+      ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
+      : new Date().toISOString(),
+    // Distance (Garmin sends in meters)
+    distance: activityInfo.distanceInMeters ?? activityInfo.distance ?? null,
+    // Duration (Garmin sends in seconds)
+    moving_time: activityInfo.movingDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
+    elapsed_time: activityInfo.elapsedDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
+    // Elevation (multiple possible field names from Garmin)
+    total_elevation_gain: activityInfo.elevationGainInMeters
+      ?? activityInfo.totalElevationGainInMeters
+      ?? activityInfo.totalElevationGain
+      ?? activityInfo.total_ascent
+      ?? null,
+    // Speed (m/s)
+    average_speed: activityInfo.averageSpeedInMetersPerSecond ?? activityInfo.averageSpeed ?? activityInfo.avg_speed ?? null,
+    max_speed: activityInfo.maxSpeedInMetersPerSecond ?? activityInfo.maxSpeed ?? activityInfo.max_speed ?? null,
+    // Power (multiple possible field names from Garmin)
+    average_watts: activityInfo.averageBikingPowerInWatts
+      ?? activityInfo.averagePower
+      ?? activityInfo.avgPower
+      ?? activityInfo.avg_power
+      ?? null,
+    // Calories -> kilojoules (1 kcal = 4.184 kJ)
+    kilojoules: activityInfo.activeKilocalories
+      ? activityInfo.activeKilocalories * 4.184
+      : (activityInfo.calories ? activityInfo.calories * 4.184 : null),
+    // Heart rate (bpm)
+    average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute
+      ?? activityInfo.averageHeartRate
+      ?? activityInfo.avgHeartRate
+      ?? activityInfo.avg_heart_rate
+      ?? null,
+    max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute
+      ?? activityInfo.maxHeartRate
+      ?? activityInfo.max_heart_rate
+      ?? null,
+    // Cadence
+    average_cadence: activityInfo.averageBikingCadenceInRPM
+      ?? activityInfo.averageRunningCadenceInStepsPerMinute
+      ?? activityInfo.avgCadence
+      ?? activityInfo.avg_cadence
+      ?? null,
+    // Training flags
+    trainer: activityInfo.isParent === false || (activityInfo.deviceName || '').toLowerCase().includes('indoor') || false,
+    // Store ALL original data in raw_data so nothing is lost
+    raw_data: activityInfo,
+    imported_from: source,
+    updated_at: new Date().toISOString()
+  };
+
+  return safeData;
 }
 
 /**
@@ -632,31 +683,10 @@ async function reprocessFailedEvents(req, res, userId) {
           }
         }
 
-        // Build activity data from payload - ONLY use columns that exist in the schema
-        const activityData = {
-          user_id: userId,
-          provider: 'garmin',
-          provider_activity_id: activityId,
-          name: activityInfo.activityName || generateActivityName(activityInfo.activityType, activityInfo.startTimeInSeconds),
-          type: mapGarminActivityType(activityInfo.activityType),
-          sport_type: activityInfo.activityType,
-          start_date: activityInfo.startTimeInSeconds
-            ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
-            : new Date().toISOString(),
-          distance: activityInfo.distanceInMeters ?? null,
-          moving_time: activityInfo.movingDurationInSeconds ?? activityInfo.durationInSeconds ?? null,
-          elapsed_time: activityInfo.elapsedDurationInSeconds ?? activityInfo.durationInSeconds ?? null,
-          total_elevation_gain: activityInfo.elevationGainInMeters ?? null,
-          average_speed: activityInfo.averageSpeedInMetersPerSecond ?? null,
-          max_speed: activityInfo.maxSpeedInMetersPerSecond ?? null,
-          average_watts: activityInfo.averageBikingPowerInWatts ?? null,
-          average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute ?? null,
-          max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? null,
-          kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
-          trainer: activityInfo.isParent === false || (activityInfo.deviceName || '').toLowerCase().includes('indoor'),
-          raw_data: { payload: payload, reprocessed: true, dataSource },
-          updated_at: new Date().toISOString()
-        };
+        // Build activity data using centralized helper - ONLY uses columns that exist in the schema
+        const activityData = buildActivityData(userId, activityId, activityInfo, `reprocessed_${dataSource}`);
+        // Override raw_data to include reprocessing metadata
+        activityData.raw_data = { payload: payload, reprocessed: true, dataSource };
 
         console.log(`📥 Importing activity: ${activityData.name} (${activityId}) from ${dataSource}`);
 
