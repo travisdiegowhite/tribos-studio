@@ -441,8 +441,8 @@ async function downloadAndProcessActivity(event, integration) {
       max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? activityInfo.maxHeartRate ?? null,
       // Cadence (rpm)
       average_cadence: activityInfo.averageBikingCadenceInRPM ?? activityInfo.averageRunningCadenceInStepsPerMinute ?? null,
-      // Calories
-      calories: activityInfo.activeKilocalories ?? activityInfo.caloriesBurned ?? activityInfo.calories ?? null,
+      // Calories (convert to kilojoules for storage: 1 kcal = 4.184 kJ)
+      kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
       // Training metrics
       trainer: activityInfo.isParent === false || activityInfo.deviceName?.toLowerCase().includes('indoor') || false,
       garmin_activity_url: event.activity_id
