@@ -430,6 +430,7 @@ async function storeActivities(userId, activities) {
         continue;
       }
 
+      // Build activity data - ONLY use columns that exist in the schema
       const activityData = {
         user_id: userId,
         provider: 'garmin',
@@ -452,11 +453,9 @@ async function storeActivities(userId, activities) {
         average_watts: a.averageBikingPowerInWatts ?? a.averagePower ?? null,
         average_heartrate: a.averageHeartRateInBeatsPerMinute ?? a.averageHeartRate ?? null,
         max_heartrate: a.maxHeartRateInBeatsPerMinute ?? a.maxHeartRate ?? null,
-        average_cadence: a.averageBikingCadenceInRPM ?? null,
         kilojoules: a.activeKilocalories ? a.activeKilocalories * 4.184 : null,
         trainer: a.isParent === false || (a.deviceName || '').toLowerCase().includes('indoor'),
         raw_data: a,
-        imported_from: 'garmin_sync',
         updated_at: new Date().toISOString()
       };
 
@@ -649,7 +648,7 @@ async function reprocessFailedEvents(req, res, userId) {
           }
         }
 
-        // Build activity data from payload
+        // Build activity data from payload - ONLY use columns that exist in the schema
         const activityData = {
           user_id: userId,
           provider: 'garmin',
@@ -664,16 +663,15 @@ async function reprocessFailedEvents(req, res, userId) {
           moving_time: activityInfo.movingDurationInSeconds ?? activityInfo.durationInSeconds ?? null,
           elapsed_time: activityInfo.elapsedDurationInSeconds ?? activityInfo.durationInSeconds ?? null,
           total_elevation_gain: activityInfo.elevationGainInMeters ?? null,
-          total_elevation_loss: activityInfo.elevationLossInMeters ?? null,
           average_speed: activityInfo.averageSpeedInMetersPerSecond ?? null,
           max_speed: activityInfo.maxSpeedInMetersPerSecond ?? null,
           average_watts: activityInfo.averageBikingPowerInWatts ?? null,
-          max_watts: activityInfo.maxBikingPowerInWatts ?? null,
           average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute ?? null,
           max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute ?? null,
-          average_cadence: activityInfo.averageBikingCadenceInRPM ?? null,
           kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
-          raw_data: { payload: payload, reprocessed: true, dataSource }
+          trainer: activityInfo.isParent === false || (activityInfo.deviceName || '').toLowerCase().includes('indoor'),
+          raw_data: { payload: payload, reprocessed: true, dataSource },
+          updated_at: new Date().toISOString()
         };
 
         console.log(`📥 Importing activity: ${activityData.name} (${activityId}) from ${dataSource}`);
