@@ -70,6 +70,15 @@ import FitUploadModal from '../components/FitUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
 import { TrainingNotifications, SupplementWorkoutModal } from '../components/training';
 import RaceGoalsPanel from '../components/RaceGoalsPanel.jsx';
+import PowerDurationCurve from '../components/PowerDurationCurve.jsx';
+import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
+import RampRateAlert, { RampRateBadge } from '../components/RampRateAlert.jsx';
+import { ActivityMetricsBadges } from '../components/ActivityMetrics.jsx';
+import { WorkoutDifficultyBadge, getQuickDifficultyEstimate } from '../components/WorkoutDifficultyBadge.jsx';
+import CriticalPowerModel from '../components/CriticalPowerModel.jsx';
+import TrainNow from '../components/TrainNow.jsx';
+import AerobicDecoupling from '../components/AerobicDecoupling.jsx';
+import AthleteBenchmarking from '../components/AthleteBenchmarking.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
@@ -88,6 +97,7 @@ function TrainingDashboard() {
   const [unitsPreference, setUnitsPreference] = useState('imperial');
   const [ftp, setFtp] = useState(null);
   const [powerZones, setPowerZones] = useState(null);
+  const [userWeight, setUserWeight] = useState(null);
   const [trainingMetrics, setTrainingMetrics] = useState({
     ctl: 0,
     atl: 0,
@@ -120,7 +130,7 @@ function TrainingDashboard() {
       try {
         const { data: userProfileData } = await supabase
           .from('user_profiles')
-          .select('units_preference, ftp, power_zones')
+          .select('units_preference, ftp, power_zones, weight')
           .eq('id', user.id)
           .single();
 
@@ -129,6 +139,7 @@ function TrainingDashboard() {
         }
         if (userProfileData?.ftp) setFtp(userProfileData.ftp);
         if (userProfileData?.power_zones) setPowerZones(userProfileData.power_zones);
+        if (userProfileData?.weight) setUserWeight(userProfileData.weight);
 
         // Get activities from last 90 days
         const ninetyDaysAgo = new Date();
@@ -694,6 +705,8 @@ function TrainingDashboard() {
                   formatDist={formatDist}
                   formatElev={formatElev}
                   isImperial={isImperial}
+                  ftp={ftp}
+                  weight={userWeight}
                 />
               </Tabs.Panel>
 
@@ -703,6 +716,8 @@ function TrainingDashboard() {
                   ftp={ftp}
                   powerZones={powerZones}
                   navigate={navigate}
+                  activities={activities}
+                  weight={userWeight}
                 />
               </Tabs.Panel>
 
@@ -913,6 +928,18 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
       {/* Race Goals Panel */}
       <RaceGoalsPanel isImperial={isImperial} />
 
+      {/* TrainNow - Smart Workout Recommendations */}
+      <TrainNow
+        activities={activities}
+        trainingMetrics={trainingMetrics}
+        plannedWorkouts={[]}
+        ftp={ftp}
+        onSelectWorkout={(workout) => {
+          // Could open workout detail modal or navigate to workout
+          console.log('Selected workout:', workout);
+        }}
+      />
+
       {/* AI Coach Section */}
       <Box ref={aiCoachRef}>
         <Group gap="xs" mb="md">
@@ -982,9 +1009,18 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
 // ============================================================================
 // TRENDS TAB
 // ============================================================================
-function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, formatDist, formatElev, isImperial }) {
+function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, formatDist, formatElev, isImperial, ftp, weight }) {
   return (
     <Stack gap="lg">
+      {/* Ramp Rate Alert */}
+      {dailyTSSData.length > 14 && (
+        <RampRateAlert
+          dailyTSSData={dailyTSSData}
+          currentCTL={trainingMetrics.ctl}
+          showDetails={true}
+        />
+      )}
+
       {/* Fitness Journey Chart */}
       <Box>
         <Group justify="space-between" mb="md">
@@ -1010,6 +1046,19 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
           <EmptyState type="noTrainingData" size="sm" />
         )}
       </Box>
+
+      {/* Zone Distribution */}
+      <ZoneDistributionChart
+        activities={activities}
+        ftp={ftp}
+        timeRange="7"
+      />
+
+      {/* Aerobic Decoupling */}
+      <AerobicDecoupling
+        activities={activities}
+        timeRange={90}
+      />
 
       {/* Progress Cards */}
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
@@ -1075,7 +1124,7 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
 // ============================================================================
 // POWER TAB
 // ============================================================================
-function PowerTab({ ftp, powerZones, navigate }) {
+function PowerTab({ ftp, powerZones, navigate, activities, weight }) {
   const zones = [
     { zone: 1, name: 'Recovery', range: '< 55%', color: '#51cf66' },
     { zone: 2, name: 'Endurance', range: '55-75%', color: '#4dabf7' },
@@ -1085,6 +1134,9 @@ function PowerTab({ ftp, powerZones, navigate }) {
     { zone: 6, name: 'Anaerobic', range: '120-150%', color: '#cc5de8' },
     { zone: 7, name: 'Neuromuscular', range: '> 150%', color: '#862e9c' },
   ];
+
+  // Check if we have any power data
+  const hasPowerData = activities?.some(a => a.average_watts > 0);
 
   if (!ftp) {
     return (
@@ -1103,6 +1155,15 @@ function PowerTab({ ftp, powerZones, navigate }) {
 
   return (
     <Stack gap="lg">
+      {/* Power Duration Curve */}
+      {hasPowerData && (
+        <PowerDurationCurve
+          activities={activities}
+          ftp={ftp}
+          weight={weight}
+        />
+      )}
+
       {/* FTP Display */}
       <Paper
         p="lg"
@@ -1175,16 +1236,19 @@ function PowerTab({ ftp, powerZones, navigate }) {
         </Stack>
       </Card>
 
-      {/* Zone Fitness Levels - Placeholder for future */}
-      <Card withBorder p="md">
-        <Group justify="space-between" mb="md">
-          <Text fw={600}>Zone Fitness Levels</Text>
-          <Badge variant="light" color="gray">Coming Soon</Badge>
-        </Group>
-        <Text size="sm" c="dimmed">
-          Track your progression in each training zone. Complete workouts to build zone-specific fitness.
-        </Text>
-      </Card>
+      {/* Critical Power Model */}
+      <CriticalPowerModel
+        activities={activities}
+        ftp={ftp}
+        weight={weight}
+      />
+
+      {/* Athlete Benchmarking */}
+      <AthleteBenchmarking
+        activities={activities}
+        ftp={ftp}
+        weight={weight}
+      />
     </Stack>
   );
 }
