@@ -41,6 +41,7 @@ function Settings() {
   const [garminSyncing, setGarminSyncing] = useState(false);
   const [garminRepairing, setGarminRepairing] = useState(false);
   const [garminRecovering, setGarminRecovering] = useState(false);
+  const [garminDiagnosis, setGarminDiagnosis] = useState(null);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
   const [showImportWizard, setShowImportWizard] = useState(false);
 
@@ -447,6 +448,40 @@ function Settings() {
     }
   };
 
+  const diagnoseGarmin = async () => {
+    try {
+      notifications.show({
+        id: 'garmin-diagnose',
+        title: 'Diagnosing',
+        message: 'Checking database for activities and webhooks...',
+        loading: true,
+        autoClose: false
+      });
+
+      const result = await garminService.diagnose();
+      setGarminDiagnosis(result);
+
+      notifications.update({
+        id: 'garmin-diagnose',
+        title: 'Diagnosis Complete',
+        message: `Found ${result.activities?.count || 0} activities, ${result.webhookEvents?.count || 0} webhook events`,
+        color: 'cyan',
+        loading: false,
+        autoClose: 3000
+      });
+    } catch (error) {
+      console.error('Error diagnosing Garmin:', error);
+      notifications.update({
+        id: 'garmin-diagnose',
+        title: 'Diagnosis Failed',
+        message: error.message,
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    }
+  };
+
   const syncGarminActivities = async () => {
     setGarminSyncing(true);
     try {
@@ -802,6 +837,8 @@ function Settings() {
                 repairing={garminRepairing}
                 onRecover={recoverGarminActivities}
                 recovering={garminRecovering}
+                onDiagnose={diagnoseGarmin}
+                diagnosis={garminDiagnosis}
               />
 
               <Divider />
@@ -867,7 +904,7 @@ function Settings() {
   );
 }
 
-function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering }) {
+function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis }) {
   if (loading) {
     return (
       <Group justify="space-between">
@@ -1039,6 +1076,74 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                     >
                       🔄 Recover Failed Events
                     </Button>
+                  )}
+                  {onDiagnose && (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      color="grape"
+                      onClick={onDiagnose}
+                      style={{ marginTop: 8 }}
+                    >
+                      🔍 Diagnose Sync Issues
+                    </Button>
+                  )}
+                  {diagnosis && (
+                    <Box
+                      style={{
+                        backgroundColor: tokens.colors.bgPrimary,
+                        padding: tokens.spacing.sm,
+                        borderRadius: tokens.radius.sm,
+                        marginTop: 8,
+                        fontSize: '11px',
+                        maxHeight: '300px',
+                        overflow: 'auto'
+                      }}
+                    >
+                      <Text size="xs" fw={600} style={{ color: tokens.colors.textPrimary, marginBottom: 4 }}>
+                        Diagnosis Results:
+                      </Text>
+                      <Text size="xs" style={{ color: tokens.colors.electricLime }}>
+                        Activities in DB: {diagnosis.activities?.count || 0}
+                      </Text>
+                      <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                        Webhook Events: {diagnosis.summary?.totalWebhooks || 0}
+                      </Text>
+                      <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                        • PUSH events: {diagnosis.summary?.pushEvents || 0}
+                      </Text>
+                      <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                        • PING events: {diagnosis.summary?.pingEvents || 0}
+                      </Text>
+                      <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                        • With errors: {diagnosis.summary?.withErrors || 0}
+                      </Text>
+                      <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                        • Imported: {diagnosis.summary?.imported || 0}
+                      </Text>
+                      {diagnosis.webhookEvents?.analysis?.length > 0 && (
+                        <>
+                          <Text size="xs" fw={600} style={{ color: tokens.colors.textPrimary, marginTop: 8 }}>
+                            Recent Events:
+                          </Text>
+                          {diagnosis.webhookEvents.analysis.slice(0, 5).map((event, i) => (
+                            <Box key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${event.error ? 'red' : tokens.colors.electricLime}` }}>
+                              <Text size="xs" style={{ color: tokens.colors.textPrimary }}>
+                                {event.activityName || event.activity_id || 'Unknown'} - {event.activityType || 'N/A'}
+                              </Text>
+                              <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                                {event.dataSource} | {event.distance || 'No distance'}
+                              </Text>
+                              {event.error && (
+                                <Text size="xs" style={{ color: 'red' }}>
+                                  Error: {event.error}
+                                </Text>
+                              )}
+                            </Box>
+                          ))}
+                        </>
+                      )}
+                    </Box>
                   )}
                 </Stack>
               </Box>
