@@ -15,6 +15,12 @@ const supabase = createClient(
 const WAHOO_API_BASE = 'https://api.wahooligan.com/v1';
 const WAHOO_OAUTH_BASE = 'https://api.wahooligan.com/oauth';
 
+// Security: Webhook token for URL-based verification
+// NOTE: Wahoo doesn't support signature verification like Garmin/Stripe.
+// As a workaround, add ?token=YOUR_SECRET to your webhook URL when registering with Wahoo.
+// Set WAHOO_WEBHOOK_TOKEN in your environment variables.
+const WEBHOOK_TOKEN = process.env.WAHOO_WEBHOOK_TOKEN;
+
 // Rate limiting
 const RATE_LIMIT_WINDOW_MS = 60000;
 const RATE_LIMIT_MAX_REQUESTS = 100;
@@ -68,8 +74,35 @@ export default async function handler(req, res) {
     return res.status(429).json({ error: 'Too many requests' });
   }
 
+  // Webhook token verification (if configured)
+  // Since Wahoo doesn't support signature verification, we use a URL token as a workaround
+  if (WEBHOOK_TOKEN) {
+    const providedToken = req.query.token;
+    if (!providedToken) {
+      console.warn('⚠️ Wahoo webhook request missing token from:', clientIP);
+      return res.status(401).json({ error: 'Missing webhook token' });
+    }
+    // Use timing-safe comparison to prevent timing attacks
+    const tokenBuffer = Buffer.from(providedToken);
+    const expectedBuffer = Buffer.from(WEBHOOK_TOKEN);
+    if (tokenBuffer.length !== expectedBuffer.length ||
+        !crypto.timingSafeEqual(tokenBuffer, expectedBuffer)) {
+      console.warn('🚨 Invalid Wahoo webhook token from:', clientIP);
+      return res.status(401).json({ error: 'Invalid webhook token' });
+    }
+  } else {
+    // Log warning if no token is configured - this is a security risk
+    console.warn('⚠️ WAHOO_WEBHOOK_TOKEN not configured - webhook endpoint is unprotected');
+  }
+
   try {
     const webhookData = req.body;
+
+    // Validate payload structure
+    if (!webhookData || typeof webhookData !== 'object') {
+      console.warn('⚠️ Invalid Wahoo webhook payload (not an object) from:', clientIP);
+      return res.status(400).json({ error: 'Invalid payload format' });
+    }
 
     console.log('📥 Wahoo webhook received:', {
       eventType: webhookData.event_type,
@@ -84,8 +117,15 @@ export default async function handler(req, res) {
     const wahooUser = webhookData.user;
     const workout = webhookData.workout;
 
-    if (!wahooUser?.id) {
-      return res.status(400).json({ error: 'Invalid webhook payload' });
+    // Validate required fields
+    if (!eventType || typeof eventType !== 'string') {
+      console.warn('⚠️ Missing or invalid event_type in Wahoo webhook from:', clientIP);
+      return res.status(400).json({ error: 'Missing event_type' });
+    }
+
+    if (!wahooUser || typeof wahooUser !== 'object' || !wahooUser.id) {
+      console.warn('⚠️ Missing or invalid user data in Wahoo webhook from:', clientIP);
+      return res.status(400).json({ error: 'Invalid webhook payload - missing user' });
     }
 
     // Only process workout.created events for new activities
@@ -126,13 +166,23 @@ export default async function handler(req, res) {
     // Respond quickly
     res.status(200).json({ success: true, message: 'Processing' });
 
-    // Process asynchronously
+    // Process asynchronously with proper error logging
     processWahooWorkout(integration, workout, webhookData).catch(err => {
-      console.error('Wahoo processing error:', err);
+      console.error('❌ Wahoo processing error:', {
+        error: err.message,
+        stack: err.stack,
+        userId: integration.user_id,
+        workoutId: workout?.id,
+        timestamp: new Date().toISOString()
+      });
     });
 
   } catch (error) {
-    console.error('Wahoo webhook error:', error);
+    console.error('❌ Wahoo webhook handler error:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
     return res.status(500).json({ error: 'Webhook processing failed' });
   }
 }
