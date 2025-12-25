@@ -1,10 +1,28 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { registerSW } from 'virtual:pwa-register';
 import { initSentry } from './lib/sentry';
 import App from './App.jsx';
 
 // Initialize Sentry error tracking
 initSentry();
+
+// Register service worker with auto-update
+// Network First strategy means users always get latest when online
+registerSW({
+  immediate: true,
+  onRegistered(registration) {
+    if (registration) {
+      // Check for updates every 5 minutes
+      setInterval(() => {
+        registration.update();
+      }, 5 * 60 * 1000);
+    }
+  },
+  onRegisterError(error) {
+    console.error('SW registration failed:', error);
+  },
+});
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
