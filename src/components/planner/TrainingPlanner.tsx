@@ -32,6 +32,7 @@ import {
 import { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 import { TwoWeekCalendar } from './TwoWeekCalendar';
 import { PeriodizationView } from './PeriodizationView';
+import { GoalInput } from './GoalInput';
 import { useTrainingPlannerStore } from '../../stores/trainingPlannerStore';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import type { TrainingPlannerProps } from '../../types/planner';
@@ -234,6 +235,16 @@ export function TrainingPlanner({
             activities={activitiesByDate}
             onWeekClick={handleWeekClick}
           />
+
+          {/* Goal Input */}
+          <Box mt="md">
+            <GoalInput
+              goals={store.goals}
+              onAddGoal={store.addGoal}
+              onRemoveGoal={store.removeGoal}
+              onUpdateGoal={store.updateGoal}
+            />
+          </Box>
 
           {/* Two-week Detail View */}
           <Box mt="md">
