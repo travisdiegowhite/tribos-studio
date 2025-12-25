@@ -35,7 +35,48 @@ import { PeriodizationView } from './PeriodizationView';
 import { GoalInput } from './GoalInput';
 import { useTrainingPlannerStore } from '../../stores/trainingPlannerStore';
 import { getWorkoutById } from '../../data/workoutLibrary';
+import { calculateTSS, estimateTSS } from '../../utils/trainingPlans';
 import type { TrainingPlannerProps } from '../../types/planner';
+
+// Helper to extract local date string from activity
+function getLocalDateString(activity: { start_date_local?: string; start_date: string }): string {
+  // Prefer start_date_local if available (already in local timezone)
+  if (activity.start_date_local) {
+    return activity.start_date_local.split('T')[0];
+  }
+  // Otherwise parse start_date and convert to local
+  const activityDate = new Date(activity.start_date);
+  const year = activityDate.getFullYear();
+  const month = String(activityDate.getMonth() + 1).padStart(2, '0');
+  const day = String(activityDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Helper to calculate or estimate TSS from activity
+function getActivityTSS(
+  activity: {
+    average_watts?: number | null;
+    moving_time?: number | null;
+    distance?: number | null;
+    total_elevation_gain?: number | null;
+  },
+  ftp: number | null | undefined
+): number | null {
+  // Try power-based TSS first
+  if (activity.average_watts && activity.moving_time && ftp) {
+    return calculateTSS(activity.moving_time, activity.average_watts, ftp);
+  }
+
+  // Fall back to estimation from duration/distance/elevation
+  if (activity.moving_time) {
+    const durationMinutes = activity.moving_time / 60;
+    const distanceKm = (activity.distance || 0) / 1000;
+    const elevation = activity.total_elevation_gain || 0;
+    return estimateTSS(durationMinutes, distanceKm, elevation, 'endurance');
+  }
+
+  return null;
+}
 
 export function TrainingPlanner({
   userId,
@@ -50,24 +91,24 @@ export function TrainingPlanner({
   const activitiesByDate = useMemo(() => {
     const result: Record<string, { id: string; tss: number | null; duration_seconds: number }> = {};
     for (const activity of activities) {
-      // Parse the date and extract local date (fixes timezone issues)
-      const activityDate = new Date(activity.start_date);
-      const year = activityDate.getFullYear();
-      const month = String(activityDate.getMonth() + 1).padStart(2, '0');
-      const day = String(activityDate.getDate()).padStart(2, '0');
-      const date = `${year}-${month}-${day}`;
+      // Use local date string (prefers start_date_local if available)
+      const date = getLocalDateString(activity);
+
+      // Calculate TSS from power data or estimate from duration/distance
+      const tss = getActivityTSS(activity, ftp);
+      const duration = activity.moving_time || activity.duration_seconds || 0;
 
       // Take the activity with highest TSS for the day
-      if (!result[date] || (activity.tss || 0) > (result[date].tss || 0)) {
+      if (!result[date] || (tss || 0) > (result[date].tss || 0)) {
         result[date] = {
           id: activity.id,
-          tss: activity.tss,
-          duration_seconds: activity.duration_seconds,
+          tss,
+          duration_seconds: duration,
         };
       }
     }
     return result;
-  }, [activities]);
+  }, [activities, ftp]);
 
   // Load plan on mount or when activePlanId changes
   useEffect(() => {
