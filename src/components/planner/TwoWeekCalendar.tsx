@@ -130,12 +130,18 @@ export function TwoWeekCalendar({
 
     const startMonth = start.toLocaleDateString('en-US', { month: 'short' });
     const endMonth = end.toLocaleDateString('en-US', { month: 'short' });
+    const startYear = start.getFullYear();
+    const endYear = end.getFullYear();
 
-    if (startMonth === endMonth) {
-      return `${startMonth} ${start.getDate()} - ${end.getDate()}, ${start.getFullYear()}`;
+    // Handle year boundary properly
+    if (startYear === endYear) {
+      if (startMonth === endMonth) {
+        return `${startMonth} ${start.getDate()} - ${end.getDate()}, ${startYear}`;
+      }
+      return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}, ${startYear}`;
     }
-
-    return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}, ${end.getFullYear()}`;
+    // Different years - show both
+    return `${startMonth} ${start.getDate()}, ${startYear} - ${endMonth} ${end.getDate()}, ${endYear}`;
   }, [startDate]);
 
   return (
