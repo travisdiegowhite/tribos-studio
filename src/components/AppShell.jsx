@@ -6,13 +6,15 @@ import {
   IconRoute,
   IconChartBar,
   IconSettings,
+  IconCalendarEvent,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 
 const navItems = [
   { path: '/dashboard', label: 'Home', icon: IconHome },
   { path: '/routes', label: 'Routes', icon: IconRoute },
-  { path: '/training', label: 'Training', icon: IconChartBar },
+  { path: '/planner', label: 'Plan', icon: IconCalendarEvent, fullLabel: 'Plan Your Training' },
+  { path: '/training', label: 'Analysis', icon: IconChartBar, fullLabel: 'Training Analysis' },
   { path: '/settings', label: 'Settings', icon: IconSettings },
 ];
 
@@ -64,6 +66,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                     key={item.path}
                     to={item.path}
                     label={item.label}
+                    fullLabel={item.fullLabel}
                     icon={item.icon}
                     active={location.pathname === item.path || location.pathname.startsWith(item.path + '/')}
                   />
@@ -110,7 +113,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
   );
 }
 
-function DesktopNavLink({ to, label, icon: Icon, active }) {
+function DesktopNavLink({ to, label, fullLabel, icon: Icon, active }) {
   return (
     <UnstyledButton
       component={Link}
@@ -139,7 +142,7 @@ function DesktopNavLink({ to, label, icon: Icon, active }) {
           fw={active ? 600 : 400}
           style={{ color: active ? tokens.colors.textPrimary : tokens.colors.textSecondary }}
         >
-          {label}
+          {fullLabel || label}
         </Text>
       </Group>
     </UnstyledButton>

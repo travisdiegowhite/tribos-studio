@@ -15,6 +15,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import RouteBuilder from './pages/RouteBuilder.jsx';
 import MyRoutes from './pages/MyRoutes.jsx';
 import TrainingDashboard from './pages/TrainingDashboard.jsx';
+import PlannerPage from './pages/PlannerPage.tsx';
 import Settings from './pages/Settings.jsx';
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 import Terms from './pages/Terms.jsx';
@@ -138,6 +139,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RouteBuilder />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/planner"
+        element={
+          <ProtectedRoute>
+            <PlannerPage />
           </ProtectedRoute>
         }
       />
