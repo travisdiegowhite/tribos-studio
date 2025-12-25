@@ -28,6 +28,8 @@ interface WorkoutLibrarySidebarProps {
   onFilterChange: (filter: Partial<SidebarFilter>) => void;
   onDragStart: (workoutId: string, source: DragSource) => void;
   onDragEnd: () => void;
+  onWorkoutTap?: (workoutId: string) => void; // For mobile tap-to-assign
+  isMobile?: boolean;
 }
 
 // Category display order and labels
@@ -82,6 +84,8 @@ export function WorkoutLibrarySidebar({
   onFilterChange,
   onDragStart,
   onDragEnd,
+  onWorkoutTap,
+  isMobile = false,
 }: WorkoutLibrarySidebarProps) {
   const [expandedCategories, setExpandedCategories] = useState<Set<WorkoutCategory>>(
     new Set(['endurance', 'threshold', 'vo2max'])
@@ -147,11 +151,11 @@ export function WorkoutLibrarySidebar({
   return (
     <Box
       style={{
-        width: 280,
+        width: isMobile ? '100%' : 280,
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        borderRight: '1px solid var(--mantine-color-dark-4)',
+        borderRight: isMobile ? 'none' : '1px solid var(--mantine-color-dark-4)',
         backgroundColor: 'var(--mantine-color-dark-7)',
       }}
     >
@@ -232,13 +236,18 @@ export function WorkoutLibrarySidebar({
                 <Collapse in={isExpanded}>
                   <Stack gap="xs" mt="xs" ml="sm">
                     {workouts.map((workout) => (
-                      <WorkoutCard
+                      <Box
                         key={workout.id}
-                        workout={workout}
-                        source="library"
-                        onDragStart={handleDragStart}
-                        onDragEnd={onDragEnd}
-                      />
+                        onClick={isMobile && onWorkoutTap ? () => onWorkoutTap(workout.id) : undefined}
+                        style={isMobile ? { cursor: 'pointer' } : undefined}
+                      >
+                        <WorkoutCard
+                          workout={workout}
+                          source="library"
+                          onDragStart={isMobile ? undefined : handleDragStart}
+                          onDragEnd={isMobile ? undefined : onDragEnd}
+                        />
+                      </Box>
                     ))}
                   </Stack>
                 </Collapse>
