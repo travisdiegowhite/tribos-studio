@@ -24,6 +24,20 @@ interface TwoWeekCalendarProps {
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+// Helper to format date as YYYY-MM-DD in local timezone
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Helper to parse YYYY-MM-DD string as local date (not UTC)
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
 export function TwoWeekCalendar({
   startDate,
   workouts,
@@ -47,23 +61,30 @@ export function TwoWeekCalendar({
       isPast: boolean;
     }> = [];
 
-    const start = new Date(startDate);
+    // Parse startDate as local date (not UTC)
+    const start = parseLocalDate(startDate);
+
+    // Get today's date at midnight local time
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const todayStr = formatLocalDate(today);
 
     for (let i = 0; i < 14; i++) {
       const date = new Date(start);
       date.setDate(start.getDate() + i);
 
-      // Adjust for week starting on Monday
-      const dayIndex = (date.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
+      // Get day index (0=Monday, 6=Sunday for our display)
+      const dayIndex = (date.getDay() + 6) % 7;
+
+      // Format as local date string
+      const dateStr = formatLocalDate(date);
 
       result.push({
-        date: date.toISOString().split('T')[0],
+        date: dateStr,
         dayOfWeek: DAY_NAMES[dayIndex],
         dayNumber: date.getDate(),
         monthName: date.toLocaleDateString('en-US', { month: 'short' }),
-        isToday: date.getTime() === today.getTime(),
+        isToday: dateStr === todayStr,
         isPast: date < today,
       });
     }
@@ -103,8 +124,8 @@ export function TwoWeekCalendar({
 
   // Format date range for header
   const dateRange = useMemo(() => {
-    const start = new Date(startDate);
-    const end = new Date(startDate);
+    const start = parseLocalDate(startDate);
+    const end = new Date(start);
     end.setDate(end.getDate() + 13);
 
     const startMonth = start.toLocaleDateString('en-US', { month: 'short' });
