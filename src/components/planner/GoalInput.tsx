@@ -126,26 +126,47 @@ export function GoalInput({
   const [freeformDate, setFreeformDate] = useState('');
   const [freeformPriority, setFreeformPriority] = useState<'A' | 'B' | 'C'>('A');
 
-  // Handle template selection
-  const handleTemplateSelect = useCallback(
-    (template: GoalTemplate) => {
-      // Calculate target date based on suggested duration
-      const targetDate = new Date();
-      targetDate.setDate(targetDate.getDate() + template.suggestedDuration * 7);
+  // State for template customization
+  const [selectedTemplate, setSelectedTemplate] = useState<GoalTemplate | null>(null);
+  const [templateDate, setTemplateDate] = useState('');
+  const [templatePriority, setTemplatePriority] = useState<'A' | 'B' | 'C'>('A');
 
-      onAddGoal({
-        type: 'template',
-        templateId: template.id,
-        name: template.name,
-        description: template.description,
-        targetDate: targetDate.toISOString().split('T')[0],
-        priority: 'A',
-      });
+  // Handle template selection - show customization form
+  const handleTemplateClick = useCallback((template: GoalTemplate) => {
+    // Calculate default target date based on suggested duration
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + template.suggestedDuration * 7);
 
-      setIsExpanded(false);
-    },
-    [onAddGoal]
-  );
+    setSelectedTemplate(template);
+    setTemplateDate(targetDate.toISOString().split('T')[0]);
+    setTemplatePriority('A');
+  }, []);
+
+  // Confirm template selection with custom date
+  const handleTemplateConfirm = useCallback(() => {
+    if (!selectedTemplate) return;
+
+    onAddGoal({
+      type: 'template',
+      templateId: selectedTemplate.id,
+      name: selectedTemplate.name,
+      description: selectedTemplate.description,
+      targetDate: templateDate || undefined,
+      priority: templatePriority,
+    });
+
+    setSelectedTemplate(null);
+    setTemplateDate('');
+    setTemplatePriority('A');
+    setIsExpanded(false);
+  }, [selectedTemplate, templateDate, templatePriority, onAddGoal]);
+
+  // Cancel template selection
+  const handleTemplateCancel = useCallback(() => {
+    setSelectedTemplate(null);
+    setTemplateDate('');
+    setTemplatePriority('A');
+  }, []);
 
   // Handle freeform submission
   const handleFreeformSubmit = useCallback(() => {
@@ -291,7 +312,7 @@ export function GoalInput({
           )}
 
           {/* Template Selection */}
-          {!showFreeform && (
+          {!showFreeform && !selectedTemplate && (
             <>
               <Text size="xs" c="dimmed" mb="xs">
                 Choose a goal template or create your own:
@@ -307,7 +328,7 @@ export function GoalInput({
                   >
                     <Paper
                       p="xs"
-                      onClick={() => handleTemplateSelect(template)}
+                      onClick={() => handleTemplateClick(template)}
                       style={{
                         backgroundColor: 'var(--mantine-color-dark-6)',
                         border: '1px solid var(--mantine-color-dark-4)',
@@ -350,6 +371,69 @@ export function GoalInput({
                 Create Custom Goal
               </Button>
             </>
+          )}
+
+          {/* Template Customization Form */}
+          {selectedTemplate && (
+            <Paper
+              p="sm"
+              style={{
+                backgroundColor: 'var(--mantine-color-dark-6)',
+                border: `2px solid var(--mantine-color-${selectedTemplate.color}-6)`,
+              }}
+            >
+              <Group gap="xs" mb="sm">
+                <Box c={selectedTemplate.color}>{selectedTemplate.icon}</Box>
+                <Box>
+                  <Text size="sm" fw={600}>
+                    {selectedTemplate.name}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {selectedTemplate.description}
+                  </Text>
+                </Box>
+              </Group>
+
+              <Stack gap="xs">
+                <Box>
+                  <Text size="xs" c="dimmed" mb={4}>
+                    Target Date (default: ~{selectedTemplate.suggestedDuration} weeks from now)
+                  </Text>
+                  <TextInput
+                    type="date"
+                    value={templateDate}
+                    onChange={(e) => setTemplateDate(e.target.value)}
+                    size="sm"
+                    leftSection={<IconCalendar size={14} />}
+                  />
+                </Box>
+
+                <Select
+                  label="Priority"
+                  data={[
+                    { value: 'A', label: 'A - Primary Goal' },
+                    { value: 'B', label: 'B - Secondary Goal' },
+                    { value: 'C', label: 'C - Tertiary Goal' },
+                  ]}
+                  value={templatePriority}
+                  onChange={(v) => setTemplatePriority(v as 'A' | 'B' | 'C')}
+                  size="sm"
+                />
+
+                <Group justify="flex-end" gap="xs" mt="xs">
+                  <Button variant="subtle" size="xs" onClick={handleTemplateCancel}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="xs"
+                    color={selectedTemplate.color}
+                    onClick={handleTemplateConfirm}
+                  >
+                    Add Goal
+                  </Button>
+                </Group>
+              </Stack>
+            </Paper>
           )}
 
           {/* Freeform Input */}
