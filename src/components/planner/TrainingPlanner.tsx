@@ -113,7 +113,15 @@ export function TrainingPlanner({
 
   // Convert activities array to record keyed by date (using local timezone)
   const activitiesByDate = useMemo(() => {
-    const result: Record<string, { id: string; tss: number | null; duration_seconds: number }> = {};
+    const result: Record<string, {
+      id: string;
+      name?: string;
+      type?: string;
+      tss: number | null;
+      duration_seconds: number;
+      distance?: number | null;
+      trainer?: boolean;
+    }> = {};
 
     // Debug logging in development
     if (process.env.NODE_ENV === 'development' && activities.length > 0) {
@@ -138,8 +146,12 @@ export function TrainingPlanner({
       if (!result[date] || (tss || 0) > (result[date].tss || 0)) {
         result[date] = {
           id: activity.id,
+          name: activity.name,
+          type: activity.type,
           tss,
           duration_seconds: duration,
+          distance: activity.distance,
+          trainer: activity.trainer,
         };
       }
     }

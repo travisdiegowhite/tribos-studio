@@ -12,7 +12,15 @@ import type { PlannerWorkout } from '../../types/planner';
 interface TwoWeekCalendarProps {
   startDate: string;
   workouts: Record<string, PlannerWorkout>;
-  activities?: Record<string, { id: string; tss: number | null; duration_seconds: number }>;
+  activities?: Record<string, {
+    id: string;
+    name?: string;
+    type?: string;
+    tss: number | null;
+    duration_seconds: number;
+    distance?: number | null;
+    trainer?: boolean;
+  }>;
   dropTargetDate: string | null;
   onDrop: (date: string) => void;
   onDragOver: (date: string) => void;
