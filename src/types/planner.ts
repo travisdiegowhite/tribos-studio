@@ -231,10 +231,15 @@ export interface TrainingPlannerProps {
   activities?: Array<{
     id: string;
     start_date: string;
-    tss: number | null;
-    duration_seconds: number;
+    start_date_local?: string;
+    moving_time?: number | null;
+    duration_seconds?: number;
+    average_watts?: number | null;
+    distance?: number | null;
+    total_elevation_gain?: number | null;
+    tss?: number | null; // May not exist - calculated on the fly
   }>;
-  ftp?: number;
+  ftp?: number | null;
   onPlanUpdated?: () => void;
 }
 
