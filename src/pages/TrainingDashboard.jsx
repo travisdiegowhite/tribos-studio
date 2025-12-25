@@ -52,6 +52,7 @@ import {
   IconBrandZwift,
   IconFileExport,
   IconDeviceWatch,
+  IconEdit,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -79,6 +80,7 @@ import CriticalPowerModel from '../components/CriticalPowerModel.jsx';
 import TrainNow from '../components/TrainNow.jsx';
 import AerobicDecoupling from '../components/AerobicDecoupling.jsx';
 import AthleteBenchmarking from '../components/AthleteBenchmarking.jsx';
+import { TrainingPlanner } from '../components/planner';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
@@ -652,6 +654,9 @@ function TrainingDashboard() {
                 <Tabs.Tab value="calendar" leftSection={<IconCalendar size={16} />}>
                   Calendar
                 </Tabs.Tab>
+                <Tabs.Tab value="planner" leftSection={<IconEdit size={16} />}>
+                  Planner
+                </Tabs.Tab>
               </Tabs.List>
 
               {/* TODAY TAB */}
@@ -742,6 +747,32 @@ function TrainingDashboard() {
                   isImperial={isImperial}
                   onPlanUpdated={() => {
                     // Reload the active plan to get updated compliance stats
+                    if (user?.id) {
+                      supabase
+                        .from('training_plans')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .eq('status', 'active')
+                        .order('started_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle()
+                        .then(({ data }) => {
+                          if (data) setActivePlan(data);
+                        });
+                    }
+                  }}
+                />
+              </Tabs.Panel>
+
+              {/* PLANNER TAB */}
+              <Tabs.Panel value="planner">
+                <TrainingPlanner
+                  userId={user?.id}
+                  activePlanId={activePlan?.id}
+                  activities={activities}
+                  ftp={ftp}
+                  onPlanUpdated={() => {
+                    // Reload the active plan to get updated stats
                     if (user?.id) {
                       supabase
                         .from('training_plans')
