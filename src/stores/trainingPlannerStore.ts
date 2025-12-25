@@ -271,6 +271,7 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
             body: JSON.stringify({
               weekStart,
               plannedWorkouts: weekWorkouts,
+              goals: state.goals,
               // TODO: Add user context (FTP, CTL, ATL, TSB)
             }),
           });
