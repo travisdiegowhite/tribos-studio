@@ -89,8 +89,22 @@ export function TwoWeekCalendar({
       });
     }
 
+    // Debug logging in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[TwoWeekCalendar] Calendar date range:', result[0]?.date, 'to', result[result.length - 1]?.date);
+      const activityDates = Object.keys(activities);
+      if (activityDates.length > 0) {
+        const matchingDates = result.filter(d => activities[d.date]).map(d => d.date);
+        console.log('[TwoWeekCalendar] Activities matching calendar days:', matchingDates.length, 'of', activityDates.length);
+        if (matchingDates.length === 0 && activityDates.length > 0) {
+          console.log('[TwoWeekCalendar] Activity dates (first 5):', activityDates.slice(0, 5));
+          console.log('[TwoWeekCalendar] Calendar dates (first 5):', result.slice(0, 5).map(d => d.date));
+        }
+      }
+    }
+
     return result;
-  }, [startDate]);
+  }, [startDate, activities]);
 
   // Calculate week summaries
   const weekSummaries = useMemo(() => {
@@ -130,12 +144,18 @@ export function TwoWeekCalendar({
 
     const startMonth = start.toLocaleDateString('en-US', { month: 'short' });
     const endMonth = end.toLocaleDateString('en-US', { month: 'short' });
+    const startYear = start.getFullYear();
+    const endYear = end.getFullYear();
 
-    if (startMonth === endMonth) {
-      return `${startMonth} ${start.getDate()} - ${end.getDate()}, ${start.getFullYear()}`;
+    // Handle year boundary properly
+    if (startYear === endYear) {
+      if (startMonth === endMonth) {
+        return `${startMonth} ${start.getDate()} - ${end.getDate()}, ${startYear}`;
+      }
+      return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}, ${startYear}`;
     }
-
-    return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}, ${end.getFullYear()}`;
+    // Different years - show both
+    return `${startMonth} ${start.getDate()}, ${startYear} - ${endMonth} ${end.getDate()}, ${endYear}`;
   }, [startDate]);
 
   return (

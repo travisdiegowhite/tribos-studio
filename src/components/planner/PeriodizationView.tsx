@@ -300,6 +300,7 @@ export function PeriodizationView({
                   flexDirection: 'column',
                   justifyContent: 'flex-end',
                   gap: 2,
+                  position: 'relative',
                 }}
               >
                 {/* Planned TSS bar */}
@@ -311,18 +312,14 @@ export function PeriodizationView({
                     minHeight: week.plannedTSS > 0 ? 4 : 0,
                   }}
                 />
-                {/* Actual TSS overlay if exists */}
+                {/* Actual TSS bar shown below planned */}
                 {week.actualTSS > 0 && (
                   <Box
                     style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      height: `${Math.max(2, (week.actualTSS / maxTSS) * 100)}%`,
+                      height: `${Math.max(2, (week.actualTSS / maxTSS) * 40)}px`,
                       backgroundColor: 'var(--mantine-color-lime-6)',
                       borderRadius: 2,
-                      opacity: 0.7,
+                      marginTop: 2,
                     }}
                   />
                 )}

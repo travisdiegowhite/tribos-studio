@@ -38,18 +38,42 @@ import { getWorkoutById } from '../../data/workoutLibrary';
 import { calculateTSS, estimateTSS } from '../../utils/trainingPlans';
 import type { TrainingPlannerProps } from '../../types/planner';
 
+// Helper to format date as YYYY-MM-DD in local timezone
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Helper to extract local date string from activity
 function getLocalDateString(activity: { start_date_local?: string; start_date: string }): string {
-  // Prefer start_date_local if available (already in local timezone)
+  // Prefer start_date_local if available
   if (activity.start_date_local) {
-    return activity.start_date_local.split('T')[0];
+    // Handle various formats: ISO string, timestamp, or date-only
+    const dateStr = String(activity.start_date_local);
+    // If it contains 'T', split to get date portion
+    if (dateStr.includes('T')) {
+      return dateStr.split('T')[0];
+    }
+    // If it's just a date string already
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    // Parse as Date and format
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      return formatLocalDate(parsed);
+    }
   }
-  // Otherwise parse start_date and convert to local
+
+  // Fallback to start_date - parse as Date and get local date components
   const activityDate = new Date(activity.start_date);
-  const year = activityDate.getFullYear();
-  const month = String(activityDate.getMonth() + 1).padStart(2, '0');
-  const day = String(activityDate.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  if (isNaN(activityDate.getTime())) {
+    console.warn('Invalid activity date:', activity.start_date);
+    return '';
+  }
+  return formatLocalDate(activityDate);
 }
 
 // Helper to calculate or estimate TSS from activity
@@ -90,9 +114,21 @@ export function TrainingPlanner({
   // Convert activities array to record keyed by date (using local timezone)
   const activitiesByDate = useMemo(() => {
     const result: Record<string, { id: string; tss: number | null; duration_seconds: number }> = {};
+
+    // Debug logging in development
+    if (process.env.NODE_ENV === 'development' && activities.length > 0) {
+      console.log('[TrainingPlanner] Processing', activities.length, 'activities');
+    }
+
     for (const activity of activities) {
       // Use local date string (prefers start_date_local if available)
       const date = getLocalDateString(activity);
+
+      // Skip activities with invalid dates
+      if (!date) {
+        console.warn('[TrainingPlanner] Skipping activity with invalid date:', activity.id);
+        continue;
+      }
 
       // Calculate TSS from power data or estimate from duration/distance
       const tss = getActivityTSS(activity, ftp);
@@ -107,6 +143,15 @@ export function TrainingPlanner({
         };
       }
     }
+
+    // Debug logging in development
+    if (process.env.NODE_ENV === 'development') {
+      const dateKeys = Object.keys(result);
+      if (dateKeys.length > 0) {
+        console.log('[TrainingPlanner] activitiesByDate keys:', dateKeys.slice(0, 10), dateKeys.length > 10 ? `... (${dateKeys.length} total)` : '');
+      }
+    }
+
     return result;
   }, [activities, ftp]);
 
