@@ -20,7 +20,7 @@ import {
 } from '@mantine/core';
 import {
   IconBrain,
-  IconSave,
+  IconDeviceFloppy,
   IconRefresh,
   IconAlertCircle,
   IconCheck,
@@ -203,7 +203,7 @@ export function TrainingPlanner({
                   variant="filled"
                   size="xs"
                   color="lime"
-                  leftSection={<IconSave size={14} />}
+                  leftSection={<IconDeviceFloppy size={14} />}
                   onClick={handleSave}
                   loading={store.isSaving}
                 >
