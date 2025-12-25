@@ -4,7 +4,6 @@
  */
 
 import { create } from 'zustand';
-import { immer } from 'zustand/middleware/immer';
 import { devtools } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 import { getWorkoutById } from '../data/workoutLibrary';
@@ -93,7 +92,7 @@ const addDays = (dateStr: string, days: number): string => {
 
 export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
   devtools(
-    immer((set, get) => ({
+    (set, get) => ({
       ...getInitialState(),
 
       // ============================================================
@@ -101,22 +100,18 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
       // ============================================================
 
       setFocusedWeek: (date: string) => {
-        set((state) => {
-          state.focusedWeekStart = date;
-        });
+        set({ focusedWeekStart: date });
       },
 
       selectDate: (date: string | null) => {
-        set((state) => {
-          state.selectedDate = date;
-        });
+        set({ selectedDate: date });
       },
 
       navigateWeeks: (direction: 'prev' | 'next') => {
-        set((state) => {
-          const offset = direction === 'next' ? 14 : -14; // Move 2 weeks
-          state.focusedWeekStart = addDays(state.focusedWeekStart, offset);
-        });
+        const offset = direction === 'next' ? 14 : -14; // Move 2 weeks
+        set((state) => ({
+          focusedWeekStart: addDays(state.focusedWeekStart, offset),
+        }));
       },
 
       // ============================================================
@@ -127,24 +122,27 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
         const workout = getWorkoutById(workoutId);
         if (!workout) return;
 
-        set((state) => {
-          state.plannedWorkouts[date] = {
-            id: generateId(),
-            scheduledDate: date,
-            workoutId: workoutId,
-            workoutType: workout.category,
-            targetTSS: workout.targetTSS,
-            targetDuration: workout.duration,
-            notes: '',
-            completed: false,
-            completedAt: null,
-            activityId: null,
-            actualTSS: null,
-            actualDuration: null,
-            workout: workout,
-          };
-          state.hasUnsavedChanges = true;
-        });
+        set((state) => ({
+          plannedWorkouts: {
+            ...state.plannedWorkouts,
+            [date]: {
+              id: generateId(),
+              scheduledDate: date,
+              workoutId: workoutId,
+              workoutType: workout.category,
+              targetTSS: workout.targetTSS,
+              targetDuration: workout.duration,
+              notes: '',
+              completed: false,
+              completedAt: null,
+              activityId: null,
+              actualTSS: null,
+              actualDuration: null,
+              workout: workout,
+            },
+          },
+          hasUnsavedChanges: true,
+        }));
       },
 
       moveWorkout: (fromDate: string, toDate: string) => {
@@ -152,48 +150,51 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
 
         set((state) => {
           const workout = state.plannedWorkouts[fromDate];
-          if (!workout) return;
+          if (!workout) return state;
 
-          // Check if target date has a workout - if so, swap
           const targetWorkout = state.plannedWorkouts[toDate];
+          const newPlannedWorkouts = { ...state.plannedWorkouts };
 
           if (targetWorkout) {
             // Swap workouts
-            state.plannedWorkouts[toDate] = {
-              ...workout,
-              scheduledDate: toDate,
-            };
-            state.plannedWorkouts[fromDate] = {
-              ...targetWorkout,
-              scheduledDate: fromDate,
-            };
+            newPlannedWorkouts[toDate] = { ...workout, scheduledDate: toDate };
+            newPlannedWorkouts[fromDate] = { ...targetWorkout, scheduledDate: fromDate };
           } else {
             // Just move
-            state.plannedWorkouts[toDate] = {
-              ...workout,
-              scheduledDate: toDate,
-            };
-            delete state.plannedWorkouts[fromDate];
+            newPlannedWorkouts[toDate] = { ...workout, scheduledDate: toDate };
+            delete newPlannedWorkouts[fromDate];
           }
 
-          state.hasUnsavedChanges = true;
+          return {
+            plannedWorkouts: newPlannedWorkouts,
+            hasUnsavedChanges: true,
+          };
         });
       },
 
       removeWorkout: (date: string) => {
         set((state) => {
-          delete state.plannedWorkouts[date];
-          state.hasUnsavedChanges = true;
+          const newPlannedWorkouts = { ...state.plannedWorkouts };
+          delete newPlannedWorkouts[date];
+          return {
+            plannedWorkouts: newPlannedWorkouts,
+            hasUnsavedChanges: true,
+          };
         });
       },
 
       updateWorkout: (date: string, updates: Partial<PlannerWorkout>) => {
         set((state) => {
           const workout = state.plannedWorkouts[date];
-          if (workout) {
-            state.plannedWorkouts[date] = { ...workout, ...updates };
-            state.hasUnsavedChanges = true;
-          }
+          if (!workout) return state;
+
+          return {
+            plannedWorkouts: {
+              ...state.plannedWorkouts,
+              [date]: { ...workout, ...updates },
+            },
+            hasUnsavedChanges: true,
+          };
         });
       },
 
@@ -202,25 +203,23 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
       // ============================================================
 
       startDrag: (source: DragSource, workoutId: string, sourceDate?: string) => {
-        set((state) => {
-          state.draggedWorkout = {
+        set({
+          draggedWorkout: {
             source,
             workoutId,
             sourceDate,
-          };
+          },
         });
       },
 
       setDropTarget: (date: string | null) => {
-        set((state) => {
-          state.dropTargetDate = date;
-        });
+        set({ dropTargetDate: date });
       },
 
       endDrag: () => {
-        set((state) => {
-          state.draggedWorkout = null;
-          state.dropTargetDate = null;
+        set({
+          draggedWorkout: null,
+          dropTargetDate: null,
         });
       },
 
@@ -229,18 +228,18 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
       // ============================================================
 
       setSidebarFilter: (filter: Partial<SidebarFilter>) => {
-        set((state) => {
-          state.sidebarFilter = { ...state.sidebarFilter, ...filter };
-        });
+        set((state) => ({
+          sidebarFilter: { ...state.sidebarFilter, ...filter },
+        }));
       },
 
       clearSidebarFilter: () => {
-        set((state) => {
-          state.sidebarFilter = {
+        set({
+          sidebarFilter: {
             category: null,
             searchQuery: '',
             difficulty: null,
-          };
+          },
         });
       },
 
@@ -252,9 +251,7 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
         const state = get();
         if (state.isReviewingWeek) return;
 
-        set((state) => {
-          state.isReviewingWeek = true;
-        });
+        set({ isReviewingWeek: true });
 
         try {
           // Collect week data
@@ -284,30 +281,26 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
 
           const result = await response.json();
 
-          set((state) => {
-            // Add hints with generated IDs
-            state.aiHints = (result.insights || []).map((hint: Omit<AIHint, 'id' | 'dismissed'>) => ({
+          set({
+            aiHints: (result.insights || []).map((hint: Omit<AIHint, 'id' | 'dismissed'>) => ({
               ...hint,
               id: generateId(),
               dismissed: false,
-            }));
-            state.isReviewingWeek = false;
+            })),
+            isReviewingWeek: false,
           });
         } catch (error) {
           console.error('Week review failed:', error);
-          set((state) => {
-            state.isReviewingWeek = false;
-          });
+          set({ isReviewingWeek: false });
         }
       },
 
       dismissHint: (hintId: string) => {
-        set((state) => {
-          const hint = state.aiHints.find((h) => h.id === hintId);
-          if (hint) {
-            hint.dismissed = true;
-          }
-        });
+        set((state) => ({
+          aiHints: state.aiHints.map((h) =>
+            h.id === hintId ? { ...h, dismissed: true } : h
+          ),
+        }));
       },
 
       applyHint: (hintId: string) => {
@@ -318,20 +311,18 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
           // Apply the suggestion
           get().addWorkoutToDate(hint.targetDate, hint.suggestedWorkoutId);
 
-          set((state) => {
-            const hintToUpdate = state.aiHints.find((h) => h.id === hintId);
-            if (hintToUpdate) {
-              hintToUpdate.appliedAt = new Date().toISOString();
-              hintToUpdate.dismissed = true;
-            }
-          });
+          set((state) => ({
+            aiHints: state.aiHints.map((h) =>
+              h.id === hintId
+                ? { ...h, appliedAt: new Date().toISOString(), dismissed: true }
+                : h
+            ),
+          }));
         }
       },
 
       clearHints: () => {
-        set((state) => {
-          state.aiHints = [];
-        });
+        set({ aiHints: [] });
       },
 
       // ============================================================
@@ -339,31 +330,33 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
       // ============================================================
 
       addGoal: (goal: Omit<PlannerGoal, 'id' | 'createdAt'>) => {
-        set((state) => {
-          state.goals.push({
-            ...goal,
-            id: generateId(),
-            createdAt: new Date().toISOString(),
-          });
-          state.hasUnsavedChanges = true;
-        });
+        set((state) => ({
+          goals: [
+            ...state.goals,
+            {
+              ...goal,
+              id: generateId(),
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          hasUnsavedChanges: true,
+        }));
       },
 
       updateGoal: (id: string, updates: Partial<PlannerGoal>) => {
-        set((state) => {
-          const goal = state.goals.find((g) => g.id === id);
-          if (goal) {
-            Object.assign(goal, updates);
-            state.hasUnsavedChanges = true;
-          }
-        });
+        set((state) => ({
+          goals: state.goals.map((g) =>
+            g.id === id ? { ...g, ...updates } : g
+          ),
+          hasUnsavedChanges: true,
+        }));
       },
 
       removeGoal: (id: string) => {
-        set((state) => {
-          state.goals = state.goals.filter((g) => g.id !== id);
-          state.hasUnsavedChanges = true;
-        });
+        set((state) => ({
+          goals: state.goals.filter((g) => g.id !== id),
+          hasUnsavedChanges: true,
+        }));
       },
 
       // ============================================================
@@ -371,10 +364,7 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
       // ============================================================
 
       loadPlan: async (planId: string) => {
-        set((state) => {
-          state.isLoading = true;
-          state.activePlanId = planId;
-        });
+        set({ isLoading: true, activePlanId: planId });
 
         try {
           // Load plan details
@@ -417,18 +407,16 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
             };
           }
 
-          set((state) => {
-            state.planStartDate = plan.started_at?.split('T')[0] || null;
-            state.planDurationWeeks = plan.duration_weeks || 0;
-            state.plannedWorkouts = workoutsMap;
-            state.isLoading = false;
-            state.hasUnsavedChanges = false;
+          set({
+            planStartDate: plan.started_at?.split('T')[0] || null,
+            planDurationWeeks: plan.duration_weeks || 0,
+            plannedWorkouts: workoutsMap,
+            isLoading: false,
+            hasUnsavedChanges: false,
           });
         } catch (error) {
           console.error('Failed to load plan:', error);
-          set((state) => {
-            state.isLoading = false;
-          });
+          set({ isLoading: false });
         }
       },
 
@@ -446,27 +434,30 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
 
           if (error) throw error;
 
-          set((state) => {
-            for (const w of workouts || []) {
-              if (w.workout_type === 'rest') continue;
+          const newWorkouts: Record<string, PlannerWorkout> = {};
+          for (const w of workouts || []) {
+            if (w.workout_type === 'rest') continue;
 
-              state.plannedWorkouts[w.scheduled_date] = {
-                id: w.id,
-                scheduledDate: w.scheduled_date,
-                workoutId: w.workout_id,
-                workoutType: w.workout_type,
-                targetTSS: w.target_tss || 0,
-                targetDuration: w.target_duration || 0,
-                notes: w.notes || '',
-                completed: w.completed || false,
-                completedAt: w.completed_at,
-                activityId: w.activity_id,
-                actualTSS: w.actual_tss,
-                actualDuration: w.actual_duration,
-                workout: w.workout_id ? getWorkoutById(w.workout_id) : undefined,
-              };
-            }
-          });
+            newWorkouts[w.scheduled_date] = {
+              id: w.id,
+              scheduledDate: w.scheduled_date,
+              workoutId: w.workout_id,
+              workoutType: w.workout_type,
+              targetTSS: w.target_tss || 0,
+              targetDuration: w.target_duration || 0,
+              notes: w.notes || '',
+              completed: w.completed || false,
+              completedAt: w.completed_at,
+              activityId: w.activity_id,
+              actualTSS: w.actual_tss,
+              actualDuration: w.actual_duration,
+              workout: w.workout_id ? getWorkoutById(w.workout_id) : undefined,
+            };
+          }
+
+          set((state) => ({
+            plannedWorkouts: { ...state.plannedWorkouts, ...newWorkouts },
+          }));
         } catch (error) {
           console.error('Failed to load workouts for date range:', error);
         }
@@ -476,9 +467,7 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
         const state = get();
         if (!state.hasUnsavedChanges || !state.activePlanId) return;
 
-        set((state) => {
-          state.isSaving = true;
-        });
+        set({ isSaving: true });
 
         try {
           // Get all workouts that need saving
@@ -516,15 +505,10 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
             }
           }
 
-          set((state) => {
-            state.isSaving = false;
-            state.hasUnsavedChanges = false;
-          });
+          set({ isSaving: false, hasUnsavedChanges: false });
         } catch (error) {
           console.error('Failed to save changes:', error);
-          set((state) => {
-            state.isSaving = false;
-          });
+          set({ isSaving: false });
         }
       },
 
@@ -550,12 +534,12 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
           workoutsMap[w.scheduledDate] = w;
         }
 
-        set((state) => {
-          state.activePlanId = planId;
-          state.planStartDate = startDate;
-          state.planDurationWeeks = durationWeeks;
-          state.plannedWorkouts = workoutsMap;
-          state.hasUnsavedChanges = false;
+        set({
+          activePlanId: planId,
+          planStartDate: startDate,
+          planDurationWeeks: durationWeeks,
+          plannedWorkouts: workoutsMap,
+          hasUnsavedChanges: false,
         });
       },
 
@@ -566,7 +550,7 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
       reset: () => {
         set(getInitialState());
       },
-    })),
+    }),
     { name: 'training-planner' }
   )
 );
