@@ -46,11 +46,17 @@ export function TrainingPlanner({
 }: TrainingPlannerProps) {
   const store = useTrainingPlannerStore();
 
-  // Convert activities array to record keyed by date
+  // Convert activities array to record keyed by date (using local timezone)
   const activitiesByDate = useMemo(() => {
     const result: Record<string, { id: string; tss: number | null; duration_seconds: number }> = {};
     for (const activity of activities) {
-      const date = activity.start_date.split('T')[0];
+      // Parse the date and extract local date (fixes timezone issues)
+      const activityDate = new Date(activity.start_date);
+      const year = activityDate.getFullYear();
+      const month = String(activityDate.getMonth() + 1).padStart(2, '0');
+      const day = String(activityDate.getDate()).padStart(2, '0');
+      const date = `${year}-${month}-${day}`;
+
       // Take the activity with highest TSS for the day
       if (!result[date] || (activity.tss || 0) > (result[date].tss || 0)) {
         result[date] = {
