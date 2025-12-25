@@ -31,6 +31,7 @@ import {
 } from '@tabler/icons-react';
 import { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 import { TwoWeekCalendar } from './TwoWeekCalendar';
+import { PeriodizationView } from './PeriodizationView';
 import { useTrainingPlannerStore } from '../../stores/trainingPlannerStore';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import type { TrainingPlannerProps } from '../../types/planner';
@@ -121,6 +122,14 @@ export function TrainingPlanner({
     await store.savePendingChanges();
     onPlanUpdated?.();
   }, [store, onPlanUpdated]);
+
+  // Handle week click from periodization view
+  const handleWeekClick = useCallback(
+    (weekStart: string) => {
+      store.setFocusedWeek(weekStart);
+    },
+    [store]
+  );
 
   // Filter out dismissed hints
   const activeHints = useMemo(() => {
@@ -216,7 +225,19 @@ export function TrainingPlanner({
 
         {/* Calendar Area */}
         <Box style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-          <TwoWeekCalendar
+          {/* Long-range Periodization View */}
+          <PeriodizationView
+            planStartDate={store.planStartDate}
+            planDurationWeeks={store.planDurationWeeks}
+            focusedWeekStart={store.focusedWeekStart}
+            plannedWorkouts={store.plannedWorkouts}
+            activities={activitiesByDate}
+            onWeekClick={handleWeekClick}
+          />
+
+          {/* Two-week Detail View */}
+          <Box mt="md">
+            <TwoWeekCalendar
             startDate={store.focusedWeekStart}
             workouts={store.plannedWorkouts}
             activities={activitiesByDate}
@@ -227,7 +248,8 @@ export function TrainingPlanner({
             onRemoveWorkout={store.removeWorkout}
             onDateClick={store.selectDate}
             onNavigate={store.navigateWeeks}
-          />
+            />
+          </Box>
         </Box>
 
         {/* AI Hints Panel */}
