@@ -230,6 +230,8 @@ export interface TrainingPlannerProps {
   activePlanId?: string;
   activities?: Array<{
     id: string;
+    name?: string;
+    type?: string;
     start_date: string;
     start_date_local?: string;
     moving_time?: number | null;
@@ -238,6 +240,7 @@ export interface TrainingPlannerProps {
     distance?: number | null;
     total_elevation_gain?: number | null;
     tss?: number | null; // May not exist - calculated on the fly
+    trainer?: boolean;
   }>;
   ftp?: number | null;
   onPlanUpdated?: () => void;
@@ -259,8 +262,12 @@ export interface CalendarDayCellProps {
   plannedWorkout: PlannerWorkout | null;
   actualActivity?: {
     id: string;
+    name?: string;
+    type?: string;
     tss: number | null;
     duration_seconds: number;
+    distance?: number | null;
+    trainer?: boolean;
   };
   isToday: boolean;
   isDropTarget: boolean;
@@ -279,7 +286,15 @@ export interface WorkoutLibrarySidebarProps {
 export interface TwoWeekCalendarProps {
   startDate: string;
   workouts: Record<string, PlannerWorkout>;
-  activities?: Record<string, { id: string; tss: number | null; duration_seconds: number }>;
+  activities?: Record<string, {
+    id: string;
+    name?: string;
+    type?: string;
+    tss: number | null;
+    duration_seconds: number;
+    distance?: number | null;
+    trainer?: boolean;
+  }>;
   dropTargetDate: string | null;
   onDrop: (date: string) => void;
   onRemoveWorkout: (date: string) => void;

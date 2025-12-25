@@ -4,7 +4,7 @@
  */
 
 import { Box, Text, ActionIcon, Group, Tooltip, Badge, Progress, Stack } from '@mantine/core';
-import { IconX, IconCheck, IconPlus, IconArrowUp, IconArrowDown, IconMinus } from '@tabler/icons-react';
+import { IconX, IconCheck, IconPlus, IconArrowUp, IconArrowDown, IconMinus, IconBike, IconHome } from '@tabler/icons-react';
 import { WorkoutCard } from './WorkoutCard';
 import type { PlannerWorkout } from '../../types/planner';
 
@@ -15,8 +15,12 @@ interface CalendarDayCellProps {
   plannedWorkout: PlannerWorkout | null;
   actualActivity?: {
     id: string;
+    name?: string;
+    type?: string;
     tss: number | null;
     duration_seconds: number;
+    distance?: number | null;
+    trainer?: boolean;
   };
   isToday: boolean;
   isDropTarget: boolean;
@@ -26,6 +30,37 @@ interface CalendarDayCellProps {
   onDragLeave: () => void;
   onRemoveWorkout: (date: string) => void;
   onClick: (date: string) => void;
+}
+
+// Helper to format distance (in meters to km/mi)
+function formatDistance(meters: number | null | undefined): string {
+  if (!meters) return '';
+  const km = meters / 1000;
+  const mi = km * 0.621371;
+  // Use miles for now, could make configurable
+  return `${mi.toFixed(1)} mi`;
+}
+
+// Helper to get activity type display
+function getActivityTypeInfo(type?: string, trainer?: boolean): { label: string; color: string; isIndoor: boolean } {
+  const isIndoor = trainer || type === 'VirtualRide' || type?.toLowerCase().includes('indoor');
+
+  if (isIndoor) {
+    return { label: 'Indoor', color: 'grape', isIndoor: true };
+  }
+
+  switch (type) {
+    case 'Ride':
+      return { label: 'Ride', color: 'blue', isIndoor: false };
+    case 'GravelRide':
+      return { label: 'Gravel', color: 'orange', isIndoor: false };
+    case 'MountainBikeRide':
+      return { label: 'MTB', color: 'teal', isIndoor: false };
+    case 'EBikeRide':
+      return { label: 'E-Bike', color: 'cyan', isIndoor: false };
+    default:
+      return { label: type || 'Activity', color: 'blue', isIndoor: false };
+  }
 }
 
 export function CalendarDayCell({
@@ -315,42 +350,70 @@ export function CalendarDayCell({
       )}
 
       {/* Activity without planned workout - unplanned workout */}
-      {actualActivity && !plannedWorkout && (
-        <Tooltip
-          label={
-            <Stack gap={4}>
-              <Text size="xs" fw={500}>Unplanned Activity</Text>
-              <Text size="xs">TSS: {actualActivity.tss || 0}</Text>
-              {actualActivity.duration_seconds && (
-                <Text size="xs">Duration: {formatDuration(actualActivity.duration_seconds)}</Text>
-              )}
-            </Stack>
-          }
-        >
-          <Box
-            mt={4}
-            p={6}
-            style={{
-              backgroundColor: 'rgba(59, 130, 246, 0.15)',
-              borderRadius: 4,
-              borderLeft: '3px solid var(--mantine-color-blue-5)',
-            }}
+      {actualActivity && !plannedWorkout && (() => {
+        const typeInfo = getActivityTypeInfo(actualActivity.type, actualActivity.trainer);
+        const activityName = actualActivity.name || 'Activity';
+        const truncatedName = activityName.length > 20 ? activityName.slice(0, 18) + '...' : activityName;
+
+        return (
+          <Tooltip
+            label={
+              <Stack gap={4}>
+                <Text size="xs" fw={500}>{activityName}</Text>
+                <Group gap="xs">
+                  <Badge size="xs" color={typeInfo.color} variant="light">
+                    {typeInfo.isIndoor ? <IconHome size={10} style={{ marginRight: 2 }} /> : <IconBike size={10} style={{ marginRight: 2 }} />}
+                    {typeInfo.label}
+                  </Badge>
+                </Group>
+                <Text size="xs">TSS: {actualActivity.tss || 0}</Text>
+                {actualActivity.duration_seconds && (
+                  <Text size="xs">Duration: {formatDuration(actualActivity.duration_seconds)}</Text>
+                )}
+                {actualActivity.distance && (
+                  <Text size="xs">Distance: {formatDistance(actualActivity.distance)}</Text>
+                )}
+              </Stack>
+            }
           >
-            <Group gap={4}>
-              <IconPlus size={12} color="var(--mantine-color-blue-5)" />
-              <Text size="xs" c="blue.4">Unplanned</Text>
-            </Group>
-            <Text size="sm" fw={500} c="blue.3" mt={2}>
-              {actualActivity.tss || 0} TSS
-            </Text>
-            {actualActivity.duration_seconds && (
-              <Text size="xs" c="dimmed">
-                {formatDuration(actualActivity.duration_seconds)}
-              </Text>
-            )}
-          </Box>
-        </Tooltip>
-      )}
+            <Box
+              mt={4}
+              p={6}
+              style={{
+                backgroundColor: `rgba(${typeInfo.isIndoor ? '139, 92, 246' : '59, 130, 246'}, 0.15)`,
+                borderRadius: 4,
+                borderLeft: `3px solid var(--mantine-color-${typeInfo.color}-5)`,
+              }}
+            >
+              <Group gap={4} wrap="nowrap">
+                {typeInfo.isIndoor ? (
+                  <IconHome size={12} color={`var(--mantine-color-${typeInfo.color}-5)`} />
+                ) : (
+                  <IconBike size={12} color={`var(--mantine-color-${typeInfo.color}-5)`} />
+                )}
+                <Text size="xs" c={`${typeInfo.color}.4`} lineClamp={1} style={{ flex: 1 }}>
+                  {truncatedName}
+                </Text>
+              </Group>
+              <Group gap={8} mt={4}>
+                <Text size="sm" fw={500} c={`${typeInfo.color}.3`}>
+                  {actualActivity.tss || 0} TSS
+                </Text>
+                {actualActivity.distance && (
+                  <Text size="xs" c="dimmed">
+                    {formatDistance(actualActivity.distance)}
+                  </Text>
+                )}
+              </Group>
+              {actualActivity.duration_seconds && (
+                <Text size="xs" c="dimmed">
+                  {formatDuration(actualActivity.duration_seconds)}
+                </Text>
+              )}
+            </Box>
+          </Tooltip>
+        );
+      })()}
     </Box>
   );
 }
