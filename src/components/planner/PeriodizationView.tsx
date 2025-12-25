@@ -84,30 +84,48 @@ function calculatePhase(
 }
 
 /**
- * Get Monday of the week containing a date
+ * Format date as YYYY-MM-DD in local timezone
  */
-function getWeekStart(dateStr: string): string {
-  const date = new Date(dateStr);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  date.setDate(diff);
-  return date.toISOString().split('T')[0];
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**
- * Add days to a date string
+ * Parse YYYY-MM-DD string as local date (not UTC)
+ */
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/**
+ * Get Monday of the week containing a date (local timezone)
+ */
+function getWeekStart(dateStr: string): string {
+  const date = parseLocalDate(dateStr);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setDate(diff);
+  return formatLocalDate(date);
+}
+
+/**
+ * Add days to a date string (local timezone)
  */
 function addDays(dateStr: string, days: number): string {
-  const date = new Date(dateStr);
+  const date = parseLocalDate(dateStr);
   date.setDate(date.getDate() + days);
-  return date.toISOString().split('T')[0];
+  return formatLocalDate(date);
 }
 
 /**
  * Format date for display
  */
 function formatWeekLabel(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = parseLocalDate(dateStr);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
@@ -119,9 +137,9 @@ export function PeriodizationView({
   activities = {},
   onWeekClick,
 }: PeriodizationViewProps) {
-  // Calculate current week
+  // Calculate current week (using local timezone)
   const currentWeekStart = useMemo(() => {
-    return getWeekStart(new Date().toISOString().split('T')[0]);
+    return getWeekStart(formatLocalDate(new Date()));
   }, []);
 
   // Generate week summaries

@@ -22,12 +22,18 @@ import type {
 // ============================================================
 
 const getInitialState = (): TrainingPlannerState => {
-  // Default to start of current week (Monday)
+  // Default to start of current week (Monday) using LOCAL timezone
   const today = new Date();
   const dayOfWeek = today.getDay();
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const monday = new Date(today);
   monday.setDate(today.getDate() + mondayOffset);
+
+  // Format as local date (YYYY-MM-DD)
+  const year = monday.getFullYear();
+  const month = String(monday.getMonth() + 1).padStart(2, '0');
+  const day = String(monday.getDate()).padStart(2, '0');
+  const mondayStr = `${year}-${month}-${day}`;
 
   return {
     activePlanId: null,
@@ -35,7 +41,7 @@ const getInitialState = (): TrainingPlannerState => {
     planDurationWeeks: 0,
     currentPhase: 'base',
 
-    focusedWeekStart: monday.toISOString().split('T')[0],
+    focusedWeekStart: mondayStr,
     selectedDate: null,
 
     plannedWorkouts: {},
@@ -71,19 +77,30 @@ const generateId = (): string => {
 };
 
 /**
- * Get date string in YYYY-MM-DD format
+ * Get date string in YYYY-MM-DD format using LOCAL timezone
  */
-const formatDateString = (date: Date): string => {
-  return date.toISOString().split('T')[0];
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 /**
- * Add days to a date string
+ * Parse YYYY-MM-DD string as LOCAL date (not UTC)
+ */
+const parseLocalDate = (dateStr: string): Date => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+/**
+ * Add days to a date string (using local timezone)
  */
 const addDays = (dateStr: string, days: number): string => {
-  const date = new Date(dateStr);
+  const date = parseLocalDate(dateStr);
   date.setDate(date.getDate() + days);
-  return formatDateString(date);
+  return formatLocalDate(date);
 };
 
 // ============================================================
