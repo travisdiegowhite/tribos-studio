@@ -8,3 +8,4 @@ export { TwoWeekCalendar } from './TwoWeekCalendar';
 export { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 export { CalendarDayCell } from './CalendarDayCell';
 export { WorkoutCard } from './WorkoutCard';
+export { PeriodizationView } from './PeriodizationView';
