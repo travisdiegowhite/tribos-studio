@@ -43,18 +43,31 @@ export function CalendarDayCell({
   onRemoveWorkout,
   onClick,
 }: CalendarDayCellProps) {
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    e.stopPropagation();
     onDragOver(date);
   };
 
-  const handleDragLeave = () => {
-    onDragLeave();
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    // Only trigger leave if we're actually leaving the cell, not entering a child
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    const currentTarget = e.currentTarget as HTMLElement;
+    if (!currentTarget.contains(relatedTarget)) {
+      onDragLeave();
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     onDrop(date);
   };
 
@@ -71,6 +84,7 @@ export function CalendarDayCell({
 
   return (
     <Box
+      onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -80,19 +94,20 @@ export function CalendarDayCell({
         padding: 8,
         borderRadius: 8,
         border: isDropTarget
-          ? '2px dashed var(--mantine-color-lime-5)'
+          ? '2px dashed var(--mantine-color-lime-4)'
           : isToday
           ? '2px solid var(--mantine-color-lime-6)'
           : '1px solid var(--mantine-color-dark-4)',
         backgroundColor: isDropTarget
-          ? 'var(--mantine-color-lime-9)'
+          ? 'rgba(163, 230, 53, 0.15)'
           : isPast
           ? 'var(--mantine-color-dark-7)'
           : 'var(--mantine-color-dark-6)',
         opacity: isPast ? 0.7 : 1,
         cursor: 'pointer',
-        transition: 'all 0.15s ease',
+        transition: 'all 0.1s ease',
         position: 'relative',
+        boxShadow: isDropTarget ? '0 0 0 2px var(--mantine-color-lime-5)' : 'none',
       }}
     >
       {/* Date Header */}
