@@ -3,7 +3,7 @@
  * Main container for the drag-and-drop training planner
  */
 
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, useState } from 'react';
 import {
   Box,
   Group,
@@ -17,7 +17,12 @@ import {
   Divider,
   ActionIcon,
   Tooltip,
+  Drawer,
+  Affix,
+  Transition,
+  Menu,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import {
   IconBrain,
   IconDeviceFloppy,
@@ -28,6 +33,8 @@ import {
   IconBulb,
   IconAlertTriangle,
   IconThumbUp,
+  IconBarbell,
+  IconDotsVertical,
 } from '@tabler/icons-react';
 import { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 import { TwoWeekCalendar } from './TwoWeekCalendar';
@@ -110,6 +117,16 @@ export function TrainingPlanner({
   onPlanUpdated,
 }: TrainingPlannerProps) {
   const store = useTrainingPlannerStore();
+
+  // Mobile detection
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const isTablet = useMediaQuery('(max-width: 1024px)');
+
+  // Mobile sidebar drawer state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Selected workout for tap-to-assign on mobile
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(null);
 
   // Convert activities array to record keyed by date (using local timezone)
   const activitiesByDate = useMemo(() => {
@@ -236,6 +253,27 @@ export function TrainingPlanner({
     [store]
   );
 
+  // Handle workout selection for mobile tap-to-assign
+  const handleWorkoutSelect = useCallback((workoutId: string) => {
+    setSelectedWorkoutId(workoutId);
+    setSidebarOpen(false); // Close drawer after selection
+  }, []);
+
+  // Handle date tap for mobile tap-to-assign
+  const handleDateTap = useCallback((date: string) => {
+    if (selectedWorkoutId) {
+      store.addWorkoutToDate(date, selectedWorkoutId);
+      setSelectedWorkoutId(null); // Clear selection after assignment
+    } else {
+      store.selectDate(date);
+    }
+  }, [selectedWorkoutId, store]);
+
+  // Cancel workout selection
+  const handleCancelSelection = useCallback(() => {
+    setSelectedWorkoutId(null);
+  }, []);
+
   // Filter out dismissed hints
   const activeHints = useMemo(() => {
     return store.aiHints.filter((h) => !h.dismissed);
@@ -260,17 +298,43 @@ export function TrainingPlanner({
     <Box
       style={{
         display: 'flex',
-        height: 'calc(100vh - 200px)',
-        minHeight: 600,
+        flexDirection: isMobile ? 'column' : 'row',
+        height: isMobile ? 'auto' : 'calc(100vh - 200px)',
+        minHeight: isMobile ? 'auto' : 600,
       }}
     >
-      {/* Workout Library Sidebar */}
-      <WorkoutLibrarySidebar
-        filter={store.sidebarFilter}
-        onFilterChange={store.setSidebarFilter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      />
+      {/* Workout Library Sidebar - Desktop */}
+      {!isMobile && (
+        <WorkoutLibrarySidebar
+          filter={store.sidebarFilter}
+          onFilterChange={store.setSidebarFilter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        />
+      )}
+
+      {/* Workout Library Drawer - Mobile */}
+      <Drawer
+        opened={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        title="Workout Library"
+        position="bottom"
+        size="85%"
+        styles={{
+          body: { padding: 0, height: '100%' },
+          content: { backgroundColor: 'var(--mantine-color-dark-7)' },
+          header: { backgroundColor: 'var(--mantine-color-dark-7)' },
+        }}
+      >
+        <WorkoutLibrarySidebar
+          filter={store.sidebarFilter}
+          onFilterChange={store.setSidebarFilter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onWorkoutTap={handleWorkoutSelect}
+          isMobile
+        />
+      </Drawer>
 
       {/* Main Content Area */}
       <Box style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -279,52 +343,94 @@ export function TrainingPlanner({
           p="sm"
           style={{ borderBottom: '1px solid var(--mantine-color-dark-4)' }}
         >
-          <Group justify="space-between">
-            <Group gap="xs">
-              <Text size="lg" fw={600}>
-                Training Planner
-              </Text>
+          <Group justify="space-between" wrap="nowrap">
+            <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+              {!isMobile && (
+                <Text size="lg" fw={600}>
+                  Training Planner
+                </Text>
+              )}
               {store.hasUnsavedChanges && (
                 <Badge color="yellow" variant="light" size="sm">
-                  Unsaved changes
+                  {isMobile ? 'Unsaved' : 'Unsaved changes'}
                 </Badge>
               )}
             </Group>
 
-            <Group gap="xs">
-              <Button
-                variant="subtle"
-                size="xs"
-                leftSection={<IconRefresh size={14} />}
-                onClick={() => store.syncWithDatabase()}
-              >
-                Refresh
-              </Button>
-
-              <Button
-                variant="light"
-                size="xs"
-                color="lime"
-                leftSection={<IconBrain size={14} />}
-                onClick={handleWeekReview}
-                loading={store.isReviewingWeek}
-              >
-                Review My Week
-              </Button>
-
-              {store.hasUnsavedChanges && (
+            {/* Desktop actions */}
+            {!isMobile && (
+              <Group gap="xs">
                 <Button
-                  variant="filled"
+                  variant="subtle"
+                  size="xs"
+                  leftSection={<IconRefresh size={14} />}
+                  onClick={() => store.syncWithDatabase()}
+                >
+                  Refresh
+                </Button>
+
+                <Button
+                  variant="light"
                   size="xs"
                   color="lime"
-                  leftSection={<IconDeviceFloppy size={14} />}
-                  onClick={handleSave}
-                  loading={store.isSaving}
+                  leftSection={<IconBrain size={14} />}
+                  onClick={handleWeekReview}
+                  loading={store.isReviewingWeek}
                 >
-                  Save Changes
+                  Review My Week
                 </Button>
-              )}
-            </Group>
+
+                {store.hasUnsavedChanges && (
+                  <Button
+                    variant="filled"
+                    size="xs"
+                    color="lime"
+                    leftSection={<IconDeviceFloppy size={14} />}
+                    onClick={handleSave}
+                    loading={store.isSaving}
+                  >
+                    Save Changes
+                  </Button>
+                )}
+              </Group>
+            )}
+
+            {/* Mobile actions menu */}
+            {isMobile && (
+              <Group gap={4}>
+                {store.hasUnsavedChanges && (
+                  <ActionIcon
+                    variant="filled"
+                    color="lime"
+                    onClick={handleSave}
+                    loading={store.isSaving}
+                  >
+                    <IconDeviceFloppy size={18} />
+                  </ActionIcon>
+                )}
+                <Menu shadow="md" width={200}>
+                  <Menu.Target>
+                    <ActionIcon variant="subtle">
+                      <IconDotsVertical size={18} />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      leftSection={<IconRefresh size={14} />}
+                      onClick={() => store.syncWithDatabase()}
+                    >
+                      Refresh
+                    </Menu.Item>
+                    <Menu.Item
+                      leftSection={<IconBrain size={14} />}
+                      onClick={handleWeekReview}
+                    >
+                      Review My Week
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              </Group>
+            )}
           </Group>
         </Box>
 
@@ -353,19 +459,74 @@ export function TrainingPlanner({
           {/* Two-week Detail View */}
           <Box mt="md">
             <TwoWeekCalendar
-            startDate={store.focusedWeekStart}
-            workouts={store.plannedWorkouts}
-            activities={activitiesByDate}
-            dropTargetDate={store.dropTargetDate}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onRemoveWorkout={store.removeWorkout}
-            onDateClick={store.selectDate}
-            onNavigate={store.navigateWeeks}
+              startDate={store.focusedWeekStart}
+              workouts={store.plannedWorkouts}
+              activities={activitiesByDate}
+              dropTargetDate={store.dropTargetDate}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onRemoveWorkout={store.removeWorkout}
+              onDateClick={isMobile ? handleDateTap : store.selectDate}
+              onNavigate={store.navigateWeeks}
+              isMobile={isMobile}
+              selectedWorkoutId={selectedWorkoutId}
             />
           </Box>
         </Box>
+
+        {/* Mobile FAB to open workout library */}
+        {isMobile && (
+          <Affix position={{ bottom: 20, right: 20 }}>
+            <Transition transition="slide-up" mounted>
+              {(transitionStyles) => (
+                <ActionIcon
+                  size={56}
+                  radius="xl"
+                  color="lime"
+                  variant="filled"
+                  style={transitionStyles}
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <IconBarbell size={28} />
+                </ActionIcon>
+              )}
+            </Transition>
+          </Affix>
+        )}
+
+        {/* Mobile workout selection banner */}
+        {isMobile && selectedWorkoutId && (
+          <Box
+            p="sm"
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: 'var(--mantine-color-lime-9)',
+              borderTop: '2px solid var(--mantine-color-lime-5)',
+              zIndex: 100,
+            }}
+          >
+            <Group justify="space-between">
+              <Group gap="xs">
+                <IconBarbell size={18} />
+                <Text size="sm" fw={500}>
+                  Tap a day to add workout
+                </Text>
+              </Group>
+              <Button
+                size="xs"
+                variant="white"
+                color="dark"
+                onClick={handleCancelSelection}
+              >
+                Cancel
+              </Button>
+            </Group>
+          </Box>
+        )}
 
         {/* AI Hints Panel */}
         {activeHints.length > 0 && (

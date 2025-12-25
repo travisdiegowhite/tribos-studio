@@ -1,10 +1,11 @@
 /**
  * TwoWeekCalendar Component
  * 2-week (14-day) calendar view for the training planner
+ * Responsive: shows 1 week on mobile, 2 weeks on desktop
  */
 
-import { useMemo } from 'react';
-import { Box, Group, Text, ActionIcon, SimpleGrid, Paper, Badge } from '@mantine/core';
+import { useMemo, useState } from 'react';
+import { Box, Group, Text, ActionIcon, SimpleGrid, Paper, Badge, SegmentedControl } from '@mantine/core';
 import { IconChevronLeft, IconChevronRight, IconFlame } from '@tabler/icons-react';
 import { CalendarDayCell } from './CalendarDayCell';
 import type { PlannerWorkout } from '../../types/planner';
@@ -28,6 +29,8 @@ interface TwoWeekCalendarProps {
   onRemoveWorkout: (date: string) => void;
   onDateClick: (date: string) => void;
   onNavigate: (direction: 'prev' | 'next') => void;
+  isMobile?: boolean;
+  selectedWorkoutId?: string | null; // For mobile tap-to-assign visual feedback
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -57,7 +60,11 @@ export function TwoWeekCalendar({
   onRemoveWorkout,
   onDateClick,
   onNavigate,
+  isMobile = false,
+  selectedWorkoutId = null,
 }: TwoWeekCalendarProps) {
+  // For mobile: track which week is currently shown (1 or 2)
+  const [mobileWeek, setMobileWeek] = useState<'1' | '2'>('1');
   // Generate 14 days starting from startDate
   const days = useMemo(() => {
     const result: Array<{
@@ -166,6 +173,63 @@ export function TwoWeekCalendar({
     return `${startMonth} ${start.getDate()}, ${startYear} - ${endMonth} ${end.getDate()}, ${endYear}`;
   }, [startDate]);
 
+  // Get current week's days for mobile view
+  const currentWeekDays = mobileWeek === '1' ? days.slice(0, 7) : days.slice(7, 14);
+  const currentWeekSummary = mobileWeek === '1' ? weekSummaries.week1 : weekSummaries.week2;
+
+  // Render a week section
+  const renderWeek = (weekDays: typeof days, weekNum: number, summary: { planned: number; actual: number }) => (
+    <Paper
+      p="xs"
+      mb={isMobile ? 0 : 'xs'}
+      withBorder
+      style={{
+        backgroundColor: 'var(--mantine-color-dark-7)',
+        border: selectedWorkoutId ? '2px dashed var(--mantine-color-lime-5)' : undefined,
+      }}
+    >
+      {!isMobile && (
+        <Group justify="space-between" mb="xs">
+          <Text size="xs" fw={500} c="dimmed">Week {weekNum}</Text>
+          <Group gap="xs">
+            <Badge size="xs" color="gray" variant="light">
+              <Group gap={4}>
+                <IconFlame size={10} />
+                <Text size="xs">{summary.planned} TSS planned</Text>
+              </Group>
+            </Badge>
+            {summary.actual > 0 && (
+              <Badge size="xs" color="lime" variant="light">
+                {summary.actual} done
+              </Badge>
+            )}
+          </Group>
+        </Group>
+      )}
+
+      <SimpleGrid cols={7} spacing={isMobile ? 4 : 'xs'}>
+        {weekDays.map((day) => (
+          <CalendarDayCell
+            key={day.date}
+            date={day.date}
+            dayOfWeek={day.dayOfWeek}
+            dayNumber={day.dayNumber}
+            plannedWorkout={workouts[day.date] || null}
+            actualActivity={activities[day.date]}
+            isToday={day.isToday}
+            isDropTarget={dropTargetDate === day.date || (!!selectedWorkoutId && !workouts[day.date])}
+            isPast={day.isPast}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onRemoveWorkout={onRemoveWorkout}
+            onClick={onDateClick}
+          />
+        ))}
+      </SimpleGrid>
+    </Paper>
+  );
+
   return (
     <Box>
       {/* Header with navigation */}
@@ -178,7 +242,7 @@ export function TwoWeekCalendar({
           <IconChevronLeft />
         </ActionIcon>
 
-        <Text size="lg" fw={600}>
+        <Text size={isMobile ? 'md' : 'lg'} fw={600}>
           {dateRange}
         </Text>
 
@@ -191,8 +255,35 @@ export function TwoWeekCalendar({
         </ActionIcon>
       </Group>
 
+      {/* Mobile: Week selector and summary */}
+      {isMobile && (
+        <Box mb="xs">
+          <Group justify="space-between" mb="xs">
+            <SegmentedControl
+              size="xs"
+              value={mobileWeek}
+              onChange={(v) => setMobileWeek(v as '1' | '2')}
+              data={[
+                { label: 'Week 1', value: '1' },
+                { label: 'Week 2', value: '2' },
+              ]}
+            />
+            <Group gap="xs">
+              <Badge size="xs" color="gray" variant="light">
+                {currentWeekSummary.planned} TSS
+              </Badge>
+              {currentWeekSummary.actual > 0 && (
+                <Badge size="xs" color="lime" variant="light">
+                  {currentWeekSummary.actual} done
+                </Badge>
+              )}
+            </Group>
+          </Group>
+        </Box>
+      )}
+
       {/* Day headers */}
-      <SimpleGrid cols={7} spacing="xs" mb="xs">
+      <SimpleGrid cols={7} spacing={isMobile ? 4 : 'xs'} mb="xs">
         {DAY_NAMES.map((day) => (
           <Text
             key={day}
@@ -202,92 +293,28 @@ export function TwoWeekCalendar({
             c="dimmed"
             tt="uppercase"
           >
-            {day}
+            {isMobile ? day.charAt(0) : day}
           </Text>
         ))}
       </SimpleGrid>
 
-      {/* Week 1 */}
-      <Paper p="xs" mb="xs" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-7)' }}>
-        <Group justify="space-between" mb="xs">
-          <Text size="xs" fw={500} c="dimmed">Week 1</Text>
-          <Group gap="xs">
-            <Badge size="xs" color="gray" variant="light">
-              <Group gap={4}>
-                <IconFlame size={10} />
-                <Text size="xs">{weekSummaries.week1.planned} TSS planned</Text>
-              </Group>
-            </Badge>
-            {weekSummaries.week1.actual > 0 && (
-              <Badge size="xs" color="lime" variant="light">
-                {weekSummaries.week1.actual} done
-              </Badge>
-            )}
-          </Group>
-        </Group>
+      {/* Mobile: Show only current week */}
+      {isMobile && renderWeek(currentWeekDays, parseInt(mobileWeek), currentWeekSummary)}
 
-        <SimpleGrid cols={7} spacing="xs">
-          {days.slice(0, 7).map((day) => (
-            <CalendarDayCell
-              key={day.date}
-              date={day.date}
-              dayOfWeek={day.dayOfWeek}
-              dayNumber={day.dayNumber}
-              plannedWorkout={workouts[day.date] || null}
-              actualActivity={activities[day.date]}
-              isToday={day.isToday}
-              isDropTarget={dropTargetDate === day.date}
-              isPast={day.isPast}
-              onDrop={onDrop}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onRemoveWorkout={onRemoveWorkout}
-              onClick={onDateClick}
-            />
-          ))}
-        </SimpleGrid>
-      </Paper>
+      {/* Desktop: Show both weeks */}
+      {!isMobile && (
+        <>
+          {renderWeek(days.slice(0, 7), 1, weekSummaries.week1)}
+          {renderWeek(days.slice(7, 14), 2, weekSummaries.week2)}
+        </>
+      )}
 
-      {/* Week 2 */}
-      <Paper p="xs" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-7)' }}>
-        <Group justify="space-between" mb="xs">
-          <Text size="xs" fw={500} c="dimmed">Week 2</Text>
-          <Group gap="xs">
-            <Badge size="xs" color="gray" variant="light">
-              <Group gap={4}>
-                <IconFlame size={10} />
-                <Text size="xs">{weekSummaries.week2.planned} TSS planned</Text>
-              </Group>
-            </Badge>
-            {weekSummaries.week2.actual > 0 && (
-              <Badge size="xs" color="lime" variant="light">
-                {weekSummaries.week2.actual} done
-              </Badge>
-            )}
-          </Group>
-        </Group>
-
-        <SimpleGrid cols={7} spacing="xs">
-          {days.slice(7, 14).map((day) => (
-            <CalendarDayCell
-              key={day.date}
-              date={day.date}
-              dayOfWeek={day.dayOfWeek}
-              dayNumber={day.dayNumber}
-              plannedWorkout={workouts[day.date] || null}
-              actualActivity={activities[day.date]}
-              isToday={day.isToday}
-              isDropTarget={dropTargetDate === day.date}
-              isPast={day.isPast}
-              onDrop={onDrop}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onRemoveWorkout={onRemoveWorkout}
-              onClick={onDateClick}
-            />
-          ))}
-        </SimpleGrid>
-      </Paper>
+      {/* Selection mode indicator */}
+      {selectedWorkoutId && (
+        <Text size="xs" c="lime" ta="center" mt="xs">
+          Tap a day to place the workout
+        </Text>
+      )}
     </Box>
   );
 }
