@@ -558,6 +558,45 @@ export class GarminService {
       throw error;
     }
   }
+
+  /**
+   * Backfill GPS data for existing Garmin activities
+   * Downloads FIT files and extracts GPS tracks for activities missing map data
+   * @param {number} limit - Maximum number of activities to process (default 50)
+   * @returns {Promise<{success: boolean, stats: object, results: array}>}
+   */
+  async backfillGps(limit = 50) {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'backfill_gps',
+          userId,
+          limit
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to backfill GPS data');
+      }
+
+      const data = await response.json();
+      console.log(`🗺️ GPS backfill complete:`, data.stats);
+      return data;
+    } catch (error) {
+      console.error('Error backfilling GPS data:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance
