@@ -363,25 +363,81 @@ async function listFeedback(req, res, adminUser) {
 
 /**
  * List recent webhook events (for debugging integrations)
+ * Supports optional filtering by user_id
  */
 async function listWebhooks(req, res, adminUser) {
-  await logAdminAction(adminUser.id, 'list_webhooks', null, null);
+  const { filterUserId } = req.body;
 
-  const { data: webhooks, error } = await supabase
+  await logAdminAction(adminUser.id, 'list_webhooks', filterUserId || null, { filterUserId });
+
+  // Build query
+  let query = supabase
     .from('garmin_webhook_events')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(100);
+    .limit(200);
+
+  // Apply user filter if provided
+  if (filterUserId) {
+    query = query.eq('user_id', filterUserId);
+  }
+
+  const { data: webhooks, error } = await query;
 
   if (error) {
     console.error('Error fetching webhooks:', error);
     return res.status(500).json({ error: 'Failed to fetch webhooks' });
   }
 
+  // Get unique user IDs from webhooks to fetch their emails
+  const userIds = [...new Set((webhooks || [])
+    .map(w => w.user_id)
+    .filter(id => id != null))];
+
+  // Fetch user emails for the webhooks
+  let userMap = {};
+  if (userIds.length > 0) {
+    const { data: { users: authUsers } } = await supabase.auth.admin.listUsers();
+    if (authUsers) {
+      authUsers.forEach(u => {
+        if (userIds.includes(u.id)) {
+          userMap[u.id] = u.email;
+        }
+      });
+    }
+  }
+
+  // Also get all users for the filter dropdown
+  const { data: { users: allUsers } } = await supabase.auth.admin.listUsers();
+  const usersWithWebhooks = [];
+
+  if (allUsers) {
+    // Get users who have webhook events
+    const { data: usersWithEvents } = await supabase
+      .from('garmin_webhook_events')
+      .select('user_id')
+      .not('user_id', 'is', null);
+
+    const usersWithEventsSet = new Set((usersWithEvents || []).map(e => e.user_id));
+
+    allUsers.forEach(u => {
+      if (usersWithEventsSet.has(u.id)) {
+        usersWithWebhooks.push({ id: u.id, email: u.email });
+      }
+    });
+  }
+
+  // Enrich webhooks with user emails
+  const enrichedWebhooks = (webhooks || []).map(w => ({
+    ...w,
+    user_email: w.user_id ? userMap[w.user_id] || null : null
+  }));
+
   return res.status(200).json({
     success: true,
-    webhooks: webhooks || [],
-    total: webhooks?.length || 0
+    webhooks: enrichedWebhooks,
+    total: enrichedWebhooks.length,
+    usersWithWebhooks: usersWithWebhooks.sort((a, b) => a.email.localeCompare(b.email))
   });
 }
 
