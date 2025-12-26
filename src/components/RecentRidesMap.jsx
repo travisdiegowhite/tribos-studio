@@ -95,11 +95,27 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
 
   // Process activities with polylines
   const ridesWithRoutes = useMemo(() => {
+    // Debug: log what polyline fields are available
+    if (activities.length > 0 && process.env.NODE_ENV === 'development') {
+      const sample = activities[0];
+      console.log('Activity polyline fields:', {
+        hasPolyline: !!sample.polyline,
+        hasMapSummaryPolyline: !!sample.map_summary_polyline,
+        hasSummaryPolyline: !!sample.summary_polyline,
+        hasMapObject: !!sample.map?.summary_polyline,
+        activitiesWithPolylines: activities.filter(a =>
+          a.polyline || a.map_summary_polyline || a.summary_polyline || a.map?.summary_polyline
+        ).length,
+        totalActivities: activities.length
+      });
+    }
+
     return activities
-      .filter(a => a.polyline || a.summary_polyline || a.map?.summary_polyline)
+      .filter(a => a.polyline || a.map_summary_polyline || a.summary_polyline || a.map?.summary_polyline)
       .slice(0, 5)
       .map((activity, index) => {
-        const polyline = activity.polyline || activity.summary_polyline || activity.map?.summary_polyline;
+        // Check multiple possible field names for polyline data
+        const polyline = activity.polyline || activity.map_summary_polyline || activity.summary_polyline || activity.map?.summary_polyline;
         const coords = decodePolyline(polyline);
 
         return {
