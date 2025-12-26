@@ -8,6 +8,7 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { setupCors } from './utils/cors.js';
+import { downloadAndParseFitFile } from './utils/fitParser.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -488,6 +489,44 @@ async function downloadAndProcessActivity(event, integration) {
       kilojoules: activity.kilojoules ? `${Math.round(activity.kilojoules)} kJ` : 'N/A',
       dataSource: activityDetails ? 'Garmin API' : 'Webhook only'
     });
+
+    // Try to download and parse FIT file for GPS data
+    // The FIT file contains the full GPS track that we can encode as a polyline
+    const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
+
+    if (fitFileUrl && integration.access_token) {
+      console.log('🗺️ Attempting to extract GPS data from FIT file...');
+
+      try {
+        const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token);
+
+        if (fitResult.polyline) {
+          // Update activity with GPS polyline
+          const { error: updateError } = await supabase
+            .from('activities')
+            .update({
+              map_summary_polyline: fitResult.polyline,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', activity.id);
+
+          if (updateError) {
+            console.error('❌ Failed to save GPS polyline:', updateError);
+          } else {
+            console.log(`✅ GPS track saved: ${fitResult.simplifiedCount} points encoded as polyline`);
+          }
+        } else if (fitResult.error) {
+          console.log('⚠️ Could not extract GPS:', fitResult.error);
+        } else {
+          console.log('ℹ️ No GPS data in FIT file (indoor activity?)');
+        }
+      } catch (fitError) {
+        // Don't fail the whole import if FIT parsing fails
+        console.error('⚠️ FIT file processing failed (activity still saved):', fitError.message);
+      }
+    } else {
+      console.log('ℹ️ No FIT file URL available for GPS extraction');
+    }
 
     // Mark webhook as processed
     await supabase
