@@ -74,9 +74,10 @@ export async function listFeedback() {
 
 /**
  * Get recent webhook events
+ * @param {string} filterUserId - Optional user ID to filter by
  */
-export async function listWebhooks() {
-  return adminFetch('list_webhooks');
+export async function listWebhooks(filterUserId = null) {
+  return adminFetch('list_webhooks', { filterUserId });
 }
 
 /**
