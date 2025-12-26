@@ -132,6 +132,19 @@ button {
   fill: #999;
 }
 
+/* Dashboard grid responsive layout */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
 /* Mobile touch improvements */
 @media (max-width: 768px) {
   /* Prevent text selection during touch interactions */
