@@ -4,6 +4,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
+import { downloadAndParseFitFile } from './utils/fitParser.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -103,8 +104,11 @@ export default async function handler(req, res) {
       case 'diagnose':
         return await diagnoseActivities(req, res, userId);
 
+      case 'backfill_gps':
+        return await backfillGpsData(req, res, userId);
+
       default:
-        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, get_activity, reprocess_failed, diagnose' });
+        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, get_activity, reprocess_failed, diagnose, backfill_gps' });
     }
 
   } catch (error) {
@@ -816,6 +820,250 @@ async function diagnoseActivities(req, res, userId) {
 
   } catch (error) {
     console.error('Diagnose error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Backfill GPS data for existing Garmin activities
+ * Finds activities without map_summary_polyline and attempts to fetch GPS data
+ *
+ * Strategy:
+ * 1. Find activities missing GPS polyline
+ * 2. Look for FIT file URL in webhook events or raw_data
+ * 3. Download and parse FIT file to extract GPS track
+ * 4. Update activity with encoded polyline
+ *
+ * Note: FIT file URLs from webhooks expire after 24 hours.
+ * For older activities, this triggers a backfill request to Garmin
+ * which will send new webhooks with fresh FIT file URLs.
+ */
+async function backfillGpsData(req, res, userId) {
+  try {
+    const { limit = 50 } = req.body;
+
+    console.log(`🗺️ Starting GPS backfill for user ${userId}`);
+
+    // Get valid access token
+    const { accessToken, integration } = await getValidAccessToken(userId);
+
+    // Find Garmin activities without GPS polyline
+    const { data: activitiesWithoutGps, error: queryError } = await supabase
+      .from('activities')
+      .select('id, provider_activity_id, name, type, start_date, distance, moving_time, raw_data, trainer')
+      .eq('user_id', userId)
+      .eq('provider', 'garmin')
+      .is('map_summary_polyline', null)
+      .eq('trainer', false)  // Skip indoor activities - they won't have GPS
+      .order('start_date', { ascending: false })
+      .limit(limit);
+
+    if (queryError) {
+      console.error('Error querying activities:', queryError);
+      return res.status(500).json({ error: 'Failed to query activities' });
+    }
+
+    if (!activitiesWithoutGps || activitiesWithoutGps.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'All outdoor Garmin activities already have GPS data',
+        processed: 0,
+        total: 0
+      });
+    }
+
+    console.log(`📍 Found ${activitiesWithoutGps.length} activities without GPS data`);
+
+    let processed = 0;
+    let success = 0;
+    let failed = 0;
+    let noFitUrl = 0;
+    let triggeredBackfill = false;
+    const results = [];
+    const dateRangesToBackfill = new Set();
+
+    for (const activity of activitiesWithoutGps) {
+      try {
+        // Try to find a FIT file URL for this activity
+        let fitFileUrl = null;
+
+        // Check if raw_data has webhook info with file URL
+        const rawData = activity.raw_data || {};
+        if (rawData.webhook?.activityFiles?.[0]?.callbackURL) {
+          fitFileUrl = rawData.webhook.activityFiles[0].callbackURL;
+        } else if (rawData.webhook?.activities?.[0]?.callbackURL) {
+          fitFileUrl = rawData.webhook.activities[0].callbackURL;
+        }
+
+        // Check webhook events table for this activity
+        if (!fitFileUrl && activity.provider_activity_id) {
+          const { data: webhookEvent } = await supabase
+            .from('garmin_webhook_events')
+            .select('file_url, payload')
+            .eq('activity_id', activity.provider_activity_id)
+            .eq('garmin_user_id', integration.provider_user_id)
+            .maybeSingle();
+
+          if (webhookEvent) {
+            fitFileUrl = webhookEvent.file_url ||
+                         webhookEvent.payload?.activityFiles?.[0]?.callbackURL ||
+                         webhookEvent.payload?.activities?.[0]?.callbackURL;
+          }
+        }
+
+        if (!fitFileUrl) {
+          // No FIT URL available - add date to backfill list
+          const activityDate = activity.start_date ? new Date(activity.start_date) : null;
+          if (activityDate) {
+            // Round to day for backfill
+            const dateKey = activityDate.toISOString().split('T')[0];
+            dateRangesToBackfill.add(dateKey);
+          }
+          noFitUrl++;
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            status: 'no_fit_url',
+            message: 'No FIT file URL available, will request backfill'
+          });
+          continue;
+        }
+
+        // Try to download and parse FIT file
+        console.log(`📥 Processing ${activity.name} (${activity.id})...`);
+
+        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken);
+
+        if (fitResult.error) {
+          // URL likely expired (24 hour limit)
+          const activityDate = activity.start_date ? new Date(activity.start_date) : null;
+          if (activityDate) {
+            const dateKey = activityDate.toISOString().split('T')[0];
+            dateRangesToBackfill.add(dateKey);
+          }
+          failed++;
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            status: 'failed',
+            error: fitResult.error
+          });
+          continue;
+        }
+
+        if (!fitResult.polyline) {
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            status: 'no_gps',
+            message: 'FIT file has no GPS data (indoor activity?)'
+          });
+          processed++;
+          continue;
+        }
+
+        // Update activity with GPS polyline
+        const { error: updateError } = await supabase
+          .from('activities')
+          .update({
+            map_summary_polyline: fitResult.polyline,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', activity.id);
+
+        if (updateError) {
+          console.error(`❌ Failed to update activity ${activity.id}:`, updateError);
+          failed++;
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            status: 'update_failed',
+            error: updateError.message
+          });
+          continue;
+        }
+
+        console.log(`✅ GPS saved for: ${activity.name} (${fitResult.simplifiedCount} points)`);
+        success++;
+        results.push({
+          id: activity.id,
+          name: activity.name,
+          status: 'success',
+          points: fitResult.simplifiedCount
+        });
+        processed++;
+
+      } catch (err) {
+        console.error(`❌ Error processing activity ${activity.id}:`, err);
+        failed++;
+        results.push({
+          id: activity.id,
+          name: activity.name,
+          status: 'error',
+          error: err.message
+        });
+      }
+    }
+
+    // If we have dates that need backfill, request it from Garmin
+    if (dateRangesToBackfill.size > 0) {
+      const sortedDates = Array.from(dateRangesToBackfill).sort();
+      const oldestDate = new Date(sortedDates[0]);
+      const newestDate = new Date(sortedDates[sortedDates.length - 1]);
+
+      // Add 1 day buffer
+      oldestDate.setDate(oldestDate.getDate() - 1);
+      newestDate.setDate(newestDate.getDate() + 1);
+
+      const startTimestamp = Math.floor(oldestDate.getTime() / 1000);
+      const endTimestamp = Math.floor(newestDate.getTime() / 1000);
+
+      console.log(`📤 Requesting backfill for dates: ${oldestDate.toISOString()} to ${newestDate.toISOString()}`);
+
+      // Request activity files backfill from Garmin
+      try {
+        const backfillUrl = `${GARMIN_API_BASE}/backfill/activityDetails?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
+
+        const backfillResponse = await fetch(backfillUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (backfillResponse.status === 202 || backfillResponse.ok) {
+          console.log('✅ Backfill request accepted by Garmin');
+          triggeredBackfill = true;
+        } else {
+          console.warn('⚠️ Backfill request failed:', backfillResponse.status);
+        }
+      } catch (backfillErr) {
+        console.error('❌ Backfill request error:', backfillErr);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `GPS backfill complete. ${success} activities updated.`,
+      stats: {
+        total: activitiesWithoutGps.length,
+        processed,
+        success,
+        failed,
+        noFitUrl,
+        triggeredBackfill: triggeredBackfill ? dateRangesToBackfill.size : 0
+      },
+      note: triggeredBackfill
+        ? 'Backfill requested from Garmin. New GPS data will arrive via webhooks. Run this again in a few minutes to process the new data.'
+        : noFitUrl > 0
+          ? 'Some activities have no FIT file URL. The webhook may have been processed before GPS extraction was added.'
+          : undefined,
+      results: results.slice(0, 20) // Return first 20 results
+    });
+
+  } catch (error) {
+    console.error('GPS backfill error:', error);
     return res.status(500).json({ error: error.message });
   }
 }
