@@ -11,8 +11,11 @@ import { TrainingPlanner } from '../components/planner';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 
+// Activity type - matches the activities table schema
+// Using a flexible type since we select('*') to get all fields
 interface Activity {
   id: string;
+  user_id: string;
   name?: string;
   type?: string;
   start_date: string;
@@ -23,6 +26,7 @@ interface Activity {
   total_elevation_gain?: number;
   average_watts?: number;
   trainer?: boolean;
+  [key: string]: unknown; // Allow additional fields from select('*')
 }
 
 interface TrainingPlan {
@@ -68,7 +72,7 @@ export default function PlannerPage() {
 
         const { data: activityData, error: activityError } = await supabase
           .from('activities')
-          .select('id, name, type, start_date, start_date_local, moving_time, duration_seconds, distance, total_elevation_gain, average_watts, trainer')
+          .select('*')
           .eq('user_id', user.id)
           .gte('start_date', ninetyDaysAgo.toISOString())
           .order('start_date', { ascending: false });
@@ -76,6 +80,7 @@ export default function PlannerPage() {
         if (activityError) {
           console.error('Error loading activities:', activityError);
         } else {
+          console.log(`[PlannerPage] Loaded ${activityData?.length || 0} activities`);
           setActivities(activityData || []);
         }
 
