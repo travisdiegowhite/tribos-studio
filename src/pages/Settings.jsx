@@ -42,6 +42,7 @@ function Settings() {
   const [garminRepairing, setGarminRepairing] = useState(false);
   const [garminRecovering, setGarminRecovering] = useState(false);
   const [garminDiagnosis, setGarminDiagnosis] = useState(null);
+  const [garminBackfillingGps, setGarminBackfillingGps] = useState(false);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
   const [showImportWizard, setShowImportWizard] = useState(false);
 
@@ -545,6 +546,66 @@ function Settings() {
     }
   };
 
+  const backfillGarminGps = async () => {
+    setGarminBackfillingGps(true);
+    try {
+      notifications.show({
+        id: 'garmin-gps',
+        title: 'Backfilling GPS Data',
+        message: 'Downloading GPS tracks from Garmin FIT files...',
+        loading: true,
+        autoClose: false
+      });
+
+      const result = await garminService.backfillGps(50);
+
+      if (result.success) {
+        const { stats } = result;
+        let message = '';
+
+        if (stats.success > 0) {
+          message = `Updated ${stats.success} ${stats.success === 1 ? 'activity' : 'activities'} with GPS data.`;
+        } else if (stats.total === 0) {
+          message = 'All outdoor activities already have GPS data!';
+        } else if (stats.triggeredBackfill > 0) {
+          message = `Requested fresh GPS data from Garmin for ${stats.triggeredBackfill} activities. Run again in 2-3 minutes.`;
+        } else {
+          message = result.note || 'No GPS data could be extracted.';
+        }
+
+        notifications.update({
+          id: 'garmin-gps',
+          title: stats.success > 0 ? 'GPS Backfill Complete!' : 'GPS Backfill',
+          message,
+          color: stats.success > 0 ? 'lime' : stats.triggeredBackfill > 0 ? 'cyan' : 'yellow',
+          loading: false,
+          autoClose: 8000
+        });
+      } else {
+        notifications.update({
+          id: 'garmin-gps',
+          title: 'GPS Backfill Failed',
+          message: result.error || 'Could not backfill GPS data.',
+          color: 'red',
+          loading: false,
+          autoClose: 5000
+        });
+      }
+    } catch (error) {
+      console.error('Error backfilling GPS:', error);
+      notifications.update({
+        id: 'garmin-gps',
+        title: 'GPS Backfill Failed',
+        message: error.message || 'Failed to backfill GPS data',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    } finally {
+      setGarminBackfillingGps(false);
+    }
+  };
+
   const connectWahoo = () => {
     try {
       if (!wahooService.isConfigured()) {
@@ -839,6 +900,8 @@ function Settings() {
                 recovering={garminRecovering}
                 onDiagnose={diagnoseGarmin}
                 diagnosis={garminDiagnosis}
+                onBackfillGps={backfillGarminGps}
+                backfillingGps={garminBackfillingGps}
               />
 
               <Divider />
@@ -904,7 +967,7 @@ function Settings() {
   );
 }
 
-function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis }) {
+function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis, onBackfillGps, backfillingGps }) {
   if (loading) {
     return (
       <Group justify="space-between">
@@ -982,6 +1045,38 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
               loading={syncing}
             >
               {syncing ? 'Syncing...' : 'Sync Activities'}
+            </Button>
+          </Group>
+        </Box>
+      )}
+
+      {/* GPS Backfill (for Garmin when connected) */}
+      {connected && onBackfillGps && (
+        <Box
+          style={{
+            backgroundColor: tokens.colors.bgTertiary,
+            padding: tokens.spacing.sm,
+            borderRadius: tokens.radius.sm,
+            marginLeft: '2.5rem'
+          }}
+        >
+          <Group justify="space-between" align="flex-start">
+            <Box>
+              <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
+                GPS Data
+              </Text>
+              <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                Download GPS tracks for activities missing map data
+              </Text>
+            </Box>
+            <Button
+              size="xs"
+              color="cyan"
+              variant="light"
+              onClick={onBackfillGps}
+              loading={backfillingGps}
+            >
+              {backfillingGps ? 'Downloading...' : 'Backfill GPS'}
             </Button>
           </Group>
         </Box>
