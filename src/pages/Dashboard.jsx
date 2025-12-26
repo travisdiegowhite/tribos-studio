@@ -11,14 +11,16 @@ import {
   Button,
   Box,
   Badge,
-  Loader,
   Skeleton,
 } from '@mantine/core';
-import { IconChevronRight } from '@tabler/icons-react';
+import { IconChevronRight, IconRoute, IconChartLine, IconSettings, IconPlus } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import OnboardingModal from '../components/OnboardingModal.jsx';
+import RecentRidesMap from '../components/RecentRidesMap.jsx';
+import FormWidget from '../components/FormWidget.jsx';
+import WeekSummary from '../components/WeekSummary.jsx';
 import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
 
@@ -26,11 +28,6 @@ function Dashboard() {
   const { user } = useAuth();
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    weekDistance: 0,
-    monthTime: 0,
-    totalActivities: 0,
-  });
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
 
@@ -97,7 +94,7 @@ function Dashboard() {
       }
 
       try {
-        // Get activities from last 90 days
+        // Get activities from last 90 days for CTL/ATL calculation
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
@@ -112,35 +109,6 @@ function Dashboard() {
           console.error('Error loading activities:', error);
         } else {
           setActivities(activityData || []);
-
-          // Calculate stats
-          const now = new Date();
-          const weekAgo = new Date(now);
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          const monthAgo = new Date(now);
-          monthAgo.setDate(monthAgo.getDate() - 30);
-
-          let weekDistance = 0;
-          let monthTime = 0;
-
-          (activityData || []).forEach((activity) => {
-            const activityDate = new Date(activity.start_date);
-            const distanceKm = activity.distance ? activity.distance / 1000 : 0;
-            const duration = activity.moving_time || 0;
-
-            if (activityDate >= weekAgo) {
-              weekDistance += distanceKm;
-            }
-            if (activityDate >= monthAgo) {
-              monthTime += duration;
-            }
-          });
-
-          setStats({
-            weekDistance,
-            monthTime: monthTime / 3600, // Convert to hours
-            totalActivities: activityData?.length || 0,
-          });
         }
       } catch (err) {
         console.error('Error fetching activities:', err);
@@ -151,6 +119,14 @@ function Dashboard() {
 
     fetchActivities();
   }, [user]);
+
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
 
   return (
     <AppShell>
@@ -163,52 +139,72 @@ function Dashboard() {
           {/* Header */}
           <Box>
             <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-              Welcome back,
+              {getGreeting()},
             </Text>
             <Title order={1} style={{ color: tokens.colors.textPrimary }}>
               {displayName}
             </Title>
           </Box>
 
-          {/* Quick Actions */}
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
-            <QuickActionCard
-              title="Plan a Route"
-              description="Create a new cycling route with our map builder"
-              icon="🗺️"
-              to="/routes"
-              color={tokens.colors.electricLime}
-            />
-            <QuickActionCard
-              title="Training"
-              description="View your training stats and progress"
-              icon="📊"
-              to="/training"
-              color={tokens.colors.zone4}
-            />
-            <QuickActionCard
-              title="Connect Devices"
-              description="Sync with Strava, Garmin, or Wahoo"
-              icon="🔗"
-              to="/settings"
-              color={tokens.colors.info}
-            />
-            <QuickActionCard
-              title="Settings"
-              description="Manage your profile and preferences"
-              icon="⚙️"
-              to="/settings"
-              color={tokens.colors.textSecondary}
-            />
-          </SimpleGrid>
+          {/* Main Content - Two Column Layout */}
+          <Box className="dashboard-grid">
+            {/* Left Column - Map & Actions */}
+            <Stack gap="lg">
+              <RecentRidesMap
+                activities={activities}
+                loading={loading}
+                formatDist={formatDist}
+                formatElev={formatElev}
+              />
 
-          {/* Recent Activity */}
+              {/* Quick Actions */}
+              <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+                <QuickActionButton
+                  icon={IconRoute}
+                  label="Plan Route"
+                  to="/routes"
+                  color={tokens.colors.electricLime}
+                />
+                <QuickActionButton
+                  icon={IconChartLine}
+                  label="Training"
+                  to="/training"
+                  color={tokens.colors.zone4}
+                />
+                <QuickActionButton
+                  icon={IconPlus}
+                  label="Upload Ride"
+                  to="/training?tab=history"
+                  color={tokens.colors.info}
+                />
+                <QuickActionButton
+                  icon={IconSettings}
+                  label="Settings"
+                  to="/settings"
+                  color={tokens.colors.textSecondary}
+                />
+              </SimpleGrid>
+            </Stack>
+
+            {/* Right Column - Stats */}
+            <Stack gap="lg">
+              <FormWidget activities={activities} loading={loading} />
+              <WeekSummary
+                activities={activities}
+                loading={loading}
+                formatDist={formatDist}
+                formatElev={formatElev}
+              />
+            </Stack>
+          </Box>
+
+          {/* Recent Activities List */}
           <Card>
             <Stack gap="md">
               <Group justify="space-between">
-                <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
                   Recent Activity
-                </Title>
+                </Text>
                 {activities.length > 0 && (
                   <Button
                     component={Link}
@@ -226,32 +222,15 @@ function Dashboard() {
               {loading ? (
                 <Stack gap="sm">
                   {[1, 2, 3].map((i) => (
-                    <Skeleton key={i} height={80} radius="md" />
+                    <Skeleton key={i} height={70} radius="md" />
                   ))}
                 </Stack>
               ) : activities.length === 0 ? (
-                <Box
-                  style={{
-                    padding: tokens.spacing.xl,
-                    textAlign: 'center',
-                    borderRadius: tokens.radius.md,
-                    border: `1px dashed ${tokens.colors.bgTertiary}`,
-                  }}
-                >
-                  <Text size="lg" mb="sm">
-                    🚴
-                  </Text>
-                  <Text style={{ color: tokens.colors.textSecondary }}>
-                    No recent activities yet. Connect your devices to start syncing!
-                  </Text>
-                  <Button component={Link} to="/settings" variant="subtle" color="lime" mt="md">
-                    Connect a device
-                  </Button>
-                </Box>
+                <EmptyState />
               ) : (
                 <Stack gap="sm">
                   {activities.slice(0, 5).map((activity) => (
-                    <ActivityCard
+                    <ActivityRow
                       key={activity.id}
                       activity={activity}
                       formatDist={formatDist}
@@ -262,97 +241,99 @@ function Dashboard() {
               )}
             </Stack>
           </Card>
-
-          {/* Stats Overview */}
-          <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
-            {loading ? (
-              <>
-                <Skeleton height={100} radius="md" />
-                <Skeleton height={100} radius="md" />
-                <Skeleton height={100} radius="md" />
-              </>
-            ) : (
-              <>
-                <StatCard
-                  label="This Week"
-                  value={formatDist(stats.weekDistance)}
-                  subtext="Total Distance"
-                />
-                <StatCard
-                  label="This Month"
-                  value={`${stats.monthTime.toFixed(1)} hrs`}
-                  subtext="Time on Bike"
-                />
-                <StatCard
-                  label="Last 90 Days"
-                  value={stats.totalActivities.toString()}
-                  subtext="Activities"
-                />
-              </>
-            )}
-          </SimpleGrid>
         </Stack>
       </Container>
     </AppShell>
   );
 }
 
-function QuickActionCard({ title, description, icon, to, color }) {
+function QuickActionButton({ icon: Icon, label, to, color }) {
   return (
     <Card
       component={Link}
       to={to}
+      p="md"
       style={{
         textDecoration: 'none',
         cursor: 'pointer',
-        transition: 'transform 0.2s, box-shadow 0.2s',
+        transition: 'transform 0.2s, border-color 0.2s',
+        borderColor: 'transparent',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = `0 4px 20px ${color}20`;
+        e.currentTarget.style.borderColor = color;
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
+        e.currentTarget.style.borderColor = 'transparent';
       }}
     >
-      <Stack gap="sm">
-        <Text size="2rem">{icon}</Text>
-        <Box>
-          <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
-            {title}
-          </Text>
-          <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
-            {description}
-          </Text>
+      <Stack gap="xs" align="center">
+        <Box
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: tokens.radius.md,
+            backgroundColor: `${color}15`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon size={20} color={color} />
         </Box>
-      </Stack>
-    </Card>
-  );
-}
-
-function StatCard({ label, value, subtext }) {
-  return (
-    <Card>
-      <Stack gap="xs">
-        <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+        <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
           {label}
         </Text>
-        <Text size="2rem" fw={700} style={{ color: tokens.colors.electricLime }}>
-          {value}
-        </Text>
-        <Text size="sm" style={{ color: tokens.colors.textMuted }}>
-          {subtext}
-        </Text>
       </Stack>
     </Card>
   );
 }
 
-function ActivityCard({ activity, formatDist, formatElev }) {
+function EmptyState() {
+  return (
+    <Box
+      style={{
+        padding: tokens.spacing.xl,
+        textAlign: 'center',
+        borderRadius: tokens.radius.md,
+        border: `1px dashed ${tokens.colors.bgTertiary}`,
+      }}
+    >
+      <Text size="lg" mb="sm">
+        🚴
+      </Text>
+      <Text style={{ color: tokens.colors.textSecondary }}>
+        No recent activities yet
+      </Text>
+      <Text size="sm" style={{ color: tokens.colors.textMuted }} mb="md">
+        Connect your devices or upload a FIT file to get started
+      </Text>
+      <Group justify="center" gap="sm">
+        <Button component={Link} to="/settings" variant="subtle" color="lime" size="sm">
+          Connect Strava
+        </Button>
+        <Button component={Link} to="/training?tab=history" variant="outline" color="gray" size="sm">
+          Upload FIT file
+        </Button>
+      </Group>
+    </Box>
+  );
+}
+
+function ActivityRow({ activity, formatDist, formatElev }) {
   const formatDate = (dateString) => {
     if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) {
+      return date.toLocaleDateString('en-US', { weekday: 'long' });
+    }
+    return date.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -367,9 +348,15 @@ function ActivityCard({ activity, formatDist, formatElev }) {
     return `${minutes}m`;
   };
 
-  const distanceKm = activity.distance ? activity.distance / 1000 : 0;
-  const elevation = activity.total_elevation_gain || 0;
-  const duration = activity.moving_time || activity.elapsed_time || 0;
+  const distanceKm = activity.distance_meters
+    ? activity.distance_meters / 1000
+    : activity.distance
+    ? activity.distance / 1000
+    : 0;
+  const elevation = activity.elevation_gain_meters || activity.total_elevation_gain || 0;
+  const duration = activity.duration_seconds || activity.moving_time || activity.elapsed_time || 0;
+  const power = activity.average_power_watts || activity.average_watts || 0;
+  const tss = activity.tss || 0;
 
   return (
     <Card
@@ -382,40 +369,45 @@ function ActivityCard({ activity, formatDist, formatElev }) {
     >
       <Group justify="space-between" wrap="nowrap">
         <Box style={{ flex: 1, minWidth: 0 }}>
-          <Text fw={600} size="sm" lineClamp={1} style={{ color: tokens.colors.textPrimary }}>
-            {activity.name || 'Untitled Ride'}
-          </Text>
+          <Group gap="sm" wrap="nowrap">
+            <Text fw={600} size="sm" lineClamp={1} style={{ color: tokens.colors.textPrimary }}>
+              {activity.name || 'Untitled Ride'}
+            </Text>
+            {tss > 0 && (
+              <Badge size="xs" variant="light" color="blue">
+                TSS {Math.round(tss)}
+              </Badge>
+            )}
+          </Group>
           <Text size="xs" style={{ color: tokens.colors.textMuted }}>
             {formatDate(activity.start_date)}
           </Text>
         </Box>
         <Group gap="lg" wrap="nowrap">
-          <Box style={{ textAlign: 'right' }}>
-            <Text size="xs" style={{ color: tokens.colors.textMuted }}>Distance</Text>
-            <Text fw={500} size="sm" style={{ color: tokens.colors.textPrimary }}>
-              {formatDist(distanceKm)}
-            </Text>
-          </Box>
-          <Box style={{ textAlign: 'right' }}>
-            <Text size="xs" style={{ color: tokens.colors.textMuted }}>Elevation</Text>
-            <Text fw={500} size="sm" style={{ color: tokens.colors.textPrimary }}>
-              +{formatElev(elevation)}
-            </Text>
-          </Box>
-          <Box style={{ textAlign: 'right' }}>
-            <Text size="xs" style={{ color: tokens.colors.textMuted }}>Time</Text>
-            <Text fw={500} size="sm" style={{ color: tokens.colors.textPrimary }}>
-              {formatDuration(duration)}
-            </Text>
-          </Box>
-          {activity.average_watts > 0 && (
+          <StatCell label="Distance" value={formatDist(distanceKm)} />
+          <StatCell label="Elevation" value={`+${formatElev(elevation)}`} />
+          <StatCell label="Time" value={formatDuration(duration)} />
+          {power > 0 && (
             <Badge color="yellow" variant="light" size="sm">
-              {Math.round(activity.average_watts)}W
+              {Math.round(power)}W
             </Badge>
           )}
         </Group>
       </Group>
     </Card>
+  );
+}
+
+function StatCell({ label, value }) {
+  return (
+    <Box style={{ textAlign: 'right' }}>
+      <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+        {label}
+      </Text>
+      <Text fw={500} size="sm" style={{ color: tokens.colors.textPrimary }}>
+        {value}
+      </Text>
+    </Box>
   );
 }
 
