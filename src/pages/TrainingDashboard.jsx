@@ -619,30 +619,6 @@ function TrainingDashboard() {
             </Group>
           </Group>
 
-          {/* Today's Focus - Dynamic Hero Card */}
-          <TodaysFocusCard
-            trainingMetrics={trainingMetrics}
-            formStatus={formStatus}
-            weeklyStats={weeklyStats}
-            actualWeeklyStats={actualWeeklyStats}
-            activities={visibleActivities}
-            formatDist={formatDist}
-            formatTime={formatTime}
-            onAskCoach={() => {
-              setActiveTab('today');
-              // Scroll to AI Coach with a slight delay to ensure tab is active
-              setTimeout(() => {
-                aiCoachRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                // Focus the input after scrolling
-                setTimeout(() => {
-                  aiCoachRef.current?.querySelector('input')?.focus();
-                }, 300);
-              }, 100);
-            }}
-            suggestedWorkout={suggestedWorkout}
-            onViewWorkout={handleViewWorkout}
-          />
-
           {/* Compact Fitness Metrics Bar */}
           <FitnessMetricsBar
             trainingMetrics={trainingMetrics}
@@ -651,90 +627,154 @@ function TrainingDashboard() {
             previousMetrics={null}
           />
 
-          {/* Main Tabs */}
-          <Card p={0}>
-            <Tabs value={activeTab} onChange={setActiveTab} color="lime" variant="default">
-              <Box
+          {/* Main Tabs - Outside Card for proper sticky behavior */}
+          <Tabs value={activeTab} onChange={setActiveTab} color="lime" variant="default">
+            <Paper
+              withBorder
+              radius="md"
+              style={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 100,
+                backgroundColor: 'var(--mantine-color-dark-7)',
+              }}
+            >
+              <Tabs.List
+                grow
                 style={{
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 100,
-                  backgroundColor: 'var(--mantine-color-dark-7)',
-                  borderBottom: '1px solid var(--mantine-color-dark-4)',
+                  '--tabs-list-border-width': '3px',
                 }}
               >
-                <Tabs.List
-                  grow
-                  style={{
-                    borderBottom: 'none',
+                <Tabs.Tab
+                  value="today"
+                  leftSection={<IconTarget size={20} />}
+                  styles={{
+                    tab: {
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      padding: '1rem 1.5rem',
+                      '&[dataActive]': {
+                        borderBottomWidth: '3px',
+                      },
+                    },
                   }}
                 >
-                  <Tabs.Tab
-                    value="today"
-                    leftSection={<IconTarget size={20} />}
-                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
-                  >
-                    Today
-                  </Tabs.Tab>
-                  <Tabs.Tab
-                    value="plans"
-                    leftSection={<IconList size={20} />}
-                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
-                  >
-                    Plans
-                  </Tabs.Tab>
-                  <Tabs.Tab
-                    value="trends"
-                    leftSection={<IconTrendingUp size={20} />}
-                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
-                  >
-                    Trends
-                  </Tabs.Tab>
-                  <Tabs.Tab
-                    value="power"
-                    leftSection={<IconBolt size={20} />}
-                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
-                  >
-                    Power
-                  </Tabs.Tab>
-                  <Tabs.Tab
-                    value="history"
-                    leftSection={<IconClock size={20} />}
-                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
-                  >
-                    History
-                  </Tabs.Tab>
-                  <Tabs.Tab
-                    value="calendar"
-                    leftSection={<IconCalendar size={20} />}
-                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
-                  >
-                    Calendar
-                  </Tabs.Tab>
-                </Tabs.List>
-              </Box>
+                  Today
+                </Tabs.Tab>
+                <Tabs.Tab
+                  value="plans"
+                  leftSection={<IconList size={20} />}
+                  styles={{
+                    tab: {
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      padding: '1rem 1.5rem',
+                    },
+                  }}
+                >
+                  Plans
+                </Tabs.Tab>
+                <Tabs.Tab
+                  value="trends"
+                  leftSection={<IconTrendingUp size={20} />}
+                  styles={{
+                    tab: {
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      padding: '1rem 1.5rem',
+                    },
+                  }}
+                >
+                  Trends
+                </Tabs.Tab>
+                <Tabs.Tab
+                  value="power"
+                  leftSection={<IconBolt size={20} />}
+                  styles={{
+                    tab: {
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      padding: '1rem 1.5rem',
+                    },
+                  }}
+                >
+                  Power
+                </Tabs.Tab>
+                <Tabs.Tab
+                  value="history"
+                  leftSection={<IconClock size={20} />}
+                  styles={{
+                    tab: {
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      padding: '1rem 1.5rem',
+                    },
+                  }}
+                >
+                  History
+                </Tabs.Tab>
+                <Tabs.Tab
+                  value="calendar"
+                  leftSection={<IconCalendar size={20} />}
+                  styles={{
+                    tab: {
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      padding: '1rem 1.5rem',
+                    },
+                  }}
+                >
+                  Calendar
+                </Tabs.Tab>
+              </Tabs.List>
+            </Paper>
 
+            {/* Tab Panels */}
+            <Box mt="md">
               {/* TODAY TAB */}
-              <Tabs.Panel value="today" p="md">
-                <TodayTab
-                  trainingMetrics={trainingMetrics}
-                  weeklyStats={weeklyStats}
-                  actualWeeklyStats={actualWeeklyStats}
-                  activities={visibleActivities}
-                  ftp={ftp}
-                  formatDist={formatDist}
-                  formatTime={formatTime}
-                  isImperial={isImperial}
-                  todayHealthMetrics={todayHealthMetrics}
-                  onOpenHealthCheckIn={() => setHealthCheckInOpen(true)}
-                  activePlan={activePlan}
-                  aiCoachRef={aiCoachRef}
-                  raceGoals={raceGoals}
-                />
+              <Tabs.Panel value="today">
+                <Stack gap="md">
+                  {/* Today's Focus Card - moved here */}
+                  <TodaysFocusCard
+                    trainingMetrics={trainingMetrics}
+                    formStatus={formStatus}
+                    weeklyStats={weeklyStats}
+                    actualWeeklyStats={actualWeeklyStats}
+                    activities={visibleActivities}
+                    formatDist={formatDist}
+                    formatTime={formatTime}
+                    onAskCoach={() => {
+                      // Scroll to AI Coach
+                      setTimeout(() => {
+                        aiCoachRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        setTimeout(() => {
+                          aiCoachRef.current?.querySelector('input')?.focus();
+                        }, 300);
+                      }, 100);
+                    }}
+                    suggestedWorkout={suggestedWorkout}
+                    onViewWorkout={handleViewWorkout}
+                  />
+                  <TodayTab
+                    trainingMetrics={trainingMetrics}
+                    weeklyStats={weeklyStats}
+                    actualWeeklyStats={actualWeeklyStats}
+                    activities={visibleActivities}
+                    ftp={ftp}
+                    formatDist={formatDist}
+                    formatTime={formatTime}
+                    isImperial={isImperial}
+                    todayHealthMetrics={todayHealthMetrics}
+                    onOpenHealthCheckIn={() => setHealthCheckInOpen(true)}
+                    activePlan={activePlan}
+                    aiCoachRef={aiCoachRef}
+                    raceGoals={raceGoals}
+                  />
+                </Stack>
               </Tabs.Panel>
 
               {/* PLANS TAB */}
-              <Tabs.Panel value="plans" p="md">
+              <Tabs.Panel value="plans">
                 <TrainingPlanBrowser
                   activePlan={activePlan}
                   onPlanActivated={async (plan) => {
@@ -756,7 +796,7 @@ function TrainingDashboard() {
               </Tabs.Panel>
 
               {/* TRENDS TAB */}
-              <Tabs.Panel value="trends" p="md">
+              <Tabs.Panel value="trends">
                 <TrendsTab
                   dailyTSSData={dailyTSSData}
                   trainingMetrics={trainingMetrics}
@@ -771,7 +811,7 @@ function TrainingDashboard() {
               </Tabs.Panel>
 
               {/* POWER TAB */}
-              <Tabs.Panel value="power" p="md">
+              <Tabs.Panel value="power">
                 <PowerTab
                   ftp={ftp}
                   powerZones={powerZones}
@@ -782,7 +822,7 @@ function TrainingDashboard() {
               </Tabs.Panel>
 
               {/* HISTORY TAB */}
-              <Tabs.Panel value="history" p="md">
+              <Tabs.Panel value="history">
                 <RideHistoryTable
                   rides={activities}
                   formatDistance={formatDist}
@@ -794,7 +834,7 @@ function TrainingDashboard() {
               </Tabs.Panel>
 
               {/* CALENDAR TAB */}
-              <Tabs.Panel value="calendar" p="md">
+              <Tabs.Panel value="calendar">
                 <TrainingCalendar
                   activePlan={activePlan}
                   rides={visibleActivities}
@@ -819,8 +859,8 @@ function TrainingDashboard() {
                   }}
                 />
               </Tabs.Panel>
-            </Tabs>
-          </Card>
+            </Box>
+          </Tabs>
         </Stack>
       </Container>
 
