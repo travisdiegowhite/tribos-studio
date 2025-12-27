@@ -122,6 +122,66 @@ function TrainingDashboard() {
   const formatDist = (km) => formatDistance(km, isImperial);
   const formatElev = (m) => formatElevation(m, isImperial);
 
+  // Filter out hidden activities for stats/calculations
+  const visibleActivities = useMemo(() =>
+    activities.filter(a => !a.is_hidden),
+    [activities]
+  );
+
+  // Recalculate training metrics when visible activities change
+  useEffect(() => {
+    if (visibleActivities.length === 0) {
+      setDailyTSSData([]);
+      setTrainingMetrics({ ctl: 0, atl: 0, tsb: 0, interpretation: null });
+      return;
+    }
+
+    const dailyTSS = {};
+    const today = new Date();
+
+    for (let i = 0; i < 90; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      dailyTSS[dateStr] = { date: dateStr, tss: 0 };
+    }
+
+    visibleActivities.forEach((activity) => {
+      const dateStr = activity.start_date?.split('T')[0];
+      if (dateStr && dailyTSS[dateStr]) {
+        let activityTSS;
+        if (activity.average_watts && ftp) {
+          activityTSS = calculateTSS(
+            activity.moving_time,
+            activity.average_watts,
+            ftp
+          );
+        } else {
+          activityTSS = estimateTSS(
+            (activity.moving_time || 0) / 60,
+            (activity.distance || 0) / 1000,
+            activity.total_elevation_gain || 0,
+            'endurance'
+          );
+        }
+        dailyTSS[dateStr].tss += activityTSS || 0;
+      }
+    });
+
+    const sortedDailyTSS = Object.values(dailyTSS)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    setDailyTSSData(sortedDailyTSS);
+
+    const tssValues = sortedDailyTSS.map(d => d.tss);
+    const ctl = calculateCTL(tssValues);
+    const atl = calculateATL(tssValues);
+    const tsb = calculateTSB(ctl, atl);
+    const interpretation = interpretTSB(tsb);
+
+    setTrainingMetrics({ ctl, atl, tsb, interpretation });
+  }, [visibleActivities, ftp]);
+
   // Load data
   useEffect(() => {
     const loadData = async () => {
@@ -157,58 +217,7 @@ function TrainingDashboard() {
         } else {
           console.log(`Loaded ${activityData?.length || 0} activities from database`);
           setActivities(activityData || []);
-
-          // Build daily TSS data
-          if (activityData && activityData.length > 0) {
-            const dailyTSS = {};
-            const today = new Date();
-
-            for (let i = 0; i < 90; i++) {
-              const date = new Date(today);
-              date.setDate(date.getDate() - i);
-              const dateStr = date.toISOString().split('T')[0];
-              dailyTSS[dateStr] = { date: dateStr, tss: 0 };
-            }
-
-            activityData.forEach((activity) => {
-              const dateStr = activity.start_date?.split('T')[0];
-              if (dateStr && dailyTSS[dateStr]) {
-                // Calculate TSS - use power-based if available, otherwise estimate
-                let activityTSS;
-                if (activity.average_watts && userProfileData?.ftp) {
-                  // Power-based TSS calculation
-                  activityTSS = calculateTSS(
-                    activity.moving_time,
-                    activity.average_watts,
-                    userProfileData.ftp
-                  );
-                } else {
-                  // Estimate TSS from duration, distance, and elevation
-                  activityTSS = estimateTSS(
-                    (activity.moving_time || 0) / 60, // duration in minutes
-                    (activity.distance || 0) / 1000,  // distance in km
-                    activity.total_elevation_gain || 0, // elevation in meters
-                    'endurance' // default workout type
-                  );
-                }
-                dailyTSS[dateStr].tss += activityTSS || 0;
-              }
-            });
-
-            const sortedDailyTSS = Object.values(dailyTSS)
-              .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-            setDailyTSSData(sortedDailyTSS);
-
-            const tssValues = sortedDailyTSS.map(d => d.tss);
-            const ctl = calculateCTL(tssValues);
-            const atl = calculateATL(tssValues);
-            const tsb = calculateTSB(ctl, atl);
-            const interpretation = interpretTSB(tsb);
-
-            console.log('Training metrics calculated:', { ctl, atl, tsb });
-            setTrainingMetrics({ ctl, atl, tsb, interpretation });
-          }
+          // Training metrics are calculated in a separate useEffect that responds to visibleActivities
         }
 
         const { data: profileData } = await supabase
@@ -319,13 +328,13 @@ function TrainingDashboard() {
     loadRaceGoals();
   }, [user]);
 
-  // Calculate weekly stats
+  // Calculate weekly stats (uses visibleActivities to exclude hidden)
   const weeklyStats = useMemo(() => {
     const days = parseInt(timeRange) || 7;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
 
-    const filtered = activities.filter(a => new Date(a.start_date) >= cutoff);
+    const filtered = visibleActivities.filter(a => new Date(a.start_date) >= cutoff);
 
     return filtered.reduce(
       (acc, a) => {
@@ -352,14 +361,14 @@ function TrainingDashboard() {
       },
       { totalDistance: 0, totalTime: 0, totalElevation: 0, totalTSS: 0, rideCount: 0 }
     );
-  }, [activities, timeRange, ftp]);
+  }, [visibleActivities, timeRange, ftp]);
 
   // Calculate true weekly stats (always 7 days, independent of timeRange)
   const actualWeeklyStats = useMemo(() => {
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
 
-    const weeklyActivities = activities.filter(a => new Date(a.start_date) >= weekAgo);
+    const weeklyActivities = visibleActivities.filter(a => new Date(a.start_date) >= weekAgo);
 
     return weeklyActivities.reduce(
       (acc, a) => ({
@@ -369,7 +378,7 @@ function TrainingDashboard() {
       }),
       { totalDistance: 0, totalTime: 0, rideCount: 0 }
     );
-  }, [activities]);
+  }, [visibleActivities]);
 
   // Format helpers
   const formatTime = (seconds) => {
@@ -616,7 +625,7 @@ function TrainingDashboard() {
             formStatus={formStatus}
             weeklyStats={weeklyStats}
             actualWeeklyStats={actualWeeklyStats}
-            activities={activities}
+            activities={visibleActivities}
             formatDist={formatDist}
             formatTime={formatTime}
             onAskCoach={() => {
@@ -671,7 +680,7 @@ function TrainingDashboard() {
             <TrainingNotifications
               activePlan={activePlan}
               plannedWorkouts={plannedWorkouts}
-              activities={activities}
+              activities={visibleActivities}
               onNavigateToCalendar={() => setActiveTab('calendar')}
             />
           )}
@@ -706,7 +715,7 @@ function TrainingDashboard() {
                   trainingMetrics={trainingMetrics}
                   weeklyStats={weeklyStats}
                   actualWeeklyStats={actualWeeklyStats}
-                  activities={activities}
+                  activities={visibleActivities}
                   ftp={ftp}
                   formatDist={formatDist}
                   formatTime={formatTime}
@@ -746,7 +755,7 @@ function TrainingDashboard() {
                 <TrendsTab
                   dailyTSSData={dailyTSSData}
                   trainingMetrics={trainingMetrics}
-                  activities={activities}
+                  activities={visibleActivities}
                   speedProfile={speedProfile}
                   formatDist={formatDist}
                   formatElev={formatElev}
@@ -762,7 +771,7 @@ function TrainingDashboard() {
                   ftp={ftp}
                   powerZones={powerZones}
                   navigate={navigate}
-                  activities={activities}
+                  activities={visibleActivities}
                   weight={userWeight}
                 />
               </Tabs.Panel>
@@ -783,7 +792,7 @@ function TrainingDashboard() {
               <Tabs.Panel value="calendar">
                 <TrainingCalendar
                   activePlan={activePlan}
-                  rides={activities}
+                  rides={visibleActivities}
                   formatDistance={formatDist}
                   ftp={ftp}
                   isImperial={isImperial}
