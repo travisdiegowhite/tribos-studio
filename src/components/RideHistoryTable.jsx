@@ -11,8 +11,9 @@ import {
   Stack,
   Button,
   Select,
+  Switch,
 } from '@mantine/core';
-import { IconSearch, IconEye, IconChartBar, IconChevronRight, IconFilter } from '@tabler/icons-react';
+import { IconSearch, IconEye, IconChartBar, IconChevronRight, IconFilter, IconEyeOff, IconEyeCheck } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '@mantine/hooks';
 
@@ -24,6 +25,7 @@ const RideHistoryTable = ({
   rides,
   onViewRide,
   onAnalyzeRide,
+  onHideRide,
   formatDistance,
   formatElevation,
   maxRows = 10,
@@ -32,6 +34,10 @@ const RideHistoryTable = ({
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState('all');
+  const [showHidden, setShowHidden] = useState(false);
+
+  // Check if there are any hidden rides
+  const hiddenCount = rides.filter(r => r.is_hidden).length;
 
   // Helper functions to handle both data formats
   const getDistance = (r) => r.distance_km || (r.distance ? r.distance / 1000 : 0);
@@ -43,6 +49,10 @@ const RideHistoryTable = ({
 
   // Filter rides
   const filteredRides = rides.filter(ride => {
+    // Filter by hidden status first
+    if (!showHidden && ride.is_hidden) return false;
+    if (showHidden && !ride.is_hidden) return false;
+
     const matchesSearch = getName(ride).toLowerCase().includes(searchQuery.toLowerCase());
 
     if (timeFilter === 'all') return matchesSearch;
@@ -58,6 +68,9 @@ const RideHistoryTable = ({
       default: return matchesSearch;
     }
   }).slice(0, maxRows);
+
+  // Count visible (non-hidden) rides for the "View all" button
+  const visibleRidesCount = rides.filter(r => !r.is_hidden).length;
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -96,7 +109,20 @@ const RideHistoryTable = ({
   return (
     <Card withBorder p="md">
       <Group justify="space-between" mb="md" wrap="wrap" gap="xs">
-        <Text size="sm" fw={600}>Ride History</Text>
+        <Group gap="sm">
+          <Text size="sm" fw={600}>
+            {showHidden ? 'Hidden Rides' : 'Ride History'}
+          </Text>
+          {hiddenCount > 0 && (
+            <Switch
+              size="xs"
+              label={`Show hidden (${hiddenCount})`}
+              checked={showHidden}
+              onChange={(e) => setShowHidden(e.currentTarget.checked)}
+              styles={{ label: { fontSize: 11, color: 'var(--mantine-color-dimmed)' } }}
+            />
+          )}
+        </Group>
         <Group gap="xs" wrap="wrap">
           <Select
             size="xs"
@@ -161,14 +187,31 @@ const RideHistoryTable = ({
                 </div>
               </Group>
 
-              <Group gap="xs">
-                <Badge color="blue" variant="light" size="sm">
-                  {estimateTSS(ride)} TSS
-                </Badge>
-                {getPower(ride) > 0 && (
-                  <Badge color="yellow" variant="light" size="sm">
-                    {Math.round(getPower(ride))}W
+              <Group justify="space-between" align="center">
+                <Group gap="xs">
+                  <Badge color="blue" variant="light" size="sm">
+                    {estimateTSS(ride)} TSS
                   </Badge>
+                  {getPower(ride) > 0 && (
+                    <Badge color="yellow" variant="light" size="sm">
+                      {Math.round(getPower(ride))}W
+                    </Badge>
+                  )}
+                </Group>
+                {onHideRide && (
+                  <Tooltip label={ride.is_hidden ? 'Restore ride' : 'Hide ride'}>
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      color={ride.is_hidden ? 'green' : 'gray'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onHideRide(ride);
+                      }}
+                    >
+                      {ride.is_hidden ? <IconEyeCheck size={16} /> : <IconEyeOff size={16} />}
+                    </ActionIcon>
+                  </Tooltip>
                 )}
               </Group>
             </Card>
@@ -245,6 +288,18 @@ const RideHistoryTable = ({
                           </ActionIcon>
                         </Tooltip>
                       )}
+                      {onHideRide && (
+                        <Tooltip label={ride.is_hidden ? 'Restore ride' : 'Hide ride'}>
+                          <ActionIcon
+                            size="sm"
+                            variant="subtle"
+                            color={ride.is_hidden ? 'green' : 'gray'}
+                            onClick={() => onHideRide(ride)}
+                          >
+                            {ride.is_hidden ? <IconEyeCheck size={16} /> : <IconEyeOff size={16} />}
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
                     </Group>
                   </Table.Td>
                 </Table.Tr>
@@ -254,7 +309,7 @@ const RideHistoryTable = ({
         </div>
       )}
 
-      {rides.length > maxRows && (
+      {visibleRidesCount > maxRows && !showHidden && (
         <Button
           variant="subtle"
           fullWidth
@@ -262,7 +317,7 @@ const RideHistoryTable = ({
           rightSection={<IconChevronRight size={16} />}
           onClick={() => navigate('/training?tab=history')}
         >
-          View all {rides.length} rides
+          View all {visibleRidesCount} rides
         </Button>
       )}
     </Card>
