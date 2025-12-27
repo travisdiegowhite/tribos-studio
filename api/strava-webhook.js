@@ -8,6 +8,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
+import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 
 // Initialize Supabase (server-side with service key for webhook processing)
 const supabase = createClient(
@@ -297,6 +298,32 @@ async function handleActivityCreate(eventId, webhookData, integration) {
     if (existing) {
       console.log('⏭️ Activity already imported:', activity.id);
       await markEventProcessed(eventId, 'Activity already exists', existing.id);
+      return;
+    }
+
+    // Cross-provider duplicate check (e.g., Garmin synced to Strava)
+    const dupCheck = await checkForDuplicate(
+      integration.user_id,
+      activity.start_date,
+      activity.distance,
+      'strava',
+      activity.id.toString()
+    );
+
+    if (dupCheck.isDuplicate) {
+      console.log('🔄 Cross-provider duplicate detected, merging data instead');
+      // Merge Strava data into existing activity from another provider
+      const stravaData = {
+        map_summary_polyline: activity.map?.summary_polyline || null,
+        average_watts: activity.average_watts || null,
+        average_heartrate: activity.average_heartrate || null,
+        max_heartrate: activity.max_heartrate || null,
+        average_cadence: activity.average_cadence || null,
+        kilojoules: activity.kilojoules || null,
+        raw_data: activity
+      };
+      await mergeActivityData(dupCheck.existingActivity.id, stravaData, 'strava');
+      await markEventProcessed(eventId, dupCheck.reason, dupCheck.existingActivity.id);
       return;
     }
 

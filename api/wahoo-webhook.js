@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
+import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -256,6 +257,41 @@ async function processWahooWorkout(integration, workout, webhookData) {
     raw_data: webhookData,
     imported_from: 'wahoo_webhook'
   };
+
+  // Cross-provider duplicate check (e.g., Wahoo activity already synced via Strava/Garmin)
+  const dupCheck = await checkForDuplicate(
+    integration.user_id,
+    activityData.start_date,
+    activityData.distance,
+    'wahoo',
+    workout.id.toString()
+  );
+
+  if (dupCheck.isDuplicate) {
+    console.log('🔄 Cross-provider duplicate detected, merging data instead');
+    // Merge Wahoo data into existing activity from another provider
+    const wahooData = {
+      map_summary_polyline: mapPolyline || null,
+      average_watts: activityData.average_watts || null,
+      average_heartrate: activityData.average_heartrate || null,
+      max_heartrate: activityData.max_heartrate || null,
+      average_cadence: activityData.average_cadence || null,
+      kilojoules: activityData.kilojoules || null,
+      raw_data: activityData.raw_data
+    };
+    await mergeActivityData(dupCheck.existingActivity.id, wahooData, 'wahoo');
+
+    // Update integration last sync (even for merged data)
+    await supabase
+      .from('bike_computer_integrations')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        sync_error: null
+      })
+      .eq('id', integration.id);
+
+    return { activityId: dupCheck.existingActivity.id, merged: true };
+  }
 
   const { data: activity, error: insertError } = await supabase
     .from('activities')
