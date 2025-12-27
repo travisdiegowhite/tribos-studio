@@ -83,11 +83,21 @@ async function exchangeCodeForToken(req, res, code, userId) {
     return res.status(400).json({ error: 'Code and userId required' });
   }
 
-  const redirectUri = process.env.WAHOO_REDIRECT_URI ||
-    `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/wahoo/callback`;
+  // IMPORTANT: The redirect_uri MUST match exactly what was used when initiating OAuth
+  // Priority: explicit env var > production domain > Vercel URL > localhost
+  let redirectUri = process.env.WAHOO_REDIRECT_URI;
+
+  if (!redirectUri) {
+    // Construct from known production domain or Vercel URL
+    const baseUrl = process.env.PRODUCTION_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+      || 'http://localhost:3000';
+    redirectUri = `${baseUrl}/wahoo/callback`;
+  }
 
   try {
     console.log('🔄 Exchanging Wahoo code for tokens...');
+    console.log('📍 Using redirect_uri:', redirectUri);
 
     // Exchange code with Wahoo
     const response = await fetch(`${WAHOO_OAUTH_BASE}/token`, {
@@ -106,7 +116,22 @@ async function exchangeCodeForToken(req, res, code, userId) {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Wahoo token exchange failed:', error);
+      console.error('❌ Wahoo token exchange failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: error,
+        redirect_uri_used: redirectUri
+      });
+
+      // Return more helpful error message
+      if (response.status === 400 || response.status === 401) {
+        return res.status(400).json({
+          error: 'Wahoo authentication failed',
+          details: 'The authorization code may have expired or the redirect URI doesn\'t match. Please try again.',
+          hint: 'Ensure WAHOO_REDIRECT_URI matches exactly what\'s registered with Wahoo'
+        });
+      }
+
       throw new Error(`Wahoo token exchange failed: ${error}`);
     }
 
