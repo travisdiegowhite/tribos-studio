@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
+import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -464,6 +465,33 @@ async function downloadAndProcessActivity(event, integration) {
     const activityData = buildActivityData(integration.user_id, event.activity_id, activityInfo, source);
     // Override raw_data to include both webhook and API data
     activityData.raw_data = { webhook: payload, api: activityDetails };
+
+    // Cross-provider duplicate check (e.g., Garmin activity already synced via Strava)
+    const dupCheck = await checkForDuplicate(
+      integration.user_id,
+      activityData.start_date,
+      activityData.distance,
+      'garmin',
+      event.activity_id
+    );
+
+    if (dupCheck.isDuplicate) {
+      console.log('🔄 Cross-provider duplicate detected, merging data instead');
+      // Merge Garmin data into existing activity from another provider
+      // Garmin often has better power/elevation data
+      const garminData = {
+        total_elevation_gain: activityData.total_elevation_gain || null,
+        average_watts: activityData.average_watts || null,
+        average_heartrate: activityData.average_heartrate || null,
+        max_heartrate: activityData.max_heartrate || null,
+        average_cadence: activityData.average_cadence || null,
+        kilojoules: activityData.kilojoules || null,
+        raw_data: activityData.raw_data
+      };
+      await mergeActivityData(dupCheck.existingActivity.id, garminData, 'garmin');
+      await markEventProcessed(event.id, dupCheck.reason, dupCheck.existingActivity.id);
+      return;
+    }
 
     const { data: activity, error: insertError } = await supabase
       .from('activities')
