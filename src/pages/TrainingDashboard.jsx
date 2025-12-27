@@ -68,7 +68,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
-import { TrainingNotifications, SupplementWorkoutModal } from '../components/training';
+import { SupplementWorkoutModal } from '../components/training';
 import RaceGoalsPanel from '../components/RaceGoalsPanel.jsx';
 import PowerDurationCurve from '../components/PowerDurationCurve.jsx';
 import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
@@ -643,74 +643,79 @@ function TrainingDashboard() {
             onViewWorkout={handleViewWorkout}
           />
 
-          {/* Quick Stats Row */}
-          <SimpleGrid cols={{ base: 1, xs: 2, sm: 4 }} spacing="md">
-            <QuickStatCard
-              label="Fitness (CTL)"
-              value={Math.round(trainingMetrics.ctl)}
-              icon={IconTrendingUp}
-              color="teal"
-              subtitle="42-day fitness"
-            />
-            <QuickStatCard
-              label="Fatigue (ATL)"
-              value={Math.round(trainingMetrics.atl)}
-              icon={IconFlame}
-              color="orange"
-              subtitle="7-day load"
-            />
-            <QuickStatCard
-              label="Form (TSB)"
-              value={`${trainingMetrics.tsb > 0 ? '+' : ''}${Math.round(trainingMetrics.tsb)}`}
-              icon={formStatus.icon}
-              color={formStatus.color}
-              subtitle={formStatus.label}
-            />
-            <QuickStatCard
-              label="Weekly TSS"
-              value={Math.round(weeklyStats.totalTSS)}
-              icon={IconActivity}
-              color="blue"
-              subtitle={`${weeklyStats.rideCount} rides`}
-            />
-          </SimpleGrid>
-
-          {/* Training Notifications */}
-          {activePlan && plannedWorkouts.length > 0 && (
-            <TrainingNotifications
-              activePlan={activePlan}
-              plannedWorkouts={plannedWorkouts}
-              activities={visibleActivities}
-              onNavigateToCalendar={() => setActiveTab('calendar')}
-            />
-          )}
+          {/* Compact Fitness Metrics Bar */}
+          <FitnessMetricsBar
+            trainingMetrics={trainingMetrics}
+            formStatus={formStatus}
+            weeklyStats={weeklyStats}
+            previousMetrics={null}
+          />
 
           {/* Main Tabs */}
-          <Card>
-            <Tabs value={activeTab} onChange={setActiveTab} color="lime">
-              <Tabs.List mb="md">
-                <Tabs.Tab value="today" leftSection={<IconTarget size={16} />}>
-                  Today
-                </Tabs.Tab>
-                <Tabs.Tab value="plans" leftSection={<IconList size={16} />}>
-                  Plans
-                </Tabs.Tab>
-                <Tabs.Tab value="trends" leftSection={<IconTrendingUp size={16} />}>
-                  Trends
-                </Tabs.Tab>
-                <Tabs.Tab value="power" leftSection={<IconBolt size={16} />}>
-                  Power
-                </Tabs.Tab>
-                <Tabs.Tab value="history" leftSection={<IconClock size={16} />}>
-                  History
-                </Tabs.Tab>
-                <Tabs.Tab value="calendar" leftSection={<IconCalendar size={16} />}>
-                  Calendar
-                </Tabs.Tab>
-              </Tabs.List>
+          <Card p={0}>
+            <Tabs value={activeTab} onChange={setActiveTab} color="lime" variant="default">
+              <Box
+                style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 100,
+                  backgroundColor: 'var(--mantine-color-dark-7)',
+                  borderBottom: '1px solid var(--mantine-color-dark-4)',
+                }}
+              >
+                <Tabs.List
+                  grow
+                  style={{
+                    borderBottom: 'none',
+                  }}
+                >
+                  <Tabs.Tab
+                    value="today"
+                    leftSection={<IconTarget size={20} />}
+                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
+                  >
+                    Today
+                  </Tabs.Tab>
+                  <Tabs.Tab
+                    value="plans"
+                    leftSection={<IconList size={20} />}
+                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
+                  >
+                    Plans
+                  </Tabs.Tab>
+                  <Tabs.Tab
+                    value="trends"
+                    leftSection={<IconTrendingUp size={20} />}
+                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
+                  >
+                    Trends
+                  </Tabs.Tab>
+                  <Tabs.Tab
+                    value="power"
+                    leftSection={<IconBolt size={20} />}
+                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
+                  >
+                    Power
+                  </Tabs.Tab>
+                  <Tabs.Tab
+                    value="history"
+                    leftSection={<IconClock size={20} />}
+                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
+                  >
+                    History
+                  </Tabs.Tab>
+                  <Tabs.Tab
+                    value="calendar"
+                    leftSection={<IconCalendar size={20} />}
+                    style={{ fontSize: '1rem', fontWeight: 600, padding: '1rem 1.5rem' }}
+                  >
+                    Calendar
+                  </Tabs.Tab>
+                </Tabs.List>
+              </Box>
 
               {/* TODAY TAB */}
-              <Tabs.Panel value="today">
+              <Tabs.Panel value="today" p="md">
                 <TodayTab
                   trainingMetrics={trainingMetrics}
                   weeklyStats={weeklyStats}
@@ -729,7 +734,7 @@ function TrainingDashboard() {
               </Tabs.Panel>
 
               {/* PLANS TAB */}
-              <Tabs.Panel value="plans">
+              <Tabs.Panel value="plans" p="md">
                 <TrainingPlanBrowser
                   activePlan={activePlan}
                   onPlanActivated={async (plan) => {
@@ -751,7 +756,7 @@ function TrainingDashboard() {
               </Tabs.Panel>
 
               {/* TRENDS TAB */}
-              <Tabs.Panel value="trends">
+              <Tabs.Panel value="trends" p="md">
                 <TrendsTab
                   dailyTSSData={dailyTSSData}
                   trainingMetrics={trainingMetrics}
@@ -766,7 +771,7 @@ function TrainingDashboard() {
               </Tabs.Panel>
 
               {/* POWER TAB */}
-              <Tabs.Panel value="power">
+              <Tabs.Panel value="power" p="md">
                 <PowerTab
                   ftp={ftp}
                   powerZones={powerZones}
@@ -777,7 +782,7 @@ function TrainingDashboard() {
               </Tabs.Panel>
 
               {/* HISTORY TAB */}
-              <Tabs.Panel value="history">
+              <Tabs.Panel value="history" p="md">
                 <RideHistoryTable
                   rides={activities}
                   formatDistance={formatDist}
@@ -789,7 +794,7 @@ function TrainingDashboard() {
               </Tabs.Panel>
 
               {/* CALENDAR TAB */}
-              <Tabs.Panel value="calendar">
+              <Tabs.Panel value="calendar" p="md">
                 <TrainingCalendar
                   activePlan={activePlan}
                   rides={visibleActivities}
@@ -1326,6 +1331,124 @@ function QuickStatCard({ label, value, icon: Icon, color, subtitle }) {
         <ThemeIcon size="lg" variant="light" color={color}>
           <Icon size={18} />
         </ThemeIcon>
+      </Group>
+    </Paper>
+  );
+}
+
+// ============================================================================
+// COMPACT FITNESS METRICS BAR
+// ============================================================================
+function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousMetrics }) {
+  // Calculate trends (compare to 7 days ago if available)
+  const ctlTrend = previousMetrics ? trainingMetrics.ctl - previousMetrics.ctl : 0;
+  const atlTrend = previousMetrics ? trainingMetrics.atl - previousMetrics.atl : 0;
+  const tsb = trainingMetrics.tsb;
+
+  // Get color based on metric type and value
+  const getCtlColor = (value) => {
+    if (value >= 70) return 'teal';
+    if (value >= 50) return 'green';
+    if (value >= 30) return 'lime';
+    return 'gray';
+  };
+
+  const getAtlColor = (value) => {
+    if (value >= 80) return 'red';
+    if (value >= 60) return 'orange';
+    if (value >= 40) return 'yellow';
+    return 'green';
+  };
+
+  const getTrendIcon = (trend) => {
+    if (trend > 2) return IconTrendingUp;
+    if (trend < -2) return IconTrendingDown;
+    return null;
+  };
+
+  const metrics = [
+    {
+      label: 'CTL',
+      value: Math.round(trainingMetrics.ctl),
+      color: getCtlColor(trainingMetrics.ctl),
+      trend: ctlTrend,
+      tooltip: 'Fitness (42-day load)',
+    },
+    {
+      label: 'ATL',
+      value: Math.round(trainingMetrics.atl),
+      color: getAtlColor(trainingMetrics.atl),
+      trend: atlTrend,
+      tooltip: 'Fatigue (7-day load)',
+    },
+    {
+      label: 'TSB',
+      value: `${tsb > 0 ? '+' : ''}${Math.round(tsb)}`,
+      color: formStatus.color,
+      trend: null,
+      tooltip: `Form: ${formStatus.label}`,
+    },
+    {
+      label: 'Form',
+      value: formStatus.label,
+      color: formStatus.color,
+      trend: null,
+      tooltip: formStatus.label === 'FRESH' ? 'Ready for hard training' :
+               formStatus.label === 'READY' ? 'Quality session day' :
+               formStatus.label === 'OPTIMAL' ? 'Sweet spot training' :
+               formStatus.label === 'TIRED' ? 'Consider recovery' : 'Recovery needed',
+      isBadge: true,
+    },
+    {
+      label: 'Week',
+      value: `${Math.round(weeklyStats.totalTSS)} TSS`,
+      color: 'blue',
+      trend: null,
+      tooltip: `${weeklyStats.rideCount} rides this week`,
+      suffix: `(${weeklyStats.rideCount})`,
+    },
+  ];
+
+  return (
+    <Paper withBorder p="sm" radius="md">
+      <Group justify="space-between" wrap="wrap" gap="xs">
+        {metrics.map((metric, index) => {
+          const TrendIcon = getTrendIcon(metric.trend);
+          return (
+            <Tooltip key={metric.label} label={metric.tooltip} position="bottom">
+              <Group gap={6} style={{ cursor: 'default' }}>
+                <Text size="xs" c="dimmed" fw={500}>{metric.label}:</Text>
+                {metric.isBadge ? (
+                  <Badge size="sm" color={metric.color} variant="filled">
+                    {metric.value}
+                  </Badge>
+                ) : (
+                  <Group gap={4}>
+                    <Text size="sm" fw={700} style={{ color: `var(--mantine-color-${metric.color}-5)` }}>
+                      {metric.value}
+                    </Text>
+                    {metric.suffix && (
+                      <Text size="xs" c="dimmed">{metric.suffix}</Text>
+                    )}
+                    {TrendIcon && (
+                      <TrendIcon
+                        size={14}
+                        style={{
+                          color: metric.trend > 0
+                            ? 'var(--mantine-color-green-5)'
+                            : 'var(--mantine-color-red-5)'
+                        }}
+                      />
+                    )}
+                  </Group>
+                )}
+                {index < metrics.length - 1 && (
+                  <Divider orientation="vertical" size="sm" style={{ height: 16, opacity: 0.3 }} />
+                )}
+              </Group>
+            </Tooltip>
+          );
+        })}
       </Group>
     </Paper>
   );
