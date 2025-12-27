@@ -8,12 +8,15 @@ import { stravaService } from '../../utils/stravaService';
 function StravaCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [error, setError] = useState(null);
   const [status, setStatus] = useState('processing');
   const hasProcessed = useRef(false);
 
   useEffect(() => {
+    // Wait for auth to finish loading before checking user
+    if (loading) return;
+
     const handleCallback = async () => {
       // Prevent duplicate processing in React strict mode
       if (hasProcessed.current) return;
@@ -66,7 +69,7 @@ function StravaCallback() {
     };
 
     handleCallback();
-  }, [navigate, searchParams, user]);
+  }, [navigate, searchParams, user, loading]);
 
   return (
     <Box
