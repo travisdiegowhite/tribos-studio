@@ -12,38 +12,56 @@ function StravaCallback() {
   const [error, setError] = useState(null);
   const [status, setStatus] = useState('processing');
   const hasProcessed = useRef(false);
+  const authCheckCount = useRef(0);
 
   useEffect(() => {
-    // Wait for auth to finish loading before checking user
+    // Wait for auth to finish loading
     if (loading) return;
 
     const handleCallback = async () => {
-      // Prevent duplicate processing in React strict mode
+      // If already successfully processed, don't run again
       if (hasProcessed.current) return;
-      hasProcessed.current = true;
+
       const code = searchParams.get('code');
       const errorParam = searchParams.get('error');
 
+      // Handle Strava errors immediately
       if (errorParam) {
+        hasProcessed.current = true;
         setError('Strava authorization was denied');
         setStatus('error');
         setTimeout(() => navigate('/settings'), 3000);
         return;
       }
 
+      // Handle missing code immediately
       if (!code) {
+        hasProcessed.current = true;
         setError('No authorization code received');
         setStatus('error');
         setTimeout(() => navigate('/settings'), 3000);
         return;
       }
 
+      // For user check - give auth context time to restore session
+      // The session exists in localStorage but may take a moment to hydrate
       if (!user) {
-        setError('You must be logged in to connect Strava');
-        setStatus('error');
-        setTimeout(() => navigate('/auth'), 3000);
+        authCheckCount.current += 1;
+        console.log(`⏳ Waiting for auth session... (attempt ${authCheckCount.current})`);
+
+        // After 10 attempts (~2-3 seconds), give up
+        if (authCheckCount.current >= 10) {
+          hasProcessed.current = true;
+          setError('You must be logged in to connect Strava');
+          setStatus('error');
+          setTimeout(() => navigate('/auth'), 3000);
+        }
+        // Don't mark as processed - let the effect retry when user changes
         return;
       }
+
+      // We have a user - now mark as processed to prevent duplicates
+      hasProcessed.current = true;
 
       try {
         console.log('🔗 Processing Strava authorization code...');
@@ -70,6 +88,20 @@ function StravaCallback() {
 
     handleCallback();
   }, [navigate, searchParams, user, loading]);
+
+  // Retry effect when user is null but we're waiting
+  useEffect(() => {
+    if (loading || user || hasProcessed.current) return;
+
+    // Poll for user becoming available
+    const timer = setTimeout(() => {
+      // Trigger a re-check by incrementing the counter
+      // This is a workaround for the auth state race condition
+      authCheckCount.current += 1;
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [loading, user, authCheckCount.current]);
 
   return (
     <Box
