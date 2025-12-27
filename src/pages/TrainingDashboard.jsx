@@ -414,6 +414,52 @@ function TrainingDashboard() {
     setWorkoutModalOpen(true);
   };
 
+  // Handle hiding/showing a ride
+  const handleHideRide = async (ride) => {
+    if (!user) return;
+
+    try {
+      const response = await fetch('/api/activities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({
+          action: 'toggle_hide',
+          activityId: ride.id,
+          userId: user.id
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update activity');
+      }
+
+      // Update local state
+      setActivities(prev => prev.map(a =>
+        a.id === ride.id ? { ...a, is_hidden: result.isHidden } : a
+      ));
+
+      notifications.show({
+        title: result.isHidden ? 'Ride hidden' : 'Ride restored',
+        message: result.isHidden
+          ? `"${ride.name}" has been hidden from your history`
+          : `"${ride.name}" is now visible in your history`,
+        color: result.isHidden ? 'gray' : 'green'
+      });
+    } catch (error) {
+      console.error('Error hiding ride:', error);
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'Failed to update ride visibility',
+        color: 'red'
+      });
+    }
+  };
+
   // Handle adding supplement workout to plan
   const handleAddSupplementWorkout = async (workoutId, scheduledDate) => {
     if (!activePlan || !user) return false;
@@ -729,6 +775,7 @@ function TrainingDashboard() {
                   formatElevation={formatElev}
                   maxRows={20}
                   onViewRide={(ride) => console.log('View ride:', ride)}
+                  onHideRide={handleHideRide}
                 />
               </Tabs.Panel>
 
