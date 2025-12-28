@@ -25,8 +25,8 @@ import {
   IconChevronLeft,
   IconRoute,
   IconActivity,
-  IconBrandStrava,
 } from '@tabler/icons-react';
+import { ConnectWithStravaButton, STRAVA_ORANGE } from './StravaBranding';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
@@ -210,8 +210,8 @@ function OnboardingModal({ opened, onClose }) {
               >
                 <Group justify="space-between">
                   <Group gap="sm">
-                    <ThemeIcon size="lg" color="orange" variant="light">
-                      <IconActivity size={20} />
+                    <ThemeIcon size="lg" style={{ backgroundColor: `${STRAVA_ORANGE}20` }}>
+                      <IconActivity size={20} color={STRAVA_ORANGE} />
                     </ThemeIcon>
                     <Box>
                       <Text fw={500} style={{ color: tokens.colors.textPrimary }}>Strava</Text>
@@ -223,9 +223,7 @@ function OnboardingModal({ opened, onClose }) {
                   {stravaConnected ? (
                     <Badge color="green" leftSection={<IconCheck size={12} />}>Connected</Badge>
                   ) : (
-                    <Button size="xs" variant="light" color="orange" onClick={handleConnectStrava}>
-                      Connect
-                    </Button>
+                    <ConnectWithStravaButton onClick={handleConnectStrava} />
                   )}
                 </Group>
               </Paper>

@@ -1,9 +1,10 @@
 import { useMemo, useState, useCallback } from 'react';
-import { Card, Text, Group, Badge, Box, Stack, Skeleton, Loader } from '@mantine/core';
-import { IconMapPin, IconRoute } from '@tabler/icons-react';
+import { Card, Text, Group, Badge, Box, Stack, Skeleton, Loader, Anchor } from '@mantine/core';
+import { IconMapPin, IconRoute, IconExternalLink } from '@tabler/icons-react';
 import Map, { Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
+import { ViewOnStravaLink, PoweredByStrava, STRAVA_ORANGE } from './StravaBranding';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -332,6 +333,8 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
                                  ride.distance ? ride.distance / 1000 : 0;
               const elevation = ride.elevation_gain_meters || ride.total_elevation_gain || 0;
               const duration = ride.duration_seconds || ride.moving_time || ride.elapsed_time || 0;
+              // Get Strava activity ID for "View on Strava" link
+              const stravaActivityId = ride.provider === 'strava' ? ride.provider_activity_id : null;
 
               return (
                 <Group
@@ -377,10 +380,19 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
                     <Text size="xs" style={{ color: tokens.colors.textMuted }}>
                       {formatDuration(duration)}
                     </Text>
+                    {stravaActivityId && (
+                      <ViewOnStravaLink activityId={stravaActivityId} />
+                    )}
                   </Group>
                 </Group>
               );
             })}
+            {/* Strava Attribution */}
+            {ridesWithRoutes.some(r => r.provider === 'strava') && (
+              <Box mt="xs">
+                <PoweredByStrava variant="light" size="sm" />
+              </Box>
+            )}
           </Stack>
         </Box>
       </Box>

@@ -23,6 +23,7 @@ import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import ImportWizard from '../components/ImportWizard.jsx';
+import { ConnectWithStravaButton, PoweredByStrava, STRAVA_ORANGE } from '../components/StravaBranding';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
@@ -949,6 +950,81 @@ function Settings() {
             </Stack>
           </Card>
 
+          {/* Data & Privacy */}
+          <Card>
+            <Stack gap="md">
+              <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                Data & Privacy
+              </Title>
+              <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                Manage your data and understand how we use it
+              </Text>
+
+              <Divider />
+
+              {/* Strava Data Info */}
+              {stravaStatus.connected && (
+                <Box
+                  style={{
+                    padding: tokens.spacing.md,
+                    backgroundColor: tokens.colors.bgTertiary,
+                    borderRadius: tokens.radius.md,
+                  }}
+                >
+                  <Group justify="space-between" align="flex-start">
+                    <Box>
+                      <Text fw={500} style={{ color: tokens.colors.textPrimary }}>
+                        Strava Data
+                      </Text>
+                      <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                        We store your activity data to calculate training metrics and speed profiles.
+                        Per Strava's API agreement, your data is never shared with third parties.
+                      </Text>
+                      <Text size="xs" style={{ color: tokens.colors.textMuted }} mt="xs">
+                        Disconnecting Strava will permanently delete all your Strava activities and speed profile data.
+                      </Text>
+                    </Box>
+                  </Group>
+                </Box>
+              )}
+
+              {/* Privacy Links */}
+              <Group gap="md">
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  component="a"
+                  href="/privacy"
+                  target="_blank"
+                >
+                  Privacy Policy
+                </Button>
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  component="a"
+                  href="/terms"
+                  target="_blank"
+                >
+                  Terms of Service
+                </Button>
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  component="a"
+                  href="https://www.strava.com/legal/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Strava Privacy Policy
+                </Button>
+              </Group>
+            </Stack>
+          </Card>
+
           {/* Account Actions */}
           <Card>
             <Stack gap="md">
@@ -968,6 +1044,8 @@ function Settings() {
 }
 
 function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis, onBackfillGps, backfillingGps }) {
+  const isStrava = name === 'Strava';
+
   if (loading) {
     return (
       <Group justify="space-between">
@@ -1004,6 +1082,8 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 Disconnect
               </Button>
             </>
+          ) : isStrava ? (
+            <ConnectWithStravaButton onClick={onConnect} />
           ) : (
             <Button variant="outline" color="lime" size="sm" onClick={onConnect}>
               Connect
@@ -1028,9 +1108,12 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 Activity Sync
               </Text>
               {speedProfile ? (
-                <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                  {speedProfile.rides_analyzed} rides analyzed • Avg: {speedProfile.average_speed?.toFixed(1)} km/h
-                </Text>
+                <Stack gap={4}>
+                  <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                    {speedProfile.rides_analyzed} rides analyzed • Avg: {speedProfile.average_speed?.toFixed(1)} km/h
+                  </Text>
+                  {isStrava && <PoweredByStrava variant="light" size="sm" />}
+                </Stack>
               ) : (
                 <Text size="xs" style={{ color: tokens.colors.textMuted }}>
                   {onCheckWebhook ? 'Sync last 90 days of activities' : 'Sync to calculate your speed profile'}
