@@ -12,10 +12,12 @@ import {
   Button,
   Select,
   Switch,
+  Box,
 } from '@mantine/core';
 import { IconSearch, IconEye, IconChartBar, IconChevronRight, IconFilter, IconEyeOff, IconEyeCheck } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '@mantine/hooks';
+import { ViewOnStravaLink, StravaLogo, PoweredByStrava, STRAVA_ORANGE } from './StravaBranding';
 
 /**
  * Ride History Table Component
@@ -46,6 +48,8 @@ const RideHistoryTable = ({
   const getPower = (r) => r.average_watts || 0;
   const getDate = (r) => r.recorded_at || r.start_date || r.created_at;
   const getName = (r) => r.name || 'Untitled Ride';
+  const isFromStrava = (r) => r.provider === 'strava';
+  const getStravaActivityId = (r) => r.provider === 'strava' ? r.provider_activity_id : null;
 
   // Filter rides
   const filteredRides = rides.filter(ride => {
@@ -164,9 +168,18 @@ const RideHistoryTable = ({
               onClick={() => onViewRide?.(ride)}
             >
               <Group justify="space-between" mb="xs">
-                <Text fw={600} size="sm" lineClamp={1} style={{ flex: 1 }}>
-                  {getName(ride)}
-                </Text>
+                <Group gap="xs" style={{ flex: 1 }}>
+                  {isFromStrava(ride) && (
+                    <Tooltip label="From Strava">
+                      <Box style={{ display: 'flex', alignItems: 'center' }}>
+                        <StravaLogo size={16} />
+                      </Box>
+                    </Tooltip>
+                  )}
+                  <Text fw={600} size="sm" lineClamp={1}>
+                    {getName(ride)}
+                  </Text>
+                </Group>
                 <Badge size="xs" color="gray" variant="light">
                   {formatDate(getDate(ride))}
                 </Badge>
@@ -196,6 +209,11 @@ const RideHistoryTable = ({
                     <Badge color="yellow" variant="light" size="sm">
                       {Math.round(getPower(ride))}W
                     </Badge>
+                  )}
+                  {getStravaActivityId(ride) && (
+                    <Box onClick={(e) => e.stopPropagation()}>
+                      <ViewOnStravaLink activityId={getStravaActivityId(ride)} />
+                    </Box>
                   )}
                 </Group>
                 {onHideRide && (
@@ -240,9 +258,18 @@ const RideHistoryTable = ({
                     <Text size="xs">{formatDate(getDate(ride))}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm" fw={500} lineClamp={1} maw={200}>
-                      {getName(ride)}
-                    </Text>
+                    <Group gap="xs" wrap="nowrap">
+                      {isFromStrava(ride) && (
+                        <Tooltip label="From Strava">
+                          <Box style={{ display: 'flex', alignItems: 'center' }}>
+                            <StravaLogo size={14} />
+                          </Box>
+                        </Tooltip>
+                      )}
+                      <Text size="sm" fw={500} lineClamp={1} maw={180}>
+                        {getName(ride)}
+                      </Text>
+                    </Group>
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm">{formatDistance(getDistance(ride))}</Text>
@@ -288,6 +315,9 @@ const RideHistoryTable = ({
                           </ActionIcon>
                         </Tooltip>
                       )}
+                      {getStravaActivityId(ride) && (
+                        <ViewOnStravaLink activityId={getStravaActivityId(ride)} />
+                      )}
                       {onHideRide && (
                         <Tooltip label={ride.is_hidden ? 'Restore ride' : 'Hide ride'}>
                           <ActionIcon
@@ -319,6 +349,13 @@ const RideHistoryTable = ({
         >
           View all {visibleRidesCount} rides
         </Button>
+      )}
+
+      {/* Strava Attribution - show if any rides are from Strava */}
+      {filteredRides.some(r => isFromStrava(r)) && (
+        <Box mt="sm" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+          <PoweredByStrava variant="light" size="sm" />
+        </Box>
       )}
     </Card>
   );
