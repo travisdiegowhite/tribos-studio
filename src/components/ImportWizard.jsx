@@ -26,9 +26,9 @@ import {
   IconAlertCircle,
   IconTrendingUp,
   IconCircleCheck,
-  IconBrandStrava,
   IconDeviceWatch,
 } from '@tabler/icons-react';
+import { ConnectWithStravaButton, StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
@@ -263,21 +263,13 @@ const ImportWizard = ({ opened, onClose }) => {
             <Stack gap="md" mt="xl">
               {!stravaConnected ? (
                 <>
-                  <Alert color="orange" variant="light" icon={<IconBrandStrava size={20} />}>
+                  <Alert color="orange" variant="light" icon={<StravaLogo size={20} />}>
                     <Text size="sm" fw={600}>Connect to Strava</Text>
                     <Text size="xs">
                       Connect your Strava account to import your historical rides.
                     </Text>
                   </Alert>
-                  <Button
-                    onClick={handleStravaConnect}
-                    size="md"
-                    fullWidth
-                    style={{ backgroundColor: '#FC4C02', color: 'white' }}
-                    leftSection={<IconBrandStrava size={18} />}
-                  >
-                    Connect Strava
-                  </Button>
+                  <ConnectWithStravaButton onClick={handleStravaConnect} />
                 </>
               ) : (
                 <>
@@ -350,7 +342,8 @@ const ImportWizard = ({ opened, onClose }) => {
                     disabled={importing}
                     size="md"
                     fullWidth
-                    style={{ backgroundColor: '#FC4C02', color: 'white' }}
+                    style={{ backgroundColor: STRAVA_ORANGE, color: 'white' }}
+                    leftSection={<StravaLogo size={18} color="white" />}
                   >
                     Start Import
                   </Button>

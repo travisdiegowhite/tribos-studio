@@ -16,6 +16,7 @@ import {
 import { IconChevronRight, IconRoute, IconChartLine, IconSettings, IconPlus } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { tokens } from '../theme';
+import { ViewOnStravaLink } from '../components/StravaBranding';
 import AppShell from '../components/AppShell.jsx';
 import OnboardingModal from '../components/OnboardingModal.jsx';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
@@ -357,6 +358,8 @@ function ActivityRow({ activity, formatDist, formatElev }) {
   const duration = activity.duration_seconds || activity.moving_time || activity.elapsed_time || 0;
   const power = activity.average_power_watts || activity.average_watts || 0;
   const tss = activity.tss || 0;
+  // Get Strava activity ID for "View on Strava" link
+  const stravaActivityId = activity.provider === 'strava' ? activity.provider_activity_id : null;
 
   return (
     <Card
@@ -379,9 +382,14 @@ function ActivityRow({ activity, formatDist, formatElev }) {
               </Badge>
             )}
           </Group>
-          <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-            {formatDate(activity.start_date)}
-          </Text>
+          <Group gap="xs">
+            <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+              {formatDate(activity.start_date)}
+            </Text>
+            {stravaActivityId && (
+              <ViewOnStravaLink activityId={stravaActivityId} />
+            )}
+          </Group>
         </Box>
         <Group gap="lg" wrap="nowrap">
           <StatCell label="Distance" value={formatDist(distanceKm)} />
