@@ -45,6 +45,7 @@ import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
 import { formatLocalDate, addDays, startOfMonth, endOfMonth, parsePlanStartDate } from '../utils/dateUtils';
 import RaceGoalModal from './RaceGoalModal';
+import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 
 /**
  * Enhanced Training Calendar Component
@@ -1084,9 +1085,15 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       {/* Completed rides */}
                       {dayRides.length > 0 && (
                         <Tooltip label={dayRides.map(r => r.name || 'Ride').join(', ')}>
-                          <Badge size="xs" color="green" variant="filled">
-                            🚴 {dayRides.length}
-                          </Badge>
+                          <Group gap={4}>
+                            <Badge size="xs" color="green" variant="filled">
+                              🚴 {dayRides.length}
+                            </Badge>
+                            {/* Show Strava logo if any rides are from Strava */}
+                            {dayRides.some(r => r.provider === 'strava') && (
+                              <StravaLogo size={12} />
+                            )}
+                          </Group>
                         </Tooltip>
                       )}
 
