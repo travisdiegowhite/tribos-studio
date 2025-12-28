@@ -1022,6 +1022,17 @@ function Settings() {
                   Strava Privacy Policy
                 </Button>
               </Group>
+
+              {/* Contact */}
+              <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                Questions or concerns?{' '}
+                <a
+                  href="mailto:travis@tribos.studio"
+                  style={{ color: tokens.colors.textSecondary, textDecoration: 'underline' }}
+                >
+                  Contact us
+                </a>
+              </Text>
             </Stack>
           </Card>
 
