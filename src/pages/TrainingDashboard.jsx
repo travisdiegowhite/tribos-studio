@@ -58,7 +58,7 @@ import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parsePlanStartDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
-import AICoach from '../components/AICoach.jsx';
+import TrainingStrategist from '../components/TrainingStrategist.jsx';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
 import TrainingPlanBrowser from '../components/TrainingPlanBrowser.jsx';
@@ -1043,13 +1043,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
 
       {/* AI Coach Section */}
       <Box ref={aiCoachRef}>
-        <Group gap="xs" mb="md">
-          <ThemeIcon size="md" color="lime" variant="light">
-            <IconMessageCircle size={16} />
-          </ThemeIcon>
-          <Text fw={600}>AI Training Coach</Text>
-        </Group>
-        <AICoach
+        <TrainingStrategist
           trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan, raceGoals)}
           activePlan={activePlan}
           onAddWorkout={(workout) => {
@@ -1057,7 +1051,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
             notifications.show({
               title: 'Workout Added to Calendar',
               message: `${workout.name} scheduled for ${workout.scheduledDate}`,
-              color: 'lime'
+              color: 'blue'
             });
           }}
         />
