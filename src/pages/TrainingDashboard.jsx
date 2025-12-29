@@ -24,6 +24,7 @@ import {
   Menu,
   ActionIcon,
   Tooltip,
+  Grid,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
@@ -731,45 +732,80 @@ function TrainingDashboard() {
 
             {/* Tab Panels */}
             <Box mt="md">
-              {/* TODAY TAB */}
+              {/* TODAY TAB - Grid Layout */}
               <Tabs.Panel value="today">
                 <Stack gap="md">
-                  {/* Today's Focus Card - moved here */}
-                  <TodaysFocusCard
-                    trainingMetrics={trainingMetrics}
-                    formStatus={formStatus}
-                    weeklyStats={weeklyStats}
-                    actualWeeklyStats={actualWeeklyStats}
+                  {/* Row 1: Today's Focus + Race Goals */}
+                  <Grid gutter="md">
+                    <Grid.Col span={{ base: 12, md: 7 }}>
+                      <TodaysFocusCard
+                        trainingMetrics={trainingMetrics}
+                        formStatus={formStatus}
+                        weeklyStats={weeklyStats}
+                        actualWeeklyStats={actualWeeklyStats}
+                        activities={visibleActivities}
+                        formatDist={formatDist}
+                        formatTime={formatTime}
+                        onAskCoach={() => {
+                          setTimeout(() => {
+                            aiCoachRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            setTimeout(() => {
+                              aiCoachRef.current?.querySelector('input')?.focus();
+                            }, 300);
+                          }, 100);
+                        }}
+                        suggestedWorkout={suggestedWorkout}
+                        onViewWorkout={handleViewWorkout}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, md: 5 }}>
+                      <RaceGoalsPanel isImperial={isImperial} compact />
+                    </Grid.Col>
+                  </Grid>
+
+                  {/* Row 2: TrainNow - Full Width */}
+                  <TrainNow
                     activities={visibleActivities}
-                    formatDist={formatDist}
-                    formatTime={formatTime}
-                    onAskCoach={() => {
-                      // Scroll to AI Coach
-                      setTimeout(() => {
-                        aiCoachRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        setTimeout(() => {
-                          aiCoachRef.current?.querySelector('input')?.focus();
-                        }, 300);
-                      }, 100);
-                    }}
-                    suggestedWorkout={suggestedWorkout}
-                    onViewWorkout={handleViewWorkout}
-                  />
-                  <TodayTab
                     trainingMetrics={trainingMetrics}
-                    weeklyStats={weeklyStats}
-                    actualWeeklyStats={actualWeeklyStats}
-                    activities={visibleActivities}
+                    plannedWorkouts={[]}
                     ftp={ftp}
-                    formatDist={formatDist}
-                    formatTime={formatTime}
-                    isImperial={isImperial}
-                    todayHealthMetrics={todayHealthMetrics}
-                    onOpenHealthCheckIn={() => setHealthCheckInOpen(true)}
-                    activePlan={activePlan}
-                    aiCoachRef={aiCoachRef}
-                    raceGoals={raceGoals}
+                    onSelectWorkout={(workout) => {
+                      console.log('Selected workout:', workout);
+                    }}
                   />
+
+                  {/* Row 3: AI Coach + Body Check-in */}
+                  <Grid gutter="md">
+                    <Grid.Col span={{ base: 12, md: 7 }}>
+                      <Card withBorder p="md" h="100%">
+                        <Box ref={aiCoachRef}>
+                          <Group gap="xs" mb="md">
+                            <ThemeIcon size="md" color="lime" variant="light">
+                              <IconMessageCircle size={16} />
+                            </ThemeIcon>
+                            <Text fw={600}>AI Training Coach</Text>
+                          </Group>
+                          <AICoach
+                            trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals)}
+                            activePlan={activePlan}
+                            onAddWorkout={(workout) => {
+                              notifications.show({
+                                title: 'Workout Added to Calendar',
+                                message: `${workout.name} scheduled for ${workout.scheduledDate}`,
+                                color: 'lime'
+                              });
+                            }}
+                          />
+                        </Box>
+                      </Card>
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, md: 5 }}>
+                      <BodyCheckInCard
+                        todayHealthMetrics={todayHealthMetrics}
+                        onOpenHealthCheckIn={() => setHealthCheckInOpen(true)}
+                      />
+                    </Grid.Col>
+                  </Grid>
                 </Stack>
               </Tabs.Panel>
 
@@ -1367,6 +1403,55 @@ function QuickStatCard({ label, value, icon: Icon, color, subtitle }) {
         </ThemeIcon>
       </Group>
     </Paper>
+  );
+}
+
+// ============================================================================
+// BODY CHECK-IN CARD
+// ============================================================================
+function BodyCheckInCard({ todayHealthMetrics, onOpenHealthCheckIn }) {
+  const hasCheckedIn = !!todayHealthMetrics;
+
+  return (
+    <Card withBorder p="md" h="100%">
+      <Stack gap="sm" h="100%" justify="space-between">
+        <Box>
+          <Group gap="sm" mb="sm">
+            <ThemeIcon size="lg" color="violet" variant="light">
+              <IconHeart size={18} />
+            </ThemeIcon>
+            <Text fw={600}>Body Check-in</Text>
+            {hasCheckedIn && (
+              <Badge color="green" variant="light" size="xs">Done</Badge>
+            )}
+          </Group>
+          <Text size="sm" c="dimmed">
+            {hasCheckedIn ? 'Today\'s metrics recorded' : 'Log daily metrics for better coaching'}
+          </Text>
+        </Box>
+        <Box>
+          <SimpleGrid cols={3} spacing="xs" mb="sm">
+            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+              <Text size="xs" c="dimmed">HRV</Text>
+              <Text fw={600} size="sm">{todayHealthMetrics?.hrv_score ? `${todayHealthMetrics.hrv_score}ms` : '--'}</Text>
+            </Paper>
+            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+              <Text size="xs" c="dimmed">Sleep</Text>
+              <Text fw={600} size="sm">{todayHealthMetrics?.sleep_hours ? `${todayHealthMetrics.sleep_hours}h` : '--'}</Text>
+            </Paper>
+            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+              <Text size="xs" c="dimmed">Ready</Text>
+              <Text fw={600} size="sm" c={todayHealthMetrics?.readiness_score >= 60 ? 'green' : todayHealthMetrics?.readiness_score >= 40 ? 'yellow' : 'red'}>
+                {todayHealthMetrics?.readiness_score ? `${todayHealthMetrics.readiness_score}%` : '--'}
+              </Text>
+            </Paper>
+          </SimpleGrid>
+          <Button variant="light" color="violet" fullWidth onClick={onOpenHealthCheckIn}>
+            {hasCheckedIn ? 'Update' : 'Log Metrics'}
+          </Button>
+        </Box>
+      </Stack>
+    </Card>
   );
 }
 
