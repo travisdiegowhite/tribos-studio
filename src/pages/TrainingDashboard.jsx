@@ -779,20 +779,14 @@ function TrainingDashboard() {
                     <Grid.Col span={{ base: 12, md: 7 }}>
                       <Card withBorder p="md" h="100%">
                         <Box ref={aiCoachRef}>
-                          <Group gap="xs" mb="md">
-                            <ThemeIcon size="md" color="lime" variant="light">
-                              <IconMessageCircle size={16} />
-                            </ThemeIcon>
-                            <Text fw={600}>AI Training Coach</Text>
-                          </Group>
-                          <AICoach
+                          <TrainingStrategist
                             trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals)}
                             activePlan={activePlan}
                             onAddWorkout={(workout) => {
                               notifications.show({
                                 title: 'Workout Added to Calendar',
                                 message: `${workout.name} scheduled for ${workout.scheduledDate}`,
-                                color: 'lime'
+                                color: 'blue'
                               });
                             }}
                           />
