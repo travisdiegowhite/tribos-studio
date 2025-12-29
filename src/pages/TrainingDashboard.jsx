@@ -747,6 +747,7 @@ function TrainingDashboard() {
                         activities={visibleActivities}
                         formatDist={formatDist}
                         formatTime={formatTime}
+                        raceGoals={raceGoals}
                         onAskCoach={() => {
                           setTimeout(() => {
                             aiCoachRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -938,20 +939,44 @@ function TrainingDashboard() {
 }
 
 // ============================================================================
-// TODAY'S FOCUS HERO CARD
+// TODAY'S FOCUS HERO CARD - Story-Driven Narrative
 // ============================================================================
-function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, onAskCoach, suggestedWorkout, onViewWorkout }) {
+function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, raceGoals, onAskCoach, suggestedWorkout, onViewWorkout }) {
   const lastRide = activities[0];
   const FormIcon = formStatus.icon;
 
-  // Generate dynamic recommendation based on form
-  const getRecommendation = () => {
+  // Find next upcoming race
+  const nextRace = raceGoals?.[0];
+  const daysUntilRace = nextRace ? Math.ceil((new Date(nextRace.race_date + 'T00:00:00') - new Date()) / (1000 * 60 * 60 * 24)) : null;
+
+  // Generate story-driven narrative based on context
+  const getStory = () => {
     const tsb = trainingMetrics.tsb;
-    if (tsb >= 15) return "You're fresh! Great day for intensity or a long endurance ride.";
-    if (tsb >= 5) return "Good form for a quality training session. Consider sweet spot or tempo work.";
-    if (tsb >= -10) return "Optimal training zone. Keep building fitness with structured workouts.";
-    if (tsb >= -25) return "You're carrying some fatigue. An easy spin or rest day might be wise.";
-    return "High fatigue detected. Prioritize recovery to avoid overtraining.";
+    const rideCount = actualWeeklyStats.rideCount;
+
+    // Build context phrases
+    const weekContext = rideCount > 0
+      ? `after ${rideCount} ride${rideCount > 1 ? 's' : ''} this week`
+      : 'with fresh legs this week';
+
+    const raceContext = daysUntilRace && nextRace
+      ? `With ${nextRace.name} in ${daysUntilRace} days, `
+      : '';
+
+    // Story based on form status
+    if (tsb >= 15) {
+      return `${raceContext}You're feeling fresh ${weekContext}. Today is perfect for a hard effort or long ride to build fitness.`;
+    }
+    if (tsb >= 5) {
+      return `${raceContext}Good energy ${weekContext}. A quality session like sweet spot or tempo would be ideal today.`;
+    }
+    if (tsb >= -10) {
+      return `${raceContext}You're in the optimal training zone ${weekContext}. Keep the momentum with a structured workout.`;
+    }
+    if (tsb >= -25) {
+      return `${raceContext}You're carrying some fatigue ${weekContext}. Consider an easy spin or rest day to absorb your training.`;
+    }
+    return `${raceContext}High fatigue detected ${weekContext}. Prioritize recovery today to avoid overtraining.`;
   };
 
   return (
@@ -973,7 +998,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
           </Group>
 
           <Text size="lg" fw={600} mb="xs" style={{ color: tokens.colors.textPrimary }}>
-            {getRecommendation()}
+            {getStory()}
           </Text>
 
           <Group gap="lg" mt="md">
