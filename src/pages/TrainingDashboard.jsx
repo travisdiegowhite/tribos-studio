@@ -613,6 +613,15 @@ function TrainingDashboard() {
                 Upload FIT
               </Button>
               <Button
+                variant={todayHealthMetrics ? 'light' : 'filled'}
+                color="violet"
+                size="xs"
+                leftSection={<IconHeart size={14} />}
+                onClick={() => setHealthCheckInOpen(true)}
+              >
+                {todayHealthMetrics ? 'Check-in ✓' : 'Body Check-in'}
+              </Button>
+              <Button
                 variant="light"
                 color="lime"
                 size="xs"
@@ -760,32 +769,22 @@ function TrainingDashboard() {
                     </Collapse>
                   </Paper>
 
-                  {/* Row 3: AI Coach + Body Check-in */}
-                  <Grid gutter="md">
-                    <Grid.Col span={{ base: 12, md: 7 }}>
-                      <Card withBorder p="md" h="100%">
-                        <Box ref={aiCoachRef}>
-                          <TrainingStrategist
-                            trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals)}
-                            activePlan={activePlan}
-                            onAddWorkout={(workout) => {
-                              notifications.show({
-                                title: 'Workout Added to Calendar',
-                                message: `${workout.name} scheduled for ${workout.scheduledDate}`,
-                                color: 'blue'
-                              });
-                            }}
-                          />
-                        </Box>
-                      </Card>
-                    </Grid.Col>
-                    <Grid.Col span={{ base: 12, md: 5 }}>
-                      <BodyCheckInCard
-                        todayHealthMetrics={todayHealthMetrics}
-                        onOpenHealthCheckIn={() => setHealthCheckInOpen(true)}
+                  {/* Row 3: AI Coach - Full Width */}
+                  <Card withBorder p="md">
+                    <Box ref={aiCoachRef}>
+                      <TrainingStrategist
+                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals)}
+                        activePlan={activePlan}
+                        onAddWorkout={(workout) => {
+                          notifications.show({
+                            title: 'Workout Added to Calendar',
+                            message: `${workout.name} scheduled for ${workout.scheduledDate}`,
+                            color: 'blue'
+                          });
+                        }}
                       />
-                    </Grid.Col>
-                  </Grid>
+                    </Box>
+                  </Card>
                 </Stack>
               </Tabs.Panel>
 
