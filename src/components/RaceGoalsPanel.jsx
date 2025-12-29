@@ -47,7 +47,7 @@ const RACE_TYPE_INFO = {
  * RaceGoalsPanel Component
  * Displays upcoming race goals with countdown and allows management
  */
-const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange }) => {
+const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false }) => {
   const { user } = useAuth();
   const [raceGoals, setRaceGoals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -136,7 +136,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange }) => {
 
   return (
     <>
-      <Card withBorder p="md">
+      <Card withBorder p="md" h={compact ? '100%' : undefined}>
         <Group justify="space-between" mb="md">
           <Group gap="sm">
             <ThemeIcon size="lg" color="orange" variant="light">
