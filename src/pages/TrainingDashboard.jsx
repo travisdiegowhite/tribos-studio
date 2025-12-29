@@ -26,6 +26,7 @@ import {
   ActionIcon,
   Tooltip,
   Grid,
+  Collapse,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
@@ -41,6 +42,7 @@ import {
   IconTarget,
   IconMessageCircle,
   IconChevronRight,
+  IconChevronDown,
   IconFlame,
   IconHeart,
   IconMoon,
@@ -116,6 +118,7 @@ function TrainingDashboard() {
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
   const [supplementModalOpen, setSupplementModalOpen] = useState(false);
   const [raceGoals, setRaceGoals] = useState([]);
+  const [trainNowExpanded, setTrainNowExpanded] = useState(false);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -621,19 +624,12 @@ function TrainingDashboard() {
             </Group>
           </Group>
 
-          {/* Compact Fitness Metrics Bar */}
-          <FitnessMetricsBar
-            trainingMetrics={trainingMetrics}
-            formStatus={formStatus}
-            weeklyStats={weeklyStats}
-            previousMetrics={null}
-          />
-
-          {/* Main Tabs - Outside Card for proper sticky behavior */}
-          <Tabs value={activeTab} onChange={setActiveTab} color="lime" variant="default">
+          {/* Main Tabs - Pill Style for clear visual distinction */}
+          <Tabs value={activeTab} onChange={setActiveTab} color="lime" variant="pills">
             <Paper
               withBorder
               radius="md"
+              p="xs"
               style={{
                 position: 'sticky',
                 top: 0,
@@ -641,90 +637,40 @@ function TrainingDashboard() {
                 backgroundColor: 'var(--mantine-color-dark-7)',
               }}
             >
-              <Tabs.List
-                grow
-                style={{
-                  '--tabs-list-border-width': '3px',
-                }}
-              >
+              <Tabs.List grow>
                 <Tabs.Tab
                   value="today"
-                  leftSection={<IconTarget size={20} />}
-                  styles={{
-                    tab: {
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      padding: '1rem 1.5rem',
-                      '&[dataActive]': {
-                        borderBottomWidth: '3px',
-                      },
-                    },
-                  }}
+                  leftSection={<IconTarget size={18} />}
                 >
                   Today
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="plans"
-                  leftSection={<IconList size={20} />}
-                  styles={{
-                    tab: {
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      padding: '1rem 1.5rem',
-                    },
-                  }}
+                  leftSection={<IconList size={18} />}
                 >
                   Plans
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="trends"
-                  leftSection={<IconTrendingUp size={20} />}
-                  styles={{
-                    tab: {
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      padding: '1rem 1.5rem',
-                    },
-                  }}
+                  leftSection={<IconTrendingUp size={18} />}
                 >
                   Trends
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="power"
-                  leftSection={<IconBolt size={20} />}
-                  styles={{
-                    tab: {
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      padding: '1rem 1.5rem',
-                    },
-                  }}
+                  leftSection={<IconBolt size={18} />}
                 >
                   Power
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="history"
-                  leftSection={<IconClock size={20} />}
-                  styles={{
-                    tab: {
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      padding: '1rem 1.5rem',
-                    },
-                  }}
+                  leftSection={<IconClock size={18} />}
                 >
                   History
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="calendar"
-                  leftSection={<IconCalendar size={20} />}
-                  styles={{
-                    tab: {
-                      fontSize: '1rem',
-                      fontWeight: 600,
-                      padding: '1rem 1.5rem',
-                    },
-                  }}
+                  leftSection={<IconCalendar size={18} />}
                 >
                   Calendar
                 </Tabs.Tab>
@@ -733,9 +679,17 @@ function TrainingDashboard() {
 
             {/* Tab Panels */}
             <Box mt="md">
-              {/* TODAY TAB - Grid Layout */}
+              {/* TODAY TAB - Streamlined Layout */}
               <Tabs.Panel value="today">
                 <Stack gap="md">
+                  {/* Fitness Metrics Bar - Now inside Today tab */}
+                  <FitnessMetricsBar
+                    trainingMetrics={trainingMetrics}
+                    formStatus={formStatus}
+                    weeklyStats={weeklyStats}
+                    previousMetrics={null}
+                  />
+
                   {/* Row 1: Today's Focus + Race Goals */}
                   <Grid gutter="md">
                     <Grid.Col span={{ base: 12, md: 7 }}>
@@ -765,16 +719,46 @@ function TrainingDashboard() {
                     </Grid.Col>
                   </Grid>
 
-                  {/* Row 2: TrainNow - Full Width */}
-                  <TrainNow
-                    activities={visibleActivities}
-                    trainingMetrics={trainingMetrics}
-                    plannedWorkouts={[]}
-                    ftp={ftp}
-                    onSelectWorkout={(workout) => {
-                      console.log('Selected workout:', workout);
-                    }}
-                  />
+                  {/* Row 2: TrainNow - Collapsible */}
+                  <Paper withBorder radius="md" p="sm">
+                    <Group
+                      justify="space-between"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setTrainNowExpanded(!trainNowExpanded)}
+                    >
+                      <Group gap="xs">
+                        <ThemeIcon size="sm" color="lime" variant="light">
+                          <IconTarget size={14} />
+                        </ThemeIcon>
+                        <Text fw={600} size="sm">TrainNow Recommendations</Text>
+                        <Badge size="xs" color="gray" variant="light">
+                          TSB: {Math.round(trainingMetrics.tsb)}
+                        </Badge>
+                      </Group>
+                      <ActionIcon variant="subtle" color="gray">
+                        <IconChevronDown
+                          size={18}
+                          style={{
+                            transform: trainNowExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 200ms ease',
+                          }}
+                        />
+                      </ActionIcon>
+                    </Group>
+                    <Collapse in={trainNowExpanded}>
+                      <Box mt="md">
+                        <TrainNow
+                          activities={visibleActivities}
+                          trainingMetrics={trainingMetrics}
+                          plannedWorkouts={[]}
+                          ftp={ftp}
+                          onSelectWorkout={(workout) => {
+                            console.log('Selected workout:', workout);
+                          }}
+                        />
+                      </Box>
+                    </Collapse>
+                  </Paper>
 
                   {/* Row 3: AI Coach + Body Check-in */}
                   <Grid gutter="md">
