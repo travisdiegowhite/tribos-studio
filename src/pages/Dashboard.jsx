@@ -146,26 +146,23 @@ function Dashboard() {
             </Title>
           </Box>
 
-          {/* Main Content - Two Column Layout */}
+          {/* Map - Full Width at Top */}
+          <RecentRidesMap
+            activities={activities}
+            loading={loading}
+            formatDist={formatDist}
+            formatElev={formatElev}
+          />
+
+          {/* Stats Row */}
           <Box className="dashboard-grid">
-            {/* Left Column - Map */}
-            <RecentRidesMap
+            <FormWidget activities={activities} loading={loading} />
+            <WeekSummary
               activities={activities}
               loading={loading}
               formatDist={formatDist}
               formatElev={formatElev}
             />
-
-            {/* Right Column - Stats */}
-            <Stack gap="lg">
-              <FormWidget activities={activities} loading={loading} />
-              <WeekSummary
-                activities={activities}
-                loading={loading}
-                formatDist={formatDist}
-                formatElev={formatElev}
-              />
-            </Stack>
           </Box>
 
           {/* Recent Activities List */}
