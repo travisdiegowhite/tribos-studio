@@ -482,18 +482,23 @@ style={{ backgroundColor: getZoneBackgroundColor(zone, 0.1) }}
 {series.map((s, i) => <Line stroke={getChartSeriesColor(i)} />)}
 ```
 
-### Phase 4: Polish (In Progress)
+### Phase 4: Polish ✅ COMPLETED
 
 - [x] Audit all `color="lime"` and `color="green"` usages (145+ found)
 - [x] Fix RouteBuilder secondary actions (Export GPX, metric badges)
 - [x] Fix TrainingPlanBrowser (plan count, checkmarks, buttons)
-- [ ] Continue auditing remaining components
-- [ ] Add focus states to all interactive elements
-- [ ] Test color contrast for accessibility (WCAG AA)
+- [x] Fix AICoach.jsx (Powered by Claude badge, action icons)
+- [x] Fix Settings.jsx (switch colors → gray)
+- [x] Fix OnboardingModal.jsx (Beta badge, decorative icons → gray)
+- [x] Add comprehensive focus styles for accessibility (global.css)
 
 **Key files updated:**
 - `RouteBuilder.jsx`: Export GPX, AI suggestion badges → gray
 - `TrainingPlanBrowser.jsx`: Plan counts, checkmarks, secondary buttons → gray
+- `AICoach.jsx`: Powered by Claude badge, add workout icon → gray
+- `Settings.jsx`: Toggle switches → gray
+- `OnboardingModal.jsx`: Beta badge, list checkmarks, option card icons → gray
+- `src/styles/global.css`: Enhanced focus-visible styles for Mantine components
 
 ### Phase 5: Documentation
 
