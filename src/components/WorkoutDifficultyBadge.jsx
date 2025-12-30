@@ -119,36 +119,44 @@ export function calculateWorkoutDifficulty(workout, athleteState) {
   difficultyScore = Math.max(0, Math.min(100, difficultyScore));
 
   // Determine difficulty level
-  let level, color, icon, description;
+  // Visual Hierarchy: Only "Productive" gets Tier 1 (bright) treatment
+  // Others use muted colors to avoid rainbow effect
+  let level, color, variant, icon, description;
 
   if (difficultyScore <= 20) {
     level = 'Recovery';
-    color = 'teal';
+    color = 'gray';
+    variant = 'light';
     icon = IconZzz;
     description = 'Easy recovery session - well below your ability';
   } else if (difficultyScore <= 40) {
     level = 'Achievable';
-    color = 'green';
+    color = 'gray';
+    variant = 'light';
     icon = IconCheck;
     description = 'Should complete easily - good for building consistency';
   } else if (difficultyScore <= 55) {
     level = 'Productive';
     color = 'lime';
+    variant = 'filled';  // Tier 1 - This is the recommended zone
     icon = IconTrendingUp;
     description = 'Challenging but doable - optimal for fitness gains';
   } else if (difficultyScore <= 70) {
     level = 'Stretch';
     color = 'yellow';
+    variant = 'outline';
     icon = IconFlame;
     description = 'Hard workout - will push your limits';
   } else if (difficultyScore <= 85) {
     level = 'Breakthrough';
     color = 'orange';
+    variant = 'outline';
     icon = IconBolt;
     description = 'Very challenging - potential for big fitness gain';
   } else {
     level = 'Not Recommended';
     color = 'red';
+    variant = 'outline';
     icon = IconAlertTriangle;
     description = 'Too hard given current fitness - consider easier option';
   }
@@ -157,6 +165,7 @@ export function calculateWorkoutDifficulty(workout, athleteState) {
     score: Math.round(difficultyScore),
     level,
     color,
+    variant,
     icon,
     description,
     factors: {
@@ -188,7 +197,7 @@ export function WorkoutDifficultyBadge({
   const badge = (
     <Badge
       color={difficulty.color}
-      variant="light"
+      variant={difficulty.variant || 'light'}
       size={size}
       leftSection={<DifficultyIcon size={size === 'xs' ? 10 : 12} />}
     >
@@ -264,25 +273,28 @@ export function WorkoutDifficultyMeter({
 /**
  * Difficulty Level Legend
  * Shows all difficulty levels with descriptions
+ * Visual Hierarchy: Only Productive is highlighted (Tier 1)
  */
 export function DifficultyLegend() {
   const levels = [
-    { level: 'Recovery', color: 'teal', icon: IconZzz, range: '0-20' },
-    { level: 'Achievable', color: 'green', icon: IconCheck, range: '21-40' },
-    { level: 'Productive', color: 'lime', icon: IconTrendingUp, range: '41-55' },
-    { level: 'Stretch', color: 'yellow', icon: IconFlame, range: '56-70' },
-    { level: 'Breakthrough', color: 'orange', icon: IconBolt, range: '71-85' },
-    { level: 'Not Recommended', color: 'red', icon: IconAlertTriangle, range: '86-100' },
+    { level: 'Recovery', color: 'gray', variant: 'light', icon: IconZzz, range: '0-20' },
+    { level: 'Achievable', color: 'gray', variant: 'light', icon: IconCheck, range: '21-40' },
+    { level: 'Productive', color: 'lime', variant: 'filled', icon: IconTrendingUp, range: '41-55', highlighted: true },
+    { level: 'Stretch', color: 'yellow', variant: 'outline', icon: IconFlame, range: '56-70' },
+    { level: 'Breakthrough', color: 'orange', variant: 'outline', icon: IconBolt, range: '71-85' },
+    { level: 'Not Recommended', color: 'red', variant: 'outline', icon: IconAlertTriangle, range: '86-100' },
   ];
 
   return (
     <Stack gap="xs">
-      {levels.map(({ level, color, icon: Icon, range }) => (
+      {levels.map(({ level, color, variant, icon: Icon, range, highlighted }) => (
         <Group key={level} gap="sm">
-          <Badge color={color} variant="light" size="xs" leftSection={<Icon size={10} />}>
+          <Badge color={color} variant={variant} size="xs" leftSection={<Icon size={10} />}>
             {level}
           </Badge>
-          <Text size="xs" c="dimmed">Score: {range}</Text>
+          <Text size="xs" c={highlighted ? undefined : 'dimmed'} fw={highlighted ? 500 : 400}>
+            {highlighted ? 'Optimal zone' : `Score: ${range}`}
+          </Text>
         </Group>
       ))}
     </Stack>
@@ -292,6 +304,7 @@ export function DifficultyLegend() {
 /**
  * Estimated workout difficulty for a given TSS
  * Quick calculation without full athlete state
+ * Visual Hierarchy: Only Productive returns filled variant
  */
 export function getQuickDifficultyEstimate(targetTSS, athleteCTL, athleteTSB = 0) {
   // Simple estimate: compare TSS to daily average implied by CTL
@@ -302,12 +315,12 @@ export function getQuickDifficultyEstimate(targetTSS, athleteCTL, athleteTSB = 0
   const formAdjustment = (-athleteTSB / 30) * 0.15;
   const adjustedRatio = tssRatio + formAdjustment;
 
-  if (adjustedRatio <= 0.5) return { level: 'Recovery', color: 'teal' };
-  if (adjustedRatio <= 0.8) return { level: 'Achievable', color: 'green' };
-  if (adjustedRatio <= 1.0) return { level: 'Productive', color: 'lime' };
-  if (adjustedRatio <= 1.2) return { level: 'Stretch', color: 'yellow' };
-  if (adjustedRatio <= 1.5) return { level: 'Breakthrough', color: 'orange' };
-  return { level: 'Not Recommended', color: 'red' };
+  if (adjustedRatio <= 0.5) return { level: 'Recovery', color: 'gray', variant: 'light' };
+  if (adjustedRatio <= 0.8) return { level: 'Achievable', color: 'gray', variant: 'light' };
+  if (adjustedRatio <= 1.0) return { level: 'Productive', color: 'lime', variant: 'filled' };
+  if (adjustedRatio <= 1.2) return { level: 'Stretch', color: 'yellow', variant: 'outline' };
+  if (adjustedRatio <= 1.5) return { level: 'Breakthrough', color: 'orange', variant: 'outline' };
+  return { level: 'Not Recommended', color: 'red', variant: 'outline' };
 }
 
 export default {

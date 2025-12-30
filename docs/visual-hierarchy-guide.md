@@ -405,20 +405,54 @@ Secondary cards should be visually recessive:
 
 ## Implementation Checklist
 
-### Phase 1: High Impact (Do First)
+### Phase 1: High Impact (Do First) ✅ COMPLETED
 
-- [ ] **TrainingDashboard**: Reduce `TodaysFocusCard` to single Tier 1 element
-- [ ] **TrainingDashboard**: Mute `FitnessMetricsBar` colors (except Form badge)
-- [ ] **Dashboard**: Differentiate quick action card emphasis levels
-- [ ] **RaceGoalsPanel**: Implement progressive disclosure based on days-until-race
-- [ ] **RouteBuilder**: Neutral unselected suggestion cards
+- [x] **TrainingDashboard**: Reduce `TodaysFocusCard` to single Tier 1 element
+- [x] **TrainingDashboard**: Mute `FitnessMetricsBar` colors (except Form badge)
+- [x] **Dashboard**: Differentiate quick action card emphasis levels
+- [x] **RaceGoalsPanel**: Implement progressive disclosure based on days-until-race
+- [x] **RouteBuilder**: Neutral unselected suggestion cards (`AISuggestionCard`)
 
-### Phase 2: Component Library
+### Phase 2: Component Library ✅ COMPLETED
 
-- [ ] Create `<PrimaryButton>` wrapper that enforces Tier 1 usage
-- [ ] Create `<MetricBadge>` with consistent muted styling
-- [ ] Audit and standardize `WorkoutDifficultyBadge` colors
-- [ ] Create `<StatusBadge>` component with tier enforcement
+- [x] Create `<PrimaryButton>` wrapper that enforces Tier 1 usage
+- [x] Create `<MetricBadge>` with consistent muted styling
+- [x] Audit and standardize `WorkoutDifficultyBadge` colors
+- [x] Create `<StatusBadge>` component with tier enforcement
+
+**New components available at `src/components/ui/`:**
+
+```jsx
+import {
+  PrimaryButton,
+  SecondaryButton,
+  StatusBadge,
+  FormStatusBadge,
+  PriorityBadge,
+  MetricBadge,
+  MetricText,
+  MetricGroup,
+} from '../components/ui';
+
+// Primary action (Tier 1) - limit to 1-2 per screen
+<PrimaryButton leftSection={<IconMessageCircle size={16} />}>
+  Ask AI Coach
+</PrimaryButton>
+
+// Secondary action (Tier 2/3)
+<SecondaryButton rightSection={<IconChevronRight size={16} />}>
+  View Details
+</SecondaryButton>
+
+// Status with tier control
+<StatusBadge tier="primary" color="lime">OPTIMAL</StatusBadge>
+<StatusBadge tier="secondary" color="blue">In Progress</StatusBadge>
+<StatusBadge tier="muted" color="gray">Archived</StatusBadge>
+
+// Metrics (muted by default)
+<MetricBadge icon={<IconRuler size={14} />} value="45.2 km" />
+<MetricBadge icon={<IconMountain size={14} />} value="850m" highlighted />
+```
 
 ### Phase 3: Data Visualization
 
