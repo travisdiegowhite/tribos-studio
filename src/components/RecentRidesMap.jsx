@@ -94,25 +94,20 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
   const [hoveredActivity, setHoveredActivity] = useState(null);
   const [mapLoaded, setMapLoaded] = useState(false);
 
-  // Process activities with polylines
-  const ridesWithRoutes = useMemo(() => {
-    const result = activities
+  // Process all activities with polylines for the legend
+  const allRidesWithRoutes = useMemo(() => {
+    return activities
       .filter(a => a.polyline || a.summary_polyline || a.map_summary_polyline || a.map?.summary_polyline)
       .slice(0, 5)
       .map((activity, index) => {
         const polyline = activity.polyline || activity.summary_polyline || activity.map_summary_polyline || activity.map?.summary_polyline;
         const coords = decodePolyline(polyline);
 
-        // Debug: log polyline info
-        console.log(`🗺️ Activity "${activity.name}": polyline length=${polyline?.length}, decoded coords=${coords.length}`);
-        if (coords.length > 0) {
-          console.log(`   First coord: [${coords[0][0]}, ${coords[0][1]}]`);
-        }
-
         return {
           ...activity,
           coords,
           color: getActivityColor(activity, index),
+          firstCoord: coords.length > 0 ? coords[0] : null,
           geojson: {
             type: 'Feature',
             properties: {
@@ -126,15 +121,34 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
             },
           },
         };
-      });
-
-    console.log(`🗺️ Total rides with routes: ${result.length}, mapLoaded: ${mapLoaded}`);
-    return result;
+      })
+      .filter(r => r.coords.length > 0 && r.firstCoord);
   }, [activities]);
 
-  // Calculate map bounds to fit all rides
+  // Filter to only nearby rides for the map display
+  // This prevents the map from trying to show rides on different continents
+  const ridesForMap = useMemo(() => {
+    if (allRidesWithRoutes.length <= 1) {
+      return allRidesWithRoutes;
+    }
+
+    const referenceCoord = allRidesWithRoutes[0].firstCoord; // Most recent ride
+    const MAX_DISTANCE_DEG = 2; // ~200km at mid-latitudes
+
+    const nearby = allRidesWithRoutes.filter(ride => {
+      const [lng, lat] = ride.firstCoord;
+      const [refLng, refLat] = referenceCoord;
+      const distance = Math.sqrt(Math.pow(lng - refLng, 2) + Math.pow(lat - refLat, 2));
+      return distance < MAX_DISTANCE_DEG;
+    });
+
+    // Return nearby rides, or fall back to just the most recent if none are nearby
+    return nearby.length > 0 ? nearby : [allRidesWithRoutes[0]];
+  }, [allRidesWithRoutes]);
+
+  // Calculate map bounds to fit nearby rides only
   const initialViewState = useMemo(() => {
-    const allCoords = ridesWithRoutes.flatMap(r => r.coords);
+    const allCoords = ridesForMap.flatMap(r => r.coords);
 
     if (allCoords.length === 0) {
       // Default to US center if no routes
@@ -163,18 +177,15 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
     else if (maxSpan > 0.1) zoom = 10;
     else zoom = 11;
 
-    const viewState = {
+    return {
       longitude: centerLng,
       latitude: centerLat,
       zoom,
       padding: { top: 40, bottom: 40, left: 40, right: 40 },
     };
-    console.log('🗺️ Initial view state:', viewState, 'bounds:', bounds);
-    return viewState;
-  }, [ridesWithRoutes]);
+  }, [ridesForMap]);
 
   const handleMapLoad = useCallback(() => {
-    console.log('🗺️ Map loaded!');
     setMapLoaded(true);
   }, []);
 
@@ -232,7 +243,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
     );
   }
 
-  if (ridesWithRoutes.length === 0) {
+  if (allRidesWithRoutes.length === 0) {
     return (
       <Card>
         <Stack gap="md">
@@ -286,7 +297,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
               Recent Rides
             </Text>
             <Badge variant="light" color="lime" size="sm">
-              {ridesWithRoutes.length} ride{ridesWithRoutes.length !== 1 ? 's' : ''}
+              {allRidesWithRoutes.length} ride{allRidesWithRoutes.length !== 1 ? 's' : ''}
             </Badge>
           </Group>
         </Box>
@@ -302,7 +313,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
             interactive={true}
             attributionControl={false}
           >
-            {mapLoaded && ridesWithRoutes.map((ride, index) => (
+            {mapLoaded && ridesForMap.map((ride, index) => (
               <Source
                 key={ride.id}
                 id={`route-${ride.id}`}
@@ -340,13 +351,15 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
           }}
         >
           <Stack gap="xs">
-            {ridesWithRoutes.slice(0, 3).map((ride) => {
+            {allRidesWithRoutes.slice(0, 3).map((ride) => {
               const distanceKm = ride.distance_meters ? ride.distance_meters / 1000 :
                                  ride.distance ? ride.distance / 1000 : 0;
               const elevation = ride.elevation_gain_meters || ride.total_elevation_gain || 0;
               const duration = ride.duration_seconds || ride.moving_time || ride.elapsed_time || 0;
               // Get Strava activity ID for "View on Strava" link
               const stravaActivityId = ride.provider === 'strava' ? ride.provider_activity_id : null;
+              // Check if this ride is shown on the map
+              const isOnMap = ridesForMap.some(r => r.id === ride.id);
 
               return (
                 <Group
@@ -354,13 +367,14 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
                   justify="space-between"
                   wrap="nowrap"
                   style={{
-                    cursor: 'pointer',
+                    cursor: isOnMap ? 'pointer' : 'default',
                     padding: '4px 8px',
                     borderRadius: tokens.radius.sm,
                     transition: 'background-color 0.15s',
                     backgroundColor: hoveredActivity === ride.id ? tokens.colors.bgTertiary : 'transparent',
+                    opacity: isOnMap ? 1 : 0.6,
                   }}
-                  onMouseEnter={() => setHoveredActivity(ride.id)}
+                  onMouseEnter={() => isOnMap && setHoveredActivity(ride.id)}
                   onMouseLeave={() => setHoveredActivity(null)}
                 >
                   <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
@@ -369,21 +383,23 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
                         width: 12,
                         height: 12,
                         borderRadius: '50%',
-                        backgroundColor: ride.color,
+                        backgroundColor: isOnMap ? ride.color : tokens.colors.textMuted,
                         flexShrink: 0,
+                        border: isOnMap ? 'none' : `1px dashed ${tokens.colors.textMuted}`,
                       }}
                     />
                     <Text
                       size="sm"
                       fw={500}
                       lineClamp={1}
-                      style={{ color: tokens.colors.textPrimary }}
+                      style={{ color: isOnMap ? tokens.colors.textPrimary : tokens.colors.textMuted }}
                     >
                       {ride.name || 'Untitled Ride'}
+                      {!isOnMap && ' (virtual)'}
                     </Text>
                   </Group>
                   <Group gap="md" wrap="nowrap">
-                    <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                    <Text size="xs" style={{ color: isOnMap ? tokens.colors.textSecondary : tokens.colors.textMuted }}>
                       {formatDate(ride.start_date)}
                     </Text>
                     <Text size="xs" style={{ color: tokens.colors.textMuted }}>
@@ -400,7 +416,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
               );
             })}
             {/* Strava Attribution */}
-            {ridesWithRoutes.some(r => r.provider === 'strava') && (
+            {allRidesWithRoutes.some(r => r.provider === 'strava') && (
               <Box mt="xs">
                 <PoweredByStrava variant="light" size="sm" />
               </Box>
