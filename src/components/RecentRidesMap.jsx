@@ -278,7 +278,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
   }
 
   return (
-    <Card p={0} style={{ overflow: 'hidden' }}>
+    <Card p={0} style={{ overflow: 'hidden', alignSelf: 'start' }}>
       <Box style={{ position: 'relative' }}>
         {/* Map Header */}
         <Box
