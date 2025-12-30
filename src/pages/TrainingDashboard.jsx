@@ -88,6 +88,7 @@ import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
+import { PoweredByStrava } from '../components/StravaBranding';
 
 function TrainingDashboard() {
   const { user } = useAuth();
@@ -1145,6 +1146,9 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
 // TRENDS TAB
 // ============================================================================
 function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, formatDist, formatElev, isImperial, ftp, weight }) {
+  // Check if any activities are from Strava for attribution
+  const hasStravaActivities = activities?.some(a => a.provider === 'strava');
+
   return (
     <Stack gap="lg">
       {/* Ramp Rate Alert */}
@@ -1157,7 +1161,7 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
       )}
 
       {/* Fitness Journey Chart */}
-      <Box>
+      <Card withBorder p="md">
         <Group justify="space-between" mb="md">
           <Text fw={600}>Fitness Journey</Text>
           <Group gap="md">
@@ -1180,7 +1184,12 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
         ) : (
           <EmptyState type="noTrainingData" size="sm" />
         )}
-      </Box>
+        {hasStravaActivities && (
+          <Box mt="md" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+            <PoweredByStrava variant="light" size="sm" />
+          </Box>
+        )}
+      </Card>
 
       {/* Zone Distribution */}
       <ZoneDistributionChart
@@ -1196,25 +1205,32 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
       />
 
       {/* Progress Cards */}
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-        <Paper withBorder p="md" ta="center">
-          <IconTrendingUp size={24} color="#10b981" style={{ marginBottom: 8 }} />
-          <Text size="xl" fw={700} c="teal">+{Math.round(trainingMetrics.ctl * 0.12)}%</Text>
-          <Text size="sm" c="dimmed">Fitness vs 90 days ago</Text>
-        </Paper>
-        <Paper withBorder p="md" ta="center">
-          <IconRoute size={24} color="#3b82f6" style={{ marginBottom: 8 }} />
-          <Text size="xl" fw={700} c="blue">{activities.length}</Text>
-          <Text size="sm" c="dimmed">Rides in 90 days</Text>
-        </Paper>
-        <Paper withBorder p="md" ta="center">
-          <IconAward size={24} color="#f59e0b" style={{ marginBottom: 8 }} />
-          <Text size="xl" fw={700} c="yellow">
-            {speedProfile ? `${(speedProfile.average_speed * (isImperial ? 0.621371 : 1)).toFixed(1)}` : '--'}
-          </Text>
-          <Text size="sm" c="dimmed">Avg Speed ({isImperial ? 'mph' : 'km/h'})</Text>
-        </Paper>
-      </SimpleGrid>
+      <Card withBorder p="md">
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+          <Paper p="md" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+            <IconTrendingUp size={24} color="#10b981" style={{ marginBottom: 8 }} />
+            <Text size="xl" fw={700} c="teal">+{Math.round(trainingMetrics.ctl * 0.12)}%</Text>
+            <Text size="sm" c="dimmed">Fitness vs 90 days ago</Text>
+          </Paper>
+          <Paper p="md" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+            <IconRoute size={24} color="#3b82f6" style={{ marginBottom: 8 }} />
+            <Text size="xl" fw={700} c="blue">{activities.length}</Text>
+            <Text size="sm" c="dimmed">Rides in 90 days</Text>
+          </Paper>
+          <Paper p="md" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+            <IconAward size={24} color="#f59e0b" style={{ marginBottom: 8 }} />
+            <Text size="xl" fw={700} c="yellow">
+              {speedProfile ? `${(speedProfile.average_speed * (isImperial ? 0.621371 : 1)).toFixed(1)}` : '--'}
+            </Text>
+            <Text size="sm" c="dimmed">Avg Speed ({isImperial ? 'mph' : 'km/h'})</Text>
+          </Paper>
+        </SimpleGrid>
+        {hasStravaActivities && (
+          <Box mt="md" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+            <PoweredByStrava variant="light" size="sm" />
+          </Box>
+        )}
+      </Card>
 
       {/* Personal Records */}
       <PersonalRecordsCard
@@ -1250,6 +1266,11 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
               </Text>
             </Box>
           </SimpleGrid>
+          {hasStravaActivities && (
+            <Box mt="md" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+              <PoweredByStrava variant="light" size="sm" />
+            </Box>
+          )}
         </Card>
       )}
     </Stack>
