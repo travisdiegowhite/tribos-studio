@@ -5,7 +5,6 @@ import {
   Title,
   Text,
   Card,
-  SimpleGrid,
   Stack,
   Group,
   Button,
@@ -13,7 +12,7 @@ import {
   Badge,
   Skeleton,
 } from '@mantine/core';
-import { IconChevronRight, IconRoute, IconChartLine, IconSettings, IconPlus } from '@tabler/icons-react';
+import { IconChevronRight } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { tokens } from '../theme';
 import { ViewOnStravaLink } from '../components/StravaBranding';
@@ -149,44 +148,13 @@ function Dashboard() {
 
           {/* Main Content - Two Column Layout */}
           <Box className="dashboard-grid">
-            {/* Left Column - Map & Actions */}
-            <Stack gap="lg">
-              <RecentRidesMap
-                activities={activities}
-                loading={loading}
-                formatDist={formatDist}
-                formatElev={formatElev}
-              />
-
-              {/* Quick Actions - Visual Hierarchy: Only Plan Route is Tier 1 */}
-              <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
-                <QuickActionButton
-                  icon={IconRoute}
-                  label="Plan Route"
-                  to="/routes"
-                  color={tokens.colors.electricLime}
-                  primary
-                />
-                <QuickActionButton
-                  icon={IconChartLine}
-                  label="Training"
-                  to="/training"
-                  color={tokens.colors.textSecondary}
-                />
-                <QuickActionButton
-                  icon={IconPlus}
-                  label="Upload Ride"
-                  to="/training?tab=history"
-                  color={tokens.colors.textSecondary}
-                />
-                <QuickActionButton
-                  icon={IconSettings}
-                  label="Settings"
-                  to="/settings"
-                  color={tokens.colors.textSecondary}
-                />
-              </SimpleGrid>
-            </Stack>
+            {/* Left Column - Map */}
+            <RecentRidesMap
+              activities={activities}
+              loading={loading}
+              formatDist={formatDist}
+              formatElev={formatElev}
+            />
 
             {/* Right Column - Stats */}
             <Stack gap="lg">
@@ -246,54 +214,6 @@ function Dashboard() {
         </Stack>
       </Container>
     </AppShell>
-  );
-}
-
-function QuickActionButton({ icon: Icon, label, to, color, primary = false }) {
-  // Visual Hierarchy: Primary actions get full color treatment, secondary actions are muted
-  const iconBgColor = primary ? `${color}20` : `${tokens.colors.textMuted}10`;
-  const iconColor = primary ? color : tokens.colors.textSecondary;
-  const hoverBorderColor = primary ? color : tokens.colors.textMuted;
-
-  return (
-    <Card
-      component={Link}
-      to={to}
-      p="md"
-      style={{
-        textDecoration: 'none',
-        cursor: 'pointer',
-        transition: 'transform 0.2s, border-color 0.2s',
-        borderColor: primary ? `${color}30` : 'transparent',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.borderColor = hoverBorderColor;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.borderColor = primary ? `${color}30` : 'transparent';
-      }}
-    >
-      <Stack gap="xs" align="center">
-        <Box
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: tokens.radius.md,
-            backgroundColor: iconBgColor,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Icon size={20} color={iconColor} />
-        </Box>
-        <Text size="sm" fw={500} style={{ color: primary ? tokens.colors.textPrimary : tokens.colors.textSecondary }}>
-          {label}
-        </Text>
-      </Stack>
-    </Card>
   );
 }
 

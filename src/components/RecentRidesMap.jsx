@@ -303,7 +303,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
         </Box>
 
         {/* Map */}
-        <Box style={{ height: 350 }}>
+        <Box style={{ height: 400 }}>
           <Map
             initialViewState={initialViewState}
             style={{ width: '100%', height: '100%' }}
