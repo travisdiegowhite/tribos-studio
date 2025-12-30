@@ -468,7 +468,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
             AI Training Coach
           </Text>
         </Group>
-        <Badge variant="light" color="lime">
+        <Badge variant="light" color="gray">
           Powered by Claude
         </Badge>
       </Group>
@@ -602,7 +602,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                               </Box>
                               <ActionIcon
                                 variant="light"
-                                color="lime"
+                                color="gray"
                                 size="lg"
                                 onClick={() => handleAddWorkout(rec)}
                               >

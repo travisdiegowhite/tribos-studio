@@ -1615,7 +1615,7 @@ function RouteBuilder() {
                     )}
                   </Group>
                   <Group gap={6}>
-                    <Badge size="xs" variant="light" color="lime">
+                    <Badge size="xs" variant="light" color="gray">
                       {typeof suggestion.distance === 'number' ? `${suggestion.distance.toFixed(1)} km` : suggestion.distance}
                     </Badge>
                     {suggestion.elevationGain > 0 && (
@@ -1624,12 +1624,12 @@ function RouteBuilder() {
                       </Badge>
                     )}
                     {suggestion.estimatedTime && (
-                      <Badge size="xs" variant="outline">
+                      <Badge size="xs" variant="light" color="gray">
                         {suggestion.estimatedTime}min
                       </Badge>
                     )}
                   </Group>
-                  <Text size="xs" c="lime" fw={500}>
+                  <Text size="xs" c="dimmed" fw={500}>
                     {convertingRoute === index ? 'Loading route...' : 'Tap to select'}
                   </Text>
                 </Stack>
@@ -1668,7 +1668,7 @@ function RouteBuilder() {
         <Group grow>
           <Button
             variant="light"
-            color="lime"
+            color="gray"
             size="sm"
             disabled={!routeGeometry}
             onClick={exportGPX}

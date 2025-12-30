@@ -85,10 +85,49 @@ body {
   color: #ffffff;
 }
 
-/* Focus styles */
+/* Focus styles - Accessibility */
+/* Global focus ring for keyboard navigation */
 :focus-visible {
   outline: 2px solid #32cd32;
   outline-offset: 2px;
+}
+
+/* Mantine component focus overrides */
+.mantine-Button-root:focus-visible,
+.mantine-ActionIcon-root:focus-visible,
+.mantine-UnstyledButton-root:focus-visible {
+  outline: 2px solid #32cd32;
+  outline-offset: 2px;
+}
+
+/* Input focus states */
+.mantine-Input-input:focus-visible,
+.mantine-TextInput-input:focus-visible,
+.mantine-Select-input:focus-visible,
+.mantine-Textarea-input:focus-visible {
+  border-color: #32cd32;
+  outline: none;
+  box-shadow: 0 0 0 1px #32cd32;
+}
+
+/* Card/Paper focus for interactive elements */
+.mantine-Card-root[tabindex]:focus-visible,
+.mantine-Paper-root[tabindex]:focus-visible {
+  outline: 2px solid #32cd32;
+  outline-offset: 2px;
+}
+
+/* Switch/Checkbox focus */
+.mantine-Switch-track:focus-visible,
+.mantine-Checkbox-input:focus-visible {
+  outline: 2px solid #32cd32;
+  outline-offset: 2px;
+}
+
+/* Tab focus */
+.mantine-Tabs-tab:focus-visible {
+  outline: 2px solid #32cd32;
+  outline-offset: -2px;
 }
 
 /* Link reset */

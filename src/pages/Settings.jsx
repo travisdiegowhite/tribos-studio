@@ -933,7 +933,7 @@ function Settings() {
                     Receive weekly training summaries
                   </Text>
                 </Box>
-                <Switch color="lime" />
+                <Switch color="gray" />
               </Group>
 
               <Divider />
@@ -945,7 +945,7 @@ function Settings() {
                     Automatically import new activities
                   </Text>
                 </Box>
-                <Switch color="lime" defaultChecked />
+                <Switch color="gray" defaultChecked />
               </Group>
             </Stack>
           </Card>

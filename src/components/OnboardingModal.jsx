@@ -139,7 +139,7 @@ function OnboardingModal({ opened, onClose }) {
             <IconRocket size={20} />
           </ThemeIcon>
           <Text fw={600} size="lg">Welcome to tribos.studio</Text>
-          <Badge color="lime" variant="light">Beta</Badge>
+          <Badge color="gray" variant="light">Beta</Badge>
         </Group>
       }
       closeOnClickOutside={false}
@@ -162,19 +162,19 @@ function OnboardingModal({ opened, onClose }) {
               </Text>
               <Stack gap="xs">
                 <Group gap="xs">
-                  <IconCheck size={16} color={tokens.colors.electricLime} />
+                  <IconCheck size={16} color={tokens.colors.textMuted} />
                   <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
                     Early access to all features
                   </Text>
                 </Group>
                 <Group gap="xs">
-                  <IconCheck size={16} color={tokens.colors.electricLime} />
+                  <IconCheck size={16} color={tokens.colors.textMuted} />
                   <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
                     Direct line to Travis for feedback
                   </Text>
                 </Group>
                 <Group gap="xs">
-                  <IconCheck size={16} color={tokens.colors.electricLime} />
+                  <IconCheck size={16} color={tokens.colors.textMuted} />
                   <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
                     Free access during the beta period
                   </Text>
@@ -359,7 +359,7 @@ function OnboardingModal({ opened, onClose }) {
                 onClick={() => { onClose(); navigate('/routes/new'); }}
               >
                 <Stack gap="xs" align="center">
-                  <ThemeIcon size="lg" color="lime" variant="light">
+                  <ThemeIcon size="lg" color="gray" variant="light">
                     <IconRoute size={20} />
                   </ThemeIcon>
                   <Text size="sm" fw={500} ta="center" style={{ color: tokens.colors.textPrimary }}>
@@ -375,7 +375,7 @@ function OnboardingModal({ opened, onClose }) {
                 onClick={() => { onClose(); navigate('/training'); }}
               >
                 <Stack gap="xs" align="center">
-                  <ThemeIcon size="lg" color="blue" variant="light">
+                  <ThemeIcon size="lg" color="gray" variant="light">
                     <IconActivity size={20} />
                   </ThemeIcon>
                   <Text size="sm" fw={500} ta="center" style={{ color: tokens.colors.textPrimary }}>
