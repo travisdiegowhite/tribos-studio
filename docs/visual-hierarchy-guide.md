@@ -454,11 +454,33 @@ import {
 <MetricBadge icon={<IconMountain size={14} />} value="850m" highlighted />
 ```
 
-### Phase 3: Data Visualization
+### Phase 3: Data Visualization ✅ COMPLETED
 
-- [ ] Zone colors: Use for charts only, not interactive elements
-- [ ] Add opacity to zone colors when used as backgrounds
-- [ ] Standardize chart color palette across components
+- [x] Zone colors: Use for charts only, not interactive elements
+- [x] Add opacity to zone colors when used as backgrounds
+- [x] Standardize chart color palette across components
+
+**New utilities at `src/components/ui/zoneColors.js`:**
+
+```jsx
+import {
+  ZONE_COLORS,
+  getZoneColor,
+  getZoneBackgroundColor,
+  getZoneBorderColor,
+  CHART_COLORS,
+  getChartSeriesColor,
+} from '../components/ui';
+
+// For charts - full saturation
+<Bar fill={getZoneColor(zone)} />
+
+// For backgrounds - with opacity
+style={{ backgroundColor: getZoneBackgroundColor(zone, 0.1) }}
+
+// For multi-series charts
+{series.map((s, i) => <Line stroke={getChartSeriesColor(i)} />)}
+```
 
 ### Phase 4: Polish
 
