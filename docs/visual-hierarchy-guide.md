@@ -482,12 +482,18 @@ style={{ backgroundColor: getZoneBackgroundColor(zone, 0.1) }}
 {series.map((s, i) => <Line stroke={getChartSeriesColor(i)} />)}
 ```
 
-### Phase 4: Polish
+### Phase 4: Polish (In Progress)
 
-- [ ] Audit all `color="lime"` and `color="green"` usages
-- [ ] Audit all `variant="filled"` buttons
+- [x] Audit all `color="lime"` and `color="green"` usages (145+ found)
+- [x] Fix RouteBuilder secondary actions (Export GPX, metric badges)
+- [x] Fix TrainingPlanBrowser (plan count, checkmarks, buttons)
+- [ ] Continue auditing remaining components
 - [ ] Add focus states to all interactive elements
 - [ ] Test color contrast for accessibility (WCAG AA)
+
+**Key files updated:**
+- `RouteBuilder.jsx`: Export GPX, AI suggestion badges → gray
+- `TrainingPlanBrowser.jsx`: Plan counts, checkmarks, secondary buttons → gray
 
 ### Phase 5: Documentation
 
