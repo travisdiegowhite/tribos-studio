@@ -111,18 +111,27 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
     return Math.ceil((raceDate - today) / (1000 * 60 * 60 * 24));
   };
 
-  // Get countdown color based on days
-  const getCountdownColor = (days) => {
-    if (days <= 7) return 'red';
-    if (days <= 14) return 'orange';
-    if (days <= 30) return 'yellow';
-    return 'lime';
+  // Get visual weight based on days until race (Progressive Disclosure)
+  // Races further out get less visual prominence
+  const getRaceVisualWeight = (days) => {
+    if (days <= 0) return 'hero';       // Race day
+    if (days <= 7) return 'prominent';  // Race week
+    if (days <= 14) return 'elevated';  // 1-2 weeks
+    return 'compact';                    // 2+ weeks out
   };
 
-  // Get priority color
-  const getPriorityColor = (priority) => {
+  // Get countdown color - muted for distant races, bright for imminent
+  const getCountdownColor = (days) => {
+    if (days <= 7) return 'red';
+    if (days <= 14) return 'yellow';
+    return 'gray';  // Muted for races 2+ weeks out
+  };
+
+  // Get priority badge color - only A races get color emphasis
+  const getPriorityColor = (priority, daysUntil) => {
+    // Only show priority colors for imminent races or A-priority
     if (priority === 'A') return 'red';
-    if (priority === 'B') return 'orange';
+    if (priority === 'B' && daysUntil <= 14) return 'orange';
     return 'gray';
   };
 
@@ -194,6 +203,53 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
               const daysUntil = getDaysUntil(race.race_date);
               const raceTypeInfo = RACE_TYPE_INFO[race.race_type] || RACE_TYPE_INFO.other;
               const weeksUntil = Math.round(daysUntil / 7);
+              const visualWeight = getRaceVisualWeight(daysUntil);
+
+              // Progressive disclosure: Different styling based on proximity
+              const getCardStyle = () => {
+                if (visualWeight === 'hero' || visualWeight === 'prominent') {
+                  // Race week or race day: Full prominence
+                  return {
+                    border: '2px solid var(--mantine-color-yellow-6)',
+                    backgroundColor: 'rgba(250, 176, 5, 0.08)',
+                    borderLeft: '4px solid var(--mantine-color-yellow-6)',
+                  };
+                }
+                if (visualWeight === 'elevated') {
+                  // 1-2 weeks: Elevated but not dominant
+                  return {
+                    border: race.priority === 'A'
+                      ? '1px solid rgba(250, 82, 82, 0.4)'
+                      : '1px solid var(--mantine-color-dark-4)',
+                    backgroundColor: race.priority === 'A'
+                      ? 'rgba(250, 82, 82, 0.03)'
+                      : 'transparent',
+                  };
+                }
+                // Compact: Minimal styling for races 2+ weeks out
+                return {
+                  border: '1px solid var(--mantine-color-dark-5)',
+                  backgroundColor: 'transparent',
+                };
+              };
+
+              // Compact view for distant races
+              if (visualWeight === 'compact' && compact) {
+                return (
+                  <Group
+                    key={race.id}
+                    gap="xs"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => openEditModal(race)}
+                  >
+                    <Badge size="xs" color="gray" variant="light">
+                      {race.priority}
+                    </Badge>
+                    <Text size="sm" c="dimmed">{race.name}</Text>
+                    <Text size="xs" c="dimmed">in {daysUntil} days</Text>
+                  </Group>
+                );
+              }
 
               return (
                 <Paper
@@ -202,14 +258,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
                   withBorder
                   style={{
                     cursor: 'pointer',
-                    border: race.priority === 'A'
-                      ? '2px solid rgba(250, 82, 82, 0.5)'
-                      : race.priority === 'B'
-                        ? '1px solid rgba(253, 126, 20, 0.3)'
-                        : '1px solid var(--mantine-color-dark-4)',
-                    backgroundColor: race.priority === 'A'
-                      ? 'rgba(250, 82, 82, 0.05)'
-                      : 'transparent',
+                    ...getCardStyle(),
                   }}
                   onClick={() => openEditModal(race)}
                 >
@@ -219,14 +268,19 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
                         <Text size="lg">{raceTypeInfo.icon}</Text>
                         <Badge
                           size="sm"
-                          color={getPriorityColor(race.priority)}
-                          variant="filled"
+                          color={getPriorityColor(race.priority, daysUntil)}
+                          variant={visualWeight === 'compact' ? 'light' : 'filled'}
                         >
                           {race.priority}
                         </Badge>
                         <Text fw={600} size="sm" lineClamp={1}>
                           {race.name}
                         </Text>
+                        {visualWeight === 'prominent' && (
+                          <Badge size="xs" color="yellow" variant="filled">
+                            Race Week!
+                          </Badge>
+                        )}
                       </Group>
 
                       <Group gap="md" wrap="wrap">
@@ -261,7 +315,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
 
                     <Box ta="center" style={{ minWidth: 60 }}>
                       <Text
-                        size="xl"
+                        size={visualWeight === 'compact' ? 'lg' : 'xl'}
                         fw={700}
                         c={getCountdownColor(daysUntil)}
                       >
@@ -270,17 +324,19 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
                       <Text size="xs" c="dimmed">
                         {daysUntil === 1 ? 'day' : 'days'}
                       </Text>
-                      <Text size="xs" c="dimmed">
-                        ({weeksUntil} wk{weeksUntil !== 1 ? 's' : ''})
-                      </Text>
+                      {visualWeight !== 'compact' && (
+                        <Text size="xs" c="dimmed">
+                          ({weeksUntil} wk{weeksUntil !== 1 ? 's' : ''})
+                        </Text>
+                      )}
                     </Box>
                   </Group>
 
-                  {/* Progress bar for races within 12 weeks */}
-                  {daysUntil <= 84 && (
+                  {/* Progress bar only for races within 2 weeks (elevated/prominent) */}
+                  {(visualWeight === 'elevated' || visualWeight === 'prominent' || visualWeight === 'hero') && (
                     <Box mt="xs">
                       <Progress
-                        value={Math.max(0, 100 - (daysUntil / 84) * 100)}
+                        value={Math.max(0, 100 - (daysUntil / 14) * 100)}
                         color={getCountdownColor(daysUntil)}
                         size="xs"
                         radius="xl"
@@ -288,13 +344,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
                       <Text size="xs" c="dimmed" ta="right" mt={2}>
                         {daysUntil <= 7
                           ? 'Race Week!'
-                          : daysUntil <= 14
-                            ? 'Taper Time'
-                            : daysUntil <= 28
-                              ? 'Final Build'
-                              : daysUntil <= 56
-                                ? 'Build Phase'
-                                : 'Base Building'}
+                          : 'Taper Time'}
                       </Text>
                     </Box>
                   )}

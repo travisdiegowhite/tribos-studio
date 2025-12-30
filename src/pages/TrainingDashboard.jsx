@@ -987,14 +987,15 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
           <Group gap="lg" mt="md">
             <Button
               variant="filled"
-              color={formStatus.color}
+              color="lime"
               leftSection={<IconMessageCircle size={16} />}
               onClick={onAskCoach}
             >
               Ask AI Coach
             </Button>
             <Button
-              variant="light"
+              variant="subtle"
+              color="gray"
               rightSection={<IconChevronRight size={16} />}
               onClick={() => suggestedWorkout && onViewWorkout(suggestedWorkout)}
             >
@@ -1003,14 +1004,14 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
           </Group>
         </Box>
 
-        {/* Weekly Progress Ring */}
+        {/* Weekly Progress Ring - Neutral to avoid competing with status badge */}
         <Box style={{ textAlign: 'center' }}>
           <RingProgress
             size={100}
             thickness={8}
             roundCaps
             sections={[
-              { value: Math.min((actualWeeklyStats.rideCount / 7) * 100, 100), color: formStatus.color },
+              { value: Math.min((actualWeeklyStats.rideCount / 7) * 100, 100), color: 'gray.6' },
             ]}
             label={
               <Text size="lg" fw={700} ta="center">
@@ -1018,7 +1019,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
               </Text>
             }
           />
-          <Text size="xs" c="dimmed" mt={4}>rides last week</Text>
+          <Text size="xs" c="dimmed" mt={4}>rides this week</Text>
         </Box>
       </Group>
 
@@ -1460,6 +1461,7 @@ function BodyCheckInCard({ todayHealthMetrics, onOpenHealthCheckIn }) {
 
 // ============================================================================
 // COMPACT FITNESS METRICS BAR
+// Visual Hierarchy: Only Form badge uses color (Tier 1), all else is muted (Tier 3)
 // ============================================================================
 function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousMetrics }) {
   // Calculate trends (compare to 7 days ago if available)
@@ -1467,110 +1469,75 @@ function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousM
   const atlTrend = previousMetrics ? trainingMetrics.atl - previousMetrics.atl : 0;
   const tsb = trainingMetrics.tsb;
 
-  // Get color based on metric type and value
-  const getCtlColor = (value) => {
-    if (value >= 70) return 'teal';
-    if (value >= 50) return 'green';
-    if (value >= 30) return 'lime';
-    return 'gray';
-  };
-
-  const getAtlColor = (value) => {
-    if (value >= 80) return 'red';
-    if (value >= 60) return 'orange';
-    if (value >= 40) return 'yellow';
-    return 'green';
-  };
-
   const getTrendIcon = (trend) => {
     if (trend > 2) return IconTrendingUp;
     if (trend < -2) return IconTrendingDown;
     return null;
   };
 
-  const metrics = [
-    {
-      label: 'CTL',
-      value: Math.round(trainingMetrics.ctl),
-      color: getCtlColor(trainingMetrics.ctl),
-      trend: ctlTrend,
-      tooltip: 'Fitness (42-day load)',
-    },
-    {
-      label: 'ATL',
-      value: Math.round(trainingMetrics.atl),
-      color: getAtlColor(trainingMetrics.atl),
-      trend: atlTrend,
-      tooltip: 'Fatigue (7-day load)',
-    },
-    {
-      label: 'TSB',
-      value: `${tsb > 0 ? '+' : ''}${Math.round(tsb)}`,
-      color: formStatus.color,
-      trend: null,
-      tooltip: `Form: ${formStatus.label}`,
-    },
-    {
-      label: 'Form',
-      value: formStatus.label,
-      color: formStatus.color,
-      trend: null,
-      tooltip: formStatus.label === 'FRESH' ? 'Ready for hard training' :
-               formStatus.label === 'READY' ? 'Quality session day' :
-               formStatus.label === 'OPTIMAL' ? 'Sweet spot training' :
-               formStatus.label === 'TIRED' ? 'Consider recovery' : 'Recovery needed',
-      isBadge: true,
-    },
-    {
-      label: 'Week',
-      value: `${Math.round(weeklyStats.totalTSS)} TSS`,
-      color: 'blue',
-      trend: null,
-      tooltip: `${weeklyStats.rideCount} rides this week`,
-      suffix: `(${weeklyStats.rideCount})`,
-    },
-  ];
+  const CtlTrendIcon = getTrendIcon(ctlTrend);
+  const AtlTrendIcon = getTrendIcon(atlTrend);
 
   return (
     <Paper withBorder p="sm" radius="md">
       <Group justify="space-between" wrap="wrap" gap="xs">
-        {metrics.map((metric, index) => {
-          const TrendIcon = getTrendIcon(metric.trend);
-          return (
-            <Tooltip key={metric.label} label={metric.tooltip} position="bottom">
-              <Group gap={6} style={{ cursor: 'default' }}>
-                <Text size="xs" c="dimmed" fw={500}>{metric.label}:</Text>
-                {metric.isBadge ? (
-                  <Badge size="sm" color={metric.color} variant="filled">
-                    {metric.value}
-                  </Badge>
-                ) : (
-                  <Group gap={4}>
-                    <Text size="sm" fw={700} style={{ color: `var(--mantine-color-${metric.color}-5)` }}>
-                      {metric.value}
-                    </Text>
-                    {metric.suffix && (
-                      <Text size="xs" c="dimmed">{metric.suffix}</Text>
-                    )}
-                    {TrendIcon && (
-                      <TrendIcon
-                        size={14}
-                        style={{
-                          color: metric.trend > 0
-                            ? 'var(--mantine-color-green-5)'
-                            : 'var(--mantine-color-red-5)'
-                        }}
-                      />
-                    )}
-                  </Group>
-                )}
-                {index < metrics.length - 1 && (
-                  <Divider orientation="vertical" size="sm" style={{ height: 16, opacity: 0.3 }} />
-                )}
-              </Group>
-            </Tooltip>
-          );
-        })}
+        {/* Form Badge - Only Tier 1 colored element */}
+        <Tooltip label={
+          formStatus.label === 'FRESH' ? 'Ready for hard training' :
+          formStatus.label === 'READY' ? 'Quality session day' :
+          formStatus.label === 'OPTIMAL' ? 'Sweet spot training' :
+          formStatus.label === 'TIRED' ? 'Consider recovery' : 'Recovery needed'
+        } position="bottom">
+          <Badge size="sm" color={formStatus.color} variant="filled">
+            {formStatus.label}
+          </Badge>
+        </Tooltip>
+
+        <Divider orientation="vertical" size="sm" style={{ height: 16, opacity: 0.3 }} />
+
+        {/* TSB - Tier 2 supporting context */}
+        <Tooltip label={`Training Stress Balance: ${formStatus.label}`} position="bottom">
+          <Text size="sm" c="dimmed" style={{ cursor: 'default' }}>
+            TSB: <Text span fw={600} c="dimmed">{tsb > 0 ? '+' : ''}{Math.round(tsb)}</Text>
+          </Text>
+        </Tooltip>
+
+        <Divider orientation="vertical" size="sm" style={{ height: 16, opacity: 0.3 }} />
+
+        {/* Weekly Summary - Tier 3 background info */}
+        <Tooltip label={`${weeklyStats.rideCount} rides this week`} position="bottom">
+          <Text size="xs" c="dimmed" style={{ cursor: 'default' }}>
+            Week: {Math.round(weeklyStats.totalTSS)} TSS ({weeklyStats.rideCount})
+          </Text>
+        </Tooltip>
+
+        <Divider orientation="vertical" size="sm" style={{ height: 16, opacity: 0.3 }} />
+
+        {/* CTL/ATL - Tier 3 reference data */}
+        <Group gap="md">
+          <Tooltip label="Fitness (42-day load)" position="bottom">
+            <Group gap={4} style={{ cursor: 'default' }}>
+              <Text size="xs" c="dimmed">CTL: {Math.round(trainingMetrics.ctl)}</Text>
+              {CtlTrendIcon && (
+                <CtlTrendIcon
+                  size={12}
+                  style={{ color: ctlTrend > 0 ? 'var(--mantine-color-green-6)' : 'var(--mantine-color-red-6)' }}
+                />
+              )}
+            </Group>
+          </Tooltip>
+          <Tooltip label="Fatigue (7-day load)" position="bottom">
+            <Group gap={4} style={{ cursor: 'default' }}>
+              <Text size="xs" c="dimmed">ATL: {Math.round(trainingMetrics.atl)}</Text>
+              {AtlTrendIcon && (
+                <AtlTrendIcon
+                  size={12}
+                  style={{ color: atlTrend > 0 ? 'var(--mantine-color-orange-6)' : 'var(--mantine-color-green-6)' }}
+                />
+              )}
+            </Group>
+          </Tooltip>
+        </Group>
       </Group>
     </Paper>
   );

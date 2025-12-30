@@ -5,6 +5,9 @@ import DifficultyBadge from './DifficultyBadge';
 
 /**
  * AISuggestionCard - Enhanced AI route suggestion card with metrics and visual appeal
+ * Visual Hierarchy: Only selected/converting card gets color emphasis (Tier 1)
+ * Unselected cards use neutral colors (Tier 3)
+ *
  * @param {object} suggestion - Route suggestion object
  * @param {number} index - Index of the suggestion
  * @param {boolean} isConverting - Whether this suggestion is being converted
@@ -25,17 +28,21 @@ function AISuggestionCard({
     }
   };
 
+  // Visual Hierarchy: Neutral colors for unselected, accent for selected/converting
+  const metricColor = isConverting ? tokens.colors.electricLime : tokens.colors.textMuted;
+  const metricBg = isConverting ? `${tokens.colors.electricLime}15` : `${tokens.colors.textMuted}10`;
+
   return (
     <Card
       padding="md"
       style={{
         backgroundColor: isConverting
-          ? `${tokens.colors.electricLime}10`
+          ? `${tokens.colors.electricLime}08`
           : tokens.colors.bgTertiary,
         cursor: isDisabled ? 'wait' : 'pointer',
-        border: `2px solid ${
-          isConverting ? tokens.colors.electricLime : tokens.colors.bgElevated
-        }`,
+        border: isConverting
+          ? `2px solid ${tokens.colors.electricLime}`
+          : '1px solid var(--mantine-color-dark-5)',
         transition: 'all 0.2s ease',
         opacity: isDisabled && !isConverting ? 0.5 : 1,
         transform: isConverting ? 'scale(1.01)' : 'scale(1)',
@@ -43,16 +50,14 @@ function AISuggestionCard({
       onClick={handleClick}
       onMouseEnter={(e) => {
         if (!isDisabled) {
-          e.currentTarget.style.transform = 'scale(1.02)';
-          e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)';
-          e.currentTarget.style.borderColor = tokens.colors.electricLime;
+          e.currentTarget.style.transform = 'scale(1.01)';
+          e.currentTarget.style.borderColor = 'var(--mantine-color-dark-4)';
         }
       }}
       onMouseLeave={(e) => {
         if (!isConverting) {
           e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = 'none';
-          e.currentTarget.style.borderColor = tokens.colors.bgElevated;
+          e.currentTarget.style.borderColor = 'var(--mantine-color-dark-5)';
         }
       }}
     >
@@ -85,20 +90,20 @@ function AISuggestionCard({
           </Text>
         )}
 
-        {/* Metrics row */}
+        {/* Metrics row - Neutral colors, only converting card gets accent */}
         <Group gap="xs" wrap="wrap">
           <Box
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
-              backgroundColor: `${tokens.colors.electricLime}15`,
+              backgroundColor: metricBg,
               padding: '4px 10px',
               borderRadius: tokens.radius.full,
             }}
           >
-            <IconRuler size={14} style={{ color: tokens.colors.electricLime }} />
-            <Text size="xs" fw={600} style={{ color: tokens.colors.electricLime }}>
+            <IconRuler size={14} style={{ color: metricColor }} />
+            <Text size="xs" fw={600} style={{ color: metricColor }}>
               {typeof suggestion.distance === 'number'
                 ? `${suggestion.distance.toFixed(1)} km`
                 : suggestion.distance}
@@ -111,13 +116,13 @@ function AISuggestionCard({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
-                backgroundColor: `${tokens.colors.zone4}15`,
+                backgroundColor: metricBg,
                 padding: '4px 10px',
                 borderRadius: tokens.radius.full,
               }}
             >
-              <IconMountain size={14} style={{ color: tokens.colors.zone4 }} />
-              <Text size="xs" fw={600} style={{ color: tokens.colors.zone4 }}>
+              <IconMountain size={14} style={{ color: metricColor }} />
+              <Text size="xs" fw={600} style={{ color: metricColor }}>
                 {suggestion.elevationGain}m ↗
               </Text>
             </Box>
@@ -129,24 +134,24 @@ function AISuggestionCard({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
-                backgroundColor: `${tokens.colors.zone1}15`,
+                backgroundColor: metricBg,
                 padding: '4px 10px',
                 borderRadius: tokens.radius.full,
               }}
             >
-              <IconClock size={14} style={{ color: tokens.colors.zone1 }} />
-              <Text size="xs" fw={600} style={{ color: tokens.colors.zone1 }}>
+              <IconClock size={14} style={{ color: metricColor }} />
+              <Text size="xs" fw={600} style={{ color: metricColor }}>
                 {suggestion.estimatedTime}min
               </Text>
             </Box>
           )}
         </Group>
 
-        {/* Action button */}
+        {/* Action button - Only filled when converting (Tier 1), subtle otherwise */}
         <Button
           size="sm"
-          variant={isConverting ? 'filled' : 'light'}
-          color="lime"
+          variant={isConverting ? 'filled' : 'subtle'}
+          color={isConverting ? 'lime' : 'gray'}
           leftSection={
             isConverting ? (
               <Loader size={14} color="dark" />
@@ -161,7 +166,7 @@ function AISuggestionCard({
             fontWeight: 600,
           }}
         >
-          {isConverting ? 'Generating Route...' : 'Select & Generate Route'}
+          {isConverting ? 'Generating Route...' : 'Select This Route'}
         </Button>
       </Stack>
     </Card>

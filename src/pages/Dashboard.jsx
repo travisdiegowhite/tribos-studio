@@ -158,25 +158,26 @@ function Dashboard() {
                 formatElev={formatElev}
               />
 
-              {/* Quick Actions */}
+              {/* Quick Actions - Visual Hierarchy: Only Plan Route is Tier 1 */}
               <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
                 <QuickActionButton
                   icon={IconRoute}
                   label="Plan Route"
                   to="/routes"
                   color={tokens.colors.electricLime}
+                  primary
                 />
                 <QuickActionButton
                   icon={IconChartLine}
                   label="Training"
                   to="/training"
-                  color={tokens.colors.zone4}
+                  color={tokens.colors.textSecondary}
                 />
                 <QuickActionButton
                   icon={IconPlus}
                   label="Upload Ride"
                   to="/training?tab=history"
-                  color={tokens.colors.info}
+                  color={tokens.colors.textSecondary}
                 />
                 <QuickActionButton
                   icon={IconSettings}
@@ -248,7 +249,12 @@ function Dashboard() {
   );
 }
 
-function QuickActionButton({ icon: Icon, label, to, color }) {
+function QuickActionButton({ icon: Icon, label, to, color, primary = false }) {
+  // Visual Hierarchy: Primary actions get full color treatment, secondary actions are muted
+  const iconBgColor = primary ? `${color}20` : `${tokens.colors.textMuted}10`;
+  const iconColor = primary ? color : tokens.colors.textSecondary;
+  const hoverBorderColor = primary ? color : tokens.colors.textMuted;
+
   return (
     <Card
       component={Link}
@@ -258,15 +264,15 @@ function QuickActionButton({ icon: Icon, label, to, color }) {
         textDecoration: 'none',
         cursor: 'pointer',
         transition: 'transform 0.2s, border-color 0.2s',
-        borderColor: 'transparent',
+        borderColor: primary ? `${color}30` : 'transparent',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.borderColor = color;
+        e.currentTarget.style.borderColor = hoverBorderColor;
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.borderColor = 'transparent';
+        e.currentTarget.style.borderColor = primary ? `${color}30` : 'transparent';
       }}
     >
       <Stack gap="xs" align="center">
@@ -275,15 +281,15 @@ function QuickActionButton({ icon: Icon, label, to, color }) {
             width: 40,
             height: 40,
             borderRadius: tokens.radius.md,
-            backgroundColor: `${color}15`,
+            backgroundColor: iconBgColor,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Icon size={20} color={color} />
+          <Icon size={20} color={iconColor} />
         </Box>
-        <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+        <Text size="sm" fw={500} style={{ color: primary ? tokens.colors.textPrimary : tokens.colors.textSecondary }}>
           {label}
         </Text>
       </Stack>
