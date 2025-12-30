@@ -2575,12 +2575,13 @@ function RouteBuilder() {
         onClose={() => setPreferencesOpen(false)}
       />
 
-      {/* Elevation Profile - Fixed at bottom of screen */}
+      {/* Elevation Profile - Fixed at bottom of screen, offset by sidebar width */}
       {routeGeometry?.coordinates && routeGeometry.coordinates.length > 1 && (
         <ElevationProfile
           coordinates={routeGeometry.coordinates}
           totalDistance={routeStats.distance}
           isImperial={isImperial}
+          leftOffset={380}
         />
       )}
     </AppShell>

@@ -14,6 +14,7 @@ const ElevationProfile = ({
   totalDistance = 0, // in km
   isImperial = true,
   onStatsUpdate = null,
+  leftOffset = 0, // Offset from left edge (for sidebar)
 }) => {
   const [elevationData, setElevationData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -154,11 +155,11 @@ const ElevationProfile = ({
         style={{
           position: 'fixed',
           bottom: 0,
-          left: 0,
+          left: leftOffset,
           right: 0,
           zIndex: 100,
           backgroundColor: tokens.colors.bgSecondary,
-          borderRadius: '12px 12px 0 0',
+          borderRadius: leftOffset > 0 ? '0' : '12px 12px 0 0',
           borderTop: `1px solid ${tokens.colors.bgTertiary}`,
         }}
       >
@@ -187,11 +188,11 @@ const ElevationProfile = ({
       style={{
         position: 'fixed',
         bottom: 0,
-        left: 0,
+        left: leftOffset,
         right: 0,
         zIndex: 100,
         backgroundColor: tokens.colors.bgSecondary,
-        borderRadius: '12px 12px 0 0',
+        borderRadius: leftOffset > 0 ? '0' : '12px 12px 0 0',
         borderTop: `1px solid ${tokens.colors.bgTertiary}`,
       }}
     >
