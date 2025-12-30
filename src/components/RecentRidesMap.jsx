@@ -96,12 +96,18 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
 
   // Process activities with polylines
   const ridesWithRoutes = useMemo(() => {
-    return activities
+    const result = activities
       .filter(a => a.polyline || a.summary_polyline || a.map_summary_polyline || a.map?.summary_polyline)
       .slice(0, 5)
       .map((activity, index) => {
         const polyline = activity.polyline || activity.summary_polyline || activity.map_summary_polyline || activity.map?.summary_polyline;
         const coords = decodePolyline(polyline);
+
+        // Debug: log polyline info
+        console.log(`🗺️ Activity "${activity.name}": polyline length=${polyline?.length}, decoded coords=${coords.length}`);
+        if (coords.length > 0) {
+          console.log(`   First coord: [${coords[0][0]}, ${coords[0][1]}]`);
+        }
 
         return {
           ...activity,
@@ -121,6 +127,9 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
           },
         };
       });
+
+    console.log(`🗺️ Total rides with routes: ${result.length}, mapLoaded: ${mapLoaded}`);
+    return result;
   }, [activities]);
 
   // Calculate map bounds to fit all rides
@@ -154,15 +163,18 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
     else if (maxSpan > 0.1) zoom = 10;
     else zoom = 11;
 
-    return {
+    const viewState = {
       longitude: centerLng,
       latitude: centerLat,
       zoom,
       padding: { top: 40, bottom: 40, left: 40, right: 40 },
     };
+    console.log('🗺️ Initial view state:', viewState, 'bounds:', bounds);
+    return viewState;
   }, [ridesWithRoutes]);
 
   const handleMapLoad = useCallback(() => {
+    console.log('🗺️ Map loaded!');
     setMapLoaded(true);
   }, []);
 
