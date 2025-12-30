@@ -1061,7 +1061,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                 <Stack gap="xs">
                   {Object.entries(selectedPlan.expectedGains).map(([key, value]) => (
                     <Group key={key} gap="sm">
-                      <ThemeIcon size="sm" color="lime" variant="light">
+                      <ThemeIcon size="sm" color="gray" variant="light">
                         <IconCheck size={12} />
                       </ThemeIcon>
                       <Text size="sm">
@@ -1115,12 +1115,12 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       <Card withBorder p="md">
         <Group justify="space-between" mb="md">
           <Group gap="xs">
-            <ThemeIcon size="md" color="lime" variant="light">
+            <ThemeIcon size="md" color="gray" variant="light">
               <IconCalendar size={16} />
             </ThemeIcon>
             <Text fw={600} size="sm">Training Plans</Text>
           </Group>
-          <Badge size="xs" color="lime" variant="light">
+          <Badge size="xs" color="gray" variant="light">
             {allPlans.length} plans
           </Badge>
         </Group>
@@ -1144,7 +1144,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             </Paper>
           ))}
 
-          <Button variant="subtle" color="lime" size="xs" fullWidth>
+          <Button variant="subtle" color="gray" size="xs" fullWidth>
             View All Plans
           </Button>
         </Stack>
@@ -1162,7 +1162,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         <Text fw={600} size="lg" style={{ color: tokens.colors.textPrimary }}>
           Training Plans
         </Text>
-        <Badge size="lg" color="lime" variant="light">
+        <Badge size="lg" color="gray" variant="light">
           {filteredPlans.length} {filteredPlans.length === 1 ? 'plan' : 'plans'}
         </Badge>
       </Group>
