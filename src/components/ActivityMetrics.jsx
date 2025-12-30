@@ -133,11 +133,13 @@ export function ActivityMetricsBadges({ activity, ftp }) {
 
   if (!metrics) return null;
 
+  // Visual Hierarchy: Use muted badges for metrics to avoid rainbow effect
+  // Only highlight exceptional values (high IF or high TSS), not routine metrics
   return (
     <Group gap="xs" wrap="wrap">
       {/* Average Power */}
       <Tooltip label="Average Power">
-        <Badge color="yellow" variant="light" size="sm" leftSection={<IconBolt size={12} />}>
+        <Badge color="gray" variant="light" size="sm" leftSection={<IconBolt size={12} />}>
           {metrics.avgPower}W avg
         </Badge>
       </Tooltip>
@@ -145,16 +147,20 @@ export function ActivityMetricsBadges({ activity, ftp }) {
       {/* Normalized Power */}
       {metrics.np && (
         <Tooltip label="Normalized Power - accounts for variability in effort">
-          <Badge color="orange" variant="light" size="sm">
+          <Badge color="gray" variant="light" size="sm">
             {metrics.np}W NP
           </Badge>
         </Tooltip>
       )}
 
-      {/* Intensity Factor */}
+      {/* Intensity Factor - only highlight if threshold+ effort */}
       {metrics.intensityFactor && ftp && (
         <Tooltip label={`Intensity Factor (${metrics.ifZone?.name}) - NP as % of FTP`}>
-          <Badge color={metrics.ifZone?.color || 'gray'} variant="light" size="sm">
+          <Badge
+            color={metrics.intensityFactor >= 1.0 ? 'orange' : 'gray'}
+            variant="light"
+            size="sm"
+          >
             IF {metrics.intensityFactor.toFixed(2)}
           </Badge>
         </Tooltip>
@@ -171,16 +177,21 @@ export function ActivityMetricsBadges({ activity, ftp }) {
                 : 'Highly variable (intervals/racing)'
           }
         >
-          <Badge color="grape" variant="light" size="sm">
+          <Badge color="gray" variant="light" size="sm">
             VI {metrics.vi.toFixed(2)}
           </Badge>
         </Tooltip>
       )}
 
-      {/* TSS */}
+      {/* TSS - only highlight if high training load */}
       {metrics.tss && (
         <Tooltip label="Training Stress Score - overall training load">
-          <Badge color="blue" variant="light" size="sm" leftSection={<IconFlame size={12} />}>
+          <Badge
+            color={metrics.tss >= 150 ? 'orange' : 'gray'}
+            variant="light"
+            size="sm"
+            leftSection={<IconFlame size={12} />}
+          >
             {metrics.tss} TSS
           </Badge>
         </Tooltip>

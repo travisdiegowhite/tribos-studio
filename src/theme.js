@@ -25,7 +25,10 @@ export const tokens = {
     error: '#FF4444',
     info: '#00B4D8',
 
-    // Accent colors for charts/zones
+    // Training Zone Colors - FOR CHARTS/VISUALIZATION ONLY
+    // Do NOT use for buttons, badges, or interactive elements
+    // See: src/components/ui/zoneColors.js for helper utilities
+    // See: docs/visual-hierarchy-guide.md for guidelines
     zone1: '#3B82F6', // Recovery - Blue
     zone2: '#22C55E', // Endurance - Green
     zone3: '#EAB308', // Tempo - Yellow

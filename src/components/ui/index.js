@@ -15,3 +15,16 @@ export { default as PrimaryButton, SecondaryButton } from './PrimaryButton';
 // Badges
 export { default as StatusBadge, FormStatusBadge, PriorityBadge } from './StatusBadge';
 export { default as MetricBadge, MetricText, MetricGroup } from './MetricBadge';
+
+// Zone Colors (for charts/visualization only - NOT for interactive elements)
+export {
+  ZONE_COLORS,
+  ZONE_NAMES,
+  getZoneColor,
+  getZoneBackgroundColor,
+  getZoneBorderColor,
+  getZonesForChart,
+  getZoneFromPowerPct,
+  CHART_COLORS,
+  getChartSeriesColor,
+} from './zoneColors';
