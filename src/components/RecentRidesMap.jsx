@@ -97,10 +97,10 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
   // Process activities with polylines
   const ridesWithRoutes = useMemo(() => {
     return activities
-      .filter(a => a.polyline || a.summary_polyline || a.map?.summary_polyline)
+      .filter(a => a.polyline || a.summary_polyline || a.map_summary_polyline || a.map?.summary_polyline)
       .slice(0, 5)
       .map((activity, index) => {
-        const polyline = activity.polyline || activity.summary_polyline || activity.map?.summary_polyline;
+        const polyline = activity.polyline || activity.summary_polyline || activity.map_summary_polyline || activity.map?.summary_polyline;
         const coords = decodePolyline(polyline);
 
         return {
