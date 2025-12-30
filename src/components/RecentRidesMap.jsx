@@ -96,23 +96,19 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
 
   // Process activities with polylines
   const ridesWithRoutes = useMemo(() => {
-    const result = activities
+    const decoded = activities
       .filter(a => a.polyline || a.summary_polyline || a.map_summary_polyline || a.map?.summary_polyline)
-      .slice(0, 5)
+      .slice(0, 10) // Get more initially, we'll filter by proximity
       .map((activity, index) => {
         const polyline = activity.polyline || activity.summary_polyline || activity.map_summary_polyline || activity.map?.summary_polyline;
         const coords = decodePolyline(polyline);
-
-        // Debug: log polyline info
-        console.log(`🗺️ Activity "${activity.name}": polyline length=${polyline?.length}, decoded coords=${coords.length}`);
-        if (coords.length > 0) {
-          console.log(`   First coord: [${coords[0][0]}, ${coords[0][1]}]`);
-        }
 
         return {
           ...activity,
           coords,
           color: getActivityColor(activity, index),
+          // Store first coord for proximity filtering
+          firstCoord: coords.length > 0 ? coords[0] : null,
           geojson: {
             type: 'Feature',
             properties: {
@@ -126,10 +122,40 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
             },
           },
         };
+      })
+      .filter(r => r.coords.length > 0 && r.firstCoord);
+
+    // If we have rides, filter to show only those near the most recent ride
+    // This prevents the map from trying to show rides on different continents
+    if (decoded.length > 1) {
+      const referenceCoord = decoded[0].firstCoord; // Most recent ride
+      const MAX_DISTANCE_DEG = 2; // ~200km at mid-latitudes
+
+      const nearby = decoded.filter(ride => {
+        const [lng, lat] = ride.firstCoord;
+        const [refLng, refLat] = referenceCoord;
+        const distance = Math.sqrt(Math.pow(lng - refLng, 2) + Math.pow(lat - refLat, 2));
+        return distance < MAX_DISTANCE_DEG;
       });
 
-    console.log(`🗺️ Total rides with routes: ${result.length}, mapLoaded: ${mapLoaded}`);
-    return result;
+      // Use nearby rides if we have any, otherwise fall back to just the most recent
+      const result = nearby.length > 0 ? nearby.slice(0, 5) : [decoded[0]];
+
+      // Re-assign colors based on final order
+      return result.map((ride, index) => ({
+        ...ride,
+        color: getActivityColor(ride, index),
+        geojson: {
+          ...ride.geojson,
+          properties: {
+            ...ride.geojson.properties,
+            color: getActivityColor(ride, index),
+          },
+        },
+      }));
+    }
+
+    return decoded.slice(0, 5);
   }, [activities]);
 
   // Calculate map bounds to fit all rides
@@ -163,18 +189,15 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
     else if (maxSpan > 0.1) zoom = 10;
     else zoom = 11;
 
-    const viewState = {
+    return {
       longitude: centerLng,
       latitude: centerLat,
       zoom,
       padding: { top: 40, bottom: 40, left: 40, right: 40 },
     };
-    console.log('🗺️ Initial view state:', viewState, 'bounds:', bounds);
-    return viewState;
   }, [ridesWithRoutes]);
 
   const handleMapLoad = useCallback(() => {
-    console.log('🗺️ Map loaded!');
     setMapLoaded(true);
   }, []);
 
