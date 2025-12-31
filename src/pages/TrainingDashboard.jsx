@@ -560,7 +560,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, activities,
         border: `1px solid ${formStatus.bg}`,
       }}
     >
-      <Group justify="space-between" align="flex-start" wrap="nowrap">
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
         <Box style={{ flex: 1 }}>
           <Group gap="sm" mb="xs">
             <Badge size="lg" color={formStatus.color} variant="filled" leftSection={<FormIcon size={14} />}>
