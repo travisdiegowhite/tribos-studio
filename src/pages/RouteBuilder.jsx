@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal } from '@mantine/core';
+import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -32,6 +32,14 @@ import AISuggestionCard from '../components/AISuggestionCard.jsx';
 import MapTutorialOverlay from '../components/MapTutorialOverlay.jsx';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+
+// Basemap style options for the map switcher
+const BASEMAP_STYLES = [
+  { id: 'dark', label: 'Dark', style: 'mapbox://styles/mapbox/dark-v11' },
+  { id: 'outdoors', label: 'Outdoors', style: 'mapbox://styles/mapbox/outdoors-v12' },
+  { id: 'satellite', label: 'Satellite', style: 'mapbox://styles/mapbox/satellite-streets-v12' },
+  { id: 'streets', label: 'Streets', style: 'mapbox://styles/mapbox/streets-v12' },
+];
 
 /**
  * Build a prompt for Claude to parse natural language route requests
@@ -474,6 +482,13 @@ function RouteBuilder() {
     key: 'tribos-route-builder-tutorial-shown',
     defaultValue: true,
   });
+
+  // Basemap style state (persisted to localStorage)
+  const [mapStyleId, setMapStyleId] = useLocalStorage({
+    key: 'tribos-route-builder-basemap',
+    defaultValue: 'outdoors',
+  });
+  const currentMapStyle = BASEMAP_STYLES.find(s => s.id === mapStyleId)?.style || BASEMAP_STYLES[1].style;
 
   // Step indicator - determine current step based on form state
   const wizardSteps = useMemo(() => [
@@ -1714,7 +1729,7 @@ function RouteBuilder() {
                 {...viewport}
                 onMove={evt => setViewport(evt.viewState)}
                 onClick={handleMapClick}
-                mapStyle="mapbox://styles/mapbox/outdoors-v12"
+                mapStyle={currentMapStyle}
                 mapboxAccessToken={MAPBOX_TOKEN}
                 style={{ width: '100%', height: '100%' }}
                 cursor="crosshair"
@@ -1862,6 +1877,43 @@ function RouteBuilder() {
                   </Box>
                 ))}
               </Paper>
+            )}
+
+            {/* Basemap switcher - bottom right */}
+            {MAPBOX_TOKEN && (
+              <Menu position="top-end" withArrow shadow="md">
+                <Menu.Target>
+                  <ActionIcon
+                    variant="filled"
+                    color="dark"
+                    size="lg"
+                    style={{
+                      position: 'absolute',
+                      bottom: 120,
+                      right: 16,
+                      zIndex: 10,
+                      backgroundColor: tokens.colors.bgSecondary,
+                      border: `1px solid ${tokens.colors.bgTertiary}`,
+                    }}
+                  >
+                    <IconMap size={20} />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown style={{ backgroundColor: tokens.colors.bgSecondary }}>
+                  <Menu.Label>Basemap</Menu.Label>
+                  {BASEMAP_STYLES.map((style) => (
+                    <Menu.Item
+                      key={style.id}
+                      onClick={() => setMapStyleId(style.id)}
+                      style={{
+                        backgroundColor: mapStyleId === style.id ? tokens.colors.bgTertiary : 'transparent',
+                      }}
+                    >
+                      {style.label}
+                    </Menu.Item>
+                  ))}
+                </Menu.Dropdown>
+              </Menu>
             )}
           </Box>
 
@@ -2450,7 +2502,7 @@ function RouteBuilder() {
               {...viewport}
               onMove={evt => setViewport(evt.viewState)}
               onClick={handleMapClick}
-              mapStyle="mapbox://styles/mapbox/outdoors-v12"
+              mapStyle={currentMapStyle}
               mapboxAccessToken={MAPBOX_TOKEN}
               style={{ width: '100%', height: '100%' }}
               cursor="crosshair"
@@ -2565,6 +2617,43 @@ function RouteBuilder() {
               onDismiss={() => setShowTutorial(false)}
               waypointCount={waypoints.length}
             />
+          )}
+
+          {/* Basemap switcher - bottom right */}
+          {MAPBOX_TOKEN && (
+            <Menu position="top-end" withArrow shadow="md">
+              <Menu.Target>
+                <ActionIcon
+                  variant="filled"
+                  color="dark"
+                  size="lg"
+                  style={{
+                    position: 'absolute',
+                    bottom: 24,
+                    right: 24,
+                    zIndex: 10,
+                    backgroundColor: tokens.colors.bgSecondary,
+                    border: `1px solid ${tokens.colors.bgTertiary}`,
+                  }}
+                >
+                  <IconMap size={20} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown style={{ backgroundColor: tokens.colors.bgSecondary }}>
+                <Menu.Label>Basemap</Menu.Label>
+                {BASEMAP_STYLES.map((style) => (
+                  <Menu.Item
+                    key={style.id}
+                    onClick={() => setMapStyleId(style.id)}
+                    style={{
+                      backgroundColor: mapStyleId === style.id ? tokens.colors.bgTertiary : 'transparent',
+                    }}
+                  >
+                    {style.label}
+                  </Menu.Item>
+                ))}
+              </Menu.Dropdown>
+            </Menu>
           )}
         </Box>
       </Box>
