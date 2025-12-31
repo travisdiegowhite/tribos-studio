@@ -47,7 +47,7 @@ export default function BikeInfrastructureLegend({ visible = true }) {
       shadow="md"
       style={{
         position: 'absolute',
-        bottom: 24,
+        top: 70,
         right: 16,
         zIndex: 10,
         backgroundColor: tokens.colors.bgSecondary,
