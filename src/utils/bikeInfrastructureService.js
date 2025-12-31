@@ -4,19 +4,31 @@
  * based on the current map viewport for on-demand overlay rendering
  */
 
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+// Overpass API endpoints (with fallbacks)
+const OVERPASS_SERVERS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
 
 // Cache infrastructure data by grid cells to avoid duplicate requests
 const infrastructureCache = new Map();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 const GRID_SIZE = 0.02; // ~2km grid cells for caching
 
+// Maximum bounding box size (in degrees) to prevent timeout
+// ~0.1 degrees ≈ 11km, so 0.15 x 0.15 ≈ 16km x 16km max area
+const MAX_BBOX_SIZE = 0.15;
+
 // Rate limiting
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 2000; // 2 seconds between requests
+const MIN_REQUEST_INTERVAL = 1000; // 1 second between requests
 
 // Abort controller for canceling pending requests
 let currentAbortController = null;
+
+// Track which server to try next
+let currentServerIndex = 0;
 
 /**
  * Infrastructure type classification for styling
@@ -131,6 +143,33 @@ function getGridCellsForBounds(bounds) {
 }
 
 /**
+ * Clamp bounds to maximum size to prevent API timeout
+ * @param {Object} bounds - {south, west, north, east}
+ * @returns {Object} Clamped bounds centered on original
+ */
+function clampBounds(bounds) {
+  const latSize = bounds.north - bounds.south;
+  const lngSize = bounds.east - bounds.west;
+
+  // If within limits, return as-is
+  if (latSize <= MAX_BBOX_SIZE && lngSize <= MAX_BBOX_SIZE) {
+    return bounds;
+  }
+
+  // Otherwise, clamp to max size centered on the viewport center
+  const centerLat = (bounds.north + bounds.south) / 2;
+  const centerLng = (bounds.east + bounds.west) / 2;
+  const halfSize = MAX_BBOX_SIZE / 2;
+
+  return {
+    south: centerLat - halfSize,
+    north: centerLat + halfSize,
+    west: centerLng - halfSize,
+    east: centerLng + halfSize,
+  };
+}
+
+/**
  * Build Overpass query for cycling infrastructure in a bounding box
  * @param {Object} bounds - {south, west, north, east}
  * @returns {string} Overpass QL query
@@ -138,59 +177,75 @@ function getGridCellsForBounds(bounds) {
 function buildOverpassQuery(bounds) {
   const bbox = `${bounds.south},${bounds.west},${bounds.north},${bounds.east}`;
 
+  // Simplified query focusing on most important infrastructure
+  // to reduce load and prevent timeouts
   return `
-[out:json][timeout:25][bbox:${bbox}];
+[out:json][timeout:15][bbox:${bbox}];
 (
-  // Tier 1: Protected/Separated cycleways
+  // Tier 1: Protected/Separated cycleways (most important)
   way[highway=cycleway];
   way[cycleway=track];
-  way["cycleway:both"=track];
-  way["cycleway:left"=track];
-  way["cycleway:right"=track];
 
   // Tier 2: Bike lanes on road
   way[cycleway=lane];
-  way["cycleway:both"=lane];
-  way["cycleway:left"=lane];
-  way["cycleway:right"=lane];
 
   // Tier 3: Shared paths / Greenways
   way[highway=path][bicycle=designated];
-  way[highway=footway][bicycle~"^(yes|designated)$"];
-
-  // Tier 4: Bike-allowed residential streets (limit to avoid too much data)
-  way[bicycle=designated][highway~"^(residential|living_street|tertiary)$"];
 
   // Tier 5: Shared lanes / Sharrows
   way[cycleway=shared_lane];
-  way["cycleway:both"=shared_lane];
 );
 out geom;
 `;
 }
 
 /**
- * Fetch infrastructure data for a bounding box
+ * Fetch infrastructure data for a bounding box with retry and fallback
  * @param {Object} bounds - {south, west, north, east}
  * @param {AbortSignal} signal - Abort signal for cancellation
  * @returns {Promise<Object>} GeoJSON FeatureCollection
  */
 async function fetchInfrastructureData(bounds, signal) {
-  const query = buildOverpassQuery(bounds);
+  // Clamp bounds to prevent timeout on large areas
+  const clampedBounds = clampBounds(bounds);
+  const query = buildOverpassQuery(clampedBounds);
 
-  const response = await fetch(OVERPASS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: query,
-    signal,
-  });
+  let lastError = null;
 
-  if (!response.ok) {
-    throw new Error(`Overpass API error: ${response.status}`);
+  // Try each server with retry
+  for (let attempt = 0; attempt < OVERPASS_SERVERS.length; attempt++) {
+    const serverUrl = OVERPASS_SERVERS[(currentServerIndex + attempt) % OVERPASS_SERVERS.length];
+
+    try {
+      const response = await fetch(serverUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: query,
+        signal,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Remember this server worked
+        currentServerIndex = (currentServerIndex + attempt) % OVERPASS_SERVERS.length;
+        return data;
+      }
+
+      // Server returned error, try next
+      lastError = new Error(`Overpass API error: ${response.status}`);
+      console.warn(`⚠️ Server ${serverUrl} returned ${response.status}, trying next...`);
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw error; // Don't retry on abort
+      }
+      lastError = error;
+      console.warn(`⚠️ Server ${serverUrl} failed: ${error.message}, trying next...`);
+    }
   }
 
-  const data = await response.json();
-  return data;
+  // All servers failed
+  throw lastError || new Error('All Overpass servers failed');
 }
 
 /**
