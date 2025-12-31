@@ -202,7 +202,7 @@ function TrainingDashboard() {
       try {
         const { data: userProfileData } = await supabase
           .from('user_profiles')
-          .select('units_preference, ftp, power_zones, weight')
+          .select('units_preference, ftp, power_zones, weight_kg')
           .eq('id', user.id)
           .single();
 
@@ -211,7 +211,7 @@ function TrainingDashboard() {
         }
         if (userProfileData?.ftp) setFtp(userProfileData.ftp);
         if (userProfileData?.power_zones) setPowerZones(userProfileData.power_zones);
-        if (userProfileData?.weight) setUserWeight(userProfileData.weight);
+        if (userProfileData?.weight_kg) setUserWeight(userProfileData.weight_kg);
 
         // Get activities from last 90 days
         const ninetyDaysAgo = new Date();
