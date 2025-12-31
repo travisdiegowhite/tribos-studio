@@ -232,4 +232,23 @@ button {
   ::-webkit-scrollbar-thumb {
     background: #3a3a3a;
   }
+
+  /* Horizontal scrolling tabs - prevent overlap */
+  .mantine-Tabs-list {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 2px;
+  }
+
+  .mantine-Tabs-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mantine-Tabs-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 }
