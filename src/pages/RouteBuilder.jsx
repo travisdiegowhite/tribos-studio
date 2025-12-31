@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -30,8 +30,37 @@ import DifficultyBadge from '../components/DifficultyBadge.jsx';
 import RouteStatsPanel from '../components/RouteStatsPanel.jsx';
 import AISuggestionCard from '../components/AISuggestionCard.jsx';
 import MapTutorialOverlay from '../components/MapTutorialOverlay.jsx';
+import BikeInfrastructureLayer from '../components/BikeInfrastructureLayer.jsx';
+import { fetchBikeInfrastructure } from '../utils/bikeInfrastructureService';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+
+// CyclOSM raster tile style for Mapbox GL
+const CYCLOSM_STYLE = {
+  version: 8,
+  name: 'CyclOSM',
+  sources: {
+    'cyclosm-tiles': {
+      type: 'raster',
+      tiles: [
+        'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+        'https://b.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+        'https://c.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+      ],
+      tileSize: 256,
+      attribution: '© <a href="https://www.cyclosm.org">CyclOSM</a> | © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    },
+  },
+  layers: [
+    {
+      id: 'cyclosm-layer',
+      type: 'raster',
+      source: 'cyclosm-tiles',
+      minzoom: 0,
+      maxzoom: 20,
+    },
+  ],
+};
 
 // Basemap style options for the map switcher
 const BASEMAP_STYLES = [
@@ -39,6 +68,7 @@ const BASEMAP_STYLES = [
   { id: 'outdoors', label: 'Outdoors', style: 'mapbox://styles/mapbox/outdoors-v12' },
   { id: 'satellite', label: 'Satellite', style: 'mapbox://styles/mapbox/satellite-streets-v12' },
   { id: 'streets', label: 'Streets', style: 'mapbox://styles/mapbox/streets-v12' },
+  { id: 'cyclosm', label: 'CyclOSM', style: CYCLOSM_STYLE },
 ];
 
 /**
@@ -490,6 +520,15 @@ function RouteBuilder() {
   });
   const currentMapStyle = BASEMAP_STYLES.find(s => s.id === mapStyleId)?.style || BASEMAP_STYLES[1].style;
 
+  // Bike infrastructure overlay state
+  const [showBikeInfrastructure, setShowBikeInfrastructure] = useLocalStorage({
+    key: 'tribos-route-builder-bike-infrastructure',
+    defaultValue: false,
+  });
+  const [infrastructureData, setInfrastructureData] = useState(null);
+  const [infrastructureLoading, setInfrastructureLoading] = useState(false);
+  const infrastructureFetchTimeout = useRef(null);
+
   // Step indicator - determine current step based on form state
   const wizardSteps = useMemo(() => [
     { id: 1, label: 'Describe', icon: '📝' },
@@ -761,6 +800,66 @@ function RouteBuilder() {
 
     loadExistingRoute();
   }, [routeId, user]);
+
+  // Fetch bike infrastructure when map moves and overlay is enabled
+  const fetchInfrastructureForViewport = useCallback(async () => {
+    if (!showBikeInfrastructure || mapStyleId === 'cyclosm') {
+      // Don't fetch if disabled or using CyclOSM (already has bike styling)
+      return;
+    }
+
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+
+    const bounds = map.getBounds();
+    if (!bounds) return;
+
+    // Only fetch at reasonable zoom levels (avoid fetching too much data)
+    const zoom = map.getZoom();
+    if (zoom < 11) {
+      setInfrastructureData(null);
+      return;
+    }
+
+    setInfrastructureLoading(true);
+    try {
+      const data = await fetchBikeInfrastructure({
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest(),
+      });
+      setInfrastructureData(data);
+    } catch (error) {
+      console.error('Failed to fetch bike infrastructure:', error);
+    } finally {
+      setInfrastructureLoading(false);
+    }
+  }, [showBikeInfrastructure, mapStyleId]);
+
+  // Debounced infrastructure fetch on viewport change
+  useEffect(() => {
+    if (!showBikeInfrastructure || mapStyleId === 'cyclosm') {
+      setInfrastructureData(null);
+      return;
+    }
+
+    // Clear any pending timeout
+    if (infrastructureFetchTimeout.current) {
+      clearTimeout(infrastructureFetchTimeout.current);
+    }
+
+    // Debounce the fetch
+    infrastructureFetchTimeout.current = setTimeout(() => {
+      fetchInfrastructureForViewport();
+    }, 500);
+
+    return () => {
+      if (infrastructureFetchTimeout.current) {
+        clearTimeout(infrastructureFetchTimeout.current);
+      }
+    };
+  }, [viewport, showBikeInfrastructure, mapStyleId, fetchInfrastructureForViewport]);
 
   // Calculate route using Mapbox Directions API
   const calculateRoute = useCallback(async (points) => {
@@ -1734,6 +1833,14 @@ function RouteBuilder() {
                 style={{ width: '100%', height: '100%' }}
                 cursor="crosshair"
               >
+                {/* Bike Infrastructure Layer - renders below routes */}
+                {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
+                  <BikeInfrastructureLayer
+                    data={infrastructureData}
+                    visible={showBikeInfrastructure}
+                  />
+                )}
+
                 {/* Colored route segments */}
                 {coloredSegments && (
                   <Source key={routeName || 'colored-route'} id="colored-route" type="geojson" data={coloredSegments}>
@@ -1846,6 +1953,23 @@ function RouteBuilder() {
                 <Tooltip label="My Location">
                   <Button variant="filled" color="lime" size="md" onClick={handleGeolocate} loading={isLocating} style={{ padding: '0 12px' }}>
                     <IconCurrentLocation size={20} />
+                  </Button>
+                </Tooltip>
+                <Tooltip label={showBikeInfrastructure ? 'Hide Bike Lanes' : 'Show Bike Lanes'}>
+                  <Button
+                    variant={showBikeInfrastructure ? 'filled' : 'default'}
+                    color={showBikeInfrastructure ? 'green' : 'dark'}
+                    size="md"
+                    onClick={() => setShowBikeInfrastructure(!showBikeInfrastructure)}
+                    loading={infrastructureLoading}
+                    disabled={mapStyleId === 'cyclosm'}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: showBikeInfrastructure ? tokens.colors.electricLime : tokens.colors.bgSecondary,
+                      border: `1px solid ${tokens.colors.bgTertiary}`,
+                    }}
+                  >
+                    <IconBike size={20} color={showBikeInfrastructure ? '#000' : '#fff'} />
                   </Button>
                 </Tooltip>
                 <Menu position="bottom-end" withArrow shadow="md">
@@ -2486,6 +2610,23 @@ function RouteBuilder() {
                   <IconCurrentLocation size={20} />
                 </Button>
               </Tooltip>
+              <Tooltip label={showBikeInfrastructure ? 'Hide Bike Lanes' : 'Show Bike Lanes'}>
+                <Button
+                  variant={showBikeInfrastructure ? 'filled' : 'default'}
+                  color={showBikeInfrastructure ? 'green' : 'dark'}
+                  size="md"
+                  onClick={() => setShowBikeInfrastructure(!showBikeInfrastructure)}
+                  loading={infrastructureLoading}
+                  disabled={mapStyleId === 'cyclosm'}
+                  style={{
+                    padding: '0 12px',
+                    backgroundColor: showBikeInfrastructure ? tokens.colors.electricLime : tokens.colors.bgSecondary,
+                    border: `1px solid ${tokens.colors.bgTertiary}`,
+                  }}
+                >
+                  <IconBike size={20} color={showBikeInfrastructure ? '#000' : '#fff'} />
+                </Button>
+              </Tooltip>
               <Menu position="bottom-end" withArrow shadow="md">
                 <Menu.Target>
                   <Tooltip label="Change Basemap">
@@ -2532,6 +2673,14 @@ function RouteBuilder() {
               style={{ width: '100%', height: '100%' }}
               cursor="crosshair"
             >
+              {/* Bike Infrastructure Layer - renders below routes */}
+              {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
+                <BikeInfrastructureLayer
+                  data={infrastructureData}
+                  visible={showBikeInfrastructure}
+                />
+              )}
+
               {/* Render colored route segments when workout is selected */}
               {coloredSegments && (
                 <Source key={routeName || 'colored-route'} id="colored-route" type="geojson" data={coloredSegments}>
