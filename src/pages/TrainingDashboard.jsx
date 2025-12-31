@@ -57,6 +57,8 @@ import {
   IconBrandZwift,
   IconFileExport,
   IconDeviceWatch,
+  IconBrandStrava,
+  IconFileImport,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -72,6 +74,7 @@ import PersonalRecordsCard from '../components/PersonalRecordsCard.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
+import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
 import { SupplementWorkoutModal } from '../components/training';
 import RaceGoalsPanel from '../components/RaceGoalsPanel.jsx';
@@ -114,6 +117,7 @@ function TrainingDashboard() {
   const [dailyTSSData, setDailyTSSData] = useState([]);
   const [healthCheckInOpen, setHealthCheckInOpen] = useState(false);
   const [fitUploadOpen, setFitUploadOpen] = useState(false);
+  const [gpxUploadOpen, setGpxUploadOpen] = useState(false);
   const [todayHealthMetrics, setTodayHealthMetrics] = useState(null);
   const [workoutModalOpen, setWorkoutModalOpen] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
@@ -606,15 +610,33 @@ function TrainingDashboard() {
                   Add Supplement
                 </Button>
               )}
-              <Button
-                variant="light"
-                color="orange"
-                size="xs"
-                leftSection={<IconUpload size={14} />}
-                onClick={() => setFitUploadOpen(true)}
-              >
-                Upload FIT
-              </Button>
+              <Menu shadow="md" width={200}>
+                <Menu.Target>
+                  <Button
+                    variant="light"
+                    color="orange"
+                    size="xs"
+                    leftSection={<IconFileImport size={14} />}
+                  >
+                    Import
+                  </Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>Import Activities</Menu.Label>
+                  <Menu.Item
+                    leftSection={<IconBrandStrava size={16} />}
+                    onClick={() => setGpxUploadOpen(true)}
+                  >
+                    Strava Export (GPX)
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={<IconDeviceWatch size={16} />}
+                    onClick={() => setFitUploadOpen(true)}
+                  >
+                    FIT Files (Garmin/Wahoo)
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
               <Button
                 variant={todayHealthMetrics ? 'light' : 'filled'}
                 color="violet"
@@ -902,6 +924,18 @@ function TrainingDashboard() {
         }}
         formatDistance={formatDist}
         formatElevation={formatElev}
+      />
+
+      {/* Bulk GPX Upload Modal (Strava Export) */}
+      <BulkGpxUploadModal
+        opened={gpxUploadOpen}
+        onClose={() => setGpxUploadOpen(false)}
+        onUploadComplete={(results) => {
+          // Refresh activities after upload
+          if (results.success.length > 0) {
+            window.location.reload();
+          }
+        }}
       />
 
       {/* Workout Detail Modal */}
