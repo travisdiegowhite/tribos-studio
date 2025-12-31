@@ -233,7 +233,7 @@ button {
     background: #3a3a3a;
   }
 
-  /* Horizontal scrolling tabs - prevent overlap */
+  /* Icon-only tabs on mobile - prevent overlap */
   .mantine-Tabs-list {
     flex-wrap: nowrap !important;
     overflow-x: auto;
@@ -241,6 +241,8 @@ button {
     scrollbar-width: none;
     -ms-overflow-style: none;
     padding-bottom: 2px;
+    gap: 4px !important;
+    justify-content: center !important;
   }
 
   .mantine-Tabs-list::-webkit-scrollbar {
@@ -250,5 +252,15 @@ button {
   .mantine-Tabs-tab {
     flex-shrink: 0;
     white-space: nowrap;
+    padding: 10px 12px !important;
+  }
+
+  /* Icon-only tabs - no margin needed on icon */
+  .mantine-Tabs-tabSection {
+    margin-right: 0 !important;
+  }
+
+  .mantine-Tabs-tabSection[data-position="left"] {
+    margin-right: 0 !important;
   }
 }

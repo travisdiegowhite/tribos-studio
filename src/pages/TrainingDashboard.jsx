@@ -29,6 +29,7 @@ import {
   Collapse,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { useMediaQuery } from '@mantine/hooks';
 import { useNavigate } from 'react-router-dom';
 import {
   IconActivity,
@@ -93,6 +94,7 @@ import { PoweredByStrava } from '../components/StravaBranding';
 function TrainingDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('today');
   const aiCoachRef = useRef(null);
@@ -647,42 +649,42 @@ function TrainingDashboard() {
                 backgroundColor: 'var(--mantine-color-dark-7)',
               }}
             >
-              <Tabs.List grow>
+              <Tabs.List grow={!isMobile} justify={isMobile ? 'center' : undefined}>
                 <Tabs.Tab
                   value="today"
-                  leftSection={<IconTarget size={18} />}
+                  leftSection={<IconTarget size={isMobile ? 20 : 18} />}
                 >
-                  Today
+                  {!isMobile && 'Today'}
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="plans"
-                  leftSection={<IconList size={18} />}
+                  leftSection={<IconList size={isMobile ? 20 : 18} />}
                 >
-                  Plans
+                  {!isMobile && 'Plans'}
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="trends"
-                  leftSection={<IconTrendingUp size={18} />}
+                  leftSection={<IconTrendingUp size={isMobile ? 20 : 18} />}
                 >
-                  Trends
+                  {!isMobile && 'Trends'}
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="power"
-                  leftSection={<IconBolt size={18} />}
+                  leftSection={<IconBolt size={isMobile ? 20 : 18} />}
                 >
-                  Power
+                  {!isMobile && 'Power'}
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="history"
-                  leftSection={<IconClock size={18} />}
+                  leftSection={<IconClock size={isMobile ? 20 : 18} />}
                 >
-                  History
+                  {!isMobile && 'History'}
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="calendar"
-                  leftSection={<IconCalendar size={18} />}
+                  leftSection={<IconCalendar size={isMobile ? 20 : 18} />}
                 >
-                  Calendar
+                  {!isMobile && 'Calendar'}
                 </Tabs.Tab>
               </Tabs.List>
             </Paper>
