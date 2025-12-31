@@ -31,6 +31,7 @@ import RouteStatsPanel from '../components/RouteStatsPanel.jsx';
 import AISuggestionCard from '../components/AISuggestionCard.jsx';
 import MapTutorialOverlay from '../components/MapTutorialOverlay.jsx';
 import BikeInfrastructureLayer from '../components/BikeInfrastructureLayer.jsx';
+import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
 import { fetchBikeInfrastructure } from '../utils/bikeInfrastructureService';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -2032,6 +2033,11 @@ function RouteBuilder() {
                 ))}
               </Paper>
             )}
+
+            {/* Bike Infrastructure Legend */}
+            {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
+              <BikeInfrastructureLegend visible={showBikeInfrastructure} />
+            )}
           </Box>
 
           {/* Bottom Sheet with controls */}
@@ -2782,6 +2788,11 @@ function RouteBuilder() {
                 </Text>
               </Stack>
             </Box>
+          )}
+
+          {/* Bike Infrastructure Legend */}
+          {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
+            <BikeInfrastructureLegend visible={showBikeInfrastructure} />
           )}
 
           {/* Map Tutorial Overlay */}
