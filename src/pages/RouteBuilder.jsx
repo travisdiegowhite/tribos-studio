@@ -1881,39 +1881,44 @@ function RouteBuilder() {
 
             {/* Basemap switcher - bottom right */}
             {MAPBOX_TOKEN && (
-              <Menu position="top-end" withArrow shadow="md">
-                <Menu.Target>
-                  <ActionIcon
-                    variant="filled"
-                    color="dark"
-                    size="lg"
-                    style={{
-                      position: 'absolute',
-                      bottom: 120,
-                      right: 16,
-                      zIndex: 10,
-                      backgroundColor: tokens.colors.bgSecondary,
-                      border: `1px solid ${tokens.colors.bgTertiary}`,
-                    }}
-                  >
-                    <IconMap size={20} />
-                  </ActionIcon>
-                </Menu.Target>
-                <Menu.Dropdown style={{ backgroundColor: tokens.colors.bgSecondary }}>
-                  <Menu.Label>Basemap</Menu.Label>
-                  {BASEMAP_STYLES.map((style) => (
-                    <Menu.Item
-                      key={style.id}
-                      onClick={() => setMapStyleId(style.id)}
+              <Box
+                style={{
+                  position: 'absolute',
+                  bottom: 120,
+                  right: 16,
+                  zIndex: 10,
+                }}
+              >
+                <Menu position="top-end" withArrow shadow="md">
+                  <Menu.Target>
+                    <ActionIcon
+                      variant="filled"
+                      color="dark"
+                      size="lg"
                       style={{
-                        backgroundColor: mapStyleId === style.id ? tokens.colors.bgTertiary : 'transparent',
+                        backgroundColor: tokens.colors.bgSecondary,
+                        border: `1px solid ${tokens.colors.bgTertiary}`,
                       }}
                     >
-                      {style.label}
-                    </Menu.Item>
-                  ))}
-                </Menu.Dropdown>
-              </Menu>
+                      <IconMap size={20} />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown style={{ backgroundColor: tokens.colors.bgSecondary }}>
+                    <Menu.Label>Basemap</Menu.Label>
+                    {BASEMAP_STYLES.map((style) => (
+                      <Menu.Item
+                        key={style.id}
+                        onClick={() => setMapStyleId(style.id)}
+                        style={{
+                          backgroundColor: mapStyleId === style.id ? tokens.colors.bgTertiary : 'transparent',
+                        }}
+                      >
+                        {style.label}
+                      </Menu.Item>
+                    ))}
+                  </Menu.Dropdown>
+                </Menu>
+              </Box>
             )}
           </Box>
 
@@ -2621,39 +2626,44 @@ function RouteBuilder() {
 
           {/* Basemap switcher - bottom right */}
           {MAPBOX_TOKEN && (
-            <Menu position="top-end" withArrow shadow="md">
-              <Menu.Target>
-                <ActionIcon
-                  variant="filled"
-                  color="dark"
-                  size="lg"
-                  style={{
-                    position: 'absolute',
-                    bottom: 24,
-                    right: 24,
-                    zIndex: 10,
-                    backgroundColor: tokens.colors.bgSecondary,
-                    border: `1px solid ${tokens.colors.bgTertiary}`,
-                  }}
-                >
-                  <IconMap size={20} />
-                </ActionIcon>
-              </Menu.Target>
-              <Menu.Dropdown style={{ backgroundColor: tokens.colors.bgSecondary }}>
-                <Menu.Label>Basemap</Menu.Label>
-                {BASEMAP_STYLES.map((style) => (
-                  <Menu.Item
-                    key={style.id}
-                    onClick={() => setMapStyleId(style.id)}
+            <Box
+              style={{
+                position: 'absolute',
+                bottom: 24,
+                right: 24,
+                zIndex: 10,
+              }}
+            >
+              <Menu position="top-end" withArrow shadow="md">
+                <Menu.Target>
+                  <ActionIcon
+                    variant="filled"
+                    color="dark"
+                    size="lg"
                     style={{
-                      backgroundColor: mapStyleId === style.id ? tokens.colors.bgTertiary : 'transparent',
+                      backgroundColor: tokens.colors.bgSecondary,
+                      border: `1px solid ${tokens.colors.bgTertiary}`,
                     }}
                   >
-                    {style.label}
-                  </Menu.Item>
-                ))}
-              </Menu.Dropdown>
-            </Menu>
+                    <IconMap size={20} />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown style={{ backgroundColor: tokens.colors.bgSecondary }}>
+                  <Menu.Label>Basemap</Menu.Label>
+                  {BASEMAP_STYLES.map((style) => (
+                    <Menu.Item
+                      key={style.id}
+                      onClick={() => setMapStyleId(style.id)}
+                      style={{
+                        backgroundColor: mapStyleId === style.id ? tokens.colors.bgTertiary : 'transparent',
+                      }}
+                    >
+                      {style.label}
+                    </Menu.Item>
+                  ))}
+                </Menu.Dropdown>
+              </Menu>
+            </Box>
           )}
         </Box>
       </Box>
