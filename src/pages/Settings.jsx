@@ -981,6 +981,16 @@ function Settings() {
                   <Text size="xs" c="dimmed">
                     To export: Go to Strava.com → Settings → My Account → Download or Delete Your Account → Request Your Archive
                   </Text>
+                  <Button
+                    variant="light"
+                    color="lime"
+                    size="sm"
+                    leftSection={<IconUpload size={16} />}
+                    onClick={() => setShowImportWizard(true)}
+                    mt="xs"
+                  >
+                    Bulk Import from Strava Export
+                  </Button>
                 </Stack>
               </Alert>
 
