@@ -13,14 +13,11 @@ import {
   SimpleGrid,
   Divider,
   List,
-  Stepper,
   Accordion,
   Code,
   Timeline,
   Tabs,
   ScrollArea,
-  Box,
-  Tooltip,
 } from '@mantine/core';
 import {
   IconUpload,
@@ -32,10 +29,7 @@ import {
   IconClock,
   IconRoute,
   IconMountain,
-  IconHeart,
-  IconBolt,
   IconFileZip,
-  IconDownload,
   IconExternalLink,
   IconInfoCircle,
   IconChevronRight,
@@ -48,7 +42,9 @@ import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parseGpxFile, gpxToActivityFormat } from '../utils/gpxParser';
+import { parseFitFile, fitToActivityFormat } from '../utils/fitParser';
 import JSZip from 'jszip';
+import pako from 'pako';
 
 function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   const { user } = useAuth();
@@ -62,37 +58,91 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   const [results, setResults] = useState(null);
 
   /**
-   * Extract GPX files from a Strava export zip
+   * Determine file type from filename
    */
-  const extractGpxFromZip = async (zipFile) => {
-    const zip = await JSZip.loadAsync(zipFile);
-    const gpxFiles = [];
+  const getFileType = (filename) => {
+    const lower = filename.toLowerCase();
+    if (lower.endsWith('.fit.gz')) return 'fit.gz';
+    if (lower.endsWith('.fit')) return 'fit';
+    if (lower.endsWith('.gpx.gz')) return 'gpx.gz';
+    if (lower.endsWith('.gpx')) return 'gpx';
+    if (lower.endsWith('.tcx.gz')) return 'tcx.gz';
+    if (lower.endsWith('.tcx')) return 'tcx';
+    return null;
+  };
 
-    // Strava exports have GPX files in activities/ folder
-    // Look for all .gpx and .gpx.gz files
+  /**
+   * Extract activity files from a Strava export zip
+   */
+  const extractFilesFromZip = async (zipFile) => {
+    const zip = await JSZip.loadAsync(zipFile);
+    const activityFiles = [];
     const promises = [];
 
     zip.forEach((relativePath, zipEntry) => {
       if (zipEntry.dir) return;
 
-      const lowerPath = relativePath.toLowerCase();
-      if (lowerPath.endsWith('.gpx') || lowerPath.endsWith('.gpx.gz')) {
-        promises.push(
-          zipEntry.async('string').then(content => ({
-            name: relativePath.split('/').pop(),
-            path: relativePath,
-            content,
-            size: content.length
-          }))
-        );
-      }
+      // Only process files in activities folder or root activity files
+      const fileType = getFileType(relativePath);
+      if (!fileType) return;
+
+      // Skip TCX files for now (could add TCX parser later)
+      if (fileType.startsWith('tcx')) return;
+
+      // For FIT files, extract as binary; for GPX, extract as string
+      const isBinary = fileType.startsWith('fit');
+
+      promises.push(
+        zipEntry.async(isBinary ? 'arraybuffer' : 'string').then(content => ({
+          name: relativePath.split('/').pop(),
+          path: relativePath,
+          content,
+          size: isBinary ? content.byteLength : content.length,
+          fileType,
+          isBinary
+        }))
+      );
     });
 
     return Promise.all(promises);
   };
 
   /**
-   * Handle file selection (zip or individual GPX files)
+   * Parse a single activity file (GPX or FIT)
+   */
+  const parseActivityFile = async (file) => {
+    const { content, fileType, name, isBinary } = file;
+
+    if (fileType === 'gpx') {
+      return await parseGpxFile(content, name);
+    } else if (fileType === 'gpx.gz') {
+      // Decompress gzipped GPX
+      const decompressed = pako.inflate(new Uint8Array(content), { to: 'string' });
+      return await parseGpxFile(decompressed, name);
+    } else if (fileType === 'fit') {
+      return await parseFitFile(content, false);
+    } else if (fileType === 'fit.gz') {
+      // parseFitFile handles decompression internally
+      return await parseFitFile(content, true);
+    }
+
+    throw new Error(`Unsupported file type: ${fileType}`);
+  };
+
+  /**
+   * Convert parsed data to activity format
+   */
+  const toActivityFormat = (parsedData, fileType, userId) => {
+    if (fileType.startsWith('gpx')) {
+      return gpxToActivityFormat(parsedData, userId);
+    } else if (fileType.startsWith('fit')) {
+      return fitToActivityFormat(parsedData, userId);
+    }
+    throw new Error(`Cannot convert file type: ${fileType}`);
+  };
+
+  /**
+   * Handle file selection (zip or individual files)
    */
   const handleFileSelect = useCallback(async (event) => {
     const files = Array.from(event.target.files);
@@ -102,15 +152,15 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     setParsedActivities([]);
     setResults(null);
 
-    const allGpxFiles = [];
+    const allFiles = [];
 
     for (const file of files) {
       if (file.name.toLowerCase().endsWith('.zip')) {
         // Handle zip file
         try {
           setCurrentFile(`Extracting ${file.name}...`);
-          const extractedFiles = await extractGpxFromZip(file);
-          allGpxFiles.push(...extractedFiles.map(f => ({
+          const extractedFiles = await extractFilesFromZip(file);
+          allFiles.push(...extractedFiles.map(f => ({
             ...f,
             source: 'zip',
             zipName: file.name
@@ -119,15 +169,22 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
           console.error('Error extracting zip:', err);
           setError(`Failed to extract ${file.name}: ${err.message}`);
         }
-      } else if (file.name.toLowerCase().endsWith('.gpx')) {
-        // Handle individual GPX file
+      } else {
+        // Handle individual file
+        const fileType = getFileType(file.name);
+        if (!fileType) continue;
+        if (fileType.startsWith('tcx')) continue; // Skip TCX
+
         try {
-          const content = await file.text();
-          allGpxFiles.push({
+          const isBinary = fileType.startsWith('fit');
+          const content = isBinary ? await file.arrayBuffer() : await file.text();
+          allFiles.push({
             name: file.name,
             path: file.name,
             content,
             size: file.size,
+            fileType,
+            isBinary,
             source: 'file'
           });
         } catch (err) {
@@ -136,28 +193,29 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
       }
     }
 
-    setSelectedFiles(allGpxFiles);
+    setSelectedFiles(allFiles);
     setCurrentFile('');
 
     // Parse first few files for preview
-    if (allGpxFiles.length > 0 && allGpxFiles.length <= 5) {
+    if (allFiles.length > 0 && allFiles.length <= 5) {
       const previews = [];
-      for (const gpxFile of allGpxFiles.slice(0, 5)) {
+      for (const actFile of allFiles.slice(0, 5)) {
         try {
-          const parsed = await parseGpxFile(gpxFile.content, gpxFile.name);
+          const parsed = await parseActivityFile(actFile);
           previews.push({
-            fileName: gpxFile.name,
+            fileName: actFile.name,
+            fileType: actFile.fileType,
             ...parsed
           });
         } catch (err) {
-          console.error(`Error parsing ${gpxFile.name}:`, err);
+          console.error(`Error parsing ${actFile.name}:`, err);
         }
       }
       setParsedActivities(previews);
     }
 
     // Auto-switch to upload tab when files are selected
-    if (allGpxFiles.length > 0) {
+    if (allFiles.length > 0) {
       setActiveTab('upload');
     }
   }, []);
@@ -180,53 +238,61 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     };
 
     for (let i = 0; i < selectedFiles.length; i++) {
-      const gpxFile = selectedFiles[i];
-      setCurrentFile(gpxFile.name);
+      const actFile = selectedFiles[i];
+      setCurrentFile(actFile.name);
       setProgress(Math.round((i / selectedFiles.length) * 100));
 
       try {
-        // Parse the GPX file
-        const gpxData = await parseGpxFile(gpxFile.content, gpxFile.name);
+        // Parse the activity file
+        const parsedData = await parseActivityFile(actFile);
 
         // Skip if no GPS data
-        if (gpxData.trackPoints.length === 0) {
+        if (!parsedData.trackPoints || parsedData.trackPoints.length === 0) {
           uploadResults.skipped.push({
-            file: gpxFile.name,
+            file: actFile.name,
             reason: 'No GPS data found'
           });
           continue;
         }
 
         // Skip very short activities (less than 100m)
-        if (gpxData.summary.totalDistance < 0.1) {
+        const distance = parsedData.summary?.totalDistance || 0;
+        if (distance < 0.1) {
           uploadResults.skipped.push({
-            file: gpxFile.name,
+            file: actFile.name,
             reason: 'Activity too short (< 100m)'
           });
           continue;
         }
 
         // Convert to database format
-        const activityData = gpxToActivityFormat(gpxData, user.id);
+        const activityData = toActivityFormat(parsedData, actFile.fileType, user.id);
 
         // Check for duplicate (same date and similar distance)
         if (activityData.start_date) {
-          const { data: existing } = await supabase
-            .from('activities')
-            .select('id, name')
-            .eq('user_id', user.id)
-            .gte('start_date_local', new Date(new Date(activityData.start_date_local).getTime() - 60000).toISOString())
-            .lte('start_date_local', new Date(new Date(activityData.start_date_local).getTime() + 60000).toISOString())
-            .gte('distance', activityData.distance * 0.95)
-            .lte('distance', activityData.distance * 1.05)
-            .maybeSingle();
+          try {
+            const startDate = new Date(activityData.start_date);
+            if (!isNaN(startDate.getTime())) {
+              const { data: existing } = await supabase
+                .from('activities')
+                .select('id, name')
+                .eq('user_id', user.id)
+                .gte('start_date', new Date(startDate.getTime() - 120000).toISOString())
+                .lte('start_date', new Date(startDate.getTime() + 120000).toISOString())
+                .gte('distance', activityData.distance * 0.90)
+                .lte('distance', activityData.distance * 1.10)
+                .maybeSingle();
 
-          if (existing) {
-            uploadResults.skipped.push({
-              file: gpxFile.name,
-              reason: `Duplicate of "${existing.name}"`
-            });
-            continue;
+              if (existing) {
+                uploadResults.skipped.push({
+                  file: actFile.name,
+                  reason: `Duplicate of "${existing.name}"`
+                });
+                continue;
+              }
+            }
+          } catch (dupErr) {
+            console.warn('Duplicate check failed, continuing:', dupErr);
           }
         }
 
@@ -237,18 +303,21 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
           .select()
           .single();
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error('Database insert error:', insertError);
+          throw new Error(insertError.message || 'Database insert failed');
+        }
 
         uploadResults.success.push({
-          file: gpxFile.name,
+          file: actFile.name,
           activity: data
         });
 
       } catch (err) {
-        console.error(`Error uploading ${gpxFile.name}:`, err);
+        console.error(`Error uploading ${actFile.name}:`, err);
         uploadResults.failed.push({
-          file: gpxFile.name,
-          error: err.message
+          file: actFile.name,
+          error: err.message || 'Unknown error'
         });
       }
     }
@@ -283,9 +352,9 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
-    const files = Array.from(e.dataTransfer.files).filter(
-      f => f.name.toLowerCase().endsWith('.gpx') ||
-           f.name.toLowerCase().endsWith('.zip')
+    const validExtensions = ['.gpx', '.fit', '.zip'];
+    const files = Array.from(e.dataTransfer.files).filter(f =>
+      validExtensions.some(ext => f.name.toLowerCase().endsWith(ext))
     );
     if (files.length > 0) {
       const event = { target: { files } };
@@ -333,6 +402,13 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
       onClose();
     }
   };
+
+  // Count file types for display
+  const fileCounts = selectedFiles.reduce((acc, f) => {
+    const type = f.fileType?.startsWith('fit') ? 'FIT' : 'GPX';
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <Modal
@@ -403,7 +479,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                     Strava Data Export Page
                   </Button>
                   <Text size="xs" c="dimmed" mt="xs">
-                    Or go to: Settings &rarr; My Account &rarr; Download or Delete Your Account
+                    Or go to: Settings → My Account → Download or Delete Your Account
                   </Text>
                 </Timeline.Item>
 
@@ -423,7 +499,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                 >
                   <Text size="sm" c="dimmed" mt={4}>
                     You'll receive an email when ready. Download the ZIP file.
-                    It contains an <Code>activities</Code> folder with your GPX files.
+                    It contains an <Code>activities</Code> folder with your activity files.
                   </Text>
                 </Timeline.Item>
 
@@ -432,16 +508,9 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                   title={<Text fw={600}>Upload Here</Text>}
                 >
                   <Text size="sm" c="dimmed" mt={4}>
-                    Go to the "Upload Files" tab and either:
+                    Go to the "Upload Files" tab and upload the ZIP file directly.
+                    We'll extract and import all your activities automatically.
                   </Text>
-                  <List size="sm" mt="xs" spacing="xs">
-                    <List.Item icon={<IconFileZip size={14} />}>
-                      Upload the entire ZIP file directly
-                    </List.Item>
-                    <List.Item icon={<IconFiles size={14} />}>
-                      Or select individual GPX files from the activities folder
-                    </List.Item>
-                  </List>
                 </Timeline.Item>
               </Timeline>
             </Paper>
@@ -483,10 +552,12 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                 <Accordion.Panel>
                   <List size="sm" spacing="xs">
                     <List.Item><Code>.zip</Code> - Strava export archive (recommended)</List.Item>
-                    <List.Item><Code>.gpx</Code> - Individual GPX files</List.Item>
+                    <List.Item><Code>.fit / .fit.gz</Code> - Garmin FIT files</List.Item>
+                    <List.Item><Code>.gpx</Code> - GPX files</List.Item>
                   </List>
                   <Text size="sm" c="dimmed" mt="xs">
-                    Note: FIT files from Garmin/Wahoo devices can be uploaded using the separate FIT Upload feature.
+                    Strava exports typically contain FIT files from Garmin-synced rides and GPX files from other sources.
+                    We handle both formats automatically.
                   </Text>
                 </Accordion.Panel>
               </Accordion.Item>
@@ -520,12 +591,12 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
               }}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
-              onClick={() => !uploading && document.getElementById('gpx-file-input').click()}
+              onClick={() => !uploading && document.getElementById('activity-file-input').click()}
             >
               <input
-                id="gpx-file-input"
+                id="activity-file-input"
                 type="file"
-                accept=".gpx,.zip"
+                accept=".gpx,.fit,.zip"
                 multiple
                 style={{ display: 'none' }}
                 onChange={handleFileSelect}
@@ -536,10 +607,10 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                   <IconFileZip size={24} />
                 </ThemeIcon>
                 <Text fw={500}>
-                  {currentFile || 'Drop your Strava export ZIP or GPX files here'}
+                  {currentFile || 'Drop your Strava export ZIP here'}
                 </Text>
                 <Text size="xs" c="dimmed">
-                  Supports .zip (Strava export) and .gpx files
+                  Supports .zip (Strava export), .fit, and .gpx files
                 </Text>
               </Stack>
             </Paper>
@@ -559,7 +630,10 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                     <IconFolderOpen size={16} />
                     <Text size="sm" fw={500}>Files Ready for Import</Text>
                   </Group>
-                  <Badge color="orange">{selectedFiles.length} GPX files</Badge>
+                  <Group gap="xs">
+                    {fileCounts.FIT && <Badge color="blue">{fileCounts.FIT} FIT</Badge>}
+                    {fileCounts.GPX && <Badge color="green">{fileCounts.GPX} GPX</Badge>}
+                  </Group>
                 </Group>
 
                 {selectedFiles.length <= 10 ? (
@@ -574,9 +648,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                   </ScrollArea>
                 ) : (
                   <Text size="sm" c="dimmed">
-                    {selectedFiles.length} files selected from {
-                      [...new Set(selectedFiles.filter(f => f.zipName).map(f => f.zipName))].join(', ') || 'files'
-                    }
+                    {selectedFiles.length} activity files ready to import
                   </Text>
                 )}
               </Paper>
@@ -596,28 +668,28 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                               <IconBike size={14} />
                             </ThemeIcon>
                             <Text size="sm" fw={500} lineClamp={1}>
-                              {activity.metadata.name}
+                              {activity.metadata?.name || activity.fileName}
                             </Text>
                           </Group>
-                          <Badge size="xs" color="blue" variant="light">
-                            {activity.metadata.sport}
+                          <Badge size="xs" color={activity.fileType?.startsWith('fit') ? 'blue' : 'green'} variant="light">
+                            {activity.fileType?.toUpperCase() || 'Unknown'}
                           </Badge>
                         </Group>
                         <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
                           <Group gap={4}>
                             <IconRoute size={12} color="var(--mantine-color-blue-5)" />
-                            <Text size="xs">{formatDistance(activity.summary.totalDistance)}</Text>
+                            <Text size="xs">{formatDistance(activity.summary?.totalDistance)}</Text>
                           </Group>
                           <Group gap={4}>
                             <IconClock size={12} color="var(--mantine-color-green-5)" />
-                            <Text size="xs">{formatDuration(activity.summary.totalMovingTime)}</Text>
+                            <Text size="xs">{formatDuration(activity.summary?.totalMovingTime)}</Text>
                           </Group>
                           <Group gap={4}>
                             <IconMountain size={12} color="var(--mantine-color-orange-5)" />
-                            <Text size="xs">{formatElevation(activity.summary.totalAscent)}</Text>
+                            <Text size="xs">{formatElevation(activity.summary?.totalAscent)}</Text>
                           </Group>
                           <Text size="xs" c="dimmed">
-                            {activity.rawData.trackPointCount} pts
+                            {activity.trackPoints?.length || activity.rawData?.records || 0} pts
                           </Text>
                         </SimpleGrid>
                       </Paper>
@@ -670,7 +742,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                         <Accordion.Panel>
                           <ScrollArea h={results.skipped.length > 5 ? 150 : 'auto'}>
                             <List size="xs" spacing={4}>
-                              {results.skipped.map((item, index) => (
+                              {results.skipped.slice(0, 50).map((item, index) => (
                                 <List.Item key={index}>
                                   <Text size="xs">
                                     <Text span fw={500}>{item.file}</Text>
@@ -678,6 +750,13 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                                   </Text>
                                 </List.Item>
                               ))}
+                              {results.skipped.length > 50 && (
+                                <List.Item>
+                                  <Text size="xs" c="dimmed">
+                                    ...and {results.skipped.length - 50} more
+                                  </Text>
+                                </List.Item>
+                              )}
                             </List>
                           </ScrollArea>
                         </Accordion.Panel>
@@ -686,7 +765,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                   )}
 
                   {results.failed.length > 0 && (
-                    <Accordion variant="contained" defaultValue="">
+                    <Accordion variant="contained" defaultValue="failed">
                       <Accordion.Item value="failed">
                         <Accordion.Control icon={<IconX size={16} />}>
                           Failed Files ({results.failed.length})
@@ -694,7 +773,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                         <Accordion.Panel>
                           <ScrollArea h={results.failed.length > 5 ? 150 : 'auto'}>
                             <List size="xs" spacing={4}>
-                              {results.failed.map((item, index) => (
+                              {results.failed.slice(0, 50).map((item, index) => (
                                 <List.Item key={index}>
                                   <Text size="xs">
                                     <Text span fw={500}>{item.file}</Text>
@@ -702,6 +781,13 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                                   </Text>
                                 </List.Item>
                               ))}
+                              {results.failed.length > 50 && (
+                                <List.Item>
+                                  <Text size="xs" c="dimmed">
+                                    ...and {results.failed.length - 50} more
+                                  </Text>
+                                </List.Item>
+                              )}
                             </List>
                           </ScrollArea>
                         </Accordion.Panel>
