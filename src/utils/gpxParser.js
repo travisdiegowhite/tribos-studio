@@ -61,10 +61,24 @@ function extractMetadata(doc, fileName) {
     || fileName.replace(/\.gpx$/i, '');
 
   // Get timestamp from metadata or first track point
-  let startTime = doc.querySelector('metadata > time')?.textContent;
-  if (!startTime) {
+  let rawTime = doc.querySelector('metadata > time')?.textContent;
+  if (!rawTime) {
     const firstTime = doc.querySelector('trkpt > time')?.textContent;
-    if (firstTime) startTime = firstTime;
+    if (firstTime) rawTime = firstTime;
+  }
+
+  // Validate and parse the timestamp
+  let startTime = null;
+  if (rawTime) {
+    try {
+      const parsed = new Date(rawTime);
+      // Validate: must be a valid date and year > 1990
+      if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1990 && parsed.getFullYear() < 2100) {
+        startTime = parsed.toISOString();
+      }
+    } catch (e) {
+      // Invalid date format, leave as null
+    }
   }
 
   // Try to determine sport type from name or description
@@ -88,7 +102,7 @@ function extractMetadata(doc, fileName) {
 
   return {
     name,
-    startTime: startTime ? new Date(startTime).toISOString() : null,
+    startTime,
     sport,
     subSport: null,
     manufacturer: creator,
