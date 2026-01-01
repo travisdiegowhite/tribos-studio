@@ -382,12 +382,28 @@ export function gpxToActivityFormat(gpxData, userId) {
     activityType = metadata.sport.charAt(0).toUpperCase() + metadata.sport.slice(1);
   }
 
+  // Validate and sanitize values to prevent corrupt data
+  const sanitize = (val, max, defaultVal = null) => {
+    if (val == null || isNaN(val) || val < 0 || val > max) return defaultVal;
+    return val;
+  };
+
+  const distance = sanitize(summary.totalDistance * 1000, 500000, 0); // Max 500km
+  const movingTime = sanitize(Math.round(summary.totalMovingTime), 86400, 0); // Max 24 hours
+  const elapsedTime = sanitize(Math.round(summary.totalElapsedTime || summary.totalMovingTime), 172800, movingTime);
+  const elevGain = sanitize(summary.totalAscent, 15000, 0); // Max 15km elevation
+  const avgSpeed = sanitize(summary.avgSpeed / 3.6, 30, null); // Max 108 km/h
+  const maxSpeedVal = sanitize(summary.maxSpeed / 3.6, 50, null); // Max 180 km/h
+  const avgPower = sanitize(summary.avgPower, 2000, null); // Max 2000W
+  const avgHR = sanitize(summary.avgHeartRate, 250, null); // Max 250 bpm
+  const maxHR = sanitize(summary.maxHeartRate, 250, null);
+
   // Store extended data in raw_data JSONB
   const rawData = {
     source: 'gpx_import',
     creator: metadata.manufacturer,
     original_filename: metadata.fileName,
-    max_speed: summary.maxSpeed ? summary.maxSpeed / 3.6 : null, // Convert to m/s
+    max_speed: maxSpeedVal,
     average_cadence: summary.avgCadence,
     max_cadence: summary.maxCadence,
     total_descent: summary.totalDescent,
@@ -403,16 +419,16 @@ export function gpxToActivityFormat(gpxData, userId) {
     sport_type: metadata.sport || 'cycling',
     start_date: metadata.startTime,
     start_date_local: metadata.startTime,
-    distance: summary.totalDistance * 1000, // Convert km to meters
-    moving_time: Math.round(summary.totalMovingTime),
-    elapsed_time: Math.round(summary.totalElapsedTime || summary.totalMovingTime),
-    total_elevation_gain: summary.totalAscent,
-    average_speed: summary.avgSpeed / 3.6, // Convert km/h to m/s
-    max_speed: summary.maxSpeed / 3.6,
-    average_watts: summary.avgPower,
+    distance: distance,
+    moving_time: movingTime,
+    elapsed_time: elapsedTime,
+    total_elevation_gain: elevGain,
+    average_speed: avgSpeed,
+    max_speed: maxSpeedVal,
+    average_watts: avgPower,
     kilojoules: null,
-    average_heartrate: summary.avgHeartRate,
-    max_heartrate: summary.maxHeartRate,
+    average_heartrate: avgHR,
+    max_heartrate: maxHR,
     suffer_score: null,
     workout_type: null,
     trainer: false,

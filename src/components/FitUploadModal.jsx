@@ -85,8 +85,8 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
         const isCompressed = file.name.endsWith('.gz');
         const fitData = await parseFitFile(buffer, isCompressed);
 
-        // Convert to database format
-        const activityData = fitToActivityFormat(fitData, user.id);
+        // Convert to database format (pass filename for better naming)
+        const activityData = fitToActivityFormat(fitData, user.id, file.name);
 
         // Check for duplicate (same date and similar distance)
         const { data: existing } = await supabase
