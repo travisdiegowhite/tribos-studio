@@ -69,11 +69,13 @@ function extractMetadata(doc, fileName) {
 
   // Validate and parse the timestamp
   let startTime = null;
+  const currentYear = new Date().getFullYear();
   if (rawTime) {
     try {
       const parsed = new Date(rawTime);
-      // Validate: must be a valid date and year > 1990
-      if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1990 && parsed.getFullYear() < 2100) {
+      // Validate: must be a valid date in reasonable range (2010 to next year)
+      const year = parsed.getFullYear();
+      if (!isNaN(parsed.getTime()) && year >= 2010 && year <= currentYear + 1) {
         startTime = parsed.toISOString();
       }
     } catch (e) {

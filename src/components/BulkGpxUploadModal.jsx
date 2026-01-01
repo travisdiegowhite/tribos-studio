@@ -234,7 +234,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     const uploadResults = {
       success: [],
       skipped: [],
-      failed: []
+      failed: [],
+      warnings: [] // Activities imported with issues (like missing date)
     };
 
     for (let i = 0; i < selectedFiles.length; i++) {
@@ -308,9 +309,20 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
           throw new Error(insertError.message || 'Database insert failed');
         }
 
+        // Track if activity has issues
+        const hasDateIssue = !activityData.start_date;
+
+        if (hasDateIssue) {
+          uploadResults.warnings.push({
+            file: actFile.name,
+            reason: 'Imported with unknown date'
+          });
+        }
+
         uploadResults.success.push({
           file: actFile.name,
-          activity: data
+          activity: data,
+          hasWarning: hasDateIssue
         });
 
       } catch (err) {
@@ -718,10 +730,14 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                 <Stack gap="sm">
                   <Text fw={600}>Import Results</Text>
 
-                  <SimpleGrid cols={3} spacing="xs">
+                  <SimpleGrid cols={4} spacing="xs">
                     <Paper p="xs" bg="green.9" style={{ textAlign: 'center' }}>
                       <Text size="lg" fw={700} c="green.3">{results.success.length}</Text>
                       <Text size="xs" c="green.5">Imported</Text>
+                    </Paper>
+                    <Paper p="xs" bg="orange.9" style={{ textAlign: 'center' }}>
+                      <Text size="lg" fw={700} c="orange.3">{results.warnings?.length || 0}</Text>
+                      <Text size="xs" c="orange.5">Warnings</Text>
                     </Paper>
                     <Paper p="xs" bg="yellow.9" style={{ textAlign: 'center' }}>
                       <Text size="lg" fw={700} c="yellow.3">{results.skipped.length}</Text>
@@ -732,6 +748,37 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                       <Text size="xs" c="red.5">Failed</Text>
                     </Paper>
                   </SimpleGrid>
+
+                  {results.warnings?.length > 0 && (
+                    <Accordion variant="contained" defaultValue="">
+                      <Accordion.Item value="warnings">
+                        <Accordion.Control icon={<IconAlertTriangle size={16} />}>
+                          Imported with Warnings ({results.warnings.length})
+                        </Accordion.Control>
+                        <Accordion.Panel>
+                          <ScrollArea h={results.warnings.length > 5 ? 150 : 'auto'}>
+                            <List size="xs" spacing={4}>
+                              {results.warnings.slice(0, 50).map((item, index) => (
+                                <List.Item key={index}>
+                                  <Text size="xs">
+                                    <Text span fw={500}>{item.file}</Text>
+                                    <Text span c="orange"> - {item.reason}</Text>
+                                  </Text>
+                                </List.Item>
+                              ))}
+                              {results.warnings.length > 50 && (
+                                <List.Item>
+                                  <Text size="xs" c="dimmed">
+                                    ...and {results.warnings.length - 50} more
+                                  </Text>
+                                </List.Item>
+                              )}
+                            </List>
+                          </ScrollArea>
+                        </Accordion.Panel>
+                      </Accordion.Item>
+                    </Accordion>
+                  )}
 
                   {results.skipped.length > 0 && (
                     <Accordion variant="contained" defaultValue="">
