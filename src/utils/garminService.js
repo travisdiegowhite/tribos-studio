@@ -2,6 +2,7 @@
 // Garmin uses OAuth 1.0a which requires server-side handling
 
 import { supabase } from '../lib/supabase';
+import { trackSync } from './activityTracking';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -246,6 +247,9 @@ export class GarminService {
     }
 
     try {
+      // Track sync start
+      trackSync('garmin', 'start');
+
       const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/garmin-auth`, {
         method: 'POST',
@@ -263,6 +267,12 @@ export class GarminService {
       }
 
       const data = await response.json();
+
+      // Track sync completion
+      trackSync('garmin', 'complete', {
+        activitiesImported: data.imported || 0
+      });
+
       return data;
     } catch (error) {
       console.error('Error syncing Garmin activities:', error);
