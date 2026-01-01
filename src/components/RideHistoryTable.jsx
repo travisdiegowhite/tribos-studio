@@ -78,10 +78,25 @@ const RideHistoryTable = ({
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '-';
+
+    // Show year if not current year
+    const currentYear = new Date().getFullYear();
+    const dateYear = date.getFullYear();
+
+    if (dateYear === currentYear) {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    } else {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: '2-digit',
+      });
+    }
   };
 
   const formatDuration = (seconds) => {
