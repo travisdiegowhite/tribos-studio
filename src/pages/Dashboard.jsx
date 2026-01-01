@@ -108,6 +108,16 @@ function Dashboard() {
         if (error) {
           console.error('Error loading activities:', error);
         } else {
+          // DEBUG: Log user ID and returned activities
+          console.log('DEBUG - Current user ID:', user.id);
+          console.log('DEBUG - Activities returned:', activityData?.length);
+          if (activityData?.length > 0) {
+            const uniqueUserIds = [...new Set(activityData.map(a => a.user_id))];
+            console.log('DEBUG - Unique user_ids in activities:', uniqueUserIds);
+            if (uniqueUserIds.some(id => id !== user.id)) {
+              console.error('🚨 DATA LEAK: Activities from other users returned!');
+            }
+          }
           setActivities(activityData || []);
         }
       } catch (err) {
