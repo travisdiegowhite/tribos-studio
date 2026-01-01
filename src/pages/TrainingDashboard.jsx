@@ -213,16 +213,13 @@ function TrainingDashboard() {
         if (userProfileData?.power_zones) setPowerZones(userProfileData.power_zones);
         if (userProfileData?.weight) setUserWeight(userProfileData.weight);
 
-        // Get activities from last 90 days
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
+        // Get all activities (no date limit for bulk imports)
         const { data: activityData, error: activityError } = await supabase
           .from('activities')
           .select('*')
           .eq('user_id', user.id)
-          .gte('start_date', ninetyDaysAgo.toISOString())
-          .order('start_date', { ascending: false });
+          .order('start_date', { ascending: false })
+          .limit(2000); // Reasonable limit to prevent performance issues
 
         if (activityError) {
           console.error('Error loading activities:', activityError);

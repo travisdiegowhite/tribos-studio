@@ -132,11 +132,11 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   /**
    * Convert parsed data to activity format
    */
-  const toActivityFormat = (parsedData, fileType, userId) => {
+  const toActivityFormat = (parsedData, fileType, userId, fileName = null) => {
     if (fileType.startsWith('gpx')) {
       return gpxToActivityFormat(parsedData, userId);
     } else if (fileType.startsWith('fit')) {
-      return fitToActivityFormat(parsedData, userId);
+      return fitToActivityFormat(parsedData, userId, fileName);
     }
     throw new Error(`Cannot convert file type: ${fileType}`);
   };
@@ -265,8 +265,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
           continue;
         }
 
-        // Convert to database format
-        const activityData = toActivityFormat(parsedData, actFile.fileType, user.id);
+        // Convert to database format (pass filename for better naming)
+        const activityData = toActivityFormat(parsedData, actFile.fileType, user.id, actFile.name);
 
         // Check for duplicate (same date and similar distance)
         if (activityData.start_date) {

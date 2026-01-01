@@ -301,9 +301,42 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 
 /**
  * Convert FIT data to activities table format for database storage
+ * @param {Object} fitData - Parsed FIT file data
+ * @param {string} userId - User ID for the activity
+ * @param {string} [fileName] - Optional original filename for better naming
  */
-export function fitToActivityFormat(fitData, userId) {
+export function fitToActivityFormat(fitData, userId, fileName = null) {
   const { metadata, summary, trackPoints, laps } = fitData;
+
+  // Generate a better activity name
+  let activityName = metadata.name;
+
+  // If we have a filename and the metadata name is generic, try to create a better name
+  if (fileName && (activityName === 'FIT Activity' || activityName.endsWith(' Activity'))) {
+    // Clean up the filename - remove extension and path
+    let cleanName = fileName.replace(/\.(fit|fit\.gz)$/i, '').split('/').pop();
+
+    // If filename is just a number (Strava export style like "12345678901"),
+    // create a date-based name instead
+    if (/^\d+$/.test(cleanName)) {
+      const date = metadata.startTime ? new Date(metadata.startTime) : new Date();
+      const dateStr = date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      const sport = metadata.sport || 'cycling';
+      const sportName = sport.charAt(0).toUpperCase() + sport.slice(1);
+      activityName = `${sportName} - ${dateStr}`;
+    } else {
+      // Use the cleaned filename as the name
+      activityName = cleanName
+        .replace(/[-_]/g, ' ')  // Replace dashes and underscores with spaces
+        .replace(/\s+/g, ' ')    // Normalize multiple spaces
+        .trim();
+    }
+  }
 
   // Generate a unique provider_activity_id for FIT uploads
   const timestamp = metadata.startTime ? new Date(metadata.startTime).getTime() : Date.now();
@@ -338,25 +371,42 @@ export function fitToActivityFormat(fitData, userId) {
     laps: laps
   };
 
+  // Validate and sanitize values to prevent corrupt data
+  // Max reasonable values: 500km distance, 24hr duration, 2000W power, 250bpm HR
+  const sanitize = (val, max, defaultVal = null) => {
+    if (val == null || isNaN(val) || val < 0 || val > max) return defaultVal;
+    return val;
+  };
+
+  const distance = sanitize(summary.totalDistance * 1000, 500000, 0); // Max 500km
+  const movingTime = sanitize(Math.round(summary.totalMovingTime), 86400, 0); // Max 24 hours
+  const elapsedTime = sanitize(Math.round(summary.totalElapsedTime || summary.totalMovingTime), 172800, movingTime); // Max 48 hours
+  const elevGain = sanitize(summary.totalAscent, 15000, 0); // Max 15km elevation (Everest x1.7)
+  const avgSpeed = sanitize(summary.avgSpeed / 3.6, 30, null); // Max 108 km/h = 30 m/s
+  const maxSpeedVal = sanitize(summary.maxSpeed / 3.6, 50, null); // Max 180 km/h = 50 m/s
+  const avgPower = sanitize(summary.avgPower, 2000, null); // Max 2000W
+  const avgHR = sanitize(summary.avgHeartRate, 250, null); // Max 250 bpm
+  const maxHR = sanitize(summary.maxHeartRate, 250, null);
+
   return {
     user_id: userId,
     provider: 'fit_upload',
     provider_activity_id: providerActivityId,
-    name: metadata.name,
+    name: activityName,
     type: activityType,
     sport_type: metadata.sport || 'cycling',
     start_date: metadata.startTime,
     start_date_local: metadata.startTime,
-    distance: summary.totalDistance * 1000, // Convert km to meters
-    moving_time: Math.round(summary.totalMovingTime),
-    elapsed_time: Math.round(summary.totalElapsedTime || summary.totalMovingTime),
-    total_elevation_gain: summary.totalAscent,
-    average_speed: summary.avgSpeed / 3.6, // Convert km/h to m/s
-    max_speed: summary.maxSpeed / 3.6,
-    average_watts: summary.avgPower,
-    kilojoules: summary.totalCalories ? summary.totalCalories * 4.184 : null,
-    average_heartrate: summary.avgHeartRate,
-    max_heartrate: summary.maxHeartRate,
+    distance: distance,
+    moving_time: movingTime,
+    elapsed_time: elapsedTime,
+    total_elevation_gain: elevGain,
+    average_speed: avgSpeed,
+    max_speed: maxSpeedVal,
+    average_watts: avgPower,
+    kilojoules: summary.totalCalories ? Math.min(summary.totalCalories * 4.184, 20000) : null, // Max 20MJ
+    average_heartrate: avgHR,
+    max_heartrate: maxHR,
     suffer_score: null,
     workout_type: null,
     trainer: false,
