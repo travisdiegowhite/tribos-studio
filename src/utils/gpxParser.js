@@ -391,7 +391,7 @@ export function gpxToActivityFormat(gpxData, userId) {
   const distance = sanitize(summary.totalDistance * 1000, 500000, 0); // Max 500km
   const movingTime = sanitize(Math.round(summary.totalMovingTime), 86400, 0); // Max 24 hours
   const elapsedTime = sanitize(Math.round(summary.totalElapsedTime || summary.totalMovingTime), 172800, movingTime);
-  const elevGain = sanitize(summary.totalAscent, 15000, 0); // Max 15km elevation
+  const elevGain = sanitize(summary.totalAscent, 6000, 0); // Max 6km elevation (~20,000 ft)
   const avgSpeed = sanitize(summary.avgSpeed / 3.6, 30, null); // Max 108 km/h
   const maxSpeedVal = sanitize(summary.maxSpeed / 3.6, 50, null); // Max 180 km/h
   const avgPower = sanitize(summary.avgPower, 2000, null); // Max 2000W
