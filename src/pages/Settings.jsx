@@ -15,7 +15,12 @@ import {
   Badge,
   Switch,
   Loader,
+  Modal,
+  Alert,
+  List,
+  ThemeIcon,
 } from '@mantine/core';
+import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -46,6 +51,7 @@ function Settings() {
   const [garminBackfillingGps, setGarminBackfillingGps] = useState(false);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
   const [showImportWizard, setShowImportWizard] = useState(false);
+  const [showStravaDisconnectModal, setShowStravaDisconnectModal] = useState(false);
 
   // Form state
   const [displayName, setDisplayName] = useState('');
@@ -218,14 +224,19 @@ function Settings() {
     }
   };
 
-  const disconnectStrava = async () => {
+  const handleStravaDisconnectClick = () => {
+    setShowStravaDisconnectModal(true);
+  };
+
+  const confirmStravaDisconnect = async () => {
+    setShowStravaDisconnectModal(false);
     try {
       await stravaService.disconnect();
       setStravaStatus({ connected: false, loading: false });
       setSpeedProfile(null);
       notifications.show({
         title: 'Disconnected',
-        message: 'Strava has been disconnected',
+        message: 'Strava has been disconnected and all Strava-synced activities have been removed',
         color: 'green',
       });
     } catch (error) {
@@ -651,6 +662,79 @@ function Settings() {
   return (
     <AppShell>
       <ImportWizard opened={showImportWizard} onClose={() => setShowImportWizard(false)} />
+
+      {/* Strava Disconnect Confirmation Modal */}
+      <Modal
+        opened={showStravaDisconnectModal}
+        onClose={() => setShowStravaDisconnectModal(false)}
+        title={
+          <Group gap="sm">
+            <IconAlertTriangle size={24} color="orange" />
+            <Text fw={600}>Disconnect Strava?</Text>
+          </Group>
+        }
+        centered
+        size="md"
+      >
+        <Stack gap="md">
+          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={18} />}>
+            <Text size="sm" fw={500}>
+              This action will permanently delete all your Strava-synced activities and speed profile data.
+            </Text>
+          </Alert>
+
+          <Text size="sm">
+            Due to Strava's API agreement, we are required to delete your Strava data when you disconnect.
+            This includes all activities, route data, and calculated metrics.
+          </Text>
+
+          <Box
+            style={{
+              padding: tokens.spacing.md,
+              backgroundColor: tokens.colors.bgTertiary,
+              borderRadius: tokens.radius.md,
+            }}
+          >
+            <Group gap="sm" mb="xs">
+              <IconUpload size={18} color={tokens.colors.electricLime} />
+              <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                Want to keep your data?
+              </Text>
+            </Group>
+            <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+              Before disconnecting, export your data from Strava and import it using the{' '}
+              <Text
+                component="span"
+                style={{ color: tokens.colors.electricLime, cursor: 'pointer' }}
+                onClick={() => {
+                  setShowStravaDisconnectModal(false);
+                  setShowImportWizard(true);
+                }}
+              >
+                Import Wizard
+              </Text>
+              . This way your activities will remain available even after disconnecting Strava.
+            </Text>
+          </Box>
+
+          <Group justify="flex-end" gap="sm" mt="md">
+            <Button
+              variant="subtle"
+              color="gray"
+              onClick={() => setShowStravaDisconnectModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={confirmStravaDisconnect}
+            >
+              Disconnect & Delete Data
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       <Container size="md" py="xl">
         <Stack gap="xl">
           <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
@@ -868,6 +952,38 @@ function Settings() {
 
               <Divider />
 
+              {/* Strava Info Box */}
+              <Alert
+                icon={<IconInfoCircle size={18} />}
+                title="About Strava Integration"
+                color="blue"
+                variant="light"
+              >
+                <Stack gap="xs">
+                  <Text size="sm">
+                    You can connect Strava to sync your ride history. However, due to Strava's API terms,
+                    <strong> disconnecting will permanently delete all Strava-synced activities</strong>.
+                  </Text>
+                  <Text size="sm" fw={500}>
+                    Recommended: Export your data from Strava and use bulk import instead:
+                  </Text>
+                  <List size="sm" spacing="xs">
+                    <List.Item icon={<ThemeIcon color="green" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                      Your data stays even if you disconnect Strava later
+                    </List.Item>
+                    <List.Item icon={<ThemeIcon color="green" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                      Full historical data with GPS tracks and power data
+                    </List.Item>
+                    <List.Item icon={<ThemeIcon color="green" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                      Not subject to Strava's API restrictions
+                    </List.Item>
+                  </List>
+                  <Text size="xs" c="dimmed">
+                    To export: Go to Strava.com → Settings → My Account → Download or Delete Your Account → Request Your Archive
+                  </Text>
+                </Stack>
+              </Alert>
+
               <ServiceConnection
                 name="Strava"
                 icon="🟠"
@@ -875,7 +991,7 @@ function Settings() {
                 username={stravaStatus.username}
                 loading={stravaStatus.loading}
                 onConnect={connectStrava}
-                onDisconnect={disconnectStrava}
+                onDisconnect={handleStravaDisconnectClick}
                 onSync={syncStravaActivities}
                 syncing={stravaSyncing}
                 speedProfile={speedProfile}
