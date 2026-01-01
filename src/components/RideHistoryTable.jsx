@@ -77,14 +77,19 @@ const RideHistoryTable = ({
   const visibleRidesCount = rides.filter(r => !r.is_hidden).length;
 
   const formatDate = (dateString) => {
-    if (!dateString) return '-';
+    if (!dateString) return 'Unknown';
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '-';
+    if (isNaN(date.getTime())) return 'Unknown';
+
+    const dateYear = date.getFullYear();
+    const currentYear = new Date().getFullYear();
+
+    // Flag obviously wrong dates (before 2010 or more than 1 year in future)
+    if (dateYear < 2010 || dateYear > currentYear + 1) {
+      return 'Invalid';
+    }
 
     // Show year if not current year
-    const currentYear = new Date().getFullYear();
-    const dateYear = date.getFullYear();
-
     if (dateYear === currentYear) {
       return date.toLocaleDateString('en-US', {
         month: 'short',

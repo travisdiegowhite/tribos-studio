@@ -84,22 +84,29 @@ function extractMetadata(data) {
   let startTime = null;
   const rawTimestamp = session?.start_time || activity?.timestamp || data.records?.[0]?.timestamp;
 
+  // Helper to validate date is in reasonable range (2010 to next year)
+  const currentYear = new Date().getFullYear();
+  const isValidDate = (date) => {
+    if (!date || isNaN(date.getTime())) return false;
+    const year = date.getFullYear();
+    return year >= 2010 && year <= currentYear + 1;
+  };
+
   if (rawTimestamp) {
     if (rawTimestamp instanceof Date) {
       // Already a Date object
-      if (!isNaN(rawTimestamp.getTime())) {
+      if (isValidDate(rawTimestamp)) {
         startTime = rawTimestamp.toISOString();
       }
     } else if (typeof rawTimestamp === 'string') {
       // String timestamp - validate it
       const parsed = new Date(rawTimestamp);
-      if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1990) {
+      if (isValidDate(parsed)) {
         startTime = parsed.toISOString();
       }
     } else if (typeof rawTimestamp === 'number') {
       // Numeric timestamp - could be seconds or milliseconds
       // FIT epoch is Dec 31, 1989 00:00:00 UTC
-      // If the number is less than year 2000 in ms, assume it's seconds since FIT epoch
       const FIT_EPOCH = 631065600; // Seconds from Unix epoch to FIT epoch
       let date;
       if (rawTimestamp > 1e12) {
@@ -112,7 +119,7 @@ function extractMetadata(data) {
         // Seconds since FIT epoch
         date = new Date((rawTimestamp + FIT_EPOCH) * 1000);
       }
-      if (!isNaN(date.getTime()) && date.getFullYear() > 1990) {
+      if (isValidDate(date)) {
         startTime = date.toISOString();
       }
     }
