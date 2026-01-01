@@ -162,9 +162,27 @@ export default function PrivacyPolicy() {
 
           <div>
             <Title order={2} size="h3" mb="sm">9. Cookies and Tracking</Title>
-            <Text>
+            <Text mb="sm">
               We use essential cookies for authentication and session management.
               We do not use tracking cookies or third-party advertising cookies.
+            </Text>
+
+            <Title order={3} size="h4" mt="md" mb="sm">9.1 Usage Analytics</Title>
+            <Text mb="sm">
+              For logged-in users, we collect usage data to improve our service and understand how features are used.
+              This includes:
+            </Text>
+            <List>
+              <List.Item>Pages visited within the application</List.Item>
+              <List.Item>Features used (route creation, training plans, etc.)</List.Item>
+              <List.Item>Activity sync events (when you sync with Strava, Garmin, or Wahoo)</List.Item>
+              <List.Item>File uploads (GPX/FIT imports)</List.Item>
+            </List>
+            <Text mt="sm">
+              This data is stored securely in our database, associated with your user account, and is
+              <strong> never shared with or sold to third parties</strong>. It is used solely to improve our
+              service and understand which features are most valuable to our users. This tracking uses browser
+              session storage (not persistent cookies) and only applies to authenticated users.
             </Text>
           </div>
 

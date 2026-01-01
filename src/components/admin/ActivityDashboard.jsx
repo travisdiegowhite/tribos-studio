@@ -30,7 +30,7 @@ import {
   IconAlertTriangle,
   IconEye,
   IconUpload,
-  IconArrowsSync,
+  IconCloudDownload,
   IconClick,
   IconUsers,
   IconActivity,
@@ -141,7 +141,7 @@ export default function ActivityDashboard() {
       case 'page_view':
         return <IconEye size={14} />;
       case 'sync':
-        return <IconArrowsSync size={14} />;
+        return <IconCloudDownload size={14} />;
       case 'upload':
         return <IconUpload size={14} />;
       case 'feature':
@@ -450,7 +450,7 @@ export default function ActivityDashboard() {
                 </Card>
                 <Card withBorder padding="md">
                   <Group>
-                    <IconArrowsSync size={24} color="var(--mantine-color-orange-6)" />
+                    <IconCloudDownload size={24} color="var(--mantine-color-orange-6)" />
                     <div>
                       <Text size="xl" fw={700}>{stats.by_category?.sync || 0}</Text>
                       <Text size="xs" c="dimmed">Syncs</Text>
