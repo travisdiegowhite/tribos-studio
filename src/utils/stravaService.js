@@ -2,6 +2,7 @@
 // Secure server-side token management
 
 import { supabase } from '../lib/supabase';
+import { trackSync, trackInteraction, EventType } from './activityTracking';
 
 const STRAVA_OAUTH_BASE = 'https://www.strava.com/oauth';
 
@@ -256,6 +257,11 @@ export class StravaService {
     try {
       console.log('📥 Syncing Strava activities...');
 
+      // Track sync start (only on first page)
+      if (page === 1) {
+        trackSync('strava', 'start');
+      }
+
       const headers = await this.getAuthHeaders();
       const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
         method: 'POST',
@@ -276,6 +282,13 @@ export class StravaService {
 
       const data = await response.json();
       console.log(`✅ Synced ${data.stored} activities`);
+
+      // Track sync completion
+      trackSync('strava', 'complete', {
+        activitiesStored: data.stored,
+        page
+      });
+
       return data;
 
     } catch (error) {

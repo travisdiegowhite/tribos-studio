@@ -87,11 +87,69 @@ export async function getStats() {
   return adminFetch('get_stats');
 }
 
+// User Activity Tracking endpoints
+
+/**
+ * Make an authenticated user activity API call
+ */
+async function activityFetch(action, data = {}) {
+  const token = await getAccessToken();
+
+  const response = await fetch(`${API_BASE}/api/user-activity`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ action, ...data })
+  });
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Activity API request failed');
+  }
+
+  return result;
+}
+
+/**
+ * Get activity summary for all users
+ */
+export async function getActivitySummary() {
+  return activityFetch('get_activity_summary');
+}
+
+/**
+ * Get recent activity across all users
+ */
+export async function getRecentActivity(limit = 100, eventCategory = null, eventType = null) {
+  return activityFetch('get_recent_activity', { limit, eventCategory, eventType });
+}
+
+/**
+ * Get activity stats for a period
+ */
+export async function getActivityStats(days = 7) {
+  return activityFetch('get_activity_stats', { days });
+}
+
+/**
+ * Get activity for a specific user
+ */
+export async function getUserActivity(targetUserId, limit = 100, offset = 0) {
+  return activityFetch('get_user_activity', { targetUserId, limit, offset });
+}
+
 export default {
   listUsers,
   getUserDetails,
   cleanUserData,
   listFeedback,
   listWebhooks,
-  getStats
+  getStats,
+  getActivitySummary,
+  getRecentActivity,
+  getActivityStats,
+  getUserActivity
 };

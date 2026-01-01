@@ -32,6 +32,7 @@ import GoogleCalendarCallback from './pages/oauth/GoogleCalendarCallback.jsx';
 // Components
 import BetaFeedbackWidget from './components/BetaFeedbackWidget.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import PageTracker from './components/PageTracker.jsx';
 
 // Styles
 import '@mantine/core/styles.css';
@@ -192,6 +193,7 @@ function App() {
             <AuthProvider>
               <UserPreferencesProvider>
                 <BrowserRouter>
+                  <PageTracker />
                   <AppRoutes />
                   <BetaFeedbackWidget />
                 </BrowserRouter>
