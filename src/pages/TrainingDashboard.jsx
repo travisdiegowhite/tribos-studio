@@ -30,7 +30,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   IconActivity,
   IconTrendingUp,
@@ -97,9 +97,15 @@ import { PoweredByStrava } from '../components/StravaBranding';
 function TrainingDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('today');
+
+  // Read tab from URL query parameter, default to 'today'
+  const urlTab = searchParams.get('tab');
+  const validTabs = ['today', 'plans', 'trends', 'power', 'history', 'calendar'];
+  const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const aiCoachRef = useRef(null);
   const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);
@@ -864,7 +870,7 @@ function TrainingDashboard() {
                   rides={activities}
                   formatDistance={formatDist}
                   formatElevation={formatElev}
-                  maxRows={20}
+                  maxRows={100}
                   onViewRide={(ride) => console.log('View ride:', ride)}
                   onHideRide={handleHideRide}
                 />

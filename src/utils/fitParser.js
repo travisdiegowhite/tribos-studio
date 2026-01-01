@@ -80,20 +80,42 @@ function extractMetadata(data) {
     name = `${sport} Activity`;
   }
 
-  // Get timestamp
+  // Get timestamp - handle various formats
   let startTime = null;
-  if (session?.start_time) {
-    startTime = session.start_time instanceof Date
-      ? session.start_time.toISOString()
-      : session.start_time;
-  } else if (activity?.timestamp) {
-    startTime = activity.timestamp instanceof Date
-      ? activity.timestamp.toISOString()
-      : activity.timestamp;
-  } else if (data.records?.[0]?.timestamp) {
-    startTime = data.records[0].timestamp instanceof Date
-      ? data.records[0].timestamp.toISOString()
-      : data.records[0].timestamp;
+  const rawTimestamp = session?.start_time || activity?.timestamp || data.records?.[0]?.timestamp;
+
+  if (rawTimestamp) {
+    if (rawTimestamp instanceof Date) {
+      // Already a Date object
+      if (!isNaN(rawTimestamp.getTime())) {
+        startTime = rawTimestamp.toISOString();
+      }
+    } else if (typeof rawTimestamp === 'string') {
+      // String timestamp - validate it
+      const parsed = new Date(rawTimestamp);
+      if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1990) {
+        startTime = parsed.toISOString();
+      }
+    } else if (typeof rawTimestamp === 'number') {
+      // Numeric timestamp - could be seconds or milliseconds
+      // FIT epoch is Dec 31, 1989 00:00:00 UTC
+      // If the number is less than year 2000 in ms, assume it's seconds since FIT epoch
+      const FIT_EPOCH = 631065600; // Seconds from Unix epoch to FIT epoch
+      let date;
+      if (rawTimestamp > 1e12) {
+        // Milliseconds
+        date = new Date(rawTimestamp);
+      } else if (rawTimestamp > 1e9) {
+        // Seconds since Unix epoch
+        date = new Date(rawTimestamp * 1000);
+      } else {
+        // Seconds since FIT epoch
+        date = new Date((rawTimestamp + FIT_EPOCH) * 1000);
+      }
+      if (!isNaN(date.getTime()) && date.getFullYear() > 1990) {
+        startTime = date.toISOString();
+      }
+    }
   }
 
   return {
@@ -381,7 +403,7 @@ export function fitToActivityFormat(fitData, userId, fileName = null) {
   const distance = sanitize(summary.totalDistance * 1000, 500000, 0); // Max 500km
   const movingTime = sanitize(Math.round(summary.totalMovingTime), 86400, 0); // Max 24 hours
   const elapsedTime = sanitize(Math.round(summary.totalElapsedTime || summary.totalMovingTime), 172800, movingTime); // Max 48 hours
-  const elevGain = sanitize(summary.totalAscent, 15000, 0); // Max 15km elevation (Everest x1.7)
+  const elevGain = sanitize(summary.totalAscent, 6000, 0); // Max 6km elevation (~20,000 ft)
   const avgSpeed = sanitize(summary.avgSpeed / 3.6, 30, null); // Max 108 km/h = 30 m/s
   const maxSpeedVal = sanitize(summary.maxSpeed / 3.6, 50, null); // Max 180 km/h = 50 m/s
   const avgPower = sanitize(summary.avgPower, 2000, null); // Max 2000W
