@@ -309,15 +309,51 @@ async function processWebhookEvent(eventId) {
     if (event.activity_id) {
       const { data: existing } = await supabase
         .from('activities')
-        .select('id')
+        .select('id, map_summary_polyline')
         .eq('provider_activity_id', event.activity_id)
         .eq('user_id', integration.user_id)
         .eq('provider', 'garmin')
         .maybeSingle();
 
       if (existing) {
-        console.log('Activity already imported:', event.activity_id);
-        await markEventProcessed(eventId, 'Already imported', existing.id);
+        // Activity exists - check if we need to update GPS data
+        const fitFileUrl = event.file_url;
+        const needsGps = !existing.map_summary_polyline && fitFileUrl;
+
+        if (needsGps) {
+          // Activity exists but missing GPS - try to extract from FIT file
+          console.log('📍 Activity exists but missing GPS, attempting FIT file download:', event.activity_id);
+          try {
+            const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token);
+
+            if (fitResult.polyline) {
+              const { error: updateError } = await supabase
+                .from('activities')
+                .update({
+                  map_summary_polyline: fitResult.polyline,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', existing.id);
+
+              if (updateError) {
+                console.error('❌ Failed to update GPS:', updateError);
+                await markEventProcessed(eventId, `GPS update failed: ${updateError.message}`, existing.id);
+              } else {
+                console.log(`✅ GPS track added to existing activity: ${fitResult.simplifiedCount} points`);
+                await markEventProcessed(eventId, 'GPS data added to existing activity', existing.id);
+              }
+            } else {
+              console.log('ℹ️ No GPS data in FIT file');
+              await markEventProcessed(eventId, 'Already imported, no GPS in FIT file', existing.id);
+            }
+          } catch (fitError) {
+            console.error('⚠️ FIT file processing failed:', fitError.message);
+            await markEventProcessed(eventId, `Already imported, FIT error: ${fitError.message}`, existing.id);
+          }
+        } else {
+          console.log('Activity already imported:', event.activity_id);
+          await markEventProcessed(eventId, 'Already imported', existing.id);
+        }
         return;
       }
     }
@@ -554,6 +590,19 @@ async function downloadAndProcessActivity(event, integration) {
       }
     } else {
       console.log('ℹ️ No FIT file URL available for GPS extraction');
+
+      // For PUSH webhooks without FIT URL, request activity details backfill
+      // This will trigger Garmin to send a PING notification with the FIT file URL
+      // The GPS data will be extracted when that webhook arrives
+      const isIndoorActivity = activityData.trainer === true ||
+        (activityInfo.activityType || '').toLowerCase().includes('indoor') ||
+        (activityInfo.activityType || '').toLowerCase().includes('virtual');
+
+      if (!isIndoorActivity && activityInfo.startTimeInSeconds) {
+        // Request backfill - await to ensure it completes before Vercel terminates
+        // The function has its own try/catch so it won't throw
+        await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
+      }
     }
 
     // Mark webhook as processed
@@ -853,6 +902,61 @@ async function markEventProcessed(eventId, error = null, activityId = null) {
       activity_imported_id: activityId
     })
     .eq('id', eventId);
+}
+
+/**
+ * Request activity details backfill from Garmin for a specific activity
+ * This triggers Garmin to send a PING notification with FIT file URL
+ *
+ * Called when we receive a PUSH notification without GPS data.
+ * The PING notification will arrive via webhook with callbackURL for the FIT file.
+ *
+ * @param {string} accessToken - Valid Garmin access token
+ * @param {number} startTimeInSeconds - Activity start time (epoch seconds)
+ * @returns {Promise<boolean>} - true if backfill was requested successfully
+ */
+async function requestActivityDetailsBackfill(accessToken, startTimeInSeconds) {
+  try {
+    if (!startTimeInSeconds || !accessToken) {
+      console.log('ℹ️ Cannot request backfill: missing startTime or accessToken');
+      return false;
+    }
+
+    // Request a small time window around the activity (±1 hour)
+    // This minimizes the backfill scope while ensuring we get the activity
+    const startTimestamp = startTimeInSeconds - 3600; // 1 hour before
+    const endTimestamp = startTimeInSeconds + 7200;   // 2 hours after (covers long activities)
+
+    const backfillUrl = `https://apis.garmin.com/wellness-api/rest/backfill/activityDetails?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
+
+    console.log('📤 Requesting activity details backfill for GPS data...');
+    console.log(`   Time range: ${new Date(startTimestamp * 1000).toISOString()} to ${new Date(endTimestamp * 1000).toISOString()}`);
+
+    const response = await fetch(backfillUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    // 202 = Accepted, backfill will be sent via webhook
+    // 409 = Already requested (also fine)
+    if (response.status === 202 || response.status === 409 || response.ok) {
+      console.log('✅ Activity details backfill requested - GPS data will arrive via webhook');
+      return true;
+    }
+
+    // Log but don't throw - this is a best-effort enhancement
+    const errorText = await response.text();
+    console.warn('⚠️ Activity details backfill request failed:', response.status, errorText.substring(0, 100));
+    return false;
+
+  } catch (error) {
+    // Never throw - this is optional functionality
+    console.warn('⚠️ Could not request activity details backfill:', error.message);
+    return false;
+  }
 }
 
 /**
