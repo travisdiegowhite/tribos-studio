@@ -1036,6 +1036,7 @@ async function backfillGpsData(req, res, userId) {
     }
 
     // If we have dates that need backfill, request it from Garmin
+    let backfillError = null;
     if (dateRangesToBackfill.size > 0) {
       const sortedDates = Array.from(dateRangesToBackfill).sort();
       const oldestDate = new Date(sortedDates[0]);
@@ -1045,32 +1046,55 @@ async function backfillGpsData(req, res, userId) {
       oldestDate.setDate(oldestDate.getDate() - 1);
       newestDate.setDate(newestDate.getDate() + 1);
 
-      const startTimestamp = Math.floor(oldestDate.getTime() / 1000);
-      const endTimestamp = Math.floor(newestDate.getTime() / 1000);
+      // Check if date range is within Garmin's 30-day limit
+      const now = new Date();
+      const daysSinceOldest = Math.floor((now - oldestDate) / (1000 * 60 * 60 * 24));
 
-      console.log(`📤 Requesting backfill for dates: ${oldestDate.toISOString()} to ${newestDate.toISOString()}`);
+      if (daysSinceOldest > 30) {
+        console.log(`⚠️ Activities are ${daysSinceOldest} days old - Garmin limits backfill to 30 days`);
+        backfillError = `Activities are ${daysSinceOldest} days old. Garmin only allows backfill for the last 30 days.`;
+      } else {
+        const startTimestamp = Math.floor(oldestDate.getTime() / 1000);
+        const endTimestamp = Math.floor(newestDate.getTime() / 1000);
 
-      // Request activity files backfill from Garmin
-      try {
-        const backfillUrl = `${GARMIN_API_BASE}/backfill/activityDetails?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
+        console.log(`📤 Requesting backfill for dates: ${oldestDate.toISOString()} to ${newestDate.toISOString()}`);
 
-        const backfillResponse = await fetch(backfillUrl, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/json'
+        // Request activity files backfill from Garmin
+        try {
+          const backfillUrl = `${GARMIN_API_BASE}/backfill/activityDetails?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
+
+          const backfillResponse = await fetch(backfillUrl, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json'
+            }
+          });
+
+          // 202 = Accepted, 409 = Already requested (both are fine)
+          if (backfillResponse.status === 202 || backfillResponse.status === 409 || backfillResponse.ok) {
+            console.log('✅ Backfill request accepted by Garmin');
+            triggeredBackfill = true;
+          } else {
+            const errorText = await backfillResponse.text();
+            console.warn('⚠️ Backfill request failed:', backfillResponse.status, errorText);
+            backfillError = `Garmin returned ${backfillResponse.status}: ${errorText.substring(0, 100)}`;
           }
-        });
-
-        if (backfillResponse.status === 202 || backfillResponse.ok) {
-          console.log('✅ Backfill request accepted by Garmin');
-          triggeredBackfill = true;
-        } else {
-          console.warn('⚠️ Backfill request failed:', backfillResponse.status);
+        } catch (backfillErr) {
+          console.error('❌ Backfill request error:', backfillErr);
+          backfillError = backfillErr.message;
         }
-      } catch (backfillErr) {
-        console.error('❌ Backfill request error:', backfillErr);
       }
+    }
+
+    // Build appropriate note based on what happened
+    let note = undefined;
+    if (triggeredBackfill) {
+      note = 'Backfill requested from Garmin. New GPS data will arrive via webhooks. Run this again in a few minutes to process the new data.';
+    } else if (backfillError) {
+      note = backfillError;
+    } else if (noFitUrl > 0) {
+      note = 'Some activities have no FIT file URL. The webhook may have been processed before GPS extraction was added.';
     }
 
     return res.status(200).json({
@@ -1084,11 +1108,8 @@ async function backfillGpsData(req, res, userId) {
         noFitUrl,
         triggeredBackfill: triggeredBackfill ? dateRangesToBackfill.size : 0
       },
-      note: triggeredBackfill
-        ? 'Backfill requested from Garmin. New GPS data will arrive via webhooks. Run this again in a few minutes to process the new data.'
-        : noFitUrl > 0
-          ? 'Some activities have no FIT file URL. The webhook may have been processed before GPS extraction was added.'
-          : undefined,
+      note,
+      backfillError: backfillError || undefined,
       results: results.slice(0, 20) // Return first 20 results
     });
 
