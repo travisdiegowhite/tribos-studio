@@ -1037,27 +1037,36 @@ async function backfillGpsData(req, res, userId) {
 
     // If we have dates that need backfill, request it from Garmin
     let backfillError = null;
+    let skippedOldActivities = 0;
     if (dateRangesToBackfill.size > 0) {
-      const sortedDates = Array.from(dateRangesToBackfill).sort();
-      const oldestDate = new Date(sortedDates[0]);
-      const newestDate = new Date(sortedDates[sortedDates.length - 1]);
-
-      // Add 1 day buffer
-      oldestDate.setDate(oldestDate.getDate() - 1);
-      newestDate.setDate(newestDate.getDate() + 1);
-
-      // Check if date range is within Garmin's 30-day limit
       const now = new Date();
-      const daysSinceOldest = Math.floor((now - oldestDate) / (1000 * 60 * 60 * 24));
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-      if (daysSinceOldest > 30) {
-        console.log(`⚠️ Activities are ${daysSinceOldest} days old - Garmin limits backfill to 30 days`);
-        backfillError = `Activities are ${daysSinceOldest} days old. Garmin only allows backfill for the last 30 days.`;
+      // Filter to only dates within the last 30 days (Garmin's limit)
+      const recentDates = Array.from(dateRangesToBackfill).filter(dateStr => {
+        const date = new Date(dateStr);
+        return date >= thirtyDaysAgo;
+      });
+
+      skippedOldActivities = dateRangesToBackfill.size - recentDates.length;
+
+      if (recentDates.length === 0) {
+        console.log(`⚠️ All ${dateRangesToBackfill.size} activities are older than 30 days - cannot backfill`);
+        backfillError = `All activities are older than 30 days. Garmin only allows backfill for recent activities.`;
       } else {
+        const sortedDates = recentDates.sort();
+        const oldestDate = new Date(sortedDates[0]);
+        const newestDate = new Date(sortedDates[sortedDates.length - 1]);
+
+        // Add 1 day buffer
+        oldestDate.setDate(oldestDate.getDate() - 1);
+        newestDate.setDate(newestDate.getDate() + 1);
+
         const startTimestamp = Math.floor(oldestDate.getTime() / 1000);
         const endTimestamp = Math.floor(newestDate.getTime() / 1000);
 
-        console.log(`📤 Requesting backfill for dates: ${oldestDate.toISOString()} to ${newestDate.toISOString()}`);
+        console.log(`📤 Requesting backfill for ${recentDates.length} activities (${skippedOldActivities} too old)`);
+        console.log(`   Date range: ${oldestDate.toISOString()} to ${newestDate.toISOString()}`);
 
         // Request activity files backfill from Garmin
         try {
@@ -1075,6 +1084,9 @@ async function backfillGpsData(req, res, userId) {
           if (backfillResponse.status === 202 || backfillResponse.status === 409 || backfillResponse.ok) {
             console.log('✅ Backfill request accepted by Garmin');
             triggeredBackfill = true;
+            if (skippedOldActivities > 0) {
+              backfillError = `${skippedOldActivities} activities are older than 30 days and cannot be backfilled.`;
+            }
           } else {
             const errorText = await backfillResponse.text();
             console.warn('⚠️ Backfill request failed:', backfillResponse.status, errorText);
@@ -1106,7 +1118,8 @@ async function backfillGpsData(req, res, userId) {
         success,
         failed,
         noFitUrl,
-        triggeredBackfill: triggeredBackfill ? dateRangesToBackfill.size : 0
+        triggeredBackfill: triggeredBackfill ? (dateRangesToBackfill.size - skippedOldActivities) : 0,
+        skippedTooOld: skippedOldActivities
       },
       note,
       backfillError: backfillError || undefined,
