@@ -1,15 +1,16 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu } from '@mantine/core';
+import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import BottomSheet from '../components/BottomSheet.jsx';
 import { generateAIRoutes, generateSmartWaypoints } from '../utils/aiRouteGenerator';
+import { generateIterativeRouteVariations } from '../utils/iterativeRouteBuilder';
 import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
 import { matchRouteToOSM } from '../utils/osmCyclingService';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -452,6 +453,7 @@ function RouteBuilder() {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [convertingRoute, setConvertingRoute] = useState(null); // Index of suggestion being converted
   const [naturalLanguageInput, setNaturalLanguageInput] = useState('');
+  const [useIterativeBuilder, setUseIterativeBuilder] = useState(false); // New iterative route builder approach
 
   // Speed profile from Strava sync (fetched fresh)
   const [speedProfile, setSpeedProfile] = useState(null);
@@ -1023,29 +1025,59 @@ function RouteBuilder() {
     });
   }, [resetAll, routeId, navigate]);
 
-  // Generate AI Routes using the comprehensive aiRouteGenerator
+  // Generate AI Routes using the comprehensive aiRouteGenerator or iterative builder
   const handleGenerateAIRoutes = useCallback(async () => {
     setGeneratingAI(true);
     try {
-      // Use the full AI route generator which:
-      // 1. Uses Claude for intelligent suggestions
-      // 2. Converts suggestions to full GPS routes
-      // 3. Falls back to past ride patterns and Mapbox if needed
-      const routes = await generateAIRoutes({
-        startLocation: [viewport.longitude, viewport.latitude], // [lng, lat] format
-        timeAvailable,
-        trainingGoal,
-        routeType,
-        userId: user?.id,
-        speedProfile,
-        speedModifier: 1.0
-      });
+      let routes;
 
-      // Routes from generateAIRoutes already have full coordinates
+      if (useIterativeBuilder) {
+        // Use the new iterative route builder approach
+        // Builds routes segment-by-segment for more accurate results
+        console.log('🔄 Using Iterative Route Builder');
+
+        // Calculate target distance based on time and speed
+        const avgSpeed = speedProfile?.average_speed || 25; // km/h default
+        const targetDistanceKm = (timeAvailable / 60) * avgSpeed;
+
+        routes = await generateIterativeRouteVariations({
+          startLocation: [viewport.longitude, viewport.latitude],
+          targetDistanceKm,
+          routeType: routeType === 'out_back' ? 'out_and_back' : routeType,
+          options: {
+            profile: routeProfile || 'road',
+            trainingGoal
+          },
+          trainingGoal
+        }, 3); // Generate 3 route variations
+
+        // Normalize route format for UI compatibility
+        routes = routes.map(route => ({
+          ...route,
+          distance: route.distanceKm, // km for display
+          source: route.source || 'iterative_builder'
+        }));
+      } else {
+        // Use the full AI route generator which:
+        // 1. Uses Claude for intelligent suggestions
+        // 2. Converts suggestions to full GPS routes
+        // 3. Falls back to past ride patterns and Mapbox if needed
+        routes = await generateAIRoutes({
+          startLocation: [viewport.longitude, viewport.latitude], // [lng, lat] format
+          timeAvailable,
+          trainingGoal,
+          routeType,
+          userId: user?.id,
+          speedProfile,
+          speedModifier: 1.0
+        });
+      }
+
+      // Routes already have full coordinates
       setAiSuggestions(routes);
       notifications.show({
         title: 'Routes Generated!',
-        message: `Found ${routes.length} routes for your ${trainingGoal} session`,
+        message: `Found ${routes.length} routes for your ${trainingGoal} session${useIterativeBuilder ? ' (iterative)' : ''}`,
         color: 'lime'
       });
     } catch (error) {
@@ -1058,7 +1090,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [viewport, timeAvailable, trainingGoal, routeType, user, speedProfile]);
+  }, [viewport, timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder]);
 
   // Get user's speed for the current route profile
   const getUserSpeedForProfile = useCallback((profile) => {
@@ -1135,6 +1167,10 @@ function RouteBuilder() {
       case 'brouter': return 'BRouter';
       case 'brouter_gravel': return 'BRouter Gravel';
       case 'mapbox_fallback': return 'Mapbox';
+      case 'iterative_quarter_loop': return 'Iterative Builder (Loop)';
+      case 'iterative_out_and_back': return 'Iterative Builder (Out & Back)';
+      case 'iterative_point_to_point': return 'Iterative Builder (P2P)';
+      case 'iterative_builder': return 'Iterative Builder';
       default: return source || 'Unknown';
     }
   };
@@ -1666,14 +1702,33 @@ function RouteBuilder() {
         />
       </Box>
 
+      {/* Iterative Builder Toggle */}
+      <Group justify="space-between" align="center">
+        <Group gap="xs">
+          <IconRefreshDot size={16} style={{ color: useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.textMuted }} />
+          <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+            Iterative Builder
+          </Text>
+          <Tooltip label="Builds routes segment-by-segment for more accurate distance and cleaner paths" position="top">
+            <Badge size="xs" variant="light" color="blue">Beta</Badge>
+          </Tooltip>
+        </Group>
+        <Switch
+          checked={useIterativeBuilder}
+          onChange={(e) => setUseIterativeBuilder(e.currentTarget.checked)}
+          size="sm"
+          color="lime"
+        />
+      </Group>
+
       <Button
         onClick={handleGenerateAIRoutes}
         loading={generatingAI}
-        leftSection={<IconSparkles size={18} />}
+        leftSection={useIterativeBuilder ? <IconRefreshDot size={18} /> : <IconSparkles size={18} />}
         color="lime"
         fullWidth
       >
-        {generatingAI ? 'Generating Routes...' : 'Generate AI Routes'}
+        {generatingAI ? 'Generating Routes...' : (useIterativeBuilder ? 'Generate Iterative Routes' : 'Generate AI Routes')}
       </Button>
 
       {/* AI Suggestions */}
@@ -2338,14 +2393,31 @@ function RouteBuilder() {
                     )}
                   </Box>
 
+                  {/* Iterative Builder Toggle */}
+                  <Group justify="space-between" align="center">
+                    <Group gap="xs">
+                      <IconRefreshDot size={16} style={{ color: useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.textMuted }} />
+                      <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                        Iterative Builder
+                      </Text>
+                      <Badge size="xs" variant="light" color="blue">Beta</Badge>
+                    </Group>
+                    <Switch
+                      checked={useIterativeBuilder}
+                      onChange={(e) => setUseIterativeBuilder(e.currentTarget.checked)}
+                      size="sm"
+                      color="lime"
+                    />
+                  </Group>
+
                   <Button
                     onClick={handleGenerateAIRoutes}
                     loading={generatingAI}
-                    leftSection={<IconSparkles size={18} />}
+                    leftSection={useIterativeBuilder ? <IconRefreshDot size={18} /> : <IconSparkles size={18} />}
                     color="lime"
                     fullWidth
                   >
-                    {generatingAI ? 'Generating Routes...' : 'Generate AI Routes'}
+                    {generatingAI ? 'Generating Routes...' : (useIterativeBuilder ? 'Generate Iterative Routes' : 'Generate AI Routes')}
                   </Button>
                 </Stack>
               </CollapsibleSection>
