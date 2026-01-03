@@ -789,7 +789,18 @@ async function pushRoute(req, res, userId, routeData) {
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
-      console.error('Garmin course upload failed:', uploadResponse.status, errorText);
+      console.error('Garmin course upload failed:', {
+        status: uploadResponse.status,
+        statusText: uploadResponse.statusText,
+        body: errorText,
+        sentPayload: {
+          courseName: courseData.courseName,
+          distance: courseData.distance,
+          elevationGain: courseData.elevationGain,
+          activityType: courseData.activityType,
+          pointCount: courseData.geoPoints?.length
+        }
+      });
 
       // Check for specific error types
       if (uploadResponse.status === 401 || uploadResponse.status === 403) {
@@ -807,8 +818,10 @@ async function pushRoute(req, res, userId, routeData) {
         });
       }
 
-      return res.status(500).json({
+      // Return the actual Garmin error for debugging
+      return res.status(uploadResponse.status).json({
         error: 'Failed to upload course to Garmin',
+        garminStatus: uploadResponse.status,
         details: errorText
       });
     }
