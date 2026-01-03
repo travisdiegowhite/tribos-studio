@@ -28,6 +28,7 @@ import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import ImportWizard from '../components/ImportWizard.jsx';
+import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { ConnectWithStravaButton, PoweredByStrava, STRAVA_ORANGE } from '../components/StravaBranding';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
@@ -52,6 +53,7 @@ function Settings() {
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showStravaDisconnectModal, setShowStravaDisconnectModal] = useState(false);
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
 
   // Form state
   const [displayName, setDisplayName] = useState('');
@@ -662,6 +664,19 @@ function Settings() {
   return (
     <AppShell>
       <ImportWizard opened={showImportWizard} onClose={() => setShowImportWizard(false)} />
+      <BulkGpxUploadModal
+        opened={showBulkUploadModal}
+        onClose={() => setShowBulkUploadModal(false)}
+        onUploadComplete={(results) => {
+          if (results.success?.length > 0) {
+            notifications.show({
+              title: 'Import Complete',
+              message: `Successfully imported ${results.success.length} activities`,
+              color: 'green',
+            });
+          }
+        }}
+      />
 
       {/* Strava Disconnect Confirmation Modal */}
       <Modal
@@ -708,10 +723,10 @@ function Settings() {
                 style={{ color: tokens.colors.electricLime, cursor: 'pointer' }}
                 onClick={() => {
                   setShowStravaDisconnectModal(false);
-                  setShowImportWizard(true);
+                  setShowBulkUploadModal(true);
                 }}
               >
-                Import Wizard
+                Bulk Import
               </Text>
               . This way your activities will remain available even after disconnecting Strava.
             </Text>
@@ -986,7 +1001,7 @@ function Settings() {
                     color="lime"
                     size="sm"
                     leftSection={<IconUpload size={16} />}
-                    onClick={() => setShowImportWizard(true)}
+                    onClick={() => setShowBulkUploadModal(true)}
                     mt="xs"
                   >
                     Bulk Import from Strava Export
