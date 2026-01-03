@@ -19,12 +19,13 @@ import {
   SegmentedControl,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconPlus, IconDotsVertical, IconTrash, IconEdit, IconDownload, IconSearch, IconX, IconDeviceWatch, IconRoute } from '@tabler/icons-react';
+import { IconPlus, IconDotsVertical, IconTrash, IconEdit, IconDownload, IconSearch, IconX, IconDeviceWatch, IconRoute, IconCloudUpload } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { listRoutes, deleteRoute, getRoute } from '../utils/routesService';
 import { exportAndDownloadRoute } from '../utils/routeExport';
+import { garminService } from '../utils/garminService';
 
 function MyRoutes() {
   const { user } = useAuth();
@@ -34,6 +35,8 @@ function MyRoutes() {
   const [deletingId, setDeletingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); // 'all', 'ai', 'manual'
+  const [garminConnected, setGarminConnected] = useState(false);
+  const [sendingToGarmin, setSendingToGarmin] = useState(null); // Track which route is being sent
 
   // Filter routes based on search and filter type
   const filteredRoutes = routes.filter(route => {
@@ -73,6 +76,20 @@ function MyRoutes() {
 
     loadRoutes();
   }, [user]);
+
+  // Check Garmin connection status
+  useEffect(() => {
+    const checkGarmin = async () => {
+      try {
+        const status = await garminService.getConnectionStatus();
+        setGarminConnected(status.connected && !status.requiresReconnect);
+      } catch (error) {
+        console.error('Error checking Garmin status:', error);
+        setGarminConnected(false);
+      }
+    };
+    checkGarmin();
+  }, []);
 
   // Delete a route
   const handleDelete = async (routeId, routeName) => {
@@ -135,6 +152,48 @@ function MyRoutes() {
         message: error.message || 'Failed to export route',
         color: 'red'
       });
+    }
+  };
+
+  // Send route directly to Garmin Connect
+  const handleSendToGarmin = async (routeId) => {
+    setSendingToGarmin(routeId);
+    try {
+      const route = await getRoute(routeId);
+      if (!route?.geometry?.coordinates) {
+        throw new Error('Route has no geometry');
+      }
+
+      const result = await garminService.pushRoute({
+        name: route.name,
+        description: route.description,
+        coordinates: route.geometry.coordinates,
+        distanceKm: route.distance_km,
+        elevationGainM: route.elevation_gain_m,
+        elevationLossM: route.elevation_loss_m,
+        routeType: route.route_type,
+        surfaceType: route.surface_type,
+      });
+
+      if (result.success) {
+        notifications.show({
+          title: 'Sent to Garmin!',
+          message: result.message || 'Route sent to Garmin Connect. Sync your device to download it.',
+          color: 'green',
+          autoClose: 5000,
+        });
+      } else {
+        throw new Error(result.error || 'Failed to send route');
+      }
+    } catch (error) {
+      console.error('Error sending to Garmin:', error);
+      notifications.show({
+        title: 'Send Failed',
+        message: error.message || 'Failed to send route to Garmin',
+        color: 'red'
+      });
+    } finally {
+      setSendingToGarmin(null);
     }
   };
 
@@ -396,7 +455,21 @@ function MyRoutes() {
                           >
                             Edit
                           </Menu.Item>
-                          <Menu.Label>Export for Garmin</Menu.Label>
+                          <Menu.Divider />
+                          {garminConnected && (
+                            <Menu.Item
+                              leftSection={sendingToGarmin === route.id ? <Loader size={14} /> : <IconCloudUpload size={14} />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendToGarmin(route.id);
+                              }}
+                              disabled={sendingToGarmin === route.id}
+                              color="blue"
+                            >
+                              {sendingToGarmin === route.id ? 'Sending...' : 'Send to Garmin'}
+                            </Menu.Item>
+                          )}
+                          <Menu.Label>Download Files</Menu.Label>
                           <Menu.Item
                             leftSection={<IconDeviceWatch size={14} />}
                             onClick={(e) => {
@@ -404,7 +477,7 @@ function MyRoutes() {
                               handleExportRoute(route.id, 'tcx');
                             }}
                           >
-                            TCX Course (Recommended)
+                            TCX Course
                           </Menu.Item>
                           <Menu.Item
                             leftSection={<IconRoute size={14} />}
