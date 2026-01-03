@@ -10,7 +10,7 @@ import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import BottomSheet from '../components/BottomSheet.jsx';
 import { generateAIRoutes, generateSmartWaypoints } from '../utils/aiRouteGenerator';
-import { generateIterativeRouteVariations } from '../utils/iterativeRouteBuilder';
+import { generateIterativeRoute, generateIterativeRouteVariations } from '../utils/iterativeRouteBuilder';
 import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
 import { matchRouteToOSM } from '../utils/osmCyclingService';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -1259,14 +1259,80 @@ function RouteBuilder() {
 
         routeDescription = parsed.waypoints.join(', ');
       } else {
-        // No explicit waypoints - generate smart geometric waypoints based on duration
-        console.log('🎯 No waypoints provided, generating smart route based on duration...');
+        // No explicit waypoints - generate route based on duration
+        console.log('🎯 No waypoints provided, generating route based on duration...');
 
         const duration = parsed.timeAvailable || timeAvailable || 60;
         const goal = parsed.trainingGoal || trainingGoal || 'endurance';
         const type = parsed.routeType || 'loop';
         const direction = parsed.direction || null;
 
+        // Use iterative builder if enabled, otherwise use smart waypoints
+        if (useIterativeBuilder) {
+          console.log('🔄 Using Iterative Route Builder for natural language request');
+
+          // Calculate target distance based on time and speed
+          const avgSpeed = speedProfile?.average_speed || 25; // km/h default
+          const targetDistanceKm = (duration / 60) * avgSpeed;
+
+          notifications.show({
+            id: 'generating-route',
+            title: 'Building Route',
+            message: `Creating ${duration}min ${goal} route iteratively...`,
+            loading: true,
+            autoClose: false
+          });
+
+          const iterativeResult = await generateIterativeRoute({
+            startLocation,
+            targetDistanceKm,
+            routeType: type === 'out_back' ? 'out_and_back' : type,
+            direction,
+            options: {
+              profile: parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
+              trainingGoal: goal
+            },
+            trainingGoal: goal
+          });
+
+          if (!iterativeResult || !iterativeResult.coordinates || iterativeResult.coordinates.length < 10) {
+            throw new Error('Could not generate a route. Try a different duration or location.');
+          }
+
+          const distanceKm = parseFloat(iterativeResult.distanceKm.toFixed(1));
+          const generatedRouteName = iterativeResult.name || `${distanceKm}km ${goal} ${type}`;
+
+          setRouteGeometry({
+            type: 'LineString',
+            coordinates: iterativeResult.coordinates
+          });
+
+          setRouteStats({
+            distance: distanceKm,
+            elevation: iterativeResult.elevationGain || 0,
+            duration: Math.round((iterativeResult.duration || 0) / 60)
+          });
+
+          if (!calendarContext) {
+            setRouteName(generatedRouteName);
+          }
+          setRoutingSource(iterativeResult.source);
+          setWaypoints([]);
+
+          notifications.update({
+            id: 'generating-route',
+            title: 'Route Generated!',
+            message: `${distanceKm} km ${type} route created (iterative)`,
+            color: 'lime',
+            loading: false,
+            autoClose: 3000
+          });
+
+          console.log(`✅ Route generated: ${distanceKm} km via ${iterativeResult.source}`);
+          return; // Exit early - route is complete
+        }
+
+        // Original smart waypoints approach
         waypointCoords = generateSmartWaypoints(
           startLocation,
           duration,
@@ -1352,7 +1418,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [naturalLanguageInput, viewport]);
+  }, [naturalLanguageInput, viewport, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext]);
 
   // Search for address using Mapbox Geocoding API
   const handleAddressSearch = useCallback(async (query) => {
@@ -1530,6 +1596,46 @@ function RouteBuilder() {
 
       <Divider label="AI Route Generator" labelPosition="center" />
 
+      {/* Iterative Builder Toggle - Prominent placement */}
+      <Paper
+        p="sm"
+        radius="md"
+        style={{
+          backgroundColor: useIterativeBuilder ? `${tokens.colors.electricLime}15` : tokens.colors.bgTertiary,
+          border: `1px solid ${useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.bgTertiary}`,
+          transition: 'all 0.2s ease'
+        }}
+      >
+        <Group justify="space-between" align="center">
+          <Group gap="sm">
+            <IconRefreshDot
+              size={20}
+              style={{
+                color: useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.textMuted,
+                transition: 'color 0.2s ease'
+              }}
+            />
+            <Box>
+              <Group gap="xs" align="center">
+                <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                  Iterative Builder
+                </Text>
+                <Badge size="xs" variant="light" color="blue">Beta</Badge>
+              </Group>
+              <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                Builds routes segment-by-segment for cleaner, more accurate paths
+              </Text>
+            </Box>
+          </Group>
+          <Switch
+            checked={useIterativeBuilder}
+            onChange={(e) => setUseIterativeBuilder(e.currentTarget.checked)}
+            size="md"
+            color="lime"
+          />
+        </Group>
+      </Paper>
+
       {/* Natural Language Input */}
       <Box>
         <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
@@ -1701,25 +1807,6 @@ function RouteBuilder() {
           data={workoutOptions}
         />
       </Box>
-
-      {/* Iterative Builder Toggle */}
-      <Group justify="space-between" align="center">
-        <Group gap="xs">
-          <IconRefreshDot size={16} style={{ color: useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.textMuted }} />
-          <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-            Iterative Builder
-          </Text>
-          <Tooltip label="Builds routes segment-by-segment for more accurate distance and cleaner paths" position="top">
-            <Badge size="xs" variant="light" color="blue">Beta</Badge>
-          </Tooltip>
-        </Group>
-        <Switch
-          checked={useIterativeBuilder}
-          onChange={(e) => setUseIterativeBuilder(e.currentTarget.checked)}
-          size="sm"
-          color="lime"
-        />
-      </Group>
 
       <Button
         onClick={handleGenerateAIRoutes}
@@ -2213,6 +2300,46 @@ function RouteBuilder() {
                 </Group>
 
                 <Stack gap="sm">
+                  {/* Iterative Builder Toggle - Mobile */}
+                  <Paper
+                    p="sm"
+                    radius="md"
+                    style={{
+                      backgroundColor: useIterativeBuilder ? `${tokens.colors.electricLime}15` : tokens.colors.bgTertiary,
+                      border: `1px solid ${useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.bgTertiary}`,
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <Group justify="space-between" align="center">
+                      <Group gap="sm">
+                        <IconRefreshDot
+                          size={20}
+                          style={{
+                            color: useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.textMuted,
+                            transition: 'color 0.2s ease'
+                          }}
+                        />
+                        <Box>
+                          <Group gap="xs" align="center">
+                            <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                              Iterative Builder
+                            </Text>
+                            <Badge size="xs" variant="light" color="blue">Beta</Badge>
+                          </Group>
+                          <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                            Cleaner, more accurate paths
+                          </Text>
+                        </Box>
+                      </Group>
+                      <Switch
+                        checked={useIterativeBuilder}
+                        onChange={(e) => setUseIterativeBuilder(e.currentTarget.checked)}
+                        size="md"
+                        color="lime"
+                      />
+                    </Group>
+                  </Paper>
+
                   <Textarea
                     placeholder="e.g., '40 mile gravel loop' or '2 hour recovery ride on bike paths'"
                     value={naturalLanguageInput}
@@ -2231,7 +2358,7 @@ function RouteBuilder() {
                   <Button
                     onClick={handleNaturalLanguageGenerate}
                     loading={generatingAI}
-                    leftSection={<IconSparkles size={16} />}
+                    leftSection={useIterativeBuilder ? <IconRefreshDot size={16} /> : <IconSparkles size={16} />}
                     color="lime"
                     variant={calendarContext ? 'filled' : 'light'}
                     size="sm"
@@ -2241,7 +2368,7 @@ function RouteBuilder() {
                       boxShadow: `0 0 20px ${tokens.colors.electricLime}40`,
                     } : undefined}
                   >
-                    {calendarContext ? '✨ Generate Route for Workout' : 'Generate from Description'}
+                    {calendarContext ? '✨ Generate Route for Workout' : (useIterativeBuilder ? 'Generate Iterative Route' : 'Generate from Description')}
                   </Button>
                 </Stack>
               </Box>
@@ -2392,23 +2519,6 @@ function RouteBuilder() {
                       </Text>
                     )}
                   </Box>
-
-                  {/* Iterative Builder Toggle */}
-                  <Group justify="space-between" align="center">
-                    <Group gap="xs">
-                      <IconRefreshDot size={16} style={{ color: useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.textMuted }} />
-                      <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                        Iterative Builder
-                      </Text>
-                      <Badge size="xs" variant="light" color="blue">Beta</Badge>
-                    </Group>
-                    <Switch
-                      checked={useIterativeBuilder}
-                      onChange={(e) => setUseIterativeBuilder(e.currentTarget.checked)}
-                      size="sm"
-                      color="lime"
-                    />
-                  </Group>
 
                   <Button
                     onClick={handleGenerateAIRoutes}
