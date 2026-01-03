@@ -82,6 +82,7 @@ import PowerDurationCurve from '../components/PowerDurationCurve.jsx';
 import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
 import RampRateAlert, { RampRateBadge } from '../components/RampRateAlert.jsx';
 import { ActivityMetricsBadges } from '../components/ActivityMetrics.jsx';
+import RideAnalysisModal from '../components/RideAnalysisModal.jsx';
 import { WorkoutDifficultyBadge, getQuickDifficultyEstimate } from '../components/WorkoutDifficultyBadge.jsx';
 import CriticalPowerModel from '../components/CriticalPowerModel.jsx';
 import TrainNow from '../components/TrainNow.jsx';
@@ -93,6 +94,7 @@ import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, ca
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { PoweredByStrava } from '../components/StravaBranding';
+import { garminService } from '../utils/garminService.js';
 
 function TrainingDashboard() {
   const { user } = useAuth();
@@ -132,6 +134,8 @@ function TrainingDashboard() {
   const [supplementModalOpen, setSupplementModalOpen] = useState(false);
   const [raceGoals, setRaceGoals] = useState([]);
   const [trainNowExpanded, setTrainNowExpanded] = useState(false);
+  const [rideAnalysisModalOpen, setRideAnalysisModalOpen] = useState(false);
+  const [selectedRide, setSelectedRide] = useState(null);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -306,6 +310,73 @@ function TrainingDashboard() {
     loadData();
   }, [user]);
 
+  // Automatic Garmin sync - recover failed events and backfill GPS on load
+  useEffect(() => {
+    const runGarminAutoSync = async () => {
+      if (!user) return;
+
+      try {
+        // Check if user has Garmin connected
+        const status = await garminService.getConnectionStatus();
+        if (!status.connected || status.tokenExpired) {
+          return; // Not connected or token expired
+        }
+
+        console.log('🔄 Running automatic Garmin sync...');
+
+        // Run reprocessFailedEvents to recover any failed webhook imports
+        // This is what the user had to click "Recover Failed Events" for
+        try {
+          const recoverResult = await garminService.reprocessFailedEvents();
+          if (recoverResult.reprocessed > 0) {
+            console.log(`✅ Auto-recovered ${recoverResult.reprocessed} Garmin activities`);
+            // Reload activities to show the newly recovered ones
+            const { data: activityData } = await supabase
+              .from('activities')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('start_date', { ascending: false })
+              .limit(2000);
+            if (activityData) {
+              setActivities(activityData);
+            }
+          }
+        } catch (err) {
+          // Silent fail - this is a background optimization
+          console.log('ℹ️ Garmin recover check:', err.message);
+        }
+
+        // Run GPS backfill for activities missing GPS data
+        try {
+          const gpsResult = await garminService.backfillGps(20); // Limit to 20 for faster completion
+          if (gpsResult.stats?.success > 0) {
+            console.log(`✅ Auto-backfilled GPS for ${gpsResult.stats.success} activities`);
+            // Reload activities to show updated GPS data
+            const { data: activityData } = await supabase
+              .from('activities')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('start_date', { ascending: false })
+              .limit(2000);
+            if (activityData) {
+              setActivities(activityData);
+            }
+          }
+        } catch (err) {
+          // Silent fail - this is a background optimization
+          console.log('ℹ️ Garmin GPS backfill check:', err.message);
+        }
+      } catch (err) {
+        // Silent fail - Garmin might not be set up
+        console.log('ℹ️ Garmin auto-sync not available:', err.message);
+      }
+    };
+
+    // Run after a short delay to not block initial load
+    const timer = setTimeout(runGarminAutoSync, 2000);
+    return () => clearTimeout(timer);
+  }, [user]);
+
   // Load race goals for AI coach context
   useEffect(() => {
     const loadRaceGoals = async () => {
@@ -436,6 +507,12 @@ function TrainingDashboard() {
   const handleViewWorkout = (workout) => {
     setSelectedWorkout(workout);
     setWorkoutModalOpen(true);
+  };
+
+  // Handle viewing ride details
+  const handleViewRide = (ride) => {
+    setSelectedRide(ride);
+    setRideAnalysisModalOpen(true);
   };
 
   // Handle hiding/showing a ride
@@ -871,7 +948,7 @@ function TrainingDashboard() {
                   formatDistance={formatDist}
                   formatElevation={formatElev}
                   maxRows={100}
-                  onViewRide={(ride) => console.log('View ride:', ride)}
+                  onViewRide={handleViewRide}
                   onHideRide={handleHideRide}
                 />
               </Tabs.Panel>
@@ -956,6 +1033,19 @@ function TrainingDashboard() {
         onAddWorkout={handleAddSupplementWorkout}
         getSuggestedDays={getSuggestedSupplementDays}
         activePlan={activePlan}
+      />
+
+      {/* Ride Analysis Modal */}
+      <RideAnalysisModal
+        opened={rideAnalysisModalOpen}
+        onClose={() => {
+          setRideAnalysisModalOpen(false);
+          setSelectedRide(null);
+        }}
+        ride={selectedRide}
+        ftp={ftp}
+        formatDistance={formatDist}
+        formatElevation={formatElev}
       />
     </AppShell>
   );
