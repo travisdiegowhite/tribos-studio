@@ -515,6 +515,9 @@ function RouteBuilder() {
   // Interval cues (derived from selectedWorkout)
   const [intervalCues, setIntervalCues] = useState(null);
 
+  // Toggle to show/hide workout color overlay on route
+  const [showWorkoutOverlay, setShowWorkoutOverlay] = useState(true);
+
   // Units preference state
   const [unitsPreference, setUnitsPreference] = useState('imperial');
   const isImperial = unitsPreference === 'imperial';
@@ -601,9 +604,10 @@ function RouteBuilder() {
 
   // viewport comes from the store (persisted)
 
-  // Generate colored route segments when workout is selected and route exists
+  // Generate colored route segments when workout is selected and overlay is enabled
   const coloredSegments = useMemo(() => {
-    if (!routeGeometry?.coordinates || !selectedWorkout) {
+    // Only show colored segments if overlay is enabled AND workout is selected
+    if (!routeGeometry?.coordinates || !selectedWorkout || !showWorkoutOverlay) {
       return null;
     }
 
@@ -624,7 +628,7 @@ function RouteBuilder() {
       console.error('Error generating colored segments:', error);
     }
     return null;
-  }, [routeGeometry, selectedWorkout, routeStats.distance]);
+  }, [routeGeometry, selectedWorkout, routeStats.distance, showWorkoutOverlay]);
 
   // Memoize route GeoJSON to prevent re-creating on every map move/render
   const routeGeoJSON = useMemo(() => {
@@ -1857,6 +1861,20 @@ function RouteBuilder() {
           variant="filled"
           data={workoutOptions}
         />
+        {/* Show color overlay toggle when workout is selected */}
+        {selectedWorkout && (
+          <Group justify="space-between" mt="xs">
+            <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+              Show color-coded zones
+            </Text>
+            <Switch
+              checked={showWorkoutOverlay}
+              onChange={(e) => setShowWorkoutOverlay(e.currentTarget.checked)}
+              size="xs"
+              color="lime"
+            />
+          </Group>
+        )}
       </Box>
 
       <Button
@@ -2565,9 +2583,17 @@ function RouteBuilder() {
                       data={workoutOptions}
                     />
                     {selectedWorkout && (
-                      <Text size="xs" c="dimmed" mt="xs">
-                        Route will show color-coded segments for: {selectedWorkout.name}
-                      </Text>
+                      <Group justify="space-between" mt="xs">
+                        <Text size="xs" c="dimmed">
+                          Show color-coded zones
+                        </Text>
+                        <Switch
+                          checked={showWorkoutOverlay}
+                          onChange={(e) => setShowWorkoutOverlay(e.currentTarget.checked)}
+                          size="xs"
+                          color="lime"
+                        />
+                      </Group>
                     )}
                   </Box>
 
