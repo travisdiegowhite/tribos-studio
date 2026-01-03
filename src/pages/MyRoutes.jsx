@@ -19,11 +19,12 @@ import {
   SegmentedControl,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconPlus, IconDotsVertical, IconTrash, IconEdit, IconDownload, IconSearch, IconX } from '@tabler/icons-react';
+import { IconPlus, IconDotsVertical, IconTrash, IconEdit, IconDownload, IconSearch, IconX, IconDeviceWatch, IconRoute } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { listRoutes, deleteRoute, getRoute } from '../utils/routesService';
+import { exportAndDownloadRoute } from '../utils/routeExport';
 
 function MyRoutes() {
   const { user } = useAuth();
@@ -100,22 +101,33 @@ function MyRoutes() {
     }
   };
 
-  // Export route as GPX
-  const handleExportGPX = async (routeId, routeName) => {
+  // Export route in specified format (gpx or tcx)
+  const handleExportRoute = async (routeId, format) => {
     try {
       const route = await getRoute(routeId);
       if (!route?.geometry?.coordinates) {
         throw new Error('Route has no geometry');
       }
 
-      const gpxContent = generateGPX(route.name, route.geometry.coordinates);
-      const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${routeName.replace(/\s+/g, '_')}.gpx`;
-      link.click();
-      URL.revokeObjectURL(url);
+      exportAndDownloadRoute(
+        {
+          name: route.name,
+          description: route.description,
+          coordinates: route.geometry.coordinates,
+          distanceKm: route.distance_km,
+          elevationGainM: route.elevation_gain_m,
+          elevationLossM: route.elevation_loss_m,
+          routeType: route.route_type,
+          surfaceType: route.surface_type,
+        },
+        format
+      );
+
+      notifications.show({
+        title: 'Route Exported',
+        message: `Your route has been exported as ${format.toUpperCase()}`,
+        color: 'green',
+      });
     } catch (error) {
       console.error('Error exporting route:', error);
       notifications.show({
@@ -384,14 +396,24 @@ function MyRoutes() {
                           >
                             Edit
                           </Menu.Item>
+                          <Menu.Label>Export for Garmin</Menu.Label>
                           <Menu.Item
-                            leftSection={<IconDownload size={14} />}
+                            leftSection={<IconDeviceWatch size={14} />}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleExportGPX(route.id, route.name);
+                              handleExportRoute(route.id, 'tcx');
                             }}
                           >
-                            Export GPX
+                            TCX Course (Recommended)
+                          </Menu.Item>
+                          <Menu.Item
+                            leftSection={<IconRoute size={14} />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExportRoute(route.id, 'gpx');
+                            }}
+                          >
+                            GPX Track
                           </Menu.Item>
                           <Menu.Divider />
                           <Menu.Item
@@ -464,29 +486,6 @@ function MyRoutes() {
       </Container>
     </AppShell>
   );
-}
-
-// GPX generation helper
-function generateGPX(name, coordinates) {
-  const points = coordinates.map(([lng, lat]) => {
-    return `    <trkpt lat="${lat}" lon="${lng}">
-      <ele>0</ele>
-    </trkpt>`;
-  }).join('\n');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="tribos.studio" xmlns="http://www.topografix.com/GPX/1/1">
-  <metadata>
-    <name>${name}</name>
-    <time>${new Date().toISOString()}</time>
-  </metadata>
-  <trk>
-    <name>${name}</name>
-    <trkseg>
-${points}
-    </trkseg>
-  </trk>
-</gpx>`;
 }
 
 export default MyRoutes;

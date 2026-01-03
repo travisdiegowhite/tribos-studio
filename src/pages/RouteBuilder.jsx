@@ -34,6 +34,7 @@ import MapTutorialOverlay from '../components/MapTutorialOverlay.jsx';
 import BikeInfrastructureLayer from '../components/BikeInfrastructureLayer.jsx';
 import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
 import { fetchBikeInfrastructure } from '../utils/bikeInfrastructureService';
+import RouteExportMenu from '../components/RouteExportMenu.jsx';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -998,26 +999,23 @@ function RouteBuilder() {
 
   // clearRoute comes from the store (clears waypoints, geometry, stats, etc.)
 
-  // Export GPX
-  const exportGPX = useCallback(() => {
-    if (!routeGeometry) {
-      notifications.show({
-        title: 'No Route',
-        message: 'Please create a route first',
-        color: 'yellow'
-      });
-      return;
-    }
-
-    const gpxContent = generateGPX(routeName, routeGeometry.coordinates);
-    const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${routeName.replace(/\s+/g, '_')}.gpx`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }, [routeName, routeGeometry]);
+  // Create route data object for export
+  const routeDataForExport = useMemo(() => {
+    if (!routeGeometry) return null;
+    return {
+      name: routeName,
+      coordinates: routeGeometry.coordinates,
+      waypoints: waypoints.map((wp, i) => ({
+        lat: wp.lat,
+        lng: wp.lng,
+        name: i === 0 ? 'Start' : i === waypoints.length - 1 ? 'End' : `Waypoint ${i}`,
+        type: i === 0 ? 'start' : i === waypoints.length - 1 ? 'end' : 'waypoint'
+      })),
+      distanceKm: routeStats?.distance,
+      elevationGainM: routeStats?.elevationGain,
+      elevationLossM: routeStats?.elevationLoss,
+    };
+  }, [routeName, routeGeometry, waypoints, routeStats]);
 
   // Save route to database
   const handleSaveRoute = useCallback(async () => {
@@ -2015,16 +2013,12 @@ function RouteBuilder() {
           {savedRouteId ? 'Update Route' : 'Save Route'}
         </Button>
         <Group grow>
-          <Button
+          <RouteExportMenu
+            route={routeDataForExport}
             variant="light"
-            color="gray"
             size="sm"
             disabled={!routeGeometry}
-            onClick={exportGPX}
-            leftSection={<IconDownload size={14} />}
-          >
-            Export GPX
-          </Button>
+          />
           <Button
             variant="outline"
             color="gray"
@@ -2759,17 +2753,12 @@ function RouteBuilder() {
                 {savedRouteId ? 'Update Route' : 'Save Route'}
               </Button>
               <Group grow>
-                <Button
+                <RouteExportMenu
+                  route={routeDataForExport}
                   variant="light"
-                  color="lime"
                   size="sm"
                   disabled={!routeGeometry}
-                  onClick={exportGPX}
-                  leftSection={<IconDownload size={16} />}
-                  style={{ height: 40 }}
-                >
-                  Export GPX
-                </Button>
+                />
                 <Button
                   variant="outline"
                   color="gray"
@@ -3105,29 +3094,6 @@ function RouteBuilder() {
       )}
     </AppShell>
   );
-}
-
-// GPX generation helper
-function generateGPX(name, coordinates) {
-  const points = coordinates.map(([lng, lat]) => {
-    return `    <trkpt lat="${lat}" lon="${lng}">
-      <ele>0</ele>
-    </trkpt>`;
-  }).join('\n');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="tribos.studio" xmlns="http://www.topografix.com/GPX/1/1">
-  <metadata>
-    <name>${name}</name>
-    <time>${new Date().toISOString()}</time>
-  </metadata>
-  <trk>
-    <name>${name}</name>
-    <trkseg>
-${points}
-    </trkseg>
-  </trk>
-</gpx>`;
 }
 
 export default RouteBuilder;
