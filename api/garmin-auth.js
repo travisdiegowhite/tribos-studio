@@ -769,22 +769,22 @@ async function pushRoute(req, res, userId, routeData) {
       }
     }
 
-    // Generate TCX course content
-    const tcxContent = generateTCXCourse(routeData);
+    // Prepare course data for Garmin Course API
+    const courseData = buildCoursePayload(routeData);
 
     // Upload course to Garmin Connect
-    // Garmin Course API endpoint
-    const courseUploadUrl = `${GARMIN_API_BASE}/training-api/course/import/tcx`;
+    // Garmin Course API endpoint (JSON format)
+    const courseUploadUrl = 'https://apis.garmin.com/course-api/course';
 
-    console.log('Uploading course to Garmin:', routeData.name);
+    console.log('Uploading course to Garmin:', routeData.name, `(${courseData.geoPoints.length} points)`);
 
     const uploadResponse = await fetch(courseUploadUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/xml',
+        'Content-Type': 'application/json',
       },
-      body: tcxContent
+      body: JSON.stringify(courseData)
     });
 
     if (!uploadResponse.ok) {
@@ -832,98 +832,49 @@ async function pushRoute(req, res, userId, routeData) {
   }
 }
 
-// Generate TCX Course XML for Garmin
-function generateTCXCourse(routeData) {
-  const lines = [];
-  const now = new Date().toISOString();
-  const name = (routeData.name || 'Tribos Route').substring(0, 15); // Garmin limits to 15 chars
-
-  // Calculate total distance
-  let totalDistanceMeters = (routeData.distanceKm || 0) * 1000;
-  if (totalDistanceMeters === 0 && routeData.coordinates.length > 1) {
-    totalDistanceMeters = calculateRouteDistance(routeData.coordinates);
+// Build course payload for Garmin Course API (JSON format)
+function buildCoursePayload(routeData) {
+  // Calculate total distance in meters
+  let distanceMeters = (routeData.distanceKm || 0) * 1000;
+  if (distanceMeters === 0 && routeData.coordinates.length > 1) {
+    distanceMeters = calculateRouteDistance(routeData.coordinates);
   }
 
-  // Estimate ride time (assuming 20 km/h average)
-  const estimatedTimeSeconds = Math.round(totalDistanceMeters / (20 * 1000 / 3600));
-
-  lines.push('<?xml version="1.0" encoding="UTF-8"?>');
-  lines.push('<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2 http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">');
-  lines.push('  <Courses>');
-  lines.push('    <Course>');
-  lines.push(`      <Name>${escapeXml(name)}</Name>`);
-
-  // Lap element
-  lines.push('      <Lap>');
-  lines.push(`        <TotalTimeSeconds>${estimatedTimeSeconds}</TotalTimeSeconds>`);
-  lines.push(`        <DistanceMeters>${totalDistanceMeters.toFixed(1)}</DistanceMeters>`);
-
-  // Begin position
-  if (routeData.coordinates.length > 0) {
-    const [lng, lat] = routeData.coordinates[0];
-    lines.push('        <BeginPosition>');
-    lines.push(`          <LatitudeDegrees>${lat.toFixed(7)}</LatitudeDegrees>`);
-    lines.push(`          <LongitudeDegrees>${lng.toFixed(7)}</LongitudeDegrees>`);
-    lines.push('        </BeginPosition>');
-  }
-
-  // End position
-  if (routeData.coordinates.length > 0) {
-    const lastCoord = routeData.coordinates[routeData.coordinates.length - 1];
-    const [lng, lat] = lastCoord;
-    lines.push('        <EndPosition>');
-    lines.push(`          <LatitudeDegrees>${lat.toFixed(7)}</LatitudeDegrees>`);
-    lines.push(`          <LongitudeDegrees>${lng.toFixed(7)}</LongitudeDegrees>`);
-    lines.push('        </EndPosition>');
-  }
-
-  lines.push('        <Intensity>Active</Intensity>');
-  lines.push('      </Lap>');
-
-  // Track with trackpoints
-  lines.push('      <Track>');
-
-  let cumulativeDistance = 0;
-  let prevCoord = null;
-
-  for (const coord of routeData.coordinates) {
+  // Convert coordinates to geoPoints format
+  const geoPoints = routeData.coordinates.map(coord => {
     const [lng, lat, ele] = coord.length === 3 ? coord : [coord[0], coord[1], 0];
+    return {
+      latitude: lat,
+      longitude: lng,
+      elevation: ele || 0
+    };
+  });
 
-    // Calculate cumulative distance
-    if (prevCoord) {
-      cumulativeDistance += haversineDistance(prevCoord[1], prevCoord[0], lat, lng);
-    }
-    prevCoord = [lng, lat];
+  // Map surface type to Garmin activity type
+  const activityType = mapSurfaceToActivityType(routeData.surfaceType);
 
-    lines.push('        <Trackpoint>');
-    lines.push(`          <Time>${now}</Time>`);
-    lines.push('          <Position>');
-    lines.push(`            <LatitudeDegrees>${lat.toFixed(7)}</LatitudeDegrees>`);
-    lines.push(`            <LongitudeDegrees>${lng.toFixed(7)}</LongitudeDegrees>`);
-    lines.push('          </Position>');
-    lines.push(`          <AltitudeMeters>${(ele || 0).toFixed(1)}</AltitudeMeters>`);
-    lines.push(`          <DistanceMeters>${cumulativeDistance.toFixed(1)}</DistanceMeters>`);
-    lines.push('        </Trackpoint>');
-  }
+  return {
+    courseName: (routeData.name || 'Tribos Route').substring(0, 32), // Garmin limit
+    description: (routeData.description || 'Created with Tribos Studio').substring(0, 255),
+    distance: Math.round(distanceMeters),
+    elevationGain: Math.round(routeData.elevationGainM || 0),
+    elevationLoss: Math.round(routeData.elevationLossM || 0),
+    activityType: activityType,
+    coordinateSystem: 'WGS84',
+    geoPoints: geoPoints
+  };
+}
 
-  lines.push('      </Track>');
-  lines.push('    </Course>');
-  lines.push('  </Courses>');
-
-  // Author
-  lines.push('  <Author xsi:type="Application_t">');
-  lines.push('    <Name>Tribos Studio</Name>');
-  lines.push('    <Build>');
-  lines.push('      <Version>');
-  lines.push('        <VersionMajor>1</VersionMajor>');
-  lines.push('        <VersionMinor>0</VersionMinor>');
-  lines.push('      </Version>');
-  lines.push('    </Build>');
-  lines.push('    <LangID>EN</LangID>');
-  lines.push('  </Author>');
-  lines.push('</TrainingCenterDatabase>');
-
-  return lines.join('\n');
+// Map surface type to Garmin activity type
+function mapSurfaceToActivityType(surfaceType) {
+  const mapping = {
+    'paved': 'ROAD_CYCLING',
+    'gravel': 'GRAVEL_CYCLING',
+    'mixed': 'GRAVEL_CYCLING',
+    'trail': 'MOUNTAIN_BIKING',
+    'mountain': 'MOUNTAIN_BIKING'
+  };
+  return mapping[surfaceType?.toLowerCase()] || 'ROAD_CYCLING';
 }
 
 // Helper: Haversine distance calculation
@@ -953,17 +904,6 @@ function calculateRouteDistance(coordinates) {
     totalDistance += haversineDistance(lat1, lng1, lat2, lng2);
   }
   return totalDistance;
-}
-
-// Helper: Escape XML special characters
-function escapeXml(text) {
-  if (!text) return '';
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
 
 // Helper function to refresh Garmin token
