@@ -244,7 +244,30 @@ CRITICAL RULES:
 1. If user mentions a TRAIL NAME (Coal Creek Path, Boulder Creek, etc.), it MUST be in waypoints
 2. Return ONLY valid JSON, no extra text
 3. Waypoints should be actual place names that can be geocoded
-4. If user references their training calendar (today's workout, this week's ride, etc.), use the TRAINING CALENDAR CONTEXT above`;
+4. If user references their training calendar (today's workout, this week's ride, etc.), use the TRAINING CALENDAR CONTEXT above
+5. IMPORTANT: "home", "back home", or "back to [Place]" at the END of a route means the user wants to return to a specific location. Include that location as the FINAL waypoint. If they say "home to Erie", add "Erie" as the last waypoint.
+6. For loop routes that mention returning home, include the home location as the final waypoint so the route closes properly.
+
+EXAMPLES OF HANDLING "HOME":
+
+User: "Ride to Lochbuie and Hudson then back home to Erie"
+Response:
+{
+  "startLocation": "Erie",
+  "waypoints": ["Lochbuie", "Hudson", "Erie"],
+  "routeType": "loop",
+  "surfaceType": "mixed"
+}
+
+User: "Loop from here to Louisville then North Boulder and back home"
+Response:
+{
+  "startLocation": null,
+  "waypoints": ["Louisville", "North Boulder"],
+  "routeType": "loop",
+  "surfaceType": "mixed"
+}
+Note: "back home" without a place name = return to start (handled automatically for loops)`;
 }
 
 /**
@@ -2055,7 +2078,7 @@ function RouteBuilder() {
 
                 {/* Colored route segments */}
                 {coloredSegments && (
-                  <Source key={routeName || 'colored-route'} id="colored-route" type="geojson" data={coloredSegments}>
+                  <Source id="colored-route" type="geojson" data={coloredSegments}>
                     <Layer
                       id="route-colored"
                       type="line"
@@ -2070,7 +2093,7 @@ function RouteBuilder() {
 
                 {/* Route line */}
                 {routeGeoJSON && !coloredSegments && (
-                  <Source key={routeName || 'route'} id="route" type="geojson" data={routeGeoJSON}>
+                  <Source id="route" type="geojson" data={routeGeoJSON}>
                     <Layer
                       id="route-line"
                       type="line"
@@ -2948,7 +2971,7 @@ function RouteBuilder() {
 
               {/* Render colored route segments when workout is selected */}
               {coloredSegments && (
-                <Source key={routeName || 'colored-route'} id="colored-route" type="geojson" data={coloredSegments}>
+                <Source id="colored-route" type="geojson" data={coloredSegments}>
                   <Layer
                     id="route-colored"
                     type="line"
@@ -2963,7 +2986,7 @@ function RouteBuilder() {
 
               {/* Render route line (shown when no workout selected, or as outline) */}
               {routeGeoJSON && !coloredSegments && (
-                <Source key={routeName || 'route'} id="route" type="geojson" data={routeGeoJSON}>
+                <Source id="route" type="geojson" data={routeGeoJSON}>
                   <Layer
                     id="route-line"
                     type="line"
