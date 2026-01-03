@@ -1068,9 +1068,11 @@ async function backfillGpsData(req, res, userId) {
         console.log(`📤 Requesting backfill for ${recentDates.length} activities (${skippedOldActivities} too old)`);
         console.log(`   Date range: ${oldestDate.toISOString()} to ${newestDate.toISOString()}`);
 
-        // Request activity files backfill from Garmin
+        // Request ACTIVITY FILES backfill from Garmin (NOT activityDetails!)
+        // activityFiles triggers ACTIVITY_FILE_DATA webhook with FIT file callbackURL
+        // activityDetails does NOT include FIT file URLs
         try {
-          const backfillUrl = `${GARMIN_API_BASE}/backfill/activityDetails?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
+          const backfillUrl = `${GARMIN_API_BASE}/backfill/activityFiles?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
 
           const backfillResponse = await fetch(backfillUrl, {
             method: 'GET',
