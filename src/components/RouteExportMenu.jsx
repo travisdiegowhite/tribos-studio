@@ -122,7 +122,11 @@ export function RouteExportMenu({
           autoClose: 5000,
         });
       } else {
-        throw new Error(result.error || 'Failed to send route');
+        // Include details from Garmin if available
+        const errorMsg = result.details
+          ? `${result.error}: ${result.details}`
+          : result.error || 'Failed to send route';
+        throw new Error(errorMsg);
       }
     } catch (error) {
       console.error('Send to Garmin failed:', error);
@@ -139,6 +143,7 @@ export function RouteExportMenu({
           title: 'Send Failed',
           message: error.message || 'Failed to send route to Garmin',
           color: 'red',
+          autoClose: 10000, // Show longer so user can read
         });
       }
     } finally {
