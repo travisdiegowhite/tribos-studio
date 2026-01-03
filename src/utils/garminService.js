@@ -302,12 +302,18 @@ export class GarminService {
         })
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to push route to Garmin');
+        // Return the full error data so caller can access details
+        return {
+          success: false,
+          error: data.error || 'Failed to push route to Garmin',
+          details: data.details,
+          garminStatus: data.garminStatus
+        };
       }
 
-      const data = await response.json();
       return data;
     } catch (error) {
       console.error('Error pushing route to Garmin:', error);
