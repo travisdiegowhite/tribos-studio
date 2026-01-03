@@ -773,8 +773,8 @@ async function pushRoute(req, res, userId, routeData) {
     const courseData = buildCoursePayload(routeData);
 
     // Upload course to Garmin Connect
-    // Garmin Course API endpoint (JSON format)
-    const courseUploadUrl = 'https://apis.garmin.com/course-api/course';
+    // Garmin Training API - Courses endpoint (from official docs)
+    const courseUploadUrl = 'https://apis.garmin.com/training-api/courses/v1/course';
 
     console.log('Uploading course to Garmin:', routeData.name, `(${courseData.geoPoints.length} points)`);
 
