@@ -357,16 +357,17 @@ async function geocodeWaypoint(waypointName, proximityLocation) {
     }
 
     const encodedName = encodeURIComponent(searchName);
-    let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedName}.json?access_token=${MAPBOX_TOKEN}&country=US&types=place,locality,address,poi,neighborhood`;
+    // Prioritize neighborhood and place types - put them first
+    let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedName}.json?access_token=${MAPBOX_TOKEN}&country=US&types=neighborhood,place,locality,poi`;
 
     // Add proximity bias and bounding box if we have a user location
     if (proximityLocation) {
       url += `&proximity=${proximityLocation[0]},${proximityLocation[1]}`;
 
-      // Add bounding box around the user (about 100 miles / 160km radius)
+      // Add tighter bounding box around the user (about 50 miles / 80km radius)
       const lng = proximityLocation[0];
       const lat = proximityLocation[1];
-      const radius = 1.5; // degrees, roughly 100 miles
+      const radius = 0.75; // degrees, roughly 50 miles - tighter to avoid far-away matches
       const bbox = `${lng - radius},${lat - radius},${lng + radius},${lat + radius}`;
       url += `&bbox=${bbox}`;
     }
@@ -377,23 +378,73 @@ async function geocodeWaypoint(waypointName, proximityLocation) {
     const data = await response.json();
 
     if (data.features && data.features.length > 0) {
-      const feature = data.features[0];
+      // Score results to find the best match
+      const scoredResults = data.features.map(feature => {
+        let score = 0;
+        const placeName = feature.place_name.toLowerCase();
+        const searchLower = waypointName.toLowerCase().replace(/,?\s*(co|colorado)$/i, '').trim();
 
-      // Verify the result is reasonably close to the user (within ~200km)
+        // Strong bonus if the place name starts with or closely matches our search term
+        if (placeName.startsWith(searchLower)) {
+          score += 50;
+        } else if (placeName.includes(searchLower + ',')) {
+          // The search term is a distinct part of the name (e.g., "Jamestown, Colorado")
+          score += 40;
+        } else if (placeName.includes(searchLower)) {
+          score += 20;
+        }
+
+        // Bonus for neighborhood and place types (more likely to be what user means)
+        if (feature.place_type?.includes('neighborhood')) score += 30;
+        if (feature.place_type?.includes('place')) score += 25;
+        if (feature.place_type?.includes('locality')) score += 20;
+
+        // Penalize if the name has extra words before the search term
+        // e.g., "North Boulder County Hill Cutoff" vs "North Boulder"
+        const nameWords = feature.text?.toLowerCase().split(/\s+/) || [];
+        const searchWords = searchLower.split(/\s+/);
+        if (nameWords.length > searchWords.length + 1) {
+          score -= 15; // Penalize overly long/complex names
+        }
+
+        // Proximity bonus - closer is better
+        if (proximityLocation) {
+          const [resultLng, resultLat] = feature.center;
+          const distance = Math.sqrt(
+            Math.pow(resultLng - proximityLocation[0], 2) +
+            Math.pow(resultLat - proximityLocation[1], 2)
+          );
+          // Closer results get higher score (max 20 points for being very close)
+          score += Math.max(0, 20 - distance * 20);
+        }
+
+        return { feature, score };
+      });
+
+      // Sort by score (highest first) and pick the best
+      scoredResults.sort((a, b) => b.score - a.score);
+
+      console.log(`📊 Geocoding candidates for "${waypointName}":`,
+        scoredResults.slice(0, 3).map(r => `${r.feature.place_name} (score: ${r.score.toFixed(1)})`));
+
+      const bestResult = scoredResults[0];
+      const feature = bestResult.feature;
+
+      // Verify the result is reasonably close to the user (within ~100km)
       if (proximityLocation) {
         const [resultLng, resultLat] = feature.center;
         const distance = Math.sqrt(
           Math.pow(resultLng - proximityLocation[0], 2) +
           Math.pow(resultLat - proximityLocation[1], 2)
         );
-        // If result is more than 2 degrees away (~220km), it's probably wrong
-        if (distance > 2) {
-          console.warn(`⚠️ Geocoded result for "${waypointName}" is too far away (${distance.toFixed(1)}° from user), skipping`);
+        // If result is more than 1 degree away (~110km), it's probably wrong
+        if (distance > 1) {
+          console.warn(`⚠️ Geocoded result for "${waypointName}" is too far away (${distance.toFixed(2)}° from user), skipping`);
           return null;
         }
       }
 
-      console.log(`✅ Geocoded "${waypointName}" to: ${feature.place_name}`);
+      console.log(`✅ Geocoded "${waypointName}" to: ${feature.place_name} (score: ${bestResult.score.toFixed(1)})`);
       return {
         coordinates: feature.center, // [lng, lat]
         name: feature.place_name
