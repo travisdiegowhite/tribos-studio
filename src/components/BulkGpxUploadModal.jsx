@@ -37,6 +37,7 @@ import {
   IconFolderOpen,
   IconFiles,
   IconAlertTriangle,
+  IconRefresh,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -56,6 +57,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   const [parsedActivities, setParsedActivities] = useState([]);
   const [error, setError] = useState(null);
   const [results, setResults] = useState(null);
+  const [backfillCsv, setBackfillCsv] = useState(null);
+  const [backfillResults, setBackfillResults] = useState(null);
 
   /**
    * Determine file type from filename
@@ -141,6 +144,225 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
     return activityNames;
   };
+
+  /**
+   * Handle backfill - update existing activity names from activities.csv
+   */
+  const handleBackfillNames = async () => {
+    if (!user || !backfillCsv) return;
+
+    setUploading(true);
+    setProgress(0);
+    setError(null);
+    setBackfillResults(null);
+
+    try {
+      // Parse the CSV content
+      const activityNames = parseActivitiesCsv(backfillCsv.content);
+      const entries = Object.entries(activityNames);
+
+      if (entries.length === 0) {
+        setError('No activity names found in the CSV file');
+        setUploading(false);
+        return;
+      }
+
+      setCurrentFile(`Found ${entries.length} activities to match...`);
+
+      // Get all user's activities with date-based or generic names
+      const { data: existingActivities, error: fetchError } = await supabase
+        .from('activities')
+        .select('id, name, start_date, distance')
+        .eq('user_id', user.id)
+        .order('start_date', { ascending: false });
+
+      if (fetchError) {
+        throw new Error(`Failed to fetch activities: ${fetchError.message}`);
+      }
+
+      const results = {
+        updated: [],
+        notFound: [],
+        alreadyCorrect: []
+      };
+
+      // For each activity in the CSV, try to find a matching activity by date
+      for (let i = 0; i < entries.length; i++) {
+        const [activityId, newName] = entries[i];
+        setProgress(Math.round((i / entries.length) * 100));
+        setCurrentFile(`Matching: ${newName.substring(0, 40)}...`);
+
+        // Find matching activity by date (within 2 minutes) and similar distance (±10%)
+        // We need to look up the activity date from the CSV - but we only have the name
+        // So we'll match by checking if the current name looks like it was auto-generated
+
+        // Find activities that have date-based names or generic FIT names
+        const matchingActivities = existingActivities.filter(act => {
+          // Check if name looks auto-generated (date-based or generic)
+          const isDateBased = /^(Cycling|Running|Swimming|Walking|Hiking) - (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), [A-Z][a-z]+ \d+, \d{4}$/.test(act.name);
+          const isGenericFit = /^(FIT Activity|.+ Activity)$/.test(act.name);
+          const isGenericGpx = /^\d+$/.test(act.name); // Just a number
+
+          return isDateBased || isGenericFit || isGenericGpx;
+        });
+
+        // For now, just update activities that have the exact same auto-generated name pattern
+        // A more sophisticated approach would use the activities.csv date column
+
+        // Skip if no generic-named activities to update
+        if (matchingActivities.length === 0) {
+          continue;
+        }
+
+        // Try to find by activity ID embedded in provider_activity_id or by date matching
+        // For FIT imports, we need to find by date since we don't have the Strava ID
+        // Check if any activity was uploaded around the same time
+
+        // For simplicity, we'll update based on the order of activities
+        // This works if the user re-uploads the same export they originally imported
+      }
+
+      // Alternative approach: Update ALL activities with generic names using the CSV
+      // by matching the date from the CSV to the activity date
+
+      // Parse dates from activities.csv if available
+      const lines = backfillCsv.content.split('\n');
+      const header = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+      const dateIndex = header.findIndex(h => h === 'activity date' || h === 'date');
+      const filenameIndex = header.findIndex(h => h === 'filename');
+      const nameIndex = header.findIndex(h => h === 'activity name' || h === 'name');
+
+      if (dateIndex !== -1 && nameIndex !== -1) {
+        // We can match by date!
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          // Parse the CSV line properly (handling quoted fields)
+          const values = [];
+          let current = '';
+          let inQuotes = false;
+          for (const char of line) {
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              values.push(current.trim().replace(/^"|"$/g, ''));
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          values.push(current.trim().replace(/^"|"$/g, ''));
+
+          const activityName = values[nameIndex];
+          const activityDate = values[dateIndex];
+
+          if (!activityName || !activityDate) continue;
+
+          // Parse the date (Strava format: "Jan 5, 2026, 10:30:00 AM" or ISO format)
+          let parsedDate;
+          try {
+            parsedDate = new Date(activityDate);
+            if (isNaN(parsedDate.getTime())) continue;
+          } catch {
+            continue;
+          }
+
+          // Find matching activity by date (within 5 minutes)
+          const matchWindow = 5 * 60 * 1000; // 5 minutes in ms
+          const matching = existingActivities.find(act => {
+            const actDate = new Date(act.start_date);
+            const diff = Math.abs(actDate.getTime() - parsedDate.getTime());
+            return diff < matchWindow;
+          });
+
+          if (matching) {
+            if (matching.name === activityName) {
+              results.alreadyCorrect.push({ name: activityName });
+            } else {
+              // Update the activity name
+              const { error: updateError } = await supabase
+                .from('activities')
+                .update({ name: activityName, updated_at: new Date().toISOString() })
+                .eq('id', matching.id);
+
+              if (!updateError) {
+                results.updated.push({
+                  oldName: matching.name,
+                  newName: activityName
+                });
+                // Remove from existing so we don't match it again
+                const idx = existingActivities.indexOf(matching);
+                if (idx > -1) existingActivities.splice(idx, 1);
+              }
+            }
+          } else {
+            results.notFound.push({ name: activityName, date: activityDate });
+          }
+        }
+      }
+
+      setProgress(100);
+      setCurrentFile('');
+      setBackfillResults(results);
+
+      if (results.updated.length > 0) {
+        notifications.show({
+          title: 'Names Updated',
+          message: `Updated ${results.updated.length} activity name${results.updated.length === 1 ? '' : 's'}`,
+          color: 'green',
+          icon: <IconCheck size={16} />,
+        });
+        onUploadComplete?.({ backfillUpdated: results.updated.length });
+      }
+
+    } catch (err) {
+      console.error('Backfill error:', err);
+      setError(err.message || 'Failed to backfill names');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  /**
+   * Handle file selection for backfill (ZIP or CSV)
+   */
+  const handleBackfillFileSelect = useCallback(async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    setBackfillResults(null);
+
+    try {
+      if (file.name.toLowerCase().endsWith('.zip')) {
+        // Extract activities.csv from ZIP
+        const zip = await JSZip.loadAsync(file);
+
+        for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+          if (zipEntry.dir) continue;
+          const fileName = relativePath.split('/').pop().toLowerCase();
+          if (fileName === 'activities.csv') {
+            const content = await zipEntry.async('string');
+            setBackfillCsv({ name: 'activities.csv', content });
+            setActiveTab('backfill');
+            return;
+          }
+        }
+        setError('No activities.csv found in ZIP file');
+      } else if (file.name.toLowerCase().endsWith('.csv')) {
+        // Direct CSV file
+        const content = await file.text();
+        setBackfillCsv({ name: file.name, content });
+        setActiveTab('backfill');
+      } else {
+        setError('Please select a Strava export ZIP or activities.csv file');
+      }
+    } catch (err) {
+      console.error('Error reading file:', err);
+      setError('Failed to read file');
+    }
+  }, []);
 
   /**
    * Extract activity files from a Strava export zip
@@ -509,6 +731,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     setProgress(0);
     setCurrentFile('');
     setActiveTab('guide');
+    setBackfillCsv(null);
+    setBackfillResults(null);
   };
 
   const handleClose = () => {
@@ -557,6 +781,12 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
             ) : null}
           >
             Upload Files
+          </Tabs.Tab>
+          <Tabs.Tab
+            value="backfill"
+            leftSection={<IconRefresh size={16} />}
+          >
+            Fix Names
           </Tabs.Tab>
         </Tabs.List>
 
@@ -937,6 +1167,166 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                     loading={uploading}
                   >
                     Import {selectedFiles.length > 0 ? `${selectedFiles.length} Files` : 'Activities'}
+                  </Button>
+                </>
+              )}
+            </Group>
+          </Stack>
+        </Tabs.Panel>
+
+        {/* BACKFILL TAB */}
+        <Tabs.Panel value="backfill">
+          <Stack gap="md">
+            <Alert
+              icon={<IconRefresh size={18} />}
+              color="blue"
+              variant="light"
+            >
+              Already imported activities with date-based names like "Cycling - Monday, Jan 5, 2026"?
+              Upload your Strava export again to fix the names.
+            </Alert>
+
+            {/* Drop Zone for Backfill */}
+            <Paper
+              withBorder
+              p="xl"
+              style={{
+                borderStyle: 'dashed',
+                backgroundColor: 'var(--mantine-color-dark-7)',
+                cursor: uploading ? 'not-allowed' : 'pointer',
+                textAlign: 'center',
+                opacity: uploading ? 0.6 : 1
+              }}
+              onClick={() => !uploading && document.getElementById('backfill-file-input').click()}
+            >
+              <input
+                id="backfill-file-input"
+                type="file"
+                accept=".zip,.csv"
+                style={{ display: 'none' }}
+                onChange={handleBackfillFileSelect}
+                disabled={uploading}
+              />
+              <Stack align="center" gap="xs">
+                <ThemeIcon size={48} variant="light" color="blue">
+                  <IconRefresh size={24} />
+                </ThemeIcon>
+                <Text fw={500}>
+                  {backfillCsv ? backfillCsv.name : 'Drop your Strava export ZIP here'}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  We'll read the activities.csv to update your activity names
+                </Text>
+              </Stack>
+            </Paper>
+
+            {/* Error */}
+            {error && (
+              <Alert color="red" icon={<IconX size={16} />}>
+                {error}
+              </Alert>
+            )}
+
+            {/* CSV Preview */}
+            {backfillCsv && !backfillResults && (
+              <Paper withBorder p="sm">
+                <Group gap="xs" mb="xs">
+                  <IconCheck size={16} color="var(--mantine-color-green-5)" />
+                  <Text size="sm" fw={500}>Ready to update names</Text>
+                </Group>
+                <Text size="sm" c="dimmed">
+                  Found {backfillCsv.name}. Click the button below to match activities
+                  by date and update their names.
+                </Text>
+              </Paper>
+            )}
+
+            {/* Progress */}
+            {uploading && (
+              <Paper withBorder p="sm">
+                <Text size="sm" mb="xs">
+                  Updating names... {currentFile}
+                </Text>
+                <Progress value={progress} animated color="blue" />
+                <Text size="xs" c="dimmed" mt="xs" ta="center">
+                  {Math.round(progress)}% complete
+                </Text>
+              </Paper>
+            )}
+
+            {/* Results */}
+            {backfillResults && (
+              <Paper withBorder p="md">
+                <Stack gap="sm">
+                  <Text fw={600}>Update Results</Text>
+
+                  <SimpleGrid cols={3} spacing="xs">
+                    <Paper p="xs" bg="green.9" style={{ textAlign: 'center' }}>
+                      <Text size="lg" fw={700} c="green.3">{backfillResults.updated.length}</Text>
+                      <Text size="xs" c="green.5">Updated</Text>
+                    </Paper>
+                    <Paper p="xs" bg="blue.9" style={{ textAlign: 'center' }}>
+                      <Text size="lg" fw={700} c="blue.3">{backfillResults.alreadyCorrect.length}</Text>
+                      <Text size="xs" c="blue.5">Already Correct</Text>
+                    </Paper>
+                    <Paper p="xs" bg="gray.8" style={{ textAlign: 'center' }}>
+                      <Text size="lg" fw={700} c="gray.3">{backfillResults.notFound.length}</Text>
+                      <Text size="xs" c="gray.5">Not Found</Text>
+                    </Paper>
+                  </SimpleGrid>
+
+                  {backfillResults.updated.length > 0 && (
+                    <Accordion variant="contained" defaultValue="updated">
+                      <Accordion.Item value="updated">
+                        <Accordion.Control icon={<IconCheck size={16} />}>
+                          Updated Names ({backfillResults.updated.length})
+                        </Accordion.Control>
+                        <Accordion.Panel>
+                          <ScrollArea h={backfillResults.updated.length > 5 ? 150 : 'auto'}>
+                            <List size="xs" spacing={4}>
+                              {backfillResults.updated.slice(0, 50).map((item, index) => (
+                                <List.Item key={index}>
+                                  <Text size="xs">
+                                    <Text span c="dimmed" td="line-through">{item.oldName}</Text>
+                                    <Text span> → </Text>
+                                    <Text span fw={500}>{item.newName}</Text>
+                                  </Text>
+                                </List.Item>
+                              ))}
+                            </List>
+                          </ScrollArea>
+                        </Accordion.Panel>
+                      </Accordion.Item>
+                    </Accordion>
+                  )}
+                </Stack>
+              </Paper>
+            )}
+
+            {/* Actions */}
+            <Group justify="flex-end" gap="sm">
+              {backfillResults ? (
+                <>
+                  <Button variant="subtle" onClick={resetModal}>
+                    Start Over
+                  </Button>
+                  <Button color="blue" onClick={handleClose}>
+                    Done
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="subtle" onClick={handleClose} disabled={uploading}>
+                    Cancel
+                  </Button>
+                  <Button
+                    color="blue"
+                    leftSection={<IconRefresh size={16} />}
+                    onClick={handleBackfillNames}
+                    disabled={!backfillCsv || uploading}
+                    loading={uploading}
+                  >
+                    Update Activity Names
                   </Button>
                 </>
               )}
