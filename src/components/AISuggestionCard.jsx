@@ -13,6 +13,8 @@ import DifficultyBadge from './DifficultyBadge';
  * @param {boolean} isConverting - Whether this suggestion is being converted
  * @param {boolean} isDisabled - Whether all cards are disabled (another is converting)
  * @param {function} onSelect - Callback when card is selected
+ * @param {function} formatDistance - Function to format distance values
+ * @param {function} formatElevation - Function to format elevation values
  */
 function AISuggestionCard({
   suggestion,
@@ -20,6 +22,8 @@ function AISuggestionCard({
   isConverting,
   isDisabled,
   onSelect,
+  formatDistance,
+  formatElevation,
 }) {
   const handleClick = (e) => {
     e.stopPropagation();
@@ -105,7 +109,7 @@ function AISuggestionCard({
             <IconRuler size={14} style={{ color: metricColor }} />
             <Text size="xs" fw={600} style={{ color: metricColor }}>
               {typeof suggestion.distance === 'number'
-                ? `${suggestion.distance.toFixed(1)} km`
+                ? (formatDistance ? formatDistance(suggestion.distance) : `${suggestion.distance.toFixed(1)} km`)
                 : suggestion.distance}
             </Text>
           </Box>
@@ -123,7 +127,7 @@ function AISuggestionCard({
             >
               <IconMountain size={14} style={{ color: metricColor }} />
               <Text size="xs" fw={600} style={{ color: metricColor }}>
-                {suggestion.elevationGain}m ↗
+                {formatElevation ? formatElevation(suggestion.elevationGain) : `${suggestion.elevationGain}m`} ↗
               </Text>
             </Box>
           )}

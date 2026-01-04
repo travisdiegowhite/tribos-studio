@@ -710,8 +710,14 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
   };
 
-  // Format distance - use prop if provided, otherwise default to simple format
-  const formatDistance = formatDistanceProp || ((km) => `${km?.toFixed(1) || 0} km`);
+  // Format distance - use prop if provided, otherwise use isImperial to format
+  const formatDistance = formatDistanceProp || ((km) => {
+    if (!km) return isImperial ? '0 mi' : '0 km';
+    if (isImperial) {
+      return `${(km * 0.621371).toFixed(1)} mi`;
+    }
+    return `${km.toFixed(1)} km`;
+  });
 
   const days = getDaysInMonth();
   const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });

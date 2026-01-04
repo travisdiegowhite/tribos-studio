@@ -142,6 +142,7 @@ const RideAnalysisModal = ({
   ftp,
   formatDistance,
   formatElevation,
+  formatSpeed,
   onBackfillGps,
   isBackfilling = false,
 }) => {
@@ -523,7 +524,7 @@ const RideAnalysisModal = ({
                 <Paper p="sm" withBorder>
                   <Box>
                     <Text size="xs" c="dimmed">Avg Speed</Text>
-                    <Text fw={600}>{metrics.avgSpeed.toFixed(1)} km/h</Text>
+                    <Text fw={600}>{formatSpeed ? formatSpeed(metrics.avgSpeed) : `${metrics.avgSpeed.toFixed(1)} km/h`}</Text>
                   </Box>
                 </Paper>
               )}

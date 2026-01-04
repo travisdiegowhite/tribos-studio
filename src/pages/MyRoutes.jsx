@@ -24,6 +24,8 @@ import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { listRoutes, deleteRoute, getRoute } from '../utils/routesService';
+import { formatDistance, formatElevation } from '../utils/units';
+import { supabase } from '../lib/supabase';
 import { exportAndDownloadRoute } from '../utils/routeExport';
 import { garminService } from '../utils/garminService';
 
@@ -37,6 +39,12 @@ function MyRoutes() {
   const [filterType, setFilterType] = useState('all'); // 'all', 'ai', 'manual'
   const [garminConnected, setGarminConnected] = useState(false);
   const [sendingToGarmin, setSendingToGarmin] = useState(null); // Track which route is being sent
+  const [unitsPreference, setUnitsPreference] = useState('imperial');
+
+  // Unit formatting helpers
+  const isImperial = unitsPreference === 'imperial';
+  const formatDist = (km) => formatDistance(km, isImperial);
+  const formatElev = (m) => formatElevation(m, isImperial);
 
   // Filter routes based on search and filter type
   const filteredRoutes = routes.filter(route => {
@@ -53,6 +61,26 @@ function MyRoutes() {
 
     return matchesSearch && matchesType;
   });
+
+  // Load user's units preference
+  useEffect(() => {
+    const loadUnitsPreference = async () => {
+      if (!user) return;
+      try {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('units_preference')
+          .eq('id', user.id)
+          .single();
+        if (data?.units_preference) {
+          setUnitsPreference(data.units_preference);
+        }
+      } catch (err) {
+        console.error('Failed to load units preference:', err);
+      }
+    };
+    loadUnitsPreference();
+  }, [user]);
 
   // Load routes on mount
   useEffect(() => {
@@ -511,7 +539,7 @@ function MyRoutes() {
                           Distance
                         </Text>
                         <Text fw={600} style={{ color: tokens.colors.electricLime }}>
-                          {route.distance_km?.toFixed(1) || '--'} km
+                          {route.distance_km ? formatDist(route.distance_km) : '--'}
                         </Text>
                       </Box>
                       <Box>
@@ -519,7 +547,7 @@ function MyRoutes() {
                           Elevation
                         </Text>
                         <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
-                          {route.elevation_gain_m || '--'}m
+                          {route.elevation_gain_m ? formatElev(route.elevation_gain_m) : '--'}
                         </Text>
                       </Box>
                       <Box>

@@ -1216,7 +1216,7 @@ function RouteBuilder() {
 
         notifications.show({
           title: 'Route Selected!',
-          message: `${(suggestion.distance || 0).toFixed(1)} km - ${suggestion.name}`,
+          message: `${formatDist(suggestion.distance || 0)} - ${suggestion.name}`,
           color: 'lime',
           autoClose: 3000
         });
@@ -1963,11 +1963,11 @@ function RouteBuilder() {
                   </Group>
                   <Group gap={6}>
                     <Badge size="xs" variant="light" color="gray">
-                      {typeof suggestion.distance === 'number' ? `${suggestion.distance.toFixed(1)} km` : suggestion.distance}
+                      {typeof suggestion.distance === 'number' ? formatDist(suggestion.distance) : suggestion.distance}
                     </Badge>
                     {suggestion.elevationGain > 0 && (
                       <Badge size="xs" variant="light" color="gray">
-                        {suggestion.elevationGain}m ↗
+                        {formatElev(suggestion.elevationGain)} ↗
                       </Badge>
                     )}
                     {suggestion.estimatedTime && (
@@ -2644,6 +2644,8 @@ function RouteBuilder() {
                         isConverting={convertingRoute === index}
                         isDisabled={convertingRoute !== null}
                         onSelect={handleSelectAISuggestion}
+                        formatDistance={formatDist}
+                        formatElevation={formatElev}
                       />
                     ))}
                   </Stack>

@@ -143,6 +143,7 @@ function TrainingDashboard() {
   // Format functions using preference
   const formatDist = (km) => formatDistance(km, isImperial);
   const formatElev = (m) => formatElevation(m, isImperial);
+  const formatSpd = (kmh) => formatSpeed(kmh, isImperial);
 
   // Filter out hidden activities for stats/calculations
   const visibleActivities = useMemo(() =>
@@ -1046,6 +1047,7 @@ function TrainingDashboard() {
         ftp={ftp}
         formatDistance={formatDist}
         formatElevation={formatElev}
+        formatSpeed={formatSpd}
       />
     </AppShell>
   );
