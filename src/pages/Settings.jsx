@@ -34,6 +34,7 @@ import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
 import { TIMEZONE_OPTIONS, getBrowserTimezone, getTimezoneOffset } from '../utils/timezoneUtils';
+import { formatSpeed } from '../utils/units';
 
 function Settings() {
   const { user, signOut } = useAuth();
@@ -1262,7 +1263,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
               {speedProfile ? (
                 <Stack gap={4}>
                   <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
-                    {speedProfile.rides_analyzed} rides analyzed • Avg: {speedProfile.average_speed?.toFixed(1)} km/h
+                    {speedProfile.rides_analyzed} rides analyzed • Avg: {formatSpeed(speedProfile.average_speed, unitsPreference === 'imperial')}
                   </Text>
                   {isStrava && <PoweredByStrava variant="light" size="sm" />}
                 </Stack>

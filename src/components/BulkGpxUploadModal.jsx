@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Modal,
   Stack,
@@ -43,6 +43,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parseGpxFile, gpxToActivityFormat } from '../utils/gpxParser';
 import { parseFitFile, fitToActivityFormat } from '../utils/fitParser';
+import { formatDistance as formatDistanceUnit, formatElevation as formatElevationUnit } from '../utils/units';
 import JSZip from 'jszip';
 import pako from 'pako';
 
@@ -56,6 +57,30 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   const [parsedActivities, setParsedActivities] = useState([]);
   const [error, setError] = useState(null);
   const [results, setResults] = useState(null);
+  const [unitsPreference, setUnitsPreference] = useState('imperial');
+
+  // Load user's units preference
+  useEffect(() => {
+    const loadUnitsPreference = async () => {
+      if (!user) return;
+      try {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('units_preference')
+          .eq('id', user.id)
+          .single();
+        if (data?.units_preference) {
+          setUnitsPreference(data.units_preference);
+        }
+      } catch (err) {
+        console.error('Failed to load units preference:', err);
+      }
+    };
+    loadUnitsPreference();
+  }, [user]);
+
+  // Unit formatting helpers
+  const isImperial = unitsPreference === 'imperial';
 
   /**
    * Determine file type from filename
@@ -493,12 +518,12 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
   const formatDistance = (km) => {
     if (!km) return '--';
-    return `${km.toFixed(1)} km`;
+    return formatDistanceUnit(km, isImperial);
   };
 
   const formatElevation = (m) => {
     if (!m && m !== 0) return '--';
-    return `${Math.round(m)} m`;
+    return formatElevationUnit(m, isImperial);
   };
 
   const resetModal = () => {
