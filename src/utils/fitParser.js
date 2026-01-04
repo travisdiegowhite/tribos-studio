@@ -333,15 +333,20 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
  * @param {Object} fitData - Parsed FIT file data
  * @param {string} userId - User ID for the activity
  * @param {string} [fileName] - Optional original filename for better naming
+ * @param {string} [stravaActivityName] - Optional actual Strava activity name from activities.csv
  */
-export function fitToActivityFormat(fitData, userId, fileName = null) {
+export function fitToActivityFormat(fitData, userId, fileName = null, stravaActivityName = null) {
   const { metadata, summary, trackPoints, laps } = fitData;
 
-  // Generate a better activity name
+  // Generate activity name - prefer Strava activity name if provided
   let activityName = metadata.name;
 
-  // If we have a filename and the metadata name is generic, try to create a better name
-  if (fileName && (activityName === 'FIT Activity' || activityName.endsWith(' Activity'))) {
+  // Use actual Strava activity name if provided (from activities.csv)
+  if (stravaActivityName) {
+    activityName = stravaActivityName;
+  }
+  // Otherwise, if we have a filename and the metadata name is generic, try to create a better name
+  else if (fileName && (activityName === 'FIT Activity' || activityName.endsWith(' Activity'))) {
     // Clean up the filename - remove extension and path
     let cleanName = fileName.replace(/\.(fit|fit\.gz)$/i, '').split('/').pop();
 
