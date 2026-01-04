@@ -939,15 +939,18 @@ async function markEventProcessed(eventId, error = null, activityId = null) {
 }
 
 /**
- * Request activity FILES backfill from Garmin for a specific activity
- * This triggers Garmin to send an ACTIVITY_FILE_DATA webhook with FIT file callbackURL
+ * Request activity backfill from Garmin for a specific activity
+ * This triggers Garmin to send PING notifications including activityFiles with FIT file callbackURL
  *
  * Called when we receive a PUSH notification without GPS data.
  *
- * IMPORTANT: We request activityFiles (not activityDetails) because:
- * - activityDetails only contains summary data (no FIT file URL)
- * - activityFiles triggers ACTIVITY_FILE_DATA webhook with callbackURL for FIT download
- * - The FIT file contains the actual GPS track points
+ * IMPORTANT from Garmin API docs (Section 8 - Summary Backfill):
+ * - There is NO /backfill/activityFiles endpoint (returns 404)
+ * - /backfill/activities handles BOTH activity summaries AND activity files
+ * - Quote: "Resource URL for activity summaries and activity files"
+ * - Garmin sends activityFiles PING notification with callbackURL for FIT download
+ * - The callbackURL is valid for 24 hours only
+ * - Duplicate downloads are rejected with HTTP 410
  *
  * @param {string} accessToken - Valid Garmin access token
  * @param {number} startTimeInSeconds - Activity start time (epoch seconds)
@@ -965,11 +968,12 @@ async function requestActivityDetailsBackfill(accessToken, startTimeInSeconds) {
     const startTimestamp = startTimeInSeconds - 3600; // 1 hour before
     const endTimestamp = startTimeInSeconds + 7200;   // 2 hours after (covers long activities)
 
-    // Request ACTIVITY FILES - this is the endpoint that sends FIT file download URLs
-    // The activityDetails endpoint does NOT include FIT file URLs!
-    const backfillUrl = `https://apis.garmin.com/wellness-api/rest/backfill/activityFiles?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
+    // Use /backfill/activities - this is the ONLY backfill endpoint for activity files
+    // Per Garmin docs Section 8: "Resource URL for activity summaries and activity files"
+    // This will trigger activityFiles PING notifications with callbackURL for FIT download
+    const backfillUrl = `https://apis.garmin.com/wellness-api/rest/backfill/activities?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
 
-    console.log('📤 Requesting activity FILES backfill for GPS data (FIT file)...');
+    console.log('📤 Requesting activity backfill (includes FIT files via PING)...');
     console.log(`   Time range: ${new Date(startTimestamp * 1000).toISOString()} to ${new Date(endTimestamp * 1000).toISOString()}`);
 
     const response = await fetch(backfillUrl, {
@@ -980,21 +984,21 @@ async function requestActivityDetailsBackfill(accessToken, startTimeInSeconds) {
       }
     });
 
-    // 202 = Accepted, backfill will be sent via webhook
-    // 409 = Already requested (also fine)
+    // 202 = Accepted, backfill will be sent via webhook (PING for files)
+    // 409 = Already requested (duplicate request for same time range)
     if (response.status === 202 || response.status === 409 || response.ok) {
-      console.log('✅ Activity FILES backfill requested - ACTIVITY_FILE_DATA webhook will arrive with FIT URL');
+      console.log('✅ Activity backfill requested - activityFiles PING will arrive with FIT callbackURL');
       return true;
     }
 
     // Log but don't throw - this is a best-effort enhancement
     const errorText = await response.text();
-    console.warn('⚠️ Activity files backfill request failed:', response.status, errorText.substring(0, 100));
+    console.warn('⚠️ Activity backfill request failed:', response.status, errorText.substring(0, 100));
     return false;
 
   } catch (error) {
     // Never throw - this is optional functionality
-    console.warn('⚠️ Could not request activity files backfill:', error.message);
+    console.warn('⚠️ Could not request activity backfill:', error.message);
     return false;
   }
 }
