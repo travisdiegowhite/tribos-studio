@@ -294,6 +294,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
   }, [messages]);
 
   const sendMessage = async () => {
+    console.log('TrainingStrategist: sendMessage called, input:', inputMessage, 'isLoading:', isLoading);
     if (!inputMessage.trim() || isLoading) return;
 
     const userMessage = inputMessage.trim();
@@ -385,7 +386,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
     }
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -736,7 +737,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
             placeholder="Ask strategist..."
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             disabled={isLoading}
             size="xs"
             style={{ flex: 1 }}
