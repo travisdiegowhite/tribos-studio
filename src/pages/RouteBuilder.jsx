@@ -1310,8 +1310,38 @@ function RouteBuilder() {
       if (parsed.routeType) setRouteType(parsed.routeType);
       if (parsed.preferences?.surfaceType === 'gravel') setRouteProfile('gravel');
 
-      // Step 4: Geocode each waypoint name to coordinates
-      const startLocation = [viewport.longitude, viewport.latitude];
+      // Step 4: Determine start location with priority:
+      // 1. User-placed waypoint on map (if any)
+      // 2. User's geolocated position
+      // 3. Viewport center (with warning)
+      let startLocation;
+      let startLocationSource = 'viewport';
+
+      if (waypoints.length > 0) {
+        // User has placed waypoints on the map - use the first one as start
+        startLocation = [waypoints[0].lng, waypoints[0].lat];
+        startLocationSource = 'waypoint';
+        console.log('📍 Using user-placed waypoint as start:', startLocation);
+      } else if (userLocation) {
+        // Use the user's geolocated position
+        startLocation = [userLocation.longitude, userLocation.latitude];
+        startLocationSource = 'geolocation';
+        console.log('📍 Using geolocated position as start:', startLocation);
+      } else {
+        // Fall back to viewport center with a warning
+        startLocation = [viewport.longitude, viewport.latitude];
+        startLocationSource = 'viewport';
+        console.warn('⚠️ No geolocation available, using viewport center as start:', startLocation);
+        notifications.show({
+          id: 'location-fallback-warning',
+          title: 'Using Map Center as Start',
+          message: 'Your location could not be determined. The route will start from the center of your current map view. Click the location button or place a waypoint to set a specific start point.',
+          color: 'yellow',
+          icon: <IconCurrentLocation size={16} />,
+          autoClose: 8000
+        });
+      }
+
       let waypointCoords = [];
       let routeDescription = '';
 
