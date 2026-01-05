@@ -527,7 +527,7 @@ function RouteBuilder() {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [convertingRoute, setConvertingRoute] = useState(null); // Index of suggestion being converted
   const [naturalLanguageInput, setNaturalLanguageInput] = useState('');
-  const [useIterativeBuilder, setUseIterativeBuilder] = useState(false); // New iterative route builder approach
+  const [useIterativeBuilder, setUseIterativeBuilder] = useState(true); // Iterative route builder - enabled by default
 
   // Speed profile from Strava sync (fetched fresh)
   const [speedProfile, setSpeedProfile] = useState(null);
