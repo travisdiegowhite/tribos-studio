@@ -35,6 +35,7 @@ import BikeInfrastructureLayer from '../components/BikeInfrastructureLayer.jsx';
 import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
 import { fetchBikeInfrastructure } from '../utils/bikeInfrastructureService';
 import RouteExportMenu from '../components/RouteExportMenu.jsx';
+import MapControls from '../components/MapControls.jsx';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -2296,6 +2297,18 @@ function RouteBuilder() {
             {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
               <BikeInfrastructureLegend visible={showBikeInfrastructure} />
             )}
+
+            {/* Map Controls */}
+            {MAPBOX_TOKEN && (
+              <MapControls
+                mapRef={mapRef}
+                viewport={viewport}
+                userLocation={userLocation}
+                routeGeometry={routeGeometry}
+                onGeolocate={handleGeolocate}
+                isLocating={isLocating}
+              />
+            )}
           </Box>
 
           {/* Bottom Sheet with controls */}
@@ -3096,6 +3109,18 @@ function RouteBuilder() {
           {/* Bike Infrastructure Legend */}
           {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
             <BikeInfrastructureLegend visible={showBikeInfrastructure} />
+          )}
+
+          {/* Map Controls */}
+          {MAPBOX_TOKEN && (
+            <MapControls
+              mapRef={mapRef}
+              viewport={viewport}
+              userLocation={userLocation}
+              routeGeometry={routeGeometry}
+              onGeolocate={handleGeolocate}
+              isLocating={isLocating}
+            />
           )}
 
           {/* Map Tutorial Overlay */}
