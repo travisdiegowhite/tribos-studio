@@ -286,6 +286,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
   }, [loadConversationHistory]);
 
   useEffect(() => {
+    console.log('TrainingStrategist: messages state changed, count:', messages.length, 'messages:', messages);
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
     }
