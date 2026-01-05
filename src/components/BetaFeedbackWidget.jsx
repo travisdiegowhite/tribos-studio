@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import {
   Modal,
   Button,
@@ -8,8 +7,6 @@ import {
   Stack,
   Text,
   Alert,
-  ActionIcon,
-  Tooltip,
   Box,
   Group,
   ThemeIcon,
@@ -26,16 +23,9 @@ import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
 
 /**
- * BetaFeedbackWidget
- *
- * Props:
- * - variant: 'floating' (default) | 'inline' | 'icon'
- *   - floating: Fixed position at bottom-right (hidden on route builder)
- *   - inline: Small button for use in toolbars/menus
- *   - icon: Just the icon button, no fixed positioning
+ * BetaFeedbackWidget - Feedback button for the app header
  */
-function BetaFeedbackWidget({ variant = 'floating' }) {
-  const location = useLocation();
+function BetaFeedbackWidget() {
   const [opened, setOpened] = useState(false);
   const [feedbackType, setFeedbackType] = useState('general');
   const [message, setMessage] = useState('');
@@ -133,78 +123,18 @@ function BetaFeedbackWidget({ variant = 'floating' }) {
   // Only show for authenticated users
   if (!user) return null;
 
-  // Hide floating button on route builder page (it's shown inline there)
-  const isRouteBuilder = location.pathname.startsWith('/route-builder');
-  if (variant === 'floating' && isRouteBuilder) return null;
-
-  // Render the trigger button based on variant
-  const renderTrigger = () => {
-    if (variant === 'floating') {
-      return (
-        <Tooltip label="Send Feedback" position="left" withArrow>
-          <ActionIcon
-            size="xl"
-            radius="xl"
-            variant="gradient"
-            gradient={{ from: 'blue', to: 'cyan' }}
-            onClick={() => setOpened(true)}
-            style={{
-              position: 'fixed',
-              bottom: '24px',
-              right: '24px',
-              zIndex: 999,
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-              width: '56px',
-              height: '56px',
-            }}
-          >
-            <IconMessageCircle size={24} />
-          </ActionIcon>
-        </Tooltip>
-      );
-    }
-
-    if (variant === 'inline') {
-      return (
-        <Tooltip label="Send Feedback">
-          <Button
-            variant="filled"
-            color="dark"
-            size="md"
-            onClick={() => setOpened(true)}
-            style={{
-              padding: '0 12px',
-              backgroundColor: tokens.colors.bgSecondary,
-              border: `1px solid ${tokens.colors.bgTertiary}`,
-            }}
-          >
-            <IconMessageCircle size={20} />
-          </Button>
-        </Tooltip>
-      );
-    }
-
-    // icon variant
-    return (
-      <Tooltip label="Send Feedback">
-        <ActionIcon
-          size="lg"
-          variant="subtle"
-          onClick={() => setOpened(true)}
-          style={{
-            backgroundColor: tokens.colors.bgSecondary,
-            border: `1px solid ${tokens.colors.bgTertiary}`,
-          }}
-        >
-          <IconMessageCircle size={18} />
-        </ActionIcon>
-      </Tooltip>
-    );
-  };
-
   return (
     <>
-      {renderTrigger()}
+      {/* Feedback Button */}
+      <Button
+        variant="light"
+        color="blue"
+        size="sm"
+        leftSection={<IconMessageCircle size={16} />}
+        onClick={() => setOpened(true)}
+      >
+        Feedback
+      </Button>
 
       {/* Feedback Modal */}
       <Modal

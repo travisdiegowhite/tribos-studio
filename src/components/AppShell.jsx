@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Box, Group, Text, UnstyledButton, Container, Tooltip, ActionIcon } from '@mantine/core';
+import { Box, Group, Text, UnstyledButton, Container } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import {
   IconHome,
@@ -7,7 +7,6 @@ import {
   IconChartBar,
   IconSettings,
   IconCalendarEvent,
-  IconMessageCircle,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
@@ -73,13 +72,13 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                     active={location.pathname === item.path || location.pathname.startsWith(item.path + '/')}
                   />
                 ))}
-                <BetaFeedbackWidget variant="icon" />
+                <BetaFeedbackWidget />
               </Group>
             )}
 
             {/* Mobile: Feedback button in header */}
             {isMobile && (
-              <BetaFeedbackWidget variant="icon" />
+              <BetaFeedbackWidget />
             )}
           </Group>
         </Container>

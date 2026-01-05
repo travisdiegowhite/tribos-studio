@@ -30,7 +30,6 @@ import AuthCallback from './pages/oauth/AuthCallback.jsx';
 import GoogleCalendarCallback from './pages/oauth/GoogleCalendarCallback.jsx';
 
 // Components
-import BetaFeedbackWidget from './components/BetaFeedbackWidget.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import PageTracker from './components/PageTracker.jsx';
 
@@ -195,7 +194,6 @@ function App() {
                 <BrowserRouter>
                   <PageTracker />
                   <AppRoutes />
-                  <BetaFeedbackWidget />
                 </BrowserRouter>
                 <Analytics />
                 <SpeedInsights />
