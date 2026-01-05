@@ -614,6 +614,11 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
       </UnstyledButton>
 
       <Collapse in={isExpanded}>
+        {/* DEBUG: Remove after fixing */}
+        <Box style={{ background: 'red', color: 'white', padding: 8, marginBottom: 8 }}>
+          DEBUG: messages={messages.length}, visible={visibleMessages.length}, loading={String(loadingHistory)}, expanded={String(isExpanded)}
+        </Box>
+
         {/* Chat Messages */}
         <ScrollArea
           style={{ maxHeight: 280 }}
