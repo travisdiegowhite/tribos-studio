@@ -43,12 +43,10 @@ const STRATEGIST_THEME = {
 // Number of recent messages to show by default
 const RECENT_MESSAGE_COUNT = 4;
 
-// Get the API base URL
+// Get the API base URL - use relative URL for both dev and prod
+// In dev, run with `npm run dev:vercel` to have API routes available
 const getApiBaseUrl = () => {
-  if (import.meta.env.PROD) {
-    return '';
-  }
-  return 'http://localhost:3000';
+  return '';
 };
 
 // Convert relative date strings to YYYY-MM-DD format
@@ -306,9 +304,12 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
     setIsLoading(true);
 
     try {
+      console.log('TrainingStrategist: Saving user message...');
       await saveMessage('user', userMessage);
 
-      const response = await fetch(`${getApiBaseUrl()}/api/coach`, {
+      const apiUrl = `${getApiBaseUrl()}/api/coach`;
+      console.log('TrainingStrategist: Calling API at:', apiUrl);
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -322,12 +323,14 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
         })
       });
 
+      console.log('TrainingStrategist: API response status:', response.status);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to get response');
       }
 
       const data = await response.json();
+      console.log('TrainingStrategist: Got response:', data);
 
       const assistantMessage = {
         role: 'assistant',
