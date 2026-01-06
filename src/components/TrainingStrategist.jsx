@@ -286,6 +286,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
   }, [loadConversationHistory]);
 
   useEffect(() => {
+    console.log('TrainingStrategist: messages state changed, count:', messages.length, 'messages:', messages);
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
     }
@@ -339,15 +340,23 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
         timestamp: new Date().toISOString()
       };
 
-      setMessages(prev => [...prev, assistantMessage]);
+      console.log('TrainingStrategist: Adding assistant message to state:', assistantMessage);
+      setMessages(prev => {
+        console.log('TrainingStrategist: Previous messages count:', prev.length);
+        const newMessages = [...prev, assistantMessage];
+        console.log('TrainingStrategist: New messages count:', newMessages.length);
+        return newMessages;
+      });
+      console.log('TrainingStrategist: setMessages called, saving to DB...');
       await saveMessage('assistant', data.message, data.workoutRecommendations);
+      console.log('TrainingStrategist: Message saved to DB');
 
       // Generate thread title after first exchange
       if (messages.length <= 1 && currentThreadId) {
         generateThreadTitle(userMessage, data.message);
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('TrainingStrategist: Error sending message:', error);
       notifications.show({
         title: 'Error',
         message: error.message || 'Failed to get coaching response',
@@ -355,6 +364,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
       });
       setMessages(prev => prev.slice(0, -1));
     } finally {
+      console.log('TrainingStrategist: sendMessage complete, setting isLoading to false');
       setIsLoading(false);
     }
   };
@@ -604,6 +614,11 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
       </UnstyledButton>
 
       <Collapse in={isExpanded}>
+        {/* DEBUG: Remove after fixing */}
+        <Box style={{ background: 'red', color: 'white', padding: 8, marginBottom: 8 }}>
+          DEBUG: messages={messages.length}, visible={visibleMessages.length}, loading={String(loadingHistory)}, expanded={String(isExpanded)}
+        </Box>
+
         {/* Chat Messages */}
         <ScrollArea
           style={{ maxHeight: 280 }}
