@@ -287,9 +287,6 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
 
   useEffect(() => {
     console.log('TrainingStrategist: messages state changed, count:', messages.length, 'messages:', messages);
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
-    }
   }, [messages]);
 
   const sendMessage = async () => {
@@ -621,8 +618,9 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
 
         {/* Chat Messages */}
         <ScrollArea
-          style={{ maxHeight: 280 }}
-          viewportRef={scrollAreaRef}
+          h={300}
+          type="always"
+          offsetScrollbars
         >
           <Stack gap="xs">
             {loadingHistory && (
