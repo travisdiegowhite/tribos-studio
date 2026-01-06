@@ -733,39 +733,82 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
             {/* Messages */}
             {visibleMessages.map((msg, index) => {
               const actualIndex = getActualIndex(index);
+              // First 2 messages (index 0, 1) are the most recent exchange
+              const isRecentMessage = index < 2;
+              const isOlderMessage = !isRecentMessage;
+              // Show divider before first older message
+              const showDivider = index === 2;
+
               return (
-              <Box key={msg.id || index} style={{ position: 'relative' }} className="message-item">
-                <Group gap={8} align="flex-start" wrap="nowrap">
+              <Box key={msg.id || index}>
+                {/* Divider between recent and older messages */}
+                {showDivider && (
                   <Box
                     style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: '50%',
-                      backgroundColor: msg.role === 'user' ? tokens.colors.bgTertiary : STRATEGIST_THEME.primary,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      marginTop: 2,
+                      borderTop: `1px solid ${tokens.colors.bgTertiary}`,
+                      margin: '8px 0',
+                      position: 'relative',
                     }}
                   >
-                    {msg.role === 'user' ? (
-                      <IconUser size={14} style={{ color: tokens.colors.textSecondary }} />
-                    ) : (
-                      <IconChartLine size={14} style={{ color: 'white' }} />
-                    )}
-                  </Box>
-                  <Box style={{ flex: 1, minWidth: 0 }}>
                     <Text
-                      size="sm"
+                      size="xs"
+                      c="dimmed"
                       style={{
-                        color: tokens.colors.textPrimary,
-                        whiteSpace: 'pre-wrap',
-                        lineHeight: 1.5,
+                        position: 'absolute',
+                        top: '-10px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        backgroundColor: tokens.colors.bgSecondary,
+                        padding: '0 8px',
                       }}
                     >
-                      {msg.content}
+                      Earlier
                     </Text>
+                  </Box>
+                )}
+
+                <Box
+                  style={{
+                    position: 'relative',
+                    opacity: isOlderMessage ? 0.6 : 1,
+                    paddingLeft: isOlderMessage ? 8 : 0,
+                    borderLeft: isOlderMessage ? `2px solid ${tokens.colors.bgTertiary}` : 'none',
+                  }}
+                  className="message-item"
+                >
+                  <Group gap={8} align="flex-start" wrap="nowrap">
+                    <Box
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        backgroundColor: msg.role === 'user'
+                          ? tokens.colors.bgTertiary
+                          : isOlderMessage ? '#6B7280' : STRATEGIST_THEME.primary,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        marginTop: 2,
+                      }}
+                    >
+                      {msg.role === 'user' ? (
+                        <IconUser size={14} style={{ color: tokens.colors.textSecondary }} />
+                      ) : (
+                        <IconChartLine size={14} style={{ color: 'white' }} />
+                      )}
+                    </Box>
+                    <Box style={{ flex: 1, minWidth: 0 }}>
+                      <Text
+                        size="sm"
+                        style={{
+                          color: isOlderMessage ? tokens.colors.textSecondary : tokens.colors.textPrimary,
+                          whiteSpace: 'pre-wrap',
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {msg.content}
+                      </Text>
 
                     {/* Workout Recommendations */}
                     {msg.workoutRecommendations && msg.workoutRecommendations.length > 0 && (
@@ -792,7 +835,8 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                       <IconTrash size={12} />
                     </ActionIcon>
                   </Tooltip>
-                </Group>
+                  </Group>
+                </Box>
               </Box>
               );
             })}
