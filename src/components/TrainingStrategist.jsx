@@ -660,6 +660,37 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
       </UnstyledButton>
 
       <Collapse in={isExpanded}>
+        {/* Input Area - at top since messages flow downward */}
+        <Group gap={8} mb="sm">
+          <TextInput
+            placeholder="Ask strategist..."
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={isLoading}
+            size="sm"
+            style={{ flex: 1 }}
+            styles={{
+              input: {
+                backgroundColor: tokens.colors.bgTertiary,
+                borderColor: tokens.colors.bgTertiary,
+                '&:focus': {
+                  borderColor: STRATEGIST_THEME.primary
+                }
+              }
+            }}
+          />
+          <ActionIcon
+            size="md"
+            variant="filled"
+            color="blue"
+            onClick={sendMessage}
+            disabled={!inputMessage.trim() || isLoading}
+          >
+            <IconSend size={16} />
+          </ActionIcon>
+        </Group>
+
         {/* Chat Messages */}
         <ScrollArea
           h={300}
@@ -805,37 +836,6 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
             )}
           </Stack>
         </ScrollArea>
-
-        {/* Input Area */}
-        <Group gap={8} mt="sm">
-          <TextInput
-            placeholder="Ask strategist..."
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isLoading}
-            size="sm"
-            style={{ flex: 1 }}
-            styles={{
-              input: {
-                backgroundColor: tokens.colors.bgTertiary,
-                borderColor: tokens.colors.bgTertiary,
-                '&:focus': {
-                  borderColor: STRATEGIST_THEME.primary
-                }
-              }
-            }}
-          />
-          <ActionIcon
-            size="md"
-            variant="filled"
-            color="blue"
-            onClick={sendMessage}
-            disabled={!inputMessage.trim() || isLoading}
-          >
-            <IconSend size={16} />
-          </ActionIcon>
-        </Group>
       </Collapse>
     </Card>
   );
