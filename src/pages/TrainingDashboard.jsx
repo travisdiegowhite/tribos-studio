@@ -2003,6 +2003,13 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
   const context = [];
   const distanceUnit = isImperial ? 'mi' : 'km';
 
+  // Add current date context - critical for time-aware recommendations
+  const today = new Date();
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  context.push(`TODAY'S DATE: ${dayNames[today.getDay()]}, ${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`);
+  context.push(`(Any references to days of the week in conversation history may be outdated - always use today's date above as the reference point)`);
+
   if (ftp) context.push(`FTP: ${ftp}W`);
 
   if (trainingMetrics.ctl > 0 || trainingMetrics.atl > 0) {
