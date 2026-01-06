@@ -25,6 +25,7 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconHistory,
+  IconTrash,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
@@ -277,6 +278,44 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
       return data;
     } catch (err) {
       return null;
+    }
+  };
+
+  // Delete a message from the conversation
+  const deleteMessage = async (messageId, messageIndex) => {
+    if (!user?.id) return;
+
+    try {
+      // If we have a database ID, delete from Supabase
+      if (messageId) {
+        const { error } = await supabase
+          .from('coach_conversations')
+          .delete()
+          .eq('id', messageId)
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Error deleting message:', error);
+          notifications.show({
+            title: 'Error',
+            message: 'Failed to delete message',
+            color: 'red'
+          });
+          return;
+        }
+      }
+
+      // Remove from local state
+      setMessages(prev => prev.filter((_, idx) => idx !== messageIndex));
+
+      notifications.show({
+        title: 'Deleted',
+        message: 'Message removed',
+        color: 'gray',
+        autoClose: 2000
+      });
+    } catch (err) {
+      console.error('Delete error:', err);
     }
   };
 
@@ -553,6 +592,9 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
   const hiddenMessageCount = messages.length - RECENT_MESSAGE_COUNT;
   const hasHiddenMessages = hiddenMessageCount > 0 && !showAllMessages;
 
+  // Calculate offset for mapping visible index to actual messages index
+  const messageIndexOffset = showAllMessages ? 0 : Math.max(0, messages.length - RECENT_MESSAGE_COUNT);
+
   return (
     <Card
       p="sm"
@@ -653,8 +695,10 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
             )}
 
             {/* Messages */}
-            {visibleMessages.map((msg, index) => (
-              <Box key={index}>
+            {visibleMessages.map((msg, index) => {
+              const actualIndex = messageIndexOffset + index;
+              return (
+              <Box key={msg.id || index} style={{ position: 'relative' }} className="message-item">
                 <Group gap={6} align="flex-start" wrap="nowrap">
                   <Box
                     style={{
@@ -700,9 +744,22 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                       </Group>
                     )}
                   </Box>
+                  {/* Delete button */}
+                  <Tooltip label="Delete message" position="left">
+                    <ActionIcon
+                      size="xs"
+                      variant="subtle"
+                      color="gray"
+                      onClick={() => deleteMessage(msg.id, actualIndex)}
+                      style={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                    >
+                      <IconTrash size={12} />
+                    </ActionIcon>
+                  </Tooltip>
                 </Group>
               </Box>
-            ))}
+              );
+            })}
 
             {/* Loading indicator */}
             {isLoading && (
