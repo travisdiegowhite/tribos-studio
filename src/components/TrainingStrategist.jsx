@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   Stack,
@@ -147,7 +147,6 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
   const [currentThreadId, setCurrentThreadId] = useState(null);
   const [showAllMessages, setShowAllMessages] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
-  const scrollAreaRef = useRef(null);
 
   // Load conversation history on mount
   const loadConversationHistory = useCallback(async () => {
@@ -286,11 +285,10 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
   }, [loadConversationHistory]);
 
   useEffect(() => {
-    console.log('TrainingStrategist: messages state changed, count:', messages.length, 'messages:', messages);
+    // Messages updated - could add scroll-to-bottom behavior here if needed
   }, [messages]);
 
   const sendMessage = async () => {
-    console.log('TrainingStrategist: sendMessage called, input:', inputMessage, 'isLoading:', isLoading);
     if (!inputMessage.trim() || isLoading) return;
 
     const userMessage = inputMessage.trim();
@@ -302,12 +300,9 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
     setIsLoading(true);
 
     try {
-      console.log('TrainingStrategist: Saving user message...');
       await saveMessage('user', userMessage);
 
-      const apiUrl = `${getApiBaseUrl()}/api/coach`;
-      console.log('TrainingStrategist: Calling API at:', apiUrl);
-      const response = await fetch(apiUrl, {
+      const response = await fetch(`${getApiBaseUrl()}/api/coach`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -321,14 +316,12 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
         })
       });
 
-      console.log('TrainingStrategist: API response status:', response.status);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to get response');
       }
 
       const data = await response.json();
-      console.log('TrainingStrategist: Got response:', data);
 
       const assistantMessage = {
         role: 'assistant',
@@ -337,23 +330,15 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
         timestamp: new Date().toISOString()
       };
 
-      console.log('TrainingStrategist: Adding assistant message to state:', assistantMessage);
-      setMessages(prev => {
-        console.log('TrainingStrategist: Previous messages count:', prev.length);
-        const newMessages = [...prev, assistantMessage];
-        console.log('TrainingStrategist: New messages count:', newMessages.length);
-        return newMessages;
-      });
-      console.log('TrainingStrategist: setMessages called, saving to DB...');
+      setMessages(prev => [...prev, assistantMessage]);
       await saveMessage('assistant', data.message, data.workoutRecommendations);
-      console.log('TrainingStrategist: Message saved to DB');
 
       // Generate thread title after first exchange
       if (messages.length <= 1 && currentThreadId) {
         generateThreadTitle(userMessage, data.message);
       }
     } catch (error) {
-      console.error('TrainingStrategist: Error sending message:', error);
+      console.error('Error sending message:', error);
       notifications.show({
         title: 'Error',
         message: error.message || 'Failed to get coaching response',
@@ -361,7 +346,6 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
       });
       setMessages(prev => prev.slice(0, -1));
     } finally {
-      console.log('TrainingStrategist: sendMessage complete, setting isLoading to false');
       setIsLoading(false);
     }
   };
@@ -611,11 +595,6 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
       </UnstyledButton>
 
       <Collapse in={isExpanded}>
-        {/* DEBUG: Remove after fixing */}
-        <Box style={{ background: 'red', color: 'white', padding: 8, marginBottom: 8 }}>
-          DEBUG: messages={messages.length}, visible={visibleMessages.length}, loading={String(loadingHistory)}, expanded={String(isExpanded)}
-        </Box>
-
         {/* Chat Messages */}
         <ScrollArea
           h={300}
