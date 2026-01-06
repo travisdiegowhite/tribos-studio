@@ -341,6 +341,21 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
     try {
       await saveMessage('user', userMessage);
 
+      // Get user's local date for the API (server runs in UTC)
+      const now = new Date();
+      const userLocalDate = {
+        dayOfWeek: now.getDay(),
+        date: now.getDate(),
+        month: now.getMonth(),
+        year: now.getFullYear(),
+        dateString: now.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })
+      };
+
       const response = await fetch(`${getApiBaseUrl()}/api/coach`, {
         method: 'POST',
         headers: {
@@ -351,6 +366,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
           message: userMessage,
           conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
           trainingContext: trainingContext,
+          userLocalDate: userLocalDate,
           maxTokens: 2048
         })
       });

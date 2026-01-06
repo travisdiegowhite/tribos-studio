@@ -97,6 +97,7 @@ export default async function handler(req, res) {
       message,
       conversationHistory = [],
       trainingContext = null,
+      userLocalDate = null,
       maxTokens = 1024
     } = req.body;
 
@@ -129,23 +130,44 @@ export default async function handler(req, res) {
     }
 
     // Build system message with date context FIRST
-    const today = new Date();
+    // Use user's local date if provided, otherwise fall back to server date
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const dateStr = `${dayNames[today.getDay()]}, ${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`;
 
-    // Calculate this week's date range
-    const dayOfWeek = today.getDay();
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    const formatShortDate = (d) => `${monthNames[d.getMonth()]} ${d.getDate()}`;
+    let dateStr;
+    let dayOfWeek;
+    let todayDate;
+    let todayMonth;
+    let todayYear;
+
+    if (userLocalDate && userLocalDate.dateString) {
+      // Use the user's local date from the browser
+      dateStr = userLocalDate.dateString;
+      dayOfWeek = userLocalDate.dayOfWeek;
+      todayDate = userLocalDate.date;
+      todayMonth = userLocalDate.month;
+      todayYear = userLocalDate.year;
+    } else {
+      // Fallback to server date (UTC)
+      const today = new Date();
+      dateStr = `${dayNames[today.getDay()]}, ${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`;
+      dayOfWeek = today.getDay();
+      todayDate = today.getDate();
+      todayMonth = today.getMonth();
+      todayYear = today.getFullYear();
+    }
+
+    // Calculate this week's date range using user's local date
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const mondayDate = todayDate + mondayOffset;
+    const sundayDate = mondayDate + 6;
+    // Simplified week range display
+    const weekRangeStr = `Week of ${monthNames[todayMonth]} ${mondayDate > 0 ? mondayDate : todayDate}, ${todayYear}`;
 
     // Build the full system prompt with date as the foundation
     let systemPrompt = `=== CURRENT DATE & TIME CONTEXT ===
 TODAY IS: ${dateStr}
-THIS WEEK: ${formatShortDate(monday)} - ${formatShortDate(sunday)}, ${today.getFullYear()}
+${weekRangeStr}
 
 CRITICAL: The conversation history below may contain outdated references to past dates (weeks or months ago).
 You MUST use the current date above as your reference point. When the athlete asks about "this week", "tomorrow", "Monday", etc., calculate from TODAY'S DATE shown above.
