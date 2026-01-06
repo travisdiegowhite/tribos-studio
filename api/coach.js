@@ -6,8 +6,8 @@ import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { WORKOUT_LIBRARY_FOR_AI, WORKOUT_TOOLS } from './utils/workoutLibrary.js';
 import { setupCors } from './utils/cors.js';
 
-// System prompt for the AI coach
-const COACHING_SYSTEM_PROMPT = `You are an expert cycling coach with deep knowledge of:
+// Base coaching knowledge (date context added dynamically)
+const COACHING_KNOWLEDGE = `You are an expert cycling coach with deep knowledge of:
 - Training periodization and load management
 - Power-based training and TSS/CTL/ATL/TSB metrics
 - Cycling physiology and performance optimization
@@ -128,11 +128,36 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Build system message with training context
-    let systemPrompt = COACHING_SYSTEM_PROMPT;
+    // Build system message with date context FIRST
+    const today = new Date();
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const dateStr = `${dayNames[today.getDay()]}, ${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`;
+
+    // Calculate this week's date range
+    const dayOfWeek = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const formatShortDate = (d) => `${monthNames[d.getMonth()]} ${d.getDate()}`;
+
+    // Build the full system prompt with date as the foundation
+    let systemPrompt = `=== CURRENT DATE & TIME CONTEXT ===
+TODAY IS: ${dateStr}
+THIS WEEK: ${formatShortDate(monday)} - ${formatShortDate(sunday)}, ${today.getFullYear()}
+
+CRITICAL: The conversation history below may contain outdated references to past dates (weeks or months ago).
+You MUST use the current date above as your reference point. When the athlete asks about "this week", "tomorrow", "Monday", etc., calculate from TODAY'S DATE shown above.
+
+=== YOUR ROLE ===
+${COACHING_KNOWLEDGE}`;
+
     if (trainingContext) {
-      systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT ===\n${trainingContext}\n\nUse this context to provide personalized coaching advice.`;
+      systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT ===\n${trainingContext}`;
     }
+
+    systemPrompt += `\n\n=== INSTRUCTIONS ===\nUse the current date context and athlete data above to provide personalized, time-appropriate coaching advice.`;
 
     // Build conversation messages
     const messages = [
