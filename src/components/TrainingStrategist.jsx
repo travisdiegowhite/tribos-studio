@@ -802,9 +802,12 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                       <Text
                         size="sm"
                         style={{
-                          color: isOlderMessage ? tokens.colors.textSecondary : tokens.colors.textPrimary,
+                          color: msg.role === 'user'
+                            ? '#60A5FA'  // Blue for user questions
+                            : isOlderMessage ? tokens.colors.textSecondary : tokens.colors.textPrimary,
                           whiteSpace: 'pre-wrap',
                           lineHeight: 1.5,
+                          fontWeight: msg.role === 'user' ? 500 : 400,
                         }}
                       >
                         {msg.content}
