@@ -129,7 +129,13 @@ export default async function handler(req, res) {
     }
 
     // Build system message with training context
-    let systemPrompt = COACHING_SYSTEM_PROMPT;
+    // Add current date at the very top for time awareness
+    const today = new Date();
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const dateStr = `${dayNames[today.getDay()]}, ${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`;
+
+    let systemPrompt = `IMPORTANT - TODAY'S DATE: ${dateStr}\nIgnore any outdated date references in conversation history. Always use today's date above when planning workouts for "this week", "tomorrow", etc.\n\n${COACHING_SYSTEM_PROMPT}`;
     if (trainingContext) {
       systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT ===\n${trainingContext}\n\nUse this context to provide personalized coaching advice.`;
     }
