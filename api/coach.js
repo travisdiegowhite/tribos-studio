@@ -159,15 +159,20 @@ ${COACHING_KNOWLEDGE}`;
 
     systemPrompt += `\n\n=== INSTRUCTIONS ===\nUse the current date context and athlete data above to provide personalized, time-appropriate coaching advice.`;
 
-    // Build conversation messages
+    // Limit conversation history to last 10 messages to prevent stale context from dominating
+    const recentHistory = conversationHistory.slice(-10);
+
+    // Build conversation messages - prepend date reminder to user's message
+    const userMessageWithDate = `[Today is ${dateStr}]\n\n${message}`;
+
     const messages = [
-      ...conversationHistory.map(msg => ({
+      ...recentHistory.map(msg => ({
         role: msg.role,
         content: msg.content
       })),
       {
         role: 'user',
-        content: message
+        content: userMessageWithDate
       }
     ];
 
