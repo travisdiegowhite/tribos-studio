@@ -600,16 +600,23 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
     }
   };
 
-  // Get visible messages (recent or all)
+  // Get visible messages (recent or all) - reversed so most recent is at top
   const visibleMessages = showAllMessages
-    ? messages
-    : messages.slice(-RECENT_MESSAGE_COUNT);
+    ? [...messages].reverse()
+    : [...messages].slice(-RECENT_MESSAGE_COUNT).reverse();
 
   const hiddenMessageCount = messages.length - RECENT_MESSAGE_COUNT;
   const hasHiddenMessages = hiddenMessageCount > 0 && !showAllMessages;
 
-  // Calculate offset for mapping visible index to actual messages index
-  const messageIndexOffset = showAllMessages ? 0 : Math.max(0, messages.length - RECENT_MESSAGE_COUNT);
+  // Calculate actual index in original messages array (accounting for reversed display)
+  const getActualIndex = (visibleIndex) => {
+    if (showAllMessages) {
+      return messages.length - 1 - visibleIndex;
+    } else {
+      const recentStartIndex = Math.max(0, messages.length - RECENT_MESSAGE_COUNT);
+      return messages.length - 1 - visibleIndex;
+    }
+  };
 
   return (
     <Card
@@ -692,34 +699,16 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
               </Box>
             )}
 
-            {/* Show history button */}
-            {hasHiddenMessages && (
-              <UnstyledButton
-                onClick={() => setShowAllMessages(true)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '4px 0',
-                }}
-              >
-                <IconHistory size={12} style={{ color: tokens.colors.textMuted }} />
-                <Text size="xs" c="dimmed">
-                  Show {hiddenMessageCount} earlier messages
-                </Text>
-              </UnstyledButton>
-            )}
-
             {/* Messages */}
             {visibleMessages.map((msg, index) => {
-              const actualIndex = messageIndexOffset + index;
+              const actualIndex = getActualIndex(index);
               return (
               <Box key={msg.id || index} style={{ position: 'relative' }} className="message-item">
-                <Group gap={6} align="flex-start" wrap="nowrap">
+                <Group gap={8} align="flex-start" wrap="nowrap">
                   <Box
                     style={{
-                      width: 20,
-                      height: 20,
+                      width: 24,
+                      height: 24,
                       borderRadius: '50%',
                       backgroundColor: msg.role === 'user' ? tokens.colors.bgTertiary : STRATEGIST_THEME.primary,
                       display: 'flex',
@@ -730,26 +719,26 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                     }}
                   >
                     {msg.role === 'user' ? (
-                      <IconUser size={12} style={{ color: tokens.colors.textSecondary }} />
+                      <IconUser size={14} style={{ color: tokens.colors.textSecondary }} />
                     ) : (
-                      <IconChartLine size={12} style={{ color: 'white' }} />
+                      <IconChartLine size={14} style={{ color: 'white' }} />
                     )}
                   </Box>
                   <Box style={{ flex: 1, minWidth: 0 }}>
                     <Text
-                      size="xs"
+                      size="sm"
                       style={{
                         color: tokens.colors.textPrimary,
                         whiteSpace: 'pre-wrap',
-                        lineHeight: 1.4,
+                        lineHeight: 1.5,
                       }}
                     >
                       {msg.content}
                     </Text>
 
-                    {/* Compact Workout Recommendations */}
+                    {/* Workout Recommendations */}
                     {msg.workoutRecommendations && msg.workoutRecommendations.length > 0 && (
-                      <Group gap={4} mt={6} wrap="wrap">
+                      <Group gap={6} mt={8} wrap="wrap">
                         {msg.workoutRecommendations.map((rec, recIndex) => (
                           <WorkoutChip
                             key={recIndex}
@@ -777,13 +766,13 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
               );
             })}
 
-            {/* Loading indicator */}
+            {/* Loading indicator - shown at top since messages are reversed */}
             {isLoading && (
-              <Group gap={6} align="flex-start">
+              <Group gap={8} align="flex-start">
                 <Box
                   style={{
-                    width: 20,
-                    height: 20,
+                    width: 24,
+                    height: 24,
                     borderRadius: '50%',
                     backgroundColor: STRATEGIST_THEME.primary,
                     display: 'flex',
@@ -791,23 +780,41 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                     justifyContent: 'center',
                   }}
                 >
-                  <IconChartLine size={12} style={{ color: 'white' }} />
+                  <IconChartLine size={14} style={{ color: 'white' }} />
                 </Box>
-                <Loader size="xs" color="blue" type="dots" />
+                <Loader size="sm" color="blue" type="dots" />
               </Group>
+            )}
+
+            {/* Show older messages button - at bottom since messages are reversed */}
+            {hasHiddenMessages && (
+              <UnstyledButton
+                onClick={() => setShowAllMessages(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '8px 0',
+                }}
+              >
+                <IconHistory size={14} style={{ color: tokens.colors.textMuted }} />
+                <Text size="sm" c="dimmed">
+                  Show {hiddenMessageCount} older messages
+                </Text>
+              </UnstyledButton>
             )}
           </Stack>
         </ScrollArea>
 
-        {/* Compact Input Area */}
-        <Group gap={6} mt="xs">
+        {/* Input Area */}
+        <Group gap={8} mt="sm">
           <TextInput
             placeholder="Ask strategist..."
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isLoading}
-            size="xs"
+            size="sm"
             style={{ flex: 1 }}
             styles={{
               input: {
@@ -820,13 +827,13 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
             }}
           />
           <ActionIcon
-            size="sm"
+            size="md"
             variant="filled"
             color="blue"
             onClick={sendMessage}
             disabled={!inputMessage.trim() || isLoading}
           >
-            <IconSend size={14} />
+            <IconSend size={16} />
           </ActionIcon>
         </Group>
       </Collapse>
