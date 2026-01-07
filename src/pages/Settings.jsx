@@ -20,10 +20,11 @@ import {
   List,
   ThemeIcon,
 } from '@mantine/core';
-import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle } from '@tabler/icons-react';
+import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconCrown } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useSubscription } from '../contexts/SubscriptionContext.jsx';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -38,6 +39,17 @@ import { formatSpeed } from '../utils/units';
 
 function Settings() {
   const { user, signOut } = useAuth();
+  const {
+    tier,
+    tierName,
+    status: subscriptionStatus,
+    isPro,
+    currentPeriodEnd,
+    cancelAtPeriodEnd,
+    createCheckoutSession,
+    openCustomerPortal,
+    loading: subscriptionLoading
+  } = useSubscription();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -1058,6 +1070,132 @@ function Settings() {
                 onConnect={connectWahoo}
                 onDisconnect={disconnectWahoo}
               />
+            </Stack>
+          </Card>
+
+          {/* Subscription */}
+          <Card>
+            <Stack gap="md">
+              <Group justify="space-between">
+                <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                  Subscription
+                </Title>
+                {isPro && (
+                  <Badge color="yellow" variant="filled" leftSection={<IconCrown size={14} />}>
+                    Pro
+                  </Badge>
+                )}
+              </Group>
+
+              <Box
+                style={{
+                  padding: tokens.spacing.md,
+                  backgroundColor: isPro ? 'rgba(255, 215, 0, 0.1)' : tokens.colors.bgTertiary,
+                  borderRadius: tokens.radius.md,
+                  border: isPro ? '1px solid var(--mantine-color-yellow-5)' : undefined,
+                }}
+              >
+                <Group justify="space-between" align="flex-start">
+                  <Box>
+                    <Group gap="xs" mb={4}>
+                      {isPro && <IconCrown size={18} style={{ color: 'var(--mantine-color-yellow-5)' }} />}
+                      <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
+                        {tierName} Plan
+                      </Text>
+                    </Group>
+                    <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                      {isPro
+                        ? 'Unlimited training plans, routes, and AI coaching'
+                        : 'Basic training tools with limited features'}
+                    </Text>
+                    {isPro && currentPeriodEnd && (
+                      <Text size="xs" style={{ color: tokens.colors.textMuted }} mt="xs">
+                        {cancelAtPeriodEnd
+                          ? `Cancels on ${new Date(currentPeriodEnd).toLocaleDateString()}`
+                          : `Renews on ${new Date(currentPeriodEnd).toLocaleDateString()}`}
+                      </Text>
+                    )}
+                  </Box>
+                  <Box>
+                    {isPro ? (
+                      <Button
+                        variant="light"
+                        color="yellow"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const { url } = await openCustomerPortal();
+                            if (url) window.location.href = url;
+                          } catch (err) {
+                            notifications.show({
+                              title: 'Error',
+                              message: err.message || 'Failed to open billing portal',
+                              color: 'red',
+                            });
+                          }
+                        }}
+                        loading={subscriptionLoading}
+                      >
+                        Manage Subscription
+                      </Button>
+                    ) : (
+                      <Button
+                        color="yellow"
+                        size="sm"
+                        leftSection={<IconCrown size={16} />}
+                        onClick={async () => {
+                          try {
+                            const { url } = await createCheckoutSession();
+                            if (url) window.location.href = url;
+                          } catch (err) {
+                            notifications.show({
+                              title: 'Error',
+                              message: err.message || 'Failed to start checkout',
+                              color: 'red',
+                            });
+                          }
+                        }}
+                        loading={subscriptionLoading}
+                      >
+                        Upgrade to Pro
+                      </Button>
+                    )}
+                  </Box>
+                </Group>
+              </Box>
+
+              {!isPro && (
+                <Box>
+                  <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }} mb="xs">
+                    Pro includes:
+                  </Text>
+                  <List
+                    size="sm"
+                    spacing="xs"
+                    icon={
+                      <ThemeIcon color="yellow" size={18} radius="xl">
+                        <IconCheck size={12} />
+                      </ThemeIcon>
+                    }
+                  >
+                    <List.Item>Unlimited training plans</List.Item>
+                    <List.Item>Unlimited custom routes</List.Item>
+                    <List.Item>Full activity history</List.Item>
+                    <List.Item>AI Coach sessions</List.Item>
+                    <List.Item>Advanced analytics</List.Item>
+                    <List.Item>Real-time activity sync</List.Item>
+                  </List>
+                  <Button
+                    variant="subtle"
+                    color="gray"
+                    size="xs"
+                    mt="sm"
+                    onClick={() => navigate('/pricing')}
+                  >
+                    View all features
+                  </Button>
+                </Box>
+              )}
             </Stack>
           </Card>
 

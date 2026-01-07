@@ -6,6 +6,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { UserPreferencesProvider } from './contexts/UserPreferencesContext.jsx';
+import { SubscriptionProvider } from './contexts/SubscriptionContext.jsx';
 import { theme } from './theme';
 
 // Pages
@@ -21,6 +22,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 import Terms from './pages/Terms.jsx';
 import NotFound from './pages/NotFound.jsx';
 import Admin from './pages/Admin.jsx';
+import PricingPage from './pages/PricingPage.jsx';
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
@@ -85,6 +87,7 @@ function AppRoutes() {
       <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/pricing" element={<PricingPage />} />
       <Route
         path="/auth"
         element={
@@ -190,14 +193,16 @@ function App() {
           <ErrorBoundary>
             <Notifications position="top-right" />
             <AuthProvider>
-              <UserPreferencesProvider>
-                <BrowserRouter>
-                  <PageTracker />
-                  <AppRoutes />
-                </BrowserRouter>
-                <Analytics />
-                <SpeedInsights />
-              </UserPreferencesProvider>
+              <SubscriptionProvider>
+                <UserPreferencesProvider>
+                  <BrowserRouter>
+                    <PageTracker />
+                    <AppRoutes />
+                  </BrowserRouter>
+                  <Analytics />
+                  <SpeedInsights />
+                </UserPreferencesProvider>
+              </SubscriptionProvider>
             </AuthProvider>
           </ErrorBoundary>
         </DatesProvider>
