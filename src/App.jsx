@@ -17,6 +17,7 @@ import MyRoutes from './pages/MyRoutes.jsx';
 import TrainingDashboard from './pages/TrainingDashboard.jsx';
 import PlannerPage from './pages/PlannerPage.tsx';
 import Settings from './pages/Settings.jsx';
+import Updates from './pages/Updates.jsx';
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 import Terms from './pages/Terms.jsx';
 import NotFound from './pages/NotFound.jsx';
@@ -163,6 +164,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/updates"
+        element={
+          <ProtectedRoute>
+            <Updates />
           </ProtectedRoute>
         }
       />

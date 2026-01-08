@@ -1,0 +1,76 @@
+{
+  "welcome": {
+    "title": "Welcome to Tribos",
+    "subtitle": "Your AI-powered training companion for cyclists",
+    "description": "Tribos helps you train smarter by combining route planning, workout scheduling, and AI coaching into one seamless experience. Whether you're preparing for your first century or your next race, we've got the tools to help you get there."
+  },
+  "features": [
+    {
+      "id": "plan-vs-analysis",
+      "category": "Core Features",
+      "title": "Plan Your Training vs Training Analysis",
+      "icon": "calendar-chart",
+      "items": [
+        {
+          "name": "Plan Your Training",
+          "description": "Your interactive training calendar. Drag and drop workouts onto your schedule, build out your training weeks, and see your planned Training Stress Score (TSS) alongside completed activities. Think of it as your whiteboard for mapping out what's ahead.",
+          "highlight": "Build your schedule visually"
+        },
+        {
+          "name": "Training Analysis",
+          "description": "Dive deep into completed rides. View your route on the map, analyze power and heart rate metrics, see intensity breakdowns, and understand how each ride contributes to your fitness. This is where you review what you've done.",
+          "highlight": "Analyze past performance"
+        }
+      ],
+      "summary": "Plan looks forward. Analysis looks back. Use both to train with intention."
+    },
+    {
+      "id": "ai-coaches",
+      "category": "AI Features",
+      "title": "Meet Your AI Coaches",
+      "icon": "robot",
+      "description": "Three distinct AI personalities, each designed for a specific part of your training journey.",
+      "items": [
+        {
+          "name": "Training Coach",
+          "description": "Need workout ideas? The Training Coach suggests specific sessions based on your goals and recent activity. Get recommendations you can add to your calendar with one click.",
+          "highlight": "What should I ride today?"
+        },
+        {
+          "name": "Accountability Coach",
+          "description": "Life gets busy. The Accountability Coach keeps you honest—tracking your weekly compliance, remembering your goals, and giving you the nudge (or reality check) you need to stay consistent.",
+          "highlight": "Your no-excuses training partner"
+        },
+        {
+          "name": "Training Strategist",
+          "description": "Thinking bigger picture? The Strategist helps with periodization, race prep, and long-term planning. Have strategic conversations about building toward your goals.",
+          "highlight": "Plan your season, not just your week"
+        }
+      ]
+    }
+  ],
+  "updates": [
+    {
+      "id": "iterative-routing",
+      "date": "2025-01",
+      "type": "improvement",
+      "title": "Smarter Route Generation",
+      "description": "Routes now build segment-by-segment along real roads, giving you more natural loops that hit your target distance accurately. No more weird detours or off-road surprises.",
+      "details": [
+        "Routes follow actual road networks",
+        "More accurate distance targeting",
+        "Better loop shapes that make sense"
+      ]
+    }
+  ],
+  "comingSoon": [
+    {
+      "title": "More integrations",
+      "description": "Expanding connections to your favorite platforms"
+    },
+    {
+      "title": "Enhanced analytics",
+      "description": "Deeper insights into your training trends"
+    }
+  ]
+}
