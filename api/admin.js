@@ -3,7 +3,11 @@
 // All actions are logged to admin_audit_log table
 
 import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
 import { setupCors } from './utils/cors.js';
+
+// Initialize Resend for batch email sending
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Initialize Supabase with service key for admin operations
 const supabase = createClient(
@@ -117,6 +121,31 @@ export default async function handler(req, res) {
 
       case 'get_stats':
         return await getStats(req, res, adminUser);
+
+      // Email Campaign Actions
+      case 'list_campaigns':
+        return await listCampaigns(req, res, adminUser);
+
+      case 'get_campaign':
+        return await getCampaign(req, res, adminUser);
+
+      case 'create_campaign':
+        return await createCampaign(req, res, adminUser);
+
+      case 'update_campaign':
+        return await updateCampaign(req, res, adminUser);
+
+      case 'delete_campaign':
+        return await deleteCampaign(req, res, adminUser);
+
+      case 'preview_recipients':
+        return await previewRecipients(req, res, adminUser);
+
+      case 'send_test_email':
+        return await sendTestEmail(req, res, adminUser);
+
+      case 'send_campaign':
+        return await sendCampaign(req, res, adminUser);
 
       default:
         return res.status(400).json({ error: 'Invalid action' });
@@ -471,4 +500,582 @@ async function getStats(req, res, adminUser) {
       total_feedback: feedbackResult.count || 0
     }
   });
+}
+
+// ============================================================================
+// EMAIL CAMPAIGN FUNCTIONS
+// ============================================================================
+
+/**
+ * List all email campaigns
+ */
+async function listCampaigns(req, res, adminUser) {
+  await logAdminAction(adminUser.id, 'list_campaigns', null, null);
+
+  const { data: campaigns, error } = await supabase
+    .from('email_campaigns')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error listing campaigns:', error);
+    return res.status(500).json({ error: 'Failed to list campaigns' });
+  }
+
+  return res.status(200).json({
+    success: true,
+    campaigns: campaigns || []
+  });
+}
+
+/**
+ * Get a single campaign with recipient stats
+ */
+async function getCampaign(req, res, adminUser) {
+  const { campaignId } = req.body;
+
+  if (!campaignId) {
+    return res.status(400).json({ error: 'campaignId is required' });
+  }
+
+  await logAdminAction(adminUser.id, 'get_campaign', null, { campaignId });
+
+  // Get campaign
+  const { data: campaign, error: campaignError } = await supabase
+    .from('email_campaigns')
+    .select('*')
+    .eq('id', campaignId)
+    .single();
+
+  if (campaignError || !campaign) {
+    return res.status(404).json({ error: 'Campaign not found' });
+  }
+
+  // Get recipient breakdown
+  const { data: recipients, error: recipientsError } = await supabase
+    .from('email_recipients')
+    .select('id, email, status, sent_at, delivered_at, first_opened_at, first_clicked_at, open_count, click_count, error_message')
+    .eq('campaign_id', campaignId)
+    .order('created_at', { ascending: false });
+
+  return res.status(200).json({
+    success: true,
+    campaign,
+    recipients: recipients || []
+  });
+}
+
+/**
+ * Create a new email campaign
+ */
+async function createCampaign(req, res, adminUser) {
+  const { name, subject, htmlContent, textContent, campaignType, audienceType, filterCriteria, fromName, fromEmail, replyTo } = req.body;
+
+  if (!name || !subject || !htmlContent) {
+    return res.status(400).json({ error: 'name, subject, and htmlContent are required' });
+  }
+
+  await logAdminAction(adminUser.id, 'create_campaign', null, { name, subject });
+
+  const { data: campaign, error } = await supabase
+    .from('email_campaigns')
+    .insert({
+      name,
+      subject,
+      html_content: htmlContent,
+      text_content: textContent || null,
+      campaign_type: campaignType || 'announcement',
+      audience_type: audienceType || 'users',
+      filter_criteria: filterCriteria || {},
+      from_name: fromName || 'Tribos Studio',
+      from_email: fromEmail || 'noreply@tribos.studio',
+      reply_to: replyTo || null,
+      created_by: adminUser.id
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating campaign:', error);
+    return res.status(500).json({ error: 'Failed to create campaign' });
+  }
+
+  return res.status(200).json({
+    success: true,
+    campaign
+  });
+}
+
+/**
+ * Update an existing campaign (only if draft)
+ */
+async function updateCampaign(req, res, adminUser) {
+  const { campaignId, name, subject, htmlContent, textContent, campaignType, audienceType, filterCriteria, fromName, fromEmail, replyTo } = req.body;
+
+  if (!campaignId) {
+    return res.status(400).json({ error: 'campaignId is required' });
+  }
+
+  // Check campaign status
+  const { data: existing, error: fetchError } = await supabase
+    .from('email_campaigns')
+    .select('status')
+    .eq('id', campaignId)
+    .single();
+
+  if (fetchError || !existing) {
+    return res.status(404).json({ error: 'Campaign not found' });
+  }
+
+  if (existing.status !== 'draft') {
+    return res.status(400).json({ error: 'Can only update draft campaigns' });
+  }
+
+  await logAdminAction(adminUser.id, 'update_campaign', null, { campaignId });
+
+  const updates = {};
+  if (name !== undefined) updates.name = name;
+  if (subject !== undefined) updates.subject = subject;
+  if (htmlContent !== undefined) updates.html_content = htmlContent;
+  if (textContent !== undefined) updates.text_content = textContent;
+  if (campaignType !== undefined) updates.campaign_type = campaignType;
+  if (audienceType !== undefined) updates.audience_type = audienceType;
+  if (filterCriteria !== undefined) updates.filter_criteria = filterCriteria;
+  if (fromName !== undefined) updates.from_name = fromName;
+  if (fromEmail !== undefined) updates.from_email = fromEmail;
+  if (replyTo !== undefined) updates.reply_to = replyTo;
+
+  const { data: campaign, error } = await supabase
+    .from('email_campaigns')
+    .update(updates)
+    .eq('id', campaignId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating campaign:', error);
+    return res.status(500).json({ error: 'Failed to update campaign' });
+  }
+
+  return res.status(200).json({
+    success: true,
+    campaign
+  });
+}
+
+/**
+ * Delete a campaign (only if draft)
+ */
+async function deleteCampaign(req, res, adminUser) {
+  const { campaignId } = req.body;
+
+  if (!campaignId) {
+    return res.status(400).json({ error: 'campaignId is required' });
+  }
+
+  // Check campaign status
+  const { data: existing, error: fetchError } = await supabase
+    .from('email_campaigns')
+    .select('status')
+    .eq('id', campaignId)
+    .single();
+
+  if (fetchError || !existing) {
+    return res.status(404).json({ error: 'Campaign not found' });
+  }
+
+  if (existing.status !== 'draft') {
+    return res.status(400).json({ error: 'Can only delete draft campaigns' });
+  }
+
+  await logAdminAction(adminUser.id, 'delete_campaign', null, { campaignId });
+
+  const { error } = await supabase
+    .from('email_campaigns')
+    .delete()
+    .eq('id', campaignId);
+
+  if (error) {
+    console.error('Error deleting campaign:', error);
+    return res.status(500).json({ error: 'Failed to delete campaign' });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'Campaign deleted'
+  });
+}
+
+/**
+ * Preview recipients based on filter criteria
+ */
+async function previewRecipients(req, res, adminUser) {
+  const { audienceType, filterCriteria } = req.body;
+
+  await logAdminAction(adminUser.id, 'preview_recipients', null, { audienceType, filterCriteria });
+
+  try {
+    const recipients = await getFilteredRecipients(audienceType || 'users', filterCriteria || {});
+
+    return res.status(200).json({
+      success: true,
+      recipients: recipients.slice(0, 100), // Return first 100 for preview
+      total: recipients.length
+    });
+  } catch (error) {
+    console.error('Error previewing recipients:', error);
+    return res.status(500).json({ error: 'Failed to preview recipients' });
+  }
+}
+
+/**
+ * Send a test email to the admin
+ */
+async function sendTestEmail(req, res, adminUser) {
+  const { subject, htmlContent, fromName, fromEmail } = req.body;
+
+  if (!subject || !htmlContent) {
+    return res.status(400).json({ error: 'subject and htmlContent are required' });
+  }
+
+  await logAdminAction(adminUser.id, 'send_test_email', null, { subject });
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `${fromName || 'Tribos Studio'} <${fromEmail || 'noreply@tribos.studio'}>`,
+      to: [adminUser.email],
+      subject: `[TEST] ${subject}`,
+      html: htmlContent
+    });
+
+    if (error) {
+      console.error('Resend test email error:', error);
+      return res.status(500).json({ error: 'Failed to send test email', details: error });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Test email sent to ${adminUser.email}`,
+      messageId: data.id
+    });
+  } catch (error) {
+    console.error('Error sending test email:', error);
+    return res.status(500).json({ error: 'Failed to send test email' });
+  }
+}
+
+/**
+ * Send a campaign to all recipients
+ */
+async function sendCampaign(req, res, adminUser) {
+  const { campaignId } = req.body;
+
+  if (!campaignId) {
+    return res.status(400).json({ error: 'campaignId is required' });
+  }
+
+  // Get campaign
+  const { data: campaign, error: campaignError } = await supabase
+    .from('email_campaigns')
+    .select('*')
+    .eq('id', campaignId)
+    .single();
+
+  if (campaignError || !campaign) {
+    return res.status(404).json({ error: 'Campaign not found' });
+  }
+
+  if (campaign.status !== 'draft') {
+    return res.status(400).json({ error: 'Campaign has already been sent or is in progress' });
+  }
+
+  await logAdminAction(adminUser.id, 'send_campaign', null, { campaignId, campaignName: campaign.name });
+
+  try {
+    // Get recipients based on filter
+    const recipients = await getFilteredRecipients(campaign.audience_type, campaign.filter_criteria);
+
+    if (recipients.length === 0) {
+      return res.status(400).json({ error: 'No recipients match the filter criteria' });
+    }
+
+    // Update campaign status to sending
+    await supabase
+      .from('email_campaigns')
+      .update({
+        status: 'sending',
+        started_at: new Date().toISOString(),
+        total_recipients: recipients.length
+      })
+      .eq('id', campaignId);
+
+    // Insert all recipients into email_recipients table
+    const recipientRecords = recipients.map(r => ({
+      campaign_id: campaignId,
+      user_id: r.user_id || null,
+      email: r.email,
+      recipient_name: r.name || null,
+      source: r.source || 'users',
+      status: 'pending'
+    }));
+
+    await supabase
+      .from('email_recipients')
+      .insert(recipientRecords);
+
+    // Send emails in batches of 100 (Resend limit)
+    const BATCH_SIZE = 100;
+    const batches = [];
+    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+      batches.push(recipients.slice(i, i + BATCH_SIZE));
+    }
+
+    let sentCount = 0;
+    let failedCount = 0;
+
+    for (let batchNum = 0; batchNum < batches.length; batchNum++) {
+      const batch = batches[batchNum];
+
+      try {
+        // Prepare batch emails
+        const emailBatch = batch.map(r => ({
+          from: `${campaign.from_name} <${campaign.from_email}>`,
+          to: [r.email],
+          subject: campaign.subject,
+          html: campaign.html_content,
+          text: campaign.text_content || undefined,
+          reply_to: campaign.reply_to || undefined,
+          tags: [
+            { name: 'campaign_id', value: campaignId },
+            { name: 'campaign_name', value: campaign.name }
+          ]
+        }));
+
+        // Send batch
+        const { data: batchResult, error: batchError } = await resend.batch.send(emailBatch);
+
+        if (batchError) {
+          console.error(`Batch ${batchNum + 1} error:`, batchError);
+          // Mark batch as failed
+          for (const recipient of batch) {
+            await supabase
+              .from('email_recipients')
+              .update({
+                status: 'failed',
+                error_message: batchError.message || 'Batch send failed'
+              })
+              .eq('campaign_id', campaignId)
+              .eq('email', recipient.email);
+          }
+          failedCount += batch.length;
+        } else {
+          // Update recipients with Resend IDs
+          for (let i = 0; i < batchResult.data.length; i++) {
+            const resendId = batchResult.data[i].id;
+            const recipient = batch[i];
+
+            await supabase
+              .from('email_recipients')
+              .update({
+                resend_email_id: resendId,
+                status: 'sent',
+                sent_at: new Date().toISOString(),
+                batch_number: batchNum + 1
+              })
+              .eq('campaign_id', campaignId)
+              .eq('email', recipient.email);
+          }
+          sentCount += batch.length;
+        }
+
+        // Small delay between batches to stay under rate limit
+        if (batchNum < batches.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (err) {
+        console.error(`Batch ${batchNum + 1} exception:`, err);
+        failedCount += batch.length;
+      }
+    }
+
+    // Update campaign status to completed
+    await supabase
+      .from('email_campaigns')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        sent_count: sentCount,
+        failed_count: failedCount
+      })
+      .eq('id', campaignId);
+
+    return res.status(200).json({
+      success: true,
+      message: `Campaign sent to ${sentCount} recipients`,
+      stats: {
+        total: recipients.length,
+        sent: sentCount,
+        failed: failedCount
+      }
+    });
+  } catch (error) {
+    console.error('Error sending campaign:', error);
+
+    // Update campaign status to show error
+    await supabase
+      .from('email_campaigns')
+      .update({
+        status: 'draft' // Reset to draft so it can be retried
+      })
+      .eq('id', campaignId);
+
+    return res.status(500).json({ error: 'Failed to send campaign' });
+  }
+}
+
+/**
+ * Get filtered recipients based on audience type and filter criteria
+ */
+async function getFilteredRecipients(audienceType, filterCriteria) {
+  const recipients = [];
+  const seenEmails = new Set();
+
+  // Get registered users if needed
+  if (audienceType === 'users' || audienceType === 'both') {
+    const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
+
+    if (authError) {
+      console.error('Error listing auth users:', authError);
+      throw new Error('Failed to list users');
+    }
+
+    let users = authData.users || [];
+
+    // Apply filters
+    if (filterCriteria.emailVerified) {
+      users = users.filter(u => u.email_confirmed_at);
+    }
+
+    if (filterCriteria.signedUpAfter) {
+      const cutoff = new Date(filterCriteria.signedUpAfter);
+      users = users.filter(u => new Date(u.created_at) >= cutoff);
+    }
+
+    if (filterCriteria.signedUpBefore) {
+      const cutoff = new Date(filterCriteria.signedUpBefore);
+      users = users.filter(u => new Date(u.created_at) <= cutoff);
+    }
+
+    if (filterCriteria.lastSignInWithinDays) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - filterCriteria.lastSignInWithinDays);
+      users = users.filter(u => u.last_sign_in_at && new Date(u.last_sign_in_at) >= cutoff);
+    }
+
+    const userIds = users.map(u => u.id);
+
+    // Activity-based filters
+    if (filterCriteria.hasActivity !== undefined || filterCriteria.activityCountMin) {
+      const { data: activities } = await supabase
+        .from('activities')
+        .select('user_id');
+
+      const activityCounts = {};
+      (activities || []).forEach(a => {
+        activityCounts[a.user_id] = (activityCounts[a.user_id] || 0) + 1;
+      });
+
+      if (filterCriteria.hasActivity === true) {
+        users = users.filter(u => (activityCounts[u.id] || 0) > 0);
+      } else if (filterCriteria.hasActivity === false) {
+        users = users.filter(u => (activityCounts[u.id] || 0) === 0);
+      }
+
+      if (filterCriteria.activityCountMin) {
+        users = users.filter(u => (activityCounts[u.id] || 0) >= filterCriteria.activityCountMin);
+      }
+    }
+
+    // Integration filters
+    if (filterCriteria.integrations && filterCriteria.integrations.length > 0) {
+      const { data: integrations } = await supabase
+        .from('bike_computer_integrations')
+        .select('user_id, provider')
+        .in('user_id', userIds);
+
+      const userIntegrations = {};
+      (integrations || []).forEach(i => {
+        if (!userIntegrations[i.user_id]) {
+          userIntegrations[i.user_id] = [];
+        }
+        userIntegrations[i.user_id].push(i.provider);
+      });
+
+      users = users.filter(u => {
+        const userProviders = userIntegrations[u.id] || [];
+        return filterCriteria.integrations.some(p => userProviders.includes(p));
+      });
+    }
+
+    if (filterCriteria.hasIntegration !== undefined) {
+      const { data: integrations } = await supabase
+        .from('bike_computer_integrations')
+        .select('user_id')
+        .in('user_id', userIds);
+
+      const usersWithIntegrations = new Set((integrations || []).map(i => i.user_id));
+
+      if (filterCriteria.hasIntegration === true) {
+        users = users.filter(u => usersWithIntegrations.has(u.id));
+      } else {
+        users = users.filter(u => !usersWithIntegrations.has(u.id));
+      }
+    }
+
+    // Add to recipients
+    for (const user of users) {
+      if (user.email && !seenEmails.has(user.email.toLowerCase())) {
+        seenEmails.add(user.email.toLowerCase());
+        recipients.push({
+          user_id: user.id,
+          email: user.email,
+          name: user.user_metadata?.name || null,
+          source: 'users'
+        });
+      }
+    }
+  }
+
+  // Get beta signups if needed
+  if (audienceType === 'beta_signups' || audienceType === 'both') {
+    let query = supabase.from('beta_signups').select('*');
+
+    if (filterCriteria.betaStatus) {
+      query = query.eq('status', filterCriteria.betaStatus);
+    }
+
+    if (filterCriteria.wantsNotifications !== undefined) {
+      query = query.eq('wants_notifications', filterCriteria.wantsNotifications);
+    }
+
+    const { data: signups, error: signupsError } = await query;
+
+    if (signupsError) {
+      console.error('Error fetching beta signups:', signupsError);
+    } else {
+      for (const signup of (signups || [])) {
+        if (signup.email && !seenEmails.has(signup.email.toLowerCase())) {
+          seenEmails.add(signup.email.toLowerCase());
+          recipients.push({
+            user_id: signup.user_id || null,
+            email: signup.email,
+            name: signup.name || null,
+            source: 'beta_signups'
+          });
+        }
+      }
+    }
+  }
+
+  return recipients;
 }
