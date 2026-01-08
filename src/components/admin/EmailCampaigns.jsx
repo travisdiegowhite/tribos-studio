@@ -624,7 +624,9 @@ export default function EmailCampaigns() {
                 placeholder="Paste your HTML email content here..."
                 value={formData.htmlContent}
                 onChange={(e) => setFormData({ ...formData, htmlContent: e.target.value })}
-                minRows={12}
+                minRows={30}
+                maxRows={50}
+                autosize
                 required
                 styles={{ input: { fontFamily: 'monospace', fontSize: '12px' } }}
               />
@@ -634,7 +636,9 @@ export default function EmailCampaigns() {
                 placeholder="Optional plain text version..."
                 value={formData.textContent}
                 onChange={(e) => setFormData({ ...formData, textContent: e.target.value })}
-                minRows={4}
+                minRows={12}
+                maxRows={30}
+                autosize
               />
             </Stack>
           </Tabs.Panel>
