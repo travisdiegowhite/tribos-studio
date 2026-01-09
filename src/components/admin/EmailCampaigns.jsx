@@ -1039,23 +1039,33 @@ export default function EmailCampaigns() {
               </SimpleGrid>
 
               {(selectedCampaign.bounced_count > 0 || selectedCampaign.complained_count > 0 || selectedCampaign.failed_count > 0) && (
-                <Group mt="md">
-                  {selectedCampaign.bounced_count > 0 && (
-                    <Badge color="red" variant="light">
-                      {selectedCampaign.bounced_count} bounced
-                    </Badge>
+                <>
+                  <Group mt="md">
+                    {selectedCampaign.bounced_count > 0 && (
+                      <Badge color="red" variant="light">
+                        {selectedCampaign.bounced_count} bounced
+                      </Badge>
+                    )}
+                    {selectedCampaign.complained_count > 0 && (
+                      <Badge color="red" variant="light">
+                        {selectedCampaign.complained_count} spam complaints
+                      </Badge>
+                    )}
+                    {selectedCampaign.failed_count > 0 && (
+                      <Badge color="red" variant="light">
+                        {selectedCampaign.failed_count} failed
+                      </Badge>
+                    )}
+                  </Group>
+                  {/* Show first error message if available */}
+                  {campaignRecipients.some(r => r.error_message) && (
+                    <Alert color="red" icon={<IconAlertTriangle size={16} />} mt="md">
+                      <Text fw={600}>Error from Resend:</Text>
+                      <Text size="sm">{campaignRecipients.find(r => r.error_message)?.error_message}</Text>
+                      <Text size="xs" c="dimmed" mt="xs">Hover over "failed" badges in the table below to see individual errors.</Text>
+                    </Alert>
                   )}
-                  {selectedCampaign.complained_count > 0 && (
-                    <Badge color="red" variant="light">
-                      {selectedCampaign.complained_count} spam complaints
-                    </Badge>
-                  )}
-                  {selectedCampaign.failed_count > 0 && (
-                    <Badge color="red" variant="light">
-                      {selectedCampaign.failed_count} failed
-                    </Badge>
-                  )}
-                </Group>
+                </>
               )}
             </Paper>
 
@@ -1078,17 +1088,25 @@ export default function EmailCampaigns() {
                       <Table.Tr key={r.id}>
                         <Table.Td>{r.email}</Table.Td>
                         <Table.Td>
-                          <Badge
-                            size="sm"
-                            color={
-                              r.status === 'clicked' || r.status === 'opened' ? 'green' :
-                              r.status === 'delivered' || r.status === 'sent' ? 'blue' :
-                              r.status === 'bounced' || r.status === 'complained' || r.status === 'failed' ? 'red' :
-                              'gray'
-                            }
+                          <Tooltip
+                            label={r.error_message || 'No error'}
+                            disabled={!r.error_message}
+                            multiline
+                            w={300}
                           >
-                            {r.status}
-                          </Badge>
+                            <Badge
+                              size="sm"
+                              style={{ cursor: r.error_message ? 'help' : 'default' }}
+                              color={
+                                r.status === 'clicked' || r.status === 'opened' ? 'green' :
+                                r.status === 'delivered' || r.status === 'sent' ? 'blue' :
+                                r.status === 'bounced' || r.status === 'complained' || r.status === 'failed' ? 'red' :
+                                'gray'
+                              }
+                            >
+                              {r.status}
+                            </Badge>
+                          </Tooltip>
                         </Table.Td>
                         <Table.Td>{formatDate(r.sent_at)}</Table.Td>
                         <Table.Td>
