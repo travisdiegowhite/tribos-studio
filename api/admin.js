@@ -837,32 +837,35 @@ async function sendCampaign(req, res, adminUser) {
       const batch = batches[batchNum];
 
       try {
-        // Prepare batch emails
-        const emailBatch = batch.map(r => ({
-          from: `${campaign.from_name} <${campaign.from_email}>`,
-          to: [r.email],
-          subject: campaign.subject,
-          html: campaign.html_content,
-          text: campaign.text_content || undefined,
-          reply_to: campaign.reply_to || undefined,
-          tags: [
-            { name: 'campaign_id', value: campaignId },
-            { name: 'campaign_name', value: campaign.name }
-          ]
-        }));
+        // Prepare batch emails (use camelCase for Resend SDK)
+        const emailBatch = batch.map(r => {
+          const email = {
+            from: `${campaign.from_name} <${campaign.from_email}>`,
+            to: [r.email],
+            subject: campaign.subject,
+            html: campaign.html_content
+          };
+          // Only add optional fields if they have values
+          if (campaign.text_content) email.text = campaign.text_content;
+          if (campaign.reply_to) email.replyTo = campaign.reply_to;
+          return email;
+        });
+
+        console.log(`Sending batch ${batchNum + 1} with ${emailBatch.length} emails`);
 
         // Send batch
         const { data: batchResult, error: batchError } = await resend.batch.send(emailBatch);
 
         if (batchError) {
-          console.error(`Batch ${batchNum + 1} error:`, batchError);
+          const errorMsg = batchError.message || JSON.stringify(batchError) || 'Batch send failed';
+          console.error(`Batch ${batchNum + 1} error:`, errorMsg, batchError);
           // Mark batch as failed
           for (const recipient of batch) {
             await supabase
               .from('email_recipients')
               .update({
                 status: 'failed',
-                error_message: batchError.message || 'Batch send failed'
+                error_message: errorMsg
               })
               .eq('campaign_id', campaignId)
               .eq('email', recipient.email);
@@ -893,7 +896,19 @@ async function sendCampaign(req, res, adminUser) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       } catch (err) {
-        console.error(`Batch ${batchNum + 1} exception:`, err);
+        const errorMsg = err.message || JSON.stringify(err) || 'Unknown error';
+        console.error(`Batch ${batchNum + 1} exception:`, errorMsg, err);
+        // Mark batch as failed with error message
+        for (const recipient of batch) {
+          await supabase
+            .from('email_recipients')
+            .update({
+              status: 'failed',
+              error_message: errorMsg
+            })
+            .eq('campaign_id', campaignId)
+            .eq('email', recipient.email);
+        }
         failedCount += batch.length;
       }
     }
