@@ -21,6 +21,7 @@ import OnboardingModal from '../components/OnboardingModal.jsx';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import FormWidget from '../components/FormWidget.jsx';
 import WeekSummary from '../components/WeekSummary.jsx';
+import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
 import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
 
@@ -163,6 +164,11 @@ function Dashboard() {
               formatDist={formatDist}
               formatElev={formatElev}
             />
+          </Box>
+
+          {/* Tools Row */}
+          <Box className="dashboard-grid">
+            <TirePressureCalculator loading={loading} />
           </Box>
 
           {/* Recent Activities List */}
