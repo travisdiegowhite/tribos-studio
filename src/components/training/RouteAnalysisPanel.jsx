@@ -45,15 +45,10 @@ import {
   IconFilter,
   IconChartBar,
 } from '@tabler/icons-react';
-import Map, { Source, Layer, Marker } from 'react-map-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import { tokens } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-
-// Segment type colors for map
+// Segment type colors for display
 const SEGMENT_COLORS = {
   flat: '#3b82f6',      // Blue
   climb: '#ef4444',     // Red
@@ -61,51 +56,6 @@ const SEGMENT_COLORS = {
   rolling: '#f59e0b',   // Amber
   interval: '#a855f7',  // Purple
 };
-
-// Decode polyline to coordinates
-function decodePolyline(encoded) {
-  if (!encoded) return [];
-  const coords = [];
-  let index = 0, lat = 0, lng = 0;
-
-  while (index < encoded.length) {
-    let shift = 0, result = 0, byte;
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-    lat += result & 1 ? ~(result >> 1) : result >> 1;
-
-    shift = 0;
-    result = 0;
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-    lng += result & 1 ? ~(result >> 1) : result >> 1;
-
-    coords.push([lng / 1e5, lat / 1e5]);
-  }
-  return coords;
-}
-
-// Get bounds for coordinates
-function getBounds(coords) {
-  if (!coords || coords.length === 0) return null;
-  let minLng = Infinity, maxLng = -Infinity;
-  let minLat = Infinity, maxLat = -Infinity;
-
-  coords.forEach(([lng, lat]) => {
-    minLng = Math.min(minLng, lng);
-    maxLng = Math.max(maxLng, lng);
-    minLat = Math.min(minLat, lat);
-    maxLat = Math.max(maxLat, lat);
-  });
-
-  return { minLng, maxLng, minLat, maxLat };
-}
 
 // Get match quality info
 function getMatchQuality(score) {
@@ -128,125 +78,8 @@ const CATEGORY_NAMES = {
   intervals: 'Intervals',
 };
 
-// RouteMapModal - Full screen map view
+// RouteMapModal - Route details modal (map visualization coming soon)
 function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
-  const [mapLoaded, setMapLoaded] = useState(false);
-
-  const coords = useMemo(() => {
-    if (!activity?.map_summary_polyline) return [];
-    return decodePolyline(activity.map_summary_polyline);
-  }, [activity]);
-
-  const bounds = useMemo(() => getBounds(coords), [coords]);
-
-  const initialViewState = useMemo(() => {
-    if (!bounds) return { longitude: -122.4, latitude: 37.8, zoom: 10 };
-    return {
-      longitude: (bounds.minLng + bounds.maxLng) / 2,
-      latitude: (bounds.minLat + bounds.maxLat) / 2,
-      zoom: 11,
-    };
-  }, [bounds]);
-
-  // Create GeoJSON for the route
-  const routeGeoJSON = useMemo(() => {
-    if (coords.length === 0) return null;
-    return {
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'LineString', coordinates: coords },
-    };
-  }, [coords]);
-
-  // Create colored segments based on analysis
-  const segmentsGeoJSON = useMemo(() => {
-    if (!analysis) return null;
-
-    const features = [];
-
-    // Add flat segments
-    const flatSegments = typeof analysis.flat_segments === 'string'
-      ? JSON.parse(analysis.flat_segments)
-      : analysis.flat_segments || [];
-
-    flatSegments.forEach((seg, i) => {
-      if (seg.coordinates?.length > 1) {
-        features.push({
-          type: 'Feature',
-          properties: {
-            type: 'flat',
-            color: SEGMENT_COLORS.flat,
-            label: `Flat: ${seg.length?.toFixed(1) || '?'}km`,
-          },
-          geometry: { type: 'LineString', coordinates: seg.coordinates },
-        });
-      }
-    });
-
-    // Add climb segments
-    const climbSegments = typeof analysis.climb_segments === 'string'
-      ? JSON.parse(analysis.climb_segments)
-      : analysis.climb_segments || [];
-
-    climbSegments.forEach((seg, i) => {
-      if (seg.coordinates?.length > 1) {
-        features.push({
-          type: 'Feature',
-          properties: {
-            type: 'climb',
-            color: SEGMENT_COLORS.climb,
-            label: `Climb: ${seg.length?.toFixed(1) || '?'}km`,
-          },
-          geometry: { type: 'LineString', coordinates: seg.coordinates },
-        });
-      }
-    });
-
-    // Add rolling segments
-    const rollingSegments = typeof analysis.rolling_segments === 'string'
-      ? JSON.parse(analysis.rolling_segments)
-      : analysis.rolling_segments || [];
-
-    rollingSegments.forEach((seg, i) => {
-      if (seg.coordinates?.length > 1) {
-        features.push({
-          type: 'Feature',
-          properties: {
-            type: 'rolling',
-            color: SEGMENT_COLORS.rolling,
-            label: `Rolling: ${seg.length?.toFixed(1) || '?'}km`,
-          },
-          geometry: { type: 'LineString', coordinates: seg.coordinates },
-        });
-      }
-    });
-
-    // Highlight interval segments if workout type specified
-    if (workoutType) {
-      const intervalSegments = typeof analysis.interval_segments === 'string'
-        ? JSON.parse(analysis.interval_segments)
-        : analysis.interval_segments || [];
-
-      intervalSegments
-        .filter(seg => seg.suitableFor?.includes(workoutType))
-        .forEach((seg, i) => {
-          if (seg.coordinates?.length > 1) {
-            features.push({
-              type: 'Feature',
-              properties: {
-                type: 'interval',
-                color: SEGMENT_COLORS.interval,
-                label: `Interval Zone: ${seg.length?.toFixed(1) || '?'}km`,
-              },
-              geometry: { type: 'LineString', coordinates: seg.coordinates },
-            });
-          }
-        });
-    }
-
-    return { type: 'FeatureCollection', features };
-  }, [analysis, workoutType]);
-
   if (!activity) return null;
 
   return (
@@ -259,94 +92,38 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
           <Text fw={600}>{activity.name || 'Route Analysis'}</Text>
         </Group>
       }
-      size="xl"
-      fullScreen
+      size="lg"
     >
-      <Stack gap="md" h="calc(100vh - 120px)">
-        {/* Map */}
-        <Box style={{ flex: 1, minHeight: 400 }}>
-          <Map
-            initialViewState={initialViewState}
-            style={{ width: '100%', height: '100%' }}
-            mapStyle="mapbox://styles/mapbox/dark-v11"
-            mapboxAccessToken={MAPBOX_TOKEN}
-            onLoad={() => setMapLoaded(true)}
-          >
-            {/* Base route (if no segments) */}
-            {mapLoaded && routeGeoJSON && !segmentsGeoJSON?.features?.length && (
-              <Source id="route" type="geojson" data={routeGeoJSON}>
-                <Layer
-                  id="route-line"
-                  type="line"
-                  paint={{
-                    'line-color': tokens.colors.electricLime,
-                    'line-width': 4,
-                    'line-opacity': 0.8,
-                  }}
-                />
-              </Source>
-            )}
-
-            {/* Colored segments */}
-            {mapLoaded && segmentsGeoJSON?.features?.length > 0 && (
-              <Source id="segments" type="geojson" data={segmentsGeoJSON}>
-                <Layer
-                  id="segments-line"
-                  type="line"
-                  paint={{
-                    'line-color': ['get', 'color'],
-                    'line-width': 6,
-                    'line-opacity': 0.9,
-                  }}
-                />
-              </Source>
-            )}
-
-            {/* Start marker */}
-            {coords.length > 0 && (
-              <Marker longitude={coords[0][0]} latitude={coords[0][1]} anchor="bottom">
-                <div style={{
-                  backgroundColor: '#22c55e',
-                  color: 'white',
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 600,
-                  fontSize: 12,
-                  border: '2px solid white',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                }}>
-                  S
-                </div>
-              </Marker>
-            )}
-
-            {/* End marker */}
-            {coords.length > 1 && (
-              <Marker longitude={coords[coords.length - 1][0]} latitude={coords[coords.length - 1][1]} anchor="bottom">
-                <div style={{
-                  backgroundColor: '#ef4444',
-                  color: 'white',
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 600,
-                  fontSize: 12,
-                  border: '2px solid white',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                }}>
-                  E
-                </div>
-              </Marker>
-            )}
-          </Map>
-        </Box>
+      <Stack gap="md">
+        {/* Activity Info */}
+        <Paper withBorder p="md">
+          <Stack gap="sm">
+            <Group justify="space-between">
+              <Text fw={500}>Route Details</Text>
+              <Badge variant="light" tt="capitalize">
+                {analysis?.terrain_type || 'Unknown terrain'}
+              </Badge>
+            </Group>
+            <Group gap="lg">
+              <Group gap={4}>
+                <IconRoute size={16} />
+                <Text size="sm">{((activity.distance || 0) / 1000).toFixed(1)} km</Text>
+              </Group>
+              <Group gap={4}>
+                <IconMountain size={16} />
+                <Text size="sm">{activity.total_elevation_gain || 0}m elevation</Text>
+              </Group>
+              <Group gap={4}>
+                <IconCalendar size={16} />
+                <Text size="sm">
+                  {activity.start_date
+                    ? new Date(activity.start_date).toLocaleDateString()
+                    : 'Unknown date'}
+                </Text>
+              </Group>
+            </Group>
+          </Stack>
+        </Paper>
 
         {/* Legend */}
         <Paper withBorder p="sm">
@@ -370,7 +147,7 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
 
         {/* Analysis Stats */}
         {analysis && (
-          <SimpleGrid cols={4}>
+          <SimpleGrid cols={2}>
             <Paper withBorder p="sm">
               <Text size="xs" c="dimmed">Flat Distance</Text>
               <Text fw={600}>{(analysis.total_flat_km || 0).toFixed(1)} km</Text>
@@ -395,6 +172,41 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
             </Paper>
           </SimpleGrid>
         )}
+
+        {/* Suitability Scores */}
+        {analysis && (
+          <Paper withBorder p="sm">
+            <Text size="sm" fw={500} mb="xs">Workout Suitability Scores</Text>
+            <SimpleGrid cols={4}>
+              {['recovery', 'endurance', 'tempo', 'threshold', 'vo2max', 'climbing', 'intervals'].map(cat => {
+                const score = analysis[`${cat}_score`] || 0;
+                const quality = getMatchQuality(score);
+                return (
+                  <Group key={cat} gap="xs">
+                    <RingProgress
+                      size={36}
+                      thickness={4}
+                      sections={[{ value: score, color: quality.color }]}
+                      label={<Text size="xs" ta="center">{score}</Text>}
+                    />
+                    <Text size="xs">{CATEGORY_NAMES[cat]}</Text>
+                  </Group>
+                );
+              })}
+            </SimpleGrid>
+          </Paper>
+        )}
+
+        {/* Map placeholder */}
+        <Paper withBorder p="xl" ta="center" bg="dark.7">
+          <ThemeIcon size={60} radius="xl" color="gray" variant="light">
+            <IconMap size={30} />
+          </ThemeIcon>
+          <Text mt="md" fw={500}>Map View Coming Soon</Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            Interactive map visualization with segment overlays will be available in a future update.
+          </Text>
+        </Paper>
       </Stack>
     </Modal>
   );
