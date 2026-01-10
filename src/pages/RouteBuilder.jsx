@@ -16,7 +16,7 @@ import { matchRouteToOSM } from '../utils/osmCyclingService';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { stravaService } from '../utils/stravaService';
 import { saveRoute, getRoute } from '../utils/routesService';
-import PreferenceSettings from '../components/PreferenceSettings.jsx';
+import FloatingRouteSettings, { RouteSettingsButton } from '../components/FloatingRouteSettings.jsx';
 import IntervalCues from '../components/IntervalCues.jsx';
 import ElevationProfile from '../components/ElevationProfile.jsx';
 import WeatherWidget from '../components/WeatherWidget.jsx';
@@ -1860,20 +1860,9 @@ function RouteBuilder() {
 
       {/* Workout Selection */}
       <Box>
-        <Group justify="space-between" mb="xs">
-          <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-            WORKOUT (OPTIONAL)
-          </Text>
-          <Tooltip label="Route Preferences">
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={() => setPreferencesOpen(true)}
-            >
-              <IconSettings size={16} />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
+        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+          WORKOUT (OPTIONAL)
+        </Text>
         <Select
           placeholder="Select a workout for color-coded route..."
           value={selectedWorkout?.id || null}
@@ -2249,6 +2238,11 @@ function RouteBuilder() {
                     ))}
                   </Menu.Dropdown>
                 </Menu>
+                <RouteSettingsButton
+                  onClick={() => setPreferencesOpen(true)}
+                  speedProfile={speedProfile}
+                  isImperial={isImperial}
+                />
               </Box>
             )}
 
@@ -2284,6 +2278,15 @@ function RouteBuilder() {
             {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
               <BikeInfrastructureLegend visible={showBikeInfrastructure} />
             )}
+
+            {/* Floating Route Settings */}
+            <FloatingRouteSettings
+              opened={preferencesOpen}
+              onClose={() => setPreferencesOpen(false)}
+              speedProfile={speedProfile}
+              onSpeedProfileUpdate={setSpeedProfile}
+              isImperial={isImperial}
+            />
           </Box>
 
           {/* Bottom Sheet with controls */}
@@ -2295,9 +2298,6 @@ function RouteBuilder() {
             {renderControls()}
           </BottomSheet>
         </Box>
-
-        {/* Preferences Modal */}
-        <PreferenceSettings opened={preferencesOpen} onClose={() => setPreferencesOpen(false)} />
       </AppShell>
     );
   }
@@ -2583,20 +2583,9 @@ function RouteBuilder() {
 
                   {/* Workout Selection for Color-Coded Routes */}
                   <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                        WORKOUT (OPTIONAL)
-                      </Text>
-                      <Tooltip label="Route Preferences">
-                        <ActionIcon
-                          variant="subtle"
-                          size="sm"
-                          onClick={() => setPreferencesOpen(true)}
-                        >
-                          <IconSettings size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Group>
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                      WORKOUT (OPTIONAL)
+                    </Text>
                     <Select
                       placeholder="Select a workout for color-coded route..."
                       value={selectedWorkout?.id || null}
@@ -2959,6 +2948,11 @@ function RouteBuilder() {
                   ))}
                 </Menu.Dropdown>
               </Menu>
+              <RouteSettingsButton
+                onClick={() => setPreferencesOpen(true)}
+                speedProfile={speedProfile}
+                isImperial={isImperial}
+              />
             </Box>
           )}
 
@@ -3089,6 +3083,15 @@ function RouteBuilder() {
             <BikeInfrastructureLegend visible={showBikeInfrastructure} />
           )}
 
+          {/* Floating Route Settings */}
+          <FloatingRouteSettings
+            opened={preferencesOpen}
+            onClose={() => setPreferencesOpen(false)}
+            speedProfile={speedProfile}
+            onSpeedProfileUpdate={setSpeedProfile}
+            isImperial={isImperial}
+          />
+
           {/* Map Tutorial Overlay */}
           {MAPBOX_TOKEN && showTutorial && waypoints.length === 0 && !routeGeometry && (
             <MapTutorialOverlay
@@ -3099,12 +3102,6 @@ function RouteBuilder() {
           )}
         </Box>
       </Box>
-
-      {/* Preferences Modal */}
-      <PreferenceSettings
-        opened={preferencesOpen}
-        onClose={() => setPreferencesOpen(false)}
-      />
 
       {/* Elevation Profile - Fixed at bottom of screen, offset by sidebar width */}
       {routeGeometry?.coordinates && routeGeometry.coordinates.length > 1 && (
