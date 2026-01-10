@@ -782,10 +782,10 @@ export default async function handler(req, res) {
  * Supports date filtering and batch limits to avoid timeouts
  */
 async function analyzeAllActivities(req, res, authUser) {
-  const { months = 3, limit = 50 } = req.body || {};
+  const { months = 3, limit = 50, force = false } = req.body || {};
   const batchLimit = Math.min(parseInt(limit) || 50, 100); // Max 100 per batch
 
-  console.log(`📊 Analyzing activities for user ${authUser.id} (last ${months} months, limit ${batchLimit})`);
+  console.log(`📊 Analyzing activities for user ${authUser.id} (last ${months} months, limit ${batchLimit}, force=${force})`);
 
   // Calculate date filter
   let dateFilter = null;
@@ -824,14 +824,22 @@ async function analyzeAllActivities(req, res, authUser) {
     });
   }
 
-  // Get existing analyses
-  const { data: existing } = await supabase
-    .from('activity_route_analysis')
-    .select('activity_id')
-    .eq('user_id', authUser.id);
+  let toAnalyze = activities;
+  let existingCount = 0;
 
-  const existingIds = new Set((existing || []).map(e => e.activity_id));
-  const toAnalyze = activities.filter(a => !existingIds.has(a.id));
+  // If not forcing re-analysis, filter out already analyzed
+  if (!force) {
+    const { data: existing } = await supabase
+      .from('activity_route_analysis')
+      .select('activity_id')
+      .eq('user_id', authUser.id);
+
+    const existingIds = new Set((existing || []).map(e => e.activity_id));
+    existingCount = existingIds.size;
+    toAnalyze = activities.filter(a => !existingIds.has(a.id));
+  } else {
+    console.log('🔄 Force re-analysis enabled - will re-analyze all activities');
+  }
 
   // Limit the batch size
   const batch = toAnalyze.slice(0, batchLimit);
@@ -871,12 +879,13 @@ async function analyzeAllActivities(req, res, authUser) {
   return res.json({
     analyzed: results.length,
     remaining: remaining,
-    alreadyAnalyzed: existingIds.size,
+    alreadyAnalyzed: existingCount,
     total: activities.length,
     errors: errors.length,
+    forced: force,
     message: remaining > 0
-      ? `Analyzed ${results.length} activities. ${remaining} more remaining - click again to continue.`
-      : `Analyzed ${results.length} activities. All done!`
+      ? `${force ? 'Re-analyzed' : 'Analyzed'} ${results.length} activities. ${remaining} more remaining - click again to continue.`
+      : `${force ? 'Re-analyzed' : 'Analyzed'} ${results.length} activities. All done!`
   });
 }
 
