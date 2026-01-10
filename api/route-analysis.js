@@ -10,6 +10,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+// OpenTopoData API for elevation
+const ELEVATION_API_URL = 'https://api.opentopodata.org/v1/srtm30m';
+
 /**
  * Extract and validate user from Authorization header
  */
@@ -108,9 +111,260 @@ function addCumulativeDistances(coords) {
 }
 
 /**
- * Identify segments in the route
+ * Downsample coordinates to reduce API calls
  */
-function identifySegments(coords, totalElevationGain, totalDistance) {
+function downsampleCoordinates(coords, maxPoints = 100) {
+  if (coords.length <= maxPoints) {
+    return coords.map((coord, i) => ({ ...coord, originalIndex: i }));
+  }
+
+  const result = [];
+  const step = (coords.length - 1) / (maxPoints - 1);
+
+  // Always include first point
+  result.push({ ...coords[0], originalIndex: 0 });
+
+  // Sample at regular intervals
+  for (let i = 1; i < maxPoints - 1; i++) {
+    const index = Math.round(i * step);
+    result.push({ ...coords[index], originalIndex: index });
+  }
+
+  // Always include last point
+  result.push({ ...coords[coords.length - 1], originalIndex: coords.length - 1 });
+
+  return result;
+}
+
+/**
+ * Fetch elevation data from OpenTopoData API
+ */
+async function fetchElevationData(coords) {
+  try {
+    // OpenTopoData accepts max 100 locations per request
+    const maxBatchSize = 100;
+    const results = [];
+
+    for (let i = 0; i < coords.length; i += maxBatchSize) {
+      const batch = coords.slice(i, i + maxBatchSize);
+      const locations = batch.map(c => `${c.lat},${c.lng}`).join('|');
+
+      const response = await fetch(`${ELEVATION_API_URL}?locations=${locations}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'OK' && data.results) {
+          results.push(...data.results.map((r, idx) => ({
+            ...batch[idx],
+            elevation: r.elevation
+          })));
+        }
+      } else {
+        console.error('Elevation API error:', response.status);
+        // Return coords without elevation on error
+        return null;
+      }
+
+      // Small delay between batches
+      if (i + maxBatchSize < coords.length) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Failed to fetch elevation:', error);
+    return null;
+  }
+}
+
+/**
+ * Interpolate elevation for all points based on sampled points
+ */
+function interpolateElevations(sampledCoords, originalCoords) {
+  const fullElevation = new Array(originalCoords.length);
+
+  // Fill in sampled points
+  for (const point of sampledCoords) {
+    fullElevation[point.originalIndex] = point.elevation;
+  }
+
+  // Interpolate missing points
+  let lastKnownIndex = 0;
+  for (let i = 1; i < originalCoords.length; i++) {
+    if (fullElevation[i] === undefined) {
+      // Find next known point
+      let nextKnownIndex = i + 1;
+      while (nextKnownIndex < originalCoords.length && fullElevation[nextKnownIndex] === undefined) {
+        nextKnownIndex++;
+      }
+
+      if (nextKnownIndex < originalCoords.length) {
+        // Linear interpolation
+        const startElev = fullElevation[lastKnownIndex];
+        const endElev = fullElevation[nextKnownIndex];
+        const range = nextKnownIndex - lastKnownIndex;
+        const position = i - lastKnownIndex;
+        fullElevation[i] = startElev + (endElev - startElev) * (position / range);
+      } else {
+        fullElevation[i] = fullElevation[lastKnownIndex];
+      }
+    } else {
+      lastKnownIndex = i;
+    }
+  }
+
+  // Add elevation to original coords
+  return originalCoords.map((coord, i) => ({
+    ...coord,
+    elevation: fullElevation[i]
+  }));
+}
+
+/**
+ * Calculate grade between two points
+ */
+function calculateGrade(elev1, elev2, distance) {
+  if (distance <= 0) return 0;
+  const elevChange = elev2 - elev1;
+  const distanceMeters = distance * 1000;
+  return (elevChange / distanceMeters) * 100;
+}
+
+/**
+ * Identify segments based on actual elevation data
+ * This analyzes point-by-point to find real flat, climb, and rolling sections
+ */
+function identifySegmentsWithElevation(coords) {
+  const flat = [];
+  const climb = [];
+  const descent = [];
+  const rolling = [];
+
+  if (coords.length < 10) {
+    return { flat, climb, descent, rolling };
+  }
+
+  // Constants for classification
+  const FLAT_THRESHOLD = 2;      // < 2% is flat
+  const CLIMB_THRESHOLD = 4;     // > 4% is climbing
+  const MIN_SEGMENT_LENGTH = 0.3; // 300m minimum segment
+  const SMOOTHING_WINDOW = 5;    // Points to smooth grade over
+
+  // Calculate smoothed grades
+  const grades = [];
+  for (let i = 0; i < coords.length - 1; i++) {
+    const dist = (coords[i + 1].distance || 0) - (coords[i].distance || 0);
+    const grade = calculateGrade(coords[i].elevation, coords[i + 1].elevation, dist);
+    grades.push(grade);
+  }
+  grades.push(grades[grades.length - 1]); // Pad last point
+
+  // Smooth grades with rolling average
+  const smoothedGrades = grades.map((_, i) => {
+    const start = Math.max(0, i - Math.floor(SMOOTHING_WINDOW / 2));
+    const end = Math.min(grades.length, i + Math.ceil(SMOOTHING_WINDOW / 2));
+    const window = grades.slice(start, end);
+    return window.reduce((a, b) => a + b, 0) / window.length;
+  });
+
+  // Classify each point
+  const pointTypes = smoothedGrades.map(grade => {
+    if (grade > CLIMB_THRESHOLD) return 'climb';
+    if (grade < -CLIMB_THRESHOLD) return 'descent';
+    if (Math.abs(grade) <= FLAT_THRESHOLD) return 'flat';
+    return 'rolling';
+  });
+
+  // Group consecutive points of same type into segments
+  let segmentStart = 0;
+  let currentType = pointTypes[0];
+
+  for (let i = 1; i <= coords.length; i++) {
+    const type = i < coords.length ? pointTypes[i] : null;
+
+    // End of segment when type changes or end of route
+    if (type !== currentType || i === coords.length) {
+      const segmentLength = (coords[i - 1].distance || 0) - (coords[segmentStart].distance || 0);
+
+      if (segmentLength >= MIN_SEGMENT_LENGTH) {
+        const segmentCoords = coords.slice(segmentStart, i);
+        const segmentGrades = smoothedGrades.slice(segmentStart, i);
+        const avgGrade = segmentGrades.reduce((a, b) => a + b, 0) / segmentGrades.length;
+        const maxGrade = Math.max(...segmentGrades);
+        const minGrade = Math.min(...segmentGrades);
+
+        const elevStart = coords[segmentStart].elevation || 0;
+        const elevEnd = coords[i - 1].elevation || 0;
+        const elevGain = Math.max(0, elevEnd - elevStart);
+        const elevLoss = Math.max(0, elevStart - elevEnd);
+
+        const segment = {
+          startIdx: segmentStart,
+          endIdx: i - 1,
+          startDistance: coords[segmentStart].distance || 0,
+          endDistance: coords[i - 1].distance || 0,
+          length: segmentLength,
+          avgGrade: Math.round(avgGrade * 10) / 10,
+          maxGrade: Math.round(maxGrade * 10) / 10,
+          minGrade: Math.round(minGrade * 10) / 10,
+          elevationGain: Math.round(elevGain),
+          elevationLoss: Math.round(elevLoss),
+          coordinates: segmentCoords.map(c => [c.lng, c.lat]),
+          quality: 80,
+          type: currentType
+        };
+
+        switch (currentType) {
+          case 'flat': flat.push(segment); break;
+          case 'climb': climb.push(segment); break;
+          case 'descent': descent.push(segment); break;
+          case 'rolling': rolling.push(segment); break;
+        }
+      }
+
+      segmentStart = i;
+      currentType = type;
+    }
+  }
+
+  // Merge adjacent segments of same type that are close together
+  const mergeSegments = (segments) => {
+    if (segments.length < 2) return segments;
+
+    const merged = [segments[0]];
+    for (let i = 1; i < segments.length; i++) {
+      const prev = merged[merged.length - 1];
+      const curr = segments[i];
+      const gap = curr.startDistance - prev.endDistance;
+
+      // Merge if gap is less than 200m
+      if (gap < 0.2) {
+        prev.endIdx = curr.endIdx;
+        prev.endDistance = curr.endDistance;
+        prev.length = prev.endDistance - prev.startDistance;
+        prev.coordinates = [...prev.coordinates, ...curr.coordinates];
+        prev.elevationGain += curr.elevationGain;
+        prev.elevationLoss += curr.elevationLoss;
+      } else {
+        merged.push(curr);
+      }
+    }
+    return merged;
+  };
+
+  return {
+    flat: mergeSegments(flat),
+    climb: mergeSegments(climb),
+    descent: mergeSegments(descent),
+    rolling: mergeSegments(rolling)
+  };
+}
+
+/**
+ * Fallback: Identify segments without elevation data (original method)
+ */
+function identifySegmentsFallback(coords, totalElevationGain, totalDistance) {
   const flat = [];
   const climb = [];
   const descent = [];
@@ -165,43 +419,81 @@ function identifySegments(coords, totalElevationGain, totalDistance) {
 
 /**
  * Identify interval-suitable segments
+ * Enhanced to match specific workout requirements
  */
-function identifyIntervalSegments(flatSegments, rollingSegments) {
+function identifyIntervalSegments(flatSegments, rollingSegments, climbSegments) {
   const intervalSegments = [];
-  const MIN_INTERVAL_LENGTH = 1.0;
-  const candidates = [...flatSegments, ...rollingSegments.filter(s => s.avgGrade < 3)];
 
-  for (const segment of candidates) {
-    if (segment.length < MIN_INTERVAL_LENGTH) continue;
+  // Workout requirements: minLength (km), maxGrade (%), ideal terrain types
+  const workoutRequirements = {
+    vo2max: { minLength: 0.8, maxGrade: 3, idealTypes: ['flat', 'rolling'], note: 'Short hard efforts' },
+    threshold: { minLength: 2.0, maxGrade: 2, idealTypes: ['flat'], note: '10-20min sustained efforts' },
+    sweet_spot: { minLength: 1.5, maxGrade: 3, idealTypes: ['flat', 'rolling'], note: '10-15min moderate efforts' },
+    tempo: { minLength: 3.0, maxGrade: 2, idealTypes: ['flat'], note: '20-30min steady efforts' },
+    recovery: { minLength: 1.0, maxGrade: 1, idealTypes: ['flat'], note: 'Easy spinning' },
+    endurance: { minLength: 2.0, maxGrade: 3, idealTypes: ['flat', 'rolling'], note: 'Steady aerobic' },
+    climbing: { minLength: 1.0, minGrade: 4, maxGrade: 15, idealTypes: ['climb'], note: 'Hill efforts' },
+    intervals: { minLength: 1.0, maxGrade: 3, idealTypes: ['flat', 'rolling'], note: 'Repeated efforts' }
+  };
 
-    const consistencyScore = segment.type === 'flat' ? 95 : 75;
+  // Process flat and rolling segments for most interval types
+  const flatAndRolling = [...flatSegments, ...rollingSegments];
+
+  for (const segment of flatAndRolling) {
     const suitableFor = [];
+    const gradeAbs = Math.abs(segment.avgGrade);
 
-    if (segment.length >= 1) suitableFor.push('vo2max');
-    if (segment.length >= 2) {
-      suitableFor.push('threshold');
-      suitableFor.push('sweet_spot');
-    }
-    if (segment.length >= 3) suitableFor.push('tempo');
-    if (segment.type === 'flat') {
-      suitableFor.push('recovery');
-      suitableFor.push('endurance');
+    // Check each workout type
+    for (const [workout, req] of Object.entries(workoutRequirements)) {
+      if (workout === 'climbing') continue; // Handle separately
+
+      if (
+        segment.length >= req.minLength &&
+        gradeAbs <= req.maxGrade &&
+        req.idealTypes.includes(segment.type)
+      ) {
+        suitableFor.push(workout);
+      }
     }
 
-    intervalSegments.push({
-      ...segment,
-      suitableFor,
-      uninterruptedLength: segment.length,
-      consistencyScore
-    });
+    if (suitableFor.length > 0 && segment.length >= 0.5) {
+      // Calculate consistency score based on grade variance
+      const gradeVariance = Math.abs(segment.maxGrade - segment.minGrade);
+      const consistencyScore = Math.max(50, 100 - gradeVariance * 5);
+
+      intervalSegments.push({
+        ...segment,
+        suitableFor,
+        uninterruptedLength: segment.length,
+        consistencyScore: Math.round(consistencyScore),
+        description: `${segment.length.toFixed(1)}km ${segment.type} section (${segment.avgGrade > 0 ? '+' : ''}${segment.avgGrade.toFixed(1)}% avg)`
+      });
+    }
   }
 
+  // Process climb segments for climbing workouts
+  for (const segment of climbSegments) {
+    if (segment.length >= 0.5 && segment.avgGrade >= 4 && segment.avgGrade <= 15) {
+      const consistencyScore = Math.max(50, 100 - Math.abs(segment.maxGrade - segment.minGrade) * 3);
+
+      intervalSegments.push({
+        ...segment,
+        suitableFor: ['climbing'],
+        uninterruptedLength: segment.length,
+        consistencyScore: Math.round(consistencyScore),
+        description: `${segment.length.toFixed(1)}km climb at ${segment.avgGrade.toFixed(1)}% (${segment.elevationGain}m gain)`
+      });
+    }
+  }
+
+  // Sort by length (longer segments first)
   intervalSegments.sort((a, b) => b.length - a.length);
   return intervalSegments;
 }
 
 /**
  * Calculate training suitability scores
+ * Uses interval segment suitability data for more accurate scoring
  */
 function calculateSuitabilityScores(totalDistance, totalElevationGain, flatSegments, climbSegments, rollingSegments, intervalSegments) {
   const elevPerKm = totalDistance > 0 ? (totalElevationGain / totalDistance) : 0;
@@ -209,17 +501,78 @@ function calculateSuitabilityScores(totalDistance, totalElevationGain, flatSegme
   const totalClimbingKm = climbSegments.reduce((sum, s) => sum + s.length, 0);
   const flatRatio = totalDistance > 0 ? totalFlatKm / totalDistance : 0;
   const longestFlatSegment = flatSegments.length > 0 ? Math.max(...flatSegments.map(s => s.length)) : 0;
-  const goodIntervalSegments = intervalSegments.filter(s => s.length >= 2).length;
+
+  // Count segments suitable for each workout type
+  const countSuitableFor = (type) => intervalSegments.filter(s => s.suitableFor?.includes(type)).length;
+  const totalLengthSuitableFor = (type) => intervalSegments
+    .filter(s => s.suitableFor?.includes(type))
+    .reduce((sum, s) => sum + s.length, 0);
+
+  // Base scores on segment suitability
+  const recoverySegments = countSuitableFor('recovery');
+  const enduranceSegments = countSuitableFor('endurance');
+  const tempoSegments = countSuitableFor('tempo');
+  const sweetSpotSegments = countSuitableFor('sweet_spot');
+  const thresholdSegments = countSuitableFor('threshold');
+  const vo2maxSegments = countSuitableFor('vo2max');
+  const climbingSegments = countSuitableFor('climbing');
 
   return {
-    recovery: Math.min(100, Math.round((flatRatio * 50) + (totalDistance < 20 ? 30 : 10) + (elevPerKm < 10 ? 20 : 0))),
-    endurance: Math.min(100, Math.round((totalDistance >= 30 ? 40 : totalDistance * 1.3) + (flatRatio * 30) + 30)),
-    tempo: Math.min(100, Math.round(((flatRatio + (rollingSegments.length > 0 ? 0.3 : 0)) * 40) + (longestFlatSegment >= 5 ? 30 : longestFlatSegment * 6) + (goodIntervalSegments >= 2 ? 30 : goodIntervalSegments * 15))),
-    sweet_spot: Math.min(100, Math.round(((flatRatio * 0.7 + 0.3) * 40) + (longestFlatSegment >= 3 ? 30 : longestFlatSegment * 10) + (goodIntervalSegments >= 2 ? 30 : goodIntervalSegments * 15))),
-    threshold: Math.min(100, Math.round((flatRatio * 50) + (longestFlatSegment >= 4 ? 30 : longestFlatSegment * 7.5) + (goodIntervalSegments >= 3 ? 20 : goodIntervalSegments * 7))),
-    vo2max: Math.min(100, Math.round((flatRatio * 40) + (longestFlatSegment >= 2 ? 30 : longestFlatSegment * 15) + (intervalSegments.length >= 4 ? 30 : intervalSegments.length * 7.5))),
-    climbing: Math.min(100, Math.round((elevPerKm >= 25 ? 50 : elevPerKm * 2) + (totalClimbingKm >= 5 ? 30 : totalClimbingKm * 6) + (climbSegments.length >= 3 ? 20 : climbSegments.length * 7))),
-    intervals: Math.min(100, Math.round((goodIntervalSegments >= 4 ? 40 : goodIntervalSegments * 10) + (longestFlatSegment >= 3 ? 30 : longestFlatSegment * 10) + (flatRatio * 30)))
+    // Recovery: Lots of flat terrain, shorter route
+    recovery: Math.min(100, Math.round(
+      (recoverySegments >= 3 ? 40 : recoverySegments * 13) +
+      (flatRatio * 30) +
+      (totalDistance < 30 ? 30 : 15)
+    )),
+
+    // Endurance: Long route with sustained sections
+    endurance: Math.min(100, Math.round(
+      (enduranceSegments >= 3 ? 35 : enduranceSegments * 12) +
+      (totalDistance >= 40 ? 35 : totalDistance * 0.9) +
+      30
+    )),
+
+    // Tempo: Long flat sections (3km+)
+    tempo: Math.min(100, Math.round(
+      (tempoSegments >= 2 ? 50 : tempoSegments * 25) +
+      (longestFlatSegment >= 5 ? 30 : longestFlatSegment * 6) +
+      (flatRatio * 20)
+    )),
+
+    // Sweet Spot: Moderate length flat/rolling sections
+    sweet_spot: Math.min(100, Math.round(
+      (sweetSpotSegments >= 3 ? 45 : sweetSpotSegments * 15) +
+      (longestFlatSegment >= 3 ? 30 : longestFlatSegment * 10) +
+      (flatRatio * 25)
+    )),
+
+    // Threshold: Multiple 2km+ flat sections
+    threshold: Math.min(100, Math.round(
+      (thresholdSegments >= 3 ? 50 : thresholdSegments * 17) +
+      (totalLengthSuitableFor('threshold') >= 8 ? 30 : totalLengthSuitableFor('threshold') * 4) +
+      (flatRatio * 20)
+    )),
+
+    // VO2max: Multiple shorter flat sections
+    vo2max: Math.min(100, Math.round(
+      (vo2maxSegments >= 4 ? 50 : vo2maxSegments * 12.5) +
+      (intervalSegments.length >= 5 ? 30 : intervalSegments.length * 6) +
+      (flatRatio * 20)
+    )),
+
+    // Climbing: Actual climb segments
+    climbing: Math.min(100, Math.round(
+      (climbingSegments >= 3 ? 50 : climbingSegments * 17) +
+      (totalClimbingKm >= 5 ? 30 : totalClimbingKm * 6) +
+      (elevPerKm >= 20 ? 20 : elevPerKm)
+    )),
+
+    // Intervals: Overall variety of suitable sections
+    intervals: Math.min(100, Math.round(
+      (intervalSegments.length >= 5 ? 40 : intervalSegments.length * 8) +
+      (longestFlatSegment >= 2 ? 30 : longestFlatSegment * 15) +
+      (flatRatio * 30)
+    ))
   };
 }
 
@@ -254,23 +607,88 @@ function determineBestFor(suitability) {
 }
 
 /**
- * Analyze a single activity
+ * Analyze a single activity (sync version - uses fallback without elevation)
  */
-function analyzeActivity(activity) {
+function analyzeActivitySync(activity) {
   const polyline = activity.map_summary_polyline || activity.summary_polyline;
   if (!polyline) {
     return null;
   }
 
-  const totalDistance = (activity.distance || 0) / 1000; // Convert meters to km
+  const totalDistance = (activity.distance || 0) / 1000;
   const totalElevationGain = activity.total_elevation_gain || 0;
 
   let coords = decodePolyline(polyline);
   coords = addCumulativeDistances(coords);
 
-  const { flat, climb, descent, rolling } = identifySegments(coords, totalElevationGain, totalDistance);
-  const intervalSegments = identifyIntervalSegments(flat, rolling);
+  const { flat, climb, descent, rolling } = identifySegmentsFallback(coords, totalElevationGain, totalDistance);
+  const intervalSegments = identifyIntervalSegments(flat, rolling, climb);
 
+  return buildAnalysisResult(activity, coords, flat, climb, descent, rolling, intervalSegments, totalDistance, totalElevationGain);
+}
+
+/**
+ * Analyze a single activity with real elevation data (async)
+ */
+async function analyzeActivityWithElevation(activity) {
+  const polyline = activity.map_summary_polyline || activity.summary_polyline;
+  if (!polyline) {
+    return null;
+  }
+
+  const totalDistance = (activity.distance || 0) / 1000;
+  const totalElevationGain = activity.total_elevation_gain || 0;
+
+  let coords = decodePolyline(polyline);
+  coords = addCumulativeDistances(coords);
+
+  // Try to fetch elevation data
+  console.log(`🏔️ Fetching elevation for activity ${activity.id} (${coords.length} points)`);
+
+  let flat, climb, descent, rolling;
+
+  try {
+    // Downsample for API efficiency
+    const sampledCoords = downsampleCoordinates(coords, 100);
+    const elevationData = await fetchElevationData(sampledCoords);
+
+    if (elevationData && elevationData.length > 0) {
+      // Interpolate elevation back to all points
+      const coordsWithElevation = interpolateElevations(elevationData, coords);
+      console.log(`✅ Got elevation data, identifying segments by actual terrain`);
+
+      // Use elevation-aware segment identification
+      const segments = identifySegmentsWithElevation(coordsWithElevation);
+      flat = segments.flat;
+      climb = segments.climb;
+      descent = segments.descent;
+      rolling = segments.rolling;
+    } else {
+      console.log(`⚠️ No elevation data, using fallback method`);
+      const segments = identifySegmentsFallback(coords, totalElevationGain, totalDistance);
+      flat = segments.flat;
+      climb = segments.climb;
+      descent = segments.descent;
+      rolling = segments.rolling;
+    }
+  } catch (error) {
+    console.error(`❌ Elevation fetch failed, using fallback:`, error.message);
+    const segments = identifySegmentsFallback(coords, totalElevationGain, totalDistance);
+    flat = segments.flat;
+    climb = segments.climb;
+    descent = segments.descent;
+    rolling = segments.rolling;
+  }
+
+  const intervalSegments = identifyIntervalSegments(flat, rolling, climb);
+
+  return buildAnalysisResult(activity, coords, flat, climb, descent, rolling, intervalSegments, totalDistance, totalElevationGain);
+}
+
+/**
+ * Build the analysis result object
+ */
+function buildAnalysisResult(activity, coords, flat, climb, descent, rolling, intervalSegments, totalDistance, totalElevationGain) {
   const totalFlatKm = flat.reduce((sum, s) => sum + s.length, 0);
   const totalClimbingKm = climb.reduce((sum, s) => sum + s.length, 0);
   const longestUninterruptedKm = intervalSegments.length > 0
@@ -421,13 +839,14 @@ async function analyzeAllActivities(req, res, authUser) {
 
   console.log(`Found ${activities.length} activities in range, ${toAnalyze.length} need analysis, processing ${batch.length}`);
 
-  // Analyze the batch
+  // Analyze the batch with elevation data
   const results = [];
   const errors = [];
 
   for (const activity of batch) {
     try {
-      const analysis = analyzeActivity(activity);
+      // Use elevation-aware analysis
+      const analysis = await analyzeActivityWithElevation(activity);
       if (analysis) {
         results.push(analysis);
       }
@@ -487,8 +906,8 @@ async function analyzeOneActivity(req, res, authUser) {
     return res.status(400).json({ error: 'Activity has no GPS data' });
   }
 
-  // Analyze
-  const analysis = analyzeActivity(activity);
+  // Analyze with elevation data
+  const analysis = await analyzeActivityWithElevation(activity);
   if (!analysis) {
     return res.status(500).json({ error: 'Analysis failed' });
   }
