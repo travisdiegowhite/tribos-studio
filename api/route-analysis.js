@@ -361,17 +361,36 @@ export default async function handler(req, res) {
 
 /**
  * Analyze all unanalyzed activities for a user
+ * Supports date filtering and batch limits to avoid timeouts
  */
 async function analyzeAllActivities(req, res, authUser) {
-  console.log(`📊 Analyzing all activities for user ${authUser.id}`);
+  const { months = 3, limit = 50 } = req.body || {};
+  const batchLimit = Math.min(parseInt(limit) || 50, 100); // Max 100 per batch
 
-  // Get all activities with polylines that haven't been analyzed
-  const { data: activities, error: fetchError } = await supabase
+  console.log(`📊 Analyzing activities for user ${authUser.id} (last ${months} months, limit ${batchLimit})`);
+
+  // Calculate date filter
+  let dateFilter = null;
+  if (months !== 'all' && months > 0) {
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - parseInt(months));
+    dateFilter = cutoffDate.toISOString();
+  }
+
+  // Build query for activities with polylines
+  let query = supabase
     .from('activities')
     .select('id, user_id, name, distance, total_elevation_gain, map_summary_polyline, start_date')
     .eq('user_id', authUser.id)
     .not('map_summary_polyline', 'is', null)
     .order('start_date', { ascending: false });
+
+  // Apply date filter if set
+  if (dateFilter) {
+    query = query.gte('start_date', dateFilter);
+  }
+
+  const { data: activities, error: fetchError } = await query;
 
   if (fetchError) {
     console.error('Error fetching activities:', fetchError);
@@ -379,7 +398,12 @@ async function analyzeAllActivities(req, res, authUser) {
   }
 
   if (!activities || activities.length === 0) {
-    return res.json({ analyzed: 0, message: 'No activities with GPS data found' });
+    return res.json({
+      analyzed: 0,
+      remaining: 0,
+      total: 0,
+      message: 'No activities with GPS data found in the selected time range'
+    });
   }
 
   // Get existing analyses
@@ -391,13 +415,17 @@ async function analyzeAllActivities(req, res, authUser) {
   const existingIds = new Set((existing || []).map(e => e.activity_id));
   const toAnalyze = activities.filter(a => !existingIds.has(a.id));
 
-  console.log(`Found ${activities.length} activities, ${toAnalyze.length} need analysis`);
+  // Limit the batch size
+  const batch = toAnalyze.slice(0, batchLimit);
+  const remaining = toAnalyze.length - batch.length;
 
-  // Analyze each activity
+  console.log(`Found ${activities.length} activities in range, ${toAnalyze.length} need analysis, processing ${batch.length}`);
+
+  // Analyze the batch
   const results = [];
   const errors = [];
 
-  for (const activity of toAnalyze) {
+  for (const activity of batch) {
     try {
       const analysis = analyzeActivity(activity);
       if (analysis) {
@@ -423,9 +451,13 @@ async function analyzeAllActivities(req, res, authUser) {
 
   return res.json({
     analyzed: results.length,
-    skipped: existingIds.size,
+    remaining: remaining,
+    alreadyAnalyzed: existingIds.size,
+    total: activities.length,
     errors: errors.length,
-    message: `Analyzed ${results.length} activities`
+    message: remaining > 0
+      ? `Analyzed ${results.length} activities. ${remaining} more remaining - click again to continue.`
+      : `Analyzed ${results.length} activities. All done!`
   });
 }
 

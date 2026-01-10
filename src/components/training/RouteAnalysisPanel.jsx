@@ -502,6 +502,8 @@ export default function RouteAnalysisPanel({
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState('workouts'); // 'workouts' | 'all'
   const [filterCategory, setFilterCategory] = useState(null);
+  const [analysisMonths, setAnalysisMonths] = useState('3'); // 1, 3, 6, 12, 'all'
+  const [analysisProgress, setAnalysisProgress] = useState(null); // { analyzed, remaining, total }
 
   // Fetch analyses on mount
   useEffect(() => {
@@ -548,6 +550,7 @@ export default function RouteAnalysisPanel({
   const analyzeAll = async () => {
     setAnalyzing(true);
     setError(null);
+    setAnalysisProgress(null);
 
     try {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -557,7 +560,11 @@ export default function RouteAnalysisPanel({
           'Authorization': `Bearer ${currentSession?.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ action: 'analyze_all' }),
+        body: JSON.stringify({
+          action: 'analyze_all',
+          months: analysisMonths === 'all' ? 'all' : parseInt(analysisMonths),
+          limit: 50,
+        }),
       });
 
       const data = await response.json();
@@ -565,6 +572,14 @@ export default function RouteAnalysisPanel({
       if (!response.ok) {
         throw new Error(data.error || 'Failed to analyze activities');
       }
+
+      // Update progress
+      setAnalysisProgress({
+        analyzed: data.analyzed,
+        remaining: data.remaining,
+        total: data.total,
+        message: data.message,
+      });
 
       // Refresh the analyses
       await fetchAnalyses();
@@ -681,7 +696,7 @@ export default function RouteAnalysisPanel({
   return (
     <Stack gap="md">
       {/* Header */}
-      <Group justify="space-between">
+      <Group justify="space-between" wrap="wrap">
         <Group gap="xs">
           <ThemeIcon size="lg" radius="md" color="lime">
             <IconRoute size={20} />
@@ -694,7 +709,7 @@ export default function RouteAnalysisPanel({
           </Box>
         </Group>
 
-        <Group gap="xs">
+        <Group gap="xs" wrap="wrap">
           <SegmentedControl
             size="xs"
             value={viewMode}
@@ -704,6 +719,18 @@ export default function RouteAnalysisPanel({
               { label: 'All Routes', value: 'all' },
             ]}
           />
+          <SegmentedControl
+            size="xs"
+            value={analysisMonths}
+            onChange={setAnalysisMonths}
+            data={[
+              { label: '1 mo', value: '1' },
+              { label: '3 mo', value: '3' },
+              { label: '6 mo', value: '6' },
+              { label: '1 yr', value: '12' },
+              { label: 'All', value: 'all' },
+            ]}
+          />
           <Button
             size="xs"
             variant="light"
@@ -711,10 +738,34 @@ export default function RouteAnalysisPanel({
             onClick={analyzeAll}
             disabled={analyzing}
           >
-            {analyzing ? 'Analyzing...' : 'Analyze All'}
+            {analyzing ? 'Analyzing...' : 'Analyze'}
           </Button>
         </Group>
       </Group>
+
+      {/* Analysis Progress */}
+      {analysisProgress && (
+        <Alert
+          color={analysisProgress.remaining > 0 ? 'blue' : 'green'}
+          icon={analysisProgress.remaining > 0 ? <IconRefresh size={16} /> : <IconCheck size={16} />}
+          onClose={() => setAnalysisProgress(null)}
+          withCloseButton
+        >
+          <Text size="sm">{analysisProgress.message}</Text>
+          {analysisProgress.remaining > 0 && (
+            <Button
+              size="xs"
+              variant="light"
+              mt="xs"
+              onClick={analyzeAll}
+              disabled={analyzing}
+              leftSection={analyzing ? <Loader size={12} /> : null}
+            >
+              {analyzing ? 'Processing...' : `Continue (${analysisProgress.remaining} remaining)`}
+            </Button>
+          )}
+        </Alert>
+      )}
 
       {/* Error Alert */}
       {error && (
