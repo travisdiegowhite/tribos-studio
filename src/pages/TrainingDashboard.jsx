@@ -76,7 +76,7 @@ import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
-import { SupplementWorkoutModal } from '../components/training';
+import { SupplementWorkoutModal, RouteAnalysisPanel } from '../components/training';
 import RaceGoalsPanel from '../components/RaceGoalsPanel.jsx';
 import PowerDurationCurve from '../components/PowerDurationCurve.jsx';
 import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
@@ -105,7 +105,7 @@ function TrainingDashboard() {
 
   // Read tab from URL query parameter, default to 'today'
   const urlTab = searchParams.get('tab');
-  const validTabs = ['today', 'plans', 'trends', 'power', 'history', 'calendar'];
+  const validTabs = ['today', 'plans', 'trends', 'power', 'routes', 'history', 'calendar'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
   const [activeTab, setActiveTab] = useState(initialTab);
   const aiCoachRef = useRef(null);
@@ -778,6 +778,12 @@ function TrainingDashboard() {
                   {!isMobile && 'Power'}
                 </Tabs.Tab>
                 <Tabs.Tab
+                  value="routes"
+                  leftSection={<IconRoute size={isMobile ? 20 : 18} />}
+                >
+                  {!isMobile && 'Routes'}
+                </Tabs.Tab>
+                <Tabs.Tab
                   value="history"
                   leftSection={<IconClock size={isMobile ? 20 : 18} />}
                 >
@@ -939,6 +945,15 @@ function TrainingDashboard() {
                   navigate={navigate}
                   activities={visibleActivities}
                   weight={userWeight}
+                />
+              </Tabs.Panel>
+
+              {/* ROUTES TAB - Activity Route Analysis */}
+              <Tabs.Panel value="routes">
+                <RouteAnalysisPanel
+                  plannedWorkouts={plannedWorkouts}
+                  formatDist={formatDist}
+                  formatElev={formatElev}
                 />
               </Tabs.Panel>
 
@@ -1988,6 +2003,33 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
             )}
           </Paper>
         )}
+
+        {/* Find Matching Routes */}
+        <Paper p="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-7)' }}>
+          <Group justify="space-between" align="center">
+            <Box>
+              <Group gap="xs" mb={4}>
+                <IconRoute size={16} />
+                <Text fw={500} size="sm">Find Matching Routes</Text>
+              </Group>
+              <Text size="xs" c="dimmed">
+                Find routes from your history that are ideal for this {workout.category?.replace('_', ' ')} workout
+              </Text>
+            </Box>
+            <Button
+              variant="light"
+              color="lime"
+              leftSection={<IconRoute size={16} />}
+              onClick={() => {
+                onClose();
+                // Navigate to Routes tab - setActiveTab will be called via props
+                window.location.href = `/training?tab=routes`;
+              }}
+            >
+              View Routes
+            </Button>
+          </Group>
+        </Paper>
 
         {/* Close Button */}
         <Button variant="light" color="lime" fullWidth onClick={onClose}>
