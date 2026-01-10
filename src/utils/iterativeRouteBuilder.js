@@ -219,14 +219,18 @@ async function buildQuarterLoop(params) {
   console.log(`🧭 Initial direction: ${getDirectionName(initialBearing)} (${initialBearing}°)`);
 
   // Calculate quarter distance
-  // We use slightly less than 1/4 for the first 3 segments to leave room for the return
-  const quarterDistance = targetDistanceKm / 4;
+  // Road routing typically adds 25-35% to straight-line distance, so we target less
+  // to compensate. We target ~75% of the quarter distance as straight-line to get
+  // closer to the actual target after road routing.
+  const roadRoutingFactor = 0.75; // Compensate for roads being ~33% longer than straight line
+  const quarterDistance = (targetDistanceKm / 4) * roadRoutingFactor;
 
-  // Slight variation to make routes more natural (not perfect squares)
+  // Minimal variation to keep routes consistent but not perfectly identical
+  // Reduced from ±10-15% to ±2-3% for more predictable results
   const quarterVariations = [
-    quarterDistance * (0.95 + Math.random() * 0.1),  // Q1: 95-105%
-    quarterDistance * (0.90 + Math.random() * 0.15), // Q2: 90-105%
-    quarterDistance * (0.90 + Math.random() * 0.15), // Q3: 90-105%
+    quarterDistance * (0.98 + Math.random() * 0.04),  // Q1: 98-102%
+    quarterDistance * (0.98 + Math.random() * 0.04),  // Q2: 98-102%
+    quarterDistance * (0.98 + Math.random() * 0.04),  // Q3: 98-102%
     // Q4 will be calculated to close the loop
   ];
 
@@ -268,8 +272,8 @@ async function buildQuarterLoop(params) {
     currentPoint = segment.endPoint;
 
     // Turn right (clockwise) for the next quarter
-    // Add some variation to avoid perfectly square routes
-    const turnAngle = 85 + Math.random() * 10; // 85-95 degrees
+    // Consistent 90° turns for predictable loop geometry
+    const turnAngle = 90;
     currentBearing = normalizeBearing(currentBearing + turnAngle);
   }
 

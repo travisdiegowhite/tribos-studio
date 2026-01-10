@@ -527,7 +527,11 @@ function RouteBuilder() {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [convertingRoute, setConvertingRoute] = useState(null); // Index of suggestion being converted
   const [naturalLanguageInput, setNaturalLanguageInput] = useState('');
-  const [useIterativeBuilder, setUseIterativeBuilder] = useState(true); // Iterative route builder - enabled by default
+  // Iterative route builder - persisted to localStorage, enabled by default
+  const [useIterativeBuilder, setUseIterativeBuilder] = useLocalStorage({
+    key: 'tribos-route-builder-iterative',
+    defaultValue: true,
+  });
 
   // Speed profile from Strava sync (fetched fresh)
   const [speedProfile, setSpeedProfile] = useState(null);
@@ -1115,8 +1119,12 @@ function RouteBuilder() {
         console.log('🔄 Using Iterative Route Builder');
 
         // Calculate target distance based on time and speed
-        const avgSpeed = speedProfile?.average_speed || 25; // km/h default
+        // Default 28 km/h (~17.4 mph) is typical cycling pace for recreational/fitness riders
+        const avgSpeed = speedProfile?.average_speed || 28; // km/h default
         const targetDistanceKm = (timeAvailable / 60) * avgSpeed;
+
+        console.log(`📊 Route calculation: ${timeAvailable}min × ${avgSpeed.toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
+        console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
 
         routes = await generateIterativeRouteVariations({
           startLocation: [viewport.longitude, viewport.latitude],
@@ -1350,8 +1358,12 @@ function RouteBuilder() {
           console.log('🔄 Using Iterative Route Builder for natural language request');
 
           // Calculate target distance based on time and speed
-          const avgSpeed = speedProfile?.average_speed || 25; // km/h default
+          // Default 28 km/h (~17.4 mph) is typical cycling pace for recreational/fitness riders
+          const avgSpeed = speedProfile?.average_speed || 28; // km/h default
           const targetDistanceKm = (duration / 60) * avgSpeed;
+
+          console.log(`📊 Route calculation: ${duration}min × ${avgSpeed.toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
+          console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
 
           notifications.show({
             id: 'generating-route',
