@@ -546,7 +546,7 @@ export default function RouteAnalysisPanel({
     }
   };
 
-  const analyzeAll = async () => {
+  const analyzeAll = async (force = false) => {
     setAnalyzing(true);
     setError(null);
     setAnalysisProgress(null);
@@ -563,6 +563,7 @@ export default function RouteAnalysisPanel({
           action: 'analyze_all',
           months: analysisMonths === 'all' ? 'all' : parseInt(analysisMonths),
           limit: 50,
+          force: force,
         }),
       });
 
@@ -578,6 +579,7 @@ export default function RouteAnalysisPanel({
         remaining: data.remaining,
         total: data.total,
         message: data.message,
+        forced: data.forced,
       });
 
       // Refresh the analyses
@@ -734,11 +736,25 @@ export default function RouteAnalysisPanel({
             size="xs"
             variant="light"
             leftSection={analyzing ? <Loader size={14} /> : <IconRefresh size={14} />}
-            onClick={analyzeAll}
+            onClick={() => analyzeAll(false)}
             disabled={analyzing}
           >
-            {analyzing ? 'Analyzing...' : 'Analyze'}
+            {analyzing ? 'Analyzing...' : 'Analyze New'}
           </Button>
+          {analyses.length > 0 && (
+            <Tooltip label="Re-analyze all activities with improved elevation-based terrain detection">
+              <Button
+                size="xs"
+                variant="subtle"
+                color="orange"
+                leftSection={analyzing ? <Loader size={14} /> : <IconRefresh size={14} />}
+                onClick={() => analyzeAll(true)}
+                disabled={analyzing}
+              >
+                Re-analyze All
+              </Button>
+            </Tooltip>
+          )}
         </Group>
       </Group>
 
@@ -756,7 +772,7 @@ export default function RouteAnalysisPanel({
               size="xs"
               variant="light"
               mt="xs"
-              onClick={analyzeAll}
+              onClick={() => analyzeAll(analysisProgress.forced)}
               disabled={analyzing}
               leftSection={analyzing ? <Loader size={12} /> : null}
             >
