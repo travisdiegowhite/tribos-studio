@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Modal,
   Stack,
@@ -43,6 +43,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parseGpxFile, gpxToActivityFormat } from '../utils/gpxParser';
 import { parseFitFile, fitToActivityFormat } from '../utils/fitParser';
+import { formatDistance as formatDistanceUnit, formatElevation as formatElevationUnit } from '../utils/units';
 import JSZip from 'jszip';
 import pako from 'pako';
 
@@ -56,6 +57,30 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   const [parsedActivities, setParsedActivities] = useState([]);
   const [error, setError] = useState(null);
   const [results, setResults] = useState(null);
+  const [unitsPreference, setUnitsPreference] = useState('imperial');
+
+  // Load user's units preference
+  useEffect(() => {
+    const loadUnitsPreference = async () => {
+      if (!user) return;
+      try {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('units_preference')
+          .eq('id', user.id)
+          .single();
+        if (data?.units_preference) {
+          setUnitsPreference(data.units_preference);
+        }
+      } catch (err) {
+        console.error('Failed to load units preference:', err);
+      }
+    };
+    loadUnitsPreference();
+  }, [user]);
+
+  // Unit formatting helpers
+  const isImperial = unitsPreference === 'imperial';
 
   /**
    * Determine file type from filename
@@ -72,12 +97,101 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   };
 
   /**
+   * Parse activities.csv from Strava export to get activity names
+   * @param {string} csvContent - The CSV file content
+   * @returns {Object} Map of activity ID to activity name
+   */
+  const parseActivitiesCsv = (csvContent) => {
+    const activityNames = {};
+    const lines = csvContent.split('\n');
+
+    if (lines.length < 2) return activityNames;
+
+    // Parse header to find column indices
+    const header = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+    const idIndex = header.findIndex(h => h === 'activity id' || h === 'id');
+    const nameIndex = header.findIndex(h => h === 'activity name' || h === 'name');
+    const filenameIndex = header.findIndex(h => h === 'filename');
+
+    // Need at least ID/filename and name columns
+    if (nameIndex === -1 || (idIndex === -1 && filenameIndex === -1)) {
+      console.warn('activities.csv missing required columns');
+      return activityNames;
+    }
+
+    // Parse each row
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      // Handle CSV with quoted fields that may contain commas
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (const char of line) {
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim().replace(/^"|"$/g, ''));
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim().replace(/^"|"$/g, ''));
+
+      // Extract activity ID and name
+      const name = values[nameIndex];
+      let activityId = null;
+
+      // Try to get ID from filename column first (format: "activities/12345678901.fit.gz")
+      if (filenameIndex !== -1 && values[filenameIndex]) {
+        const filename = values[filenameIndex];
+        const match = filename.match(/(\d+)\.(fit|gpx|tcx)/i);
+        if (match) {
+          activityId = match[1];
+        }
+      }
+
+      // Fall back to activity ID column
+      if (!activityId && idIndex !== -1) {
+        activityId = values[idIndex];
+      }
+
+      if (activityId && name) {
+        activityNames[activityId] = name;
+      }
+    }
+
+    return activityNames;
+  };
+
+  /**
    * Extract activity files from a Strava export zip
    */
   const extractFilesFromZip = async (zipFile) => {
     const zip = await JSZip.loadAsync(zipFile);
     const activityFiles = [];
     const promises = [];
+    let activityNames = {};
+
+    // First, look for activities.csv to get activity names
+    for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+      if (zipEntry.dir) continue;
+
+      const fileName = relativePath.split('/').pop().toLowerCase();
+      if (fileName === 'activities.csv') {
+        try {
+          const csvContent = await zipEntry.async('string');
+          activityNames = parseActivitiesCsv(csvContent);
+          console.log(`Found ${Object.keys(activityNames).length} activity names in activities.csv`);
+        } catch (err) {
+          console.warn('Failed to parse activities.csv:', err);
+        }
+        break;
+      }
+    }
 
     zip.forEach((relativePath, zipEntry) => {
       if (zipEntry.dir) return;
@@ -92,6 +206,12 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
       // For FIT files, extract as binary; for GPX, extract as string
       const isBinary = fileType.startsWith('fit');
 
+      // Extract activity ID from filename (e.g., "12345678901.fit.gz" -> "12345678901")
+      const baseName = relativePath.split('/').pop();
+      const activityIdMatch = baseName.match(/^(\d+)\.(fit|gpx)/i);
+      const activityId = activityIdMatch ? activityIdMatch[1] : null;
+      const stravaActivityName = activityId ? activityNames[activityId] : null;
+
       promises.push(
         zipEntry.async(isBinary ? 'arraybuffer' : 'string').then(content => ({
           name: relativePath.split('/').pop(),
@@ -99,7 +219,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
           content,
           size: isBinary ? content.byteLength : content.length,
           fileType,
-          isBinary
+          isBinary,
+          stravaActivityName // Include the actual Strava activity name if found
         }))
       );
     });
@@ -131,12 +252,22 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
   /**
    * Convert parsed data to activity format
+   * @param {Object} parsedData - Parsed activity data
+   * @param {string} fileType - File type (gpx, fit, etc.)
+   * @param {string} userId - User ID
+   * @param {string|null} fileName - Original filename
+   * @param {string|null} stravaActivityName - Actual Strava activity name from activities.csv
    */
-  const toActivityFormat = (parsedData, fileType, userId, fileName = null) => {
+  const toActivityFormat = (parsedData, fileType, userId, fileName = null, stravaActivityName = null) => {
     if (fileType.startsWith('gpx')) {
-      return gpxToActivityFormat(parsedData, userId);
+      const activity = gpxToActivityFormat(parsedData, userId);
+      // Override name with Strava activity name if available
+      if (stravaActivityName) {
+        activity.name = stravaActivityName;
+      }
+      return activity;
     } else if (fileType.startsWith('fit')) {
-      return fitToActivityFormat(parsedData, userId, fileName);
+      return fitToActivityFormat(parsedData, userId, fileName, stravaActivityName);
     }
     throw new Error(`Cannot convert file type: ${fileType}`);
   };
@@ -265,8 +396,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
           continue;
         }
 
-        // Convert to database format (pass filename for better naming)
-        const activityData = toActivityFormat(parsedData, actFile.fileType, user.id, actFile.name);
+        // Convert to database format (pass filename and Strava name for proper naming)
+        const activityData = toActivityFormat(parsedData, actFile.fileType, user.id, actFile.name, actFile.stravaActivityName);
 
         // Skip activities without a valid date
         if (!activityData.start_date) {
@@ -387,12 +518,12 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
   const formatDistance = (km) => {
     if (!km) return '--';
-    return `${km.toFixed(1)} km`;
+    return formatDistanceUnit(km, isImperial);
   };
 
   const formatElevation = (m) => {
     if (!m && m !== 0) return '--';
-    return `${Math.round(m)} m`;
+    return formatElevationUnit(m, isImperial);
   };
 
   const resetModal = () => {

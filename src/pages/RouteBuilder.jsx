@@ -34,6 +34,8 @@ import MapTutorialOverlay from '../components/MapTutorialOverlay.jsx';
 import BikeInfrastructureLayer from '../components/BikeInfrastructureLayer.jsx';
 import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
 import { fetchBikeInfrastructure } from '../utils/bikeInfrastructureService';
+import RouteExportMenu from '../components/RouteExportMenu.jsx';
+import MapControls from '../components/MapControls.jsx';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -1002,26 +1004,23 @@ function RouteBuilder() {
 
   // clearRoute comes from the store (clears waypoints, geometry, stats, etc.)
 
-  // Export GPX
-  const exportGPX = useCallback(() => {
-    if (!routeGeometry) {
-      notifications.show({
-        title: 'No Route',
-        message: 'Please create a route first',
-        color: 'yellow'
-      });
-      return;
-    }
-
-    const gpxContent = generateGPX(routeName, routeGeometry.coordinates);
-    const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${routeName.replace(/\s+/g, '_')}.gpx`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }, [routeName, routeGeometry]);
+  // Create route data object for export
+  const routeDataForExport = useMemo(() => {
+    if (!routeGeometry) return null;
+    return {
+      name: routeName,
+      coordinates: routeGeometry.coordinates,
+      waypoints: waypoints.map((wp, i) => ({
+        lat: wp.lat,
+        lng: wp.lng,
+        name: i === 0 ? 'Start' : i === waypoints.length - 1 ? 'End' : `Waypoint ${i}`,
+        type: i === 0 ? 'start' : i === waypoints.length - 1 ? 'end' : 'waypoint'
+      })),
+      distanceKm: routeStats?.distance,
+      elevationGainM: routeStats?.elevationGain,
+      elevationLossM: routeStats?.elevationLoss,
+    };
+  }, [routeName, routeGeometry, waypoints, routeStats]);
 
   // Save route to database
   const handleSaveRoute = useCallback(async () => {
@@ -1226,7 +1225,7 @@ function RouteBuilder() {
 
         notifications.show({
           title: 'Route Selected!',
-          message: `${(suggestion.distance || 0).toFixed(1)} km - ${suggestion.name}`,
+          message: `${formatDist(suggestion.distance || 0)} - ${suggestion.name}`,
           color: 'lime',
           autoClose: 3000
         });
@@ -1320,8 +1319,38 @@ function RouteBuilder() {
       if (parsed.routeType) setRouteType(parsed.routeType);
       if (parsed.preferences?.surfaceType === 'gravel') setRouteProfile('gravel');
 
-      // Step 4: Geocode each waypoint name to coordinates
-      const startLocation = [viewport.longitude, viewport.latitude];
+      // Step 4: Determine start location with priority:
+      // 1. User-placed waypoint on map (if any)
+      // 2. User's geolocated position
+      // 3. Viewport center (with warning)
+      let startLocation;
+      let startLocationSource = 'viewport';
+
+      if (waypoints.length > 0) {
+        // User has placed waypoints on the map - use the first one as start
+        startLocation = [waypoints[0].lng, waypoints[0].lat];
+        startLocationSource = 'waypoint';
+        console.log('📍 Using user-placed waypoint as start:', startLocation);
+      } else if (userLocation) {
+        // Use the user's geolocated position
+        startLocation = [userLocation.longitude, userLocation.latitude];
+        startLocationSource = 'geolocation';
+        console.log('📍 Using geolocated position as start:', startLocation);
+      } else {
+        // Fall back to viewport center with a warning
+        startLocation = [viewport.longitude, viewport.latitude];
+        startLocationSource = 'viewport';
+        console.warn('⚠️ No geolocation available, using viewport center as start:', startLocation);
+        notifications.show({
+          id: 'location-fallback-warning',
+          title: 'Using Map Center as Start',
+          message: 'Your location could not be determined. The route will start from the center of your current map view. Click the location button or place a waypoint to set a specific start point.',
+          color: 'yellow',
+          icon: <IconCurrentLocation size={16} />,
+          autoClose: 8000
+        });
+      }
+
       let waypointCoords = [];
       let routeDescription = '';
 
@@ -1966,11 +1995,11 @@ function RouteBuilder() {
                   </Group>
                   <Group gap={6}>
                     <Badge size="xs" variant="light" color="gray">
-                      {typeof suggestion.distance === 'number' ? `${suggestion.distance.toFixed(1)} km` : suggestion.distance}
+                      {typeof suggestion.distance === 'number' ? formatDist(suggestion.distance) : suggestion.distance}
                     </Badge>
                     {suggestion.elevationGain > 0 && (
                       <Badge size="xs" variant="light" color="gray">
-                        {suggestion.elevationGain}m ↗
+                        {formatElev(suggestion.elevationGain)} ↗
                       </Badge>
                     )}
                     {suggestion.estimatedTime && (
@@ -2016,16 +2045,12 @@ function RouteBuilder() {
           {savedRouteId ? 'Update Route' : 'Save Route'}
         </Button>
         <Group grow>
-          <Button
+          <RouteExportMenu
+            route={routeDataForExport}
             variant="light"
-            color="gray"
             size="sm"
             disabled={!routeGeometry}
-            onClick={exportGPX}
-            leftSection={<IconDownload size={14} />}
-          >
-            Export GPX
-          </Button>
+          />
           <Button
             variant="outline"
             color="gray"
@@ -2651,6 +2676,8 @@ function RouteBuilder() {
                         isConverting={convertingRoute === index}
                         isDisabled={convertingRoute !== null}
                         onSelect={handleSelectAISuggestion}
+                        formatDistance={formatDist}
+                        formatElevation={formatElev}
                       />
                     ))}
                   </Stack>
@@ -2760,17 +2787,12 @@ function RouteBuilder() {
                 {savedRouteId ? 'Update Route' : 'Save Route'}
               </Button>
               <Group grow>
-                <Button
+                <RouteExportMenu
+                  route={routeDataForExport}
                   variant="light"
-                  color="lime"
                   size="sm"
                   disabled={!routeGeometry}
-                  onClick={exportGPX}
-                  leftSection={<IconDownload size={16} />}
-                  style={{ height: 40 }}
-                >
-                  Export GPX
-                </Button>
+                />
                 <Button
                   variant="outline"
                   color="gray"
@@ -3114,29 +3136,6 @@ function RouteBuilder() {
       )}
     </AppShell>
   );
-}
-
-// GPX generation helper
-function generateGPX(name, coordinates) {
-  const points = coordinates.map(([lng, lat]) => {
-    return `    <trkpt lat="${lat}" lon="${lng}">
-      <ele>0</ele>
-    </trkpt>`;
-  }).join('\n');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="tribos.studio" xmlns="http://www.topografix.com/GPX/1/1">
-  <metadata>
-    <name>${name}</name>
-    <time>${new Date().toISOString()}</time>
-  </metadata>
-  <trk>
-    <name>${name}</name>
-    <trkseg>
-${points}
-    </trkseg>
-  </trk>
-</gpx>`;
 }
 
 export default RouteBuilder;

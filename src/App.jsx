@@ -17,6 +17,7 @@ import MyRoutes from './pages/MyRoutes.jsx';
 import TrainingDashboard from './pages/TrainingDashboard.jsx';
 import PlannerPage from './pages/PlannerPage.tsx';
 import Settings from './pages/Settings.jsx';
+import Updates from './pages/Updates.jsx';
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 import Terms from './pages/Terms.jsx';
 import NotFound from './pages/NotFound.jsx';
@@ -30,7 +31,6 @@ import AuthCallback from './pages/oauth/AuthCallback.jsx';
 import GoogleCalendarCallback from './pages/oauth/GoogleCalendarCallback.jsx';
 
 // Components
-import BetaFeedbackWidget from './components/BetaFeedbackWidget.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import PageTracker from './components/PageTracker.jsx';
 
@@ -168,6 +168,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/updates"
+        element={
+          <ProtectedRoute>
+            <Updates />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin"
         element={
           <ProtectedRoute>
@@ -195,7 +203,6 @@ function App() {
                 <BrowserRouter>
                   <PageTracker />
                   <AppRoutes />
-                  <BetaFeedbackWidget />
                 </BrowserRouter>
                 <Analytics />
                 <SpeedInsights />

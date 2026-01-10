@@ -732,11 +732,191 @@ async function pushRoute(req, res, userId, routeData) {
     return res.status(400).json({ error: 'UserId and routeData required' });
   }
 
-  // TODO: Implement route push to Garmin Connect
-  return res.status(200).json({
-    success: true,
-    message: 'Route push coming soon'
+  if (!routeData.coordinates || routeData.coordinates.length === 0) {
+    return res.status(400).json({ error: 'Route must have coordinates' });
+  }
+
+  try {
+    // Get user's Garmin integration
+    const { data: integration, error: fetchError } = await supabase
+      .from('bike_computer_integrations')
+      .select('access_token, refresh_token, token_expires_at')
+      .eq('user_id', userId)
+      .eq('provider', 'garmin')
+      .single();
+
+    if (fetchError || !integration) {
+      return res.status(400).json({
+        error: 'Garmin not connected. Please connect your Garmin account first.',
+        requiresConnection: true
+      });
+    }
+
+    // Check if token needs refresh
+    let accessToken = integration.access_token;
+    const tokenExpired = integration.token_expires_at && new Date(integration.token_expires_at) < new Date();
+
+    if (tokenExpired && integration.refresh_token) {
+      console.log('Token expired, refreshing before course upload...');
+      const newToken = await refreshGarminToken(userId, integration.refresh_token);
+      if (newToken) {
+        accessToken = newToken;
+      } else {
+        return res.status(401).json({
+          error: 'Garmin authorization expired. Please reconnect your account.',
+          requiresReconnect: true
+        });
+      }
+    }
+
+    // Prepare course data for Garmin Course API
+    const courseData = buildCoursePayload(routeData);
+
+    // Upload course to Garmin Connect
+    // Garmin Training API - Courses endpoint (from official docs)
+    const courseUploadUrl = 'https://apis.garmin.com/training-api/courses/v1/course';
+
+    console.log('Uploading course to Garmin:', routeData.name, `(${courseData.geoPoints.length} points)`);
+
+    const uploadResponse = await fetch(courseUploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(courseData)
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error('Garmin course upload failed:', {
+        status: uploadResponse.status,
+        statusText: uploadResponse.statusText,
+        body: errorText,
+        sentPayload: {
+          courseName: courseData.courseName,
+          distance: courseData.distance,
+          elevationGain: courseData.elevationGain,
+          activityType: courseData.activityType,
+          pointCount: courseData.geoPoints?.length
+        }
+      });
+
+      // Check for specific error types
+      if (uploadResponse.status === 401 || uploadResponse.status === 403) {
+        return res.status(401).json({
+          error: 'Garmin authorization failed. Please reconnect your account.',
+          requiresReconnect: true,
+          details: errorText
+        });
+      }
+
+      if (uploadResponse.status === 400) {
+        return res.status(400).json({
+          error: 'Invalid course data. Please check the route and try again.',
+          details: errorText
+        });
+      }
+
+      // Return the actual Garmin error for debugging
+      return res.status(uploadResponse.status).json({
+        error: 'Failed to upload course to Garmin',
+        garminStatus: uploadResponse.status,
+        details: errorText
+      });
+    }
+
+    const result = await uploadResponse.json();
+    console.log('Course uploaded successfully:', result);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Route sent to Garmin Connect! Sync your device to download it.',
+      courseId: result.courseId || result.id,
+      courseName: routeData.name
+    });
+
+  } catch (error) {
+    console.error('Push route error:', error);
+    return res.status(500).json({
+      error: 'Failed to send route to Garmin',
+      details: error.message
+    });
+  }
+}
+
+// Build course payload for Garmin Course API (JSON format)
+function buildCoursePayload(routeData) {
+  // Calculate total distance in meters
+  let distanceMeters = (routeData.distanceKm || 0) * 1000;
+  if (distanceMeters === 0 && routeData.coordinates.length > 1) {
+    distanceMeters = calculateRouteDistance(routeData.coordinates);
+  }
+
+  // Convert coordinates to geoPoints format
+  const geoPoints = routeData.coordinates.map(coord => {
+    const [lng, lat, ele] = coord.length === 3 ? coord : [coord[0], coord[1], 0];
+    return {
+      latitude: lat,
+      longitude: lng,
+      elevation: ele || 0
+    };
   });
+
+  // Map surface type to Garmin activity type
+  const activityType = mapSurfaceToActivityType(routeData.surfaceType);
+
+  return {
+    courseName: (routeData.name || 'Tribos Route').substring(0, 32), // Garmin limit
+    description: (routeData.description || 'Created with Tribos Studio').substring(0, 255),
+    distance: Math.round(distanceMeters),
+    elevationGain: Math.round(routeData.elevationGainM || 0),
+    elevationLoss: Math.round(routeData.elevationLossM || 0),
+    activityType: activityType,
+    coordinateSystem: 'WGS84',
+    geoPoints: geoPoints
+  };
+}
+
+// Map surface type to Garmin activity type
+function mapSurfaceToActivityType(surfaceType) {
+  const mapping = {
+    'paved': 'ROAD_CYCLING',
+    'gravel': 'GRAVEL_CYCLING',
+    'mixed': 'GRAVEL_CYCLING',
+    'trail': 'MOUNTAIN_BIKING',
+    'mountain': 'MOUNTAIN_BIKING'
+  };
+  return mapping[surfaceType?.toLowerCase()] || 'ROAD_CYCLING';
+}
+
+// Helper: Haversine distance calculation
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Earth's radius in meters
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function toRadians(degrees) {
+  return degrees * (Math.PI / 180);
+}
+
+// Helper: Calculate total route distance
+function calculateRouteDistance(coordinates) {
+  let totalDistance = 0;
+  for (let i = 1; i < coordinates.length; i++) {
+    const [lng1, lat1] = coordinates[i - 1];
+    const [lng2, lat2] = coordinates[i];
+    totalDistance += haversineDistance(lat1, lng1, lat2, lng2);
+  }
+  return totalDistance;
 }
 
 // Helper function to refresh Garmin token

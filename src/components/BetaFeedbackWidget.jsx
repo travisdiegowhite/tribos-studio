@@ -7,8 +7,6 @@ import {
   Stack,
   Text,
   Alert,
-  ActionIcon,
-  Tooltip,
   Box,
   Group,
   ThemeIcon,
@@ -24,6 +22,9 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
 
+/**
+ * BetaFeedbackWidget - Feedback button for the app header
+ */
 function BetaFeedbackWidget() {
   const [opened, setOpened] = useState(false);
   const [feedbackType, setFeedbackType] = useState('general');
@@ -124,27 +125,16 @@ function BetaFeedbackWidget() {
 
   return (
     <>
-      {/* Floating Feedback Button */}
-      <Tooltip label="Send Feedback" position="left" withArrow>
-        <ActionIcon
-          size="xl"
-          radius="xl"
-          variant="gradient"
-          gradient={{ from: 'blue', to: 'cyan' }}
-          onClick={() => setOpened(true)}
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            zIndex: 999,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-            width: '56px',
-            height: '56px',
-          }}
-        >
-          <IconMessageCircle size={24} />
-        </ActionIcon>
-      </Tooltip>
+      {/* Feedback Button */}
+      <Button
+        variant="light"
+        color="blue"
+        size="sm"
+        leftSection={<IconMessageCircle size={16} />}
+        onClick={() => setOpened(true)}
+      >
+        Feedback
+      </Button>
 
       {/* Feedback Modal */}
       <Modal

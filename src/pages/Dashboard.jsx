@@ -43,7 +43,7 @@ function Dashboard() {
         try {
           const { data } = await supabase
             .from('user_profiles')
-            .select('onboarding_completed, full_name, units_preference')
+            .select('onboarding_completed, display_name, units_preference')
             .eq('id', user.id)
             .single();
           if (data) {
@@ -63,7 +63,7 @@ function Dashboard() {
       try {
         const { data } = await supabase
           .from('user_profiles')
-          .select('onboarding_completed, full_name, units_preference')
+          .select('onboarding_completed, display_name, units_preference')
           .eq('id', user.id)
           .single();
         if (data) {
@@ -78,7 +78,7 @@ function Dashboard() {
   }, [user]);
 
   // Get display name from loaded profile
-  const displayName = userProfile?.full_name || user?.email?.split('@')[0] || 'Rider';
+  const displayName = userProfile?.display_name || user?.email?.split('@')[0] || 'Rider';
 
   // Get user's unit preference from loaded profile (default to imperial if not set)
   const isImperial = userProfile?.units_preference !== 'metric';

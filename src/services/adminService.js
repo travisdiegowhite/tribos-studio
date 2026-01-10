@@ -141,6 +141,88 @@ export async function getUserActivity(targetUserId, limit = 100, offset = 0) {
   return activityFetch('get_user_activity', { targetUserId, limit, offset });
 }
 
+// ============================================================================
+// Email Campaign Functions
+// ============================================================================
+
+/**
+ * List all email campaigns
+ */
+export async function listCampaigns() {
+  return adminFetch('list_campaigns');
+}
+
+/**
+ * Get a single campaign with recipients
+ */
+export async function getCampaign(campaignId) {
+  return adminFetch('get_campaign', { campaignId });
+}
+
+/**
+ * Create a new email campaign
+ */
+export async function createCampaign({
+  name,
+  subject,
+  htmlContent,
+  textContent,
+  campaignType,
+  audienceType,
+  filterCriteria,
+  fromName,
+  fromEmail,
+  replyTo
+}) {
+  return adminFetch('create_campaign', {
+    name,
+    subject,
+    htmlContent,
+    textContent,
+    campaignType,
+    audienceType,
+    filterCriteria,
+    fromName,
+    fromEmail,
+    replyTo
+  });
+}
+
+/**
+ * Update an existing campaign
+ */
+export async function updateCampaign(campaignId, updates) {
+  return adminFetch('update_campaign', { campaignId, ...updates });
+}
+
+/**
+ * Delete a draft campaign
+ */
+export async function deleteCampaign(campaignId) {
+  return adminFetch('delete_campaign', { campaignId });
+}
+
+/**
+ * Preview recipients based on filter criteria
+ */
+export async function previewRecipients(audienceType, filterCriteria) {
+  return adminFetch('preview_recipients', { audienceType, filterCriteria });
+}
+
+/**
+ * Send a test email to the admin
+ */
+export async function sendTestEmail({ subject, htmlContent, fromName, fromEmail }) {
+  return adminFetch('send_test_email', { subject, htmlContent, fromName, fromEmail });
+}
+
+/**
+ * Send a campaign to all recipients
+ */
+export async function sendCampaign(campaignId) {
+  return adminFetch('send_campaign', { campaignId });
+}
+
 export default {
   listUsers,
   getUserDetails,
@@ -151,5 +233,14 @@ export default {
   getActivitySummary,
   getRecentActivity,
   getActivityStats,
-  getUserActivity
+  getUserActivity,
+  // Email campaigns
+  listCampaigns,
+  getCampaign,
+  createCampaign,
+  updateCampaign,
+  deleteCampaign,
+  previewRecipients,
+  sendTestEmail,
+  sendCampaign
 };

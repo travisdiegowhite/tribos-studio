@@ -19,11 +19,15 @@ import {
   SegmentedControl,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconPlus, IconDotsVertical, IconTrash, IconEdit, IconDownload, IconSearch, IconX } from '@tabler/icons-react';
+import { IconPlus, IconDotsVertical, IconTrash, IconEdit, IconDownload, IconSearch, IconX, IconDeviceWatch, IconRoute, IconCloudUpload } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { listRoutes, deleteRoute, getRoute } from '../utils/routesService';
+import { formatDistance, formatElevation } from '../utils/units';
+import { supabase } from '../lib/supabase';
+import { exportAndDownloadRoute } from '../utils/routeExport';
+import { garminService } from '../utils/garminService';
 
 function MyRoutes() {
   const { user } = useAuth();
@@ -33,6 +37,14 @@ function MyRoutes() {
   const [deletingId, setDeletingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); // 'all', 'ai', 'manual'
+  const [garminConnected, setGarminConnected] = useState(false);
+  const [sendingToGarmin, setSendingToGarmin] = useState(null); // Track which route is being sent
+  const [unitsPreference, setUnitsPreference] = useState('imperial');
+
+  // Unit formatting helpers
+  const isImperial = unitsPreference === 'imperial';
+  const formatDist = (km) => formatDistance(km, isImperial);
+  const formatElev = (m) => formatElevation(m, isImperial);
 
   // Filter routes based on search and filter type
   const filteredRoutes = routes.filter(route => {
@@ -49,6 +61,26 @@ function MyRoutes() {
 
     return matchesSearch && matchesType;
   });
+
+  // Load user's units preference
+  useEffect(() => {
+    const loadUnitsPreference = async () => {
+      if (!user) return;
+      try {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('units_preference')
+          .eq('id', user.id)
+          .single();
+        if (data?.units_preference) {
+          setUnitsPreference(data.units_preference);
+        }
+      } catch (err) {
+        console.error('Failed to load units preference:', err);
+      }
+    };
+    loadUnitsPreference();
+  }, [user]);
 
   // Load routes on mount
   useEffect(() => {
@@ -72,6 +104,20 @@ function MyRoutes() {
 
     loadRoutes();
   }, [user]);
+
+  // Check Garmin connection status
+  useEffect(() => {
+    const checkGarmin = async () => {
+      try {
+        const status = await garminService.getConnectionStatus();
+        setGarminConnected(status.connected && !status.requiresReconnect);
+      } catch (error) {
+        console.error('Error checking Garmin status:', error);
+        setGarminConnected(false);
+      }
+    };
+    checkGarmin();
+  }, []);
 
   // Delete a route
   const handleDelete = async (routeId, routeName) => {
@@ -100,22 +146,33 @@ function MyRoutes() {
     }
   };
 
-  // Export route as GPX
-  const handleExportGPX = async (routeId, routeName) => {
+  // Export route in specified format (gpx or tcx)
+  const handleExportRoute = async (routeId, format) => {
     try {
       const route = await getRoute(routeId);
       if (!route?.geometry?.coordinates) {
         throw new Error('Route has no geometry');
       }
 
-      const gpxContent = generateGPX(route.name, route.geometry.coordinates);
-      const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${routeName.replace(/\s+/g, '_')}.gpx`;
-      link.click();
-      URL.revokeObjectURL(url);
+      exportAndDownloadRoute(
+        {
+          name: route.name,
+          description: route.description,
+          coordinates: route.geometry.coordinates,
+          distanceKm: route.distance_km,
+          elevationGainM: route.elevation_gain_m,
+          elevationLossM: route.elevation_loss_m,
+          routeType: route.route_type,
+          surfaceType: route.surface_type,
+        },
+        format
+      );
+
+      notifications.show({
+        title: 'Route Exported',
+        message: `Your route has been exported as ${format.toUpperCase()}`,
+        color: 'green',
+      });
     } catch (error) {
       console.error('Error exporting route:', error);
       notifications.show({
@@ -123,6 +180,48 @@ function MyRoutes() {
         message: error.message || 'Failed to export route',
         color: 'red'
       });
+    }
+  };
+
+  // Send route directly to Garmin Connect
+  const handleSendToGarmin = async (routeId) => {
+    setSendingToGarmin(routeId);
+    try {
+      const route = await getRoute(routeId);
+      if (!route?.geometry?.coordinates) {
+        throw new Error('Route has no geometry');
+      }
+
+      const result = await garminService.pushRoute({
+        name: route.name,
+        description: route.description,
+        coordinates: route.geometry.coordinates,
+        distanceKm: route.distance_km,
+        elevationGainM: route.elevation_gain_m,
+        elevationLossM: route.elevation_loss_m,
+        routeType: route.route_type,
+        surfaceType: route.surface_type,
+      });
+
+      if (result.success) {
+        notifications.show({
+          title: 'Sent to Garmin!',
+          message: result.message || 'Route sent to Garmin Connect. Sync your device to download it.',
+          color: 'green',
+          autoClose: 5000,
+        });
+      } else {
+        throw new Error(result.error || 'Failed to send route');
+      }
+    } catch (error) {
+      console.error('Error sending to Garmin:', error);
+      notifications.show({
+        title: 'Send Failed',
+        message: error.message || 'Failed to send route to Garmin',
+        color: 'red'
+      });
+    } finally {
+      setSendingToGarmin(null);
     }
   };
 
@@ -384,14 +483,38 @@ function MyRoutes() {
                           >
                             Edit
                           </Menu.Item>
+                          <Menu.Divider />
+                          {garminConnected && (
+                            <Menu.Item
+                              leftSection={sendingToGarmin === route.id ? <Loader size={14} /> : <IconCloudUpload size={14} />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendToGarmin(route.id);
+                              }}
+                              disabled={sendingToGarmin === route.id}
+                              color="blue"
+                            >
+                              {sendingToGarmin === route.id ? 'Sending...' : 'Send to Garmin'}
+                            </Menu.Item>
+                          )}
+                          <Menu.Label>Download Files</Menu.Label>
                           <Menu.Item
-                            leftSection={<IconDownload size={14} />}
+                            leftSection={<IconDeviceWatch size={14} />}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleExportGPX(route.id, route.name);
+                              handleExportRoute(route.id, 'tcx');
                             }}
                           >
-                            Export GPX
+                            TCX Course
+                          </Menu.Item>
+                          <Menu.Item
+                            leftSection={<IconRoute size={14} />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExportRoute(route.id, 'gpx');
+                            }}
+                          >
+                            GPX Track
                           </Menu.Item>
                           <Menu.Divider />
                           <Menu.Item
@@ -416,7 +539,7 @@ function MyRoutes() {
                           Distance
                         </Text>
                         <Text fw={600} style={{ color: tokens.colors.electricLime }}>
-                          {route.distance_km?.toFixed(1) || '--'} km
+                          {route.distance_km ? formatDist(route.distance_km) : '--'}
                         </Text>
                       </Box>
                       <Box>
@@ -424,7 +547,7 @@ function MyRoutes() {
                           Elevation
                         </Text>
                         <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
-                          {route.elevation_gain_m || '--'}m
+                          {route.elevation_gain_m ? formatElev(route.elevation_gain_m) : '--'}
                         </Text>
                       </Box>
                       <Box>
@@ -464,29 +587,6 @@ function MyRoutes() {
       </Container>
     </AppShell>
   );
-}
-
-// GPX generation helper
-function generateGPX(name, coordinates) {
-  const points = coordinates.map(([lng, lat]) => {
-    return `    <trkpt lat="${lat}" lon="${lng}">
-      <ele>0</ele>
-    </trkpt>`;
-  }).join('\n');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="tribos.studio" xmlns="http://www.topografix.com/GPX/1/1">
-  <metadata>
-    <name>${name}</name>
-    <time>${new Date().toISOString()}</time>
-  </metadata>
-  <trk>
-    <name>${name}</name>
-    <trkseg>
-${points}
-    </trkseg>
-  </trk>
-</gpx>`;
 }
 
 export default MyRoutes;

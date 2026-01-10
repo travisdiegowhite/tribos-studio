@@ -1,19 +1,17 @@
 import { Card, Text, Stack, Group, Badge, Timeline, ThemeIcon } from '@mantine/core';
 import { IconActivity, IconTrendingUp, IconBolt, IconMountain, IconHeart } from '@tabler/icons-react';
 import { getZoneColor, getZoneName } from '../utils/intervalCues';
+import { useUnits } from '../utils/units';
 
 /**
  * IntervalCues - Displays workout structure with color-coded segments
  * Shows the workout intervals mapped to route distance
  */
 const IntervalCues = ({ cues, formatDistance: formatDistanceProp }) => {
-  // Format distance - use prop if provided, otherwise default to simple format
-  const formatDistance = formatDistanceProp || ((km) => {
-    if (km === null || km === undefined) return '0 km';
-    const numKm = typeof km === 'string' ? parseFloat(km) : km;
-    if (isNaN(numKm)) return '0 km';
-    return `${numKm.toFixed(1)} km`;
-  });
+  const { formatDistance: formatDistanceFromContext } = useUnits();
+
+  // Format distance - use prop if provided, otherwise use context
+  const formatDistance = formatDistanceProp || formatDistanceFromContext;
 
   if (!cues || cues.length === 0) {
     return null;

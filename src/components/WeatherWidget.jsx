@@ -7,7 +7,8 @@ import {
   getWeatherSeverity,
   analyzeWindForRoute,
   formatTemperature,
-  formatWindSpeed
+  formatWindSpeed,
+  formatVisibility
 } from '../utils/weather';
 
 /**
@@ -352,7 +353,7 @@ const WeatherWidget = ({
             <Group gap={4}>
               <IconEye size={14} style={{ color: tokens.colors.textMuted }} />
               <Text size="xs" c="dimmed">
-                {weather.visibility} km
+                {formatVisibility(weather.visibility, isImperial)}
               </Text>
             </Group>
           </Tooltip>

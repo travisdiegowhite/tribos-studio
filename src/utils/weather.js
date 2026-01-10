@@ -590,6 +590,16 @@ export function formatWindSpeed(kmh, useImperial = true) {
 }
 
 /**
+ * Format visibility with unit
+ */
+export function formatVisibility(km, useImperial = true) {
+  if (useImperial) {
+    return `${(km * 0.621371).toFixed(1)} mi`;
+  }
+  return `${km} km`;
+}
+
+/**
  * Get wind factor for a given bearing and wind conditions
  * Used by aiRouteGenerator for route scoring
  */

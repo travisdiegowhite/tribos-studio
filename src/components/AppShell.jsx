@@ -7,8 +7,10 @@ import {
   IconChartBar,
   IconSettings,
   IconCalendarEvent,
+  IconSparkles,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
 
 const navItems = [
   { path: '/dashboard', label: 'Home', icon: IconHome },
@@ -16,6 +18,7 @@ const navItems = [
   { path: '/planner', label: 'Plan', icon: IconCalendarEvent, fullLabel: 'Plan Your Training' },
   { path: '/training', label: 'Analysis', icon: IconChartBar, fullLabel: 'Training Analysis' },
   { path: '/settings', label: 'Settings', icon: IconSettings },
+  { path: '/updates', label: 'Updates', icon: IconSparkles, fullLabel: "What's New" },
 ];
 
 function AppShell({ children, fullWidth = false, hideNav = false }) {
@@ -71,7 +74,13 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                     active={location.pathname === item.path || location.pathname.startsWith(item.path + '/')}
                   />
                 ))}
+                <BetaFeedbackWidget />
               </Group>
+            )}
+
+            {/* Mobile: Feedback button in header */}
+            {isMobile && (
+              <BetaFeedbackWidget />
             )}
           </Group>
         </Container>

@@ -31,6 +31,7 @@ import {
   IconWebhook,
   IconLock,
   IconChartBar,
+  IconMail,
 } from '@tabler/icons-react';
 import AppShell from '../components/AppShell';
 import { useAuth } from '../contexts/AuthContext';
@@ -40,6 +41,7 @@ import UserManagement from '../components/admin/UserManagement';
 import FeedbackViewer from '../components/admin/FeedbackViewer';
 import WebhookViewer from '../components/admin/WebhookViewer';
 import ActivityDashboard from '../components/admin/ActivityDashboard';
+import EmailCampaigns from '../components/admin/EmailCampaigns';
 
 // SECURITY: This is the ONLY email with admin access
 // This is enforced both here (UI) and in the backend API
@@ -123,6 +125,9 @@ export default function Admin() {
               <Tabs.Tab value="activity" leftSection={<IconChartBar size={16} />}>
                 Activity
               </Tabs.Tab>
+              <Tabs.Tab value="email" leftSection={<IconMail size={16} />}>
+                Email
+              </Tabs.Tab>
               <Tabs.Tab value="feedback" leftSection={<IconMessage size={16} />}>
                 Feedback
               </Tabs.Tab>
@@ -146,6 +151,10 @@ export default function Admin() {
 
             <Tabs.Panel value="activity" pt="lg">
               <ActivityDashboard />
+            </Tabs.Panel>
+
+            <Tabs.Panel value="email" pt="lg">
+              <EmailCampaigns />
             </Tabs.Panel>
 
             <Tabs.Panel value="feedback" pt="lg">

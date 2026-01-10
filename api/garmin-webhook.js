@@ -164,17 +164,51 @@ export default async function handler(req, res) {
     }
 
     // Check for duplicate webhook (do this quickly)
+    // IMPORTANT: Allow ACTIVITY_FILE_DATA webhooks through even if we've seen this activity
+    // because they contain the FIT file URL needed for GPS data
     if (activityId) {
-      const { data: existing } = await supabase
+      const { data: existingEvent } = await supabase
         .from('garmin_webhook_events')
-        .select('id')
+        .select('id, file_url')
         .eq('activity_id', activityId)
         .eq('garmin_user_id', userId)
         .maybeSingle();
 
-      if (existing) {
+      if (existingEvent) {
+        // If this is an ACTIVITY_FILE_DATA webhook with a new file URL,
+        // we should process it to get GPS data
+        const hasNewFileUrl = fileUrl && !existingEvent.file_url;
+        const isFileDataWebhook = webhookType === 'ACTIVITY_FILE_DATA';
+
+        if (isFileDataWebhook && hasNewFileUrl) {
+          // Update the existing event with the file URL and reprocess
+          console.log('📍 ACTIVITY_FILE_DATA received for existing activity, updating with FIT URL:', activityId);
+          await supabase
+            .from('garmin_webhook_events')
+            .update({
+              file_url: fileUrl,
+              processed: false,  // Mark for reprocessing
+              process_error: null
+            })
+            .eq('id', existingEvent.id);
+
+          // Process immediately to get GPS data
+          try {
+            await processWebhookEvent(existingEvent.id);
+            console.log('✅ GPS data processed from ACTIVITY_FILE_DATA webhook');
+          } catch (err) {
+            console.error('❌ GPS processing error:', err.message);
+          }
+
+          return res.status(200).json({
+            success: true,
+            message: 'File URL added and GPS processed',
+            eventId: existingEvent.id
+          });
+        }
+
         console.log('ℹ️ Duplicate webhook ignored:', activityId);
-        return res.status(200).json({ success: true, message: 'Already processed', eventId: existing.id });
+        return res.status(200).json({ success: true, message: 'Already processed', eventId: existingEvent.id });
       }
     }
 
@@ -905,11 +939,18 @@ async function markEventProcessed(eventId, error = null, activityId = null) {
 }
 
 /**
- * Request activity details backfill from Garmin for a specific activity
- * This triggers Garmin to send a PING notification with FIT file URL
+ * Request activity backfill from Garmin for a specific activity
+ * This triggers Garmin to send PING notifications including activityFiles with FIT file callbackURL
  *
  * Called when we receive a PUSH notification without GPS data.
- * The PING notification will arrive via webhook with callbackURL for the FIT file.
+ *
+ * IMPORTANT from Garmin API docs (Section 8 - Summary Backfill):
+ * - There is NO /backfill/activityFiles endpoint (returns 404)
+ * - /backfill/activities handles BOTH activity summaries AND activity files
+ * - Quote: "Resource URL for activity summaries and activity files"
+ * - Garmin sends activityFiles PING notification with callbackURL for FIT download
+ * - The callbackURL is valid for 24 hours only
+ * - Duplicate downloads are rejected with HTTP 410
  *
  * @param {string} accessToken - Valid Garmin access token
  * @param {number} startTimeInSeconds - Activity start time (epoch seconds)
@@ -927,9 +968,12 @@ async function requestActivityDetailsBackfill(accessToken, startTimeInSeconds) {
     const startTimestamp = startTimeInSeconds - 3600; // 1 hour before
     const endTimestamp = startTimeInSeconds + 7200;   // 2 hours after (covers long activities)
 
-    const backfillUrl = `https://apis.garmin.com/wellness-api/rest/backfill/activityDetails?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
+    // Use /backfill/activities - this is the ONLY backfill endpoint for activity files
+    // Per Garmin docs Section 8: "Resource URL for activity summaries and activity files"
+    // This will trigger activityFiles PING notifications with callbackURL for FIT download
+    const backfillUrl = `https://apis.garmin.com/wellness-api/rest/backfill/activities?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
 
-    console.log('📤 Requesting activity details backfill for GPS data...');
+    console.log('📤 Requesting activity backfill (includes FIT files via PING)...');
     console.log(`   Time range: ${new Date(startTimestamp * 1000).toISOString()} to ${new Date(endTimestamp * 1000).toISOString()}`);
 
     const response = await fetch(backfillUrl, {
@@ -940,21 +984,21 @@ async function requestActivityDetailsBackfill(accessToken, startTimeInSeconds) {
       }
     });
 
-    // 202 = Accepted, backfill will be sent via webhook
-    // 409 = Already requested (also fine)
+    // 202 = Accepted, backfill will be sent via webhook (PING for files)
+    // 409 = Already requested (duplicate request for same time range)
     if (response.status === 202 || response.status === 409 || response.ok) {
-      console.log('✅ Activity details backfill requested - GPS data will arrive via webhook');
+      console.log('✅ Activity backfill requested - activityFiles PING will arrive with FIT callbackURL');
       return true;
     }
 
     // Log but don't throw - this is a best-effort enhancement
     const errorText = await response.text();
-    console.warn('⚠️ Activity details backfill request failed:', response.status, errorText.substring(0, 100));
+    console.warn('⚠️ Activity backfill request failed:', response.status, errorText.substring(0, 100));
     return false;
 
   } catch (error) {
     // Never throw - this is optional functionality
-    console.warn('⚠️ Could not request activity details backfill:', error.message);
+    console.warn('⚠️ Could not request activity backfill:', error.message);
     return false;
   }
 }

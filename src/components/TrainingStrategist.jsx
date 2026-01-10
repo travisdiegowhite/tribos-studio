@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   Stack,
@@ -25,6 +25,7 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconHistory,
+  IconTrash,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
@@ -43,12 +44,10 @@ const STRATEGIST_THEME = {
 // Number of recent messages to show by default
 const RECENT_MESSAGE_COUNT = 4;
 
-// Get the API base URL
+// Get the API base URL - use relative URL for both dev and prod
+// In dev, run with `npm run dev:vercel` to have API routes available
 const getApiBaseUrl = () => {
-  if (import.meta.env.PROD) {
-    return '';
-  }
-  return 'http://localhost:3000';
+  return '';
 };
 
 // Convert relative date strings to YYYY-MM-DD format
@@ -149,7 +148,6 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
   const [currentThreadId, setCurrentThreadId] = useState(null);
   const [showAllMessages, setShowAllMessages] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
-  const scrollAreaRef = useRef(null);
 
   // Load conversation history on mount
   const loadConversationHistory = useCallback(async () => {
@@ -283,14 +281,50 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
     }
   };
 
+  // Delete a message from the conversation
+  const deleteMessage = async (messageId, messageIndex) => {
+    if (!user?.id) return;
+
+    try {
+      // If we have a database ID, delete from Supabase
+      if (messageId) {
+        const { error } = await supabase
+          .from('coach_conversations')
+          .delete()
+          .eq('id', messageId)
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Error deleting message:', error);
+          notifications.show({
+            title: 'Error',
+            message: 'Failed to delete message',
+            color: 'red'
+          });
+          return;
+        }
+      }
+
+      // Remove from local state
+      setMessages(prev => prev.filter((_, idx) => idx !== messageIndex));
+
+      notifications.show({
+        title: 'Deleted',
+        message: 'Message removed',
+        color: 'gray',
+        autoClose: 2000
+      });
+    } catch (err) {
+      console.error('Delete error:', err);
+    }
+  };
+
   useEffect(() => {
     loadConversationHistory();
   }, [loadConversationHistory]);
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
-    }
+    // Messages updated - could add scroll-to-bottom behavior here if needed
   }, [messages]);
 
   const sendMessage = async () => {
@@ -307,6 +341,21 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
     try {
       await saveMessage('user', userMessage);
 
+      // Get user's local date for the API (server runs in UTC)
+      const now = new Date();
+      const userLocalDate = {
+        dayOfWeek: now.getDay(),
+        date: now.getDate(),
+        month: now.getMonth(),
+        year: now.getFullYear(),
+        dateString: now.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })
+      };
+
       const response = await fetch(`${getApiBaseUrl()}/api/coach`, {
         method: 'POST',
         headers: {
@@ -317,6 +366,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
           message: userMessage,
           conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
           trainingContext: trainingContext,
+          userLocalDate: userLocalDate,
           maxTokens: 2048
         })
       });
@@ -385,7 +435,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
     }
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -550,13 +600,23 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
     }
   };
 
-  // Get visible messages (recent or all)
+  // Get visible messages (recent or all) - reversed so most recent is at top
   const visibleMessages = showAllMessages
-    ? messages
-    : messages.slice(-RECENT_MESSAGE_COUNT);
+    ? [...messages].reverse()
+    : [...messages].slice(-RECENT_MESSAGE_COUNT).reverse();
 
   const hiddenMessageCount = messages.length - RECENT_MESSAGE_COUNT;
   const hasHiddenMessages = hiddenMessageCount > 0 && !showAllMessages;
+
+  // Calculate actual index in original messages array (accounting for reversed display)
+  const getActualIndex = (visibleIndex) => {
+    if (showAllMessages) {
+      return messages.length - 1 - visibleIndex;
+    } else {
+      const recentStartIndex = Math.max(0, messages.length - RECENT_MESSAGE_COUNT);
+      return messages.length - 1 - visibleIndex;
+    }
+  };
 
   return (
     <Card
@@ -600,10 +660,42 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
       </UnstyledButton>
 
       <Collapse in={isExpanded}>
+        {/* Input Area - at top since messages flow downward */}
+        <Group gap={8} mb="sm">
+          <TextInput
+            placeholder="Ask strategist..."
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={isLoading}
+            size="sm"
+            style={{ flex: 1 }}
+            styles={{
+              input: {
+                backgroundColor: tokens.colors.bgTertiary,
+                borderColor: tokens.colors.bgTertiary,
+                '&:focus': {
+                  borderColor: STRATEGIST_THEME.primary
+                }
+              }
+            }}
+          />
+          <ActionIcon
+            size="md"
+            variant="filled"
+            color="blue"
+            onClick={sendMessage}
+            disabled={!inputMessage.trim() || isLoading}
+          >
+            <IconSend size={16} />
+          </ActionIcon>
+        </Group>
+
         {/* Chat Messages */}
         <ScrollArea
-          style={{ maxHeight: 280 }}
-          viewportRef={scrollAreaRef}
+          h={300}
+          type="always"
+          offsetScrollbars
         >
           <Stack gap="xs">
             {loadingHistory && (
@@ -638,62 +730,92 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
               </Box>
             )}
 
-            {/* Show history button */}
-            {hasHiddenMessages && (
-              <UnstyledButton
-                onClick={() => setShowAllMessages(true)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '4px 0',
-                }}
-              >
-                <IconHistory size={12} style={{ color: tokens.colors.textMuted }} />
-                <Text size="xs" c="dimmed">
-                  Show {hiddenMessageCount} earlier messages
-                </Text>
-              </UnstyledButton>
-            )}
-
             {/* Messages */}
-            {visibleMessages.map((msg, index) => (
-              <Box key={index}>
-                <Group gap={6} align="flex-start" wrap="nowrap">
+            {visibleMessages.map((msg, index) => {
+              const actualIndex = getActualIndex(index);
+              // First 2 messages (index 0, 1) are the most recent exchange
+              const isRecentMessage = index < 2;
+              const isOlderMessage = !isRecentMessage;
+              // Show divider before first older message
+              const showDivider = index === 2;
+
+              return (
+              <Box key={msg.id || index}>
+                {/* Divider between recent and older messages */}
+                {showDivider && (
                   <Box
                     style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
-                      backgroundColor: msg.role === 'user' ? tokens.colors.bgTertiary : STRATEGIST_THEME.primary,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      marginTop: 2,
+                      borderTop: `1px solid ${tokens.colors.bgTertiary}`,
+                      margin: '8px 0',
+                      position: 'relative',
                     }}
                   >
-                    {msg.role === 'user' ? (
-                      <IconUser size={12} style={{ color: tokens.colors.textSecondary }} />
-                    ) : (
-                      <IconChartLine size={12} style={{ color: 'white' }} />
-                    )}
-                  </Box>
-                  <Box style={{ flex: 1, minWidth: 0 }}>
                     <Text
                       size="xs"
+                      c="dimmed"
                       style={{
-                        color: tokens.colors.textPrimary,
-                        whiteSpace: 'pre-wrap',
-                        lineHeight: 1.4,
+                        position: 'absolute',
+                        top: '-10px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        backgroundColor: tokens.colors.bgSecondary,
+                        padding: '0 8px',
                       }}
                     >
-                      {msg.content}
+                      Earlier
                     </Text>
+                  </Box>
+                )}
 
-                    {/* Compact Workout Recommendations */}
+                <Box
+                  style={{
+                    position: 'relative',
+                    opacity: isOlderMessage ? 0.6 : 1,
+                    paddingLeft: isOlderMessage ? 8 : 0,
+                    borderLeft: isOlderMessage ? `2px solid ${tokens.colors.bgTertiary}` : 'none',
+                  }}
+                  className="message-item"
+                >
+                  <Group gap={8} align="flex-start" wrap="nowrap">
+                    <Box
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        backgroundColor: msg.role === 'user'
+                          ? tokens.colors.bgTertiary
+                          : isOlderMessage ? '#6B7280' : STRATEGIST_THEME.primary,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        marginTop: 2,
+                      }}
+                    >
+                      {msg.role === 'user' ? (
+                        <IconUser size={14} style={{ color: tokens.colors.textSecondary }} />
+                      ) : (
+                        <IconChartLine size={14} style={{ color: 'white' }} />
+                      )}
+                    </Box>
+                    <Box style={{ flex: 1, minWidth: 0 }}>
+                      <Text
+                        size="sm"
+                        style={{
+                          color: msg.role === 'user'
+                            ? '#60A5FA'  // Blue for user questions
+                            : isOlderMessage ? tokens.colors.textSecondary : tokens.colors.textPrimary,
+                          whiteSpace: 'pre-wrap',
+                          lineHeight: 1.5,
+                          fontWeight: msg.role === 'user' ? 500 : 400,
+                        }}
+                      >
+                        {msg.content}
+                      </Text>
+
+                    {/* Workout Recommendations */}
                     {msg.workoutRecommendations && msg.workoutRecommendations.length > 0 && (
-                      <Group gap={4} mt={6} wrap="wrap">
+                      <Group gap={6} mt={8} wrap="wrap">
                         {msg.workoutRecommendations.map((rec, recIndex) => (
                           <WorkoutChip
                             key={recIndex}
@@ -704,17 +826,31 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                       </Group>
                     )}
                   </Box>
-                </Group>
+                  {/* Delete button */}
+                  <Tooltip label="Delete message" position="left">
+                    <ActionIcon
+                      size="xs"
+                      variant="subtle"
+                      color="gray"
+                      onClick={() => deleteMessage(msg.id, actualIndex)}
+                      style={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
+                    >
+                      <IconTrash size={12} />
+                    </ActionIcon>
+                  </Tooltip>
+                  </Group>
+                </Box>
               </Box>
-            ))}
+              );
+            })}
 
-            {/* Loading indicator */}
+            {/* Loading indicator - shown at top since messages are reversed */}
             {isLoading && (
-              <Group gap={6} align="flex-start">
+              <Group gap={8} align="flex-start">
                 <Box
                   style={{
-                    width: 20,
-                    height: 20,
+                    width: 24,
+                    height: 24,
                     borderRadius: '50%',
                     backgroundColor: STRATEGIST_THEME.primary,
                     display: 'flex',
@@ -722,44 +858,31 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                     justifyContent: 'center',
                   }}
                 >
-                  <IconChartLine size={12} style={{ color: 'white' }} />
+                  <IconChartLine size={14} style={{ color: 'white' }} />
                 </Box>
-                <Loader size="xs" color="blue" type="dots" />
+                <Loader size="sm" color="blue" type="dots" />
               </Group>
+            )}
+
+            {/* Show older messages button - at bottom since messages are reversed */}
+            {hasHiddenMessages && (
+              <UnstyledButton
+                onClick={() => setShowAllMessages(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '8px 0',
+                }}
+              >
+                <IconHistory size={14} style={{ color: tokens.colors.textMuted }} />
+                <Text size="sm" c="dimmed">
+                  Show {hiddenMessageCount} older messages
+                </Text>
+              </UnstyledButton>
             )}
           </Stack>
         </ScrollArea>
-
-        {/* Compact Input Area */}
-        <Group gap={6} mt="xs">
-          <TextInput
-            placeholder="Ask strategist..."
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={isLoading}
-            size="xs"
-            style={{ flex: 1 }}
-            styles={{
-              input: {
-                backgroundColor: tokens.colors.bgTertiary,
-                borderColor: tokens.colors.bgTertiary,
-                '&:focus': {
-                  borderColor: STRATEGIST_THEME.primary
-                }
-              }
-            }}
-          />
-          <ActionIcon
-            size="sm"
-            variant="filled"
-            color="blue"
-            onClick={sendMessage}
-            disabled={!inputMessage.trim() || isLoading}
-          >
-            <IconSend size={14} />
-          </ActionIcon>
-        </Group>
       </Collapse>
     </Card>
   );

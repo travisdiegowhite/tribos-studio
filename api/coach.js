@@ -6,8 +6,8 @@ import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { WORKOUT_LIBRARY_FOR_AI, WORKOUT_TOOLS } from './utils/workoutLibrary.js';
 import { setupCors } from './utils/cors.js';
 
-// System prompt for the AI coach
-const COACHING_SYSTEM_PROMPT = `You are an expert cycling coach with deep knowledge of:
+// Base coaching knowledge (date context added dynamically)
+const COACHING_KNOWLEDGE = `You are an expert cycling coach with deep knowledge of:
 - Training periodization and load management
 - Power-based training and TSS/CTL/ATL/TSB metrics
 - Cycling physiology and performance optimization
@@ -97,6 +97,7 @@ export default async function handler(req, res) {
       message,
       conversationHistory = [],
       trainingContext = null,
+      userLocalDate = null,
       maxTokens = 1024
     } = req.body;
 
@@ -128,21 +129,72 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Build system message with training context
-    let systemPrompt = COACHING_SYSTEM_PROMPT;
-    if (trainingContext) {
-      systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT ===\n${trainingContext}\n\nUse this context to provide personalized coaching advice.`;
+    // Build system message with date context FIRST
+    // Use user's local date if provided, otherwise fall back to server date
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+    let dateStr;
+    let dayOfWeek;
+    let todayDate;
+    let todayMonth;
+    let todayYear;
+
+    if (userLocalDate && userLocalDate.dateString) {
+      // Use the user's local date from the browser
+      dateStr = userLocalDate.dateString;
+      dayOfWeek = userLocalDate.dayOfWeek;
+      todayDate = userLocalDate.date;
+      todayMonth = userLocalDate.month;
+      todayYear = userLocalDate.year;
+    } else {
+      // Fallback to server date (UTC)
+      const today = new Date();
+      dateStr = `${dayNames[today.getDay()]}, ${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`;
+      dayOfWeek = today.getDay();
+      todayDate = today.getDate();
+      todayMonth = today.getMonth();
+      todayYear = today.getFullYear();
     }
 
-    // Build conversation messages
+    // Calculate this week's date range using user's local date
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const mondayDate = todayDate + mondayOffset;
+    const sundayDate = mondayDate + 6;
+    // Simplified week range display
+    const weekRangeStr = `Week of ${monthNames[todayMonth]} ${mondayDate > 0 ? mondayDate : todayDate}, ${todayYear}`;
+
+    // Build the full system prompt with date as the foundation
+    let systemPrompt = `=== CURRENT DATE & TIME CONTEXT ===
+TODAY IS: ${dateStr}
+${weekRangeStr}
+
+CRITICAL: The conversation history below may contain outdated references to past dates (weeks or months ago).
+You MUST use the current date above as your reference point. When the athlete asks about "this week", "tomorrow", "Monday", etc., calculate from TODAY'S DATE shown above.
+
+=== YOUR ROLE ===
+${COACHING_KNOWLEDGE}`;
+
+    if (trainingContext) {
+      systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT ===\n${trainingContext}`;
+    }
+
+    systemPrompt += `\n\n=== INSTRUCTIONS ===\nUse the current date context and athlete data above to provide personalized, time-appropriate coaching advice.`;
+
+    // Limit conversation history to last 10 messages to prevent stale context from dominating
+    const recentHistory = conversationHistory.slice(-10);
+
+    // Build conversation messages - prepend date reminder to user's message
+    const userMessageWithDate = `[Today is ${dateStr}]\n\n${message}`;
+
     const messages = [
-      ...conversationHistory.map(msg => ({
+      ...recentHistory.map(msg => ({
         role: msg.role,
         content: msg.content
       })),
       {
         role: 'user',
-        content: message
+        content: userMessageWithDate
       }
     ];
 

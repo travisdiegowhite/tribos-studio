@@ -76,12 +76,13 @@ import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
-import { SupplementWorkoutModal } from '../components/training';
+import { SupplementWorkoutModal, RouteAnalysisPanel } from '../components/training';
 import RaceGoalsPanel from '../components/RaceGoalsPanel.jsx';
 import PowerDurationCurve from '../components/PowerDurationCurve.jsx';
 import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
 import RampRateAlert, { RampRateBadge } from '../components/RampRateAlert.jsx';
 import { ActivityMetricsBadges } from '../components/ActivityMetrics.jsx';
+import RideAnalysisModal from '../components/RideAnalysisModal.jsx';
 import { WorkoutDifficultyBadge, getQuickDifficultyEstimate } from '../components/WorkoutDifficultyBadge.jsx';
 import CriticalPowerModel from '../components/CriticalPowerModel.jsx';
 import TrainNow from '../components/TrainNow.jsx';
@@ -93,6 +94,7 @@ import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, ca
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { PoweredByStrava } from '../components/StravaBranding';
+import { garminService } from '../utils/garminService.js';
 
 function TrainingDashboard() {
   const { user } = useAuth();
@@ -103,7 +105,7 @@ function TrainingDashboard() {
 
   // Read tab from URL query parameter, default to 'today'
   const urlTab = searchParams.get('tab');
-  const validTabs = ['today', 'plans', 'trends', 'power', 'history', 'calendar'];
+  const validTabs = ['today', 'plans', 'trends', 'power', 'routes', 'history', 'calendar'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
   const [activeTab, setActiveTab] = useState(initialTab);
   const aiCoachRef = useRef(null);
@@ -132,6 +134,8 @@ function TrainingDashboard() {
   const [supplementModalOpen, setSupplementModalOpen] = useState(false);
   const [raceGoals, setRaceGoals] = useState([]);
   const [trainNowExpanded, setTrainNowExpanded] = useState(false);
+  const [rideAnalysisModalOpen, setRideAnalysisModalOpen] = useState(false);
+  const [selectedRide, setSelectedRide] = useState(null);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -139,6 +143,7 @@ function TrainingDashboard() {
   // Format functions using preference
   const formatDist = (km) => formatDistance(km, isImperial);
   const formatElev = (m) => formatElevation(m, isImperial);
+  const formatSpd = (kmh) => formatSpeed(kmh, isImperial);
 
   // Filter out hidden activities for stats/calculations
   const visibleActivities = useMemo(() =>
@@ -306,6 +311,73 @@ function TrainingDashboard() {
     loadData();
   }, [user]);
 
+  // Automatic Garmin sync - recover failed events and backfill GPS on load
+  useEffect(() => {
+    const runGarminAutoSync = async () => {
+      if (!user) return;
+
+      try {
+        // Check if user has Garmin connected
+        const status = await garminService.getConnectionStatus();
+        if (!status.connected || status.tokenExpired) {
+          return; // Not connected or token expired
+        }
+
+        console.log('🔄 Running automatic Garmin sync...');
+
+        // Run reprocessFailedEvents to recover any failed webhook imports
+        // This is what the user had to click "Recover Failed Events" for
+        try {
+          const recoverResult = await garminService.reprocessFailedEvents();
+          if (recoverResult.reprocessed > 0) {
+            console.log(`✅ Auto-recovered ${recoverResult.reprocessed} Garmin activities`);
+            // Reload activities to show the newly recovered ones
+            const { data: activityData } = await supabase
+              .from('activities')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('start_date', { ascending: false })
+              .limit(2000);
+            if (activityData) {
+              setActivities(activityData);
+            }
+          }
+        } catch (err) {
+          // Silent fail - this is a background optimization
+          console.log('ℹ️ Garmin recover check:', err.message);
+        }
+
+        // Run GPS backfill for activities missing GPS data
+        try {
+          const gpsResult = await garminService.backfillGps(20); // Limit to 20 for faster completion
+          if (gpsResult.stats?.success > 0) {
+            console.log(`✅ Auto-backfilled GPS for ${gpsResult.stats.success} activities`);
+            // Reload activities to show updated GPS data
+            const { data: activityData } = await supabase
+              .from('activities')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('start_date', { ascending: false })
+              .limit(2000);
+            if (activityData) {
+              setActivities(activityData);
+            }
+          }
+        } catch (err) {
+          // Silent fail - this is a background optimization
+          console.log('ℹ️ Garmin GPS backfill check:', err.message);
+        }
+      } catch (err) {
+        // Silent fail - Garmin might not be set up
+        console.log('ℹ️ Garmin auto-sync not available:', err.message);
+      }
+    };
+
+    // Run after a short delay to not block initial load
+    const timer = setTimeout(runGarminAutoSync, 2000);
+    return () => clearTimeout(timer);
+  }, [user]);
+
   // Load race goals for AI coach context
   useEffect(() => {
     const loadRaceGoals = async () => {
@@ -436,6 +508,12 @@ function TrainingDashboard() {
   const handleViewWorkout = (workout) => {
     setSelectedWorkout(workout);
     setWorkoutModalOpen(true);
+  };
+
+  // Handle viewing ride details
+  const handleViewRide = (ride) => {
+    setSelectedRide(ride);
+    setRideAnalysisModalOpen(true);
   };
 
   // Handle hiding/showing a ride
@@ -700,6 +778,12 @@ function TrainingDashboard() {
                   {!isMobile && 'Power'}
                 </Tabs.Tab>
                 <Tabs.Tab
+                  value="routes"
+                  leftSection={<IconRoute size={isMobile ? 20 : 18} />}
+                >
+                  {!isMobile && 'Routes'}
+                </Tabs.Tab>
+                <Tabs.Tab
                   value="history"
                   leftSection={<IconClock size={isMobile ? 20 : 18} />}
                 >
@@ -864,6 +948,15 @@ function TrainingDashboard() {
                 />
               </Tabs.Panel>
 
+              {/* ROUTES TAB - Activity Route Analysis */}
+              <Tabs.Panel value="routes">
+                <RouteAnalysisPanel
+                  plannedWorkouts={plannedWorkouts}
+                  formatDist={formatDist}
+                  formatElev={formatElev}
+                />
+              </Tabs.Panel>
+
               {/* HISTORY TAB */}
               <Tabs.Panel value="history">
                 <RideHistoryTable
@@ -871,7 +964,7 @@ function TrainingDashboard() {
                   formatDistance={formatDist}
                   formatElevation={formatElev}
                   maxRows={100}
-                  onViewRide={(ride) => console.log('View ride:', ride)}
+                  onViewRide={handleViewRide}
                   onHideRide={handleHideRide}
                 />
               </Tabs.Panel>
@@ -956,6 +1049,20 @@ function TrainingDashboard() {
         onAddWorkout={handleAddSupplementWorkout}
         getSuggestedDays={getSuggestedSupplementDays}
         activePlan={activePlan}
+      />
+
+      {/* Ride Analysis Modal */}
+      <RideAnalysisModal
+        opened={rideAnalysisModalOpen}
+        onClose={() => {
+          setRideAnalysisModalOpen(false);
+          setSelectedRide(null);
+        }}
+        ride={selectedRide}
+        ftp={ftp}
+        formatDistance={formatDist}
+        formatElevation={formatElev}
+        formatSpeed={formatSpd}
       />
     </AppShell>
   );
@@ -1897,6 +2004,33 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
           </Paper>
         )}
 
+        {/* Find Matching Routes */}
+        <Paper p="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-7)' }}>
+          <Group justify="space-between" align="center">
+            <Box>
+              <Group gap="xs" mb={4}>
+                <IconRoute size={16} />
+                <Text fw={500} size="sm">Find Matching Routes</Text>
+              </Group>
+              <Text size="xs" c="dimmed">
+                Find routes from your history that are ideal for this {workout.category?.replace('_', ' ')} workout
+              </Text>
+            </Box>
+            <Button
+              variant="light"
+              color="lime"
+              leftSection={<IconRoute size={16} />}
+              onClick={() => {
+                onClose();
+                // Navigate to Routes tab - setActiveTab will be called via props
+                window.location.href = `/training?tab=routes`;
+              }}
+            >
+              View Routes
+            </Button>
+          </Group>
+        </Paper>
+
         {/* Close Button */}
         <Button variant="light" color="lime" fullWidth onClick={onClose}>
           Close
@@ -1910,6 +2044,13 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
 function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null, raceGoals = []) {
   const context = [];
   const distanceUnit = isImperial ? 'mi' : 'km';
+
+  // Add current date context - critical for time-aware recommendations
+  const today = new Date();
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  context.push(`TODAY'S DATE: ${dayNames[today.getDay()]}, ${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`);
+  context.push(`(Any references to days of the week in conversation history may be outdated - always use today's date above as the reference point)`);
 
   if (ftp) context.push(`FTP: ${ftp}W`);
 
