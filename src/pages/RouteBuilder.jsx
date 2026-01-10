@@ -16,7 +16,7 @@ import { matchRouteToOSM } from '../utils/osmCyclingService';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { stravaService } from '../utils/stravaService';
 import { saveRoute, getRoute } from '../utils/routesService';
-import PreferenceSettings from '../components/PreferenceSettings.jsx';
+import FloatingRouteSettings, { RouteSettingsButton } from '../components/FloatingRouteSettings.jsx';
 import IntervalCues from '../components/IntervalCues.jsx';
 import ElevationProfile from '../components/ElevationProfile.jsx';
 import WeatherWidget from '../components/WeatherWidget.jsx';
@@ -529,7 +529,11 @@ function RouteBuilder() {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [convertingRoute, setConvertingRoute] = useState(null); // Index of suggestion being converted
   const [naturalLanguageInput, setNaturalLanguageInput] = useState('');
-  const [useIterativeBuilder, setUseIterativeBuilder] = useState(false); // New iterative route builder approach
+  // Iterative route builder - persisted to localStorage, enabled by default
+  const [useIterativeBuilder, setUseIterativeBuilder] = useLocalStorage({
+    key: 'tribos-route-builder-iterative',
+    defaultValue: true,
+  });
 
   // Speed profile from Strava sync (fetched fresh)
   const [speedProfile, setSpeedProfile] = useState(null);
@@ -598,7 +602,7 @@ function RouteBuilder() {
   // Basemap style state (persisted to localStorage)
   const [mapStyleId, setMapStyleId] = useLocalStorage({
     key: 'tribos-route-builder-basemap',
-    defaultValue: 'outdoors',
+    defaultValue: 'dark',
   });
   const currentMapStyle = BASEMAP_STYLES.find(s => s.id === mapStyleId)?.style || BASEMAP_STYLES[1].style;
 
@@ -1114,8 +1118,12 @@ function RouteBuilder() {
         console.log('🔄 Using Iterative Route Builder');
 
         // Calculate target distance based on time and speed
-        const avgSpeed = speedProfile?.average_speed || 25; // km/h default
+        // Default 28 km/h (~17.4 mph) is typical cycling pace for recreational/fitness riders
+        const avgSpeed = speedProfile?.average_speed || 28; // km/h default
         const targetDistanceKm = (timeAvailable / 60) * avgSpeed;
+
+        console.log(`📊 Route calculation: ${timeAvailable}min × ${avgSpeed.toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
+        console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
 
         routes = await generateIterativeRouteVariations({
           startLocation: [viewport.longitude, viewport.latitude],
@@ -1379,8 +1387,12 @@ function RouteBuilder() {
           console.log('🔄 Using Iterative Route Builder for natural language request');
 
           // Calculate target distance based on time and speed
-          const avgSpeed = speedProfile?.average_speed || 25; // km/h default
+          // Default 28 km/h (~17.4 mph) is typical cycling pace for recreational/fitness riders
+          const avgSpeed = speedProfile?.average_speed || 28; // km/h default
           const targetDistanceKm = (duration / 60) * avgSpeed;
+
+          console.log(`📊 Route calculation: ${duration}min × ${avgSpeed.toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
+          console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
 
           notifications.show({
             id: 'generating-route',
@@ -1877,20 +1889,9 @@ function RouteBuilder() {
 
       {/* Workout Selection */}
       <Box>
-        <Group justify="space-between" mb="xs">
-          <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-            WORKOUT (OPTIONAL)
-          </Text>
-          <Tooltip label="Route Preferences">
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={() => setPreferencesOpen(true)}
-            >
-              <IconSettings size={16} />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
+        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+          WORKOUT (OPTIONAL)
+        </Text>
         <Select
           placeholder="Select a workout for color-coded route..."
           value={selectedWorkout?.id || null}
@@ -2262,6 +2263,11 @@ function RouteBuilder() {
                     ))}
                   </Menu.Dropdown>
                 </Menu>
+                <RouteSettingsButton
+                  onClick={() => setPreferencesOpen(true)}
+                  speedProfile={speedProfile}
+                  isImperial={isImperial}
+                />
               </Box>
             )}
 
@@ -2298,17 +2304,14 @@ function RouteBuilder() {
               <BikeInfrastructureLegend visible={showBikeInfrastructure} />
             )}
 
-            {/* Map Controls */}
-            {MAPBOX_TOKEN && (
-              <MapControls
-                mapRef={mapRef}
-                viewport={viewport}
-                userLocation={userLocation}
-                routeGeometry={routeGeometry}
-                onGeolocate={handleGeolocate}
-                isLocating={isLocating}
-              />
-            )}
+            {/* Floating Route Settings */}
+            <FloatingRouteSettings
+              opened={preferencesOpen}
+              onClose={() => setPreferencesOpen(false)}
+              speedProfile={speedProfile}
+              onSpeedProfileUpdate={setSpeedProfile}
+              isImperial={isImperial}
+            />
           </Box>
 
           {/* Bottom Sheet with controls */}
@@ -2320,9 +2323,6 @@ function RouteBuilder() {
             {renderControls()}
           </BottomSheet>
         </Box>
-
-        {/* Preferences Modal */}
-        <PreferenceSettings opened={preferencesOpen} onClose={() => setPreferencesOpen(false)} />
       </AppShell>
     );
   }
@@ -2608,20 +2608,9 @@ function RouteBuilder() {
 
                   {/* Workout Selection for Color-Coded Routes */}
                   <Box>
-                    <Group justify="space-between" mb="xs">
-                      <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                        WORKOUT (OPTIONAL)
-                      </Text>
-                      <Tooltip label="Route Preferences">
-                        <ActionIcon
-                          variant="subtle"
-                          size="sm"
-                          onClick={() => setPreferencesOpen(true)}
-                        >
-                          <IconSettings size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Group>
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                      WORKOUT (OPTIONAL)
+                    </Text>
                     <Select
                       placeholder="Select a workout for color-coded route..."
                       value={selectedWorkout?.id || null}
@@ -2981,6 +2970,11 @@ function RouteBuilder() {
                   ))}
                 </Menu.Dropdown>
               </Menu>
+              <RouteSettingsButton
+                onClick={() => setPreferencesOpen(true)}
+                speedProfile={speedProfile}
+                isImperial={isImperial}
+              />
             </Box>
           )}
 
@@ -3111,17 +3105,14 @@ function RouteBuilder() {
             <BikeInfrastructureLegend visible={showBikeInfrastructure} />
           )}
 
-          {/* Map Controls */}
-          {MAPBOX_TOKEN && (
-            <MapControls
-              mapRef={mapRef}
-              viewport={viewport}
-              userLocation={userLocation}
-              routeGeometry={routeGeometry}
-              onGeolocate={handleGeolocate}
-              isLocating={isLocating}
-            />
-          )}
+          {/* Floating Route Settings */}
+          <FloatingRouteSettings
+            opened={preferencesOpen}
+            onClose={() => setPreferencesOpen(false)}
+            speedProfile={speedProfile}
+            onSpeedProfileUpdate={setSpeedProfile}
+            isImperial={isImperial}
+          />
 
           {/* Map Tutorial Overlay */}
           {MAPBOX_TOKEN && showTutorial && waypoints.length === 0 && !routeGeometry && (
@@ -3133,12 +3124,6 @@ function RouteBuilder() {
           )}
         </Box>
       </Box>
-
-      {/* Preferences Modal */}
-      <PreferenceSettings
-        opened={preferencesOpen}
-        onClose={() => setPreferencesOpen(false)}
-      />
 
       {/* Elevation Profile - Fixed at bottom of screen, offset by sidebar width */}
       {routeGeometry?.coordinates && routeGeometry.coordinates.length > 1 && (
