@@ -492,7 +492,7 @@ export default function RouteAnalysisPanel({
   formatDist,
   formatElev,
 }) {
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyses, setAnalyses] = useState([]);
@@ -522,9 +522,10 @@ export default function RouteAnalysisPanel({
     setError(null);
 
     try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
       const response = await fetch('/api/route-analysis?action=get_analysis', {
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${currentSession?.access_token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -549,10 +550,11 @@ export default function RouteAnalysisPanel({
     setError(null);
 
     try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
       const response = await fetch('/api/route-analysis', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${currentSession?.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ action: 'analyze_all' }),
@@ -597,10 +599,11 @@ export default function RouteAnalysisPanel({
 
       if (upcomingWorkouts.length === 0) return;
 
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
       const response = await fetch('/api/route-analysis', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${currentSession?.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
