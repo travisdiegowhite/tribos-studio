@@ -50,7 +50,6 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { getZoneColor, getZoneName } from '../../utils/intervalCues';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
