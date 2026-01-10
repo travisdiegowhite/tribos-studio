@@ -221,6 +221,25 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
       }
     });
 
+    // Add descent segments
+    const descentSegments = typeof analysis.descent_segments === 'string'
+      ? JSON.parse(analysis.descent_segments)
+      : analysis.descent_segments || [];
+
+    descentSegments.forEach((seg) => {
+      if (seg.coordinates?.length > 1) {
+        features.push({
+          type: 'Feature',
+          properties: {
+            type: 'descent',
+            color: SEGMENT_COLORS.descent,
+            label: `Descent: ${seg.length?.toFixed(1) || '?'}km`,
+          },
+          geometry: { type: 'LineString', coordinates: seg.coordinates },
+        });
+      }
+    });
+
     // Highlight interval segments if workout type specified
     if (workoutType) {
       const intervalSegments = typeof analysis.interval_segments === 'string'
@@ -272,22 +291,22 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
             mapboxAccessToken={MAPBOX_TOKEN}
             onLoad={() => setMapLoaded(true)}
           >
-            {/* Base route (if no segments) */}
-            {mapLoaded && routeGeoJSON && !segmentsGeoJSON?.features?.length && (
+            {/* Base route - always draw as background to fill gaps */}
+            {mapLoaded && routeGeoJSON && (
               <Source id="route" type="geojson" data={routeGeoJSON}>
                 <Layer
                   id="route-line"
                   type="line"
                   paint={{
-                    'line-color': tokens.colors.electricLime,
-                    'line-width': 4,
-                    'line-opacity': 0.8,
+                    'line-color': '#666666',
+                    'line-width': 3,
+                    'line-opacity': 0.6,
                   }}
                 />
               </Source>
             )}
 
-            {/* Colored segments */}
+            {/* Colored segments overlay */}
             {mapLoaded && segmentsGeoJSON?.features?.length > 0 && (
               <Source id="segments" type="geojson" data={segmentsGeoJSON}>
                 <Layer
