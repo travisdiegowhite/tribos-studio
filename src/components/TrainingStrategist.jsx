@@ -545,19 +545,20 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
 
       // Check if there's already a workout on this date and remove it
       // (replacing with the AI-recommended workout)
+      // Note: Don't filter by user_id since training plan workouts may not have it set
       let replacedWorkoutName = null;
       const { data: existingWorkouts } = await supabase
         .from('planned_workouts')
         .select('id, name')
         .eq('plan_id', planId)
-        .eq('scheduled_date', scheduledDate)
-        .eq('user_id', user.id);
+        .eq('scheduled_date', scheduledDate);
 
       if (existingWorkouts && existingWorkouts.length > 0) {
         replacedWorkoutName = existingWorkouts[0].name;
-        // Delete existing workouts by their specific IDs to ensure deletion works
+        console.log(`Found ${existingWorkouts.length} existing workout(s) to delete:`, existingWorkouts.map(w => w.id));
+        // Delete ALL existing workouts for this date by their specific IDs
         const idsToDelete = existingWorkouts.map(w => w.id);
-        const { error: deleteError, count } = await supabase
+        const { error: deleteError } = await supabase
           .from('planned_workouts')
           .delete()
           .in('id', idsToDelete);
