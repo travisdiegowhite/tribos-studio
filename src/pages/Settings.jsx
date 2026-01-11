@@ -1021,6 +1021,7 @@ function Settings() {
                 onSync={syncStravaActivities}
                 syncing={stravaSyncing}
                 speedProfile={speedProfile}
+                unitsPreference={unitsPreference}
               />
 
               <Divider />
@@ -1045,6 +1046,7 @@ function Settings() {
                 diagnosis={garminDiagnosis}
                 onBackfillGps={backfillGarminGps}
                 backfillingGps={garminBackfillingGps}
+                unitsPreference={unitsPreference}
               />
 
               <Divider />
@@ -1057,6 +1059,7 @@ function Settings() {
                 loading={wahooStatus.loading}
                 onConnect={connectWahoo}
                 onDisconnect={disconnectWahoo}
+                unitsPreference={unitsPreference}
               />
             </Stack>
           </Card>
@@ -1196,7 +1199,7 @@ function Settings() {
   );
 }
 
-function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis, onBackfillGps, backfillingGps }) {
+function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis, onBackfillGps, backfillingGps, unitsPreference }) {
   const isStrava = name === 'Strava';
 
   if (loading) {

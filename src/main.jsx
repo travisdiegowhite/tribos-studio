@@ -15,7 +15,10 @@ registerSW({
     if (registration) {
       // Check for updates every 5 minutes
       setInterval(() => {
-        registration.update();
+        registration.update().catch((error) => {
+          // Silently handle update errors (network issues, etc.)
+          console.debug('SW update check failed:', error.message);
+        });
       }, 5 * 60 * 1000);
     }
   },
