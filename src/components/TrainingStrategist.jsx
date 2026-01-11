@@ -543,59 +543,53 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
         weekNumber = Math.max(1, Math.floor(daysSinceStart / 7) + 1);
       }
 
-      // Check if there's already a workout on this date and remove it
-      // (replacing with the AI-recommended workout)
-      // Note: Don't filter by user_id since training plan workouts may not have it set
+      // Check if there's an existing workout on this date (for notification message)
       let replacedWorkoutName = null;
-      const { data: existingWorkouts } = await supabase
+      const { data: existingWorkout } = await supabase
         .from('planned_workouts')
         .select('id, name')
         .eq('plan_id', planId)
-        .eq('scheduled_date', scheduledDate);
+        .eq('scheduled_date', scheduledDate)
+        .maybeSingle();
 
-      if (existingWorkouts && existingWorkouts.length > 0) {
-        replacedWorkoutName = existingWorkouts[0].name;
-        console.log(`Found ${existingWorkouts.length} existing workout(s) to delete:`, existingWorkouts.map(w => w.id));
-        // Delete ALL existing workouts for this date by their specific IDs
-        const idsToDelete = existingWorkouts.map(w => w.id);
-        const { error: deleteError } = await supabase
-          .from('planned_workouts')
-          .delete()
-          .in('id', idsToDelete);
-
-        if (deleteError) {
-          console.error('Failed to remove existing workout:', deleteError);
-          throw new Error('Failed to replace existing workout');
-        }
-        console.log(`Deleted ${existingWorkouts.length} existing workout(s) for ${scheduledDate}`);
+      if (existingWorkout) {
+        replacedWorkoutName = existingWorkout.name;
+        console.log(`Will replace existing workout: ${existingWorkout.id} (${existingWorkout.name})`);
       }
+
+      // Use UPSERT - insert or update if (plan_id, scheduled_date) already exists
+      // This is atomic and avoids race conditions with DELETE + INSERT
+      const workoutData = {
+        plan_id: planId,
+        user_id: user.id,
+        scheduled_date: scheduledDate,
+        week_number: weekNumber,
+        day_of_week: dayOfWeek,
+        workout_type: dbWorkoutType,
+        workout_id: recommendation.workout_id,
+        name: workout.name,
+        duration_minutes: workout.duration || 60,
+        target_duration: workout.duration || 60,
+        target_tss: workout.targetTSS || 0,
+        notes: recommendation.reason ? `Coach: ${recommendation.reason}` : '',
+        completed: false
+      };
 
       const { data: workoutRecord, error: dbError } = await supabase
         .from('planned_workouts')
-        .insert({
-          plan_id: planId,
-          user_id: user.id,
-          scheduled_date: scheduledDate,
-          week_number: weekNumber,
-          day_of_week: dayOfWeek,
-          workout_type: dbWorkoutType,
-          workout_id: recommendation.workout_id,
-          name: workout.name,
-          duration_minutes: workout.duration || 60,
-          target_duration: workout.duration || 60,
-          target_tss: workout.targetTSS || 0,
-          notes: recommendation.reason ? `Coach: ${recommendation.reason}` : '',
-          completed: false
+        .upsert(workoutData, {
+          onConflict: 'plan_id,scheduled_date',
+          ignoreDuplicates: false  // Update existing record
         })
         .select()
         .single();
 
       if (dbError) {
-        console.error('Insert failed:', dbError);
+        console.error('Upsert failed:', dbError);
         throw new Error(`Failed to save workout: ${dbError.message}`);
       }
 
-      console.log('Successfully inserted workout:', workoutRecord?.id, 'for date:', scheduledDate);
+      console.log('Successfully upserted workout:', workoutRecord?.id, 'for date:', scheduledDate);
 
       notifications.update({
         id: notificationId,
