@@ -590,8 +590,11 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
         .single();
 
       if (dbError) {
+        console.error('Insert failed:', dbError);
         throw new Error(`Failed to save workout: ${dbError.message}`);
       }
+
+      console.log('Successfully inserted workout:', workoutRecord?.id, 'for date:', scheduledDate);
 
       notifications.update({
         id: notificationId,
