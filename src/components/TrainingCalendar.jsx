@@ -635,9 +635,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       if (existingWorkout && existingWorkout.workout_type !== 'rest') {
         // Swap the workouts
         console.log('Swapping workouts:', workout.id, 'with', existingWorkout.id);
-        const sourceWeekNumber = workout.week_number;
-        const sourceDayOfWeek = workout.day_of_week;
+        // Use existing values or calculate from sourceDate if missing
         const sourceScheduledDate = formatLocalDate(sourceDate);
+        const sourceDateObj = new Date(sourceDate);
+        const sourceDaysSinceStart = Math.floor((sourceDateObj - planStartDate) / (24 * 60 * 60 * 1000));
+        const sourceWeekNumber = workout.week_number ?? (Math.floor(sourceDaysSinceStart / 7) + 1);
+        const sourceDayOfWeek = workout.day_of_week ?? sourceDateObj.getDay();
 
         // Update dragged workout to new position
         const { error: error1 } = await supabase
