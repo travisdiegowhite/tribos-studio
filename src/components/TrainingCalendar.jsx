@@ -627,15 +627,22 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       // Calculate new scheduled_date using formatLocalDate to avoid timezone issues
       const newScheduledDate = formatLocalDate(targetDate);
 
-      // Check if there's already a workout on target date using scheduled_date for consistency
-      // (the calendar displays workouts by scheduled_date, so we must check the same way)
-      const existingWorkout = plannedWorkouts.find(
-        w => w.scheduled_date === newScheduledDate && w.id !== workout.id
-      );
+      // Check database directly for existing workout on target date
+      // (local state may be stale after AI adds workouts)
+      const { data: existingWorkoutData } = await supabase
+        .from('planned_workouts')
+        .select('id, name, workout_type, week_number, day_of_week')
+        .eq('plan_id', activePlan.id)
+        .eq('scheduled_date', newScheduledDate)
+        .neq('id', workout.id)
+        .maybeSingle();
+
+      const existingWorkout = existingWorkoutData;
 
       if (existingWorkout && existingWorkout.workout_type !== 'rest') {
-        // Swap the workouts
+        // Swap the workouts - need to do this atomically to avoid constraint violations
         console.log('Swapping workouts:', workout.id, 'with', existingWorkout.id);
+
         // Use existing values or calculate from sourceDate if missing
         const sourceScheduledDate = formatLocalDate(sourceDate);
         const sourceDateObj = new Date(sourceDate);
@@ -643,7 +650,19 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         const sourceWeekNumber = workout.week_number ?? (Math.floor(sourceDaysSinceStart / 7) + 1);
         const sourceDayOfWeek = workout.day_of_week ?? sourceDateObj.getDay();
 
-        // Update dragged workout to new position
+        // First, move existing workout to a temporary date to avoid constraint violation
+        const tempDate = '1900-01-01';
+        const { error: tempError } = await supabase
+          .from('planned_workouts')
+          .update({ scheduled_date: tempDate })
+          .eq('id', existingWorkout.id);
+
+        if (tempError) {
+          console.error('Failed to move existing workout to temp:', tempError);
+          throw tempError;
+        }
+
+        // Now move dragged workout to target date
         const { error: error1 } = await supabase
           .from('planned_workouts')
           .update({
@@ -655,10 +674,15 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
         if (error1) {
           console.error('Failed to update dragged workout:', error1);
+          // Try to restore the existing workout
+          await supabase
+            .from('planned_workouts')
+            .update({ scheduled_date: newScheduledDate })
+            .eq('id', existingWorkout.id);
           throw error1;
         }
 
-        // Update existing workout to old position
+        // Finally, move existing workout to source date
         const { error: error2 } = await supabase
           .from('planned_workouts')
           .update({
