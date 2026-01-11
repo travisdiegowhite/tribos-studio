@@ -887,12 +887,23 @@ function TrainingDashboard() {
                       <TrainingStrategist
                         trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals)}
                         activePlan={activePlan}
-                        onAddWorkout={(workout) => {
+                        onAddWorkout={async (workout) => {
                           notifications.show({
                             title: 'Workout Added to Calendar',
                             message: `${workout.name} scheduled for ${workout.scheduledDate}`,
                             color: 'blue'
                           });
+                          // Reload planned workouts to show the new workout on the calendar
+                          if (activePlan?.id) {
+                            const { data: workoutsData } = await supabase
+                              .from('planned_workouts')
+                              .select('*')
+                              .eq('plan_id', activePlan.id)
+                              .order('scheduled_date', { ascending: true });
+                            if (workoutsData) {
+                              setPlannedWorkouts(workoutsData);
+                            }
+                          }
                         }}
                       />
                     </Box>
@@ -977,20 +988,29 @@ function TrainingDashboard() {
                   formatDistance={formatDist}
                   ftp={ftp}
                   isImperial={isImperial}
-                  onPlanUpdated={() => {
+                  onPlanUpdated={async () => {
                     // Reload the active plan to get updated compliance stats
                     if (user?.id) {
-                      supabase
+                      const { data: planData } = await supabase
                         .from('training_plans')
                         .select('*')
                         .eq('user_id', user.id)
                         .eq('status', 'active')
                         .order('started_at', { ascending: false })
                         .limit(1)
-                        .maybeSingle()
-                        .then(({ data }) => {
-                          if (data) setActivePlan(data);
-                        });
+                        .maybeSingle();
+                      if (planData) {
+                        setActivePlan(planData);
+                        // Also reload planned workouts to keep dashboard state in sync
+                        const { data: workoutsData } = await supabase
+                          .from('planned_workouts')
+                          .select('*')
+                          .eq('plan_id', planData.id)
+                          .order('scheduled_date', { ascending: true });
+                        if (workoutsData) {
+                          setPlannedWorkouts(workoutsData);
+                        }
+                      }
                     }
                   }}
                 />

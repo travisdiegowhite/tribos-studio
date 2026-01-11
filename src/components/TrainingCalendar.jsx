@@ -90,6 +90,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   }, [user?.id, activePlan?.id, currentDate]);
 
   const loadPlannedWorkouts = async () => {
+    // Early return if no active plan
+    if (!activePlan?.id) {
+      return;
+    }
+
     try {
       // Calculate date range for current month view (with buffer for prev/next month days shown)
       const monthStart = startOfMonth(currentDate);
@@ -387,7 +392,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       if (error) throw error;
 
       // Reload workouts to reflect changes
-      loadPlannedWorkouts();
+      await loadPlannedWorkouts();
     } catch (error) {
       console.error('Failed to toggle workout completion:', error);
     }
@@ -487,7 +492,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       });
 
       setEditModalOpen(false);
-      loadPlannedWorkouts();
+      await loadPlannedWorkouts();
       if (onPlanUpdated) onPlanUpdated();
     } catch (error) {
       console.error('Failed to save workout:', error);
@@ -521,7 +526,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       });
 
       setEditModalOpen(false);
-      loadPlannedWorkouts();
+      await loadPlannedWorkouts();
       if (onPlanUpdated) onPlanUpdated();
     } catch (error) {
       console.error('Failed to delete workout:', error);
@@ -677,7 +682,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         });
       }
 
-      loadPlannedWorkouts();
+      await loadPlannedWorkouts();
       if (onPlanUpdated) onPlanUpdated();
     } catch (error) {
       console.error('Failed to move workout:', error);
