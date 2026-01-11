@@ -543,6 +543,29 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
         weekNumber = Math.max(1, Math.floor(daysSinceStart / 7) + 1);
       }
 
+      // Check if there's already a workout on this date and remove it
+      // (replacing with the AI-recommended workout)
+      let replacedWorkoutName = null;
+      const { data: existingWorkouts } = await supabase
+        .from('planned_workouts')
+        .select('id, name')
+        .eq('plan_id', planId)
+        .eq('scheduled_date', scheduledDate);
+
+      if (existingWorkouts && existingWorkouts.length > 0) {
+        replacedWorkoutName = existingWorkouts[0].name;
+        // Delete existing workouts for this date
+        const { error: deleteError } = await supabase
+          .from('planned_workouts')
+          .delete()
+          .eq('plan_id', planId)
+          .eq('scheduled_date', scheduledDate);
+
+        if (deleteError) {
+          console.warn('Failed to remove existing workout:', deleteError);
+        }
+      }
+
       const { data: workoutRecord, error: dbError } = await supabase
         .from('planned_workouts')
         .insert({
@@ -569,8 +592,10 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
 
       notifications.update({
         id: notificationId,
-        title: 'Added!',
-        message: `${workout.name} → ${scheduledDate}`,
+        title: replacedWorkoutName ? 'Replaced!' : 'Added!',
+        message: replacedWorkoutName
+          ? `${workout.name} replaced ${replacedWorkoutName} on ${scheduledDate}`
+          : `${workout.name} → ${scheduledDate}`,
         color: 'blue',
         icon: <IconCalendarPlus size={16} />,
         loading: false,
