@@ -622,9 +622,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       // Calculate new scheduled_date using formatLocalDate to avoid timezone issues
       const newScheduledDate = formatLocalDate(targetDate);
 
-      // Check if there's already a workout on target date
+      // Check if there's already a workout on target date using scheduled_date for consistency
+      // (the calendar displays workouts by scheduled_date, so we must check the same way)
       const existingWorkout = plannedWorkouts.find(
-        w => w.week_number === newWeekNumber && w.day_of_week === newDayOfWeek && w.id !== workout.id
+        w => w.scheduled_date === newScheduledDate && w.id !== workout.id
       );
 
       if (existingWorkout && existingWorkout.workout_type !== 'rest') {
