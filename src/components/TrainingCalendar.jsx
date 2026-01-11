@@ -573,12 +573,16 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     e.preventDefault();
     setDragOverDate(null);
 
+    console.log('handleDrop called:', { draggedWorkout, targetDate, activePlan: activePlan?.id });
+
     if (!draggedWorkout || !targetDate || !activePlan) {
+      console.log('handleDrop early return - missing data');
       setDraggedWorkout(null);
       return;
     }
 
     const { workout, sourceDate } = draggedWorkout;
+    console.log('Moving workout:', workout?.id, workout?.name, 'from', sourceDate, 'to', targetDate);
 
     // Don't drop on same day
     if (sourceDate.toDateString() === targetDate.toDateString()) {
@@ -630,9 +634,13 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
       if (existingWorkout && existingWorkout.workout_type !== 'rest') {
         // Swap the workouts
-        const sourceWeekNumber = workout.week_number;
-        const sourceDayOfWeek = workout.day_of_week;
+        console.log('Swapping workouts:', workout.id, 'with', existingWorkout.id);
+        // Use existing values or calculate from sourceDate if missing
         const sourceScheduledDate = formatLocalDate(sourceDate);
+        const sourceDateObj = new Date(sourceDate);
+        const sourceDaysSinceStart = Math.floor((sourceDateObj - planStartDate) / (24 * 60 * 60 * 1000));
+        const sourceWeekNumber = workout.week_number ?? (Math.floor(sourceDaysSinceStart / 7) + 1);
+        const sourceDayOfWeek = workout.day_of_week ?? sourceDateObj.getDay();
 
         // Update dragged workout to new position
         const { error: error1 } = await supabase
@@ -644,7 +652,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           })
           .eq('id', workout.id);
 
-        if (error1) throw error1;
+        if (error1) {
+          console.error('Failed to update dragged workout:', error1);
+          throw error1;
+        }
 
         // Update existing workout to old position
         const { error: error2 } = await supabase
@@ -656,8 +667,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           })
           .eq('id', existingWorkout.id);
 
-        if (error2) throw error2;
+        if (error2) {
+          console.error('Failed to update existing workout:', error2);
+          throw error2;
+        }
 
+        console.log('Swap successful');
         notifications.show({
           title: 'Workouts Swapped',
           message: 'Workouts have been swapped between days',
@@ -665,6 +680,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         });
       } else {
         // Simply move the workout
+        console.log('Moving workout to empty day:', workout.id, '->', newScheduledDate);
         const { error } = await supabase
           .from('planned_workouts')
           .update({
@@ -674,8 +690,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           })
           .eq('id', workout.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Failed to move workout:', error);
+          throw error;
+        }
 
+        console.log('Move successful');
         notifications.show({
           title: 'Workout Moved',
           message: `Moved to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
