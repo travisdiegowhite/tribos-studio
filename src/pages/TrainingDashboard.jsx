@@ -136,6 +136,7 @@ function TrainingDashboard() {
   const [trainNowExpanded, setTrainNowExpanded] = useState(false);
   const [rideAnalysisModalOpen, setRideAnalysisModalOpen] = useState(false);
   const [selectedRide, setSelectedRide] = useState(null);
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -904,6 +905,8 @@ function TrainingDashboard() {
                               setPlannedWorkouts(workoutsData);
                             }
                           }
+                          // Trigger calendar refresh when user switches to calendar tab
+                          setCalendarRefreshKey(prev => prev + 1);
                         }}
                       />
                     </Box>
@@ -988,6 +991,7 @@ function TrainingDashboard() {
                   formatDistance={formatDist}
                   ftp={ftp}
                   isImperial={isImperial}
+                  refreshKey={calendarRefreshKey}
                   onPlanUpdated={async () => {
                     // Reload the active plan to get updated compliance stats
                     if (user?.id) {

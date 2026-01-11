@@ -52,7 +52,7 @@ import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
  * Displays monthly calendar with planned workouts, completed rides,
  * weekly summaries, race goals, and workout editing capabilities
  */
-const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false }) => {
+const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false, refreshKey = 0 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -84,10 +84,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const getPlanStartDate = (plan) => plan?.started_at || plan?.start_date;
 
   // Load planned workouts for current month
+  // refreshKey allows parent to force a reload when workouts are added externally
   useEffect(() => {
     if (!user?.id || !activePlan?.id) return;
     loadPlannedWorkouts();
-  }, [user?.id, activePlan?.id, currentDate]);
+  }, [user?.id, activePlan?.id, currentDate, refreshKey]);
 
   const loadPlannedWorkouts = async () => {
     // Early return if no active plan
