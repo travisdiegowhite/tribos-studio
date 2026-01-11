@@ -550,20 +550,23 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
         .from('planned_workouts')
         .select('id, name')
         .eq('plan_id', planId)
-        .eq('scheduled_date', scheduledDate);
+        .eq('scheduled_date', scheduledDate)
+        .eq('user_id', user.id);
 
       if (existingWorkouts && existingWorkouts.length > 0) {
         replacedWorkoutName = existingWorkouts[0].name;
-        // Delete existing workouts for this date
-        const { error: deleteError } = await supabase
+        // Delete existing workouts by their specific IDs to ensure deletion works
+        const idsToDelete = existingWorkouts.map(w => w.id);
+        const { error: deleteError, count } = await supabase
           .from('planned_workouts')
           .delete()
-          .eq('plan_id', planId)
-          .eq('scheduled_date', scheduledDate);
+          .in('id', idsToDelete);
 
         if (deleteError) {
-          console.warn('Failed to remove existing workout:', deleteError);
+          console.error('Failed to remove existing workout:', deleteError);
+          throw new Error('Failed to replace existing workout');
         }
+        console.log(`Deleted ${existingWorkouts.length} existing workout(s) for ${scheduledDate}`);
       }
 
       const { data: workoutRecord, error: dbError } = await supabase
