@@ -3,10 +3,11 @@
  * Individual day cell in the 2-week calendar with drop zone
  */
 
-import { Box, Text, ActionIcon, Group, Tooltip, Badge, Progress, Stack } from '@mantine/core';
-import { IconX, IconCheck, IconPlus, IconArrowUp, IconArrowDown, IconMinus, IconBike, IconHome } from '@tabler/icons-react';
+import { Box, Text, ActionIcon, Group, Tooltip, Badge, Progress, Stack, Menu } from '@mantine/core';
+import { IconX, IconCheck, IconPlus, IconArrowUp, IconArrowDown, IconMinus, IconBike, IconHome, IconCalendarOff, IconStar, IconCalendarEvent, IconLock, IconLockOpen } from '@tabler/icons-react';
 import { WorkoutCard } from './WorkoutCard';
 import type { PlannerWorkout } from '../../types/planner';
+import type { ResolvedAvailability, AvailabilityStatus } from '../../types/training';
 
 interface CalendarDayCellProps {
   date: string;
@@ -25,11 +26,13 @@ interface CalendarDayCellProps {
   isToday: boolean;
   isDropTarget: boolean;
   isPast: boolean;
+  availability?: ResolvedAvailability;
   onDrop: (date: string) => void;
   onDragOver: (date: string) => void;
   onDragLeave: () => void;
   onRemoveWorkout: (date: string) => void;
   onClick: (date: string) => void;
+  onSetAvailability?: (date: string, status: AvailabilityStatus) => void;
 }
 
 // Helper to format distance (in meters to km/mi)
@@ -72,12 +75,17 @@ export function CalendarDayCell({
   isToday,
   isDropTarget,
   isPast,
+  availability,
   onDrop,
   onDragOver,
   onDragLeave,
   onRemoveWorkout,
   onClick,
+  onSetAvailability,
 }: CalendarDayCellProps) {
+  const isBlocked = availability?.status === 'blocked';
+  const isPreferred = availability?.status === 'preferred';
+  const hasOverride = availability?.isOverride;
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -145,27 +153,43 @@ export function CalendarDayCell({
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
-  return (
+  // Handle right-click context menu
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+  };
+
+  // Get background color based on availability
+  const getBackgroundColor = () => {
+    if (isDropTarget) return 'rgba(163, 230, 53, 0.15)';
+    if (isBlocked) return 'rgba(250, 82, 82, 0.1)';
+    if (isPreferred) return 'rgba(250, 204, 21, 0.1)';
+    if (isPast) return 'var(--mantine-color-dark-7)';
+    return 'var(--mantine-color-dark-6)';
+  };
+
+  // Get border color based on state
+  const getBorderStyle = () => {
+    if (isDropTarget) return '2px dashed var(--mantine-color-lime-4)';
+    if (isToday) return '2px solid var(--mantine-color-lime-6)';
+    if (isBlocked) return '1px solid var(--mantine-color-red-7)';
+    if (isPreferred) return '1px solid var(--mantine-color-yellow-7)';
+    return '1px solid var(--mantine-color-dark-4)';
+  };
+
+  const cellContent = (
     <Box
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={() => onClick(date)}
+      onContextMenu={handleContextMenu}
       style={{
         minHeight: 120,
         padding: 8,
         borderRadius: 8,
-        border: isDropTarget
-          ? '2px dashed var(--mantine-color-lime-4)'
-          : isToday
-          ? '2px solid var(--mantine-color-lime-6)'
-          : '1px solid var(--mantine-color-dark-4)',
-        backgroundColor: isDropTarget
-          ? 'rgba(163, 230, 53, 0.15)'
-          : isPast
-          ? 'var(--mantine-color-dark-7)'
-          : 'var(--mantine-color-dark-6)',
+        border: getBorderStyle(),
+        backgroundColor: getBackgroundColor(),
         opacity: isPast ? 0.7 : 1,
         cursor: 'pointer',
         transition: 'all 0.1s ease',
@@ -186,6 +210,21 @@ export function CalendarDayCell({
           >
             {dayNumber}
           </Text>
+          {/* Availability indicators */}
+          {isBlocked && (
+            <Tooltip label={hasOverride ? 'Blocked (override for this date)' : 'Blocked day'}>
+              <Badge size="xs" color="red" variant="light" px={4}>
+                <IconCalendarOff size={10} />
+              </Badge>
+            </Tooltip>
+          )}
+          {isPreferred && (
+            <Tooltip label={hasOverride ? 'Preferred (override for this date)' : 'Preferred day'}>
+              <Badge size="xs" color="yellow" variant="light" px={4}>
+                <IconStar size={10} />
+              </Badge>
+            </Tooltip>
+          )}
         </Group>
 
         {/* Completion indicator */}
@@ -416,6 +455,55 @@ export function CalendarDayCell({
       })()}
     </Box>
   );
+
+  // Wrap in context menu if availability callback is provided
+  if (onSetAvailability) {
+    return (
+      <Menu trigger="contextMenu" position="bottom-start" withArrow>
+        <Menu.Target>
+          {cellContent}
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Label>Day Availability</Menu.Label>
+          <Menu.Item
+            leftSection={<IconCalendarEvent size={14} />}
+            onClick={() => onSetAvailability(date, 'available')}
+            disabled={availability?.status === 'available'}
+          >
+            Mark as Available
+          </Menu.Item>
+          <Menu.Item
+            leftSection={<IconStar size={14} color="var(--mantine-color-yellow-5)" />}
+            onClick={() => onSetAvailability(date, 'preferred')}
+            disabled={availability?.status === 'preferred'}
+          >
+            Mark as Preferred
+          </Menu.Item>
+          <Menu.Item
+            leftSection={<IconCalendarOff size={14} color="var(--mantine-color-red-5)" />}
+            onClick={() => onSetAvailability(date, 'blocked')}
+            disabled={availability?.status === 'blocked'}
+          >
+            Block this Day
+          </Menu.Item>
+          {hasOverride && (
+            <>
+              <Menu.Divider />
+              <Menu.Item
+                leftSection={<IconLockOpen size={14} />}
+                onClick={() => onSetAvailability(date, 'available')}
+                c="dimmed"
+              >
+                Remove Override (use weekly default)
+              </Menu.Item>
+            </>
+          )}
+        </Menu.Dropdown>
+      </Menu>
+    );
+  }
+
+  return cellContent;
 }
 
 export default CalendarDayCell;

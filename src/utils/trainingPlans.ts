@@ -16,6 +16,10 @@ import type {
   TrainingZone,
   PlanCategoriesMap,
   PlanCategory,
+  ResolvedAvailability,
+  WorkoutRedistributionResult,
+  PlanActivationPreview,
+  DayAvailability,
 } from '../types/training';
 
 // Training Zones based on % of FTP
@@ -793,6 +797,398 @@ export function getSupplementWorkouts(): string[] {
   ];
 }
 
+// ============================================================
+// WORKOUT REDISTRIBUTION FOR BLOCKED DAYS
+// ============================================================
+
+/**
+ * Candidate day for workout redistribution
+ */
+interface RedistributionCandidate {
+  date: string;
+  dayOfWeek: number;
+  score: number;
+  reasons: string[];
+  availability: ResolvedAvailability;
+}
+
+/**
+ * Workout info for redistribution planning
+ */
+export interface WorkoutForRedistribution {
+  originalDate: string;
+  dayOfWeek: number;
+  weekNumber: number;
+  workoutId: string | null;
+  workoutType: string | null;
+  targetTSS: number | null;
+  targetDuration: number | null;
+}
+
+/**
+ * Get availability for a date using weekly availability and date overrides
+ */
+export function getAvailabilityForDate(
+  date: string,
+  weeklyAvailability: DayAvailability[],
+  dateOverrides: Map<string, { status: 'available' | 'blocked' | 'preferred' }>
+): ResolvedAvailability {
+  // Check override first
+  const override = dateOverrides.get(date);
+  if (override) {
+    return {
+      date,
+      status: override.status,
+      isOverride: true,
+      maxDurationMinutes: null,
+      notes: null,
+    };
+  }
+
+  // Fall back to weekly availability
+  const dateObj = new Date(date + 'T12:00:00');
+  const dayOfWeek = dateObj.getDay();
+  const dayAvail = weeklyAvailability.find((d) => d.dayOfWeek === dayOfWeek);
+
+  return {
+    date,
+    status: dayAvail?.status || 'available',
+    isOverride: false,
+    maxDurationMinutes: dayAvail?.maxDurationMinutes || null,
+    notes: dayAvail?.notes || null,
+  };
+}
+
+/**
+ * Find the best alternative day for a workout that falls on a blocked day
+ * Considers training principles, user preferences, and existing workouts
+ */
+export function findBestAlternativeDay(
+  workout: WorkoutForRedistribution,
+  weekWorkouts: WorkoutForRedistribution[],
+  weeklyAvailability: DayAvailability[],
+  dateOverrides: Map<string, { status: 'available' | 'blocked' | 'preferred' }>,
+  preferences: {
+    maxWorkoutsPerWeek: number | null;
+    preferWeekendLongRides: boolean;
+  }
+): RedistributionCandidate | null {
+  const candidates: RedistributionCandidate[] = [];
+  const workoutIntensity = getWorkoutIntensityLevel(workout.workoutType, workout.workoutId);
+  const isLongRide = workout.workoutType === 'long_ride' || workout.workoutType === 'endurance' && (workout.targetDuration || 0) > 120;
+  const isKeyWorkout = workoutIntensity === 'hard' || isLongRide;
+
+  // Get all dates in the same week
+  const originalDate = new Date(workout.originalDate + 'T12:00:00');
+  const weekStart = new Date(originalDate);
+  weekStart.setDate(weekStart.getDate() - originalDate.getDay()); // Go to Sunday
+
+  // Check each day of the week
+  for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+    const candidateDate = new Date(weekStart);
+    candidateDate.setDate(candidateDate.getDate() + dayOffset);
+    const candidateDateStr = candidateDate.toISOString().split('T')[0];
+
+    // Skip the original date
+    if (candidateDateStr === workout.originalDate) continue;
+
+    const availability = getAvailabilityForDate(candidateDateStr, weeklyAvailability, dateOverrides);
+
+    // Skip blocked days
+    if (availability.status === 'blocked') continue;
+
+    // Check if there's already a workout on this day
+    const existingWorkout = weekWorkouts.find(
+      (w) => w.originalDate === candidateDateStr && w.workoutId
+    );
+
+    let score = 50; // Base score
+    const reasons: string[] = [];
+
+    // Preferred days get a bonus
+    if (availability.status === 'preferred') {
+      score += 15;
+      reasons.push('Preferred day');
+    }
+
+    // Check for existing workout conflicts
+    if (existingWorkout) {
+      const existingIntensity = getWorkoutIntensityLevel(existingWorkout.workoutType, existingWorkout.workoutId);
+
+      // Don't put two hard workouts on the same day
+      if (workoutIntensity === 'hard' && existingIntensity === 'hard') {
+        score -= 50;
+        reasons.push('Would create double hard day');
+      } else if (existingIntensity === 'rest') {
+        // Can replace rest days more easily
+        score += 10;
+        reasons.push('Can replace rest day');
+      } else {
+        // Already has a workout, less ideal
+        score -= 20;
+        reasons.push('Day already has workout');
+      }
+    } else {
+      score += 10;
+      reasons.push('Empty day');
+    }
+
+    // Check adjacent days for back-to-back hard days
+    if (workoutIntensity === 'hard') {
+      const prevDate = new Date(candidateDate);
+      prevDate.setDate(prevDate.getDate() - 1);
+      const nextDate = new Date(candidateDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+
+      const prevDateStr = prevDate.toISOString().split('T')[0];
+      const nextDateStr = nextDate.toISOString().split('T')[0];
+
+      const prevWorkout = weekWorkouts.find((w) => w.originalDate === prevDateStr);
+      const nextWorkout = weekWorkouts.find((w) => w.originalDate === nextDateStr);
+
+      if (prevWorkout) {
+        const prevIntensity = getWorkoutIntensityLevel(prevWorkout.workoutType, prevWorkout.workoutId);
+        if (prevIntensity === 'hard') {
+          score -= 30;
+          reasons.push('Would create back-to-back hard days');
+        }
+      }
+
+      if (nextWorkout) {
+        const nextIntensity = getWorkoutIntensityLevel(nextWorkout.workoutType, nextWorkout.workoutId);
+        if (nextIntensity === 'hard') {
+          score -= 30;
+          reasons.push('Would create back-to-back hard days');
+        }
+      }
+    }
+
+    // Long rides prefer weekends
+    if (isLongRide && preferences.preferWeekendLongRides) {
+      const dayOfWeek = candidateDate.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        score += 20;
+        reasons.push('Weekend - good for long ride');
+      }
+    }
+
+    // Prefer days closer to original date
+    const dayDiff = Math.abs(dayOffset - originalDate.getDay());
+    score -= dayDiff * 2;
+    if (dayDiff <= 1) {
+      reasons.push('Close to original day');
+    }
+
+    // Check duration constraint
+    if (availability.maxDurationMinutes && workout.targetDuration) {
+      if (workout.targetDuration > availability.maxDurationMinutes) {
+        score -= 40;
+        reasons.push(`Exceeds max duration (${availability.maxDurationMinutes}min)`);
+      }
+    }
+
+    candidates.push({
+      date: candidateDateStr,
+      dayOfWeek: candidateDate.getDay(),
+      score,
+      reasons,
+      availability,
+    });
+  }
+
+  // Sort by score (highest first)
+  candidates.sort((a, b) => b.score - a.score);
+
+  // Return the best candidate with a positive score
+  const bestCandidate = candidates.find((c) => c.score > 0);
+  return bestCandidate || null;
+}
+
+/**
+ * Redistribute workouts from blocked days to available days
+ * Returns a list of workout movements
+ */
+export function redistributeWorkouts(
+  workouts: WorkoutForRedistribution[],
+  weeklyAvailability: DayAvailability[],
+  dateOverrides: Map<string, { status: 'available' | 'blocked' | 'preferred' }>,
+  preferences: {
+    maxWorkoutsPerWeek: number | null;
+    preferWeekendLongRides: boolean;
+  }
+): WorkoutRedistributionResult[] {
+  const results: WorkoutRedistributionResult[] = [];
+  const workoutsByWeek = new Map<number, WorkoutForRedistribution[]>();
+
+  // Group workouts by week
+  for (const workout of workouts) {
+    const weekWorkouts = workoutsByWeek.get(workout.weekNumber) || [];
+    weekWorkouts.push(workout);
+    workoutsByWeek.set(workout.weekNumber, weekWorkouts);
+  }
+
+  // Process each week
+  for (const [weekNumber, weekWorkouts] of workoutsByWeek) {
+    // Create a mutable copy of week workouts to track changes
+    const mutableWorkouts = [...weekWorkouts];
+
+    for (const workout of weekWorkouts) {
+      // Skip rest days
+      if (!workout.workoutId || workout.workoutType === 'rest') continue;
+
+      const availability = getAvailabilityForDate(
+        workout.originalDate,
+        weeklyAvailability,
+        dateOverrides
+      );
+
+      // Check if this day is blocked
+      if (availability.status === 'blocked') {
+        const alternative = findBestAlternativeDay(
+          workout,
+          mutableWorkouts,
+          weeklyAvailability,
+          dateOverrides,
+          preferences
+        );
+
+        if (alternative) {
+          results.push({
+            originalDate: workout.originalDate,
+            newDate: alternative.date,
+            workoutId: workout.workoutId,
+            reason: alternative.reasons.join('; '),
+          });
+
+          // Update the mutable workouts to reflect the move
+          const idx = mutableWorkouts.findIndex((w) => w.originalDate === workout.originalDate);
+          if (idx !== -1) {
+            mutableWorkouts[idx] = {
+              ...workout,
+              originalDate: alternative.date,
+              dayOfWeek: alternative.dayOfWeek,
+            };
+          }
+        } else {
+          // No suitable alternative found
+          results.push({
+            originalDate: workout.originalDate,
+            newDate: workout.originalDate, // Keep original
+            workoutId: workout.workoutId,
+            reason: 'No suitable alternative day found - workout may need manual adjustment',
+          });
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Preview plan activation with availability-aware scheduling
+ */
+export function previewPlanActivation(
+  templateWorkouts: WorkoutForRedistribution[],
+  weeklyAvailability: DayAvailability[],
+  dateOverrides: Map<string, { status: 'available' | 'blocked' | 'preferred' }>,
+  preferences: {
+    maxWorkoutsPerWeek: number | null;
+    preferWeekendLongRides: boolean;
+  }
+): PlanActivationPreview {
+  // Find how many workouts land on blocked days
+  let blockedDaysAffected = 0;
+  for (const workout of templateWorkouts) {
+    if (!workout.workoutId || workout.workoutType === 'rest') continue;
+
+    const availability = getAvailabilityForDate(
+      workout.originalDate,
+      weeklyAvailability,
+      dateOverrides
+    );
+
+    if (availability.status === 'blocked') {
+      blockedDaysAffected++;
+    }
+  }
+
+  // Redistribute workouts
+  const redistributedWorkouts = redistributeWorkouts(
+    templateWorkouts,
+    weeklyAvailability,
+    dateOverrides,
+    preferences
+  );
+
+  // Check for warnings
+  const warnings: string[] = [];
+
+  // Workouts that couldn't be moved
+  const unmovableWorkouts = redistributedWorkouts.filter(
+    (r) => r.originalDate === r.newDate && r.reason.includes('No suitable')
+  );
+  if (unmovableWorkouts.length > 0) {
+    warnings.push(
+      `${unmovableWorkouts.length} workout(s) could not be automatically redistributed`
+    );
+  }
+
+  // Check if max workouts per week is exceeded
+  if (preferences.maxWorkoutsPerWeek) {
+    const workoutCountByWeek = new Map<number, number>();
+    for (const workout of templateWorkouts) {
+      if (!workout.workoutId || workout.workoutType === 'rest') continue;
+      const count = workoutCountByWeek.get(workout.weekNumber) || 0;
+      workoutCountByWeek.set(workout.weekNumber, count + 1);
+    }
+
+    for (const [week, count] of workoutCountByWeek) {
+      if (count > preferences.maxWorkoutsPerWeek) {
+        warnings.push(
+          `Week ${week} has ${count} workouts, exceeding your limit of ${preferences.maxWorkoutsPerWeek}`
+        );
+      }
+    }
+  }
+
+  return {
+    templateId: '', // Will be set by caller
+    startDate: '', // Will be set by caller
+    blockedDaysAffected,
+    redistributedWorkouts: redistributedWorkouts.filter((r) => r.originalDate !== r.newDate),
+    warnings,
+    canActivate: unmovableWorkouts.length === 0,
+  };
+}
+
+/**
+ * Re-shuffle an existing plan based on updated availability
+ * Returns workouts that need to be moved
+ */
+export function reshuffleActivePlan(
+  plannedWorkouts: WorkoutForRedistribution[],
+  weeklyAvailability: DayAvailability[],
+  dateOverrides: Map<string, { status: 'available' | 'blocked' | 'preferred' }>,
+  preferences: {
+    maxWorkoutsPerWeek: number | null;
+    preferWeekendLongRides: boolean;
+  }
+): WorkoutRedistributionResult[] {
+  // Only consider future workouts
+  const today = new Date().toISOString().split('T')[0];
+  const futureWorkouts = plannedWorkouts.filter(
+    (w) => w.originalDate >= today && w.workoutId && w.workoutType !== 'rest'
+  );
+
+  return redistributeWorkouts(
+    futureWorkouts,
+    weeklyAvailability,
+    dateOverrides,
+    preferences
+  );
+}
+
 export default {
   TRAINING_ZONES,
   WORKOUT_TYPES,
@@ -817,5 +1213,11 @@ export default {
   getWorkoutIntensityLevel,
   getSupplementType,
   findOptimalSupplementDays,
-  getSupplementWorkouts
+  getSupplementWorkouts,
+  // Workout redistribution
+  getAvailabilityForDate,
+  findBestAlternativeDay,
+  redistributeWorkouts,
+  previewPlanActivation,
+  reshuffleActivePlan,
 };
