@@ -626,44 +626,36 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
       // Calculate new scheduled_date using formatLocalDate to avoid timezone issues
       const newScheduledDate = formatLocalDate(targetDate);
+      const sourceScheduledDate = formatLocalDate(sourceDate);
 
-      // Check database directly for existing workout on target date
-      // (local state may be stale after AI adds workouts)
-      const { data: existingWorkoutData } = await supabase
-        .from('planned_workouts')
-        .select('id, name, workout_type, week_number, day_of_week')
-        .eq('plan_id', activePlan.id)
-        .eq('scheduled_date', newScheduledDate)
-        .neq('id', workout.id)
-        .maybeSingle();
+      // Calculate source date info for potential swap
+      const sourceDateObj = new Date(sourceDate);
+      sourceDateObj.setHours(0, 0, 0, 0);
+      const sourceDaysSinceStart = Math.floor((sourceDateObj - planStartDate) / (24 * 60 * 60 * 1000));
+      const sourceWeekNumber = workout.week_number ?? (Math.floor(sourceDaysSinceStart / 7) + 1);
+      const sourceDayOfWeek = workout.day_of_week ?? sourceDateObj.getDay();
 
-      const existingWorkout = existingWorkoutData;
+      // Helper function to perform the swap
+      const performSwap = async (existingWorkoutId) => {
+        console.log('Performing swap:', workout.id, 'with', existingWorkoutId);
 
-      if (existingWorkout && existingWorkout.workout_type !== 'rest') {
-        // Swap the workouts - need to do this atomically to avoid constraint violations
-        console.log('Swapping workouts:', workout.id, 'with', existingWorkout.id);
-
-        // Use existing values or calculate from sourceDate if missing
-        const sourceScheduledDate = formatLocalDate(sourceDate);
-        const sourceDateObj = new Date(sourceDate);
-        const sourceDaysSinceStart = Math.floor((sourceDateObj - planStartDate) / (24 * 60 * 60 * 1000));
-        const sourceWeekNumber = workout.week_number ?? (Math.floor(sourceDaysSinceStart / 7) + 1);
-        const sourceDayOfWeek = workout.day_of_week ?? sourceDateObj.getDay();
-
-        // First, move existing workout to a temporary date to avoid constraint violation
+        // First, move existing workout to source date (freeing target date)
+        // Use a temp date first to avoid constraint on source if dragged workout is still there
         const tempDate = '1900-01-01';
+
+        // Step 1: Move existing workout to temp
         const { error: tempError } = await supabase
           .from('planned_workouts')
           .update({ scheduled_date: tempDate })
-          .eq('id', existingWorkout.id);
+          .eq('id', existingWorkoutId);
 
         if (tempError) {
-          console.error('Failed to move existing workout to temp:', tempError);
+          console.error('Swap step 1 failed:', tempError);
           throw tempError;
         }
 
-        // Now move dragged workout to target date
-        const { error: error1 } = await supabase
+        // Step 2: Move dragged workout to target date
+        const { error: moveError } = await supabase
           .from('planned_workouts')
           .update({
             week_number: newWeekNumber,
@@ -672,29 +664,29 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           })
           .eq('id', workout.id);
 
-        if (error1) {
-          console.error('Failed to update dragged workout:', error1);
-          // Try to restore the existing workout
+        if (moveError) {
+          console.error('Swap step 2 failed:', moveError);
+          // Restore existing workout
           await supabase
             .from('planned_workouts')
             .update({ scheduled_date: newScheduledDate })
-            .eq('id', existingWorkout.id);
-          throw error1;
+            .eq('id', existingWorkoutId);
+          throw moveError;
         }
 
-        // Finally, move existing workout to source date
-        const { error: error2 } = await supabase
+        // Step 3: Move existing workout to source date
+        const { error: swapError } = await supabase
           .from('planned_workouts')
           .update({
             week_number: sourceWeekNumber,
             day_of_week: sourceDayOfWeek,
             scheduled_date: sourceScheduledDate,
           })
-          .eq('id', existingWorkout.id);
+          .eq('id', existingWorkoutId);
 
-        if (error2) {
-          console.error('Failed to update existing workout:', error2);
-          throw error2;
+        if (swapError) {
+          console.error('Swap step 3 failed:', swapError);
+          throw swapError;
         }
 
         console.log('Swap successful');
@@ -703,23 +695,72 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           message: 'Workouts have been swapped between days',
           color: 'lime',
         });
-      } else {
-        // Simply move the workout
-        console.log('Moving workout to empty day:', workout.id, '->', newScheduledDate);
-        const { error } = await supabase
-          .from('planned_workouts')
-          .update({
-            week_number: newWeekNumber,
-            day_of_week: newDayOfWeek,
-            scheduled_date: newScheduledDate,
-          })
-          .eq('id', workout.id);
+      };
 
-        if (error) {
+      // Try the simple move first
+      console.log('Attempting to move workout:', workout.id, '->', newScheduledDate);
+      const { error } = await supabase
+        .from('planned_workouts')
+        .update({
+          week_number: newWeekNumber,
+          day_of_week: newDayOfWeek,
+          scheduled_date: newScheduledDate,
+        })
+        .eq('id', workout.id);
+
+      if (error) {
+        // Check if it's a unique constraint violation (another workout exists on target date)
+        if (error.code === '23505') {
+          console.log('Unique constraint violation - need to swap with existing workout');
+
+          // Find the existing workout on the target date
+          const { data: existingWorkout, error: findError } = await supabase
+            .from('planned_workouts')
+            .select('id, workout_type')
+            .eq('plan_id', activePlan.id)
+            .eq('scheduled_date', newScheduledDate)
+            .neq('id', workout.id)
+            .limit(1)
+            .single();
+
+          if (findError || !existingWorkout) {
+            console.error('Could not find existing workout for swap:', findError);
+            throw error; // Throw original error
+          }
+
+          if (existingWorkout.workout_type === 'rest') {
+            // Delete the rest day and retry the move
+            await supabase
+              .from('planned_workouts')
+              .delete()
+              .eq('id', existingWorkout.id);
+
+            // Retry the move
+            const { error: retryError } = await supabase
+              .from('planned_workouts')
+              .update({
+                week_number: newWeekNumber,
+                day_of_week: newDayOfWeek,
+                scheduled_date: newScheduledDate,
+              })
+              .eq('id', workout.id);
+
+            if (retryError) throw retryError;
+
+            notifications.show({
+              title: 'Workout Moved',
+              message: `Moved to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
+              color: 'lime',
+            });
+          } else {
+            // Perform the swap
+            await performSwap(existingWorkout.id);
+          }
+        } else {
           console.error('Failed to move workout:', error);
           throw error;
         }
-
+      } else {
         console.log('Move successful');
         notifications.show({
           title: 'Workout Moved',
