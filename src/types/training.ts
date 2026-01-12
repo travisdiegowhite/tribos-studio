@@ -672,6 +672,164 @@ export function isPlanCompleted(plan: TrainingPlanDB): boolean {
 }
 
 // ============================================================
+// USER AVAILABILITY TYPES
+// ============================================================
+
+/**
+ * Availability status for a given day
+ */
+export type AvailabilityStatus = 'available' | 'blocked' | 'preferred';
+
+/**
+ * Database model for user's weekly day availability (global settings)
+ */
+export interface UserDayAvailabilityDB {
+  id: string;
+  user_id: string;
+  day_of_week: number; // 0=Sunday, 6=Saturday
+  is_blocked: boolean;
+  is_preferred: boolean;
+  max_duration_minutes: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Database model for date-specific overrides
+ */
+export interface UserDateOverrideDB {
+  id: string;
+  user_id: string;
+  specific_date: string; // ISO date string (YYYY-MM-DD)
+  is_blocked: boolean | null;
+  is_preferred: boolean | null;
+  max_duration_minutes: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Database model for user training preferences
+ */
+export interface UserTrainingPreferencesDB {
+  id: string;
+  user_id: string;
+  max_workouts_per_week: number | null;
+  max_hours_per_week: number | null;
+  max_hard_days_per_week: number | null;
+  prefer_morning_workouts: boolean | null;
+  prefer_weekend_long_rides: boolean;
+  min_rest_days_per_week: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Frontend-friendly day availability config
+ */
+export interface DayAvailability {
+  dayOfWeek: number;
+  dayName: DayOfWeek;
+  status: AvailabilityStatus;
+  maxDurationMinutes: number | null;
+  notes: string | null;
+}
+
+/**
+ * Frontend-friendly date override
+ */
+export interface DateOverride {
+  date: string; // ISO date string
+  status: AvailabilityStatus;
+  isOverride: true;
+  maxDurationMinutes: number | null;
+  notes: string | null;
+}
+
+/**
+ * Resolved availability for a specific date (combines global + override)
+ */
+export interface ResolvedAvailability {
+  date: string;
+  status: AvailabilityStatus;
+  isOverride: boolean;
+  maxDurationMinutes: number | null;
+  notes: string | null;
+}
+
+/**
+ * Full user availability configuration
+ */
+export interface UserAvailabilityConfig {
+  weeklyAvailability: DayAvailability[];
+  dateOverrides: DateOverride[];
+  preferences: {
+    maxWorkoutsPerWeek: number | null;
+    maxHoursPerWeek: number | null;
+    maxHardDaysPerWeek: number | null;
+    preferMorningWorkouts: boolean | null;
+    preferWeekendLongRides: boolean;
+    minRestDaysPerWeek: number;
+  };
+}
+
+/**
+ * Input for setting day availability
+ */
+export interface SetDayAvailabilityInput {
+  dayOfWeek: number;
+  status: AvailabilityStatus;
+  maxDurationMinutes?: number | null;
+  notes?: string | null;
+}
+
+/**
+ * Input for setting date override
+ */
+export interface SetDateOverrideInput {
+  date: string;
+  status: AvailabilityStatus;
+  maxDurationMinutes?: number | null;
+  notes?: string | null;
+}
+
+/**
+ * Input for updating training preferences
+ */
+export interface UpdateTrainingPreferencesInput {
+  maxWorkoutsPerWeek?: number | null;
+  maxHoursPerWeek?: number | null;
+  maxHardDaysPerWeek?: number | null;
+  preferMorningWorkouts?: boolean | null;
+  preferWeekendLongRides?: boolean;
+  minRestDaysPerWeek?: number;
+}
+
+/**
+ * Result of workout redistribution algorithm
+ */
+export interface WorkoutRedistributionResult {
+  originalDate: string;
+  newDate: string;
+  workoutId: string;
+  reason: string;
+}
+
+/**
+ * Plan activation with availability-aware scheduling
+ */
+export interface PlanActivationPreview {
+  templateId: string;
+  startDate: string;
+  blockedDaysAffected: number;
+  redistributedWorkouts: WorkoutRedistributionResult[];
+  warnings: string[];
+  canActivate: boolean;
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 

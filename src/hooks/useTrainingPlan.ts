@@ -17,8 +17,11 @@ import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
 import {
   findOptimalSupplementDays,
   getSupplementWorkouts,
+  redistributeWorkouts,
+  reshuffleActivePlan as reshuffleActivePlanUtil,
   type PlannedWorkoutInfo,
   type SuggestedPlacement,
+  type WorkoutForRedistribution,
 } from '../utils/trainingPlans';
 import type {
   TrainingPlanDB,
@@ -31,6 +34,8 @@ import type {
   ActivePlan,
   PlanStatus,
   DayOfWeek,
+  DayAvailability,
+  WorkoutRedistributionResult,
 } from '../types/training';
 import type { PlannedWorkoutInsert, TrainingPlanInsert } from '../types/database';
 
@@ -40,6 +45,20 @@ const DAY_MAP: DayOfWeek[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thurs
 interface UseTrainingPlanOptions {
   userId: string | null;
   autoLoad?: boolean;
+}
+
+/**
+ * Options for activating a plan with availability awareness
+ */
+interface ActivatePlanWithAvailabilityOptions {
+  templateId: string;
+  startDate: Date;
+  weeklyAvailability: DayAvailability[];
+  dateOverrides?: Map<string, { status: 'available' | 'blocked' | 'preferred' }>;
+  preferences?: {
+    maxWorkoutsPerWeek: number | null;
+    preferWeekendLongRides: boolean;
+  };
 }
 
 interface UseTrainingPlanReturn {
@@ -58,10 +77,19 @@ interface UseTrainingPlanReturn {
   // Operations
   loadActivePlan: () => Promise<void>;
   activatePlan: (templateId: string, startDate: Date) => Promise<ActivePlan | null>;
+  activatePlanWithAvailability: (options: ActivatePlanWithAvailabilityOptions) => Promise<{
+    plan: ActivePlan | null;
+    redistributions: WorkoutRedistributionResult[];
+  }>;
   pausePlan: () => Promise<boolean>;
   resumePlan: () => Promise<boolean>;
   completePlan: () => Promise<boolean>;
   cancelPlan: () => Promise<boolean>;
+  reshufflePlan: (options: {
+    weeklyAvailability: DayAvailability[];
+    dateOverrides?: Map<string, { status: 'available' | 'blocked' | 'preferred' }>;
+    preferences?: { maxWorkoutsPerWeek: number | null; preferWeekendLongRides: boolean };
+  }) => Promise<{ success: boolean; redistributions: WorkoutRedistributionResult[] }>;
 
   // Workout operations
   loadPlannedWorkouts: (weekNumbers?: number[]) => Promise<void>;
@@ -289,6 +317,171 @@ export function useTrainingPlan({
   );
 
   // ============================================================
+  // ACTIVATE PLAN WITH AVAILABILITY
+  // ============================================================
+  const activatePlanWithAvailability = useCallback(
+    async (options: ActivatePlanWithAvailabilityOptions): Promise<{
+      plan: ActivePlan | null;
+      redistributions: WorkoutRedistributionResult[];
+    }> => {
+      const {
+        templateId,
+        startDate,
+        weeklyAvailability,
+        dateOverrides = new Map(),
+        preferences = { maxWorkoutsPerWeek: null, preferWeekendLongRides: true },
+      } = options;
+
+      if (!userId) return { plan: null, redistributions: [] };
+
+      const template = getPlanTemplate(templateId);
+      if (!template) {
+        setError('Training plan template not found');
+        return { plan: null, redistributions: [] };
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Mark any existing active plan as completed
+        await supabase
+          .from('training_plans')
+          .update({ status: 'completed', ended_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .eq('status', 'active');
+
+        // Generate initial workout schedule
+        const initialWorkouts: WorkoutForRedistribution[] = [];
+
+        for (let weekNum = 1; weekNum <= template.duration; weekNum++) {
+          const weekTemplate = template.weekTemplates[weekNum];
+          if (!weekTemplate) continue;
+
+          for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+            const dayName = DAY_MAP[dayIndex];
+            const dayPlan = weekTemplate[dayName];
+
+            // Calculate the scheduled date
+            const scheduledDate = new Date(startDate);
+            scheduledDate.setDate(scheduledDate.getDate() + (weekNum - 1) * 7 + dayIndex);
+
+            const workout = dayPlan.workout ? getWorkoutById(dayPlan.workout) : null;
+
+            initialWorkouts.push({
+              originalDate: scheduledDate.toISOString().split('T')[0],
+              dayOfWeek: dayIndex,
+              weekNumber: weekNum,
+              workoutId: dayPlan.workout || null,
+              workoutType: workout?.category || (dayPlan.workout ? null : 'rest'),
+              targetTSS: workout?.targetTSS || null,
+              targetDuration: workout?.duration || null,
+            });
+          }
+        }
+
+        // Redistribute workouts based on availability
+        const redistributions = redistributeWorkouts(
+          initialWorkouts,
+          weeklyAvailability,
+          dateOverrides,
+          preferences
+        );
+
+        // Create a map of redistributions for quick lookup
+        const redistributionMap = new Map<string, string>();
+        for (const r of redistributions) {
+          if (r.originalDate !== r.newDate) {
+            redistributionMap.set(r.originalDate, r.newDate);
+          }
+        }
+
+        // Calculate total workouts
+        let totalWorkouts = 0;
+        for (const w of initialWorkouts) {
+          if (w.workoutId) totalWorkouts++;
+        }
+
+        // Create new plan
+        const planInsert: TrainingPlanInsert = {
+          user_id: userId,
+          template_id: templateId,
+          name: template.name,
+          duration_weeks: template.duration,
+          methodology: template.methodology,
+          goal: template.goal,
+          fitness_level: template.fitnessLevel,
+          status: 'active',
+          started_at: startDate.toISOString(),
+          current_week: 1,
+          workouts_completed: 0,
+          workouts_total: totalWorkouts,
+          compliance_percentage: 0,
+          auto_adjust_enabled: false,
+        };
+
+        const { data: newPlan, error: planError } = await supabase
+          .from('training_plans')
+          .insert(planInsert)
+          .select()
+          .single();
+
+        if (planError) throw planError;
+
+        // Generate planned workouts with redistributed dates
+        const workoutsToInsert: PlannedWorkoutInsert[] = [];
+
+        for (const w of initialWorkouts) {
+          // Check if this workout was redistributed
+          const newDate = redistributionMap.get(w.originalDate) || w.originalDate;
+          const newDateObj = new Date(newDate + 'T12:00:00');
+
+          workoutsToInsert.push({
+            plan_id: newPlan.id,
+            week_number: w.weekNumber,
+            day_of_week: newDateObj.getDay(),
+            scheduled_date: newDate,
+            workout_type: w.workoutType,
+            workout_id: w.workoutId,
+            target_tss: w.targetTSS,
+            target_duration: w.targetDuration,
+            completed: false,
+            notes: redistributionMap.has(w.originalDate)
+              ? `Moved from ${w.originalDate} (day was blocked)`
+              : null,
+          });
+        }
+
+        // Insert all workouts
+        const { error: workoutsError } = await supabase
+          .from('planned_workouts')
+          .insert(workoutsToInsert);
+
+        if (workoutsError) throw workoutsError;
+
+        // Set the active plan with template
+        const activePlanWithTemplate: ActivePlan = {
+          ...newPlan,
+          template,
+        };
+
+        setActivePlan(activePlanWithTemplate);
+        return {
+          plan: activePlanWithTemplate,
+          redistributions: redistributions.filter((r) => r.originalDate !== r.newDate),
+        };
+      } catch (err: any) {
+        console.error('Error activating plan with availability:', err);
+        setError(err.message || 'Failed to activate training plan');
+        return { plan: null, redistributions: [] };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [userId]
+  );
+
+  // ============================================================
   // PAUSE PLAN
   // ============================================================
   const pausePlan = useCallback(async (): Promise<boolean> => {
@@ -393,6 +586,92 @@ export function useTrainingPlan({
       return false;
     }
   }, [activePlan]);
+
+  // ============================================================
+  // RESHUFFLE PLAN (when availability changes)
+  // ============================================================
+  const reshufflePlan = useCallback(
+    async (options: {
+      weeklyAvailability: DayAvailability[];
+      dateOverrides?: Map<string, { status: 'available' | 'blocked' | 'preferred' }>;
+      preferences?: { maxWorkoutsPerWeek: number | null; preferWeekendLongRides: boolean };
+    }): Promise<{ success: boolean; redistributions: WorkoutRedistributionResult[] }> => {
+      if (!activePlan) {
+        return { success: false, redistributions: [] };
+      }
+
+      const {
+        weeklyAvailability,
+        dateOverrides = new Map(),
+        preferences = { maxWorkoutsPerWeek: null, preferWeekendLongRides: true },
+      } = options;
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Convert planned workouts to redistribution format
+        const workoutsForRedistribution: WorkoutForRedistribution[] = plannedWorkouts.map((w) => ({
+          originalDate: w.scheduled_date,
+          dayOfWeek: w.day_of_week,
+          weekNumber: w.week_number,
+          workoutId: w.workout_id,
+          workoutType: w.workout_type,
+          targetTSS: w.target_tss,
+          targetDuration: w.target_duration,
+        }));
+
+        // Get redistributions
+        const redistributions = reshuffleActivePlanUtil(
+          workoutsForRedistribution,
+          weeklyAvailability,
+          dateOverrides,
+          preferences
+        );
+
+        // Apply redistributions to the database
+        for (const r of redistributions) {
+          if (r.originalDate !== r.newDate) {
+            const workoutToUpdate = plannedWorkouts.find(
+              (w) => w.scheduled_date === r.originalDate && w.workout_id === r.workoutId
+            );
+
+            if (workoutToUpdate) {
+              const newDateObj = new Date(r.newDate + 'T12:00:00');
+
+              const { error: updateError } = await supabase
+                .from('planned_workouts')
+                .update({
+                  scheduled_date: r.newDate,
+                  day_of_week: newDateObj.getDay(),
+                  notes: `${workoutToUpdate.notes || ''}\nMoved from ${r.originalDate} (availability change)`.trim(),
+                })
+                .eq('id', workoutToUpdate.id);
+
+              if (updateError) {
+                console.error('Error updating workout:', updateError);
+              }
+            }
+          }
+        }
+
+        // Reload workouts
+        await loadPlannedWorkouts();
+
+        return {
+          success: true,
+          redistributions: redistributions.filter((r) => r.originalDate !== r.newDate),
+        };
+      } catch (err: any) {
+        console.error('Error reshuffling plan:', err);
+        setError(err.message || 'Failed to reshuffle plan');
+        return { success: false, redistributions: [] };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [activePlan, plannedWorkouts, loadPlannedWorkouts]
+  );
 
   // ============================================================
   // TOGGLE WORKOUT COMPLETION
@@ -737,10 +1016,12 @@ export function useTrainingPlan({
     // Operations
     loadActivePlan,
     activatePlan,
+    activatePlanWithAvailability,
     pausePlan,
     resumePlan,
     completePlan,
     cancelPlan,
+    reshufflePlan,
 
     // Workout operations
     loadPlannedWorkouts,
