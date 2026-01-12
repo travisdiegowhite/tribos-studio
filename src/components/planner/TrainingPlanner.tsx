@@ -35,15 +35,20 @@ import {
   IconThumbUp,
   IconBarbell,
   IconDotsVertical,
+  IconCalendarOff,
+  IconSettings,
 } from '@tabler/icons-react';
 import { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 import { TwoWeekCalendar } from './TwoWeekCalendar';
 import { PeriodizationView } from './PeriodizationView';
 import { GoalInput } from './GoalInput';
+import { AvailabilitySettings } from '../settings/AvailabilitySettings';
 import { useTrainingPlannerStore } from '../../stores/trainingPlannerStore';
+import { useUserAvailability } from '../../hooks/useUserAvailability';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import { calculateTSS, estimateTSS } from '../../utils/trainingPlans';
 import type { TrainingPlannerProps } from '../../types/planner';
+import type { ResolvedAvailability, AvailabilityStatus } from '../../types/training';
 
 // Helper to format date as YYYY-MM-DD in local timezone
 function formatLocalDate(date: Date): string {
@@ -125,8 +130,20 @@ export function TrainingPlanner({
   // Mobile sidebar drawer state
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Availability settings drawer state
+  const [availabilitySettingsOpen, setAvailabilitySettingsOpen] = useState(false);
+
   // Selected workout for tap-to-assign on mobile
   const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(null);
+
+  // User availability hook
+  const {
+    weeklyAvailability,
+    dateOverrides,
+    getAvailabilityForDate,
+    setDateOverride,
+    loading: availabilityLoading,
+  } = useUserAvailability({ userId, autoLoad: true });
 
   // Convert activities array to record keyed by date (using local timezone)
   const activitiesByDate = useMemo(() => {
@@ -183,6 +200,32 @@ export function TrainingPlanner({
 
     return result;
   }, [activities, ftp]);
+
+  // Build availability by date for the current 2-week view
+  const availabilityByDate = useMemo(() => {
+    const result: Record<string, ResolvedAvailability> = {};
+
+    if (!store.focusedWeekStart) return result;
+
+    // Generate 14 days from the focused week start
+    const start = new Date(store.focusedWeekStart + 'T12:00:00');
+    for (let i = 0; i < 14; i++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
+      const dateStr = formatLocalDate(date);
+      result[dateStr] = getAvailabilityForDate(dateStr);
+    }
+
+    return result;
+  }, [store.focusedWeekStart, weeklyAvailability, dateOverrides, getAvailabilityForDate]);
+
+  // Handle setting availability from calendar context menu
+  const handleSetAvailability = useCallback(
+    async (date: string, status: AvailabilityStatus) => {
+      await setDateOverride({ date, status });
+    },
+    [setDateOverride]
+  );
 
   // Load plan on mount or when activePlanId changes
   useEffect(() => {
@@ -336,6 +379,27 @@ export function TrainingPlanner({
         />
       </Drawer>
 
+      {/* Availability Settings Drawer */}
+      <Drawer
+        opened={availabilitySettingsOpen}
+        onClose={() => setAvailabilitySettingsOpen(false)}
+        title="Training Availability"
+        position={isMobile ? 'bottom' : 'right'}
+        size={isMobile ? '90%' : 'lg'}
+        styles={{
+          body: { padding: 16, height: '100%', overflowY: 'auto' },
+          content: { backgroundColor: 'var(--mantine-color-dark-7)' },
+          header: { backgroundColor: 'var(--mantine-color-dark-7)' },
+        }}
+      >
+        <AvailabilitySettings
+          userId={userId}
+          onAvailabilityChange={() => {
+            // Availability changed - could trigger reshuffle prompt here
+          }}
+        />
+      </Drawer>
+
       {/* Main Content Area */}
       <Box style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Top Bar */}
@@ -360,6 +424,17 @@ export function TrainingPlanner({
             {/* Desktop actions */}
             {!isMobile && (
               <Group gap="xs">
+                <Tooltip label="Set your training availability">
+                  <Button
+                    variant="subtle"
+                    size="xs"
+                    leftSection={<IconCalendarOff size={14} />}
+                    onClick={() => setAvailabilitySettingsOpen(true)}
+                  >
+                    Availability
+                  </Button>
+                </Tooltip>
+
                 <Button
                   variant="subtle"
                   size="xs"
@@ -416,6 +491,12 @@ export function TrainingPlanner({
                   </Menu.Target>
                   <Menu.Dropdown>
                     <Menu.Item
+                      leftSection={<IconCalendarOff size={14} />}
+                      onClick={() => setAvailabilitySettingsOpen(true)}
+                    >
+                      Availability Settings
+                    </Menu.Item>
+                    <Menu.Item
                       leftSection={<IconRefresh size={14} />}
                       onClick={() => store.syncWithDatabase()}
                     >
@@ -463,12 +544,14 @@ export function TrainingPlanner({
               workouts={store.plannedWorkouts}
               activities={activitiesByDate}
               dropTargetDate={store.dropTargetDate}
+              availabilityByDate={availabilityByDate}
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onRemoveWorkout={store.removeWorkout}
               onDateClick={isMobile ? handleDateTap : store.selectDate}
               onNavigate={store.navigateWeeks}
+              onSetAvailability={handleSetAvailability}
               isMobile={isMobile}
               selectedWorkoutId={selectedWorkoutId}
             />

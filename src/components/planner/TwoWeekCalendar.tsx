@@ -6,10 +6,11 @@
 
 import { useMemo, useState } from 'react';
 import { Box, Group, Text, ActionIcon, SimpleGrid, Paper, Badge, SegmentedControl, Stack, UnstyledButton, Tooltip } from '@mantine/core';
-import { IconChevronLeft, IconChevronRight, IconFlame, IconCheck, IconX, IconBike, IconHome, IconPlus, IconArrowUp, IconArrowDown, IconClock, IconRoute } from '@tabler/icons-react';
+import { IconChevronLeft, IconChevronRight, IconFlame, IconCheck, IconX, IconBike, IconHome, IconPlus, IconArrowUp, IconArrowDown, IconClock, IconRoute, IconCalendarOff, IconStar } from '@tabler/icons-react';
 import { CalendarDayCell } from './CalendarDayCell';
 import { WorkoutCard } from './WorkoutCard';
 import type { PlannerWorkout } from '../../types/planner';
+import type { ResolvedAvailability, AvailabilityStatus } from '../../types/training';
 
 interface TwoWeekCalendarProps {
   startDate: string;
@@ -24,12 +25,14 @@ interface TwoWeekCalendarProps {
     trainer?: boolean;
   }>;
   dropTargetDate: string | null;
+  availabilityByDate?: Record<string, ResolvedAvailability>;
   onDrop: (date: string) => void;
   onDragOver: (date: string) => void;
   onDragLeave: () => void;
   onRemoveWorkout: (date: string) => void;
   onDateClick: (date: string) => void;
   onNavigate: (direction: 'prev' | 'next') => void;
+  onSetAvailability?: (date: string, status: AvailabilityStatus) => void;
   isMobile?: boolean;
   selectedWorkoutId?: string | null; // For mobile tap-to-assign visual feedback
 }
@@ -85,12 +88,14 @@ export function TwoWeekCalendar({
   workouts,
   activities = {},
   dropTargetDate,
+  availabilityByDate = {},
   onDrop,
   onDragOver,
   onDragLeave,
   onRemoveWorkout,
   onDateClick,
   onNavigate,
+  onSetAvailability,
   isMobile = false,
   selectedWorkoutId = null,
 }: TwoWeekCalendarProps) {
@@ -284,11 +289,13 @@ export function TwoWeekCalendar({
             isToday={day.isToday}
             isDropTarget={dropTargetDate === day.date || (!!selectedWorkoutId && !workouts[day.date])}
             isPast={day.isPast}
+            availability={availabilityByDate[day.date]}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onRemoveWorkout={onRemoveWorkout}
             onClick={onDateClick}
+            onSetAvailability={onSetAvailability}
           />
         ))}
       </SimpleGrid>
@@ -366,6 +373,9 @@ export function TwoWeekCalendar({
                 const isSelected = index === selectedDayIndex;
                 const hasWorkout = !!workouts[day.date];
                 const canDrop = selectedWorkoutId && !hasWorkout;
+                const availability = availabilityByDate[day.date];
+                const isBlocked = availability?.status === 'blocked';
+                const isPreferred = availability?.status === 'preferred';
 
                 // Status indicator colors and symbols
                 const statusConfig: Record<DayStatus, { color: string; symbol: string; bgColor: string }> = {
@@ -375,6 +385,13 @@ export function TwoWeekCalendar({
                   missed: { color: 'var(--mantine-color-red-5)', symbol: '✗', bgColor: 'rgba(239, 68, 68, 0.15)' },
                   empty: { color: 'var(--mantine-color-dark-3)', symbol: '·', bgColor: 'transparent' },
                 };
+
+                // Override background for blocked/preferred days
+                const bgColor = isBlocked
+                  ? 'rgba(250, 82, 82, 0.15)'
+                  : isPreferred
+                  ? 'rgba(250, 204, 21, 0.15)'
+                  : statusConfig[status].bgColor;
 
                 return (
                   <UnstyledButton
@@ -390,14 +407,19 @@ export function TwoWeekCalendar({
                         ? 'var(--mantine-color-lime-9)'
                         : canDrop
                         ? 'rgba(163, 230, 53, 0.2)'
-                        : statusConfig[status].bgColor,
+                        : bgColor,
                       border: day.isToday
                         ? '2px solid var(--mantine-color-lime-5)'
                         : isSelected
                         ? '2px solid var(--mantine-color-lime-6)'
+                        : isBlocked
+                        ? '2px solid var(--mantine-color-red-7)'
+                        : isPreferred
+                        ? '2px solid var(--mantine-color-yellow-7)'
                         : '2px solid transparent',
                       minWidth: 40,
                       transition: 'all 0.15s ease',
+                      position: 'relative',
                     }}
                   >
                     {/* Day name */}
