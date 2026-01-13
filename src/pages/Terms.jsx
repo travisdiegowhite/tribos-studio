@@ -2,10 +2,19 @@ import { Link } from 'react-router-dom';
 import { Container, Title, Text, Stack, Paper, List, Anchor, Group, Button, Box } from '@mantine/core';
 import { IconArrowLeft, IconRoute } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import SEO from '../components/SEO';
 
 function Terms() {
   return (
-    <Box
+    <>
+      <SEO
+        title="Terms of Service - tribos.studio"
+        description="Read the terms of service for tribos.studio, including user responsibilities, account usage, and service guidelines for our cycling training platform."
+        url="https://tribos.studio/terms"
+        image="https://tribos.studio/og-image.svg"
+        type="article"
+      />
+      <Box
       style={{
         minHeight: '100vh',
         backgroundColor: tokens.colors.bgPrimary,
@@ -242,6 +251,7 @@ function Terms() {
         </Paper>
       </Container>
     </Box>
+    </>
   );
 }
 

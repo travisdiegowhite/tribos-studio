@@ -1,0 +1,13 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#121212"/>
+
+  <!-- Large T Logo -->
+  <text x="600" y="380" font-family="system-ui, -apple-system, sans-serif" font-size="280" font-weight="800" fill="#bef264" text-anchor="middle">T</text>
+
+  <!-- Brand Name -->
+  <text x="600" y="480" font-family="system-ui, -apple-system, sans-serif" font-size="56" font-weight="600" fill="#bef264" text-anchor="middle">tribos.studio</text>
+
+  <!-- Tagline -->
+  <text x="600" y="540" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="400" fill="#ffffff" text-anchor="middle" opacity="0.8">AI-Powered Cycling Training Platform</text>
+</svg>

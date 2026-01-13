@@ -1,8 +1,17 @@
 import { Container, Title, Text, Stack, Paper, List, Anchor } from '@mantine/core';
+import SEO from '../components/SEO';
 
 export default function PrivacyPolicy() {
   return (
-    <Container size="md" py="xl">
+    <>
+      <SEO
+        title="Privacy Policy - tribos.studio"
+        description="Learn how tribos.studio collects, uses, and protects your personal information and cycling data. Our commitment to privacy and data security."
+        url="https://tribos.studio/privacy"
+        image="https://tribos.studio/og-image.svg"
+        type="article"
+      />
+      <Container size="md" py="xl">
       <Paper p="xl" withBorder>
         <Stack gap="lg">
           <div>
@@ -250,5 +259,6 @@ export default function PrivacyPolicy() {
         </Stack>
       </Paper>
     </Container>
+    </>
   );
 }

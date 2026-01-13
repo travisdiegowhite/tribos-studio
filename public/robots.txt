@@ -1,0 +1,21 @@
+# robots.txt for tribos.studio
+# Allow search engines to crawl public pages
+
+User-agent: *
+Allow: /
+Allow: /privacy
+Allow: /terms
+
+# Block protected routes from search engines
+Disallow: /dashboard
+Disallow: /routes
+Disallow: /planner
+Disallow: /training
+Disallow: /settings
+Disallow: /admin
+Disallow: /auth/callback
+Disallow: /oauth/
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://tribos.studio/sitemap.xml
