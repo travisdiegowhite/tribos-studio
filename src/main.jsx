@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { HelmetProvider } from 'react-helmet-async';
+import { HelmetProvider } from '@dr.pogodin/react-helmet';
 import { registerSW } from 'virtual:pwa-register';
 import { initSentry } from './lib/sentry';
 import App from './App.jsx';

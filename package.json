@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
+    "@dr.pogodin/react-helmet": "^3.0.5",
     "@mantine/charts": "^8.0.0",
     "@mantine/core": "^8.0.0",
     "@mantine/dates": "^8.3.9",
@@ -37,7 +38,6 @@
     "pako": "^2.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-helmet-async": "^2.0.5",
     "react-map-gl": "^7.1.7",
     "react-router-dom": "^7.0.0",
     "recharts": "^2.13.0",
