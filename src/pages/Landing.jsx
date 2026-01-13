@@ -35,6 +35,7 @@ import {
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import { supabase } from '../lib/supabase';
+import SEO, { getOrganizationSchema, getWebSiteSchema } from '../components/SEO';
 
 function Landing() {
   const navigate = useNavigate();
@@ -101,13 +102,25 @@ function Landing() {
   };
 
   return (
-    <Box
-      style={{
-        background: `radial-gradient(ellipse at top, rgba(190, 242, 100, 0.1) 0%, transparent 50%),
-                     linear-gradient(180deg, ${tokens.colors.bgPrimary} 0%, ${tokens.colors.bgSecondary} 100%)`,
-        minHeight: '100vh',
-      }}
-    >
+    <>
+      <SEO
+        title="tribos.studio - AI-Powered Cycling Training App"
+        description="Elevate your cycling performance with AI route planning, training analytics, and seamless device sync for Strava, Garmin, and Wahoo. Join the beta today."
+        keywords="cycling training app, AI cycling routes, bike training planner, cycling analytics, strava integration, garmin connect, wahoo sync, cycling performance tracking"
+        url="https://tribos.studio"
+        image="https://tribos.studio/og-image.svg"
+        structuredData={{
+          '@context': 'https://schema.org',
+          '@graph': [getOrganizationSchema(), getWebSiteSchema()],
+        }}
+      />
+      <Box
+        style={{
+          background: `radial-gradient(ellipse at top, rgba(190, 242, 100, 0.1) 0%, transparent 50%),
+                       linear-gradient(180deg, ${tokens.colors.bgPrimary} 0%, ${tokens.colors.bgSecondary} 100%)`,
+          minHeight: '100vh',
+        }}
+      >
       {/* Header */}
       <Box py="md" px={{ base: 'md', md: 'xl' }}>
         <Group justify="space-between" align="center">
@@ -167,7 +180,7 @@ function Landing() {
                 </Title>
 
                 <Text size="xl" style={{ color: tokens.colors.textSecondary }}>
-                  Training load analytics, smart route planning, and recovery tracking—finally in one place.
+                  The cycling training app that combines training load analytics, AI route planning, and recovery tracking—finally in one place.
                 </Text>
 
                 {/* Beta Signup Form */}
@@ -337,11 +350,11 @@ function Landing() {
                       <IconTrendingUp size={20} />
                     </ThemeIcon>
                     <Title order={3} style={{ color: tokens.colors.textPrimary }}>
-                      Training Analytics That Guide You
+                      Cycling Analytics That Guide You
                     </Title>
                   </Group>
                   <Text style={{ color: tokens.colors.textSecondary }}>
-                    CTL, ATL, TSB aren't just numbers—we tell you what they mean for TODAY's ride.
+                    CTL, ATL, TSB aren't just numbers—our cycling training app tells you what they mean for TODAY's ride.
                     Track your fitness trajectory and know exactly when to push and when to rest.
                   </Text>
                   <Stack gap="xs">
@@ -398,11 +411,11 @@ function Landing() {
                       <IconMapPin size={20} />
                     </ThemeIcon>
                     <Title order={3} style={{ color: tokens.colors.textPrimary }}>
-                      Smart Route Planning
+                      AI-Powered Route Planning
                     </Title>
                   </Group>
                   <Text style={{ color: tokens.colors.textSecondary }}>
-                    Build routes manually or let AI suggest routes based on your goals.
+                    Our bike training planner lets you build routes manually or use AI to generate cycling routes based on your fitness goals.
                     Professional editing tools with elevation profiles and surface analysis.
                   </Text>
                   <Stack gap="xs">
@@ -614,6 +627,7 @@ function Landing() {
         </Container>
       </Box>
     </Box>
+    </>
   );
 }
 

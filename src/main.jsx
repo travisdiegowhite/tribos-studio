@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { HelmetProvider } from '@dr.pogodin/react-helmet';
 import { registerSW } from 'virtual:pwa-register';
 import { initSentry } from './lib/sentry';
 import App from './App.jsx';
@@ -29,6 +30,8 @@ registerSW({
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <HelmetProvider>
+      <App />
+    </HelmetProvider>
   </StrictMode>
 );
