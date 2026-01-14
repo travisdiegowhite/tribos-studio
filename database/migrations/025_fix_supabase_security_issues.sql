@@ -91,27 +91,24 @@ COMMENT ON VIEW public.user_activity_summary IS
 
 -- ============================================================================
 -- Issue 3: spatial_ref_sys - PostGIS system table without RLS
--- This is a reference table with no sensitive data, but needs RLS for compliance
+-- This table is owned by PostGIS extension, so we cannot enable RLS directly.
+-- Instead, we revoke API access to prevent exposure via PostgREST.
+-- The table remains accessible for internal database/PostGIS operations.
 -- ============================================================================
 
--- Enable RLS on spatial_ref_sys (PostGIS system table)
+-- Revoke API access from spatial_ref_sys (anon and authenticated roles)
+-- This prevents the table from being accessible via Supabase's REST API
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'spatial_ref_sys') THEN
-        ALTER TABLE public.spatial_ref_sys ENABLE ROW LEVEL SECURITY;
+        -- Revoke access from API roles (anon, authenticated)
+        REVOKE ALL ON public.spatial_ref_sys FROM anon;
+        REVOKE ALL ON public.spatial_ref_sys FROM authenticated;
 
-        -- Drop existing policy if any
-        DROP POLICY IF EXISTS "Allow public read access to spatial_ref_sys" ON public.spatial_ref_sys;
+        -- Keep access for service_role and postgres for internal operations
+        -- (These roles typically have access by default)
 
-        -- Create policy allowing read access to all (it's reference data)
-        CREATE POLICY "Allow public read access to spatial_ref_sys"
-            ON public.spatial_ref_sys
-            FOR SELECT
-            TO public
-            USING (true);
-
-        COMMENT ON TABLE public.spatial_ref_sys IS
-        'PostGIS spatial reference system table. RLS enabled with public read-only access.';
+        RAISE NOTICE 'Revoked API access from spatial_ref_sys table';
     END IF;
 END $$;
 
@@ -135,9 +132,11 @@ SELECT
 FROM pg_class
 WHERE relname = 'user_activity_summary';
 
--- Check spatial_ref_sys RLS if table exists
+-- Verify spatial_ref_sys API access has been revoked
 SELECT
     'spatial_ref_sys' as table_name,
-    relrowsecurity as rls_enabled
-FROM pg_class
-WHERE relname = 'spatial_ref_sys';
+    grantee,
+    privilege_type
+FROM information_schema.table_privileges
+WHERE table_name = 'spatial_ref_sys'
+  AND grantee IN ('anon', 'authenticated');
