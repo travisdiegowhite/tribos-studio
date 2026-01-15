@@ -68,7 +68,7 @@ import { supabase } from '../lib/supabase';
 import TrainingStrategist from '../components/TrainingStrategist.jsx';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
-import TrainingPlanBrowser from '../components/TrainingPlanBrowser.jsx';
+// TrainingPlanBrowser moved to PlannerPage
 import RideHistoryTable from '../components/RideHistoryTable.jsx';
 import PersonalRecordsCard from '../components/PersonalRecordsCard.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -104,8 +104,9 @@ function TrainingDashboard() {
   const [loading, setLoading] = useState(true);
 
   // Read tab from URL query parameter, default to 'today'
+  // Note: 'plans' tab moved to /planner page
   const urlTab = searchParams.get('tab');
-  const validTabs = ['today', 'plans', 'trends', 'power', 'routes', 'history', 'calendar'];
+  const validTabs = ['today', 'trends', 'power', 'routes', 'history', 'calendar'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
   const [activeTab, setActiveTab] = useState(initialTab);
   const aiCoachRef = useRef(null);
@@ -761,12 +762,6 @@ function TrainingDashboard() {
                   {!isMobile && 'Today'}
                 </Tabs.Tab>
                 <Tabs.Tab
-                  value="plans"
-                  leftSection={<IconList size={isMobile ? 20 : 18} />}
-                >
-                  {!isMobile && 'Plans'}
-                </Tabs.Tab>
-                <Tabs.Tab
                   value="trends"
                   leftSection={<IconTrendingUp size={isMobile ? 20 : 18} />}
                 >
@@ -912,28 +907,6 @@ function TrainingDashboard() {
                     </Box>
                   </Card>
                 </Stack>
-              </Tabs.Panel>
-
-              {/* PLANS TAB */}
-              <Tabs.Panel value="plans">
-                <TrainingPlanBrowser
-                  activePlan={activePlan}
-                  onPlanActivated={async (plan) => {
-                    setActivePlan(plan);
-                    // Load planned workouts for the new plan
-                    if (plan?.id) {
-                      const { data: workoutsData } = await supabase
-                        .from('planned_workouts')
-                        .select('*')
-                        .eq('plan_id', plan.id)
-                        .order('scheduled_date', { ascending: true });
-                      if (workoutsData) {
-                        setPlannedWorkouts(workoutsData);
-                      }
-                    }
-                    setActiveTab('calendar');
-                  }}
-                />
               </Tabs.Panel>
 
               {/* TRENDS TAB */}
