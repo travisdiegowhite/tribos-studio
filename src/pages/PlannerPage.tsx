@@ -1,19 +1,21 @@
 /**
  * PlannerPage - Top-level page for the Training Planner
  * "Plan Your Training" - drag-and-drop workout scheduling
- * Now includes plan browsing (moved from Analysis page)
+ * Now includes plan browsing and training calendar (moved from Analysis page)
  */
 
 import { useState, useEffect } from 'react';
 import { Container, Loader, Box, Alert, Tabs, Group, Text, ThemeIcon, Stack } from '@mantine/core';
-import { IconAlertCircle, IconCalendarEvent, IconList } from '@tabler/icons-react';
+import { IconAlertCircle, IconCalendarEvent, IconList, IconHistory } from '@tabler/icons-react';
 import { useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { TrainingPlanner } from '../components/planner';
 import TrainingPlanBrowser from '../components/TrainingPlanBrowser.jsx';
+import TrainingCalendar from '../components/TrainingCalendar.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
+import { formatDistance } from '../utils/units';
 
 // Activity type - matches the activities table schema
 // Using a flexible type since we select('*') to get all fields
@@ -48,10 +50,18 @@ export default function PlannerPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [ftp, setFtp] = useState<number | null>(null);
   const [activePlan, setActivePlan] = useState<TrainingPlan | null>(null);
+  const [unitsPreference, setUnitsPreference] = useState<string>('imperial');
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
 
-  // Tab state - default to 'calendar' unless browsing plans
+  // Tab state - default to 'planner' unless specified
   const urlTab = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<string>(urlTab === 'browse' ? 'browse' : 'calendar');
+  const validTabs = ['planner', 'browse', 'history'];
+  const [activeTab, setActiveTab] = useState<string>(
+    validTabs.includes(urlTab || '') ? urlTab! : 'planner'
+  );
+
+  const isImperial = unitsPreference === 'imperial';
+  const formatDist = (meters: number) => formatDistance(meters, isImperial);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -61,10 +71,10 @@ export default function PlannerPage() {
       setError(null);
 
       try {
-        // Fetch user profile for FTP
+        // Fetch user profile for FTP and units preference
         const { data: profileData, error: profileError } = await supabase
           .from('user_profiles')
-          .select('ftp')
+          .select('ftp, units_preference')
           .eq('id', user.id)
           .single();
 
@@ -73,6 +83,9 @@ export default function PlannerPage() {
         }
         if (profileData?.ftp) {
           setFtp(profileData.ftp);
+        }
+        if (profileData?.units_preference) {
+          setUnitsPreference(profileData.units_preference);
         }
 
         // Fetch activities (last 90 days for context)
@@ -167,19 +180,25 @@ export default function PlannerPage() {
   }
 
   return (
-    <AppShell fullWidth={activeTab === 'calendar'}>
+    <AppShell fullWidth={activeTab === 'planner'}>
       <Container size="xl" py="md">
         <Tabs
           value={activeTab}
-          onChange={(value) => setActiveTab(value || 'calendar')}
+          onChange={(value) => setActiveTab(value || 'planner')}
           color="lime"
         >
           <Tabs.List mb="md">
             <Tabs.Tab
-              value="calendar"
+              value="planner"
               leftSection={<IconCalendarEvent size={16} />}
             >
-              My Plan
+              Planner
+            </Tabs.Tab>
+            <Tabs.Tab
+              value="history"
+              leftSection={<IconHistory size={16} />}
+            >
+              History
             </Tabs.Tab>
             <Tabs.Tab
               value="browse"
@@ -189,7 +208,7 @@ export default function PlannerPage() {
             </Tabs.Tab>
           </Tabs.List>
 
-          <Tabs.Panel value="calendar">
+          <Tabs.Panel value="planner">
             <Box mx="-md">
               <TrainingPlanner
                 userId={user?.id}
@@ -199,6 +218,22 @@ export default function PlannerPage() {
                 onPlanUpdated={handlePlanUpdated}
               />
             </Box>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="history">
+            <TrainingCalendar
+              activePlan={activePlan}
+              rides={activities}
+              formatDistance={formatDist}
+              ftp={ftp}
+              isImperial={isImperial}
+              refreshKey={calendarRefreshKey}
+              onPlanUpdated={async () => {
+                // Reload the active plan to get updated compliance stats
+                await handlePlanUpdated();
+                setCalendarRefreshKey(prev => prev + 1);
+              }}
+            />
           </Tabs.Panel>
 
           <Tabs.Panel value="browse">
@@ -214,8 +249,8 @@ export default function PlannerPage() {
                     .eq('plan_id', plan.id)
                     .order('scheduled_date', { ascending: true });
                   if (workoutsData) {
-                    // Switch to calendar view to show the new plan
-                    setActiveTab('calendar');
+                    // Switch to planner view to show the new plan
+                    setActiveTab('planner');
                   }
                 }
               }}
