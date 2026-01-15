@@ -17,7 +17,7 @@ import MyRoutes from './pages/MyRoutes.jsx';
 import TrainingDashboard from './pages/TrainingDashboard.jsx';
 import PlannerPage from './pages/PlannerPage.tsx';
 import Settings from './pages/Settings.jsx';
-import Updates from './pages/Updates.jsx';
+// Updates page removed - content moved to Settings
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 import Terms from './pages/Terms.jsx';
 import NotFound from './pages/NotFound.jsx';
@@ -167,14 +167,8 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/updates"
-        element={
-          <ProtectedRoute>
-            <Updates />
-          </ProtectedRoute>
-        }
-      />
+      {/* Updates route redirects to Settings (content moved there) */}
+      <Route path="/updates" element={<Navigate to="/settings" replace />} />
       <Route
         path="/admin"
         element={

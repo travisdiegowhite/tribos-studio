@@ -1,15 +1,19 @@
 /**
  * PlannerPage - Top-level page for the Training Planner
  * "Plan Your Training" - drag-and-drop workout scheduling
+ * Now includes plan browsing (moved from Analysis page)
  */
 
 import { useState, useEffect } from 'react';
-import { Container, Loader, Box, Alert } from '@mantine/core';
-import { IconAlertCircle } from '@tabler/icons-react';
+import { Container, Loader, Box, Alert, Tabs, Group, Text, ThemeIcon, Stack } from '@mantine/core';
+import { IconAlertCircle, IconCalendarEvent, IconList } from '@tabler/icons-react';
+import { useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import { TrainingPlanner } from '../components/planner';
+import TrainingPlanBrowser from '../components/TrainingPlanBrowser.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
+import { tokens } from '../theme';
 
 // Activity type - matches the activities table schema
 // Using a flexible type since we select('*') to get all fields
@@ -38,11 +42,16 @@ interface TrainingPlan {
 
 export default function PlannerPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [ftp, setFtp] = useState<number | null>(null);
   const [activePlan, setActivePlan] = useState<TrainingPlan | null>(null);
+
+  // Tab state - default to 'calendar' unless browsing plans
+  const urlTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<string>(urlTab === 'browse' ? 'browse' : 'calendar');
 
   useEffect(() => {
     if (!user?.id) return;
@@ -158,14 +167,62 @@ export default function PlannerPage() {
   }
 
   return (
-    <AppShell fullWidth>
-      <TrainingPlanner
-        userId={user?.id}
-        activePlanId={activePlan?.id}
-        activities={activities}
-        ftp={ftp}
-        onPlanUpdated={handlePlanUpdated}
-      />
+    <AppShell fullWidth={activeTab === 'calendar'}>
+      <Container size="xl" py="md">
+        <Tabs
+          value={activeTab}
+          onChange={(value) => setActiveTab(value || 'calendar')}
+          color="lime"
+        >
+          <Tabs.List mb="md">
+            <Tabs.Tab
+              value="calendar"
+              leftSection={<IconCalendarEvent size={16} />}
+            >
+              My Plan
+            </Tabs.Tab>
+            <Tabs.Tab
+              value="browse"
+              leftSection={<IconList size={16} />}
+            >
+              Browse Plans
+            </Tabs.Tab>
+          </Tabs.List>
+
+          <Tabs.Panel value="calendar">
+            <Box mx="-md">
+              <TrainingPlanner
+                userId={user?.id}
+                activePlanId={activePlan?.id}
+                activities={activities}
+                ftp={ftp}
+                onPlanUpdated={handlePlanUpdated}
+              />
+            </Box>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="browse">
+            <TrainingPlanBrowser
+              activePlan={activePlan}
+              onPlanActivated={async (plan) => {
+                setActivePlan(plan);
+                // Reload activities after plan activation
+                if (plan?.id && user?.id) {
+                  const { data: workoutsData } = await supabase
+                    .from('planned_workouts')
+                    .select('*')
+                    .eq('plan_id', plan.id)
+                    .order('scheduled_date', { ascending: true });
+                  if (workoutsData) {
+                    // Switch to calendar view to show the new plan
+                    setActiveTab('calendar');
+                  }
+                }
+              }}
+            />
+          </Tabs.Panel>
+        </Tabs>
+      </Container>
     </AppShell>
   );
 }

@@ -20,7 +20,7 @@ import {
   List,
   ThemeIcon,
 } from '@mantine/core';
-import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle } from '@tabler/icons-react';
+import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSparkles, IconArrowRight } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -35,6 +35,7 @@ import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
 import { TIMEZONE_OPTIONS, getBrowserTimezone, getTimezoneOffset } from '../utils/timezoneUtils';
 import { formatSpeed } from '../utils/units';
+import updatesData from '../data/updates.json';
 
 function Settings() {
   const { user, signOut } = useAuth();
@@ -1178,6 +1179,83 @@ function Settings() {
                   Contact us
                 </a>
               </Text>
+            </Stack>
+          </Card>
+
+          {/* What's New Section */}
+          <Card>
+            <Stack gap="md">
+              <Group gap="sm">
+                <IconSparkles size={20} color={tokens.colors.electricLime} />
+                <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                  What's New
+                </Title>
+              </Group>
+              <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                {updatesData.welcome?.subtitle || 'Latest updates and improvements'}
+              </Text>
+
+              <Divider />
+
+              {/* Recent Updates */}
+              <Stack gap="sm">
+                {updatesData.updates?.slice(0, 3).map((update) => (
+                  <Box
+                    key={update.id}
+                    style={{
+                      padding: tokens.spacing.md,
+                      backgroundColor: tokens.colors.bgTertiary,
+                      borderRadius: tokens.radius.md,
+                    }}
+                  >
+                    <Group justify="space-between" mb="xs">
+                      <Badge variant="light" color="lime" size="sm">
+                        {update.type === 'improvement' ? 'Improvement' : 'New'}
+                      </Badge>
+                      <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                        {update.date}
+                      </Text>
+                    </Group>
+                    <Text fw={500} size="sm" style={{ color: tokens.colors.textPrimary }} mb="xs">
+                      {update.title}
+                    </Text>
+                    <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                      {update.description}
+                    </Text>
+                    {update.details && update.details.length > 0 && (
+                      <Stack gap={4} mt="xs">
+                        {update.details.slice(0, 2).map((detail, idx) => (
+                          <Group key={idx} gap="xs" wrap="nowrap">
+                            <IconArrowRight size={12} color={tokens.colors.electricLime} style={{ flexShrink: 0 }} />
+                            <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                              {detail}
+                            </Text>
+                          </Group>
+                        ))}
+                      </Stack>
+                    )}
+                  </Box>
+                ))}
+              </Stack>
+
+              {/* Coming Soon */}
+              {updatesData.comingSoon && updatesData.comingSoon.length > 0 && (
+                <>
+                  <Divider />
+                  <Box>
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }} tt="uppercase" fw={500} mb="sm">
+                      Coming Soon
+                    </Text>
+                    <Group gap="xs">
+                      {updatesData.comingSoon.map((item, idx) => (
+                        <Badge key={idx} variant="outline" color="gray" size="sm">
+                          {item.title}
+                        </Badge>
+                      ))}
+                    </Group>
+                  </Box>
+                </>
+              )}
             </Stack>
           </Card>
 
