@@ -522,33 +522,83 @@ function TodayFocusCard({ workout, plan, loading }) {
   );
 }
 
-// Fitness Metrics Component
+// Fitness Metrics Component - uses same calculation as FormWidget
 function FitnessMetrics({ activities, loading }) {
   if (loading) {
     return <Skeleton height={40} radius="md" />;
   }
 
-  // Simple CTL/ATL calculation based on activities
+  // Estimate TSS from activity if not provided
+  const estimateTSS = (activity) => {
+    if (activity.tss) return activity.tss;
+
+    const hours = (activity.duration_seconds || activity.moving_time || 0) / 3600;
+    const avgPower = activity.average_power_watts || activity.average_watts;
+
+    if (avgPower && activity.normalized_power_watts) {
+      const ftp = 200; // Default FTP estimate
+      const intensityFactor = activity.normalized_power_watts / ftp;
+      return Math.round(hours * intensityFactor * intensityFactor * 100);
+    }
+
+    const avgHR = activity.average_heart_rate || activity.average_hr;
+    if (avgHR) {
+      const intensity = avgHR / 180;
+      return Math.round(hours * intensity * 100);
+    }
+
+    // Fallback: ~50 TSS per hour
+    return Math.round(hours * 50);
+  };
+
+  // Calculate CTL/ATL using exponentially weighted averages
   const calculateMetrics = () => {
+    if (!activities || activities.length === 0) {
+      return { ctl: 0, atl: 0, form: 0 };
+    }
+
+    // Build daily TSS map for the last 60 days
     const now = new Date();
-    let ctl = 0;
-    let atl = 0;
+    const sixtyDaysAgo = new Date(now);
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
-    activities.forEach(activity => {
-      const actDate = new Date(activity.start_date);
-      const daysAgo = Math.floor((now - actDate) / (1000 * 60 * 60 * 24));
-      const tss = activity.tss || 0;
+    const dailyTSS = {};
+    for (let d = new Date(sixtyDaysAgo); d <= now; d.setDate(d.getDate() + 1)) {
+      const key = d.toISOString().split('T')[0];
+      dailyTSS[key] = 0;
+    }
 
-      if (daysAgo <= 42) {
-        ctl += tss * Math.exp(-daysAgo / 42);
-      }
-      if (daysAgo <= 7) {
-        atl += tss * Math.exp(-daysAgo / 7);
+    // Sum TSS per day
+    activities.forEach((activity) => {
+      const date = new Date(activity.start_date).toISOString().split('T')[0];
+      const tss = estimateTSS(activity);
+      if (dailyTSS[date] !== undefined) {
+        dailyTSS[date] += tss;
       }
     });
 
-    ctl = Math.round(ctl / 42 * 7);
-    atl = Math.round(atl);
+    const days = Object.keys(dailyTSS).sort();
+    const tssValues = days.map((d) => dailyTSS[d]);
+
+    // CTL: 42-day exponentially weighted average
+    const ctlDecay = 1 / 42;
+    let ctl = 0;
+    tssValues.forEach((tss, index) => {
+      const weight = Math.exp(-ctlDecay * (tssValues.length - index - 1));
+      ctl += tss * weight;
+    });
+    ctl = Math.round(ctl * ctlDecay);
+
+    // ATL: 7-day exponentially weighted average
+    const recentTSS = tssValues.slice(-7);
+    const atlDecay = 1 / 7;
+    let atl = 0;
+    recentTSS.forEach((tss, index) => {
+      const weight = Math.exp(-atlDecay * (recentTSS.length - index - 1));
+      atl += tss * weight;
+    });
+    atl = Math.round(atl * atlDecay);
+
     const form = ctl - atl;
 
     return { ctl, atl, form };
@@ -564,7 +614,7 @@ function FitnessMetrics({ activities, loading }) {
           <Text fw={600} size="lg" style={{ color: tokens.colors.textPrimary }}>
             {ctl}
           </Text>
-          <IconTrendingUp size={14} color={tokens.colors.electricLime} />
+          {ctl > 0 && <IconTrendingUp size={14} color={tokens.colors.electricLime} />}
         </Group>
       </Box>
       <Box>
