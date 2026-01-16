@@ -264,7 +264,7 @@ export default function PlanCustomizationModal({
             First Week Preview
           </Text>
           <ScrollArea>
-            <SimpleGrid cols={7} spacing={4}>
+            <SimpleGrid cols={7} spacing="xs">
               {firstWeekPreview.map((day, index) => (
                 <Card
                   key={index}

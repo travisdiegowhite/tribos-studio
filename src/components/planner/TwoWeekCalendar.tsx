@@ -277,7 +277,7 @@ export function TwoWeekCalendar({
         </Group>
       )}
 
-      <SimpleGrid cols={7} spacing={isMobile ? 4 : 'xs'}>
+      <SimpleGrid cols={7} spacing={isMobile ? 'xs' : 'sm'}>
         {weekDays.map((day) => (
           <CalendarDayCell
             key={day.date}
