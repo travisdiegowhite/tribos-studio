@@ -9,6 +9,7 @@ import { Container, Loader, Box, Alert, Tabs, Group, Text, ThemeIcon, Stack } fr
 import { IconAlertCircle, IconCalendarEvent, IconList, IconHistory } from '@tabler/icons-react';
 import { useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 import { TrainingPlanner } from '../components/planner';
 import TrainingPlanBrowser from '../components/TrainingPlanBrowser.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
@@ -181,13 +182,19 @@ export default function PlannerPage() {
 
   return (
     <AppShell fullWidth={activeTab === 'planner'}>
-      <Container size="xl" py="md">
-        <Tabs
-          value={activeTab}
-          onChange={(value) => setActiveTab(value || 'planner')}
-          color="lime"
-        >
-          <Tabs.List mb="md">
+      <Container size="xl" py="lg">
+        <Stack gap="lg">
+          <PageHeader
+            title="Plan"
+            subtitle={activePlan ? `Active: ${activePlan.name}` : 'Schedule and manage your training'}
+          />
+
+          <Tabs
+            value={activeTab}
+            onChange={(value) => setActiveTab(value || 'planner')}
+            color="lime"
+          >
+            <Tabs.List mb="md">
             <Tabs.Tab
               value="planner"
               leftSection={<IconCalendarEvent size={16} />}
@@ -257,6 +264,7 @@ export default function PlannerPage() {
             />
           </Tabs.Panel>
         </Tabs>
+        </Stack>
       </Container>
     </AppShell>
   );

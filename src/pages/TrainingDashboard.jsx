@@ -2,7 +2,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Container,
-  Title,
   Text,
   Card,
   SimpleGrid,
@@ -95,6 +94,7 @@ import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { PoweredByStrava } from '../components/StravaBranding';
 import { garminService } from '../utils/garminService.js';
+import PageHeader from '../components/PageHeader.jsx';
 
 function TrainingDashboard() {
   const { user } = useAuth();
@@ -661,85 +661,81 @@ function TrainingDashboard() {
       <Container size="xl" py="xl">
         <Stack gap="lg">
           {/* Header */}
-          <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
-            <Box>
-              <Title order={1} style={{ color: tokens.colors.textPrimary }}>
-                Training Hub
-              </Title>
-              <Text style={{ color: tokens.colors.textSecondary }}>
-                Your personalized training command center
-              </Text>
-            </Box>
-            <Group gap="sm" wrap="wrap">
-              <Select
-                size="xs"
-                value={timeRange}
-                onChange={setTimeRange}
-                data={[
-                  { value: '7', label: 'Last 7 days' },
-                  { value: '30', label: 'Last 30 days' },
-                  { value: '90', label: 'Last 90 days' },
-                ]}
-                w={{ base: 'auto', sm: 130 }}
-              />
-              {activePlan && (
-                <Button
-                  variant="light"
-                  color="pink"
+          <PageHeader
+            title="Training Hub"
+            subtitle="Your personalized training command center"
+            actions={
+              <>
+                <Select
                   size="xs"
-                  leftSection={<IconBarbell size={14} />}
-                  onClick={() => setSupplementModalOpen(true)}
-                >
-                  Add Supplement
-                </Button>
-              )}
-              <Menu shadow="md" width={200}>
-                <Menu.Target>
+                  value={timeRange}
+                  onChange={setTimeRange}
+                  data={[
+                    { value: '7', label: 'Last 7 days' },
+                    { value: '30', label: 'Last 30 days' },
+                    { value: '90', label: 'Last 90 days' },
+                  ]}
+                  w={{ base: 'auto', sm: 130 }}
+                />
+                {activePlan && (
                   <Button
                     variant="light"
-                    color="orange"
+                    color="pink"
                     size="xs"
-                    leftSection={<IconFileImport size={14} />}
+                    leftSection={<IconBarbell size={14} />}
+                    onClick={() => setSupplementModalOpen(true)}
                   >
-                    Import
+                    Add Supplement
                   </Button>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  <Menu.Label>Import Activities</Menu.Label>
-                  <Menu.Item
-                    leftSection={<IconBrandStrava size={16} />}
-                    onClick={() => setGpxUploadOpen(true)}
-                  >
-                    Strava Export (GPX)
-                  </Menu.Item>
-                  <Menu.Item
-                    leftSection={<IconDeviceWatch size={16} />}
-                    onClick={() => setFitUploadOpen(true)}
-                  >
-                    FIT Files (Garmin/Wahoo)
-                  </Menu.Item>
-                </Menu.Dropdown>
-              </Menu>
-              <Button
-                variant={todayHealthMetrics ? 'light' : 'filled'}
-                color="violet"
-                size="xs"
-                leftSection={<IconHeart size={14} />}
-                onClick={() => setHealthCheckInOpen(true)}
-              >
-                {todayHealthMetrics ? 'Check-in ✓' : 'Body Check-in'}
-              </Button>
-              <Button
-                variant="light"
-                color="lime"
-                size="xs"
-                leftSection={<IconSettings size={14} />}
-                onClick={() => navigate('/settings')}
-              >
-                Settings
-              </Button>
-            </Group>
-          </Group>
+                )}
+                <Menu shadow="md" width={200}>
+                  <Menu.Target>
+                    <Button
+                      variant="light"
+                      color="orange"
+                      size="xs"
+                      leftSection={<IconFileImport size={14} />}
+                    >
+                      Import
+                    </Button>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Label>Import Activities</Menu.Label>
+                    <Menu.Item
+                      leftSection={<IconBrandStrava size={16} />}
+                      onClick={() => setGpxUploadOpen(true)}
+                    >
+                      Strava Export (GPX)
+                    </Menu.Item>
+                    <Menu.Item
+                      leftSection={<IconDeviceWatch size={16} />}
+                      onClick={() => setFitUploadOpen(true)}
+                    >
+                      FIT Files (Garmin/Wahoo)
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+                <Button
+                  variant={todayHealthMetrics ? 'light' : 'filled'}
+                  color="violet"
+                  size="xs"
+                  leftSection={<IconHeart size={14} />}
+                  onClick={() => setHealthCheckInOpen(true)}
+                >
+                  {todayHealthMetrics ? 'Check-in ✓' : 'Body Check-in'}
+                </Button>
+                <Button
+                  variant="light"
+                  color="lime"
+                  size="xs"
+                  leftSection={<IconSettings size={14} />}
+                  onClick={() => navigate('/settings')}
+                >
+                  Settings
+                </Button>
+              </>
+            }
+          />
 
           {/* Main Tabs - Pill Style for clear visual distinction */}
           <Tabs value={activeTab} onChange={setActiveTab} color="lime" variant="pills">

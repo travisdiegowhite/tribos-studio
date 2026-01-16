@@ -28,6 +28,7 @@ import { formatDistance, formatElevation } from '../utils/units';
 import { supabase } from '../lib/supabase';
 import { exportAndDownloadRoute } from '../utils/routeExport';
 import { garminService } from '../utils/garminService';
+import PageHeader from '../components/PageHeader.jsx';
 
 function MyRoutes() {
   const { user } = useAuth();
@@ -324,26 +325,22 @@ function MyRoutes() {
 
   return (
     <AppShell>
-      <Container size="xl" py="xl">
+      <Container size="xl" py="lg">
         <Stack gap="xl">
           {/* Header */}
-          <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
-            <Box>
-              <Title order={1} style={{ color: tokens.colors.textPrimary }}>
-                My Routes
-              </Title>
-              <Text style={{ color: tokens.colors.textSecondary }}>
-                {filteredRoutes.length} of {routes.length} route{routes.length !== 1 ? 's' : ''}
-              </Text>
-            </Box>
-            <Button
-              color="lime"
-              leftSection={<IconPlus size={18} />}
-              onClick={() => navigate('/routes/new')}
-            >
-              New Route
-            </Button>
-          </Group>
+          <PageHeader
+            title="My Routes"
+            subtitle={`${filteredRoutes.length} of ${routes.length} route${routes.length !== 1 ? 's' : ''}`}
+            actions={
+              <Button
+                color="lime"
+                leftSection={<IconPlus size={18} />}
+                onClick={() => navigate('/routes/new')}
+              >
+                New Route
+              </Button>
+            }
+          />
 
           {/* Search and Filter */}
           {routes.length > 0 && (
