@@ -77,6 +77,24 @@ export const tokens = {
     normal: '150ms ease',
     slow: '250ms ease',
   },
+
+  // Centralized breakpoints - use these consistently across all components
+  // Usage: useMediaQuery(`(max-width: ${tokens.breakpoints.sm})`)
+  breakpoints: {
+    xs: '480px',   // Small phones
+    sm: '768px',   // Tablets / large phones (primary mobile breakpoint)
+    md: '1024px',  // Small laptops / tablets landscape
+    lg: '1200px',  // Desktops
+    xl: '1400px',  // Large desktops
+  },
+
+  // Mobile-specific spacing (use on mobile for better touch targets)
+  mobileSpacing: {
+    touch: '44px',    // Minimum touch target size (iOS standard)
+    gap: '8px',       // Minimum gap between elements on mobile
+    gapLg: '12px',    // Comfortable gap for cards/list items
+    padding: '16px',  // Container padding on mobile
+  },
 };
 
 // Mantine theme configuration

@@ -232,7 +232,7 @@ function Dashboard() {
           />
 
           {/* Main Content: Map + Stats */}
-          <SimpleGrid cols={isMobile ? 1 : 2} spacing="lg">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
             {/* Map */}
             <Box>
               <RecentRidesMap

@@ -392,7 +392,6 @@ export function CalendarDayCell({
       {actualActivity && !plannedWorkout && (() => {
         const typeInfo = getActivityTypeInfo(actualActivity.type, actualActivity.trainer);
         const activityName = actualActivity.name || 'Activity';
-        const truncatedName = activityName.length > 20 ? activityName.slice(0, 18) + '...' : activityName;
 
         return (
           <Tooltip
@@ -431,7 +430,7 @@ export function CalendarDayCell({
                   <IconBike size={12} color={`var(--mantine-color-${typeInfo.color}-5)`} />
                 )}
                 <Text size="xs" c={`${typeInfo.color}.4`} lineClamp={1} style={{ flex: 1 }}>
-                  {truncatedName}
+                  {activityName}
                 </Text>
               </Group>
               <Group gap={8} mt={4}>

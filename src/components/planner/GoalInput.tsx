@@ -317,7 +317,7 @@ export function GoalInput({
               <Text size="xs" c="dimmed" mb="xs">
                 Choose a goal template or create your own:
               </Text>
-              <SimpleGrid cols={2} spacing="xs">
+              <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
                 {GOAL_TEMPLATES.map((template) => (
                   <Tooltip
                     key={template.id}
