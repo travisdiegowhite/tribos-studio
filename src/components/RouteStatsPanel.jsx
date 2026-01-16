@@ -73,7 +73,7 @@ function RouteStatsPanel({
         padding: tokens.spacing.md,
       }}
     >
-      <SimpleGrid cols={2} spacing="sm">
+      <SimpleGrid cols={{ base: 2 }} spacing="sm">
         {statItems.map((item, index) => (
           <Tooltip
             key={index}

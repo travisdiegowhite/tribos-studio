@@ -26,9 +26,21 @@ body {
   transition-timing-function: ease;
 }
 
+/* Mobile viewport height fix - accounts for browser UI */
+:root {
+  --vh: 1vh; /* Fallback */
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --vh: 1dvh; /* Dynamic viewport height for mobile */
+  }
+}
+
 /* Loading screen */
 .loading-screen {
   min-height: 100vh;
+  min-height: 100dvh; /* Modern browsers with dvh support */
   display: flex;
   align-items: center;
   justify-content: center;

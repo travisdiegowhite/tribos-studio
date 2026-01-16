@@ -351,7 +351,7 @@ function OnboardingModal({ opened, onClose }) {
               Your account is ready. Here's what you can do next:
             </Text>
 
-            <SimpleGrid cols={2} spacing="md" style={{ width: '100%' }}>
+            <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md" style={{ width: '100%' }}>
               <Paper
                 p="md"
                 withBorder

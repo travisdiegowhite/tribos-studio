@@ -131,8 +131,8 @@ function WorkoutChip({ recommendation, onAdd }) {
         {recommendation.scheduled_date}
       </Badge>
       <Tooltip label="Add to calendar">
-        <ActionIcon size="xs" variant="light" color="blue" onClick={() => onAdd(recommendation)}>
-          <IconPlus size={12} />
+        <ActionIcon size="sm" variant="light" color="blue" onClick={() => onAdd(recommendation)}>
+          <IconPlus size={14} />
         </ActionIcon>
       </Tooltip>
     </Group>

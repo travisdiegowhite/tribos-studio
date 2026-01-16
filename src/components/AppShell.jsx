@@ -79,7 +79,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
   return (
     <Box
       style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
         backgroundColor: tokens.colors.bgPrimary,
         paddingBottom: isMobile && !hideNav ? 64 : 0,
       }}
