@@ -169,11 +169,12 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
   /**
    * Extract activity files from a Strava export zip
+   * Uses batched extraction to handle large exports without running out of memory
+   * @param {File} zipFile - The zip file to extract
+   * @param {Function} onProgress - Optional callback for progress updates (current, total, fileName)
    */
-  const extractFilesFromZip = async (zipFile) => {
+  const extractFilesFromZip = async (zipFile, onProgress) => {
     const zip = await JSZip.loadAsync(zipFile);
-    const activityFiles = [];
-    const promises = [];
     let activityNames = {};
 
     // First, look for activities.csv to get activity names
@@ -193,39 +194,76 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
       }
     }
 
+    // Collect only activity file entries (filter BEFORE reading content)
+    // This skips photos and other media files entirely
+    const activityEntries = [];
     zip.forEach((relativePath, zipEntry) => {
       if (zipEntry.dir) return;
 
-      // Only process files in activities folder or root activity files
       const fileType = getFileType(relativePath);
-      if (!fileType) return;
+      if (!fileType) return; // Skip non-activity files (photos, etc.)
+      if (fileType.startsWith('tcx')) return; // Skip TCX files
 
-      // Skip TCX files for now (could add TCX parser later)
-      if (fileType.startsWith('tcx')) return;
-
-      // For FIT files, extract as binary; for GPX, extract as string
-      const isBinary = fileType.startsWith('fit');
-
-      // Extract activity ID from filename (e.g., "12345678901.fit.gz" -> "12345678901")
       const baseName = relativePath.split('/').pop();
       const activityIdMatch = baseName.match(/^(\d+)\.(fit|gpx)/i);
       const activityId = activityIdMatch ? activityIdMatch[1] : null;
       const stravaActivityName = activityId ? activityNames[activityId] : null;
+      const isBinary = fileType.startsWith('fit');
 
-      promises.push(
-        zipEntry.async(isBinary ? 'arraybuffer' : 'string').then(content => ({
-          name: relativePath.split('/').pop(),
-          path: relativePath,
-          content,
-          size: isBinary ? content.byteLength : content.length,
-          fileType,
-          isBinary,
-          stravaActivityName // Include the actual Strava activity name if found
-        }))
-      );
+      activityEntries.push({
+        relativePath,
+        zipEntry,
+        fileType,
+        isBinary,
+        stravaActivityName
+      });
     });
 
-    return Promise.all(promises);
+    console.log(`Found ${activityEntries.length} activity files to extract (skipped non-activity files)`);
+
+    // Extract files in batches to prevent memory issues and reference staleness
+    const BATCH_SIZE = 20;
+    const extractedFiles = [];
+
+    for (let i = 0; i < activityEntries.length; i += BATCH_SIZE) {
+      const batch = activityEntries.slice(i, i + BATCH_SIZE);
+
+      // Report progress
+      if (onProgress) {
+        const firstFile = batch[0].relativePath.split('/').pop();
+        onProgress(i, activityEntries.length, firstFile);
+      }
+
+      // Extract this batch in parallel
+      const batchPromises = batch.map(async (entry) => {
+        const { relativePath, zipEntry, fileType, isBinary, stravaActivityName } = entry;
+        try {
+          const content = await zipEntry.async(isBinary ? 'arraybuffer' : 'string');
+          return {
+            name: relativePath.split('/').pop(),
+            path: relativePath,
+            content,
+            size: isBinary ? content.byteLength : content.length,
+            fileType,
+            isBinary,
+            stravaActivityName
+          };
+        } catch (err) {
+          console.warn(`Failed to extract ${relativePath}:`, err);
+          return null; // Skip failed files instead of failing entire import
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      extractedFiles.push(...batchResults.filter(f => f !== null));
+    }
+
+    // Final progress update
+    if (onProgress) {
+      onProgress(activityEntries.length, activityEntries.length, 'Done');
+    }
+
+    return extractedFiles;
   };
 
   /**
@@ -289,8 +327,10 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
       if (file.name.toLowerCase().endsWith('.zip')) {
         // Handle zip file
         try {
-          setCurrentFile(`Extracting ${file.name}...`);
-          const extractedFiles = await extractFilesFromZip(file);
+          setCurrentFile(`Loading ${file.name}...`);
+          const extractedFiles = await extractFilesFromZip(file, (current, total, fileName) => {
+            setCurrentFile(`Extracting ${file.name}: ${current}/${total} files (${fileName})`);
+          });
           allFiles.push(...extractedFiles.map(f => ({
             ...f,
             source: 'zip',
