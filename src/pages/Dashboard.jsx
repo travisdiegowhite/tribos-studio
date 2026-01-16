@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Container,
-  Title,
   Text,
   Card,
   Stack,
@@ -32,6 +31,7 @@ import { tokens } from '../theme';
 import { ViewOnStravaLink } from '../components/StravaBranding';
 import AppShell from '../components/AppShell.jsx';
 import OnboardingModal from '../components/OnboardingModal.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
@@ -218,14 +218,11 @@ function Dashboard() {
       <Container size="xl" py="lg">
         <Stack gap="lg">
           {/* Header */}
-          <Box>
-            <Text size="sm" style={{ color: tokens.colors.textMuted }}>
-              {getGreeting()},
-            </Text>
-            <Title order={2} style={{ color: tokens.colors.textPrimary }}>
-              {displayName}
-            </Title>
-          </Box>
+          <PageHeader
+            greeting={`${getGreeting()},`}
+            title={displayName}
+            titleOrder={2}
+          />
 
           {/* Today's Focus Card */}
           <TodayFocusCard

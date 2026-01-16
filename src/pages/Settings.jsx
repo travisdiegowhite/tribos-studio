@@ -37,6 +37,7 @@ import { TIMEZONE_OPTIONS, getBrowserTimezone, getTimezoneOffset } from '../util
 import { formatSpeed } from '../utils/units';
 import updatesData from '../data/updates.json';
 import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 function Settings() {
   const { user, signOut } = useAuth();
@@ -753,25 +754,21 @@ function Settings() {
         </Stack>
       </Modal>
 
-      <Container size="md" py="xl">
+      <Container size="md" py="lg">
         <Stack gap="xl">
-          <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
-            <Box>
-              <Title order={1} style={{ color: tokens.colors.textPrimary }}>
-                Settings
-              </Title>
-              <Text style={{ color: tokens.colors.textSecondary }}>
-                Manage your profile and connected services
-              </Text>
-            </Box>
-            <Button
-              variant="gradient"
-              gradient={{ from: 'orange', to: 'cyan', deg: 90 }}
-              onClick={() => setShowImportWizard(true)}
-            >
-              Import Wizard
-            </Button>
-          </Group>
+          <PageHeader
+            title="Settings"
+            subtitle="Manage your profile and connected services"
+            actions={
+              <Button
+                variant="gradient"
+                gradient={{ from: 'orange', to: 'cyan', deg: 90 }}
+                onClick={() => setShowImportWizard(true)}
+              >
+                Import Wizard
+              </Button>
+            }
+          />
 
           {/* Profile Settings */}
           <Card>
