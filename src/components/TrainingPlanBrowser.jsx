@@ -987,7 +987,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           <Text size="sm" c="dimmed">{selectedPlan.description}</Text>
 
           {/* Key Stats */}
-          <SimpleGrid cols={3} spacing="xs">
+          <SimpleGrid cols={{ base: 3 }} spacing="xs">
             <Paper p="sm" withBorder ta="center">
               <IconCalendar size={20} style={{ color: tokens.colors.textMuted, marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.duration}</Text>
@@ -1381,7 +1381,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           {/* Date Summary */}
           {selectedStartDate && planToActivate && (
             <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${tokens.colors.electricLime}10` }}>
-              <SimpleGrid cols={2}>
+              <SimpleGrid cols={{ base: 1, xs: 2 }}>
                 <Box>
                   <Text size="xs" c="dimmed" tt="uppercase">Starts</Text>
                   <Text fw={600}>

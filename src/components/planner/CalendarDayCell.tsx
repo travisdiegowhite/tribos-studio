@@ -249,18 +249,18 @@ export function CalendarDayCell({
 
           {/* Remove button */}
           <ActionIcon
-            size="xs"
+            size="sm"
             color="red"
             variant="subtle"
             onClick={handleRemove}
             style={{
               position: 'absolute',
-              top: 2,
-              right: 2,
-              opacity: 0.6,
+              top: 0,
+              right: 0,
+              opacity: 0.7,
             }}
           >
-            <IconX size={12} />
+            <IconX size={14} />
           </ActionIcon>
 
           {/* Enhanced Planned vs Actual comparison */}

@@ -62,7 +62,7 @@ const WeekSummary = ({
       <Card>
         <Stack gap="md">
           <Skeleton height={24} width={150} />
-          <SimpleGrid cols={2} spacing="md">
+          <SimpleGrid cols={{ base: 2, xs: 2 }} spacing="md">
             <Skeleton height={80} />
             <Skeleton height={80} />
             <Skeleton height={80} />

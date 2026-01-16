@@ -247,7 +247,7 @@ function Landing() {
                   </Text>
 
                   {/* Mock Dashboard Stats */}
-                  <SimpleGrid cols={2} spacing="sm">
+                  <SimpleGrid cols={{ base: 2 }} spacing="sm">
                     <Paper p="sm" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
                       <Text size="xs" c="dimmed">Today's Readiness</Text>
                       <Group gap="xs" align="baseline">

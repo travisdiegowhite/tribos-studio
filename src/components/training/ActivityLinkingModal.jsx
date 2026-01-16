@@ -238,7 +238,7 @@ export default function ActivityLinkingModal({
       ) : (
         <Stack spacing="md">
           {/* Stats Summary */}
-          <SimpleGrid cols={3} spacing="sm">
+          <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="sm">
             <Card padding="xs" withBorder>
               <Text size="xs" c="dimmed" tt="uppercase">
                 Unlinked Workouts

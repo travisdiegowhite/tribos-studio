@@ -313,7 +313,7 @@ const IntervalDetection = ({ activity, ftp }) => {
         </Group>
 
         {analysis.type === 'intervals' && (
-          <SimpleGrid cols={3} spacing="sm">
+          <SimpleGrid cols={{ base: 3 }} spacing="sm">
             <Box>
               <Text size="xs" c="dimmed">Est. Intervals</Text>
               <Text size="lg" fw={700}>{analysis.estimatedIntervals}</Text>
@@ -395,7 +395,7 @@ const IntervalDetection = ({ activity, ftp }) => {
 
       <Collapse in={showDetails}>
         <Paper p="sm" mt="sm" style={{ backgroundColor: tokens.colors.bgTertiary }}>
-          <SimpleGrid cols={2} spacing="sm">
+          <SimpleGrid cols={{ base: 2 }} spacing="sm">
             <Box>
               <Text size="xs" c="dimmed">Avg Power</Text>
               <Text size="sm" fw={500}>{activity.average_watts}W</Text>
