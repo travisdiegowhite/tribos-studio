@@ -36,6 +36,7 @@ import { wahooService } from '../utils/wahooService';
 import { TIMEZONE_OPTIONS, getBrowserTimezone, getTimezoneOffset } from '../utils/timezoneUtils';
 import { formatSpeed } from '../utils/units';
 import updatesData from '../data/updates.json';
+import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
 
 function Settings() {
   const { user, signOut } = useAuth();
@@ -1093,6 +1094,20 @@ function Settings() {
                 </Box>
                 <Switch color="gray" defaultChecked />
               </Group>
+            </Stack>
+          </Card>
+
+          {/* Tools */}
+          <Card>
+            <Stack gap="md">
+              <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                Tools
+              </Title>
+              <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                Helpful calculators and utilities
+              </Text>
+              <Divider />
+              <TirePressureCalculator />
             </Stack>
           </Card>
 
