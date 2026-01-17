@@ -3,6 +3,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
+import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -84,6 +85,9 @@ export default async function handler(req, res) {
     switch (action) {
       case 'sync_activities':
         return await syncActivities(req, res, userId, page, perPage);
+
+      case 'sync_all_activities':
+        return await syncAllActivities(req, res, userId);
 
       case 'get_speed_profile':
         return await getSpeedProfile(req, res, userId);
@@ -220,54 +224,192 @@ async function syncActivities(req, res, userId, page, perPage) {
 }
 
 /**
- * Store activities in Supabase
+ * Sync ALL activities from Strava (full history)
+ * Pages through all activities until no more are returned
+ */
+async function syncAllActivities(req, res, userId) {
+  const { maxPages = 50 } = req.body; // Safety limit, ~5000 activities
+
+  try {
+    const accessToken = await getValidAccessToken(userId);
+
+    let page = 1;
+    let totalFetched = 0;
+    let totalStored = 0;
+    let hasMore = true;
+
+    console.log(`📥 Starting full Strava history sync for user ${userId}...`);
+
+    while (hasMore && page <= maxPages) {
+      const url = `${STRAVA_API_BASE}/athlete/activities?page=${page}&per_page=100`;
+      console.log(`📄 Fetching page ${page}...`);
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Strava API error:', errorText);
+
+        // Check for rate limiting
+        if (response.status === 429) {
+          console.log('⏳ Rate limited, returning partial results');
+          break;
+        }
+
+        throw new Error(`Strava API error: ${response.status}`);
+      }
+
+      const activities = await response.json();
+      console.log(`📦 Page ${page}: ${activities.length} activities`);
+
+      if (activities.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      totalFetched += activities.length;
+
+      // Filter to cycling activities
+      const cyclingActivities = activities.filter(a =>
+        ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'].includes(a.type)
+      );
+
+      // Store with deduplication
+      const stored = await storeActivities(userId, cyclingActivities);
+      totalStored += stored;
+
+      // Check if there are more pages
+      hasMore = activities.length === 100;
+      page++;
+
+      // Small delay to be nice to Strava API
+      if (hasMore) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+
+    // Recalculate speed profile after full sync
+    await calculateAndStoreSpeedProfile(userId);
+
+    console.log(`✅ Full sync complete: ${totalFetched} fetched, ${totalStored} stored/merged`);
+
+    return res.status(200).json({
+      success: true,
+      totalFetched,
+      totalStored,
+      pagesProcessed: page - 1,
+      reachedEnd: !hasMore
+    });
+
+  } catch (error) {
+    console.error('Full sync error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Store activities in Supabase with cross-provider duplicate detection
  */
 async function storeActivities(userId, activities) {
   if (activities.length === 0) return 0;
 
-  const activitiesToStore = activities.map(a => ({
-    user_id: userId,
-    provider: 'strava',
-    provider_activity_id: a.id.toString(),
-    name: a.name,
-    type: a.type,
-    sport_type: a.sport_type || a.type,
-    start_date: a.start_date,
-    start_date_local: a.start_date_local,
-    distance: a.distance, // meters
-    moving_time: a.moving_time, // seconds
-    elapsed_time: a.elapsed_time, // seconds
-    total_elevation_gain: a.total_elevation_gain, // meters
-    average_speed: a.average_speed, // m/s
-    max_speed: a.max_speed, // m/s
-    average_watts: a.average_watts || null,
-    kilojoules: a.kilojoules || null,
-    average_heartrate: a.average_heartrate || null,
-    max_heartrate: a.max_heartrate || null,
-    suffer_score: a.suffer_score || null,
-    workout_type: a.workout_type || null,
-    trainer: a.trainer || false,
-    commute: a.commute || false,
-    gear_id: a.gear_id || null,
-    map_summary_polyline: a.map?.summary_polyline || null,
-    raw_data: a, // Store full activity for future use
-    updated_at: new Date().toISOString()
-  }));
+  let stored = 0;
+  let merged = 0;
+  let skipped = 0;
 
-  // Upsert activities (update if exists based on provider_activity_id)
-  const { error } = await supabase
-    .from('activities')
-    .upsert(activitiesToStore, {
-      onConflict: 'user_id,provider_activity_id',
-      ignoreDuplicates: false
-    });
+  for (const a of activities) {
+    const activityData = {
+      user_id: userId,
+      provider: 'strava',
+      provider_activity_id: a.id.toString(),
+      name: a.name,
+      type: a.type,
+      sport_type: a.sport_type || a.type,
+      start_date: a.start_date,
+      start_date_local: a.start_date_local,
+      distance: a.distance, // meters
+      moving_time: a.moving_time, // seconds
+      elapsed_time: a.elapsed_time, // seconds
+      total_elevation_gain: a.total_elevation_gain, // meters
+      average_speed: a.average_speed, // m/s
+      max_speed: a.max_speed, // m/s
+      average_watts: a.average_watts || null,
+      kilojoules: a.kilojoules || null,
+      average_heartrate: a.average_heartrate || null,
+      max_heartrate: a.max_heartrate || null,
+      suffer_score: a.suffer_score || null,
+      workout_type: a.workout_type || null,
+      trainer: a.trainer || false,
+      commute: a.commute || false,
+      gear_id: a.gear_id || null,
+      map_summary_polyline: a.map?.summary_polyline || null,
+      raw_data: a,
+      updated_at: new Date().toISOString()
+    };
 
-  if (error) {
-    console.error('Error storing activities:', error);
-    // Continue even if storage fails for some
+    // Check for same-provider duplicate first
+    const { data: existingStrava } = await supabase
+      .from('activities')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('provider', 'strava')
+      .eq('provider_activity_id', a.id.toString())
+      .maybeSingle();
+
+    if (existingStrava) {
+      // Update existing Strava activity
+      await supabase
+        .from('activities')
+        .update(activityData)
+        .eq('id', existingStrava.id);
+      skipped++;
+      continue;
+    }
+
+    // Check for cross-provider duplicate (e.g., same ride from Garmin)
+    const dupCheck = await checkForDuplicate(
+      userId,
+      a.start_date,
+      a.distance,
+      'strava',
+      a.id.toString()
+    );
+
+    if (dupCheck.isDuplicate) {
+      // Merge Strava data into existing activity
+      console.log(`🔄 Cross-provider duplicate: Strava activity ${a.id} matches ${dupCheck.existingActivity.provider}`);
+      const stravaData = {
+        map_summary_polyline: a.map?.summary_polyline || null,
+        average_watts: a.average_watts || null,
+        kilojoules: a.kilojoules || null,
+        average_heartrate: a.average_heartrate || null,
+        max_heartrate: a.max_heartrate || null,
+        average_cadence: a.average_cadence || null,
+        raw_data: a
+      };
+      await mergeActivityData(dupCheck.existingActivity.id, stravaData, 'strava');
+      merged++;
+      continue;
+    }
+
+    // No duplicate - insert new activity
+    const { error } = await supabase
+      .from('activities')
+      .insert(activityData);
+
+    if (error) {
+      console.error('Error storing activity:', a.id, error.message);
+    } else {
+      stored++;
+    }
   }
 
-  return activitiesToStore.length;
+  console.log(`📊 Strava sync: ${stored} new, ${merged} merged, ${skipped} updated`);
+  return stored + merged;
 }
 
 /**
