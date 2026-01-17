@@ -239,6 +239,11 @@ ${COACHING_KNOWLEDGE}`;
     let toolUses = response.content.filter(block => block.type === 'tool_use');
     const fitnessHistoryUses = toolUses.filter(tool => tool.name === 'query_fitness_history');
 
+    console.log(`🤖 Coach response: ${toolUses.length} tool uses, ${fitnessHistoryUses.length} fitness history queries`);
+    if (fitnessHistoryUses.length > 0) {
+      console.log(`🤖 Fitness history tool requested. userId: ${userId}`);
+    }
+
     // If fitness history tools were called, execute them and continue conversation
     if (fitnessHistoryUses.length > 0 && userId) {
       const toolResults = [];
