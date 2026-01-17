@@ -226,34 +226,40 @@ function TrainingDashboard() {
         if (userProfileData?.power_zones) setPowerZones(userProfileData.power_zones);
         if (userProfileData?.weight_kg) setUserWeight(userProfileData.weight_kg);
 
-        // Get all activities (no date limit for bulk imports)
-        // First, get total count to check if we're hitting the limit
-        const { count: totalCount } = await supabase
-          .from('activities')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
+        // Get all activities using pagination (Supabase caps at 1000 per request)
+        let allActivities = [];
+        let page = 0;
+        const pageSize = 1000;
+        let hasMore = true;
 
-        console.log(`Total activities in database: ${totalCount}`);
+        while (hasMore) {
+          const { data: activityData, error: activityError } = await supabase
+            .from('activities')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('start_date', { ascending: false })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
 
-        const { data: activityData, error: activityError } = await supabase
-          .from('activities')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('start_date', { ascending: false })
-          .limit(2000); // Reasonable limit to prevent performance issues
-
-        if (activityError) {
-          console.error('Error loading activities:', activityError);
-        } else {
-          console.log(`Loaded ${activityData?.length || 0} activities from database`);
-          // Debug: show date range of loaded activities
-          if (activityData?.length > 0) {
-            const dates = activityData.map(a => a.start_date).filter(Boolean).sort();
-            console.log(`Activity date range: ${dates[0]} to ${dates[dates.length - 1]}`);
+          if (activityError) {
+            console.error('Error loading activities:', activityError);
+            break;
           }
-          setActivities(activityData || []);
-          // Training metrics are calculated in a separate useEffect that responds to visibleActivities
+
+          if (activityData && activityData.length > 0) {
+            allActivities = [...allActivities, ...activityData];
+            hasMore = activityData.length === pageSize;
+            page++;
+          } else {
+            hasMore = false;
+          }
         }
+
+        console.log(`Loaded ${allActivities.length} activities from database (${page} pages)`);
+        if (allActivities.length > 0) {
+          const dates = allActivities.map(a => a.start_date).filter(Boolean).sort();
+          console.log(`Activity date range: ${dates[0]} to ${dates[dates.length - 1]}`);
+        }
+        setActivities(allActivities);
 
         const { data: profileData } = await supabase
           .from('user_speed_profiles')
