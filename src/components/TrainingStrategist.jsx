@@ -367,6 +367,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
           conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
           trainingContext: trainingContext,
           userLocalDate: userLocalDate,
+          userId: user?.id,
           maxTokens: 2048
         })
       });

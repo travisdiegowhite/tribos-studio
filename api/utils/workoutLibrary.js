@@ -75,3 +75,61 @@ export const WORKOUT_TOOLS = [
     }
   }
 ];
+
+// Fitness History Tool - enables AI coach to query historical fitness data
+export const FITNESS_HISTORY_TOOL = {
+  name: "query_fitness_history",
+  description: `Query the athlete's historical fitness data to understand training patterns and trends over time. Use this tool when the athlete asks about:
+- How their current fitness compares to the past ("How am I doing vs last year?")
+- Their peak fitness periods ("When was I strongest?")
+- Training trends ("Am I building or losing fitness?")
+- Year-over-year comparisons ("What was my fitness like this time last year?")
+- Seasonal patterns ("What months am I typically fittest?")
+- How their body responds to training load changes
+
+IMPORTANT: Always use this tool when discussing historical fitness. Do not guess or make assumptions about past performance.`,
+  input_schema: {
+    type: "object",
+    properties: {
+      query_type: {
+        type: "string",
+        enum: [
+          "recent_trend",
+          "peak_fitness",
+          "compare_periods",
+          "year_over_year",
+          "seasonal_pattern",
+          "training_response"
+        ],
+        description: `Type of historical analysis:
+- recent_trend: Analyze last 4-8 weeks of fitness direction
+- peak_fitness: Find when athlete was at highest CTL
+- compare_periods: Compare current period to 'last_year' or 'peak'
+- year_over_year: Compare same time period across multiple years
+- seasonal_pattern: Identify monthly fitness patterns
+- training_response: Analyze how CTL responds to load changes`
+      },
+      weeks_back: {
+        type: "integer",
+        description: "How many weeks of history to analyze (default: 12, max: 104 for 2 years)"
+      },
+      compare_to: {
+        type: "string",
+        enum: ["last_year", "same_time_last_year", "peak"],
+        description: "For compare_periods: what to compare current fitness against"
+      },
+      metrics: {
+        type: "array",
+        items: { type: "string" },
+        description: "Which metrics to focus on: ctl, atl, tsb, weekly_tss, weekly_hours, ftp"
+      }
+    },
+    required: ["query_type"]
+  }
+};
+
+// Combined tools for AI coach (includes both workout and fitness history)
+export const ALL_COACH_TOOLS = [
+  ...WORKOUT_TOOLS,
+  FITNESS_HISTORY_TOOL
+];
