@@ -227,6 +227,14 @@ function TrainingDashboard() {
         if (userProfileData?.weight_kg) setUserWeight(userProfileData.weight_kg);
 
         // Get all activities (no date limit for bulk imports)
+        // First, get total count to check if we're hitting the limit
+        const { count: totalCount } = await supabase
+          .from('activities')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+
+        console.log(`Total activities in database: ${totalCount}`);
+
         const { data: activityData, error: activityError } = await supabase
           .from('activities')
           .select('*')
@@ -238,6 +246,11 @@ function TrainingDashboard() {
           console.error('Error loading activities:', activityError);
         } else {
           console.log(`Loaded ${activityData?.length || 0} activities from database`);
+          // Debug: show date range of loaded activities
+          if (activityData?.length > 0) {
+            const dates = activityData.map(a => a.start_date).filter(Boolean).sort();
+            console.log(`Activity date range: ${dates[0]} to ${dates[dates.length - 1]}`);
+          }
           setActivities(activityData || []);
           // Training metrics are calculated in a separate useEffect that responds to visibleActivities
         }
