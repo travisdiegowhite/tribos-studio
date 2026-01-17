@@ -44,7 +44,7 @@ interface TrainingPlan {
 }
 
 export default function PlannerPage() {
-  const { user } = useAuth();
+  const { user } = useAuth() as { user: { id: string } | null };
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +66,7 @@ export default function PlannerPage() {
 
   useEffect(() => {
     if (!user?.id) return;
+    const userId = user.id;
 
     async function loadData() {
       setLoading(true);
@@ -76,7 +77,7 @@ export default function PlannerPage() {
         const { data: profileData, error: profileError } = await supabase
           .from('user_profiles')
           .select('ftp, units_preference')
-          .eq('id', user.id)
+          .eq('id', userId)
           .single();
 
         if (profileError && profileError.code !== 'PGRST116') {
@@ -96,7 +97,7 @@ export default function PlannerPage() {
         const { data: activityData, error: activityError } = await supabase
           .from('activities')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .gte('start_date', ninetyDaysAgo.toISOString())
           .order('start_date', { ascending: false });
 
@@ -111,7 +112,7 @@ export default function PlannerPage() {
         const { data: planData, error: planError } = await supabase
           .from('training_plans')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .eq('status', 'active')
           .order('started_at', { ascending: false })
           .limit(1)
@@ -218,7 +219,7 @@ export default function PlannerPage() {
           <Tabs.Panel value="planner">
             <Box mx="-md">
               <TrainingPlanner
-                userId={user?.id}
+                userId={user?.id ?? ''}
                 activePlanId={activePlan?.id}
                 activities={activities}
                 ftp={ftp}
@@ -230,6 +231,7 @@ export default function PlannerPage() {
           <Tabs.Panel value="history">
             <TrainingCalendar
               activePlan={activePlan}
+              // @ts-expect-error TrainingCalendar JSX component lacks type definitions
               rides={activities}
               formatDistance={formatDist}
               ftp={ftp}
@@ -246,7 +248,7 @@ export default function PlannerPage() {
           <Tabs.Panel value="browse">
             <TrainingPlanBrowser
               activePlan={activePlan}
-              onPlanActivated={async (plan) => {
+              onPlanActivated={async (plan: TrainingPlan | null) => {
                 setActivePlan(plan);
                 // Reload activities after plan activation
                 if (plan?.id && user?.id) {

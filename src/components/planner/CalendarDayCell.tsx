@@ -470,7 +470,7 @@ export function CalendarDayCell({
   // Wrap in context menu if availability callback is provided
   if (onSetAvailability) {
     return (
-      <Menu trigger="contextMenu" position="bottom-start" withArrow>
+      <Menu trigger={"contextMenu" as "click"} position="bottom-start" withArrow>
         <Menu.Target>
           {cellContent}
         </Menu.Target>

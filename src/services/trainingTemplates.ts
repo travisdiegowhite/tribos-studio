@@ -49,6 +49,7 @@ function dbRecordToPlanTemplate(record: any): TrainingPlanTemplate {
     methodology: record.methodology,
     goal: record.goal,
     fitnessLevel: record.fitness_level,
+    category: record.category || 'foundation',
     hoursPerWeek: {
       min: record.hours_per_week_min || 3,
       max: record.hours_per_week_max || 10,
