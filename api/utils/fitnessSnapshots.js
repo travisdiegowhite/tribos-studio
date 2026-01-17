@@ -277,9 +277,19 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
  * @returns {Object} Result with counts
  */
 export async function backfillSnapshots(supabase, userId, weeksBack = 52) {
+  console.log(`📊 backfillSnapshots starting for user ${userId}, weeksBack=${weeksBack}`);
+
+  // First check total activity count for debugging
+  const { count: totalCount } = await supabase
+    .from('activities')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
+
+  console.log(`📊 Total activities for user: ${totalCount}`);
+
   // Get oldest activity date to know how far back we can go
   // Use .or() to include both is_hidden=false AND is_hidden=null (default)
-  const { data: oldestActivity } = await supabase
+  const { data: oldestActivity, error: oldestError } = await supabase
     .from('activities')
     .select('start_date')
     .eq('user_id', userId)
@@ -288,7 +298,13 @@ export async function backfillSnapshots(supabase, userId, weeksBack = 52) {
     .limit(1)
     .single();
 
+  if (oldestError) {
+    console.error(`📊 Error getting oldest activity:`, oldestError);
+  }
+  console.log(`📊 Oldest activity:`, oldestActivity);
+
   if (!oldestActivity) {
+    console.log(`📊 No visible activities found for backfill`);
     return {
       success: true,
       message: 'No activities found',

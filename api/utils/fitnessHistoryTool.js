@@ -19,6 +19,8 @@ import { backfillSnapshots } from './fitnessSnapshots.js';
  * @returns {Object} Query results for the AI to interpret
  */
 export async function handleFitnessHistoryQuery(userId, params) {
+  console.log(`📊 Fitness history query for user ${userId}:`, JSON.stringify(params));
+
   const supabase = createClient(
     process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY
@@ -45,14 +47,17 @@ export async function handleFitnessHistoryQuery(userId, params) {
 
     if (error) throw error;
 
+    console.log(`📊 Found ${snapshots?.length || 0} existing snapshots`);
+
     // Auto-backfill if no snapshots exist
     if (!snapshots || snapshots.length === 0) {
-      console.log(`No fitness snapshots found for user ${userId}, triggering auto-backfill...`);
+      console.log(`📊 No fitness snapshots found for user ${userId}, triggering auto-backfill...`);
 
       const backfillResult = await backfillSnapshots(supabase, userId, 104); // Up to 2 years
+      console.log(`📊 Backfill result:`, JSON.stringify(backfillResult));
 
       if (backfillResult.snapshotsCreated > 0) {
-        console.log(`Auto-backfill complete: ${backfillResult.snapshotsCreated} snapshots created`);
+        console.log(`📊 Auto-backfill complete: ${backfillResult.snapshotsCreated} snapshots created`);
 
         // Re-query after backfill
         const refetch = await supabase
@@ -63,6 +68,7 @@ export async function handleFitnessHistoryQuery(userId, params) {
           .order('snapshot_week', { ascending: false });
 
         snapshots = refetch.data;
+        console.log(`📊 After backfill, found ${snapshots?.length || 0} snapshots`);
       }
 
       // If still no data after backfill, user has no activities
