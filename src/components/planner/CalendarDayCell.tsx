@@ -7,7 +7,7 @@ import { Box, Text, ActionIcon, Group, Tooltip, Badge, Progress, Stack, Menu } f
 import { IconX, IconCheck, IconPlus, IconArrowUp, IconArrowDown, IconMinus, IconBike, IconHome, IconCalendarOff, IconStar, IconCalendarEvent, IconLock, IconLockOpen } from '@tabler/icons-react';
 import { WorkoutCard } from './WorkoutCard';
 import type { PlannerWorkout } from '../../types/planner';
-import type { ResolvedAvailability, AvailabilityStatus } from '../../types/training';
+import type { ResolvedAvailability, AvailabilityStatus, WorkoutDefinition } from '../../types/training';
 
 interface CalendarDayCellProps {
   date: string;
@@ -33,6 +33,7 @@ interface CalendarDayCellProps {
   onRemoveWorkout: (date: string) => void;
   onClick: (date: string) => void;
   onSetAvailability?: (date: string, status: AvailabilityStatus) => void;
+  onWorkoutClick?: (workout: WorkoutDefinition) => void;
 }
 
 // Helper to format distance (in meters to km/mi)
@@ -82,6 +83,7 @@ export function CalendarDayCell({
   onRemoveWorkout,
   onClick,
   onSetAvailability,
+  onWorkoutClick,
 }: CalendarDayCellProps) {
   const isBlocked = availability?.status === 'blocked';
   const isPreferred = availability?.status === 'preferred';
@@ -238,14 +240,24 @@ export function CalendarDayCell({
       {/* Workout Card or Empty State */}
       {plannedWorkout?.workout ? (
         <Box style={{ position: 'relative' }}>
-          <WorkoutCard
-            workout={plannedWorkout.workout}
-            source="calendar"
-            sourceDate={date}
-            isCompact
-            showDuration
-            showTSS
-          />
+          <Box
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              if (onWorkoutClick && plannedWorkout.workout) {
+                onWorkoutClick(plannedWorkout.workout);
+              }
+            }}
+            style={{ cursor: 'pointer' }}
+          >
+            <WorkoutCard
+              workout={plannedWorkout.workout}
+              source="calendar"
+              sourceDate={date}
+              isCompact
+              showDuration
+              showTSS
+            />
+          </Box>
 
           {/* Remove button */}
           <ActionIcon

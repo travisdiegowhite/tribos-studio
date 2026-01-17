@@ -9,8 +9,9 @@ import { Box, Group, Text, ActionIcon, SimpleGrid, Paper, Badge, SegmentedContro
 import { IconChevronLeft, IconChevronRight, IconFlame, IconCheck, IconX, IconBike, IconHome, IconPlus, IconArrowUp, IconArrowDown, IconClock, IconRoute, IconCalendarOff, IconStar } from '@tabler/icons-react';
 import { CalendarDayCell } from './CalendarDayCell';
 import { WorkoutCard } from './WorkoutCard';
+import { WorkoutDetailModal } from './WorkoutDetailModal';
 import type { PlannerWorkout } from '../../types/planner';
-import type { ResolvedAvailability, AvailabilityStatus } from '../../types/training';
+import type { ResolvedAvailability, AvailabilityStatus, WorkoutDefinition } from '../../types/training';
 
 interface TwoWeekCalendarProps {
   startDate: string;
@@ -103,6 +104,15 @@ export function TwoWeekCalendar({
   const [mobileWeek, setMobileWeek] = useState<'1' | '2'>('1');
   // For mobile: track which day is selected for detail view (index 0-6 within current week)
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
+  // Workout detail modal state
+  const [detailWorkout, setDetailWorkout] = useState<WorkoutDefinition | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+
+  // Handle workout click to open detail modal
+  const handleWorkoutClick = (workout: WorkoutDefinition) => {
+    setDetailWorkout(workout);
+    setDetailModalOpen(true);
+  };
   // Generate 14 days starting from startDate
   const days = useMemo(() => {
     const result: Array<{
@@ -296,6 +306,7 @@ export function TwoWeekCalendar({
             onRemoveWorkout={onRemoveWorkout}
             onClick={onDateClick}
             onSetAvailability={onSetAvailability}
+            onWorkoutClick={handleWorkoutClick}
           />
         ))}
       </SimpleGrid>
@@ -488,13 +499,18 @@ export function TwoWeekCalendar({
                   <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb="xs">
                     Planned Workout
                   </Text>
-                  <WorkoutCard
-                    workout={selectedDayWorkout.workout}
-                    source="calendar"
-                    sourceDate={selectedDay.date}
-                    showDuration
-                    showTSS
-                  />
+                  <Box
+                    onClick={() => selectedDayWorkout.workout && handleWorkoutClick(selectedDayWorkout.workout)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <WorkoutCard
+                      workout={selectedDayWorkout.workout}
+                      source="calendar"
+                      sourceDate={selectedDay.date}
+                      showDuration
+                      showTSS
+                    />
+                  </Box>
                   {/* Target TSS */}
                   <Group gap="xs" mt="xs">
                     <IconFlame size={14} color="var(--mantine-color-lime-5)" />
@@ -664,6 +680,13 @@ export function TwoWeekCalendar({
           Tap a day to place the workout
         </Text>
       )}
+
+      {/* Workout Detail Modal */}
+      <WorkoutDetailModal
+        workout={detailWorkout}
+        opened={detailModalOpen}
+        onClose={() => setDetailModalOpen(false)}
+      />
     </Box>
   );
 }
