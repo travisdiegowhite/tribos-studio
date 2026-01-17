@@ -3,7 +3,8 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
-import { WORKOUT_LIBRARY_FOR_AI, WORKOUT_TOOLS } from './utils/workoutLibrary.js';
+import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
+import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { setupCors } from './utils/cors.js';
 
 // Base coaching knowledge (date context added dynamically)
@@ -63,7 +64,30 @@ When you recommend specific workouts, you MUST use the recommend_workout tool. N
 - Multiple workouts = multiple tool calls
 - scheduled_date format: "today", "tomorrow", "this_monday", "next_tuesday", or "YYYY-MM-DD"
 
-Remember: The tool is how athletes add workouts to their calendar. Without it, they can't act on your advice!`;
+Remember: The tool is how athletes add workouts to their calendar. Without it, they can't act on your advice!
+
+**HISTORICAL FITNESS ANALYSIS:**
+
+You have access to the athlete's fitness history through the query_fitness_history tool.
+Use this tool whenever the athlete asks about:
+- Past performance ("How was my fitness last year?")
+- Comparisons ("Am I fitter now than before?")
+- Peak periods ("When was I at my best?")
+- Trends ("Am I building or losing fitness?")
+- Seasonal patterns ("What time of year am I usually strongest?")
+
+**Trigger phrases for history tool:**
+- "compare to last year"
+- "this time last year"
+- "when was I"
+- "peak fitness"
+- "trending"
+- "building fitness"
+- "losing fitness"
+- "year over year"
+- "historically"
+
+IMPORTANT: Always use the query_fitness_history tool for historical questions. Never guess about past performance - the tool has actual data.`;
 
 export default async function handler(req, res) {
   // Handle CORS
@@ -98,6 +122,7 @@ export default async function handler(req, res) {
       conversationHistory = [],
       trainingContext = null,
       userLocalDate = null,
+      userId = null,
       maxTokens = 1024
     } = req.body;
 
@@ -201,19 +226,66 @@ ${COACHING_KNOWLEDGE}`;
     // Call Claude API
     const model = 'claude-sonnet-4-5-20250929';
 
-    const response = await claude.messages.create({
+    let response = await claude.messages.create({
       model: model,
       max_tokens: Math.min(maxTokens, 4096),
       temperature: 0.7,
       system: systemPrompt,
       messages: messages,
-      tools: WORKOUT_TOOLS
+      tools: ALL_COACH_TOOLS
     });
 
-    // Extract text response and tool uses
-    const textContent = response.content.find(block => block.type === 'text');
-    const toolUses = response.content.filter(block => block.type === 'tool_use');
+    // Check if we need to handle fitness history tool calls
+    let toolUses = response.content.filter(block => block.type === 'tool_use');
+    const fitnessHistoryUses = toolUses.filter(tool => tool.name === 'query_fitness_history');
 
+    // If fitness history tools were called, execute them and continue conversation
+    if (fitnessHistoryUses.length > 0 && userId) {
+      const toolResults = [];
+
+      for (const tool of fitnessHistoryUses) {
+        try {
+          const result = await handleFitnessHistoryQuery(userId, tool.input);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: tool.id,
+            content: JSON.stringify(result)
+          });
+        } catch (error) {
+          console.error('Fitness history tool error:', error);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: tool.id,
+            content: JSON.stringify({
+              success: false,
+              error: 'Failed to retrieve fitness history'
+            })
+          });
+        }
+      }
+
+      // Continue conversation with tool results
+      const continueMessages = [
+        ...messages,
+        { role: 'assistant', content: response.content },
+        { role: 'user', content: toolResults }
+      ];
+
+      response = await claude.messages.create({
+        model: model,
+        max_tokens: Math.min(maxTokens, 4096),
+        temperature: 0.7,
+        system: systemPrompt,
+        messages: continueMessages,
+        tools: ALL_COACH_TOOLS
+      });
+
+      // Update tool uses from the continued response
+      toolUses = response.content.filter(block => block.type === 'tool_use');
+    }
+
+    // Extract text response
+    const textContent = response.content.find(block => block.type === 'text');
     const responseText = textContent?.text || '';
 
     // Extract workout recommendations from tool uses

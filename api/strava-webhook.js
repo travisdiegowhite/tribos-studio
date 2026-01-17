@@ -9,6 +9,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
+import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 
 // Initialize Supabase (server-side with service key for webhook processing)
 const supabase = createClient(
@@ -349,6 +350,15 @@ async function handleActivityCreate(eventId, webhookData, integration) {
       distance: savedActivity.distance ? `${(savedActivity.distance / 1000).toFixed(2)} km` : 'N/A',
       hasGPS: !!savedActivity.map_summary_polyline
     });
+
+    // Update fitness snapshot for the week of this activity
+    try {
+      await updateSnapshotForActivity(supabase, integration.user_id, savedActivity.start_date);
+      console.log('📊 Fitness snapshot updated for activity');
+    } catch (snapshotError) {
+      // Don't fail the webhook for snapshot errors
+      console.error('⚠️ Snapshot update failed (non-critical):', snapshotError.message);
+    }
 
     // Update webhook event
     await supabase

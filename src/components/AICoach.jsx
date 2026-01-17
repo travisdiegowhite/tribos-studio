@@ -222,6 +222,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           message: userMessage,
           conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
           trainingContext: trainingContext,
+          userId: user?.id,
           maxTokens: 2048
         })
       });
