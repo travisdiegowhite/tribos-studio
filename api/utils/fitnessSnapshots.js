@@ -177,6 +177,7 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
   historyStart.setDate(historyStart.getDate() - 90);
 
   // Fetch activities for the analysis period
+  // Use .or() to include both is_hidden=false AND is_hidden=null (default)
   const { data: activities, error } = await supabase
     .from('activities')
     .select(`
@@ -186,7 +187,7 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
       tss, normalized_power, is_hidden
     `)
     .eq('user_id', userId)
-    .eq('is_hidden', false)
+    .or('is_hidden.eq.false,is_hidden.is.null')
     .gte('start_date', historyStart.toISOString())
     .lt('start_date', weekEnd.toISOString())
     .order('start_date', { ascending: true });
@@ -277,11 +278,12 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
  */
 export async function backfillSnapshots(supabase, userId, weeksBack = 52) {
   // Get oldest activity date to know how far back we can go
+  // Use .or() to include both is_hidden=false AND is_hidden=null (default)
   const { data: oldestActivity } = await supabase
     .from('activities')
     .select('start_date')
     .eq('user_id', userId)
-    .eq('is_hidden', false)
+    .or('is_hidden.eq.false,is_hidden.is.null')
     .order('start_date', { ascending: true })
     .limit(1)
     .single();
