@@ -421,7 +421,7 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
               activityId: w.activity_id,
               actualTSS: w.actual_tss,
               actualDuration: w.actual_duration,
-              workout: w.workout_id ? getWorkoutById(w.workout_id) : undefined,
+              workout: w.workout_id ? (getWorkoutById(w.workout_id) ?? undefined) : undefined,
             };
           }
 
@@ -469,7 +469,7 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
               activityId: w.activity_id,
               actualTSS: w.actual_tss,
               actualDuration: w.actual_duration,
-              workout: w.workout_id ? getWorkoutById(w.workout_id) : undefined,
+              workout: w.workout_id ? (getWorkoutById(w.workout_id) ?? undefined) : undefined,
             };
           }
 

@@ -185,14 +185,15 @@ export interface WorkoutSegment {
 export interface WorkoutInterval {
   type: 'repeat';
   sets: number;
-  work: WorkoutSegment | WorkoutSegment[] | WorkoutInterval;
+  work: WorkoutSegment | (WorkoutSegment | WorkoutInterval)[] | WorkoutInterval;
   rest: WorkoutSegment | { duration: number; zone: null };
 }
 
 export interface WorkoutWarmupCooldown {
   duration: number;
-  zone: TrainingZone;
-  powerPctFTP: number;
+  zone: TrainingZone | null;
+  powerPctFTP?: number;
+  description?: string;
 }
 
 export interface WorkoutStructure {
@@ -414,6 +415,14 @@ export interface WorkoutDefinition {
   terrainType: TerrainType;
   structure: WorkoutStructure;
   coachNotes: string;
+  /** Whether this workout can be exported to bike computers */
+  exportable?: boolean;
+  /** Supported export formats */
+  exportFormats?: WorkoutExportFormat[];
+  /** Detailed cycling intervals for export */
+  cyclingStructure?: CyclingWorkoutStructure;
+  /** Detailed exercises for strength/core/flexibility workouts */
+  exercises?: OffBikeWorkoutStructure;
 }
 
 export type WorkoutLibrary = Record<string, WorkoutDefinition>;
