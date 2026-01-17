@@ -2080,15 +2080,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
   if (activities.length > 0) {
     const lastRide = activities[0];
     context.push(`Last ride: ${lastRide.name} - ${formatDist(lastRide.distance / 1000)}`);
-
-    // Add activity history info so AI knows historical data is available
-    const dates = activities.map(a => a.start_date).filter(Boolean).sort();
-    if (dates.length > 0) {
-      const oldestDate = new Date(dates[0]);
-      const yearsOfData = Math.floor((new Date() - oldestDate) / (365 * 24 * 60 * 60 * 1000));
-      context.push(`Activity History: ${activities.length} activities spanning ${yearsOfData > 0 ? yearsOfData + '+ years' : 'recent months'} (oldest: ${oldestDate.toLocaleDateString()})`);
-      context.push(`NOTE: Use the query_fitness_history tool to analyze historical trends and year-over-year comparisons.`);
-    }
+    context.push(`Activity history available for analysis (use query_fitness_history tool for historical comparisons)`);
   }
 
   // Add upcoming race goals context
