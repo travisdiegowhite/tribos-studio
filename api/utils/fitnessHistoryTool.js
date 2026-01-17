@@ -9,6 +9,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { backfillSnapshots } from './fitnessSnapshots.js';
 
 /**
  * Handle fitness history query from AI coach
@@ -35,7 +36,7 @@ export async function handleFitnessHistoryQuery(userId, params) {
     const weeksAgo = new Date();
     weeksAgo.setDate(weeksAgo.getDate() - (Math.min(weeks_back, 104) * 7));
 
-    const { data: snapshots, error } = await supabase
+    let { data: snapshots, error } = await supabase
       .from('fitness_snapshots')
       .select('*')
       .eq('user_id', userId)
@@ -44,12 +45,34 @@ export async function handleFitnessHistoryQuery(userId, params) {
 
     if (error) throw error;
 
+    // Auto-backfill if no snapshots exist
     if (!snapshots || snapshots.length === 0) {
-      return {
-        success: false,
-        message: 'No fitness history available. The athlete may be new or snapshots have not been generated yet. Recommend running a backfill.',
-        suggestion: 'Ask the athlete if they would like to generate their fitness history.'
-      };
+      console.log(`No fitness snapshots found for user ${userId}, triggering auto-backfill...`);
+
+      const backfillResult = await backfillSnapshots(supabase, userId, 104); // Up to 2 years
+
+      if (backfillResult.snapshotsCreated > 0) {
+        console.log(`Auto-backfill complete: ${backfillResult.snapshotsCreated} snapshots created`);
+
+        // Re-query after backfill
+        const refetch = await supabase
+          .from('fitness_snapshots')
+          .select('*')
+          .eq('user_id', userId)
+          .gte('snapshot_week', weeksAgo.toISOString().split('T')[0])
+          .order('snapshot_week', { ascending: false });
+
+        snapshots = refetch.data;
+      }
+
+      // If still no data after backfill, user has no activities
+      if (!snapshots || snapshots.length === 0) {
+        return {
+          success: false,
+          message: 'No activity history found. The athlete needs to sync their activities from Strava or another provider first.',
+          suggestion: 'Connect Strava or import activities to build fitness history.'
+        };
+      }
     }
 
     switch (query_type) {
