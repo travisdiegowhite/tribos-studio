@@ -1300,6 +1300,16 @@ function Settings() {
                 Manage your activity library and sync full history
               </Text>
 
+              {stravaStatus.connected && (
+                <Alert color="blue" variant="light" icon={<IconInfoCircle size={18} />}>
+                  <Text size="sm">
+                    <strong>Important:</strong> The regular "Sync Activities" button only imports recent activities (~2000 max).
+                    To import your complete Strava history for AI coach analysis and year-over-year comparisons,
+                    use the "Sync Full History" button below.
+                  </Text>
+                </Alert>
+              )}
+
               <Divider />
 
               {/* Full History Sync */}
@@ -1700,7 +1710,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 </Stack>
               ) : (
                 <Text size="xs" style={{ color: tokens.colors.textMuted }}>
-                  {onCheckWebhook ? 'Sync last 90 days of activities' : 'Sync to calculate your speed profile'}
+                  {onCheckWebhook ? 'Sync last 90 days of activities' : 'Sync recent activities (for full history, see Activity Maintenance below)'}
                 </Text>
               )}
             </Box>
