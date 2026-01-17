@@ -317,14 +317,20 @@ function Settings() {
     }
   };
 
-  // Full history sync from Strava (all pages)
+  // Full history sync from Strava (all pages, chunked to avoid timeout)
   const syncFullStravaHistory = async () => {
     setFullHistorySyncing(true);
+    let totalFetched = 0;
+    let totalStored = 0;
+    let totalPages = 0;
+    let startPage = 1;
+    let reachedEnd = false;
+
     try {
       notifications.show({
         id: 'strava-full-sync',
         title: 'Full History Sync',
-        message: 'Fetching your complete Strava history... This may take a minute.',
+        message: 'Starting sync of your complete Strava history...',
         loading: true,
         autoClose: false
       });
@@ -335,24 +341,61 @@ function Settings() {
         headers.Authorization = `Bearer ${session.data.session.access_token}`;
       }
 
-      const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...headers
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          action: 'sync_all_activities',
-          userId: user.id,
-          maxPages: 50
-        })
-      });
+      // Process in chunks until we reach the end
+      while (!reachedEnd) {
+        notifications.update({
+          id: 'strava-full-sync',
+          title: 'Full History Sync',
+          message: `Syncing pages ${startPage}-${startPage + 4}... (${totalFetched} activities so far)`,
+          loading: true,
+          autoClose: false
+        });
 
-      const result = await response.json();
+        const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            action: 'sync_all_activities',
+            userId: user.id,
+            startPage,
+            pagesPerChunk: 5
+          })
+        });
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Sync failed');
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Sync failed');
+        }
+
+        totalFetched += result.totalFetched;
+        totalStored += result.totalStored;
+        totalPages += result.pagesProcessed;
+        reachedEnd = result.reachedEnd;
+
+        if (!reachedEnd && result.nextPage) {
+          startPage = result.nextPage;
+          // Small delay between chunks
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // Handle rate limiting
+        if (result.rateLimited) {
+          notifications.update({
+            id: 'strava-full-sync',
+            title: 'Rate Limited',
+            message: `Synced ${totalFetched} activities. Strava rate limit reached - try again in a few minutes.`,
+            color: 'yellow',
+            loading: false,
+            autoClose: 8000
+          });
+          setFullHistorySyncing(false);
+          return;
+        }
       }
 
       // Reload speed profile
@@ -362,7 +405,7 @@ function Settings() {
       notifications.update({
         id: 'strava-full-sync',
         title: 'Full Sync Complete!',
-        message: `Imported ${result.totalFetched} activities (${result.totalStored} new/updated). ${result.pagesProcessed} pages processed.`,
+        message: `Imported ${totalFetched} activities (${totalStored} new/updated). ${totalPages} pages processed.`,
         color: 'lime',
         loading: false,
         autoClose: 8000

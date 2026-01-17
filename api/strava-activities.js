@@ -225,22 +225,24 @@ async function syncActivities(req, res, userId, page, perPage) {
 
 /**
  * Sync ALL activities from Strava (full history)
- * Pages through all activities until no more are returned
+ * Processes in chunks to avoid timeout - frontend should call repeatedly until reachedEnd is true
  */
 async function syncAllActivities(req, res, userId) {
-  const { maxPages = 50 } = req.body; // Safety limit, ~5000 activities
+  // Process 5 pages per call (~500 activities) to stay within timeout
+  const { startPage = 1, pagesPerChunk = 5 } = req.body;
 
   try {
     const accessToken = await getValidAccessToken(userId);
 
-    let page = 1;
+    let page = startPage;
     let totalFetched = 0;
     let totalStored = 0;
     let hasMore = true;
+    const endPage = startPage + pagesPerChunk - 1;
 
-    console.log(`📥 Starting full Strava history sync for user ${userId}...`);
+    console.log(`📥 Strava history sync for user ${userId} (pages ${startPage}-${endPage})...`);
 
-    while (hasMore && page <= maxPages) {
+    while (hasMore && page <= endPage) {
       const url = `${STRAVA_API_BASE}/athlete/activities?page=${page}&per_page=100`;
       console.log(`📄 Fetching page ${page}...`);
 
@@ -257,7 +259,15 @@ async function syncAllActivities(req, res, userId) {
         // Check for rate limiting
         if (response.status === 429) {
           console.log('⏳ Rate limited, returning partial results');
-          break;
+          return res.status(200).json({
+            success: true,
+            totalFetched,
+            totalStored,
+            pagesProcessed: page - startPage,
+            nextPage: page,
+            reachedEnd: false,
+            rateLimited: true
+          });
         }
 
         throw new Error(`Strava API error: ${response.status}`);
@@ -287,22 +297,27 @@ async function syncAllActivities(req, res, userId) {
       page++;
 
       // Small delay to be nice to Strava API
-      if (hasMore) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+      if (hasMore && page <= endPage) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
 
-    // Recalculate speed profile after full sync
-    await calculateAndStoreSpeedProfile(userId);
-
-    console.log(`✅ Full sync complete: ${totalFetched} fetched, ${totalStored} stored/merged`);
+    // Only recalculate speed profile when we've finished all pages
+    const reachedEnd = !hasMore;
+    if (reachedEnd) {
+      await calculateAndStoreSpeedProfile(userId);
+      console.log(`✅ Full sync complete: ${totalFetched} fetched, ${totalStored} stored/merged`);
+    } else {
+      console.log(`📄 Chunk complete: ${totalFetched} fetched, ${totalStored} stored, more pages available`);
+    }
 
     return res.status(200).json({
       success: true,
       totalFetched,
       totalStored,
-      pagesProcessed: page - 1,
-      reachedEnd: !hasMore
+      pagesProcessed: page - startPage,
+      nextPage: hasMore ? page : null,
+      reachedEnd
     });
 
   } catch (error) {
