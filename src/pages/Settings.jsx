@@ -39,6 +39,14 @@ import updatesData from '../data/updates.json';
 import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 
+// Get the API base URL based on environment
+const getApiBaseUrl = () => {
+  if (import.meta.env.PROD) {
+    return ''; // Use relative URLs in production
+  }
+  return 'http://localhost:3000';
+};
+
 function Settings() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -58,6 +66,12 @@ function Settings() {
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showStravaDisconnectModal, setShowStravaDisconnectModal] = useState(false);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+
+  // Activity maintenance state
+  const [fullHistorySyncing, setFullHistorySyncing] = useState(false);
+  const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
+  const [duplicatePreview, setDuplicatePreview] = useState(null);
+  const [findingDuplicates, setFindingDuplicates] = useState(false);
 
   // Form state
   const [displayName, setDisplayName] = useState('');
@@ -300,6 +314,176 @@ function Settings() {
       });
     } finally {
       setStravaSyncing(false);
+    }
+  };
+
+  // Full history sync from Strava (all pages)
+  const syncFullStravaHistory = async () => {
+    setFullHistorySyncing(true);
+    try {
+      notifications.show({
+        id: 'strava-full-sync',
+        title: 'Full History Sync',
+        message: 'Fetching your complete Strava history... This may take a minute.',
+        loading: true,
+        autoClose: false
+      });
+
+      const headers = {};
+      const session = await supabase.auth.getSession();
+      if (session?.data?.session?.access_token) {
+        headers.Authorization = `Bearer ${session.data.session.access_token}`;
+      }
+
+      const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'sync_all_activities',
+          userId: user.id,
+          maxPages: 50
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Sync failed');
+      }
+
+      // Reload speed profile
+      const profile = await stravaService.getSpeedProfile();
+      setSpeedProfile(profile);
+
+      notifications.update({
+        id: 'strava-full-sync',
+        title: 'Full Sync Complete!',
+        message: `Imported ${result.totalFetched} activities (${result.totalStored} new/updated). ${result.pagesProcessed} pages processed.`,
+        color: 'lime',
+        loading: false,
+        autoClose: 8000
+      });
+    } catch (error) {
+      console.error('Full sync error:', error);
+      notifications.update({
+        id: 'strava-full-sync',
+        title: 'Sync Failed',
+        message: error.message || 'Failed to sync full history',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    } finally {
+      setFullHistorySyncing(false);
+    }
+  };
+
+  // Find duplicate activities
+  const findDuplicateActivities = async () => {
+    setFindingDuplicates(true);
+    try {
+      const headers = {};
+      const session = await supabase.auth.getSession();
+      if (session?.data?.session?.access_token) {
+        headers.Authorization = `Bearer ${session.data.session.access_token}`;
+      }
+
+      const response = await fetch(`${getApiBaseUrl()}/api/activity-cleanup?action=find-duplicates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        credentials: 'include'
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to find duplicates');
+      }
+
+      setDuplicatePreview(result);
+
+      if (result.duplicateGroups === 0) {
+        notifications.show({
+          title: 'No Duplicates Found',
+          message: 'Your activity library is clean!',
+          color: 'lime'
+        });
+      }
+    } catch (error) {
+      console.error('Find duplicates error:', error);
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'Failed to scan for duplicates',
+        color: 'red'
+      });
+    } finally {
+      setFindingDuplicates(false);
+    }
+  };
+
+  // Clean up duplicate activities
+  const cleanupDuplicateActivities = async () => {
+    setCleaningDuplicates(true);
+    try {
+      notifications.show({
+        id: 'cleanup-duplicates',
+        title: 'Cleaning Up Duplicates',
+        message: 'Merging data and removing duplicates...',
+        loading: true,
+        autoClose: false
+      });
+
+      const headers = {};
+      const session = await supabase.auth.getSession();
+      if (session?.data?.session?.access_token) {
+        headers.Authorization = `Bearer ${session.data.session.access_token}`;
+      }
+
+      const response = await fetch(`${getApiBaseUrl()}/api/activity-cleanup?action=auto-cleanup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        credentials: 'include',
+        body: JSON.stringify({ dryRun: false })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Cleanup failed');
+      }
+
+      setDuplicatePreview(null);
+
+      notifications.update({
+        id: 'cleanup-duplicates',
+        title: 'Cleanup Complete!',
+        message: `Merged ${result.groupsMerged} duplicate groups. Removed ${result.activitiesDeleted} duplicate activities.`,
+        color: 'lime',
+        loading: false,
+        autoClose: 8000
+      });
+    } catch (error) {
+      console.error('Cleanup error:', error);
+      notifications.update({
+        id: 'cleanup-duplicates',
+        title: 'Cleanup Failed',
+        message: error.message || 'Failed to clean up duplicates',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    } finally {
+      setCleaningDuplicates(false);
     }
   };
 
@@ -1060,6 +1244,117 @@ function Settings() {
                 onDisconnect={disconnectWahoo}
                 unitsPreference={unitsPreference}
               />
+            </Stack>
+          </Card>
+
+          {/* Activity Maintenance */}
+          <Card>
+            <Stack gap="md">
+              <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                Activity Maintenance
+              </Title>
+              <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                Manage your activity library and sync full history
+              </Text>
+
+              <Divider />
+
+              {/* Full History Sync */}
+              {stravaStatus.connected && (
+                <Box
+                  style={{
+                    backgroundColor: tokens.colors.bgTertiary,
+                    padding: tokens.spacing.md,
+                    borderRadius: tokens.radius.sm
+                  }}
+                >
+                  <Group justify="space-between" align="flex-start">
+                    <Box>
+                      <Group gap="xs" mb={4}>
+                        <Text size="xl">📚</Text>
+                        <Text fw={500} style={{ color: tokens.colors.textPrimary }}>
+                          Full Strava History Sync
+                        </Text>
+                      </Group>
+                      <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                        Import your complete Strava history (all years). This fetches all pages of activities and may take a minute.
+                      </Text>
+                    </Box>
+                    <Button
+                      size="sm"
+                      color="lime"
+                      variant="light"
+                      onClick={syncFullStravaHistory}
+                      loading={fullHistorySyncing}
+                      disabled={fullHistorySyncing}
+                    >
+                      {fullHistorySyncing ? 'Syncing...' : 'Sync Full History'}
+                    </Button>
+                  </Group>
+                </Box>
+              )}
+
+              {/* Duplicate Cleanup */}
+              <Box
+                style={{
+                  backgroundColor: tokens.colors.bgTertiary,
+                  padding: tokens.spacing.md,
+                  borderRadius: tokens.radius.sm
+                }}
+              >
+                <Stack gap="sm">
+                  <Group justify="space-between" align="flex-start">
+                    <Box>
+                      <Group gap="xs" mb={4}>
+                        <Text size="xl">🔍</Text>
+                        <Text fw={500} style={{ color: tokens.colors.textPrimary }}>
+                          Duplicate Activity Cleanup
+                        </Text>
+                      </Group>
+                      <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                        Find and merge duplicate activities (e.g., same ride from Garmin and Strava). Keeps the best data from each.
+                      </Text>
+                    </Box>
+                    <Group gap="xs">
+                      <Button
+                        size="sm"
+                        color="blue"
+                        variant="light"
+                        onClick={findDuplicateActivities}
+                        loading={findingDuplicates}
+                        disabled={findingDuplicates || cleaningDuplicates}
+                      >
+                        {findingDuplicates ? 'Scanning...' : 'Scan for Duplicates'}
+                      </Button>
+                    </Group>
+                  </Group>
+
+                  {/* Duplicate Preview */}
+                  {duplicatePreview && duplicatePreview.duplicateGroups > 0 && (
+                    <Alert color="yellow" variant="light" mt="sm">
+                      <Stack gap="xs">
+                        <Text size="sm" fw={500}>
+                          Found {duplicatePreview.duplicateGroups} duplicate groups ({duplicatePreview.totalDuplicates} extra activities)
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {duplicatePreview.totalActivities} total activities in your library
+                        </Text>
+                        <Button
+                          size="sm"
+                          color="red"
+                          variant="light"
+                          onClick={cleanupDuplicateActivities}
+                          loading={cleaningDuplicates}
+                          disabled={cleaningDuplicates}
+                          mt="xs"
+                        >
+                          {cleaningDuplicates ? 'Cleaning...' : 'Clean Up Duplicates'}
+                        </Button>
+                      </Stack>
+                    </Alert>
+                  )}
+                </Stack>
+              </Box>
             </Stack>
           </Card>
 
