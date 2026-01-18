@@ -161,7 +161,7 @@ export function useDiscussions({
         .from('cafe_discussions')
         .select(`
           *,
-          author:user_profiles!author_id(display_name, community_display_name)
+          author:user_profiles!cafe_discussions_author_id_profile_fkey(display_name, community_display_name)
         `)
         .eq('cafe_id', cafeId)
         .order('is_pinned', { ascending: false })
@@ -197,7 +197,7 @@ export function useDiscussions({
         .from('cafe_discussions')
         .select(`
           *,
-          author:user_profiles!author_id(display_name, community_display_name)
+          author:user_profiles!cafe_discussions_author_id_profile_fkey(display_name, community_display_name)
         `)
         .eq('id', discussionId)
         .single();
@@ -235,7 +235,7 @@ export function useDiscussions({
         })
         .select(`
           *,
-          author:user_profiles!author_id(display_name, community_display_name)
+          author:user_profiles!cafe_discussions_author_id_profile_fkey(display_name, community_display_name)
         `)
         .single();
 
@@ -332,7 +332,7 @@ export function useDiscussions({
         .from('cafe_discussion_replies')
         .select(`
           *,
-          author:user_profiles!author_id(display_name, community_display_name)
+          author:user_profiles!cafe_discussion_replies_author_id_profile_fkey(display_name, community_display_name)
         `)
         .eq('discussion_id', discussionId)
         .order('created_at', { ascending: true });
@@ -390,7 +390,7 @@ export function useDiscussions({
         })
         .select(`
           *,
-          author:user_profiles!author_id(display_name, community_display_name)
+          author:user_profiles!cafe_discussion_replies_author_id_profile_fkey(display_name, community_display_name)
         `)
         .single();
 

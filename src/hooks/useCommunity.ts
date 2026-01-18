@@ -188,7 +188,7 @@ export function useCommunity({
         .from('cafe_check_ins')
         .select(`
           *,
-          user_profile:user_profiles(display_name, community_display_name)
+          user_profile:user_profiles!cafe_check_ins_user_id_profile_fkey(display_name, community_display_name)
         `)
         .eq('cafe_id', cafeId)
         .gte('week_start', startDate.toISOString().split('T')[0])
