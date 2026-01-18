@@ -58,6 +58,7 @@ import {
   IconDeviceWatch,
   IconBrandStrava,
   IconFileImport,
+  IconCalendarStats,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -87,6 +88,7 @@ import CriticalPowerModel from '../components/CriticalPowerModel.jsx';
 import TrainNow from '../components/TrainNow.jsx';
 import AerobicDecoupling from '../components/AerobicDecoupling.jsx';
 import AthleteBenchmarking from '../components/AthleteBenchmarking.jsx';
+import HistoricalInsights from '../components/HistoricalInsights.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
@@ -106,7 +108,7 @@ function TrainingDashboard() {
   // Read tab from URL query parameter, default to 'today'
   // Note: 'plans' tab moved to /planner page
   const urlTab = searchParams.get('tab');
-  const validTabs = ['today', 'trends', 'power', 'routes', 'history', 'calendar'];
+  const validTabs = ['today', 'trends', 'power', 'routes', 'history', 'insights', 'calendar'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
   const [activeTab, setActiveTab] = useState(initialTab);
   const aiCoachRef = useRef(null);
@@ -801,6 +803,12 @@ function TrainingDashboard() {
                   {!isMobile && 'History'}
                 </Tabs.Tab>
                 <Tabs.Tab
+                  value="insights"
+                  leftSection={<IconCalendarStats size={isMobile ? 20 : 18} />}
+                >
+                  {!isMobile && 'Insights'}
+                </Tabs.Tab>
+                <Tabs.Tab
                   value="calendar"
                   leftSection={<IconCalendar size={isMobile ? 20 : 18} />}
                 >
@@ -969,6 +977,11 @@ function TrainingDashboard() {
                   onViewRide={handleViewRide}
                   onHideRide={handleHideRide}
                 />
+              </Tabs.Panel>
+
+              {/* HISTORICAL INSIGHTS TAB */}
+              <Tabs.Panel value="insights">
+                <HistoricalInsights userId={user?.id} activities={visibleActivities} />
               </Tabs.Panel>
 
               {/* CALENDAR TAB */}
