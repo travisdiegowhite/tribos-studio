@@ -37,6 +37,8 @@ import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
 import { stravaService } from '../utils/stravaService';
 import { notifications } from '@mantine/notifications';
+import { useCommunity } from '../hooks/useCommunity';
+import { PodSummaryWidget, WeeklyCheckInWidget } from '../components/community';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -49,6 +51,18 @@ function Dashboard() {
   const [todayWorkout, setTodayWorkout] = useState(null);
   const [weekStats, setWeekStats] = useState({ rides: 0, planned: 0, distance: 0, elevation: 0 });
   const [syncing, setSyncing] = useState(false);
+  const [checkInDismissed, setCheckInDismissed] = useState(false);
+
+  // Community hook
+  const {
+    activePod,
+    checkIns,
+    loading: communityLoading,
+    hasCheckedInThisWeek,
+    podCheckInCount,
+    createCheckIn,
+    shouldPromptCheckIn,
+  } = useCommunity({ userId: user?.id });
 
   // Check if onboarding is needed and load user profile
   useEffect(() => {
@@ -209,6 +223,24 @@ function Dashboard() {
     }
   };
 
+  // Handle check-in submission
+  const handleCheckInSubmit = async (data) => {
+    if (!activePod) return;
+    const success = await createCheckIn(activePod.pod_id, data);
+    if (success) {
+      notifications.show({
+        title: 'Check-in shared',
+        message: 'Your pod can now see your update',
+        color: 'lime',
+      });
+    }
+  };
+
+  // Navigate to find pod
+  const handleFindPod = () => {
+    window.location.href = '/community';
+  };
+
   return (
     <AppShell>
       <OnboardingModal
@@ -298,8 +330,47 @@ function Dashboard() {
                 </Group>
                 <FitnessMetrics activities={activities} loading={loading} />
               </Card>
+
+              {/* Pod Summary Widget */}
+              <PodSummaryWidget
+                pod={activePod?.pod}
+                memberCount={activePod?.pod?.member_count || 0}
+                checkInCount={podCheckInCount}
+                totalMembers={activePod?.pod?.member_count || 0}
+                loading={communityLoading}
+                onFindPod={handleFindPod}
+              />
             </Stack>
           </SimpleGrid>
+
+          {/* Weekly Check-In Widget - Show prominently if should prompt */}
+          {activePod && shouldPromptCheckIn() && !checkInDismissed && (
+            <WeeklyCheckInWidget
+              podName={activePod.pod?.name}
+              hasCheckedIn={hasCheckedInThisWeek}
+              weekStats={{
+                rides: weekStats.rides,
+                hours: activities.reduce((sum, a) => {
+                  const weekAgo = new Date();
+                  weekAgo.setDate(weekAgo.getDate() - 7);
+                  if (new Date(a.start_date) >= weekAgo) {
+                    return sum + ((a.duration_seconds || a.moving_time || 0) / 3600);
+                  }
+                  return sum;
+                }, 0),
+                tss: activities.reduce((sum, a) => {
+                  const weekAgo = new Date();
+                  weekAgo.setDate(weekAgo.getDate() - 7);
+                  if (new Date(a.start_date) >= weekAgo) {
+                    return sum + (a.tss || 0);
+                  }
+                  return sum;
+                }, 0),
+              }}
+              onSubmit={handleCheckInSubmit}
+              onDismiss={() => setCheckInDismissed(true)}
+            />
+          )}
 
           {/* Quick Actions */}
           <Card p="sm">

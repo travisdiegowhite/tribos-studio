@@ -22,11 +22,12 @@ import {
   IconCalendarEvent,
   IconChartBar,
   IconChevronDown,
+  IconUsers,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
 
-// Simplified nav structure - 4 main items
+// Nav structure - 5 main items including Community
 const navItems = [
   { path: '/dashboard', label: 'Home', icon: IconHome },
   {
@@ -45,6 +46,7 @@ const navItems = [
       { path: '/training', label: 'Analysis', icon: IconChartBar },
     ],
   },
+  { path: '/community', label: 'Community', icon: IconUsers },
   { path: '/settings', label: 'Settings', icon: IconSettings },
 ];
 
