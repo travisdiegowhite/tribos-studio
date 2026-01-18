@@ -183,8 +183,7 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
     .select(`
       id, start_date, moving_time, elapsed_time,
       distance, total_elevation_gain, average_watts,
-      kilojoules, average_heartrate, trainer,
-      normalized_power, is_hidden
+      kilojoules, average_heartrate, trainer, is_hidden
     `)
     .eq('user_id', userId)
     .or('is_hidden.eq.false,is_hidden.is.null')
