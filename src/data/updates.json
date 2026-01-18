@@ -51,6 +51,18 @@
   ],
   "updates": [
     {
+      "id": "the-cafe",
+      "date": "2025-01",
+      "type": "new",
+      "title": "The Cafe - Community & Accountability",
+      "description": "Find your people. Join small groups of 5-10 cyclists with similar goals for weekly check-ins, discussions, and accountability. Like meeting up at your favorite cafe stop, but online.",
+      "details": [
+        "Weekly check-ins to share reflections, not ride spam",
+        "Discussion threads for training questions and advice",
+        "Goal-matched groups so you train with like-minded riders"
+      ]
+    },
+    {
       "id": "iterative-routing",
       "date": "2025-01",
       "type": "improvement",
