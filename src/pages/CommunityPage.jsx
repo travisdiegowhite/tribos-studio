@@ -1,6 +1,7 @@
 /**
  * CommunityPage
- * Full community experience - pod view, check-ins, pod discovery
+ * Full community experience - The Cafe view, check-ins, cafe discovery
+ * "The Cafe" - named after cycling's tradition of cafe stops where riders gather
  */
 
 import { useState, useEffect } from 'react';
@@ -32,7 +33,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
-  IconUsers,
+  IconCoffee,
   IconPlus,
   IconCheck,
   IconSearch,
@@ -81,32 +82,32 @@ const MOOD_DISPLAY = {
 function CommunityPage() {
   const { user } = useAuth();
   const {
-    pods,
-    activePod,
+    cafes,
+    activeCafe,
     checkIns,
     loading,
     error,
     currentWeekStart,
     hasCheckedInThisWeek,
-    podCheckInCount,
-    loadPods,
+    cafeCheckInCount,
+    loadCafes,
     loadCheckIns,
     createCheckIn,
-    joinPod,
-    leavePod,
-    createPod,
-    findMatchingPods,
+    joinCafe,
+    leaveCafe,
+    createCafe,
+    findMatchingCafes,
     addEncouragement,
   } = useCommunity({ userId: user?.id });
 
-  const [activeTab, setActiveTab] = useState('pod');
-  const [matchingPods, setMatchingPods] = useState([]);
+  const [activeTab, setActiveTab] = useState('cafe');
+  const [matchingCafes, setMatchingCafes] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [createModalOpened, { open: openCreateModal, close: closeCreateModal }] = useDisclosure(false);
   const [findModalOpened, { open: openFindModal, close: closeFindModal }] = useDisclosure(false);
 
-  // New pod form state
-  const [newPod, setNewPod] = useState({
+  // New cafe form state
+  const [newCafe, setNewCafe] = useState({
     name: '',
     description: '',
     goal_type: 'general_fitness',
@@ -118,12 +119,12 @@ function CommunityPage() {
   const [searchGoal, setSearchGoal] = useState(null);
   const [searchLevel, setSearchLevel] = useState(null);
 
-  // Search for matching pods
+  // Search for matching cafes
   const handleSearch = async () => {
     setSearchLoading(true);
     try {
-      const results = await findMatchingPods(searchGoal, searchLevel);
-      setMatchingPods(results);
+      const results = await findMatchingCafes(searchGoal, searchLevel);
+      setMatchingCafes(results);
     } finally {
       setSearchLoading(false);
     }
@@ -135,26 +136,26 @@ function CommunityPage() {
     await handleSearch();
   };
 
-  // Create new pod
-  const handleCreatePod = async () => {
-    if (!newPod.name.trim()) {
+  // Create new cafe
+  const handleCreateCafe = async () => {
+    if (!newCafe.name.trim()) {
       notifications.show({
         title: 'Name required',
-        message: 'Please enter a name for your pod',
+        message: 'Please enter a name for your cafe',
         color: 'red',
       });
       return;
     }
 
-    const result = await createPod(newPod);
+    const result = await createCafe(newCafe);
     if (result) {
       notifications.show({
-        title: 'Pod created',
+        title: 'Cafe created',
         message: `${result.name} has been created. You're now the admin.`,
         color: 'green',
       });
       closeCreateModal();
-      setNewPod({
+      setNewCafe({
         name: '',
         description: '',
         goal_type: 'general_fitness',
@@ -164,13 +165,13 @@ function CommunityPage() {
     }
   };
 
-  // Join a pod
-  const handleJoinPod = async (podId, podName) => {
-    const success = await joinPod(podId);
+  // Join a cafe
+  const handleJoinCafe = async (cafeId, cafeName) => {
+    const success = await joinCafe(cafeId);
     if (success) {
       notifications.show({
-        title: 'Joined pod',
-        message: `You've joined ${podName}`,
+        title: 'Joined cafe',
+        message: `You've joined ${cafeName}`,
         color: 'green',
       });
       closeFindModal();
@@ -179,13 +180,13 @@ function CommunityPage() {
 
   // Submit check-in
   const handleCheckIn = async (data) => {
-    if (!activePod) return;
+    if (!activeCafe) return;
 
-    const success = await createCheckIn(activePod.pod_id, data);
+    const success = await createCheckIn(activeCafe.cafe_id, data);
     if (success) {
       notifications.show({
         title: 'Check-in shared',
-        message: 'Your pod can now see your update',
+        message: 'Your cafe can now see your update',
         color: 'green',
       });
     }
@@ -203,14 +204,14 @@ function CommunityPage() {
     tss: 180,
   };
 
-  const pod = activePod?.pod;
+  const cafe = activeCafe?.cafe;
 
   return (
     <AppShell>
       <Container size="lg" py="xl">
         <PageHeader
-          title="Community"
-          subtitle="Your accountability pod and training community"
+          title="The Cafe"
+          subtitle="Your cycling community and accountability group"
         />
 
         {loading ? (
@@ -218,16 +219,16 @@ function CommunityPage() {
             <Skeleton height={200} radius="md" />
             <Skeleton height={300} radius="md" />
           </Stack>
-        ) : !pod ? (
-          // No pod - show discovery/creation
-          <NoPodView
+        ) : !cafe ? (
+          // No cafe - show discovery/creation
+          <NoCafeView
             onFind={handleOpenFind}
             onCreate={openCreateModal}
           />
         ) : (
-          // Has pod - show pod view
+          // Has cafe - show cafe view
           <Stack gap="lg">
-            {/* Pod header */}
+            {/* Cafe header */}
             <Card
               padding="lg"
               radius="md"
@@ -239,25 +240,25 @@ function CommunityPage() {
               <Group justify="space-between" align="flex-start">
                 <Box>
                   <Group gap="sm" mb="xs">
-                    <IconUsers size={24} color={tokens.colors.electricLime} />
+                    <IconCoffee size={24} color={tokens.colors.electricLime} />
                     <Title order={3} style={{ color: tokens.colors.textPrimary }}>
-                      {pod.name}
+                      {cafe.name}
                     </Title>
                   </Group>
-                  {pod.description && (
+                  {cafe.description && (
                     <Text size="sm" c="dimmed" mb="sm">
-                      {pod.description}
+                      {cafe.description}
                     </Text>
                   )}
                   <Group gap="xs">
                     <Badge variant="light" color="gray">
-                      {GOAL_OPTIONS.find(g => g.value === pod.goal_type)?.label || pod.goal_type}
+                      {GOAL_OPTIONS.find(g => g.value === cafe.goal_type)?.label || cafe.goal_type}
                     </Badge>
                     <Badge variant="light" color="gray">
-                      {EXPERIENCE_OPTIONS.find(e => e.value === pod.experience_level)?.label || pod.experience_level}
+                      {EXPERIENCE_OPTIONS.find(e => e.value === cafe.experience_level)?.label || cafe.experience_level}
                     </Badge>
                     <Badge variant="light" color="gray">
-                      {pod.member_count} / {pod.max_members} members
+                      {cafe.member_count} / {cafe.max_members} members
                     </Badge>
                   </Group>
                 </Box>
@@ -275,32 +276,32 @@ function CommunityPage() {
             {/* Check-in prompt (if not checked in) */}
             {!hasCheckedInThisWeek && (
               <WeeklyCheckInWidget
-                podName={pod.name}
+                cafeName={cafe.name}
                 hasCheckedIn={hasCheckedInThisWeek}
                 weekStats={weekStats}
                 onSubmit={handleCheckIn}
               />
             )}
 
-            {/* Tabs for pod content */}
+            {/* Tabs for cafe content */}
             <Tabs value={activeTab} onChange={setActiveTab}>
               <Tabs.List>
-                <Tabs.Tab value="pod" leftSection={<IconMessageCircle size={16} />}>
+                <Tabs.Tab value="cafe" leftSection={<IconMessageCircle size={16} />}>
                   Check-Ins
                 </Tabs.Tab>
-                <Tabs.Tab value="members" leftSection={<IconUsers size={16} />}>
+                <Tabs.Tab value="members" leftSection={<IconCoffee size={16} />}>
                   Members
                 </Tabs.Tab>
               </Tabs.List>
 
-              <Tabs.Panel value="pod" pt="md">
+              <Tabs.Panel value="cafe" pt="md">
                 <Stack gap="md">
                   {/* This week's check-ins */}
                   <Box>
                     <Group justify="space-between" mb="sm">
                       <Text size="sm" fw={500}>This Week</Text>
                       <Text size="xs" c="dimmed">
-                        {podCheckInCount} of {pod.member_count} checked in
+                        {cafeCheckInCount} of {cafe.member_count} checked in
                       </Text>
                     </Group>
 
@@ -369,11 +370,11 @@ function CommunityPage() {
         )}
       </Container>
 
-      {/* Find Pod Modal */}
+      {/* Find Cafe Modal */}
       <Modal
         opened={findModalOpened}
         onClose={closeFindModal}
-        title="Find a Pod"
+        title="Find a Cafe"
         size="lg"
         styles={{
           header: {
@@ -390,7 +391,7 @@ function CommunityPage() {
       >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            Find a pod that matches your goals and experience level.
+            Find a cafe that matches your goals and experience level.
           </Text>
 
           <Group grow>
@@ -429,15 +430,15 @@ function CommunityPage() {
 
           <Divider />
 
-          {matchingPods.length === 0 ? (
+          {matchingCafes.length === 0 ? (
             <Text size="sm" c="dimmed" ta="center" py="md">
-              {searchLoading ? 'Searching...' : 'No matching pods found. Try different filters or create your own.'}
+              {searchLoading ? 'Searching...' : 'No matching cafes found. Try different filters or create your own.'}
             </Text>
           ) : (
             <Stack gap="sm">
-              {matchingPods.map(pod => (
+              {matchingCafes.map(cafe => (
                 <Card
-                  key={pod.pod_id}
+                  key={cafe.cafe_id}
                   padding="md"
                   radius="md"
                   style={{
@@ -446,24 +447,24 @@ function CommunityPage() {
                 >
                   <Group justify="space-between">
                     <Box>
-                      <Text fw={500}>{pod.pod_name}</Text>
-                      {pod.pod_description && (
+                      <Text fw={500}>{cafe.cafe_name}</Text>
+                      {cafe.cafe_description && (
                         <Text size="xs" c="dimmed" lineClamp={1}>
-                          {pod.pod_description}
+                          {cafe.cafe_description}
                         </Text>
                       )}
                       <Group gap="xs" mt="xs">
                         <Badge size="xs" variant="light">
-                          {GOAL_OPTIONS.find(g => g.value === pod.goal_type)?.label}
+                          {GOAL_OPTIONS.find(g => g.value === cafe.goal_type)?.label}
                         </Badge>
                         <Badge size="xs" variant="light">
-                          {pod.member_count} / {pod.max_members}
+                          {cafe.member_count} / {cafe.max_members}
                         </Badge>
                       </Group>
                     </Box>
                     <Button
                       size="xs"
-                      onClick={() => handleJoinPod(pod.pod_id, pod.pod_name)}
+                      onClick={() => handleJoinCafe(cafe.cafe_id, cafe.cafe_name)}
                       style={{
                         backgroundColor: tokens.colors.electricLime,
                         color: tokens.colors.bgPrimary,
@@ -487,16 +488,16 @@ function CommunityPage() {
             }}
             leftSection={<IconPlus size={16} />}
           >
-            Create Your Own Pod
+            Create Your Own Cafe
           </Button>
         </Stack>
       </Modal>
 
-      {/* Create Pod Modal */}
+      {/* Create Cafe Modal */}
       <Modal
         opened={createModalOpened}
         onClose={closeCreateModal}
-        title="Create a Pod"
+        title="Create a Cafe"
         styles={{
           header: {
             backgroundColor: tokens.colors.bgSecondary,
@@ -512,10 +513,10 @@ function CommunityPage() {
       >
         <Stack gap="md">
           <TextInput
-            label="Pod Name"
-            placeholder="e.g., 'Century Chasers' or 'Morning Riders'"
-            value={newPod.name}
-            onChange={(e) => setNewPod({ ...newPod, name: e.target.value })}
+            label="Cafe Name"
+            placeholder="e.g., 'Century Chasers' or 'Morning Espresso Riders'"
+            value={newCafe.name}
+            onChange={(e) => setNewCafe({ ...newCafe, name: e.target.value })}
             required
             styles={{
               input: { backgroundColor: tokens.colors.bgTertiary },
@@ -524,9 +525,9 @@ function CommunityPage() {
 
           <Textarea
             label="Description (optional)"
-            placeholder="What is this pod about?"
-            value={newPod.description}
-            onChange={(e) => setNewPod({ ...newPod, description: e.target.value })}
+            placeholder="What is this cafe about?"
+            value={newCafe.description}
+            onChange={(e) => setNewCafe({ ...newCafe, description: e.target.value })}
             styles={{
               input: { backgroundColor: tokens.colors.bgTertiary },
             }}
@@ -534,8 +535,8 @@ function CommunityPage() {
 
           <Select
             label="Primary Goal"
-            value={newPod.goal_type}
-            onChange={(val) => setNewPod({ ...newPod, goal_type: val })}
+            value={newCafe.goal_type}
+            onChange={(val) => setNewCafe({ ...newCafe, goal_type: val })}
             data={GOAL_OPTIONS}
             styles={{
               input: { backgroundColor: tokens.colors.bgTertiary },
@@ -544,8 +545,8 @@ function CommunityPage() {
 
           <Select
             label="Experience Level"
-            value={newPod.experience_level}
-            onChange={(val) => setNewPod({ ...newPod, experience_level: val })}
+            value={newCafe.experience_level}
+            onChange={(val) => setNewCafe({ ...newCafe, experience_level: val })}
             data={EXPERIENCE_OPTIONS}
             styles={{
               input: { backgroundColor: tokens.colors.bgTertiary },
@@ -555,13 +556,13 @@ function CommunityPage() {
           <Group justify="flex-end">
             <Button variant="subtle" onClick={closeCreateModal}>Cancel</Button>
             <Button
-              onClick={handleCreatePod}
+              onClick={handleCreateCafe}
               style={{
                 backgroundColor: tokens.colors.electricLime,
                 color: tokens.colors.bgPrimary,
               }}
             >
-              Create Pod
+              Create Cafe
             </Button>
           </Group>
         </Stack>
@@ -570,8 +571,8 @@ function CommunityPage() {
   );
 }
 
-// No pod view component
-function NoPodView({ onFind, onCreate }) {
+// No cafe view component
+function NoCafeView({ onFind, onCreate }) {
   return (
     <Card
       padding="xl"
@@ -583,15 +584,16 @@ function NoPodView({ onFind, onCreate }) {
       }}
     >
       <Stack gap="lg" align="center">
-        <IconUsers size={48} color={tokens.colors.textMuted} />
+        <IconCoffee size={48} color={tokens.colors.textMuted} />
 
         <Box>
           <Title order={3} mb="xs" style={{ color: tokens.colors.textPrimary }}>
-            Join an Accountability Pod
+            Find Your Cafe
           </Title>
           <Text size="sm" c="dimmed" maw={400} mx="auto">
-            Pods are small groups (5-10 cyclists) with similar goals.
-            Share weekly check-ins, support each other, and stay accountable.
+            Cafes are small groups (5-10 cyclists) with similar goals.
+            Share weekly check-ins, support each other, and stay accountable -
+            just like meeting up at your favorite cafe stop.
           </Text>
         </Box>
 
@@ -628,7 +630,7 @@ function NoPodView({ onFind, onCreate }) {
             }}
             leftSection={<IconSearch size={18} />}
           >
-            Find a Pod
+            Find a Cafe
           </Button>
           <Button
             size="md"
@@ -644,7 +646,7 @@ function NoPodView({ onFind, onCreate }) {
   );
 }
 
-// Feature item for no pod view
+// Feature item for no cafe view
 function FeatureItem({ icon: Icon, title, description }) {
   return (
     <Box ta="left">

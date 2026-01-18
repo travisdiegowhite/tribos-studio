@@ -1,6 +1,7 @@
 /**
  * WeeklyCheckInWidget
- * Prompts users to share their weekly training reflection with their pod
+ * Prompts users to share their weekly training reflection with their cafe
+ * "The Cafe" - where cyclists gather to share stories and support each other
  */
 
 import { useState } from 'react';
@@ -37,7 +38,7 @@ const MOOD_OPTIONS = [
 ];
 
 function WeeklyCheckInWidget({
-  podName,
+  cafeName,
   hasCheckedIn = false,
   weekStats = null,
   onSubmit,
@@ -117,9 +118,9 @@ function WeeklyCheckInWidget({
             <Text size="sm" fw={500}>
               Weekly Check-In
             </Text>
-            {podName && (
+            {cafeName && (
               <Badge size="xs" variant="light" color="gray">
-                {podName}
+                {cafeName}
               </Badge>
             )}
           </Group>
@@ -152,7 +153,7 @@ function WeeklyCheckInWidget({
 
           {/* Prompt text */}
           <Text size="sm" c="dimmed">
-            How did your training week go? Share a quick reflection with your pod.
+            How did your training week go? Share a quick reflection with your cafe.
           </Text>
 
           {/* Quick mood selector */}
@@ -247,7 +248,7 @@ function WeeklyCheckInWidget({
                     color: tokens.colors.bgPrimary,
                   }}
                 >
-                  Share with Pod
+                  Share with Cafe
                 </Button>
               </Group>
             </Stack>
@@ -292,7 +293,7 @@ function WeeklyCheckInWidget({
       >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            Share how your training week went with your pod.
+            Share how your training week went with your cafe.
           </Text>
 
           {/* Week stats in modal */}

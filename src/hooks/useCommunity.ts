@@ -1,13 +1,14 @@
 /**
  * useCommunity Hook
- * Manages pod memberships, check-ins, and community features
+ * Manages cafe memberships, check-ins, and community features
+ * "The Cafe" - named after cycling's cafe culture where riders gather to share stories
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 
 // Types
-export interface Pod {
+export interface Cafe {
   id: string;
   name: string;
   description: string | null;
@@ -24,19 +25,19 @@ export interface Pod {
   created_at: string;
 }
 
-export interface PodMembership {
+export interface CafeMembership {
   id: string;
-  pod_id: string;
+  cafe_id: string;
   user_id: string;
   role: 'admin' | 'member';
   status: 'active' | 'left' | 'removed';
   joined_at: string;
-  pod?: Pod;
+  cafe?: Cafe;
 }
 
-export interface PodCheckIn {
+export interface CafeCheckIn {
   id: string;
-  pod_id: string;
+  cafe_id: string;
   user_id: string;
   week_start: string;
   rides_completed: number;
@@ -56,10 +57,10 @@ export interface PodCheckIn {
   };
 }
 
-export interface PodMatch {
-  pod_id: string;
-  pod_name: string;
-  pod_description: string | null;
+export interface CafeMatch {
+  cafe_id: string;
+  cafe_name: string;
+  cafe_description: string | null;
   goal_type: string;
   experience_level: string;
   member_count: number;
@@ -84,28 +85,28 @@ interface UseCommunityOptions {
 
 interface UseCommunityReturn {
   // State
-  pods: PodMembership[];
-  activePod: PodMembership | null;
-  checkIns: PodCheckIn[];
+  cafes: CafeMembership[];
+  activeCafe: CafeMembership | null;
+  checkIns: CafeCheckIn[];
   loading: boolean;
   error: string | null;
 
   // Current week info
   currentWeekStart: string;
   hasCheckedInThisWeek: boolean;
-  podCheckInCount: number;
+  cafeCheckInCount: number;
 
   // Operations
-  loadPods: () => Promise<void>;
-  loadCheckIns: (podId: string, weeks?: number) => Promise<void>;
-  createCheckIn: (podId: string, data: CheckInData) => Promise<boolean>;
+  loadCafes: () => Promise<void>;
+  loadCheckIns: (cafeId: string, weeks?: number) => Promise<void>;
+  createCheckIn: (cafeId: string, data: CheckInData) => Promise<boolean>;
   updateCheckIn: (checkInId: string, data: Partial<CheckInData>) => Promise<boolean>;
 
-  // Pod operations
-  joinPod: (podId: string) => Promise<boolean>;
-  leavePod: (podId: string) => Promise<boolean>;
-  createPod: (data: Partial<Pod>) => Promise<Pod | null>;
-  findMatchingPods: (goalType?: string, experienceLevel?: string) => Promise<PodMatch[]>;
+  // Cafe operations
+  joinCafe: (cafeId: string) => Promise<boolean>;
+  leaveCafe: (cafeId: string) => Promise<boolean>;
+  createCafe: (data: Partial<Cafe>) => Promise<Cafe | null>;
+  findMatchingCafes: (goalType?: string, experienceLevel?: string) => Promise<CafeMatch[]>;
 
   // Encouragements
   addEncouragement: (checkInId: string, type?: string, message?: string) => Promise<boolean>;
@@ -131,17 +132,17 @@ export function useCommunity({
   userId,
   autoLoad = true,
 }: UseCommunityOptions): UseCommunityReturn {
-  const [pods, setPods] = useState<PodMembership[]>([]);
-  const [checkIns, setCheckIns] = useState<PodCheckIn[]>([]);
+  const [cafes, setCafes] = useState<CafeMembership[]>([]);
+  const [checkIns, setCheckIns] = useState<CafeCheckIn[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const currentWeekStart = useMemo(() => getWeekStart(), []);
 
   // ============================================================
-  // LOAD USER'S PODS
+  // LOAD USER'S CAFES
   // ============================================================
-  const loadPods = useCallback(async () => {
+  const loadCafes = useCallback(async () => {
     if (!userId) {
       setLoading(false);
       return;
@@ -152,29 +153,29 @@ export function useCommunity({
       setError(null);
 
       const { data, error: fetchError } = await supabase
-        .from('pod_memberships')
+        .from('cafe_memberships')
         .select(`
           *,
-          pod:pods(*)
+          cafe:cafes(*)
         `)
         .eq('user_id', userId)
         .eq('status', 'active');
 
       if (fetchError) throw fetchError;
 
-      setPods(data || []);
+      setCafes(data || []);
     } catch (err: any) {
-      console.error('Error loading pods:', err);
-      setError(err.message || 'Failed to load pods');
+      console.error('Error loading cafes:', err);
+      setError(err.message || 'Failed to load cafes');
     } finally {
       setLoading(false);
     }
   }, [userId]);
 
   // ============================================================
-  // LOAD CHECK-INS FOR A POD
+  // LOAD CHECK-INS FOR A CAFE
   // ============================================================
-  const loadCheckIns = useCallback(async (podId: string, weeks: number = 4) => {
+  const loadCheckIns = useCallback(async (cafeId: string, weeks: number = 4) => {
     try {
       setError(null);
 
@@ -184,12 +185,12 @@ export function useCommunity({
       startDate.setDate(startDate.getDate() - weeks * 7);
 
       const { data, error: fetchError } = await supabase
-        .from('pod_check_ins')
+        .from('cafe_check_ins')
         .select(`
           *,
           user_profile:user_profiles(display_name, community_display_name)
         `)
-        .eq('pod_id', podId)
+        .eq('cafe_id', cafeId)
         .gte('week_start', startDate.toISOString().split('T')[0])
         .order('week_start', { ascending: false })
         .order('created_at', { ascending: false });
@@ -206,7 +207,7 @@ export function useCommunity({
   // ============================================================
   // CREATE CHECK-IN
   // ============================================================
-  const createCheckIn = useCallback(async (podId: string, data: CheckInData): Promise<boolean> => {
+  const createCheckIn = useCallback(async (cafeId: string, data: CheckInData): Promise<boolean> => {
     if (!userId) return false;
 
     try {
@@ -242,9 +243,9 @@ export function useCommunity({
       const ridesPlanned = plannedData?.length || null;
 
       const { error: insertError } = await supabase
-        .from('pod_check_ins')
+        .from('cafe_check_ins')
         .insert({
-          pod_id: podId,
+          cafe_id: cafeId,
           user_id: userId,
           week_start: currentWeekStart,
           rides_completed: ridesCompleted,
@@ -261,7 +262,7 @@ export function useCommunity({
       if (insertError) throw insertError;
 
       // Reload check-ins
-      await loadCheckIns(podId);
+      await loadCheckIns(cafeId);
 
       return true;
     } catch (err: any) {
@@ -279,7 +280,7 @@ export function useCommunity({
       setError(null);
 
       const { error: updateError } = await supabase
-        .from('pod_check_ins')
+        .from('cafe_check_ins')
         .update({
           ...data,
           updated_at: new Date().toISOString(),
@@ -304,18 +305,18 @@ export function useCommunity({
   }, []);
 
   // ============================================================
-  // JOIN POD
+  // JOIN CAFE
   // ============================================================
-  const joinPod = useCallback(async (podId: string): Promise<boolean> => {
+  const joinCafe = useCallback(async (cafeId: string): Promise<boolean> => {
     if (!userId) return false;
 
     try {
       setError(null);
 
       const { error: insertError } = await supabase
-        .from('pod_memberships')
+        .from('cafe_memberships')
         .insert({
-          pod_id: podId,
+          cafe_id: cafeId,
           user_id: userId,
           role: 'member',
           status: 'active',
@@ -323,61 +324,61 @@ export function useCommunity({
 
       if (insertError) throw insertError;
 
-      // Reload pods
-      await loadPods();
+      // Reload cafes
+      await loadCafes();
 
       return true;
     } catch (err: any) {
-      console.error('Error joining pod:', err);
-      setError(err.message || 'Failed to join pod');
+      console.error('Error joining cafe:', err);
+      setError(err.message || 'Failed to join cafe');
       return false;
     }
-  }, [userId, loadPods]);
+  }, [userId, loadCafes]);
 
   // ============================================================
-  // LEAVE POD
+  // LEAVE CAFE
   // ============================================================
-  const leavePod = useCallback(async (podId: string): Promise<boolean> => {
+  const leaveCafe = useCallback(async (cafeId: string): Promise<boolean> => {
     if (!userId) return false;
 
     try {
       setError(null);
 
       const { error: updateError } = await supabase
-        .from('pod_memberships')
+        .from('cafe_memberships')
         .update({
           status: 'left',
           left_at: new Date().toISOString(),
         })
-        .eq('pod_id', podId)
+        .eq('cafe_id', cafeId)
         .eq('user_id', userId);
 
       if (updateError) throw updateError;
 
-      // Reload pods
-      await loadPods();
+      // Reload cafes
+      await loadCafes();
 
       return true;
     } catch (err: any) {
-      console.error('Error leaving pod:', err);
-      setError(err.message || 'Failed to leave pod');
+      console.error('Error leaving cafe:', err);
+      setError(err.message || 'Failed to leave cafe');
       return false;
     }
-  }, [userId, loadPods]);
+  }, [userId, loadCafes]);
 
   // ============================================================
-  // CREATE POD
+  // CREATE CAFE
   // ============================================================
-  const createPod = useCallback(async (data: Partial<Pod>): Promise<Pod | null> => {
+  const createCafe = useCallback(async (data: Partial<Cafe>): Promise<Cafe | null> => {
     if (!userId) return null;
 
     try {
       setError(null);
 
-      const { data: newPod, error: insertError } = await supabase
-        .from('pods')
+      const { data: newCafe, error: insertError } = await supabase
+        .from('cafes')
         .insert({
-          name: data.name || 'My Pod',
+          name: data.name || 'My Cafe',
           description: data.description || null,
           goal_type: data.goal_type || 'general_fitness',
           experience_level: data.experience_level || 'mixed',
@@ -394,39 +395,39 @@ export function useCommunity({
 
       // Auto-join as admin
       await supabase
-        .from('pod_memberships')
+        .from('cafe_memberships')
         .insert({
-          pod_id: newPod.id,
+          cafe_id: newCafe.id,
           user_id: userId,
           role: 'admin',
           status: 'active',
         });
 
-      // Reload pods
-      await loadPods();
+      // Reload cafes
+      await loadCafes();
 
-      return newPod;
+      return newCafe;
     } catch (err: any) {
-      console.error('Error creating pod:', err);
-      setError(err.message || 'Failed to create pod');
+      console.error('Error creating cafe:', err);
+      setError(err.message || 'Failed to create cafe');
       return null;
     }
-  }, [userId, loadPods]);
+  }, [userId, loadCafes]);
 
   // ============================================================
-  // FIND MATCHING PODS
+  // FIND MATCHING CAFES
   // ============================================================
-  const findMatchingPods = useCallback(async (
+  const findMatchingCafes = useCallback(async (
     goalType?: string,
     experienceLevel?: string
-  ): Promise<PodMatch[]> => {
+  ): Promise<CafeMatch[]> => {
     if (!userId) return [];
 
     try {
       setError(null);
 
       const { data, error: rpcError } = await supabase
-        .rpc('find_matching_pods', {
+        .rpc('find_matching_cafes', {
           p_user_id: userId,
           p_goal_type: goalType || null,
           p_experience_level: experienceLevel || null,
@@ -437,8 +438,8 @@ export function useCommunity({
 
       return data || [];
     } catch (err: any) {
-      console.error('Error finding pods:', err);
-      setError(err.message || 'Failed to find pods');
+      console.error('Error finding cafes:', err);
+      setError(err.message || 'Failed to find cafes');
       return [];
     }
   }, [userId]);
@@ -457,7 +458,7 @@ export function useCommunity({
       setError(null);
 
       const { error: insertError } = await supabase
-        .from('pod_encouragements')
+        .from('cafe_encouragements')
         .insert({
           check_in_id: checkInId,
           user_id: userId,
@@ -491,57 +492,57 @@ export function useCommunity({
   // ============================================================
   // COMPUTED VALUES
   // ============================================================
-  const activePod = useMemo(() => {
-    // Return the first active pod (could add logic to pick preferred)
-    return pods.length > 0 ? pods[0] : null;
-  }, [pods]);
+  const activeCafe = useMemo(() => {
+    // Return the first active cafe (could add logic to pick preferred)
+    return cafes.length > 0 ? cafes[0] : null;
+  }, [cafes]);
 
   const hasCheckedInThisWeek = useMemo(() => {
-    if (!userId || !activePod) return false;
+    if (!userId || !activeCafe) return false;
     return checkIns.some(
       c => c.user_id === userId &&
-           c.pod_id === activePod.pod_id &&
+           c.cafe_id === activeCafe.cafe_id &&
            c.week_start === currentWeekStart
     );
-  }, [userId, activePod, checkIns, currentWeekStart]);
+  }, [userId, activeCafe, checkIns, currentWeekStart]);
 
-  const podCheckInCount = useMemo(() => {
-    if (!activePod) return 0;
+  const cafeCheckInCount = useMemo(() => {
+    if (!activeCafe) return 0;
     return checkIns.filter(
-      c => c.pod_id === activePod.pod_id && c.week_start === currentWeekStart
+      c => c.cafe_id === activeCafe.cafe_id && c.week_start === currentWeekStart
     ).length;
-  }, [activePod, checkIns, currentWeekStart]);
+  }, [activeCafe, checkIns, currentWeekStart]);
 
   const shouldPromptCheckIn = useCallback(() => {
-    if (!activePod || hasCheckedInThisWeek) return false;
+    if (!activeCafe || hasCheckedInThisWeek) return false;
 
     // Prompt on Sunday (check-in day) or later in the week
     const today = new Date().getDay();
-    const checkInDay = activePod.pod?.checkin_day ?? 0;
+    const checkInDay = activeCafe.cafe?.checkin_day ?? 0;
 
     return today >= checkInDay;
-  }, [activePod, hasCheckedInThisWeek]);
+  }, [activeCafe, hasCheckedInThisWeek]);
 
   // ============================================================
   // AUTO-LOAD ON MOUNT
   // ============================================================
   useEffect(() => {
     if (autoLoad && userId) {
-      loadPods();
+      loadCafes();
     }
-  }, [autoLoad, userId, loadPods]);
+  }, [autoLoad, userId, loadCafes]);
 
-  // Load check-ins when active pod changes
+  // Load check-ins when active cafe changes
   useEffect(() => {
-    if (activePod?.pod_id) {
-      loadCheckIns(activePod.pod_id);
+    if (activeCafe?.cafe_id) {
+      loadCheckIns(activeCafe.cafe_id);
     }
-  }, [activePod?.pod_id, loadCheckIns]);
+  }, [activeCafe?.cafe_id, loadCheckIns]);
 
   return {
     // State
-    pods,
-    activePod,
+    cafes,
+    activeCafe,
     checkIns,
     loading,
     error,
@@ -549,19 +550,19 @@ export function useCommunity({
     // Current week info
     currentWeekStart,
     hasCheckedInThisWeek,
-    podCheckInCount,
+    cafeCheckInCount,
 
     // Operations
-    loadPods,
+    loadCafes,
     loadCheckIns,
     createCheckIn,
     updateCheckIn,
 
-    // Pod operations
-    joinPod,
-    leavePod,
-    createPod,
-    findMatchingPods,
+    // Cafe operations
+    joinCafe,
+    leaveCafe,
+    createCafe,
+    findMatchingCafes,
 
     // Encouragements
     addEncouragement,

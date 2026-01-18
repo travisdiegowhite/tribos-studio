@@ -22,7 +22,7 @@ import {
   IconCalendarEvent,
   IconChartBar,
   IconChevronDown,
-  IconUsers,
+  IconCoffee,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
@@ -46,7 +46,7 @@ const navItems = [
       { path: '/training', label: 'Analysis', icon: IconChartBar },
     ],
   },
-  { path: '/community', label: 'Community', icon: IconUsers },
+  { path: '/community', label: 'The Cafe', icon: IconCoffee },
   { path: '/settings', label: 'Settings', icon: IconSettings },
 ];
 

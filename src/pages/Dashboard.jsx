@@ -38,7 +38,7 @@ import { formatDistance, formatElevation } from '../utils/units';
 import { stravaService } from '../utils/stravaService';
 import { notifications } from '@mantine/notifications';
 import { useCommunity } from '../hooks/useCommunity';
-import { PodSummaryWidget, WeeklyCheckInWidget } from '../components/community';
+import { CafeSummaryWidget, WeeklyCheckInWidget } from '../components/community';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -55,11 +55,11 @@ function Dashboard() {
 
   // Community hook
   const {
-    activePod,
+    activeCafe,
     checkIns,
     loading: communityLoading,
     hasCheckedInThisWeek,
-    podCheckInCount,
+    cafeCheckInCount,
     createCheckIn,
     shouldPromptCheckIn,
   } = useCommunity({ userId: user?.id });
@@ -225,19 +225,19 @@ function Dashboard() {
 
   // Handle check-in submission
   const handleCheckInSubmit = async (data) => {
-    if (!activePod) return;
-    const success = await createCheckIn(activePod.pod_id, data);
+    if (!activeCafe) return;
+    const success = await createCheckIn(activeCafe.cafe_id, data);
     if (success) {
       notifications.show({
         title: 'Check-in shared',
-        message: 'Your pod can now see your update',
+        message: 'Your cafe can now see your update',
         color: 'lime',
       });
     }
   };
 
-  // Navigate to find pod
-  const handleFindPod = () => {
+  // Navigate to find cafe
+  const handleFindCafe = () => {
     window.location.href = '/community';
   };
 
@@ -331,22 +331,22 @@ function Dashboard() {
                 <FitnessMetrics activities={activities} loading={loading} />
               </Card>
 
-              {/* Pod Summary Widget */}
-              <PodSummaryWidget
-                pod={activePod?.pod}
-                memberCount={activePod?.pod?.member_count || 0}
-                checkInCount={podCheckInCount}
-                totalMembers={activePod?.pod?.member_count || 0}
+              {/* Cafe Summary Widget */}
+              <CafeSummaryWidget
+                cafe={activeCafe?.cafe}
+                memberCount={activeCafe?.cafe?.member_count || 0}
+                checkInCount={cafeCheckInCount}
+                totalMembers={activeCafe?.cafe?.member_count || 0}
                 loading={communityLoading}
-                onFindPod={handleFindPod}
+                onFindCafe={handleFindCafe}
               />
             </Stack>
           </SimpleGrid>
 
           {/* Weekly Check-In Widget - Show prominently if should prompt */}
-          {activePod && shouldPromptCheckIn() && !checkInDismissed && (
+          {activeCafe && shouldPromptCheckIn() && !checkInDismissed && (
             <WeeklyCheckInWidget
-              podName={activePod.pod?.name}
+              cafeName={activeCafe.cafe?.name}
               hasCheckedIn={hasCheckedInThisWeek}
               weekStats={{
                 rides: weekStats.rides,

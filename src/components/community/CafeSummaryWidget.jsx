@@ -1,6 +1,7 @@
 /**
- * PodSummaryWidget
- * Shows a compact summary of the user's active pod on the Dashboard
+ * CafeSummaryWidget
+ * Shows a compact summary of the user's active cafe on the Dashboard
+ * "The Cafe" - where cyclists gather to share stories and support each other
  */
 
 import { Link } from 'react-router-dom';
@@ -9,7 +10,6 @@ import {
   Text,
   Group,
   Stack,
-  Avatar,
   Badge,
   Progress,
   Button,
@@ -17,20 +17,19 @@ import {
   Skeleton,
 } from '@mantine/core';
 import {
-  IconUsers,
-  IconMessageCircle,
+  IconCoffee,
   IconChevronRight,
   IconPlus,
 } from '@tabler/icons-react';
 import { tokens } from '../../theme';
 
-function PodSummaryWidget({
-  pod,
+function CafeSummaryWidget({
+  cafe,
   memberCount,
   checkInCount,
   totalMembers,
   loading = false,
-  onFindPod,
+  onFindCafe,
 }) {
   if (loading) {
     return (
@@ -51,8 +50,8 @@ function PodSummaryWidget({
     );
   }
 
-  // No pod - show prompt to find/create one
-  if (!pod) {
+  // No cafe - show prompt to find/create one
+  if (!cafe) {
     return (
       <Card
         padding="md"
@@ -64,9 +63,9 @@ function PodSummaryWidget({
       >
         <Stack gap="sm">
           <Group gap="xs">
-            <IconUsers size={18} color={tokens.colors.textSecondary} />
+            <IconCoffee size={18} color={tokens.colors.textSecondary} />
             <Text size="sm" fw={500} c="dimmed">
-              Accountability Pod
+              The Cafe
             </Text>
           </Group>
 
@@ -78,13 +77,13 @@ function PodSummaryWidget({
             variant="light"
             size="sm"
             leftSection={<IconPlus size={16} />}
-            onClick={onFindPod}
+            onClick={onFindCafe}
             style={{
               backgroundColor: tokens.colors.bgTertiary,
               color: tokens.colors.textPrimary,
             }}
           >
-            Find a Pod
+            Find a Cafe
           </Button>
         </Stack>
       </Card>
@@ -106,9 +105,9 @@ function PodSummaryWidget({
         {/* Header */}
         <Group justify="space-between" align="flex-start">
           <Group gap="xs">
-            <IconUsers size={18} color={tokens.colors.electricLime} />
+            <IconCoffee size={18} color={tokens.colors.electricLime} />
             <Text size="sm" fw={500}>
-              {pod.name}
+              {cafe.name}
             </Text>
           </Group>
           <Badge
@@ -159,11 +158,11 @@ function PodSummaryWidget({
             },
           }}
         >
-          View pod activity
+          View cafe activity
         </Button>
       </Stack>
     </Card>
   );
 }
 
-export default PodSummaryWidget;
+export default CafeSummaryWidget;
