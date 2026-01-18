@@ -68,6 +68,31 @@ export interface CafeMatch {
   match_score: number;
 }
 
+export interface CafeMember {
+  id: string;
+  user_id: string;
+  cafe_id: string;
+  role: 'admin' | 'member';
+  status: string;
+  joined_at: string;
+  user_profile?: {
+    display_name: string | null;
+    community_display_name: string | null;
+    avatar_url: string | null;
+  };
+}
+
+export interface UpdateCafeData {
+  name?: string;
+  description?: string | null;
+  goal_type?: string;
+  experience_level?: string;
+  max_members?: number;
+  is_public?: boolean;
+  is_open?: boolean;
+  checkin_day?: number;
+}
+
 export type TrainingMood = 'struggling' | 'okay' | 'good' | 'great' | 'crushing_it';
 
 export interface CheckInData {
@@ -490,6 +515,163 @@ export function useCommunity({
   }, [userId]);
 
   // ============================================================
+  // LOAD CAFE MEMBERS
+  // ============================================================
+  const loadCafeMembers = useCallback(async (cafeId: string): Promise<CafeMember[]> => {
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('cafe_memberships')
+        .select(`
+          *,
+          user_profile:user_profiles!cafe_memberships_user_id_profile_fkey(
+            display_name,
+            community_display_name,
+            avatar_url
+          )
+        `)
+        .eq('cafe_id', cafeId)
+        .eq('status', 'active')
+        .order('role', { ascending: true })
+        .order('joined_at', { ascending: true });
+
+      if (fetchError) throw fetchError;
+
+      return data || [];
+    } catch (err: any) {
+      console.error('Error loading cafe members:', err);
+      return [];
+    }
+  }, []);
+
+  // ============================================================
+  // UPDATE CAFE SETTINGS (Admin only)
+  // ============================================================
+  const updateCafe = useCallback(async (
+    cafeId: string,
+    data: UpdateCafeData
+  ): Promise<boolean> => {
+    if (!userId) return false;
+
+    try {
+      setError(null);
+
+      const { error: updateError } = await supabase
+        .from('cafes')
+        .update({
+          ...data,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', cafeId);
+
+      if (updateError) throw updateError;
+
+      // Reload cafes to get updated data
+      await loadCafes();
+
+      return true;
+    } catch (err: any) {
+      console.error('Error updating cafe:', err);
+      setError(err.message || 'Failed to update cafe');
+      return false;
+    }
+  }, [userId, loadCafes]);
+
+  // ============================================================
+  // DELETE CAFE (Admin only)
+  // ============================================================
+  const deleteCafe = useCallback(async (cafeId: string): Promise<boolean> => {
+    if (!userId) return false;
+
+    try {
+      setError(null);
+
+      const { error: deleteError } = await supabase
+        .from('cafes')
+        .delete()
+        .eq('id', cafeId);
+
+      if (deleteError) throw deleteError;
+
+      // Reload cafes
+      await loadCafes();
+
+      return true;
+    } catch (err: any) {
+      console.error('Error deleting cafe:', err);
+      setError(err.message || 'Failed to delete cafe');
+      return false;
+    }
+  }, [userId, loadCafes]);
+
+  // ============================================================
+  // REMOVE MEMBER (Admin only)
+  // ============================================================
+  const removeMember = useCallback(async (
+    cafeId: string,
+    memberUserId: string
+  ): Promise<boolean> => {
+    if (!userId) return false;
+
+    try {
+      setError(null);
+
+      const { error: updateError } = await supabase
+        .from('cafe_memberships')
+        .update({
+          status: 'removed',
+          left_at: new Date().toISOString(),
+        })
+        .eq('cafe_id', cafeId)
+        .eq('user_id', memberUserId);
+
+      if (updateError) throw updateError;
+
+      return true;
+    } catch (err: any) {
+      console.error('Error removing member:', err);
+      setError(err.message || 'Failed to remove member');
+      return false;
+    }
+  }, [userId]);
+
+  // ============================================================
+  // UPDATE MEMBER ROLE (Admin only)
+  // ============================================================
+  const updateMemberRole = useCallback(async (
+    cafeId: string,
+    memberUserId: string,
+    newRole: 'admin' | 'member'
+  ): Promise<boolean> => {
+    if (!userId) return false;
+
+    try {
+      setError(null);
+
+      const { error: updateError } = await supabase
+        .from('cafe_memberships')
+        .update({ role: newRole })
+        .eq('cafe_id', cafeId)
+        .eq('user_id', memberUserId);
+
+      if (updateError) throw updateError;
+
+      return true;
+    } catch (err: any) {
+      console.error('Error updating member role:', err);
+      setError(err.message || 'Failed to update member role');
+      return false;
+    }
+  }, [userId]);
+
+  // ============================================================
+  // CHECK IF USER IS ADMIN
+  // ============================================================
+  const isUserAdmin = useCallback((cafe: CafeMembership | null): boolean => {
+    if (!cafe || !userId) return false;
+    return cafe.role === 'admin';
+  }, [userId]);
+
+  // ============================================================
   // COMPUTED VALUES
   // ============================================================
   const activeCafe = useMemo(() => {
@@ -563,6 +745,14 @@ export function useCommunity({
     leaveCafe,
     createCafe,
     findMatchingCafes,
+
+    // Cafe management (admin)
+    updateCafe,
+    deleteCafe,
+    loadCafeMembers,
+    removeMember,
+    updateMemberRole,
+    isUserAdmin,
 
     // Encouragements
     addEncouragement,

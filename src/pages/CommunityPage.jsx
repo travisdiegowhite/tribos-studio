@@ -49,7 +49,7 @@ import { useCommunity } from '../hooks/useCommunity';
 import { useDiscussions, CATEGORY_LABELS } from '../hooks/useDiscussions';
 import AppShell from '../components/AppShell';
 import PageHeader from '../components/PageHeader';
-import { WeeklyCheckInWidget, DiscussionList, DiscussionThread } from '../components/community';
+import { WeeklyCheckInWidget, DiscussionList, DiscussionThread, CafeSettingsModal } from '../components/community';
 import { tokens } from '../theme';
 
 const GOAL_OPTIONS = [
@@ -99,6 +99,12 @@ function CommunityPage() {
     createCafe,
     findMatchingCafes,
     addEncouragement,
+    updateCafe,
+    deleteCafe,
+    loadCafeMembers,
+    removeMember,
+    updateMemberRole,
+    isUserAdmin,
   } = useCommunity({ userId: user?.id });
 
   // Get cafe ID for discussions
@@ -128,6 +134,7 @@ function CommunityPage() {
   const [createModalOpened, { open: openCreateModal, close: closeCreateModal }] = useDisclosure(false);
   const [findModalOpened, { open: openFindModal, close: closeFindModal }] = useDisclosure(false);
   const [newDiscussionModalOpened, { open: openNewDiscussionModal, close: closeNewDiscussionModal }] = useDisclosure(false);
+  const [settingsModalOpened, { open: openSettingsModal, close: closeSettingsModal }] = useDisclosure(false);
 
   // New cafe form state
   const [newCafe, setNewCafe] = useState({
@@ -351,6 +358,7 @@ function CommunityPage() {
                   size="xs"
                   color="gray"
                   leftSection={<IconSettings size={14} />}
+                  onClick={openSettingsModal}
                 >
                   Settings
                 </Button>
@@ -773,6 +781,21 @@ function CommunityPage() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Cafe Settings Modal */}
+      <CafeSettingsModal
+        opened={settingsModalOpened}
+        onClose={closeSettingsModal}
+        cafe={activeCafe}
+        isAdmin={isUserAdmin(activeCafe)}
+        currentUserId={user?.id}
+        onUpdateCafe={updateCafe}
+        onDeleteCafe={deleteCafe}
+        onLeaveCafe={leaveCafe}
+        onLoadMembers={loadCafeMembers}
+        onRemoveMember={removeMember}
+        onUpdateMemberRole={updateMemberRole}
+      />
     </AppShell>
   );
 }
