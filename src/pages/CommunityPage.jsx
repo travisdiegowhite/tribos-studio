@@ -46,9 +46,10 @@ import {
 } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCommunity } from '../hooks/useCommunity';
+import { useDiscussions, CATEGORY_LABELS } from '../hooks/useDiscussions';
 import AppShell from '../components/AppShell';
 import PageHeader from '../components/PageHeader';
-import { WeeklyCheckInWidget } from '../components/community';
+import { WeeklyCheckInWidget, DiscussionList, DiscussionThread } from '../components/community';
 import { tokens } from '../theme';
 
 const GOAL_OPTIONS = [
@@ -100,11 +101,33 @@ function CommunityPage() {
     addEncouragement,
   } = useCommunity({ userId: user?.id });
 
+  // Get cafe ID for discussions
+  const cafeId = activeCafe?.cafe_id || null;
+
+  // Discussion hook
+  const {
+    discussions,
+    activeDiscussion,
+    replies,
+    loading: discussionsLoading,
+    loadDiscussions,
+    loadDiscussion,
+    loadReplies,
+    createDiscussion,
+    createReply,
+    markHelpful,
+    unmarkHelpful,
+    deleteReply,
+    clearActiveDiscussion,
+  } = useDiscussions({ cafeId, userId: user?.id });
+
   const [activeTab, setActiveTab] = useState('cafe');
+  const [discussionCategory, setDiscussionCategory] = useState('');
   const [matchingCafes, setMatchingCafes] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [createModalOpened, { open: openCreateModal, close: closeCreateModal }] = useDisclosure(false);
   const [findModalOpened, { open: openFindModal, close: closeFindModal }] = useDisclosure(false);
+  const [newDiscussionModalOpened, { open: openNewDiscussionModal, close: closeNewDiscussionModal }] = useDisclosure(false);
 
   // New cafe form state
   const [newCafe, setNewCafe] = useState({
@@ -118,6 +141,13 @@ function CommunityPage() {
   // Search filters
   const [searchGoal, setSearchGoal] = useState(null);
   const [searchLevel, setSearchLevel] = useState(null);
+
+  // New discussion form state
+  const [newDiscussion, setNewDiscussion] = useState({
+    title: '',
+    body: '',
+    category: 'general',
+  });
 
   // Search for matching cafes
   const handleSearch = async () => {
@@ -195,6 +225,60 @@ function CommunityPage() {
   // Add encouragement to a check-in
   const handleEncourage = async (checkInId) => {
     await addEncouragement(checkInId, 'encourage');
+  };
+
+  // Load discussions when tab changes to discussions
+  const handleTabChange = (value) => {
+    setActiveTab(value);
+    if (value === 'discussions' && cafeId) {
+      loadDiscussions(discussionCategory || undefined);
+    }
+  };
+
+  // Handle discussion category filter change
+  const handleDiscussionCategoryChange = (category) => {
+    setDiscussionCategory(category);
+    loadDiscussions(category || undefined);
+  };
+
+  // Select a discussion to view
+  const handleSelectDiscussion = async (discussion) => {
+    await loadDiscussion(discussion.id);
+    await loadReplies(discussion.id);
+  };
+
+  // Go back to discussion list
+  const handleBackToList = () => {
+    clearActiveDiscussion();
+  };
+
+  // Create new discussion
+  const handleCreateDiscussion = async () => {
+    if (!newDiscussion.title.trim() || !newDiscussion.body.trim()) {
+      notifications.show({
+        title: 'Missing fields',
+        message: 'Please enter a title and body for your discussion',
+        color: 'red',
+      });
+      return;
+    }
+
+    const result = await createDiscussion(newDiscussion);
+    if (result) {
+      notifications.show({
+        title: 'Discussion created',
+        message: 'Your discussion has been posted',
+        color: 'green',
+      });
+      closeNewDiscussionModal();
+      setNewDiscussion({ title: '', body: '', category: 'general' });
+    }
+  };
+
+  // Create a reply
+  const handleCreateReply = async (data) => {
+    if (!activeDiscussion) return;
+    await createReply(activeDiscussion.id, data);
   };
 
   // Calculate week stats from activities (would be passed from Dashboard in real use)
@@ -284,10 +368,13 @@ function CommunityPage() {
             )}
 
             {/* Tabs for cafe content */}
-            <Tabs value={activeTab} onChange={setActiveTab}>
+            <Tabs value={activeTab} onChange={handleTabChange}>
               <Tabs.List>
-                <Tabs.Tab value="cafe" leftSection={<IconMessageCircle size={16} />}>
+                <Tabs.Tab value="cafe" leftSection={<IconHeart size={16} />}>
                   Check-Ins
+                </Tabs.Tab>
+                <Tabs.Tab value="discussions" leftSection={<IconMessageCircle size={16} />}>
+                  Discussions
                 </Tabs.Tab>
                 <Tabs.Tab value="members" leftSection={<IconCoffee size={16} />}>
                   Members
@@ -356,6 +443,48 @@ function CommunityPage() {
                     <Text size="sm" c="dimmed" ta="center" py="md">
                       No previous check-ins yet.
                     </Text>
+                  )}
+                </Stack>
+              </Tabs.Panel>
+
+              <Tabs.Panel value="discussions" pt="md">
+                <Stack gap="md">
+                  {/* New Discussion Button */}
+                  <Group justify="flex-end">
+                    <Button
+                      size="sm"
+                      leftSection={<IconPlus size={16} />}
+                      onClick={openNewDiscussionModal}
+                      style={{
+                        backgroundColor: tokens.colors.electricLime,
+                        color: tokens.colors.bgPrimary,
+                      }}
+                    >
+                      New Discussion
+                    </Button>
+                  </Group>
+
+                  {/* Discussion Thread View or List */}
+                  {activeDiscussion ? (
+                    <DiscussionThread
+                      discussion={activeDiscussion}
+                      replies={replies}
+                      currentUserId={user?.id}
+                      onBack={handleBackToList}
+                      onCreateReply={handleCreateReply}
+                      onMarkHelpful={markHelpful}
+                      onUnmarkHelpful={unmarkHelpful}
+                      onDeleteReply={deleteReply}
+                      loading={discussionsLoading}
+                    />
+                  ) : (
+                    <DiscussionList
+                      discussions={discussions}
+                      loading={discussionsLoading}
+                      selectedCategory={discussionCategory}
+                      onCategoryChange={handleDiscussionCategoryChange}
+                      onSelectDiscussion={handleSelectDiscussion}
+                    />
                   )}
                 </Stack>
               </Tabs.Panel>
@@ -563,6 +692,83 @@ function CommunityPage() {
               }}
             >
               Create Cafe
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* New Discussion Modal */}
+      <Modal
+        opened={newDiscussionModalOpened}
+        onClose={closeNewDiscussionModal}
+        title="Start a Discussion"
+        size="lg"
+        styles={{
+          header: {
+            backgroundColor: tokens.colors.bgSecondary,
+          },
+          content: {
+            backgroundColor: tokens.colors.bgSecondary,
+          },
+          title: {
+            color: tokens.colors.textPrimary,
+            fontWeight: 600,
+          },
+        }}
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Title"
+            placeholder="What do you want to discuss?"
+            value={newDiscussion.title}
+            onChange={(e) => setNewDiscussion({ ...newDiscussion, title: e.target.value })}
+            required
+            styles={{
+              input: { backgroundColor: tokens.colors.bgTertiary },
+            }}
+          />
+
+          <Select
+            label="Category"
+            value={newDiscussion.category}
+            onChange={(val) => setNewDiscussion({ ...newDiscussion, category: val })}
+            data={[
+              { value: 'general', label: 'General' },
+              { value: 'training', label: 'Training' },
+              { value: 'nutrition', label: 'Nutrition' },
+              { value: 'gear', label: 'Gear' },
+              { value: 'motivation', label: 'Motivation' },
+              { value: 'race_prep', label: 'Race Prep' },
+              { value: 'recovery', label: 'Recovery' },
+              { value: 'question', label: 'Question' },
+            ]}
+            styles={{
+              input: { backgroundColor: tokens.colors.bgTertiary },
+            }}
+          />
+
+          <Textarea
+            label="Body"
+            placeholder="Share your thoughts, questions, or experiences..."
+            value={newDiscussion.body}
+            onChange={(e) => setNewDiscussion({ ...newDiscussion, body: e.target.value })}
+            minRows={4}
+            required
+            styles={{
+              input: { backgroundColor: tokens.colors.bgTertiary },
+            }}
+          />
+
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={closeNewDiscussionModal}>Cancel</Button>
+            <Button
+              onClick={handleCreateDiscussion}
+              style={{
+                backgroundColor: tokens.colors.electricLime,
+                color: tokens.colors.bgPrimary,
+              }}
+            >
+              Post Discussion
             </Button>
           </Group>
         </Stack>
