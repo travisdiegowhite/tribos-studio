@@ -5,6 +5,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
+import {
+  executeBackfillForUser,
+  getBackfillProgress,
+  resetFailedChunks,
+  markStaleChunksAsReceived
+} from './utils/garminBackfill.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -110,8 +116,18 @@ export default async function handler(req, res) {
       case 'backfill_power':
         return await backfillPowerData(req, res, userId);
 
+      case 'backfill_historical':
+        const { yearsBack } = req.body;
+        return await backfillHistorical(req, res, userId, yearsBack);
+
+      case 'backfill_status':
+        return await getBackfillStatus(req, res, userId);
+
+      case 'backfill_reset_failed':
+        return await resetFailedBackfillChunks(req, res, userId);
+
       default:
-        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, get_activity, reprocess_failed, diagnose, backfill_gps, backfill_power' });
+        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, backfill_historical, backfill_status, backfill_reset_failed, get_activity, reprocess_failed, diagnose, backfill_gps, backfill_power' });
     }
 
   } catch (error) {
@@ -1490,6 +1506,158 @@ async function backfillPowerData(req, res, userId) {
 
   } catch (error) {
     console.error('Power backfill error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Backfill historical activities (2 years by default)
+ * Breaks the request into 2-month chunks to avoid stressing Garmin's servers.
+ * Data is delivered asynchronously via webhooks.
+ *
+ * @param {Request} req - Request object
+ * @param {Response} res - Response object
+ * @param {string} userId - User UUID
+ * @param {number} yearsBack - Number of years to backfill (default: 2, max: 5)
+ */
+async function backfillHistorical(req, res, userId, yearsBack = 2) {
+  try {
+    const { accessToken, integration } = await getValidAccessToken(userId);
+
+    // Check if backfill is already in progress
+    const existingProgress = await getBackfillProgress(userId);
+    if (existingProgress.initialized && existingProgress.requested > 0) {
+      // Mark stale chunks (>24h) as received to allow re-running
+      await markStaleChunksAsReceived(userId);
+
+      // Re-check progress after marking stale
+      const updatedProgress = await getBackfillProgress(userId);
+
+      if (updatedProgress.requested > 0) {
+        return res.status(200).json({
+          success: false,
+          message: 'Backfill already in progress. Please wait for pending requests to complete.',
+          progress: updatedProgress,
+          note: 'Activities will arrive via webhooks. Check backfill_status for progress.'
+        });
+      }
+    }
+
+    console.log(`📥 Starting historical backfill for user ${userId}: ${yearsBack} years`);
+
+    // Execute the backfill
+    const result = await executeBackfillForUser(userId, accessToken, {
+      yearsBack: Math.min(yearsBack, 5), // Cap at 5 years (Garmin's limit)
+      delayMs: 5000 // 5 seconds between requests
+    });
+
+    // Update last sync timestamp
+    await supabase
+      .from('bike_computer_integrations')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', integration.id);
+
+    return res.status(200).json({
+      success: result.success,
+      message: result.success
+        ? `Historical backfill started. ${result.summary.requested} chunks queued for ${yearsBack} years of data.`
+        : `Historical backfill completed with some issues.`,
+      summary: result.summary,
+      note: 'Activities will arrive via webhooks over the next few minutes to hours. Use backfill_status to check progress.'
+    });
+
+  } catch (error) {
+    console.error('Historical backfill error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Get the status of historical backfill progress
+ *
+ * @param {Request} req - Request object
+ * @param {Response} res - Response object
+ * @param {string} userId - User UUID
+ */
+async function getBackfillStatus(req, res, userId) {
+  try {
+    // Get progress summary
+    const progress = await getBackfillProgress(userId);
+
+    if (!progress.initialized) {
+      return res.status(200).json({
+        success: true,
+        initialized: false,
+        message: 'No backfill has been started. Use backfill_historical to request historical data.',
+        progress: null
+      });
+    }
+
+    // Determine overall status message
+    let statusMessage;
+    if (progress.percentComplete === 100) {
+      statusMessage = 'Backfill complete! All historical data has been received.';
+    } else if (progress.requested > 0) {
+      statusMessage = `Backfill in progress. ${progress.requested} chunks waiting for data from Garmin.`;
+    } else if (progress.pending > 0) {
+      statusMessage = `Backfill initialized but not started. ${progress.pending} chunks ready to request.`;
+    } else if (progress.failed > 0) {
+      statusMessage = `Some chunks failed. ${progress.failed} chunks need retry. Use backfill_reset_failed to retry.`;
+    } else {
+      statusMessage = 'Backfill complete.';
+    }
+
+    return res.status(200).json({
+      success: true,
+      initialized: true,
+      message: statusMessage,
+      progress: {
+        total: progress.total,
+        pending: progress.pending,
+        requested: progress.requested,
+        received: progress.received,
+        alreadyProcessed: progress.alreadyProcessed,
+        failed: progress.failed,
+        activitiesReceived: progress.activitiesReceived,
+        percentComplete: progress.percentComplete,
+        dateRange: {
+          oldest: progress.oldestChunk,
+          newest: progress.newestChunk
+        }
+      },
+      chunks: progress.chunks
+    });
+
+  } catch (error) {
+    console.error('Backfill status error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Reset failed backfill chunks to pending for retry
+ *
+ * @param {Request} req - Request object
+ * @param {Response} res - Response object
+ * @param {string} userId - User UUID
+ */
+async function resetFailedBackfillChunks(req, res, userId) {
+  try {
+    const resetCount = await resetFailedChunks(userId);
+
+    return res.status(200).json({
+      success: true,
+      message: resetCount > 0
+        ? `Reset ${resetCount} failed chunks. Run backfill_historical to retry.`
+        : 'No failed chunks to reset.',
+      resetCount
+    });
+
+  } catch (error) {
+    console.error('Reset failed chunks error:', error);
     return res.status(500).json({ error: error.message });
   }
 }
