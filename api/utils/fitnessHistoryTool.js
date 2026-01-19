@@ -231,11 +231,13 @@ async function findPeakFitness(recentSnapshots, supabase, userId) {
 
 /**
  * Compare current period to a specified past period
+ * Enhanced to include power metrics for actual fitness comparison
  */
 async function comparePeriods(recentSnapshots, compare_to, metrics, supabase, userId) {
   const current = recentSnapshots.slice(0, 4);
   let comparison = [];
   let comparisonLabel = '';
+  let comparisonDateRange = null;
 
   if (compare_to === 'last_year' || compare_to === 'same_time_last_year') {
     // Get snapshots from same weeks last year
@@ -256,6 +258,7 @@ async function comparePeriods(recentSnapshots, compare_to, metrics, supabase, us
 
     comparison = lastYearSnapshots || [];
     comparisonLabel = 'same time last year';
+    comparisonDateRange = { start: startDate, end: endDate };
 
   } else if (compare_to === 'peak') {
     const { data: peakData } = await supabase
@@ -267,6 +270,16 @@ async function comparePeriods(recentSnapshots, compare_to, metrics, supabase, us
 
     comparison = peakData || [];
     comparisonLabel = 'peak fitness period';
+
+    // Set date range for peak period
+    if (comparison.length > 0) {
+      const peakWeeks = comparison.map(s => new Date(s.snapshot_week));
+      comparisonDateRange = {
+        start: new Date(Math.min(...peakWeeks)),
+        end: new Date(Math.max(...peakWeeks))
+      };
+      comparisonDateRange.end.setDate(comparisonDateRange.end.getDate() + 7);
+    }
   }
 
   if (comparison.length === 0) {
@@ -275,6 +288,16 @@ async function comparePeriods(recentSnapshots, compare_to, metrics, supabase, us
       message: `No data available for ${comparisonLabel}. The athlete may not have enough history.`
     };
   }
+
+  // Calculate power metrics for both periods
+  const now = new Date();
+  const fourWeeksAgo = new Date(now);
+  fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+
+  const currentPower = await calculatePowerMetrics(supabase, userId, fourWeeksAgo, now);
+  const comparisonPower = comparisonDateRange
+    ? await calculatePowerMetrics(supabase, userId, comparisonDateRange.start, comparisonDateRange.end)
+    : null;
 
   const currentAvg = {
     ctl: avg(current.map(s => s.ctl)),
@@ -293,6 +316,42 @@ async function comparePeriods(recentSnapshots, compare_to, metrics, supabase, us
   const ctlDiff = Math.round(currentAvg.ctl - comparisonAvg.ctl);
   const hoursDiff = round2(currentAvg.weekly_hours - comparisonAvg.weekly_hours);
 
+  // Generate fitness verdict
+  let verdict = null;
+  if (currentPower && comparisonPower) {
+    verdict = generateFitnessVerdict(
+      { ctl: currentAvg.ctl, power: currentPower },
+      { ctl: comparisonAvg.ctl, power: comparisonPower }
+    );
+  }
+
+  // Build enhanced summary
+  let summary = `Compared to ${comparisonLabel}:\n`;
+  summary += `• Training Load (CTL): ${ctlDiff >= 0 ? '+' : ''}${ctlDiff} (${Math.round(currentAvg.ctl)} vs ${Math.round(comparisonAvg.ctl)})\n`;
+  summary += `• Weekly volume: ${hoursDiff >= 0 ? '+' : ''}${hoursDiff} hours (${round2(currentAvg.weekly_hours)} vs ${round2(comparisonAvg.weekly_hours)} hrs/week)\n`;
+
+  if (currentPower && comparisonPower) {
+    if (currentPower.best_power_short && comparisonPower.best_power_short) {
+      const diff = currentPower.best_power_short - comparisonPower.best_power_short;
+      summary += `• Best 20-60min power: ${diff >= 0 ? '+' : ''}${diff}W (${currentPower.best_power_short}W vs ${comparisonPower.best_power_short}W)\n`;
+    }
+    if (currentPower.best_power_medium && comparisonPower.best_power_medium) {
+      const diff = currentPower.best_power_medium - comparisonPower.best_power_medium;
+      summary += `• Best 1-2hr power: ${diff >= 0 ? '+' : ''}${diff}W (${currentPower.best_power_medium}W vs ${comparisonPower.best_power_medium}W)\n`;
+    }
+  }
+
+  if (verdict) {
+    const verdictText = {
+      'fitter': 'FITTER than comparison period',
+      'slightly_fitter': 'Slightly fitter than comparison period',
+      'similar': 'Similar fitness to comparison period',
+      'slightly_less_fit': 'Slightly less fit than comparison period',
+      'less_fit': 'Lower fitness than comparison period'
+    };
+    summary += `\nVerdict: ${verdictText[verdict.verdict] || 'Unable to determine'}`;
+  }
+
   return {
     success: true,
     current_period: {
@@ -300,7 +359,8 @@ async function comparePeriods(recentSnapshots, compare_to, metrics, supabase, us
       avg_ctl: Math.round(currentAvg.ctl),
       avg_weekly_tss: Math.round(currentAvg.weekly_tss),
       avg_weekly_hours: round2(currentAvg.weekly_hours),
-      avg_rides_per_week: round2(currentAvg.weekly_rides)
+      avg_rides_per_week: round2(currentAvg.weekly_rides),
+      power: currentPower
     },
     comparison_period: {
       label: comparisonLabel,
@@ -308,20 +368,187 @@ async function comparePeriods(recentSnapshots, compare_to, metrics, supabase, us
       avg_ctl: Math.round(comparisonAvg.ctl),
       avg_weekly_tss: Math.round(comparisonAvg.weekly_tss),
       avg_weekly_hours: round2(comparisonAvg.weekly_hours),
-      avg_rides_per_week: round2(comparisonAvg.weekly_rides)
+      avg_rides_per_week: round2(comparisonAvg.weekly_rides),
+      power: comparisonPower
     },
     differences: {
       ctl: ctlDiff,
       weekly_hours: hoursDiff,
       weekly_tss: Math.round(currentAvg.weekly_tss - comparisonAvg.weekly_tss)
     },
-    summary: `Compared to ${comparisonLabel}: CTL is ${ctlDiff >= 0 ? '+' : ''}${ctlDiff} (${Math.round(currentAvg.ctl)} vs ${Math.round(comparisonAvg.ctl)}). ` +
-             `Weekly volume is ${hoursDiff >= 0 ? '+' : ''}${hoursDiff} hours (${round2(currentAvg.weekly_hours)} vs ${round2(comparisonAvg.weekly_hours)} hrs/week).`
+    fitness_verdict: verdict,
+    summary
   };
 }
 
 /**
+ * Calculate best power outputs from activities within a date range
+ * Groups by duration buckets to find best efforts at key durations
+ */
+async function calculatePowerMetrics(supabase, userId, startDate, endDate) {
+  const { data: activities } = await supabase
+    .from('activities')
+    .select('average_watts, max_watts, moving_time, kilojoules, total_elevation_gain, distance')
+    .eq('user_id', userId)
+    .or('is_hidden.eq.false,is_hidden.is.null')
+    .gte('start_date', startDate.toISOString())
+    .lt('start_date', endDate.toISOString())
+    .gt('average_watts', 0);
+
+  if (!activities || activities.length === 0) {
+    return null;
+  }
+
+  // Duration buckets for power comparison
+  // Short: 20-60 min (threshold/VO2max efforts)
+  // Medium: 60-120 min (tempo/sweet spot rides)
+  // Long: 120+ min (endurance rides)
+  const shortEfforts = activities.filter(a => a.moving_time >= 1200 && a.moving_time < 3600);
+  const mediumEfforts = activities.filter(a => a.moving_time >= 3600 && a.moving_time < 7200);
+  const longEfforts = activities.filter(a => a.moving_time >= 7200);
+
+  // Find best average watts for each duration bucket
+  const bestShort = shortEfforts.length > 0
+    ? Math.max(...shortEfforts.map(a => a.average_watts))
+    : null;
+  const bestMedium = mediumEfforts.length > 0
+    ? Math.max(...mediumEfforts.map(a => a.average_watts))
+    : null;
+  const bestLong = longEfforts.length > 0
+    ? Math.max(...longEfforts.map(a => a.average_watts))
+    : null;
+
+  // Peak power (sprint proxy)
+  const peakPower = Math.max(...activities.map(a => a.max_watts || 0));
+
+  // Training efficiency: total kJ / total hours
+  const totalKj = activities.reduce((sum, a) => sum + (a.kilojoules || 0), 0);
+  const totalHours = activities.reduce((sum, a) => sum + (a.moving_time || 0), 0) / 3600;
+  const kjPerHour = totalHours > 0 ? Math.round(totalKj / totalHours) : null;
+
+  // Average watts across all activities (weighted by duration)
+  const totalWattHours = activities.reduce((sum, a) =>
+    sum + (a.average_watts * (a.moving_time / 3600)), 0);
+  const weightedAvgWatts = totalHours > 0 ? Math.round(totalWattHours / totalHours) : null;
+
+  // Climbing efficiency: total elevation / total hours
+  const totalElevation = activities.reduce((sum, a) => sum + (a.total_elevation_gain || 0), 0);
+  const elevationPerHour = totalHours > 0 ? Math.round(totalElevation / totalHours) : null;
+
+  return {
+    activity_count: activities.length,
+    total_hours: round2(totalHours),
+    total_kj: Math.round(totalKj),
+    // Best efforts by duration
+    best_power_short: bestShort,  // Best avg watts for 20-60 min rides
+    best_power_medium: bestMedium, // Best avg watts for 1-2 hour rides
+    best_power_long: bestLong,    // Best avg watts for 2+ hour rides
+    peak_power: peakPower > 0 ? peakPower : null,
+    // Efficiency metrics
+    kj_per_hour: kjPerHour,
+    weighted_avg_watts: weightedAvgWatts,
+    elevation_per_hour: elevationPerHour,
+    // Sample sizes for confidence
+    short_effort_count: shortEfforts.length,
+    medium_effort_count: mediumEfforts.length,
+    long_effort_count: longEfforts.length
+  };
+}
+
+/**
+ * Generate fitness verdict based on comprehensive comparison
+ */
+function generateFitnessVerdict(current, previous) {
+  const dominated = { better: 0, worse: 0, same: 0 };
+  const insights = [];
+
+  // Compare CTL (training load - not fitness, but context)
+  if (current.ctl !== null && previous.ctl !== null) {
+    const ctlDiff = current.ctl - previous.ctl;
+    if (ctlDiff < -10) {
+      dominated.worse++;
+      insights.push(`Training load (CTL) is ${Math.abs(ctlDiff)} points lower`);
+    } else if (ctlDiff > 10) {
+      dominated.better++;
+    }
+  }
+
+  // Compare actual power outputs (THIS IS WHAT MATTERS FOR FITNESS)
+  const powerMetrics = [
+    { name: 'short efforts (20-60 min)', current: current.power?.best_power_short, previous: previous.power?.best_power_short },
+    { name: 'medium efforts (1-2 hr)', current: current.power?.best_power_medium, previous: previous.power?.best_power_medium },
+    { name: 'long efforts (2+ hr)', current: current.power?.best_power_long, previous: previous.power?.best_power_long },
+    { name: 'peak power', current: current.power?.peak_power, previous: previous.power?.peak_power }
+  ];
+
+  for (const metric of powerMetrics) {
+    if (metric.current && metric.previous) {
+      const diff = metric.current - metric.previous;
+      const pctDiff = Math.round((diff / metric.previous) * 100);
+
+      if (pctDiff >= 3) {
+        dominated.better++;
+        insights.push(`Best ${metric.name}: +${diff}W (+${pctDiff}%)`);
+      } else if (pctDiff <= -3) {
+        dominated.worse++;
+        insights.push(`Best ${metric.name}: ${diff}W (${pctDiff}%)`);
+      } else {
+        dominated.same++;
+      }
+    }
+  }
+
+  // Compare efficiency (higher is better - more output per hour)
+  if (current.power?.kj_per_hour && previous.power?.kj_per_hour) {
+    const effDiff = current.power.kj_per_hour - previous.power.kj_per_hour;
+    const pctDiff = Math.round((effDiff / previous.power.kj_per_hour) * 100);
+
+    if (pctDiff >= 5) {
+      dominated.better++;
+      insights.push(`Training efficiency: +${pctDiff}% more kJ/hour`);
+    } else if (pctDiff <= -5) {
+      dominated.worse++;
+      insights.push(`Training efficiency: ${pctDiff}% less kJ/hour`);
+    }
+  }
+
+  // Generate verdict
+  let verdict = 'similar';
+  let confidence = 'low';
+
+  const totalComparisons = dominated.better + dominated.worse + dominated.same;
+
+  if (totalComparisons >= 3) {
+    confidence = 'moderate';
+    if (totalComparisons >= 5) confidence = 'high';
+
+    if (dominated.better > dominated.worse * 2) {
+      verdict = 'fitter';
+    } else if (dominated.worse > dominated.better * 2) {
+      verdict = 'less_fit';
+    } else if (dominated.better > dominated.worse) {
+      verdict = 'slightly_fitter';
+    } else if (dominated.worse > dominated.better) {
+      verdict = 'slightly_less_fit';
+    }
+  }
+
+  // Special case: lower CTL but higher power outputs = FITTER (quality > quantity)
+  const lowerCTL = current.ctl < previous.ctl;
+  const higherPower = (current.power?.best_power_short > previous.power?.best_power_short) ||
+                      (current.power?.best_power_medium > previous.power?.best_power_medium);
+
+  if (lowerCTL && higherPower) {
+    verdict = 'fitter';
+    insights.unshift('Training volume is lower but power outputs are higher - this indicates improved fitness quality');
+  }
+
+  return { verdict, confidence, insights, comparisons: dominated };
+}
+
+/**
  * Year-over-year comparison for the same time period
+ * Enhanced to include actual power metrics, not just CTL
  */
 async function yearOverYearComparison(recentSnapshots, supabase, userId) {
   const currentWeek = recentSnapshots[0]?.snapshot_week;
@@ -329,39 +556,149 @@ async function yearOverYearComparison(recentSnapshots, supabase, userId) {
     return { message: 'No current fitness data available' };
   }
 
-  // Get data for same week in previous years
   const currentDate = new Date(currentWeek);
   const yearComparisons = [];
+
+  // Define comparison window: 6 weeks centered on current date
+  const windowWeeks = 6;
+  const currentWindowStart = new Date(currentDate);
+  currentWindowStart.setDate(currentWindowStart.getDate() - (windowWeeks * 7) / 2);
+  const currentWindowEnd = new Date(currentDate);
+  currentWindowEnd.setDate(currentWindowEnd.getDate() + (windowWeeks * 7) / 2);
+
+  // Get current period power metrics
+  const currentPower = await calculatePowerMetrics(supabase, userId, currentWindowStart, currentWindowEnd);
 
   for (let yearsBack = 1; yearsBack <= 3; yearsBack++) {
     const targetDate = new Date(currentDate);
     targetDate.setFullYear(targetDate.getFullYear() - yearsBack);
 
     // Look for snapshots within 2 weeks of target date
-    const startDate = new Date(targetDate);
-    startDate.setDate(startDate.getDate() - 7);
-    const endDate = new Date(targetDate);
-    endDate.setDate(endDate.getDate() + 7);
+    const snapshotStart = new Date(targetDate);
+    snapshotStart.setDate(snapshotStart.getDate() - 7);
+    const snapshotEnd = new Date(targetDate);
+    snapshotEnd.setDate(snapshotEnd.getDate() + 7);
 
     const { data } = await supabase
       .from('fitness_snapshots')
       .select('*')
       .eq('user_id', userId)
-      .gte('snapshot_week', startDate.toISOString().split('T')[0])
-      .lte('snapshot_week', endDate.toISOString().split('T')[0])
+      .gte('snapshot_week', snapshotStart.toISOString().split('T')[0])
+      .lte('snapshot_week', snapshotEnd.toISOString().split('T')[0])
       .order('snapshot_week', { ascending: false })
       .limit(1);
 
     if (data && data.length > 0) {
+      // Get power metrics for the same window last year
+      const pastWindowStart = new Date(currentWindowStart);
+      pastWindowStart.setFullYear(pastWindowStart.getFullYear() - yearsBack);
+      const pastWindowEnd = new Date(currentWindowEnd);
+      pastWindowEnd.setFullYear(pastWindowEnd.getFullYear() - yearsBack);
+
+      const pastPower = await calculatePowerMetrics(supabase, userId, pastWindowStart, pastWindowEnd);
+
       yearComparisons.push({
         year: targetDate.getFullYear(),
         years_ago: yearsBack,
-        snapshot: data[0]
+        snapshot: data[0],
+        power: pastPower
       });
     }
   }
 
   const current = recentSnapshots[0];
+
+  // Build comparison results with power data
+  const previousYearsData = yearComparisons.map(yc => {
+    const powerComparison = {};
+
+    if (currentPower && yc.power) {
+      // Power differences
+      if (currentPower.best_power_short && yc.power.best_power_short) {
+        powerComparison.best_power_short_diff = currentPower.best_power_short - yc.power.best_power_short;
+      }
+      if (currentPower.best_power_medium && yc.power.best_power_medium) {
+        powerComparison.best_power_medium_diff = currentPower.best_power_medium - yc.power.best_power_medium;
+      }
+      if (currentPower.best_power_long && yc.power.best_power_long) {
+        powerComparison.best_power_long_diff = currentPower.best_power_long - yc.power.best_power_long;
+      }
+      if (currentPower.peak_power && yc.power.peak_power) {
+        powerComparison.peak_power_diff = currentPower.peak_power - yc.power.peak_power;
+      }
+      if (currentPower.kj_per_hour && yc.power.kj_per_hour) {
+        powerComparison.efficiency_diff = currentPower.kj_per_hour - yc.power.kj_per_hour;
+      }
+    }
+
+    return {
+      year: yc.year,
+      years_ago: yc.years_ago,
+      week: yc.snapshot.snapshot_week,
+      // CTL metrics (training load)
+      ctl: yc.snapshot.ctl,
+      weekly_hours: yc.snapshot.weekly_hours,
+      weekly_tss: yc.snapshot.weekly_tss,
+      ctl_difference: current.ctl - yc.snapshot.ctl,
+      // Power metrics (actual fitness indicators)
+      power: yc.power,
+      power_comparison: powerComparison
+    };
+  });
+
+  // Generate overall fitness verdict for most recent year comparison
+  let verdict = null;
+  if (yearComparisons.length > 0) {
+    const lastYear = yearComparisons[0];
+    verdict = generateFitnessVerdict(
+      { ctl: current.ctl, power: currentPower },
+      { ctl: lastYear.snapshot.ctl, power: lastYear.power }
+    );
+  }
+
+  // Build summary that distinguishes training load from actual fitness
+  let summary = '';
+  if (yearComparisons.length > 0) {
+    const yc = yearComparisons[0];
+    const ctlDiff = current.ctl - yc.snapshot.ctl;
+
+    summary = `Year-over-year analysis (vs ${yc.year}):\n`;
+    summary += `• Training Load (CTL): ${current.ctl} vs ${yc.snapshot.ctl} (${ctlDiff >= 0 ? '+' : ''}${ctlDiff})\n`;
+
+    if (currentPower && yc.power) {
+      summary += `• Best 20-60min power: ${currentPower.best_power_short || 'N/A'}W vs ${yc.power.best_power_short || 'N/A'}W`;
+      if (currentPower.best_power_short && yc.power.best_power_short) {
+        const diff = currentPower.best_power_short - yc.power.best_power_short;
+        summary += ` (${diff >= 0 ? '+' : ''}${diff}W)`;
+      }
+      summary += '\n';
+
+      summary += `• Best 1-2hr power: ${currentPower.best_power_medium || 'N/A'}W vs ${yc.power.best_power_medium || 'N/A'}W`;
+      if (currentPower.best_power_medium && yc.power.best_power_medium) {
+        const diff = currentPower.best_power_medium - yc.power.best_power_medium;
+        summary += ` (${diff >= 0 ? '+' : ''}${diff}W)`;
+      }
+      summary += '\n';
+
+      summary += `• Training efficiency: ${currentPower.kj_per_hour || 'N/A'} kJ/hr vs ${yc.power.kj_per_hour || 'N/A'} kJ/hr\n`;
+    }
+
+    if (verdict) {
+      const verdictText = {
+        'fitter': 'You appear to be FITTER than this time last year',
+        'slightly_fitter': 'You appear to be slightly fitter than this time last year',
+        'similar': 'Your fitness appears similar to this time last year',
+        'slightly_less_fit': 'You may be slightly less fit than this time last year',
+        'less_fit': 'Your power outputs suggest lower fitness than this time last year'
+      };
+      summary += `\nVerdict: ${verdictText[verdict.verdict] || 'Unable to determine'}`;
+      if (verdict.insights.length > 0) {
+        summary += '\nKey insights:\n' + verdict.insights.map(i => `  - ${i}`).join('\n');
+      }
+    }
+  } else {
+    summary = 'No previous year data available for comparison.';
+  }
 
   return {
     success: true,
@@ -370,23 +707,12 @@ async function yearOverYearComparison(recentSnapshots, supabase, userId) {
       week: currentWeek,
       ctl: current.ctl,
       weekly_hours: current.weekly_hours,
-      weekly_tss: current.weekly_tss
+      weekly_tss: current.weekly_tss,
+      power: currentPower
     },
-    previous_years: yearComparisons.map(yc => ({
-      year: yc.year,
-      years_ago: yc.years_ago,
-      week: yc.snapshot.snapshot_week,
-      ctl: yc.snapshot.ctl,
-      weekly_hours: yc.snapshot.weekly_hours,
-      weekly_tss: yc.snapshot.weekly_tss,
-      ctl_difference: current.ctl - yc.snapshot.ctl
-    })),
-    summary: yearComparisons.length > 0
-      ? `Year-over-year: Current CTL ${current.ctl}. ` +
-        yearComparisons.map(yc =>
-          `${yc.year}: CTL ${yc.snapshot.ctl} (${current.ctl - yc.snapshot.ctl >= 0 ? '+' : ''}${current.ctl - yc.snapshot.ctl} difference)`
-        ).join('. ')
-      : 'No previous year data available for comparison.'
+    previous_years: previousYearsData,
+    fitness_verdict: verdict,
+    summary
   };
 }
 
