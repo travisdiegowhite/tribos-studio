@@ -282,30 +282,9 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
       }
     });
 
-    // Fallback: For durations without MMP data, estimate from avg/max power
-    // This is less accurate but better than showing nothing
-    const missingDurations = durations.filter(d => !powerProfile[d]);
-    if (missingDurations.length > 0) {
-      activities.filter(a => a.average_watts > 0).forEach(activity => {
-        const avgWatts = activity.average_watts;
-        const maxWatts = activity.max_watts || avgWatts * 1.5;
-        const duration = activity.moving_time || 0;
-
-        missingDurations.forEach(d => {
-          if (duration >= d && !powerProfile[d]) {
-            // Conservative estimation - use weighted blend closer to average
-            const factor = Math.pow(d / duration, 0.15);
-            const estimatedPower = avgWatts + (maxWatts - avgWatts) * Math.max(0, 0.5 - factor);
-
-            if (!powerProfile[d] || estimatedPower > powerProfile[d]) {
-              powerProfile[d] = Math.round(estimatedPower);
-            }
-          }
-        });
-      });
-    }
-
     // Use FTP if provided (user-set FTP is more reliable for 60-minute power)
+    // Note: We don't estimate short-duration power from avg/max - it's unreliable
+    // Users should run power backfill to get accurate MMP data
     if (ftp) {
       powerProfile[3600] = ftp;
     }

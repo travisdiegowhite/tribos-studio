@@ -1154,40 +1154,96 @@ async function backfillGpsData(req, res, userId) {
  */
 async function backfillPowerData(req, res, userId) {
   try {
-    const { limit = 50 } = req.body;
+    const { limit = 50, mode = 'all' } = req.body;
 
-    console.log(`⚡ Starting power backfill for user ${userId}`);
+    console.log(`⚡ Starting power backfill for user ${userId} (mode: ${mode})`);
 
     // Get valid access token
     const { accessToken, integration } = await getValidAccessToken(userId);
 
-    // Find Garmin cycling activities without power data
-    // Focus on Ride types which are most likely to have power meters
-    const { data: activitiesWithoutPower, error: queryError } = await supabase
-      .from('activities')
-      .select('id, provider_activity_id, name, type, start_date, distance, moving_time, raw_data')
-      .eq('user_id', userId)
-      .eq('provider', 'garmin')
-      .is('average_watts', null)
-      .in('type', ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'])
-      .order('start_date', { ascending: false })
-      .limit(limit);
+    // Find Garmin cycling activities that need power data
+    // Mode 'all' (default): activities missing average_watts OR missing power_curve_summary
+    // Mode 'mmp_only': only activities missing power_curve_summary (have avg watts but no MMP)
+    // Mode 'no_power': only activities missing average_watts entirely
+    const rideTypes = ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'];
 
-    if (queryError) {
-      console.error('Error querying activities:', queryError);
-      return res.status(500).json({ error: 'Failed to query activities' });
+    let activitiesToProcess = [];
+
+    if (mode === 'no_power') {
+      // Only activities with no power at all
+      const { data, error } = await supabase
+        .from('activities')
+        .select('id, provider_activity_id, name, type, start_date, distance, moving_time, raw_data, average_watts, power_curve_summary')
+        .eq('user_id', userId)
+        .eq('provider', 'garmin')
+        .is('average_watts', null)
+        .in('type', rideTypes)
+        .order('start_date', { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      activitiesToProcess = data || [];
+    } else if (mode === 'mmp_only') {
+      // Only activities that have average_watts but missing power_curve_summary
+      const { data, error } = await supabase
+        .from('activities')
+        .select('id, provider_activity_id, name, type, start_date, distance, moving_time, raw_data, average_watts, power_curve_summary')
+        .eq('user_id', userId)
+        .eq('provider', 'garmin')
+        .not('average_watts', 'is', null)
+        .is('power_curve_summary', null)
+        .in('type', rideTypes)
+        .order('start_date', { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      activitiesToProcess = data || [];
+    } else {
+      // Default: all activities needing any power data
+      // First get activities without average_watts
+      const { data: noPower, error: e1 } = await supabase
+        .from('activities')
+        .select('id, provider_activity_id, name, type, start_date, distance, moving_time, raw_data, average_watts, power_curve_summary')
+        .eq('user_id', userId)
+        .eq('provider', 'garmin')
+        .is('average_watts', null)
+        .in('type', rideTypes)
+        .order('start_date', { ascending: false })
+        .limit(limit);
+      if (e1) throw e1;
+
+      // Then get activities with power but missing MMP curve
+      const { data: noMmp, error: e2 } = await supabase
+        .from('activities')
+        .select('id, provider_activity_id, name, type, start_date, distance, moving_time, raw_data, average_watts, power_curve_summary')
+        .eq('user_id', userId)
+        .eq('provider', 'garmin')
+        .not('average_watts', 'is', null)
+        .is('power_curve_summary', null)
+        .in('type', rideTypes)
+        .order('start_date', { ascending: false })
+        .limit(limit);
+      if (e2) throw e2;
+
+      // Combine and dedupe
+      const seen = new Set();
+      activitiesToProcess = [...(noPower || []), ...(noMmp || [])].filter(a => {
+        if (seen.has(a.id)) return false;
+        seen.add(a.id);
+        return true;
+      }).slice(0, limit);
     }
 
-    if (!activitiesWithoutPower || activitiesWithoutPower.length === 0) {
+    if (activitiesToProcess.length === 0) {
       return res.status(200).json({
         success: true,
-        message: 'All Garmin cycling activities already have power data',
+        message: 'All Garmin cycling activities already have complete power data',
         processed: 0,
         total: 0
       });
     }
 
-    console.log(`⚡ Found ${activitiesWithoutPower.length} cycling activities without power data`);
+    const noPowerCount = activitiesToProcess.filter(a => !a.average_watts).length;
+    const noMmpCount = activitiesToProcess.filter(a => a.average_watts && !a.power_curve_summary).length;
+    console.log(`⚡ Found ${activitiesToProcess.length} activities to process (${noPowerCount} without power, ${noMmpCount} without MMP curve)`);
 
     let processed = 0;
     let success = 0;
@@ -1198,7 +1254,7 @@ async function backfillPowerData(req, res, userId) {
     const results = [];
     const dateRangesToBackfill = new Set();
 
-    for (const activity of activitiesWithoutPower) {
+    for (const activity of activitiesToProcess) {
       try {
         // Try to find a FIT file URL for this activity
         let fitFileUrl = null;
