@@ -25,7 +25,7 @@ const GARMIN_API_BASE = 'https://apis.garmin.com/wellness-api/rest';
 
 // Configuration
 const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000; // ~60 days in milliseconds
-const DELAY_BETWEEN_CHUNKS_MS = 5000; // 5 seconds between requests
+const DELAY_BETWEEN_CHUNKS_MS = 10000; // 10 seconds between requests (Garmin rate limits at 100/min)
 const DEFAULT_YEARS_BACK = 2;
 const MAX_YEARS_BACK = 5; // Garmin's limit for activity data
 
