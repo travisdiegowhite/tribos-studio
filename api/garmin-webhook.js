@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
+import { updateBackfillChunkIfApplicable } from './utils/garminBackfill.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -616,6 +617,10 @@ async function downloadAndProcessActivity(event, integration) {
             }
           }
 
+          // Track backfill chunk even for takeovers
+          if (activityInfo.startTimeInSeconds) {
+            await updateBackfillChunkIfApplicable(integration.user_id, activityInfo.startTimeInSeconds);
+          }
           await markEventProcessed(event.id, `Garmin took over from ${dupCheck.existingActivity.provider}`, dupCheck.existingActivity.id);
         } else {
           await markEventProcessed(event.id, `Takeover failed: ${result.error}`, dupCheck.existingActivity.id);
@@ -634,6 +639,10 @@ async function downloadAndProcessActivity(event, integration) {
           raw_data: activityData.raw_data
         };
         await mergeActivityData(dupCheck.existingActivity.id, garminData, 'garmin');
+        // Track backfill chunk even for merges
+        if (activityInfo.startTimeInSeconds) {
+          await updateBackfillChunkIfApplicable(integration.user_id, activityInfo.startTimeInSeconds);
+        }
         await markEventProcessed(event.id, dupCheck.reason, dupCheck.existingActivity.id);
         return;
       }
@@ -663,6 +672,11 @@ async function downloadAndProcessActivity(event, integration) {
       kilojoules: activity.kilojoules ? `${Math.round(activity.kilojoules)} kJ` : 'N/A',
       dataSource: activityDetails ? 'Garmin API' : 'Webhook only'
     });
+
+    // Update backfill chunk tracking if this activity came from a historical backfill
+    if (activityInfo.startTimeInSeconds) {
+      await updateBackfillChunkIfApplicable(integration.user_id, activityInfo.startTimeInSeconds);
+    }
 
     // Try to download and parse FIT file for GPS data
     // The FIT file contains the full GPS track that we can encode as a polyline
