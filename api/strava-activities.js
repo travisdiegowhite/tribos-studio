@@ -518,72 +518,63 @@ async function calculateAndStoreSpeedProfile(userId) {
     a.type === 'MountainBikeRide'
   );
 
-  // Calculate distance-weighted average speed (longer rides count more)
-  // This is more representative of actual riding pace
-  const weightedAvgSpeed = (acts) => {
+  // Calculate median speed - most robust against outliers
+  // Median is unaffected by a few very slow or very fast rides
+  const medianSpeed = (acts) => {
     if (acts.length === 0) return null;
-    const totalDistance = acts.reduce((sum, a) => sum + (a.distance || 0), 0);
-    if (totalDistance === 0) return null;
-    // Weight each activity's speed by its distance
-    const weightedSum = acts.reduce((sum, a) => {
-      const speedKmh = (a.average_speed || 0) * 3.6;
-      const distance = a.distance || 0;
-      return sum + (speedKmh * distance);
-    }, 0);
-    return weightedSum / totalDistance;
+    const speeds = acts
+      .map(a => (a.average_speed || 0) * 3.6) // m/s to km/h
+      .filter(s => s > 0) // Remove zero speeds
+      .sort((a, b) => a - b);
+    if (speeds.length === 0) return null;
+    const mid = Math.floor(speeds.length / 2);
+    // For even length, average the two middle values
+    if (speeds.length % 2 === 0) {
+      return (speeds[mid - 1] + speeds[mid]) / 2;
+    }
+    return speeds[mid];
   };
 
-  // Calculate percentile speed - more robust than average for typical pace
-  // 60th percentile excludes slow recovery rides while being representative
-  const percentileSpeed = (acts, percentile = 0.6) => {
+  // Calculate percentile speed for performance tiers
+  const percentileSpeed = (acts, percentile) => {
     if (acts.length === 0) return null;
-    const speeds = acts.map(a => (a.average_speed || 0) * 3.6).sort((a, b) => a - b);
+    const speeds = acts
+      .map(a => (a.average_speed || 0) * 3.6)
+      .filter(s => s > 0)
+      .sort((a, b) => a - b);
+    if (speeds.length === 0) return null;
     const index = Math.floor(speeds.length * percentile);
     return speeds[Math.min(index, speeds.length - 1)];
   };
 
-  // Use the higher of weighted average or 60th percentile
-  // This ensures we capture actual riding pace, not dragged down by slow rides
-  const representativeSpeed = (acts) => {
-    if (acts.length === 0) return null;
-    const weighted = weightedAvgSpeed(acts);
-    const p60 = percentileSpeed(acts, 0.6);
-    // Use the higher value - this better represents actual riding pace
-    // (simple average is too easily skewed by slow recovery/commute rides)
-    if (weighted && p60) {
-      return Math.max(weighted, p60);
-    }
-    return weighted || p60;
-  };
-
   // Calculate stats for all activities
-  const allSpeeds = activities.map(a => (a.average_speed || 0) * 3.6);
-  const simpleAvgSpeed = allSpeeds.reduce((a, b) => a + b, 0) / allSpeeds.length;
-  const stdDev = Math.sqrt(
+  const allSpeeds = activities.map(a => (a.average_speed || 0) * 3.6).filter(s => s > 0);
+  const simpleAvgSpeed = allSpeeds.length > 0 ? allSpeeds.reduce((a, b) => a + b, 0) / allSpeeds.length : 0;
+  const stdDev = allSpeeds.length > 0 ? Math.sqrt(
     allSpeeds.reduce((sum, s) => sum + Math.pow(s - simpleAvgSpeed, 2), 0) / allSpeeds.length
-  );
+  ) : 0;
 
-  // Use representative speed for overall average (not simple average)
-  const overallRepSpeed = representativeSpeed(activities);
+  // Use median speed - most robust against outliers
+  const overallMedianSpeed = medianSpeed(activities);
 
   const speedProfile = {
     user_id: userId,
-    // Overall stats - use representative speed to avoid slow ride bias
-    average_speed: overallRepSpeed || simpleAvgSpeed,
+    // Overall stats - use median to avoid slow/fast ride bias
+    average_speed: overallMedianSpeed || simpleAvgSpeed,
     speed_std_dev: stdDev,
     rides_analyzed: activities.length,
 
-    // By activity type - use representative speed for each category
-    road_speed: representativeSpeed(roadActivities),
+    // By activity type - use median for each category
+    road_speed: medianSpeed(roadActivities),
     road_rides_count: roadActivities.length,
-    gravel_speed: representativeSpeed(gravelActivities),
+    gravel_speed: medianSpeed(gravelActivities),
     gravel_rides_count: gravelActivities.length,
-    mtb_speed: representativeSpeed(mtbActivities),
+    mtb_speed: medianSpeed(mtbActivities),
     mtb_rides_count: mtbActivities.length,
 
     // Performance tiers - based on percentiles
-    easy_speed: (overallRepSpeed || simpleAvgSpeed) * 0.75, // Recovery pace
-    endurance_speed: (overallRepSpeed || simpleAvgSpeed) * 0.90, // Sustainable pace
+    easy_speed: (overallMedianSpeed || simpleAvgSpeed) * 0.75, // Recovery pace
+    endurance_speed: (overallMedianSpeed || simpleAvgSpeed) * 0.90, // Sustainable pace
     tempo_speed: percentileSpeed(activities, 0.75), // Faster pace
     fast_speed: percentileSpeed(activities, 0.90), // Top 10% pace
 
@@ -600,11 +591,11 @@ async function calculateAndStoreSpeedProfile(userId) {
     updated_at: new Date().toISOString()
   };
 
-  console.log('📊 Speed Profile (using distance-weighted + 60th percentile):', {
-    avgSpeed: speedProfile.average_speed?.toFixed(1) + ' km/h',
-    roadSpeed: speedProfile.road_speed?.toFixed(1) + ' km/h',
+  console.log('📊 Speed Profile (using median):', {
+    avgSpeed: speedProfile.average_speed?.toFixed(1) + ' km/h (' + (speedProfile.average_speed * 0.621371).toFixed(1) + ' mph)',
+    roadSpeed: speedProfile.road_speed?.toFixed(1) + ' km/h (' + (speedProfile.road_speed ? (speedProfile.road_speed * 0.621371).toFixed(1) : 'N/A') + ' mph)',
     roadRides: roadActivities.length,
-    gravelSpeed: speedProfile.gravel_speed?.toFixed(1) + ' km/h',
+    gravelSpeed: speedProfile.gravel_speed?.toFixed(1) + ' km/h (' + (speedProfile.gravel_speed ? (speedProfile.gravel_speed * 0.621371).toFixed(1) : 'N/A') + ' mph)',
     gravelRides: gravelActivities.length,
     ridesAnalyzed: speedProfile.rides_analyzed
   });
