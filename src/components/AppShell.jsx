@@ -11,7 +11,7 @@ import {
   IconHome,
   IconMap,
   IconActivity,
-  IconCoffee,
+  IconUsers,
   IconSettings,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
@@ -22,7 +22,7 @@ const navItems = [
   { path: '/dashboard', label: 'Home', icon: IconHome },
   { path: '/routes/list', label: 'Routes', icon: IconMap },
   { path: '/training', label: 'Training', icon: IconActivity },
-  { path: '/community', label: 'Cafe', icon: IconCoffee },
+  { path: '/community', label: 'Cafe', icon: IconUsers },
   { path: '/settings', label: 'Settings', icon: IconSettings },
 ];
 
