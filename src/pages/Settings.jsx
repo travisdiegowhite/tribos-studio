@@ -62,6 +62,8 @@ function Settings() {
   const [garminRecovering, setGarminRecovering] = useState(false);
   const [garminDiagnosis, setGarminDiagnosis] = useState(null);
   const [garminBackfillingGps, setGarminBackfillingGps] = useState(false);
+  const [garminBackfillingHistory, setGarminBackfillingHistory] = useState(false);
+  const [garminBackfillStatus, setGarminBackfillStatus] = useState(null);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showStravaDisconnectModal, setShowStravaDisconnectModal] = useState(false);
@@ -146,6 +148,16 @@ function Settings() {
       try {
         const status = await garminService.getConnectionStatus();
         setGarminStatus({ ...status, loading: false });
+
+        // Also load backfill status if connected
+        if (status.connected) {
+          try {
+            const backfillResult = await garminService.getBackfillStatus();
+            setGarminBackfillStatus(backfillResult);
+          } catch (err) {
+            console.error('Error loading backfill status:', err);
+          }
+        }
       } catch (error) {
         console.error('Error loading Garmin status:', error);
         setGarminStatus({ connected: false, loading: false });
@@ -851,6 +863,77 @@ function Settings() {
     }
   };
 
+  const backfillGarminHistory = async () => {
+    setGarminBackfillingHistory(true);
+    try {
+      notifications.show({
+        id: 'garmin-history',
+        title: 'Starting Historical Backfill',
+        message: 'Requesting 2 years of activity history from Garmin in 2-month chunks...',
+        loading: true,
+        autoClose: false
+      });
+
+      const result = await garminService.backfillHistorical(2);
+
+      if (result.success) {
+        const { summary } = result;
+        const message = summary.requested > 0
+          ? `Queued ${summary.requested} chunks. Activities will arrive via webhooks over the next few minutes to hours.`
+          : summary.alreadyProcessed > 0
+            ? `All ${summary.alreadyProcessed} chunks already processed. Historical data should be available.`
+            : result.message;
+
+        notifications.update({
+          id: 'garmin-history',
+          title: 'Historical Backfill Started',
+          message,
+          color: 'lime',
+          loading: false,
+          autoClose: 10000
+        });
+
+        // Refresh backfill status
+        await checkGarminBackfillStatus();
+      } else {
+        notifications.update({
+          id: 'garmin-history',
+          title: 'Backfill In Progress',
+          message: result.message || 'A backfill is already in progress. Check status for details.',
+          color: 'yellow',
+          loading: false,
+          autoClose: 8000
+        });
+
+        // Refresh backfill status
+        await checkGarminBackfillStatus();
+      }
+    } catch (error) {
+      console.error('Error starting historical backfill:', error);
+      notifications.update({
+        id: 'garmin-history',
+        title: 'Backfill Failed',
+        message: error.message || 'Failed to start historical backfill',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    } finally {
+      setGarminBackfillingHistory(false);
+    }
+  };
+
+  const checkGarminBackfillStatus = async () => {
+    try {
+      const result = await garminService.getBackfillStatus();
+      setGarminBackfillStatus(result);
+      return result;
+    } catch (error) {
+      console.error('Error checking backfill status:', error);
+      return null;
+    }
+  };
+
   const connectWahoo = () => {
     try {
       if (!wahooService.isConfigured()) {
@@ -1272,6 +1355,9 @@ function Settings() {
                 diagnosis={garminDiagnosis}
                 onBackfillGps={backfillGarminGps}
                 backfillingGps={garminBackfillingGps}
+                onBackfillHistory={backfillGarminHistory}
+                backfillingHistory={garminBackfillingHistory}
+                backfillStatus={garminBackfillStatus}
                 unitsPreference={unitsPreference}
               />
 
@@ -1637,7 +1723,7 @@ function Settings() {
   );
 }
 
-function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis, onBackfillGps, backfillingGps, unitsPreference }) {
+function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis, onBackfillGps, backfillingGps, onBackfillHistory, backfillingHistory, backfillStatus, unitsPreference }) {
   const isStrava = name === 'Strava';
 
   if (loading) {
@@ -1756,6 +1842,80 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
               {backfillingGps ? 'Downloading...' : 'Backfill GPS'}
             </Button>
           </Group>
+        </Box>
+      )}
+
+      {/* Historical Backfill (for Garmin when connected) */}
+      {connected && onBackfillHistory && (
+        <Box
+          style={{
+            backgroundColor: tokens.colors.bgTertiary,
+            padding: tokens.spacing.sm,
+            borderRadius: tokens.radius.sm,
+            marginLeft: '2.5rem'
+          }}
+        >
+          <Stack gap="xs">
+            <Group justify="space-between" align="flex-start">
+              <Box>
+                <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
+                  Historical Data (2 Years)
+                </Text>
+                <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                  Import all activities from the past 2 years in small chunks
+                </Text>
+              </Box>
+              <Button
+                size="xs"
+                color="violet"
+                variant="light"
+                onClick={onBackfillHistory}
+                loading={backfillingHistory}
+              >
+                {backfillingHistory ? 'Starting...' : 'Import History'}
+              </Button>
+            </Group>
+            {backfillStatus?.initialized && (
+              <Box
+                style={{
+                  backgroundColor: tokens.colors.bgSecondary,
+                  padding: tokens.spacing.xs,
+                  borderRadius: tokens.radius.xs,
+                  fontSize: '12px'
+                }}
+              >
+                <Stack gap={4}>
+                  <Group gap="xs">
+                    <Text size="xs" style={{ color: tokens.colors.textSecondary }}>Progress:</Text>
+                    <Text size="xs" style={{ color: backfillStatus.progress?.percentComplete === 100 ? tokens.colors.electricLime : tokens.colors.textPrimary }}>
+                      {backfillStatus.progress?.percentComplete || 0}% ({backfillStatus.progress?.received + backfillStatus.progress?.alreadyProcessed || 0}/{backfillStatus.progress?.total || 0} chunks)
+                    </Text>
+                  </Group>
+                  {backfillStatus.progress?.requested > 0 && (
+                    <Group gap="xs">
+                      <Text size="xs" style={{ color: tokens.colors.textSecondary }}>Waiting:</Text>
+                      <Text size="xs" style={{ color: 'orange' }}>
+                        {backfillStatus.progress.requested} chunks pending from Garmin
+                      </Text>
+                    </Group>
+                  )}
+                  {backfillStatus.progress?.activitiesReceived > 0 && (
+                    <Group gap="xs">
+                      <Text size="xs" style={{ color: tokens.colors.textSecondary }}>Activities:</Text>
+                      <Text size="xs" style={{ color: tokens.colors.electricLime }}>
+                        {backfillStatus.progress.activitiesReceived} received
+                      </Text>
+                    </Group>
+                  )}
+                  {backfillStatus.progress?.failed > 0 && (
+                    <Text size="xs" style={{ color: 'red' }}>
+                      {backfillStatus.progress.failed} chunks failed - retry by clicking Import History again
+                    </Text>
+                  )}
+                </Stack>
+              </Box>
+            )}
+          </Stack>
         </Box>
       )}
 
