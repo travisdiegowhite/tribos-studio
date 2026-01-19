@@ -38,6 +38,15 @@ When discussing metrics:
 - Positive TSB = rested/fresh, Negative TSB = fatigued
 - TSB ranges: <-30 (overreaching), -10 to -30 (productive), -10 to +5 (optimal race form), >+25 (detraining)
 
+**CALENDAR & RACE GOALS ACCESS:**
+You have DIRECT ACCESS to the athlete's calendar and race goals. This data is provided in the "ATHLETE'S CURRENT TRAINING CONTEXT" section below. When the athlete asks about their races, events, or calendar:
+- You CAN see their race names, dates, distances, elevation, race types, and goals
+- You CAN calculate exactly how many days/weeks until each race
+- You CAN provide race-specific training plans based on their actual event details
+- DO NOT tell the athlete you "can't see" their calendar - you have full access to their race goals
+- Reference their specific races by name when giving advice (e.g., "For Old Man Winter on March 15th...")
+- Use the race date to calculate preparation timelines and periodization phases
+
 ${WORKOUT_LIBRARY_FOR_AI}
 
 **HOW TO RECOMMEND WORKOUTS:**
@@ -201,10 +210,15 @@ You MUST use the current date above as your reference point. When the athlete as
 ${COACHING_KNOWLEDGE}`;
 
     if (trainingContext) {
-      systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT ===\n${trainingContext}`;
+      systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT (INCLUDING RACE CALENDAR) ===
+IMPORTANT: You have DIRECT ACCESS to all information below. This includes their race goals, event dates, distances, and performance targets. Reference this data directly in your responses.
+
+${trainingContext}`;
     }
 
-    systemPrompt += `\n\n=== INSTRUCTIONS ===\nUse the current date context and athlete data above to provide personalized, time-appropriate coaching advice.`;
+    systemPrompt += `\n\n=== INSTRUCTIONS ===
+Use the current date context and athlete data above to provide personalized, time-appropriate coaching advice.
+When races are listed above, use their exact names, dates, and details in your response - you have full visibility into their calendar.`;
 
     // Limit conversation history to last 10 messages to prevent stale context from dominating
     const recentHistory = conversationHistory.slice(-10);
