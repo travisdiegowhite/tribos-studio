@@ -350,35 +350,54 @@ async function processWebhookEvent(eventId) {
         .maybeSingle();
 
       if (existing) {
-        // Activity exists - check if we need to update GPS data
+        // Activity exists - check if we need to update GPS or power data
         const fitFileUrl = event.file_url;
-        const needsGps = !existing.map_summary_polyline && fitFileUrl;
+        const needsGps = !existing.map_summary_polyline;
+        const needsPowerMetrics = !existing.normalized_power && !existing.power_curve_summary;
+        const needsFitData = (needsGps || needsPowerMetrics) && fitFileUrl;
 
-        if (needsGps) {
-          // Activity exists but missing GPS - try to extract from FIT file
-          console.log('📍 Activity exists but missing GPS, attempting FIT file download:', event.activity_id);
+        if (needsFitData) {
+          // Activity exists but missing GPS or power data - try to extract from FIT file
+          console.log('📍 Activity exists but missing data, attempting FIT file download:', event.activity_id);
           try {
             const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token);
 
-            if (fitResult.polyline) {
+            // Build update object
+            const activityUpdate = { updated_at: new Date().toISOString() };
+            const updates = [];
+
+            if (needsGps && fitResult.polyline) {
+              activityUpdate.map_summary_polyline = fitResult.polyline;
+              updates.push(`GPS: ${fitResult.simplifiedCount} points`);
+            }
+
+            if (needsPowerMetrics && fitResult.powerMetrics) {
+              const pm = fitResult.powerMetrics;
+              if (pm.normalizedPower) activityUpdate.normalized_power = pm.normalizedPower;
+              if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
+              if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
+              if (pm.intensityFactor) activityUpdate.intensity_factor = pm.intensityFactor;
+              if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
+              activityUpdate.device_watts = true;
+              updates.push(`NP: ${pm.normalizedPower}W`);
+            }
+
+            if (updates.length > 0) {
               const { error: updateError } = await supabase
                 .from('activities')
-                .update({
-                  map_summary_polyline: fitResult.polyline,
-                  updated_at: new Date().toISOString()
-                })
+                .update(activityUpdate)
                 .eq('id', existing.id);
 
               if (updateError) {
-                console.error('❌ Failed to update GPS:', updateError);
-                await markEventProcessed(eventId, `GPS update failed: ${updateError.message}`, existing.id);
+                console.error('❌ Failed to update activity:', updateError);
+                await markEventProcessed(eventId, `Update failed: ${updateError.message}`, existing.id);
               } else {
-                console.log(`✅ GPS track added to existing activity: ${fitResult.simplifiedCount} points`);
-                await markEventProcessed(eventId, 'GPS data added to existing activity', existing.id);
+                console.log(`✅ Data added to existing activity: ${updates.join(', ')}`);
+                await markEventProcessed(eventId, `Data added: ${updates.join(', ')}`, existing.id);
               }
             } else {
-              console.log('ℹ️ No GPS data in FIT file');
-              await markEventProcessed(eventId, 'Already imported, no GPS in FIT file', existing.id);
+              console.log('ℹ️ No new data in FIT file');
+              await markEventProcessed(eventId, 'Already imported, no new data in FIT file', existing.id);
             }
           } catch (fitError) {
             console.error('⚠️ FIT file processing failed:', fitError.message);
@@ -598,25 +617,48 @@ async function downloadAndProcessActivity(event, integration) {
       try {
         const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token);
 
+        // Build update object with GPS and power metrics
+        const activityUpdate = {
+          updated_at: new Date().toISOString()
+        };
+
         if (fitResult.polyline) {
-          // Update activity with GPS polyline
+          activityUpdate.map_summary_polyline = fitResult.polyline;
+        }
+
+        // Add power metrics if available from FIT file
+        if (fitResult.powerMetrics) {
+          const pm = fitResult.powerMetrics;
+          if (pm.normalizedPower) activityUpdate.normalized_power = pm.normalizedPower;
+          if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
+          if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
+          if (pm.intensityFactor) activityUpdate.intensity_factor = pm.intensityFactor;
+          if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
+          activityUpdate.device_watts = true; // Power meter data from FIT file
+
+          console.log(`⚡ Power metrics from FIT: NP=${pm.normalizedPower}W, Max=${pm.maxPower}W, TSS=${pm.trainingStressScore || 'N/A'}`);
+        }
+
+        // Update activity if we have any data to add
+        if (Object.keys(activityUpdate).length > 1) { // More than just updated_at
           const { error: updateError } = await supabase
             .from('activities')
-            .update({
-              map_summary_polyline: fitResult.polyline,
-              updated_at: new Date().toISOString()
-            })
+            .update(activityUpdate)
             .eq('id', activity.id);
 
           if (updateError) {
-            console.error('❌ Failed to save GPS polyline:', updateError);
+            console.error('❌ Failed to save FIT data:', updateError);
           } else {
-            console.log(`✅ GPS track saved: ${fitResult.simplifiedCount} points encoded as polyline`);
+            const updates = [];
+            if (fitResult.polyline) updates.push(`GPS: ${fitResult.simplifiedCount} points`);
+            if (fitResult.powerMetrics?.normalizedPower) updates.push(`NP: ${fitResult.powerMetrics.normalizedPower}W`);
+            if (fitResult.powerMetrics?.powerCurveSummary) updates.push(`Power curve: ${Object.keys(fitResult.powerMetrics.powerCurveSummary).length} points`);
+            console.log(`✅ FIT data saved: ${updates.join(', ')}`);
           }
         } else if (fitResult.error) {
-          console.log('⚠️ Could not extract GPS:', fitResult.error);
+          console.log('⚠️ Could not extract data from FIT:', fitResult.error);
         } else {
-          console.log('ℹ️ No GPS data in FIT file (indoor activity?)');
+          console.log('ℹ️ No GPS or power data in FIT file (indoor activity without power?)');
         }
       } catch (fitError) {
         // Don't fail the whole import if FIT parsing fails

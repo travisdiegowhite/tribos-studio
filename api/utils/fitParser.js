@@ -40,11 +40,40 @@ export function parseFitFile(fitBuffer) {
           const trackPoints = extractTrackPoints(data.records || []);
           const summary = extractSummary(data);
 
+          // Extract power stream and calculate metrics
+          const powerStream = extractPowerStream(trackPoints);
+          let powerMetrics = null;
+
+          if (powerStream && powerStream.length > 0) {
+            // Use device-calculated NP if available, otherwise calculate from stream
+            const normalizedPower = summary?.normalizedPower || calculateNormalizedPower(powerStream);
+            const powerCurveSummary = calculatePowerCurveSummary(powerStream);
+
+            // Calculate max power from stream (more accurate than summary which might be smoothed)
+            const maxPowerFromStream = powerStream.length > 0 ? Math.max(...powerStream) : null;
+
+            powerMetrics = {
+              normalizedPower,
+              maxPower: maxPowerFromStream || summary?.maxPower || null,
+              avgPower: summary?.avgPower || null,
+              trainingStressScore: summary?.trainingStressScore || null,
+              intensityFactor: summary?.intensityFactor || null,
+              thresholdPower: summary?.threshold_power || null,
+              powerCurveSummary,
+              hasPowerData: true,
+              powerSampleCount: powerStream.length
+            };
+
+            console.log(`⚡ Power metrics extracted: NP=${normalizedPower}W, Max=${powerMetrics.maxPower}W, Samples=${powerStream.length}`);
+          }
+
           resolve({
             trackPoints,
             summary,
+            powerMetrics,
             recordCount: data.records?.length || 0,
-            hasGpsData: trackPoints.length > 0
+            hasGpsData: trackPoints.length > 0,
+            hasPowerData: powerMetrics?.hasPowerData || false
           });
         } catch (parseError) {
           reject(new Error(`Failed to process FIT data: ${parseError.message}`));
@@ -106,11 +135,131 @@ function extractSummary(data) {
       maxPower: session.max_power || null,
       avgCadence: session.avg_cadence || null,
       sport: session.sport || 'cycling',
-      subSport: session.sub_sport || null
+      subSport: session.sub_sport || null,
+      // Power metrics from device (if available)
+      normalizedPower: session.normalized_power || null,
+      trainingStressScore: session.training_stress_score || null,
+      intensityFactor: session.intensity_factor || null,
+      threshold_power: session.threshold_power || null, // FTP setting on device
+      totalWork: session.total_work || null, // kJ
+      totalCalories: session.total_calories || null
     };
   }
 
   return null;
+}
+
+/**
+ * Calculate Normalized Power from power stream
+ * NP = 4th root of average of (30-second rolling average)^4
+ * This weights high-intensity efforts more heavily than simple average
+ */
+function calculateNormalizedPower(powerValues) {
+  if (!powerValues || powerValues.length < 30) {
+    return null;
+  }
+
+  // Calculate 30-second rolling averages
+  const rollingAvgs = [];
+  for (let i = 29; i < powerValues.length; i++) {
+    let sum = 0;
+    for (let j = i - 29; j <= i; j++) {
+      sum += powerValues[j] || 0;
+    }
+    rollingAvgs.push(sum / 30);
+  }
+
+  if (rollingAvgs.length === 0) return null;
+
+  // Calculate 4th power of each rolling average
+  const fourthPowers = rollingAvgs.map(avg => Math.pow(avg, 4));
+
+  // Average of 4th powers
+  const avgFourthPower = fourthPowers.reduce((a, b) => a + b, 0) / fourthPowers.length;
+
+  // 4th root = Normalized Power
+  return Math.round(Math.pow(avgFourthPower, 0.25));
+}
+
+/**
+ * Calculate Mean Maximal Power (MMP) at a given duration
+ * Returns the best average power for that duration
+ */
+function calculateMMP(powerValues, durationSeconds) {
+  if (!powerValues || powerValues.length < durationSeconds) {
+    return null;
+  }
+
+  let maxAvg = 0;
+  let windowSum = 0;
+
+  // Initialize first window
+  for (let i = 0; i < durationSeconds; i++) {
+    windowSum += powerValues[i] || 0;
+  }
+  maxAvg = windowSum / durationSeconds;
+
+  // Slide window
+  for (let i = durationSeconds; i < powerValues.length; i++) {
+    windowSum = windowSum - (powerValues[i - durationSeconds] || 0) + (powerValues[i] || 0);
+    const avg = windowSum / durationSeconds;
+    if (avg > maxAvg) {
+      maxAvg = avg;
+    }
+  }
+
+  return Math.round(maxAvg);
+}
+
+/**
+ * Calculate power curve summary (MMP at key durations)
+ * This enables power curve analysis without storing full streams
+ */
+function calculatePowerCurveSummary(powerValues) {
+  if (!powerValues || powerValues.length < 5) {
+    return null;
+  }
+
+  // Key durations for power curve (in seconds)
+  const durations = {
+    '1s': 1,
+    '5s': 5,
+    '10s': 10,
+    '30s': 30,
+    '60s': 60,
+    '120s': 120,
+    '300s': 300,   // 5 min
+    '600s': 600,   // 10 min
+    '1200s': 1200, // 20 min
+    '1800s': 1800, // 30 min
+    '3600s': 3600  // 60 min
+  };
+
+  const summary = {};
+
+  for (const [label, seconds] of Object.entries(durations)) {
+    const mmp = calculateMMP(powerValues, seconds);
+    if (mmp !== null && mmp > 0) {
+      summary[label] = mmp;
+    }
+  }
+
+  return Object.keys(summary).length > 0 ? summary : null;
+}
+
+/**
+ * Extract power values from track points (1-second resolution assumed)
+ */
+function extractPowerStream(trackPoints) {
+  if (!trackPoints || trackPoints.length === 0) {
+    return null;
+  }
+
+  const powerValues = trackPoints
+    .filter(p => p.power !== null && p.power !== undefined)
+    .map(p => p.power);
+
+  return powerValues.length > 0 ? powerValues : null;
 }
 
 /**
@@ -295,8 +444,10 @@ export async function downloadAndParseFitFile(url, accessToken) {
     return {
       polyline,
       summary: parsed.summary,
+      powerMetrics: parsed.powerMetrics,
       pointCount: parsed.trackPoints.length,
       simplifiedCount: simplified.length,
+      hasPowerData: parsed.hasPowerData,
       error: null
     };
 
@@ -305,6 +456,7 @@ export async function downloadAndParseFitFile(url, accessToken) {
     return {
       polyline: null,
       summary: null,
+      powerMetrics: null,
       error: error.message
     };
   }

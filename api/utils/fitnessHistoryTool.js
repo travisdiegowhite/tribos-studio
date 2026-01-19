@@ -383,12 +383,17 @@ async function comparePeriods(recentSnapshots, compare_to, metrics, supabase, us
 
 /**
  * Calculate best power outputs from activities within a date range
- * Groups by duration buckets to find best efforts at key durations
+ * Uses real power curve data from FIT files when available, falls back to estimates
  */
 async function calculatePowerMetrics(supabase, userId, startDate, endDate) {
+  // Query for all power-related fields including new FIT-derived metrics
   const { data: activities } = await supabase
     .from('activities')
-    .select('average_watts, max_watts, moving_time, kilojoules, total_elevation_gain, distance')
+    .select(`
+      average_watts, max_watts, normalized_power, tss, intensity_factor,
+      power_curve_summary, device_watts, moving_time, kilojoules,
+      total_elevation_gain, distance
+    `)
     .eq('user_id', userId)
     .or('is_hidden.eq.false,is_hidden.is.null')
     .gte('start_date', startDate.toISOString())
@@ -399,7 +404,34 @@ async function calculatePowerMetrics(supabase, userId, startDate, endDate) {
     return null;
   }
 
-  // Duration buckets for power comparison
+  // Separate activities with real power data vs estimated
+  const withPowerCurve = activities.filter(a => a.power_curve_summary);
+  const withDeviceWatts = activities.filter(a => a.device_watts === true);
+  const hasRealPowerData = withPowerCurve.length > 0 || withDeviceWatts.length > 0;
+
+  // Extract best MMP at key durations from power curve summaries
+  // This is REAL data from FIT files - much more accurate than estimates
+  let best5min = null, best20min = null, best60min = null;
+
+  for (const activity of withPowerCurve) {
+    const curve = activity.power_curve_summary;
+    if (curve) {
+      // 5 minute power (300s)
+      if (curve['300s'] && (best5min === null || curve['300s'] > best5min)) {
+        best5min = curve['300s'];
+      }
+      // 20 minute power (1200s)
+      if (curve['1200s'] && (best20min === null || curve['1200s'] > best20min)) {
+        best20min = curve['1200s'];
+      }
+      // 60 minute power (3600s)
+      if (curve['3600s'] && (best60min === null || curve['3600s'] > best60min)) {
+        best60min = curve['3600s'];
+      }
+    }
+  }
+
+  // Duration buckets for fallback comparison (when no power curve data)
   // Short: 20-60 min (threshold/VO2max efforts)
   // Medium: 60-120 min (tempo/sweet spot rides)
   // Long: 120+ min (endurance rides)
@@ -407,19 +439,27 @@ async function calculatePowerMetrics(supabase, userId, startDate, endDate) {
   const mediumEfforts = activities.filter(a => a.moving_time >= 3600 && a.moving_time < 7200);
   const longEfforts = activities.filter(a => a.moving_time >= 7200);
 
-  // Find best average watts for each duration bucket
-  const bestShort = shortEfforts.length > 0
+  // Find best average watts for each duration bucket (fallback if no power curve)
+  const bestShortFallback = shortEfforts.length > 0
     ? Math.max(...shortEfforts.map(a => a.average_watts))
     : null;
-  const bestMedium = mediumEfforts.length > 0
+  const bestMediumFallback = mediumEfforts.length > 0
     ? Math.max(...mediumEfforts.map(a => a.average_watts))
     : null;
-  const bestLong = longEfforts.length > 0
+  const bestLongFallback = longEfforts.length > 0
     ? Math.max(...longEfforts.map(a => a.average_watts))
     : null;
 
-  // Peak power (sprint proxy)
+  // Use real data when available, fall back to estimates
+  const best_power_short = best5min || bestShortFallback;
+  const best_power_medium = best20min || bestMediumFallback;
+  const best_power_long = best60min || bestLongFallback;
+
+  // Peak power - prefer max_watts from FIT files
   const peakPower = Math.max(...activities.map(a => a.max_watts || 0));
+
+  // Best normalized power (real intensity metric)
+  const bestNP = Math.max(...activities.filter(a => a.normalized_power).map(a => a.normalized_power) || [0]);
 
   // Training efficiency: total kJ / total hours
   const totalKj = activities.reduce((sum, a) => sum + (a.kilojoules || 0), 0);
@@ -427,31 +467,46 @@ async function calculatePowerMetrics(supabase, userId, startDate, endDate) {
   const kjPerHour = totalHours > 0 ? Math.round(totalKj / totalHours) : null;
 
   // Average watts across all activities (weighted by duration)
-  const totalWattHours = activities.reduce((sum, a) =>
-    sum + (a.average_watts * (a.moving_time / 3600)), 0);
+  // Prefer normalized power when available
+  const totalWattHours = activities.reduce((sum, a) => {
+    const power = a.normalized_power || a.average_watts;
+    return sum + (power * (a.moving_time / 3600));
+  }, 0);
   const weightedAvgWatts = totalHours > 0 ? Math.round(totalWattHours / totalHours) : null;
 
   // Climbing efficiency: total elevation / total hours
   const totalElevation = activities.reduce((sum, a) => sum + (a.total_elevation_gain || 0), 0);
   const elevationPerHour = totalHours > 0 ? Math.round(totalElevation / totalHours) : null;
 
+  // Total TSS if available
+  const totalTSS = activities.reduce((sum, a) => sum + (a.tss || 0), 0);
+
   return {
     activity_count: activities.length,
     total_hours: round2(totalHours),
     total_kj: Math.round(totalKj),
-    // Best efforts by duration
-    best_power_short: bestShort,  // Best avg watts for 20-60 min rides
-    best_power_medium: bestMedium, // Best avg watts for 1-2 hour rides
-    best_power_long: bestLong,    // Best avg watts for 2+ hour rides
+    total_tss: totalTSS > 0 ? Math.round(totalTSS) : null,
+    // Best efforts - REAL MMP from power curves when available
+    best_power_short: best_power_short,   // Best 5-min power (or fallback)
+    best_power_medium: best_power_medium, // Best 20-min power (or fallback)
+    best_power_long: best_power_long,     // Best 60-min power (or fallback)
+    // Peak metrics
     peak_power: peakPower > 0 ? peakPower : null,
+    best_normalized_power: bestNP > 0 ? bestNP : null,
     // Efficiency metrics
     kj_per_hour: kjPerHour,
     weighted_avg_watts: weightedAvgWatts,
     elevation_per_hour: elevationPerHour,
+    // Data quality indicators
+    has_real_power_data: hasRealPowerData,
+    activities_with_power_curve: withPowerCurve.length,
+    activities_with_device_watts: withDeviceWatts.length,
     // Sample sizes for confidence
     short_effort_count: shortEfforts.length,
     medium_effort_count: mediumEfforts.length,
-    long_effort_count: longEfforts.length
+    long_effort_count: longEfforts.length,
+    // Data source labels for UI
+    power_source: hasRealPowerData ? 'power_meter' : 'estimated'
   };
 }
 
