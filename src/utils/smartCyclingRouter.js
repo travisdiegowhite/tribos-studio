@@ -1,6 +1,9 @@
 /**
  * Smart cycling router that combines multiple routing services for optimal cycling routes
- * Priority: Stadia Maps (hosted Valhalla) → BRouter (gravel) → Mapbox (fallback)
+ *
+ * Priority varies by profile:
+ * - Gravel/MTB: BRouter (PRIMARY - has dedicated gravel profile) → Stadia Maps → Mapbox
+ * - Road/Commuting: Stadia Maps (PRIMARY - excellent for paved roads) → BRouter → Mapbox
  */
 
 import { getStadiaMapsRoute, isStadiaMapsAvailable } from './stadiaMapsRouter';
@@ -32,54 +35,99 @@ export async function getSmartCyclingRoute(waypoints, options = {}) {
   console.log('🎯 Profile:', profile);
   console.log('🎯 Training goal:', trainingGoal);
 
-  const isGravelRequest = profile === 'gravel';
+  const isGravelOrMTB = profile === 'gravel' || profile === 'mountain';
 
-  // Strategy 1: Try Stadia Maps (hosted Valhalla) - PRIMARY for all cycling routes
-  if (isStadiaMapsAvailable()) {
-    console.log('🗺️ Using Stadia Maps (hosted Valhalla routing engine)');
-    const stadiaResult = await tryStadiaMapsRouting(waypoints, {
-      profile,
-      preferences,
-      trainingGoal,
-      userSpeed
-    });
+  // For GRAVEL/MTB routes: BRouter is PRIMARY (has dedicated profiles that actively seek unpaved roads)
+  // For ROAD/COMMUTING routes: Stadia Maps is PRIMARY (excellent for paved cycling infrastructure)
+  if (isGravelOrMTB) {
+    // === GRAVEL/MTB ROUTING STRATEGY ===
+    // BRouter has dedicated gravel and MTB profiles that actively prioritize unpaved surfaces
 
-    if (stadiaResult && stadiaResult.coordinates && stadiaResult.coordinates.length > 10) {
-      console.log('✅ Stadia Maps provided superior cycling route with Valhalla engine');
-      return {
-        ...stadiaResult,
-        source: 'stadia_maps',
-        confidence: 1.0 // Highest confidence - purpose-built for cycling
-      };
-    } else {
-      console.warn('⚠️ Stadia Maps routing failed, falling back to alternative services');
-    }
-  } else {
-    console.log('⚠️ Stadia Maps not available, trying alternatives');
-  }
-
-  // Strategy 2: For GRAVEL routes, use BRouter (FREE and excellent for unpaved roads)
-  if (isGravelRequest) {
-    console.log('🌾 Gravel route requested - using BRouter (free OSM routing with gravel profile)');
+    // Strategy 1: Try BRouter FIRST for gravel/MTB (it's the specialist)
+    console.log('🌾 Gravel/MTB route requested - using BRouter as PRIMARY (dedicated unpaved profiles)');
+    const brouterProfile = profile === 'mountain' ? BROUTER_PROFILES.MTB : BROUTER_PROFILES.GRAVEL;
     const brouterResult = await tryBRouterRouting(waypoints, {
-      profile: BROUTER_PROFILES.GRAVEL,
+      profile: brouterProfile,
       preferences,
       trainingGoal
     });
 
     if (brouterResult && brouterResult.coordinates && brouterResult.coordinates.length > 10) {
-      console.log('✅ BRouter provided gravel route - prioritizes unpaved roads');
+      console.log(`✅ BRouter provided ${profile} route - actively prioritizes unpaved roads`);
       return {
         ...brouterResult,
         source: 'brouter_gravel',
-        confidence: Math.min(brouterResult.confidence + 0.2, 1.0)
+        confidence: 1.0 // Highest confidence for gravel - BRouter is the specialist
       };
     } else {
-      console.warn('⚠️ BRouter gravel routing failed, falling back to Mapbox');
+      console.warn('⚠️ BRouter routing failed, falling back to Stadia Maps');
+    }
+
+    // Strategy 2: Fall back to Stadia Maps for gravel
+    if (isStadiaMapsAvailable()) {
+      console.log('🗺️ Trying Stadia Maps as fallback for gravel route');
+      const stadiaResult = await tryStadiaMapsRouting(waypoints, {
+        profile,
+        preferences,
+        trainingGoal,
+        userSpeed
+      });
+
+      if (stadiaResult && stadiaResult.coordinates && stadiaResult.coordinates.length > 10) {
+        console.log('✅ Stadia Maps provided gravel route (fallback)');
+        return {
+          ...stadiaResult,
+          source: 'stadia_maps',
+          confidence: 0.8 // Lower confidence for gravel - Stadia allows but doesn't prefer gravel
+        };
+      }
+    }
+  } else {
+    // === ROAD/COMMUTING ROUTING STRATEGY ===
+    // Stadia Maps (Valhalla) excels at paved cycling infrastructure
+
+    // Strategy 1: Try Stadia Maps FIRST for road/commuting
+    if (isStadiaMapsAvailable()) {
+      console.log('🗺️ Using Stadia Maps as PRIMARY (excellent for paved cycling routes)');
+      const stadiaResult = await tryStadiaMapsRouting(waypoints, {
+        profile,
+        preferences,
+        trainingGoal,
+        userSpeed
+      });
+
+      if (stadiaResult && stadiaResult.coordinates && stadiaResult.coordinates.length > 10) {
+        console.log('✅ Stadia Maps provided optimized cycling route');
+        return {
+          ...stadiaResult,
+          source: 'stadia_maps',
+          confidence: 1.0 // Highest confidence for road - Valhalla is excellent
+        };
+      } else {
+        console.warn('⚠️ Stadia Maps routing failed, falling back to BRouter');
+      }
+    }
+
+    // Strategy 2: Fall back to BRouter for road routes
+    const brouterProfile = selectBRouterProfile(trainingGoal, preferences?.surfaceType);
+    console.log(`🚴 Trying BRouter as fallback with profile: ${brouterProfile}`);
+    const brouterResult = await tryBRouterRouting(waypoints, {
+      profile: brouterProfile,
+      preferences,
+      trainingGoal
+    });
+
+    if (brouterResult && brouterResult.coordinates && brouterResult.coordinates.length > 10) {
+      console.log('✅ BRouter provided cycling route (fallback)');
+      return {
+        ...brouterResult,
+        source: 'brouter',
+        confidence: 0.9
+      };
     }
   }
 
-  // Strategy 3: Try Mapbox as final fallback
+  // Strategy 3: Try Mapbox as final fallback (for any profile)
   if (mapboxToken) {
     console.log('🔄 Falling back to Mapbox with cycling profile...');
     const mapboxResult = await tryMapboxRouting(waypoints, {
@@ -93,7 +141,7 @@ export async function getSmartCyclingRoute(waypoints, options = {}) {
       return {
         ...mapboxResult,
         source: 'mapbox_fallback',
-        confidence: 0.8
+        confidence: 0.7 // Lowest confidence - basic cycling routing
       };
     }
   }

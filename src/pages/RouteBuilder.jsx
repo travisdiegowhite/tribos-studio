@@ -502,6 +502,7 @@ function RouteBuilder() {
     timeAvailable, setTimeAvailable,
     routeType, setRouteType,
     routeProfile, setRouteProfile,
+    explicitDistanceKm, setExplicitDistanceKm,
     aiSuggestions, setAiSuggestions,
     selectedWorkoutId, setSelectedWorkoutId,
     routingSource, setRoutingSource,
@@ -1117,13 +1118,21 @@ function RouteBuilder() {
         // Builds routes segment-by-segment for more accurate results
         console.log('🔄 Using Iterative Route Builder');
 
-        // Calculate target distance based on time and speed
-        // Default 28 km/h (~17.4 mph) is typical cycling pace for recreational/fitness riders
+        // Use explicit distance if user specified it (e.g., "100km loop")
+        // Otherwise calculate from time and speed
         const avgSpeed = speedProfile?.average_speed || 28; // km/h default
-        const targetDistanceKm = (timeAvailable / 60) * avgSpeed;
+        let targetDistanceKm;
 
-        console.log(`📊 Route calculation: ${timeAvailable}min × ${avgSpeed.toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
-        console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
+        if (explicitDistanceKm) {
+          // User specified distance directly - use it exactly
+          targetDistanceKm = explicitDistanceKm;
+          console.log(`📏 Using explicit distance: ${targetDistanceKm}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
+        } else {
+          // Calculate from time and speed
+          targetDistanceKm = (timeAvailable / 60) * avgSpeed;
+          console.log(`📊 Route calculation: ${timeAvailable}min × ${avgSpeed.toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
+          console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
+        }
 
         routes = await generateIterativeRouteVariations({
           startLocation: [viewport.longitude, viewport.latitude],
@@ -1175,7 +1184,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [viewport, timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder]);
+  }, [viewport, timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm]);
 
   // Get user's speed for the current route profile
   const getUserSpeedForProfile = useCallback((profile) => {
@@ -1319,6 +1328,15 @@ function RouteBuilder() {
       if (parsed.routeType) setRouteType(parsed.routeType);
       if (parsed.preferences?.surfaceType === 'gravel') setRouteProfile('gravel');
 
+      // Store explicit distance if user specified it directly (e.g., "100km loop")
+      // This prevents distance→time→distance conversion from losing precision
+      if (parsed.targetDistanceKm) {
+        setExplicitDistanceKm(parsed.targetDistanceKm);
+        console.log(`📏 Explicit distance set: ${parsed.targetDistanceKm}km`);
+      } else {
+        setExplicitDistanceKm(null); // Clear if not explicitly specified
+      }
+
       // Step 4: Determine start location with priority:
       // 1. User-placed waypoint on map (if any)
       // 2. User's geolocated position
@@ -1386,13 +1404,21 @@ function RouteBuilder() {
         if (useIterativeBuilder) {
           console.log('🔄 Using Iterative Route Builder for natural language request');
 
-          // Calculate target distance based on time and speed
-          // Default 28 km/h (~17.4 mph) is typical cycling pace for recreational/fitness riders
+          // Use explicit distance if user specified it (e.g., "100km loop")
+          // Otherwise calculate from time and speed
           const avgSpeed = speedProfile?.average_speed || 28; // km/h default
-          const targetDistanceKm = (duration / 60) * avgSpeed;
+          let targetDistanceKm;
 
-          console.log(`📊 Route calculation: ${duration}min × ${avgSpeed.toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
-          console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
+          if (parsed.targetDistanceKm) {
+            // User specified distance directly - use it exactly
+            targetDistanceKm = parsed.targetDistanceKm;
+            console.log(`📏 Using explicit distance: ${targetDistanceKm}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
+          } else {
+            // Calculate from time and speed
+            targetDistanceKm = (duration / 60) * avgSpeed;
+            console.log(`📊 Route calculation: ${duration}min × ${avgSpeed.toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
+            console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
+          }
 
           notifications.show({
             id: 'generating-route',

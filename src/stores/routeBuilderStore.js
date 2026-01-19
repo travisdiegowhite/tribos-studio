@@ -31,6 +31,7 @@ const initialState = {
   timeAvailable: 60,
   routeType: 'loop',
   routeProfile: 'road',
+  explicitDistanceKm: null, // When user specifies distance directly (e.g., "100km loop")
 
   // AI suggestions (the generated route options)
   aiSuggestions: [],
@@ -101,6 +102,11 @@ export const useRouteBuilderStore = create(
         lastSaved: Date.now()
       }),
 
+      setExplicitDistanceKm: (distance) => set({
+        explicitDistanceKm: distance,
+        lastSaved: Date.now()
+      }),
+
       // === AI Suggestions Actions ===
       setAiSuggestions: (suggestions) => set({
         aiSuggestions: suggestions,
@@ -139,6 +145,7 @@ export const useRouteBuilderStore = create(
         waypoints: [],
         aiSuggestions: [],
         routingSource: null,
+        explicitDistanceKm: null, // Clear explicit distance when clearing route
         lastSaved: Date.now()
       }),
 
@@ -177,6 +184,7 @@ export const useRouteBuilderStore = create(
         timeAvailable: state.timeAvailable,
         routeType: state.routeType,
         routeProfile: state.routeProfile,
+        explicitDistanceKm: state.explicitDistanceKm,
         aiSuggestions: state.aiSuggestions,
         selectedWorkoutId: state.selectedWorkoutId,
         routingSource: state.routingSource,
