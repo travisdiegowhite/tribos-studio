@@ -9,7 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
-import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
+import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -343,7 +343,7 @@ async function processWebhookEvent(eventId) {
     if (event.activity_id) {
       const { data: existing } = await supabase
         .from('activities')
-        .select('id, map_summary_polyline')
+        .select('id, map_summary_polyline, average_watts, normalized_power, power_curve_summary')
         .eq('provider_activity_id', event.activity_id)
         .eq('user_id', integration.user_id)
         .eq('provider', 'garmin')
@@ -353,8 +353,10 @@ async function processWebhookEvent(eventId) {
         // Activity exists - check if we need to update GPS or power data
         const fitFileUrl = event.file_url;
         const needsGps = !existing.map_summary_polyline;
+        // Check if missing average_watts (the main power metric users see)
+        const needsAvgPower = !existing.average_watts;
         const needsPowerMetrics = !existing.normalized_power && !existing.power_curve_summary;
-        const needsFitData = (needsGps || needsPowerMetrics) && fitFileUrl;
+        const needsFitData = (needsGps || needsPowerMetrics || needsAvgPower) && fitFileUrl;
 
         if (needsFitData) {
           // Activity exists but missing GPS or power data - try to extract from FIT file
@@ -371,15 +373,25 @@ async function processWebhookEvent(eventId) {
               updates.push(`GPS: ${fitResult.simplifiedCount} points`);
             }
 
-            if (needsPowerMetrics && fitResult.powerMetrics) {
+            // Always try to update power if available from FIT and missing in activity
+            if (fitResult.powerMetrics) {
               const pm = fitResult.powerMetrics;
-              if (pm.normalizedPower) activityUpdate.normalized_power = pm.normalizedPower;
-              if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
-              if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
-              if (pm.intensityFactor) activityUpdate.intensity_factor = pm.intensityFactor;
-              if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
-              activityUpdate.device_watts = true;
-              updates.push(`NP: ${pm.normalizedPower}W`);
+              // CRITICAL: Save average_watts - this is what shows in the UI
+              if (needsAvgPower && pm.avgPower) {
+                activityUpdate.average_watts = pm.avgPower;
+                updates.push(`Avg: ${pm.avgPower}W`);
+              }
+              if (needsPowerMetrics) {
+                if (pm.normalizedPower) activityUpdate.normalized_power = pm.normalizedPower;
+                if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
+                if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
+                if (pm.intensityFactor) activityUpdate.intensity_factor = pm.intensityFactor;
+                if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
+                if (pm.normalizedPower) updates.push(`NP: ${pm.normalizedPower}W`);
+              }
+              if (pm.avgPower || pm.normalizedPower) {
+                activityUpdate.device_watts = true;
+              }
             }
 
             if (updates.length > 0) {
@@ -565,21 +577,66 @@ async function downloadAndProcessActivity(event, integration) {
     );
 
     if (dupCheck.isDuplicate) {
-      console.log('🔄 Cross-provider duplicate detected, merging data instead');
-      // Merge Garmin data into existing activity from another provider
-      // Garmin often has better power/elevation data
-      const garminData = {
-        total_elevation_gain: activityData.total_elevation_gain || null,
-        average_watts: activityData.average_watts || null,
-        average_heartrate: activityData.average_heartrate || null,
-        max_heartrate: activityData.max_heartrate || null,
-        average_cadence: activityData.average_cadence || null,
-        kilojoules: activityData.kilojoules || null,
-        raw_data: activityData.raw_data
-      };
-      await mergeActivityData(dupCheck.existingActivity.id, garminData, 'garmin');
-      await markEventProcessed(event.id, dupCheck.reason, dupCheck.existingActivity.id);
-      return;
+      if (dupCheck.shouldTakeover) {
+        // Garmin has higher priority than existing provider (e.g., Strava)
+        // Take over the activity completely - Garmin becomes the source of truth
+        console.log('🔄 Cross-provider duplicate: Garmin taking over from', dupCheck.existingActivity.provider);
+
+        const result = await takeoverActivity(
+          dupCheck.existingActivity.id,
+          activityData,
+          'garmin',
+          event.activity_id
+        );
+
+        if (result.success) {
+          // Try to get FIT data for the taken-over activity
+          const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
+          if (fitFileUrl && integration.access_token) {
+            try {
+              const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token);
+              if (fitResult.powerMetrics || fitResult.polyline) {
+                const fitUpdate = { updated_at: new Date().toISOString() };
+                if (fitResult.polyline) fitUpdate.map_summary_polyline = fitResult.polyline;
+                if (fitResult.powerMetrics?.avgPower) fitUpdate.average_watts = fitResult.powerMetrics.avgPower;
+                if (fitResult.powerMetrics?.normalizedPower) fitUpdate.normalized_power = fitResult.powerMetrics.normalizedPower;
+                if (fitResult.powerMetrics?.maxPower) fitUpdate.max_watts = fitResult.powerMetrics.maxPower;
+                if (fitResult.powerMetrics?.powerCurveSummary) fitUpdate.power_curve_summary = fitResult.powerMetrics.powerCurveSummary;
+                fitUpdate.device_watts = true;
+
+                await supabase
+                  .from('activities')
+                  .update(fitUpdate)
+                  .eq('id', dupCheck.existingActivity.id);
+
+                console.log('✅ FIT data added to taken-over activity');
+              }
+            } catch (fitError) {
+              console.warn('⚠️ Could not add FIT data to taken-over activity:', fitError.message);
+            }
+          }
+
+          await markEventProcessed(event.id, `Garmin took over from ${dupCheck.existingActivity.provider}`, dupCheck.existingActivity.id);
+        } else {
+          await markEventProcessed(event.id, `Takeover failed: ${result.error}`, dupCheck.existingActivity.id);
+        }
+        return;
+      } else {
+        // Garmin has lower/equal priority - just merge any additional data
+        console.log('🔄 Cross-provider duplicate detected, merging Garmin data into existing');
+        const garminData = {
+          total_elevation_gain: activityData.total_elevation_gain || null,
+          average_watts: activityData.average_watts || null,
+          average_heartrate: activityData.average_heartrate || null,
+          max_heartrate: activityData.max_heartrate || null,
+          average_cadence: activityData.average_cadence || null,
+          kilojoules: activityData.kilojoules || null,
+          raw_data: activityData.raw_data
+        };
+        await mergeActivityData(dupCheck.existingActivity.id, garminData, 'garmin');
+        await markEventProcessed(event.id, dupCheck.reason, dupCheck.existingActivity.id);
+        return;
+      }
     }
 
     const { data: activity, error: insertError } = await supabase
@@ -629,6 +686,9 @@ async function downloadAndProcessActivity(event, integration) {
         // Add power metrics if available from FIT file
         if (fitResult.powerMetrics) {
           const pm = fitResult.powerMetrics;
+          // CRITICAL: Save average_watts from FIT file - this is the key fix!
+          // Garmin PUSH webhooks don't include power data, only FIT files do
+          if (pm.avgPower) activityUpdate.average_watts = pm.avgPower;
           if (pm.normalizedPower) activityUpdate.normalized_power = pm.normalizedPower;
           if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
           if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
@@ -636,7 +696,7 @@ async function downloadAndProcessActivity(event, integration) {
           if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
           activityUpdate.device_watts = true; // Power meter data from FIT file
 
-          console.log(`⚡ Power metrics from FIT: NP=${pm.normalizedPower}W, Max=${pm.maxPower}W, TSS=${pm.trainingStressScore || 'N/A'}`);
+          console.log(`⚡ Power metrics from FIT: Avg=${pm.avgPower}W, NP=${pm.normalizedPower}W, Max=${pm.maxPower}W, TSS=${pm.trainingStressScore || 'N/A'}`);
         }
 
         // Update activity if we have any data to add

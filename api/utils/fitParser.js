@@ -37,11 +37,18 @@ export function parseFitFile(fitBuffer) {
         }
 
         try {
+          // Extract GPS track points (for polyline/map)
           const trackPoints = extractTrackPoints(data.records || []);
+
+          // Extract ALL data points (including indoor rides without GPS)
+          // This is critical for power data extraction
+          const allDataPoints = extractAllDataPoints(data.records || []);
+
           const summary = extractSummary(data);
 
-          // Extract power stream and calculate metrics
-          const powerStream = extractPowerStream(trackPoints);
+          // Extract power stream from ALL data points, not just GPS points
+          // This fixes the bug where indoor rides had no power data
+          const powerStream = extractPowerStream(allDataPoints);
           let powerMetrics = null;
 
           if (powerStream && powerStream.length > 0) {
@@ -49,13 +56,17 @@ export function parseFitFile(fitBuffer) {
             const normalizedPower = summary?.normalizedPower || calculateNormalizedPower(powerStream);
             const powerCurveSummary = calculatePowerCurveSummary(powerStream);
 
+            // Calculate average power from the stream
+            const avgPowerFromStream = calculateAveragePower(powerStream);
+
             // Calculate max power from stream (more accurate than summary which might be smoothed)
             const maxPowerFromStream = powerStream.length > 0 ? Math.max(...powerStream) : null;
 
             powerMetrics = {
               normalizedPower,
               maxPower: maxPowerFromStream || summary?.maxPower || null,
-              avgPower: summary?.avgPower || null,
+              // Use calculated average if not in summary, or if stream-calculated is more accurate
+              avgPower: avgPowerFromStream || summary?.avgPower || null,
               trainingStressScore: summary?.trainingStressScore || null,
               intensityFactor: summary?.intensityFactor || null,
               thresholdPower: summary?.threshold_power || null,
@@ -64,11 +75,12 @@ export function parseFitFile(fitBuffer) {
               powerSampleCount: powerStream.length
             };
 
-            console.log(`⚡ Power metrics extracted: NP=${normalizedPower}W, Max=${powerMetrics.maxPower}W, Samples=${powerStream.length}`);
+            console.log(`⚡ Power metrics extracted: NP=${normalizedPower}W, Avg=${avgPowerFromStream}W, Max=${powerMetrics.maxPower}W, Samples=${powerStream.length}`);
           }
 
           resolve({
             trackPoints,
+            allDataPoints,
             summary,
             powerMetrics,
             recordCount: data.records?.length || 0,
@@ -113,6 +125,37 @@ function extractTrackPoints(records) {
   }
 
   return trackPoints;
+}
+
+/**
+ * Extract ALL data points from FIT records (including those without GPS)
+ * This is critical for indoor rides where we have power but no GPS
+ */
+function extractAllDataPoints(records) {
+  const dataPoints = [];
+
+  for (const record of records) {
+    // Include ANY record that has useful data (power, HR, cadence, etc.)
+    // Don't require GPS - indoor rides won't have it
+    if (record.timestamp != null) {
+      dataPoints.push({
+        timestamp: record.timestamp instanceof Date
+          ? record.timestamp.toISOString()
+          : record.timestamp,
+        power: record.power ?? null,
+        heartRate: record.heart_rate ?? null,
+        cadence: record.cadence ?? null,
+        speed: record.enhanced_speed ?? record.speed ?? null,
+        distance: record.distance ?? null,
+        elevation: record.enhanced_altitude ?? record.altitude ?? null,
+        // Include GPS if available
+        latitude: record.position_lat ?? null,
+        longitude: record.position_long ?? null
+      });
+    }
+  }
+
+  return dataPoints;
 }
 
 /**
@@ -248,18 +291,39 @@ function calculatePowerCurveSummary(powerValues) {
 }
 
 /**
- * Extract power values from track points (1-second resolution assumed)
+ * Extract power values from data points (1-second resolution assumed)
+ * Works with both trackPoints (GPS) and allDataPoints (including indoor)
  */
-function extractPowerStream(trackPoints) {
-  if (!trackPoints || trackPoints.length === 0) {
+function extractPowerStream(dataPoints) {
+  if (!dataPoints || dataPoints.length === 0) {
     return null;
   }
 
-  const powerValues = trackPoints
-    .filter(p => p.power !== null && p.power !== undefined)
+  const powerValues = dataPoints
+    .filter(p => p.power !== null && p.power !== undefined && p.power > 0)
     .map(p => p.power);
 
   return powerValues.length > 0 ? powerValues : null;
+}
+
+/**
+ * Calculate average power from a power stream
+ */
+function calculateAveragePower(powerValues) {
+  if (!powerValues || powerValues.length === 0) {
+    return null;
+  }
+
+  // Filter out zeros for average (zeros often indicate coasting/not pedaling)
+  // But keep them for NP calculation (they affect the rolling average)
+  const nonZeroPower = powerValues.filter(p => p > 0);
+
+  if (nonZeroPower.length === 0) {
+    return null;
+  }
+
+  const sum = nonZeroPower.reduce((a, b) => a + b, 0);
+  return Math.round(sum / nonZeroPower.length);
 }
 
 /**
