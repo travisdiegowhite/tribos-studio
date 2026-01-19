@@ -995,7 +995,7 @@ function TrainingDashboard() {
               </Tabs.Panel>
 
               {/* CALENDAR TAB */}
-              <Tabs.Panel value="calendar">
+              <Tabs.Panel value="calendar" keepMounted>
                 <TrainingCalendar
                   activePlan={activePlan}
                   rides={visibleActivities}
