@@ -59,6 +59,7 @@ import {
   IconBrandStrava,
   IconFileImport,
   IconCalendarStats,
+  IconCalendarEvent,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -687,6 +688,15 @@ function TrainingDashboard() {
             subtitle="Your personalized training command center"
             actions={
               <>
+                <Button
+                  variant="filled"
+                  color="lime"
+                  size="xs"
+                  leftSection={<IconCalendarEvent size={14} />}
+                  onClick={() => navigate('/planner')}
+                >
+                  Plan
+                </Button>
                 <Select
                   size="xs"
                   value={timeRange}
