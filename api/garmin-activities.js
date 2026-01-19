@@ -107,8 +107,11 @@ export default async function handler(req, res) {
       case 'backfill_gps':
         return await backfillGpsData(req, res, userId);
 
+      case 'backfill_power':
+        return await backfillPowerData(req, res, userId);
+
       default:
-        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, get_activity, reprocess_failed, diagnose, backfill_gps' });
+        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, get_activity, reprocess_failed, diagnose, backfill_gps, backfill_power' });
     }
 
   } catch (error) {
@@ -1131,6 +1134,306 @@ async function backfillGpsData(req, res, userId) {
 
   } catch (error) {
     console.error('GPS backfill error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Backfill power data for Garmin activities
+ *
+ * Strategy:
+ * 1. Find cycling activities missing average_watts
+ * 2. Look for FIT file URL in webhook events or raw_data
+ * 3. Download and parse FIT file to extract power data
+ * 4. Update activity with power metrics
+ *
+ * Note: FIT file URLs from webhooks expire after 24 hours.
+ * For older activities, this triggers a backfill request to Garmin
+ * which will send new webhooks with fresh FIT file URLs.
+ * Garmin only allows backfill for activities within the last 30 days.
+ */
+async function backfillPowerData(req, res, userId) {
+  try {
+    const { limit = 50 } = req.body;
+
+    console.log(`⚡ Starting power backfill for user ${userId}`);
+
+    // Get valid access token
+    const { accessToken, integration } = await getValidAccessToken(userId);
+
+    // Find Garmin cycling activities without power data
+    // Focus on Ride types which are most likely to have power meters
+    const { data: activitiesWithoutPower, error: queryError } = await supabase
+      .from('activities')
+      .select('id, provider_activity_id, name, type, start_date, distance, moving_time, raw_data')
+      .eq('user_id', userId)
+      .eq('provider', 'garmin')
+      .is('average_watts', null)
+      .in('type', ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'])
+      .order('start_date', { ascending: false })
+      .limit(limit);
+
+    if (queryError) {
+      console.error('Error querying activities:', queryError);
+      return res.status(500).json({ error: 'Failed to query activities' });
+    }
+
+    if (!activitiesWithoutPower || activitiesWithoutPower.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'All Garmin cycling activities already have power data',
+        processed: 0,
+        total: 0
+      });
+    }
+
+    console.log(`⚡ Found ${activitiesWithoutPower.length} cycling activities without power data`);
+
+    let processed = 0;
+    let success = 0;
+    let failed = 0;
+    let noFitUrl = 0;
+    let noPowerInFit = 0;
+    let triggeredBackfill = false;
+    const results = [];
+    const dateRangesToBackfill = new Set();
+
+    for (const activity of activitiesWithoutPower) {
+      try {
+        // Try to find a FIT file URL for this activity
+        let fitFileUrl = null;
+
+        // Check if raw_data has webhook info with file URL
+        const rawData = activity.raw_data || {};
+        if (rawData.webhook?.activityFiles?.[0]?.callbackURL) {
+          fitFileUrl = rawData.webhook.activityFiles[0].callbackURL;
+        } else if (rawData.webhook?.activities?.[0]?.callbackURL) {
+          fitFileUrl = rawData.webhook.activities[0].callbackURL;
+        }
+
+        // Check webhook events table for this activity
+        if (!fitFileUrl && activity.provider_activity_id) {
+          const { data: webhookEvent } = await supabase
+            .from('garmin_webhook_events')
+            .select('file_url, payload')
+            .eq('activity_id', activity.provider_activity_id)
+            .eq('garmin_user_id', integration.provider_user_id)
+            .maybeSingle();
+
+          if (webhookEvent) {
+            fitFileUrl = webhookEvent.file_url ||
+                         webhookEvent.payload?.activityFiles?.[0]?.callbackURL ||
+                         webhookEvent.payload?.activities?.[0]?.callbackURL;
+          }
+        }
+
+        if (!fitFileUrl) {
+          // No FIT URL available - add date to backfill list
+          const activityDate = activity.start_date ? new Date(activity.start_date) : null;
+          if (activityDate) {
+            const dateKey = activityDate.toISOString().split('T')[0];
+            dateRangesToBackfill.add(dateKey);
+          }
+          noFitUrl++;
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            date: activity.start_date,
+            status: 'no_fit_url',
+            message: 'No FIT file URL available, will request backfill'
+          });
+          continue;
+        }
+
+        // Try to download and parse FIT file
+        console.log(`📥 Processing ${activity.name} (${activity.id})...`);
+
+        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken);
+
+        if (fitResult.error) {
+          // URL likely expired (24 hour limit)
+          const activityDate = activity.start_date ? new Date(activity.start_date) : null;
+          if (activityDate) {
+            const dateKey = activityDate.toISOString().split('T')[0];
+            dateRangesToBackfill.add(dateKey);
+          }
+          failed++;
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            date: activity.start_date,
+            status: 'failed',
+            error: fitResult.error
+          });
+          continue;
+        }
+
+        // Check if FIT file has power data
+        if (!fitResult.powerMetrics || !fitResult.powerMetrics.avgPower) {
+          noPowerInFit++;
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            date: activity.start_date,
+            status: 'no_power',
+            message: 'FIT file has no power data (no power meter?)'
+          });
+          processed++;
+          continue;
+        }
+
+        // Build update with power metrics
+        const pm = fitResult.powerMetrics;
+        const updateData = {
+          average_watts: pm.avgPower,
+          device_watts: true,
+          updated_at: new Date().toISOString()
+        };
+
+        // Add additional power metrics if available
+        if (pm.normalizedPower) updateData.normalized_power = pm.normalizedPower;
+        if (pm.maxPower) updateData.max_watts = pm.maxPower;
+        if (pm.trainingStressScore) updateData.tss = pm.trainingStressScore;
+        if (pm.intensityFactor) updateData.intensity_factor = pm.intensityFactor;
+        if (pm.powerCurveSummary) updateData.power_curve_summary = pm.powerCurveSummary;
+
+        // Update activity with power data
+        const { error: updateError } = await supabase
+          .from('activities')
+          .update(updateData)
+          .eq('id', activity.id);
+
+        if (updateError) {
+          console.error(`❌ Failed to update activity ${activity.id}:`, updateError);
+          failed++;
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            date: activity.start_date,
+            status: 'update_failed',
+            error: updateError.message
+          });
+          continue;
+        }
+
+        console.log(`✅ Power saved for: ${activity.name} (Avg: ${pm.avgPower}W, NP: ${pm.normalizedPower || 'N/A'}W)`);
+        success++;
+        results.push({
+          id: activity.id,
+          name: activity.name,
+          date: activity.start_date,
+          status: 'success',
+          avgPower: pm.avgPower,
+          normalizedPower: pm.normalizedPower,
+          maxPower: pm.maxPower
+        });
+        processed++;
+
+      } catch (err) {
+        console.error(`❌ Error processing activity ${activity.id}:`, err);
+        failed++;
+        results.push({
+          id: activity.id,
+          name: activity.name,
+          date: activity.start_date,
+          status: 'error',
+          error: err.message
+        });
+      }
+    }
+
+    // If we have dates that need backfill, request it from Garmin
+    let backfillError = null;
+    let skippedOldActivities = 0;
+    if (dateRangesToBackfill.size > 0) {
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      // Filter to only dates within the last 30 days (Garmin's limit)
+      const recentDates = Array.from(dateRangesToBackfill).filter(dateStr => {
+        const date = new Date(dateStr);
+        return date >= thirtyDaysAgo;
+      });
+
+      skippedOldActivities = dateRangesToBackfill.size - recentDates.length;
+
+      if (recentDates.length === 0) {
+        console.log(`⚠️ All ${dateRangesToBackfill.size} activities are older than 30 days - cannot backfill`);
+        backfillError = `All activities without FIT URLs are older than 30 days. Garmin only allows backfill for recent activities.`;
+      } else {
+        const sortedDates = recentDates.sort();
+        const oldestDate = new Date(sortedDates[0]);
+        const newestDate = new Date(sortedDates[sortedDates.length - 1]);
+
+        // Add 1 day buffer
+        oldestDate.setDate(oldestDate.getDate() - 1);
+        newestDate.setDate(newestDate.getDate() + 1);
+
+        const startTimestamp = Math.floor(oldestDate.getTime() / 1000);
+        const endTimestamp = Math.floor(newestDate.getTime() / 1000);
+
+        console.log(`📤 Requesting backfill for ${recentDates.length} activities (${skippedOldActivities} too old)`);
+        console.log(`   Date range: ${oldestDate.toISOString()} to ${newestDate.toISOString()}`);
+
+        try {
+          const backfillUrl = `${GARMIN_API_BASE}/backfill/activities?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
+
+          const backfillResponse = await fetch(backfillUrl, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json'
+            }
+          });
+
+          if (backfillResponse.status === 202 || backfillResponse.status === 409 || backfillResponse.ok) {
+            console.log('✅ Backfill request accepted by Garmin');
+            triggeredBackfill = true;
+            if (skippedOldActivities > 0) {
+              backfillError = `${skippedOldActivities} activities are older than 30 days and cannot be backfilled.`;
+            }
+          } else {
+            const errorText = await backfillResponse.text();
+            console.warn('⚠️ Backfill request failed:', backfillResponse.status, errorText);
+            backfillError = `Garmin returned ${backfillResponse.status}: ${errorText.substring(0, 100)}`;
+          }
+        } catch (backfillErr) {
+          console.error('❌ Backfill request error:', backfillErr);
+          backfillError = backfillErr.message;
+        }
+      }
+    }
+
+    // Build appropriate note based on what happened
+    let note = undefined;
+    if (triggeredBackfill) {
+      note = 'Backfill requested from Garmin. New FIT files with power data will arrive via webhooks. Run this again in a few minutes to process the new data.';
+    } else if (backfillError) {
+      note = backfillError;
+    } else if (noPowerInFit > 0 && success === 0) {
+      note = 'Activities found but FIT files contain no power data. This could indicate the rides were done without a power meter.';
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Power backfill complete. ${success} activities updated with power data.`,
+      stats: {
+        total: activitiesWithoutPower.length,
+        processed,
+        success,
+        failed,
+        noFitUrl,
+        noPowerInFit,
+        triggeredBackfill: triggeredBackfill ? (dateRangesToBackfill.size - skippedOldActivities) : 0,
+        skippedTooOld: skippedOldActivities
+      },
+      note,
+      backfillError: backfillError || undefined,
+      results: results.slice(0, 20) // Return first 20 results
+    });
+
+  } catch (error) {
+    console.error('Power backfill error:', error);
     return res.status(500).json({ error: error.message });
   }
 }
