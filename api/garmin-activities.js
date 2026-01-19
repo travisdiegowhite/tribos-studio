@@ -1548,7 +1548,7 @@ async function backfillHistorical(req, res, userId, yearsBack = 2) {
     // Execute the backfill
     const result = await executeBackfillForUser(userId, accessToken, {
       yearsBack: Math.min(yearsBack, 5), // Cap at 5 years (Garmin's limit)
-      delayMs: 30000 // 30 seconds between requests - conservative to protect API access
+      delayMs: 300000 // 5 minutes between requests - very conservative, ~1 hour for full backfill
     });
 
     // Update last sync timestamp
