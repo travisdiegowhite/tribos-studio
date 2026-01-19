@@ -8,7 +8,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
-import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
+import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 
 // Initialize Supabase (server-side with service key for webhook processing)
@@ -312,20 +312,48 @@ async function handleActivityCreate(eventId, webhookData, integration) {
     );
 
     if (dupCheck.isDuplicate) {
-      console.log('🔄 Cross-provider duplicate detected, merging data instead');
-      // Merge Strava data into existing activity from another provider
-      const stravaData = {
-        map_summary_polyline: activity.map?.summary_polyline || null,
-        average_watts: activity.average_watts || null,
-        average_heartrate: activity.average_heartrate || null,
-        max_heartrate: activity.max_heartrate || null,
-        average_cadence: activity.average_cadence || null,
-        kilojoules: activity.kilojoules || null,
-        raw_data: activity
-      };
-      await mergeActivityData(dupCheck.existingActivity.id, stravaData, 'strava');
-      await markEventProcessed(eventId, dupCheck.reason, dupCheck.existingActivity.id);
-      return;
+      if (dupCheck.shouldTakeover) {
+        // Strava has higher priority than existing (e.g., manual upload)
+        // Take over the activity - Strava becomes the source of truth
+        console.log('🔄 Cross-provider duplicate: Strava taking over from', dupCheck.existingActivity.provider);
+
+        const activityData = buildActivityData(integration.user_id, activity);
+        const result = await takeoverActivity(
+          dupCheck.existingActivity.id,
+          activityData,
+          'strava',
+          activity.id.toString()
+        );
+
+        if (result.success) {
+          // Update fitness snapshot
+          try {
+            await updateSnapshotForActivity(supabase, integration.user_id, activity.start_date);
+          } catch (snapshotError) {
+            console.error('⚠️ Snapshot update failed (non-critical):', snapshotError.message);
+          }
+          await markEventProcessed(eventId, `Strava took over from ${dupCheck.existingActivity.provider}`, dupCheck.existingActivity.id);
+        } else {
+          await markEventProcessed(eventId, `Takeover failed: ${result.error}`, dupCheck.existingActivity.id);
+        }
+        return;
+      } else {
+        // Strava has lower/equal priority (e.g., Garmin activity already exists)
+        // Just merge any additional data from Strava
+        console.log('🔄 Cross-provider duplicate: merging Strava data into existing', dupCheck.existingActivity.provider, 'activity');
+        const stravaData = {
+          map_summary_polyline: activity.map?.summary_polyline || null,
+          average_watts: activity.average_watts || null,
+          average_heartrate: activity.average_heartrate || null,
+          max_heartrate: activity.max_heartrate || null,
+          average_cadence: activity.average_cadence || null,
+          kilojoules: activity.kilojoules || null,
+          raw_data: activity
+        };
+        await mergeActivityData(dupCheck.existingActivity.id, stravaData, 'strava');
+        await markEventProcessed(eventId, dupCheck.reason, dupCheck.existingActivity.id);
+        return;
+      }
     }
 
     // Import the activity
