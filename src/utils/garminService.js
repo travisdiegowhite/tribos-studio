@@ -613,6 +613,117 @@ export class GarminService {
       throw error;
     }
   }
+
+  /**
+   * Backfill historical activities (2 years by default)
+   * Breaks the request into 2-month chunks to avoid rate limiting.
+   * Data is delivered asynchronously via webhooks over minutes/hours.
+   * @param {number} yearsBack - Number of years to backfill (default 2, max 5)
+   * @returns {Promise<{success: boolean, message: string, summary: object}>}
+   */
+  async backfillHistorical(yearsBack = 2) {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'backfill_historical',
+          userId,
+          yearsBack
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to start historical backfill');
+      }
+
+      const data = await response.json();
+      console.log(`📥 Historical backfill started:`, data);
+      return data;
+    } catch (error) {
+      console.error('Error starting historical backfill:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the status of historical backfill progress
+   * @returns {Promise<{success: boolean, initialized: boolean, message: string, progress: object, chunks: array}>}
+   */
+  async getBackfillStatus() {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'backfill_status',
+          userId
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get backfill status');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error getting backfill status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reset failed backfill chunks to pending for retry
+   * @returns {Promise<{success: boolean, message: string, resetCount: number}>}
+   */
+  async resetFailedBackfillChunks() {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'backfill_reset_failed',
+          userId
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to reset failed chunks');
+      }
+
+      const data = await response.json();
+      console.log(`🔄 Reset failed chunks:`, data);
+      return data;
+    } catch (error) {
+      console.error('Error resetting failed chunks:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance
