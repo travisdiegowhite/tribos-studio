@@ -13,8 +13,9 @@ import {
   Select,
   Switch,
   Box,
+  Pagination,
 } from '@mantine/core';
-import { IconSearch, IconEye, IconChartBar, IconChevronRight, IconFilter, IconEyeOff, IconEyeCheck } from '@tabler/icons-react';
+import { IconSearch, IconEye, IconChartBar, IconChevronRight, IconChevronLeft, IconFilter, IconEyeOff, IconEyeCheck, IconUpload, IconDeviceWatch, IconRoute } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '@mantine/hooks';
 import { ViewOnStravaLink, StravaLogo, PoweredByStrava, STRAVA_ORANGE } from './StravaBranding';
@@ -31,12 +32,14 @@ const RideHistoryTable = ({
   formatDistance,
   formatElevation,
   maxRows = 10,
+  pageSize = 25,
 }) => {
   const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState('all');
   const [showHidden, setShowHidden] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Check if there are any hidden rides
   const hiddenCount = rides.filter(r => r.is_hidden).length;
@@ -50,9 +53,27 @@ const RideHistoryTable = ({
   const getName = (r) => r.name || 'Untitled Ride';
   const isFromStrava = (r) => r.provider === 'strava';
   const getStravaActivityId = (r) => r.provider === 'strava' ? r.provider_activity_id : null;
+  const getProvider = (r) => r.provider || 'manual';
 
-  // Filter rides
-  const filteredRides = rides.filter(ride => {
+  // Get provider display info
+  const getProviderInfo = (provider) => {
+    switch (provider) {
+      case 'strava':
+        return { label: 'Strava', color: 'orange', icon: StravaLogo };
+      case 'garmin':
+        return { label: 'Garmin', color: 'blue', icon: IconDeviceWatch };
+      case 'fit_upload':
+        return { label: 'FIT Upload', color: 'cyan', icon: IconUpload };
+      case 'gpx_upload':
+        return { label: 'GPX Upload', color: 'green', icon: IconRoute };
+      case 'manual':
+      default:
+        return { label: 'Manual', color: 'gray', icon: IconUpload };
+    }
+  };
+
+  // Filter rides (without pagination slice)
+  const allFilteredRides = rides.filter(ride => {
     // Filter by hidden status first
     if (!showHidden && ride.is_hidden) return false;
     if (showHidden && !ride.is_hidden) return false;
@@ -71,10 +92,39 @@ const RideHistoryTable = ({
       case '90d': return matchesSearch && daysDiff <= 90;
       default: return matchesSearch;
     }
-  }).slice(0, maxRows);
+  });
 
   // Count visible (non-hidden) rides for the "View all" button
   const visibleRidesCount = rides.filter(r => !r.is_hidden).length;
+
+  // Calculate pagination
+  const totalFilteredCount = allFilteredRides.length;
+  const totalPages = Math.ceil(totalFilteredCount / pageSize);
+
+  // Apply pagination - use pageSize for pagination, maxRows as overall limit
+  const effectiveMaxRows = maxRows === Infinity ? totalFilteredCount : maxRows;
+  const paginatedRides = allFilteredRides
+    .slice(0, effectiveMaxRows)
+    .slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = (newFilter) => {
+    setTimeFilter(newFilter);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleHiddenToggle = (e) => {
+    setShowHidden(e.currentTarget.checked);
+    setCurrentPage(1);
+  };
+
+  // Use paginatedRides for display
+  const filteredRides = paginatedRides;
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Unknown';
@@ -142,7 +192,7 @@ const RideHistoryTable = ({
               size="xs"
               label={`Show hidden (${hiddenCount})`}
               checked={showHidden}
-              onChange={(e) => setShowHidden(e.currentTarget.checked)}
+              onChange={handleHiddenToggle}
               styles={{ label: { fontSize: 11, color: 'var(--mantine-color-dimmed)' } }}
             />
           )}
@@ -151,7 +201,7 @@ const RideHistoryTable = ({
           <Select
             size="xs"
             value={timeFilter}
-            onChange={setTimeFilter}
+            onChange={handleFilterChange}
             data={[
               { value: 'all', label: 'All Time' },
               { value: '7d', label: 'Last 7 Days' },
@@ -165,7 +215,7 @@ const RideHistoryTable = ({
             placeholder="Search..."
             leftSection={<IconSearch size={14} />}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={handleSearchChange}
             size="xs"
             w={{ base: '100%', xs: 'auto', sm: 150 }}
           />
@@ -189,20 +239,36 @@ const RideHistoryTable = ({
             >
               <Group justify="space-between" mb="xs">
                 <Group gap="xs" style={{ flex: 1 }}>
-                  {isFromStrava(ride) && (
-                    <Tooltip label="From Strava">
-                      <Box style={{ display: 'flex', alignItems: 'center' }}>
-                        <StravaLogo size={16} />
-                      </Box>
-                    </Tooltip>
-                  )}
                   <Text fw={600} size="sm" lineClamp={1}>
                     {getName(ride)}
                   </Text>
                 </Group>
-                <Badge size="xs" color="gray" variant="light">
-                  {formatDate(getDate(ride))}
-                </Badge>
+                <Group gap="xs">
+                  {(() => {
+                    const provider = getProvider(ride);
+                    const info = getProviderInfo(provider);
+                    const IconComponent = info.icon;
+                    return (
+                      <Badge
+                        size="xs"
+                        color={info.color}
+                        variant="light"
+                        leftSection={
+                          provider === 'strava' ? (
+                            <StravaLogo size={10} />
+                          ) : (
+                            <IconComponent size={10} />
+                          )
+                        }
+                      >
+                        {info.label}
+                      </Badge>
+                    );
+                  })()}
+                  <Badge size="xs" color="gray" variant="light">
+                    {formatDate(getDate(ride))}
+                  </Badge>
+                </Group>
               </Group>
 
               <Group gap="lg" mb="xs">
@@ -263,6 +329,7 @@ const RideHistoryTable = ({
               <Table.Tr>
                 <Table.Th>Date</Table.Th>
                 <Table.Th>Name</Table.Th>
+                <Table.Th>Source</Table.Th>
                 <Table.Th>Distance</Table.Th>
                 <Table.Th>Elevation</Table.Th>
                 <Table.Th>Duration</Table.Th>
@@ -278,18 +345,34 @@ const RideHistoryTable = ({
                     <Text size="xs">{formatDate(getDate(ride))}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Group gap="xs" wrap="nowrap">
-                      {isFromStrava(ride) && (
-                        <Tooltip label="From Strava">
-                          <Box style={{ display: 'flex', alignItems: 'center' }}>
-                            <StravaLogo size={14} />
-                          </Box>
+                    <Text size="sm" fw={500} lineClamp={1} maw={180}>
+                      {getName(ride)}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    {(() => {
+                      const provider = getProvider(ride);
+                      const info = getProviderInfo(provider);
+                      const IconComponent = info.icon;
+                      return (
+                        <Tooltip label={info.label}>
+                          <Badge
+                            size="xs"
+                            color={info.color}
+                            variant="light"
+                            leftSection={
+                              provider === 'strava' ? (
+                                <StravaLogo size={10} />
+                              ) : (
+                                <IconComponent size={10} />
+                              )
+                            }
+                          >
+                            {info.label}
+                          </Badge>
                         </Tooltip>
-                      )}
-                      <Text size="sm" fw={500} lineClamp={1} maw={180}>
-                        {getName(ride)}
-                      </Text>
-                    </Group>
+                      );
+                    })()}
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm">{formatDistance(getDistance(ride))}</Text>
@@ -359,7 +442,24 @@ const RideHistoryTable = ({
         </div>
       )}
 
-      {visibleRidesCount > maxRows && !showHidden && (
+      {/* Pagination controls - show when there are multiple pages */}
+      {totalPages > 1 && maxRows === Infinity && (
+        <Group justify="space-between" align="center" mt="md" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+          <Text size="xs" c="dimmed">
+            Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalFilteredCount)} of {totalFilteredCount} rides
+          </Text>
+          <Pagination
+            size="sm"
+            total={totalPages}
+            value={currentPage}
+            onChange={setCurrentPage}
+            withEdges
+          />
+        </Group>
+      )}
+
+      {/* "View all rides" button - only show on limited-view pages (not the history tab) */}
+      {visibleRidesCount > maxRows && maxRows !== Infinity && !showHidden && (
         <Button
           variant="subtle"
           fullWidth
