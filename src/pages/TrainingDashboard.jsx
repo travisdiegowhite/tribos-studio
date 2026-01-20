@@ -983,7 +983,7 @@ function TrainingDashboard() {
                   rides={activities}
                   formatDistance={formatDist}
                   formatElevation={formatElev}
-                  maxRows={100}
+                  maxRows={Infinity}
                   onViewRide={handleViewRide}
                   onHideRide={handleHideRide}
                 />
