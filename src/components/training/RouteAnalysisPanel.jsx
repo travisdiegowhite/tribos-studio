@@ -829,7 +829,7 @@ export default function RouteAnalysisPanel({
           <Button
             mt="md"
             leftSection={<IconRefresh size={16} />}
-            onClick={analyzeAll}
+            onClick={() => analyzeAll(false)}
             disabled={analyzing}
           >
             Analyze Activities
