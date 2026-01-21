@@ -733,7 +733,7 @@ export default function RouteAnalysisPanel({
           <SegmentedControl
             size="xs"
             value={viewMode}
-            onChange={setViewMode}
+            onChange={(value) => typeof value === 'string' && setViewMode(value)}
             data={[
               { label: 'Workouts', value: 'workouts' },
               { label: 'All Routes', value: 'all' },
@@ -742,7 +742,7 @@ export default function RouteAnalysisPanel({
           <SegmentedControl
             size="xs"
             value={analysisMonths}
-            onChange={setAnalysisMonths}
+            onChange={(value) => typeof value === 'string' && setAnalysisMonths(value)}
             data={[
               { label: '1 mo', value: '1' },
               { label: '3 mo', value: '3' },
