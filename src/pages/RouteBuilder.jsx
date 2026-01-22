@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconArrowBackUp, IconArrowForwardUp } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -36,6 +36,7 @@ import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx
 import { fetchBikeInfrastructure } from '../utils/bikeInfrastructureService';
 import RouteExportMenu from '../components/RouteExportMenu.jsx';
 import MapControls from '../components/MapControls.jsx';
+import { useRouteHistory } from '../hooks/useRouteHistory';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -512,6 +513,9 @@ function RouteBuilder() {
 
   // Check if store has been hydrated from localStorage
   const storeHydrated = useRouteBuilderHydrated();
+
+  // Undo/redo functionality with keyboard shortcuts (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z)
+  const { pushHistory, undo, redo, canUndo, canRedo } = useRouteHistory({ enableKeyboard: true });
 
   // Resolve selectedWorkout from ID
   const selectedWorkout = selectedWorkoutId ? WORKOUT_LIBRARY[selectedWorkoutId] : null;
@@ -990,18 +994,20 @@ function RouteBuilder() {
 
   // Handle map click to add waypoint
   const handleMapClick = useCallback((event) => {
+    pushHistory(); // Save current state for undo
     const { lng, lat } = event.lngLat;
     const newWaypoints = [...waypoints, { lng, lat, id: Date.now() }];
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
-  }, [waypoints, calculateRoute]);
+  }, [waypoints, calculateRoute, pushHistory]);
 
   // Remove waypoint
   const removeWaypoint = useCallback((id) => {
+    pushHistory(); // Save current state for undo
     const newWaypoints = waypoints.filter(w => w.id !== id);
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
-  }, [waypoints, calculateRoute]);
+  }, [waypoints, calculateRoute, pushHistory]);
 
   // clearRoute comes from the store (clears waypoints, geometry, stats, etc.)
 
@@ -1206,6 +1212,7 @@ function RouteBuilder() {
 
   // Select an AI suggestion - routes already have full coordinates from generateAIRoutes
   const handleSelectAISuggestion = useCallback(async (suggestion, index) => {
+    pushHistory(); // Save current state for undo
     setConvertingRoute(index);
     setRouteName(suggestion.name);
 
@@ -1252,7 +1259,7 @@ function RouteBuilder() {
     } finally {
       setConvertingRoute(null);
     }
-  }, []);
+  }, [pushHistory]);
 
   // Get human-readable label for routing source
   const getRoutingSourceLabel = (source) => {
@@ -1281,6 +1288,7 @@ function RouteBuilder() {
       return;
     }
 
+    pushHistory(); // Save current state for undo before generating new route
     setGeneratingAI(true);
 
     try {
@@ -1563,7 +1571,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [naturalLanguageInput, viewport, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext]);
+  }, [naturalLanguageInput, viewport, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext, pushHistory]);
 
   // Search for address using Mapbox Geocoding API
   const handleAddressSearch = useCallback(async (query) => {
@@ -2070,6 +2078,33 @@ function RouteBuilder() {
         >
           {savedRouteId ? 'Update Route' : 'Save Route'}
         </Button>
+        {/* Undo/Redo buttons */}
+        <Group grow>
+          <Tooltip label="Undo (Ctrl+Z)" position="bottom" withArrow>
+            <Button
+              variant="light"
+              color="gray"
+              size="sm"
+              disabled={!canUndo()}
+              onClick={undo}
+              leftSection={<IconArrowBackUp size={16} />}
+            >
+              Undo
+            </Button>
+          </Tooltip>
+          <Tooltip label="Redo (Ctrl+Shift+Z)" position="bottom" withArrow>
+            <Button
+              variant="light"
+              color="gray"
+              size="sm"
+              disabled={!canRedo()}
+              onClick={redo}
+              leftSection={<IconArrowForwardUp size={16} />}
+            >
+              Redo
+            </Button>
+          </Tooltip>
+        </Group>
         <Group grow>
           <RouteExportMenu
             route={routeDataForExport}
@@ -2082,7 +2117,7 @@ function RouteBuilder() {
             color="gray"
             size="sm"
             disabled={!routeGeometry && waypoints.length === 0}
-            onClick={clearRoute}
+            onClick={() => { pushHistory(); clearRoute(); }}
             leftSection={<IconTrash size={14} />}
           >
             Clear Route
@@ -2812,6 +2847,35 @@ function RouteBuilder() {
               >
                 {savedRouteId ? 'Update Route' : 'Save Route'}
               </Button>
+              {/* Undo/Redo buttons */}
+              <Group grow>
+                <Tooltip label="Undo" position="top" withArrow>
+                  <Button
+                    variant="light"
+                    color="gray"
+                    size="sm"
+                    disabled={!canUndo()}
+                    onClick={undo}
+                    leftSection={<IconArrowBackUp size={16} />}
+                    style={{ height: 40 }}
+                  >
+                    Undo
+                  </Button>
+                </Tooltip>
+                <Tooltip label="Redo" position="top" withArrow>
+                  <Button
+                    variant="light"
+                    color="gray"
+                    size="sm"
+                    disabled={!canRedo()}
+                    onClick={redo}
+                    leftSection={<IconArrowForwardUp size={16} />}
+                    style={{ height: 40 }}
+                  >
+                    Redo
+                  </Button>
+                </Tooltip>
+              </Group>
               <Group grow>
                 <RouteExportMenu
                   route={routeDataForExport}
@@ -2824,7 +2888,7 @@ function RouteBuilder() {
                   color="gray"
                   size="sm"
                   disabled={!routeGeometry && waypoints.length === 0}
-                  onClick={clearRoute}
+                  onClick={() => { pushHistory(); clearRoute(); }}
                   leftSection={<IconTrash size={16} />}
                   style={{ height: 40 }}
                 >

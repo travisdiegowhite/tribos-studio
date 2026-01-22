@@ -5,11 +5,14 @@
  * and browser sessions using Zustand with localStorage persistence.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 const STORAGE_KEY = 'tribos-route-builder';
+
+// Maximum number of history states to keep (memory management)
+const MAX_HISTORY_SIZE = 50;
 
 // Initial state values
 const initialState = {
@@ -44,7 +47,22 @@ const initialState = {
 
   // Timestamp of last save (for debugging/expiry)
   lastSaved: null,
+
+  // Undo/redo history (not persisted to localStorage)
+  _history: [],  // Past states for undo
+  _future: [],   // Future states for redo
 };
+
+/**
+ * Create a snapshot of the current route state for undo/redo
+ */
+const createRouteSnapshot = (state) => ({
+  routeGeometry: state.routeGeometry,
+  routeStats: state.routeStats,
+  waypoints: state.waypoints,
+  routeName: state.routeName,
+  routingSource: state.routingSource,
+});
 
 export const useRouteBuilderStore = create(
   persist(
@@ -167,6 +185,110 @@ export const useRouteBuilderStore = create(
         const { lastSaved } = get();
         if (!lastSaved) return Infinity;
         return Date.now() - lastSaved;
+      },
+
+      // === Undo/Redo Actions ===
+
+      /**
+       * Push current route state to history before making changes.
+       * Call this before any route-modifying action to enable undo.
+       */
+      pushHistory: () => {
+        const state = get();
+        const snapshot = createRouteSnapshot(state);
+
+        // Only push if there's meaningful state to save
+        const hasContent = snapshot.routeGeometry || snapshot.waypoints.length > 0;
+        if (!hasContent && state._history.length === 0) return;
+
+        // Avoid duplicate consecutive states
+        const lastHistory = state._history[state._history.length - 1];
+        if (lastHistory &&
+            JSON.stringify(lastHistory) === JSON.stringify(snapshot)) {
+          return;
+        }
+
+        const newHistory = [...state._history, snapshot].slice(-MAX_HISTORY_SIZE);
+        set({
+          _history: newHistory,
+          _future: [] // Clear redo stack when new action is taken
+        });
+      },
+
+      /**
+       * Undo the last route change
+       */
+      undo: () => {
+        const state = get();
+        if (state._history.length === 0) return false;
+
+        // Save current state to future (for redo)
+        const currentSnapshot = createRouteSnapshot(state);
+        const newFuture = [...state._future, currentSnapshot];
+
+        // Pop the last history state
+        const newHistory = [...state._history];
+        const previousState = newHistory.pop();
+
+        set({
+          ...previousState,
+          _history: newHistory,
+          _future: newFuture,
+          lastSaved: Date.now()
+        });
+
+        return true;
+      },
+
+      /**
+       * Redo a previously undone route change
+       */
+      redo: () => {
+        const state = get();
+        if (state._future.length === 0) return false;
+
+        // Save current state to history
+        const currentSnapshot = createRouteSnapshot(state);
+        const newHistory = [...state._history, currentSnapshot];
+
+        // Pop the last future state
+        const newFuture = [...state._future];
+        const nextState = newFuture.pop();
+
+        set({
+          ...nextState,
+          _history: newHistory,
+          _future: newFuture,
+          lastSaved: Date.now()
+        });
+
+        return true;
+      },
+
+      /**
+       * Check if undo is available
+       */
+      canUndo: () => get()._history.length > 0,
+
+      /**
+       * Check if redo is available
+       */
+      canRedo: () => get()._future.length > 0,
+
+      /**
+       * Clear undo/redo history (e.g., when starting fresh)
+       */
+      clearHistory: () => set({ _history: [], _future: [] }),
+
+      /**
+       * Get current history stack sizes (for UI display)
+       */
+      getHistoryInfo: () => {
+        const state = get();
+        return {
+          undoCount: state._history.length,
+          redoCount: state._future.length,
+        };
       },
     }),
     {
