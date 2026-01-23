@@ -3,11 +3,36 @@
  * Individual day cell in the 2-week calendar with drop zone
  */
 
-import { Box, Text, ActionIcon, Group, Tooltip, Badge, Progress, Stack, Menu } from '@mantine/core';
-import { IconX, IconCheck, IconPlus, IconArrowUp, IconArrowDown, IconMinus, IconBike, IconHome, IconCalendarOff, IconStar, IconCalendarEvent, IconLock, IconLockOpen } from '@tabler/icons-react';
+import { Box, Text, ActionIcon, Group, Tooltip, Badge, Progress, Stack, Menu, ThemeIcon } from '@mantine/core';
+import { IconX, IconCheck, IconPlus, IconArrowUp, IconArrowDown, IconMinus, IconBike, IconHome, IconCalendarOff, IconStar, IconCalendarEvent, IconLock, IconLockOpen, IconTrophy } from '@tabler/icons-react';
 import { WorkoutCard } from './WorkoutCard';
 import type { PlannerWorkout } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutDefinition } from '../../types/training';
+
+// Race goal type for calendar display
+interface RaceGoal {
+  id: string;
+  race_date: string;
+  name: string;
+  race_type: string;
+  priority: 'A' | 'B' | 'C';
+  distance_km?: number;
+  location?: string;
+}
+
+// Race type display info
+const RACE_TYPE_INFO: Record<string, { icon: string; label: string }> = {
+  road_race: { icon: '🚴', label: 'Road Race' },
+  criterium: { icon: '🔄', label: 'Criterium' },
+  time_trial: { icon: '⏱️', label: 'Time Trial' },
+  gran_fondo: { icon: '🏔️', label: 'Gran Fondo' },
+  century: { icon: '💯', label: 'Century' },
+  gravel: { icon: '🪨', label: 'Gravel' },
+  cyclocross: { icon: '🌲', label: 'Cyclocross' },
+  mtb: { icon: '🏔️', label: 'MTB' },
+  triathlon: { icon: '🏊', label: 'Triathlon' },
+  other: { icon: '🎯', label: 'Event' },
+};
 
 interface CalendarDayCellProps {
   date: string;
@@ -23,6 +48,7 @@ interface CalendarDayCellProps {
     distance?: number | null;
     trainer?: boolean;
   };
+  raceGoal?: RaceGoal;
   isToday: boolean;
   isDropTarget: boolean;
   isPast: boolean;
@@ -73,6 +99,7 @@ export function CalendarDayCell({
   dayNumber,
   plannedWorkout,
   actualActivity,
+  raceGoal,
   isToday,
   isDropTarget,
   isPast,
@@ -212,15 +239,23 @@ export function CalendarDayCell({
           >
             {dayNumber}
           </Text>
+          {/* Race indicator */}
+          {raceGoal && (
+            <Tooltip label={`${raceGoal.name} - ${RACE_TYPE_INFO[raceGoal.race_type]?.label || 'Race'}`}>
+              <Badge size="xs" color="orange" variant="filled" px={4}>
+                <IconTrophy size={10} />
+              </Badge>
+            </Tooltip>
+          )}
           {/* Availability indicators */}
-          {isBlocked && (
+          {isBlocked && !raceGoal && (
             <Tooltip label={hasOverride ? 'Blocked (override for this date)' : 'Blocked day'}>
               <Badge size="xs" color="red" variant="light" px={4}>
                 <IconCalendarOff size={10} />
               </Badge>
             </Tooltip>
           )}
-          {isPreferred && (
+          {isPreferred && !raceGoal && (
             <Tooltip label={hasOverride ? 'Preferred (override for this date)' : 'Preferred day'}>
               <Badge size="xs" color="yellow" variant="light" px={4}>
                 <IconStar size={10} />
@@ -236,6 +271,47 @@ export function CalendarDayCell({
           </Badge>
         )}
       </Group>
+
+      {/* Race Goal Display */}
+      {raceGoal && (() => {
+        const raceTypeInfo = RACE_TYPE_INFO[raceGoal.race_type] || RACE_TYPE_INFO.other;
+        const priorityColor = raceGoal.priority === 'A' ? 'red' : raceGoal.priority === 'B' ? 'orange' : 'gray';
+
+        return (
+          <Tooltip
+            label={
+              <Stack gap={4}>
+                <Text size="xs" fw={600}>{raceGoal.name}</Text>
+                <Text size="xs">{raceTypeInfo.label}</Text>
+                {raceGoal.location && <Text size="xs" c="dimmed">{raceGoal.location}</Text>}
+                {raceGoal.distance_km && (
+                  <Text size="xs" c="dimmed">{Math.round(raceGoal.distance_km * 0.621371)} mi</Text>
+                )}
+              </Stack>
+            }
+          >
+            <Box
+              mb={8}
+              p={6}
+              style={{
+                backgroundColor: 'rgba(250, 176, 5, 0.2)',
+                borderRadius: 4,
+                borderLeft: `3px solid var(--mantine-color-${priorityColor}-5)`,
+              }}
+            >
+              <Group gap={4} wrap="nowrap">
+                <Text size="sm">{raceTypeInfo.icon}</Text>
+                <Badge size="xs" color={priorityColor} variant="filled">
+                  {raceGoal.priority}
+                </Badge>
+                <Text size="xs" fw={500} lineClamp={1} style={{ flex: 1 }}>
+                  {raceGoal.name}
+                </Text>
+              </Group>
+            </Box>
+          </Tooltip>
+        );
+      })()}
 
       {/* Workout Card or Empty State */}
       {plannedWorkout?.workout ? (

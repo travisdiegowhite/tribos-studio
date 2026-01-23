@@ -41,8 +41,9 @@ import {
 import { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 import { TwoWeekCalendar } from './TwoWeekCalendar';
 import { PeriodizationView } from './PeriodizationView';
-import { GoalInput } from './GoalInput';
 import { AvailabilitySettings } from '../settings/AvailabilitySettings';
+import RaceGoalsPanel from '../RaceGoalsPanel';
+import { supabase } from '../../lib/supabase';
 import { useTrainingPlannerStore } from '../../stores/trainingPlannerStore';
 import { useUserAvailability } from '../../hooks/useUserAvailability';
 import { getWorkoutById } from '../../data/workoutLibrary';
@@ -114,6 +115,24 @@ function getActivityTSS(
   return null;
 }
 
+// Race goal type from database
+interface RaceGoal {
+  id: string;
+  race_date: string;
+  name: string;
+  race_type: string;
+  priority: 'A' | 'B' | 'C';
+  distance_km?: number;
+  elevation_gain_m?: number;
+  location?: string;
+  goal_time_minutes?: number;
+  goal_power_watts?: number;
+  goal_placement?: string;
+  notes?: string;
+  course_description?: string;
+  status: string;
+}
+
 export function TrainingPlanner({
   userId,
   activePlanId,
@@ -135,6 +154,10 @@ export function TrainingPlanner({
 
   // Selected workout for tap-to-assign on mobile
   const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(null);
+
+  // Race goals state (synced with database)
+  const [raceGoals, setRaceGoals] = useState<RaceGoal[]>([]);
+  const [raceGoalsLoading, setRaceGoalsLoading] = useState(true);
 
   // User availability hook
   const {
@@ -233,6 +256,50 @@ export function TrainingPlanner({
       store.loadPlan(activePlanId);
     }
   }, [activePlanId, store.activePlanId]);
+
+  // Load race goals from database
+  const loadRaceGoals = useCallback(async () => {
+    if (!userId) return;
+
+    setRaceGoalsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('race_goals')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'upcoming')
+        .order('race_date', { ascending: true });
+
+      if (error) {
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.log('race_goals table not yet available');
+          return;
+        }
+        throw error;
+      }
+
+      setRaceGoals(data || []);
+    } catch (err) {
+      console.error('Failed to load race goals:', err);
+    } finally {
+      setRaceGoalsLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    loadRaceGoals();
+  }, [loadRaceGoals]);
+
+  // Convert race goals to map by date for calendar display
+  const raceGoalsByDate = useMemo(() => {
+    const result: Record<string, RaceGoal> = {};
+    for (const goal of raceGoals) {
+      if (goal.race_date) {
+        result[goal.race_date] = goal;
+      }
+    }
+    return result;
+  }, [raceGoals]);
 
   // Handle drag start from sidebar
   const handleDragStart = useCallback(
@@ -527,13 +594,12 @@ export function TrainingPlanner({
             onWeekClick={handleWeekClick}
           />
 
-          {/* Goal Input */}
+          {/* Race Goals - synced with database */}
           <Box mt="md">
-            <GoalInput
-              goals={store.goals}
-              onAddGoal={store.addGoal}
-              onRemoveGoal={store.removeGoal}
-              onUpdateGoal={store.updateGoal}
+            <RaceGoalsPanel
+              isImperial={false}
+              onRaceGoalChange={loadRaceGoals}
+              compact={false}
             />
           </Box>
 
@@ -543,6 +609,7 @@ export function TrainingPlanner({
               startDate={store.focusedWeekStart}
               workouts={store.plannedWorkouts}
               activities={activitiesByDate}
+              raceGoals={raceGoalsByDate}
               dropTargetDate={store.dropTargetDate}
               availabilityByDate={availabilityByDate}
               onDrop={handleDrop}

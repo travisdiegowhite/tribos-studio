@@ -5,13 +5,38 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Box, Group, Text, ActionIcon, SimpleGrid, Paper, Badge, SegmentedControl, Stack, UnstyledButton, Tooltip } from '@mantine/core';
-import { IconChevronLeft, IconChevronRight, IconFlame, IconCheck, IconX, IconBike, IconHome, IconPlus, IconArrowUp, IconArrowDown, IconClock, IconRoute, IconCalendarOff, IconStar } from '@tabler/icons-react';
+import { Box, Group, Text, ActionIcon, SimpleGrid, Paper, Badge, SegmentedControl, Stack, UnstyledButton, Tooltip, ThemeIcon } from '@mantine/core';
+import { IconChevronLeft, IconChevronRight, IconFlame, IconCheck, IconX, IconBike, IconHome, IconPlus, IconArrowUp, IconArrowDown, IconClock, IconRoute, IconCalendarOff, IconStar, IconTrophy } from '@tabler/icons-react';
 import { CalendarDayCell } from './CalendarDayCell';
 import { WorkoutCard } from './WorkoutCard';
 import { WorkoutDetailModal } from './WorkoutDetailModal';
 import type { PlannerWorkout } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutDefinition } from '../../types/training';
+
+// Race goal type for calendar display
+interface RaceGoal {
+  id: string;
+  race_date: string;
+  name: string;
+  race_type: string;
+  priority: 'A' | 'B' | 'C';
+  distance_km?: number;
+  location?: string;
+}
+
+// Race type display info
+const RACE_TYPE_INFO: Record<string, { icon: string; label: string }> = {
+  road_race: { icon: '🚴', label: 'Road Race' },
+  criterium: { icon: '🔄', label: 'Criterium' },
+  time_trial: { icon: '⏱️', label: 'Time Trial' },
+  gran_fondo: { icon: '🏔️', label: 'Gran Fondo' },
+  century: { icon: '💯', label: 'Century' },
+  gravel: { icon: '🪨', label: 'Gravel' },
+  cyclocross: { icon: '🌲', label: 'Cyclocross' },
+  mtb: { icon: '🏔️', label: 'MTB' },
+  triathlon: { icon: '🏊', label: 'Triathlon' },
+  other: { icon: '🎯', label: 'Event' },
+};
 
 interface TwoWeekCalendarProps {
   startDate: string;
@@ -25,6 +50,7 @@ interface TwoWeekCalendarProps {
     distance?: number | null;
     trainer?: boolean;
   }>;
+  raceGoals?: Record<string, RaceGoal>;
   dropTargetDate: string | null;
   availabilityByDate?: Record<string, ResolvedAvailability>;
   onDrop: (date: string) => void;
@@ -88,6 +114,7 @@ export function TwoWeekCalendar({
   startDate,
   workouts,
   activities = {},
+  raceGoals = {},
   dropTargetDate,
   availabilityByDate = {},
   onDrop,
@@ -247,6 +274,7 @@ export function TwoWeekCalendar({
   const selectedDay = currentWeekDays[selectedDayIndex];
   const selectedDayWorkout = selectedDay ? workouts[selectedDay.date] : null;
   const selectedDayActivity = selectedDay ? activities[selectedDay.date] : null;
+  const selectedDayRaceGoal = selectedDay ? raceGoals[selectedDay.date] : null;
 
   // Handle day selection on mobile
   const handleMobileDaySelect = (index: number) => {
@@ -296,6 +324,7 @@ export function TwoWeekCalendar({
             dayNumber={day.dayNumber}
             plannedWorkout={workouts[day.date] || null}
             actualActivity={activities[day.date]}
+            raceGoal={raceGoals[day.date]}
             isToday={day.isToday}
             isDropTarget={dropTargetDate === day.date || (!!selectedWorkoutId && !workouts[day.date])}
             isPast={day.isPast}
@@ -383,6 +412,7 @@ export function TwoWeekCalendar({
                 const status = getDayStatus(day);
                 const isSelected = index === selectedDayIndex;
                 const hasWorkout = !!workouts[day.date];
+                const hasRace = !!raceGoals[day.date];
                 const canDrop = selectedWorkoutId && !hasWorkout;
                 const availability = availabilityByDate[day.date];
                 const isBlocked = availability?.status === 'blocked';
@@ -445,13 +475,17 @@ export function TwoWeekCalendar({
                     >
                       {day.dayNumber}
                     </Text>
-                    {/* Status dot */}
-                    <Text
-                      size="lg"
-                      style={{ color: statusConfig[status].color, lineHeight: 1 }}
-                    >
-                      {statusConfig[status].symbol}
-                    </Text>
+                    {/* Status dot or race indicator */}
+                    {hasRace ? (
+                      <Text size="sm" style={{ lineHeight: 1 }}>🏆</Text>
+                    ) : (
+                      <Text
+                        size="lg"
+                        style={{ color: statusConfig[status].color, lineHeight: 1 }}
+                      >
+                        {statusConfig[status].symbol}
+                      </Text>
+                    )}
                   </UnstyledButton>
                 );
               })}
@@ -492,6 +526,47 @@ export function TwoWeekCalendar({
                   </ActionIcon>
                 )}
               </Group>
+
+              {/* Race Goal Display */}
+              {selectedDayRaceGoal && (() => {
+                const raceTypeInfo = RACE_TYPE_INFO[selectedDayRaceGoal.race_type] || RACE_TYPE_INFO.other;
+                const priorityColor = selectedDayRaceGoal.priority === 'A' ? 'red' : selectedDayRaceGoal.priority === 'B' ? 'orange' : 'gray';
+
+                return (
+                  <Paper
+                    p="sm"
+                    mb="md"
+                    style={{
+                      backgroundColor: 'rgba(250, 176, 5, 0.15)',
+                      border: '2px solid var(--mantine-color-yellow-6)',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <Group gap="sm" mb="xs">
+                      <ThemeIcon size="lg" color="orange" variant="light">
+                        <IconTrophy size={18} />
+                      </ThemeIcon>
+                      <Box style={{ flex: 1 }}>
+                        <Group gap="xs">
+                          <Text size="lg">{raceTypeInfo.icon}</Text>
+                          <Badge size="sm" color={priorityColor} variant="filled">
+                            {selectedDayRaceGoal.priority}
+                          </Badge>
+                          <Text fw={600} size="md">{selectedDayRaceGoal.name}</Text>
+                        </Group>
+                        <Text size="xs" c="dimmed">
+                          {raceTypeInfo.label}
+                          {selectedDayRaceGoal.location && ` • ${selectedDayRaceGoal.location}`}
+                          {selectedDayRaceGoal.distance_km && ` • ${Math.round(selectedDayRaceGoal.distance_km * 0.621371)} mi`}
+                        </Text>
+                      </Box>
+                    </Group>
+                    <Badge size="sm" color="yellow" variant="filled">
+                      Race Day!
+                    </Badge>
+                  </Paper>
+                );
+              })()}
 
               {/* Planned Workout */}
               {selectedDayWorkout?.workout ? (
