@@ -504,6 +504,7 @@ function RouteBuilder() {
     routeType, setRouteType,
     routeProfile, setRouteProfile,
     explicitDistanceKm, setExplicitDistanceKm,
+    elevationTarget, setElevationTarget,
     aiSuggestions, setAiSuggestions,
     selectedWorkoutId, setSelectedWorkoutId,
     routingSource, setRoutingSource,
@@ -1140,13 +1141,19 @@ function RouteBuilder() {
           console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
         }
 
+        // Log elevation target if set
+        if (elevationTarget) {
+          console.log(`⛰️ Elevation target: ${elevationTarget}m (${Math.round(elevationTarget * 3.28084)}ft)`);
+        }
+
         routes = await generateIterativeRouteVariations({
           startLocation: [viewport.longitude, viewport.latitude],
           targetDistanceKm,
           routeType: routeType === 'out_back' ? 'out_and_back' : routeType,
           options: {
             profile: routeProfile || 'road',
-            trainingGoal
+            trainingGoal,
+            elevationTarget: elevationTarget || null
           },
           trainingGoal
         }, 3); // Generate 3 route variations
@@ -1169,7 +1176,8 @@ function RouteBuilder() {
           routeType,
           userId: user?.id,
           speedProfile,
-          speedModifier: 1.0
+          speedModifier: 1.0,
+          elevationTarget: elevationTarget || null
         });
       }
 
@@ -1190,7 +1198,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [viewport, timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm]);
+  }, [viewport, timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm, elevationTarget]);
 
   // Get user's speed for the current route profile
   const getUserSpeedForProfile = useCallback((profile) => {
@@ -1920,6 +1928,42 @@ function RouteBuilder() {
           />
         </Box>
       </Group>
+
+      {/* Elevation Target (Optional) */}
+      <Box>
+        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+          ELEVATION TARGET ({isImperial ? 'FT' : 'M'}) <Text component="span" size="xs" c="dimmed">(optional)</Text>
+        </Text>
+        <NumberInput
+          value={elevationTarget ? (isImperial ? Math.round(elevationTarget * 3.28084) : elevationTarget) : ''}
+          onChange={(val) => {
+            if (val === '' || val === null) {
+              setElevationTarget(null);
+            } else {
+              // Store internally in meters
+              setElevationTarget(isImperial ? Math.round(val / 3.28084) : val);
+            }
+          }}
+          placeholder={isImperial ? 'e.g., 2000' : 'e.g., 600'}
+          min={0}
+          max={isImperial ? 20000 : 6000}
+          step={isImperial ? 100 : 50}
+          size="sm"
+          variant="filled"
+          rightSection={
+            elevationTarget && (
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                onClick={() => setElevationTarget(null)}
+                style={{ marginRight: 8 }}
+              >
+                <IconX size={12} />
+              </ActionIcon>
+            )
+          }
+        />
+      </Box>
 
       {/* Workout Selection */}
       <Box>
@@ -2666,6 +2710,41 @@ function RouteBuilder() {
                       />
                     </Box>
                   </Group>
+
+                  {/* Elevation Target (Optional) */}
+                  <Box>
+                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                      ELEVATION TARGET ({isImperial ? 'FT' : 'M'}) <Text component="span" size="xs" c="dimmed">(optional)</Text>
+                    </Text>
+                    <NumberInput
+                      value={elevationTarget ? (isImperial ? Math.round(elevationTarget * 3.28084) : elevationTarget) : ''}
+                      onChange={(val) => {
+                        if (val === '' || val === null) {
+                          setElevationTarget(null);
+                        } else {
+                          setElevationTarget(isImperial ? Math.round(val / 3.28084) : val);
+                        }
+                      }}
+                      placeholder={isImperial ? 'e.g., 2000' : 'e.g., 600'}
+                      min={0}
+                      max={isImperial ? 20000 : 6000}
+                      step={isImperial ? 100 : 50}
+                      size="sm"
+                      variant="filled"
+                      rightSection={
+                        elevationTarget && (
+                          <ActionIcon
+                            size="xs"
+                            variant="subtle"
+                            onClick={() => setElevationTarget(null)}
+                            style={{ marginRight: 8 }}
+                          >
+                            <IconX size={12} />
+                          </ActionIcon>
+                        )
+                      }
+                    />
+                  </Box>
 
                   {/* Workout Selection for Color-Coded Routes */}
                   <Box>

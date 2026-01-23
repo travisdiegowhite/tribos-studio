@@ -35,6 +35,7 @@ const initialState = {
   routeType: 'loop',
   routeProfile: 'road',
   explicitDistanceKm: null, // When user specifies distance directly (e.g., "100km loop")
+  elevationTarget: null, // Target elevation gain in meters (e.g., 500 for 500m / ~1640ft)
 
   // AI suggestions (the generated route options)
   aiSuggestions: [],
@@ -122,6 +123,11 @@ export const useRouteBuilderStore = create(
 
       setExplicitDistanceKm: (distance) => set({
         explicitDistanceKm: distance,
+        lastSaved: Date.now()
+      }),
+
+      setElevationTarget: (elevation) => set({
+        elevationTarget: elevation,
         lastSaved: Date.now()
       }),
 
@@ -307,6 +313,7 @@ export const useRouteBuilderStore = create(
         routeType: state.routeType,
         routeProfile: state.routeProfile,
         explicitDistanceKm: state.explicitDistanceKm,
+        elevationTarget: state.elevationTarget,
         aiSuggestions: state.aiSuggestions,
         selectedWorkoutId: state.selectedWorkoutId,
         routingSource: state.routingSource,
