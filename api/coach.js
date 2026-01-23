@@ -353,7 +353,12 @@ When races are listed above, use their exact names, dates, and details in your r
 
     // Extract text response
     const textContent = response.content.find(block => block.type === 'text');
-    const responseText = textContent?.text || '';
+    let responseText = textContent?.text || '';
+
+    // If Claude only called create_training_plan without text, provide a default message
+    if (!responseText && toolUses.some(t => t.name === 'create_training_plan')) {
+      responseText = "I've created a training plan for you. Review the details below and click 'Activate Plan' to add all workouts to your calendar.";
+    }
 
     // Extract workout recommendations from tool uses
     const workoutRecommendations = toolUses
@@ -380,6 +385,16 @@ When races are listed above, use their exact names, dates, and details in your r
         };
       }
     }
+
+    // Log the response we're about to send
+    console.log(`📤 Sending response:`, {
+      success: true,
+      hasMessage: !!responseText,
+      messageLength: responseText?.length || 0,
+      hasWorkoutRecommendations: workoutRecommendations.length > 0,
+      hasTrainingPlanPreview: !!trainingPlanPreview,
+      planPreviewWorkouts: trainingPlanPreview?.summary?.total_workouts || 0
+    });
 
     return res.status(200).json({
       success: true,
