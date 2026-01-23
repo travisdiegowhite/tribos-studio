@@ -221,7 +221,10 @@ Use the current date context and athlete data above to provide personalized, tim
 When races are listed above, use their exact names, dates, and details in your response - you have full visibility into their calendar.`;
 
     // Limit conversation history to last 10 messages to prevent stale context from dominating
-    const recentHistory = conversationHistory.slice(-10);
+    // Also filter out any messages with empty content (Claude API requires non-empty content)
+    const recentHistory = conversationHistory
+      .filter(msg => msg.content && typeof msg.content === 'string' && msg.content.trim().length > 0)
+      .slice(-10);
 
     // Build conversation messages - prepend date reminder to user's message
     const userMessageWithDate = `[Today is ${dateStr}]\n\n${message}`;
