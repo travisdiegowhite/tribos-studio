@@ -76,6 +76,64 @@ export const WORKOUT_TOOLS = [
   }
 ];
 
+// Training Plan Creation Tool - enables AI coach to create full multi-week plans
+export const CREATE_PLAN_TOOL = {
+  name: "create_training_plan",
+  description: `Create a complete multi-week training plan for the athlete. Use this tool when the athlete asks for:
+- A training plan for an upcoming race or event
+- A structured training block (base building, race prep, etc.)
+- "Create a plan", "build me a plan", "set up my training"
+- Help preparing for specific events on their calendar
+
+This tool generates a FULL periodized plan with all workouts scheduled. The athlete will see a preview and can activate it with one click.
+
+IMPORTANT: Use this instead of multiple recommend_workout calls when the athlete wants a complete training program.`,
+  input_schema: {
+    type: "object",
+    properties: {
+      name: {
+        type: "string",
+        description: "Name for the training plan (e.g., 'Spring Century Prep', 'Base Building Block')"
+      },
+      duration_weeks: {
+        type: "integer",
+        description: "Length of the plan in weeks (4-20 weeks typical)"
+      },
+      methodology: {
+        type: "string",
+        enum: ["polarized", "sweet_spot", "threshold", "pyramidal", "endurance"],
+        description: "Training methodology: polarized (80/20 low/high), sweet_spot (focus on 88-94% FTP), threshold (FTP-focused), pyramidal (balanced), endurance (aerobic base)"
+      },
+      goal: {
+        type: "string",
+        enum: ["general_fitness", "century", "gran_fondo", "climbing", "racing", "time_trial"],
+        description: "Primary goal for the plan"
+      },
+      start_date: {
+        type: "string",
+        description: "When to start the plan. Use 'next_monday' for the upcoming Monday, or 'YYYY-MM-DD' for a specific date"
+      },
+      target_event_date: {
+        type: "string",
+        description: "Optional: The date of the target race/event (YYYY-MM-DD). Plan will periodize to peak for this date."
+      },
+      weekly_hours: {
+        type: "integer",
+        description: "Target training hours per week (6-15 typical)"
+      },
+      include_rest_weeks: {
+        type: "boolean",
+        description: "Whether to include recovery weeks every 3-4 weeks (recommended: true)"
+      },
+      notes: {
+        type: "string",
+        description: "Any special considerations (e.g., 'focus on climbing', 'limited weekday time', 'recovering from injury')"
+      }
+    },
+    required: ["name", "duration_weeks", "methodology", "goal", "start_date"]
+  }
+};
+
 // Fitness History Tool - enables AI coach to query historical fitness data
 export const FITNESS_HISTORY_TOOL = {
   name: "query_fitness_history",
@@ -128,8 +186,9 @@ IMPORTANT: Always use this tool when discussing historical fitness. Do not guess
   }
 };
 
-// Combined tools for AI coach (includes both workout and fitness history)
+// Combined tools for AI coach (includes workout, fitness history, and plan creation)
 export const ALL_COACH_TOOLS = [
   ...WORKOUT_TOOLS,
-  FITNESS_HISTORY_TOOL
+  FITNESS_HISTORY_TOOL,
+  CREATE_PLAN_TOOL
 ];
