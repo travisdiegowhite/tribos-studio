@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
+import { generateTrainingPlan } from './utils/planGenerator.js';
 import { setupCors } from './utils/cors.js';
 
 // Base coaching knowledge (date context added dynamically)
@@ -74,6 +75,37 @@ When you recommend specific workouts, you MUST use the recommend_workout tool. N
 - scheduled_date format: "today", "tomorrow", "this_monday", "next_tuesday", or "YYYY-MM-DD"
 
 Remember: The tool is how athletes add workouts to their calendar. Without it, they can't act on your advice!
+
+**CREATING FULL TRAINING PLANS:**
+
+When an athlete asks for a complete training plan (not just a single workout), use the create_training_plan tool.
+
+**Trigger phrases for plan creation:**
+- "create a training plan"
+- "build me a plan"
+- "make a plan for my race"
+- "set up my training for [event]"
+- "I need a [X] week plan"
+- "plan my training"
+- "prepare me for [race/event]"
+
+**How to use create_training_plan:**
+1. Analyze the athlete's goals, target events, and available time
+2. Choose appropriate methodology based on their needs:
+   - polarized: Best for time-crunched athletes, research-backed 80/20 approach
+   - sweet_spot: Efficient fitness gains, good for intermediate riders
+   - threshold: FTP-focused for time trial or sustained power goals
+   - pyramidal: Balanced approach with emphasis on tempo/endurance
+   - endurance: Pure aerobic base building, good for beginners or off-season
+3. Set duration based on time until target event (ideally 8-16 weeks)
+4. The athlete will see a plan preview with phases, total workouts, and weekly TSS
+5. They can activate it with one click to load ALL workouts to their calendar
+
+**Important:**
+- Use create_training_plan for multi-week structured plans (4+ weeks)
+- Use recommend_workout for single workouts or short-term suggestions
+- If athlete has a race in their calendar, use target_event_date to periodize the plan
+- Always set start_date to 'next_monday' unless they specify otherwise
 
 **HISTORICAL FITNESS ANALYSIS:**
 
@@ -252,17 +284,16 @@ When races are listed above, use their exact names, dates, and details in your r
       tools: ALL_COACH_TOOLS
     });
 
-    // Check if we need to handle fitness history tool calls
+    // Check if we need to handle tool calls
     let toolUses = response.content.filter(block => block.type === 'tool_use');
     const fitnessHistoryUses = toolUses.filter(tool => tool.name === 'query_fitness_history');
+    const planCreationUses = toolUses.filter(tool => tool.name === 'create_training_plan');
 
-    console.log(`🤖 Coach response: ${toolUses.length} tool uses, ${fitnessHistoryUses.length} fitness history queries`);
-    if (fitnessHistoryUses.length > 0) {
-      console.log(`🤖 Fitness history tool requested. userId: ${userId}`);
-    }
+    console.log(`🤖 Coach response: ${toolUses.length} tool uses, ${fitnessHistoryUses.length} fitness history queries, ${planCreationUses.length} plan creations`);
 
-    // If fitness history tools were called, execute them and continue conversation
+    // Handle fitness history tool calls (requires continuation)
     if (fitnessHistoryUses.length > 0 && userId) {
+      console.log(`🤖 Fitness history tool requested. userId: ${userId}`);
       const toolResults = [];
 
       for (const tool of fitnessHistoryUses) {
@@ -318,10 +349,29 @@ When races are listed above, use their exact names, dates, and details in your r
         ...tool.input
       }));
 
+    // Handle training plan creation tool (generates plan preview)
+    let trainingPlanPreview = null;
+    const planCreationTool = toolUses.find(tool => tool.name === 'create_training_plan');
+
+    if (planCreationTool) {
+      console.log(`🤖 Generating training plan:`, planCreationTool.input);
+      try {
+        trainingPlanPreview = generateTrainingPlan(planCreationTool.input);
+        console.log(`✅ Plan generated: ${trainingPlanPreview.summary.total_workouts} workouts over ${trainingPlanPreview.duration_weeks} weeks`);
+      } catch (error) {
+        console.error('Plan generation error:', error);
+        trainingPlanPreview = {
+          error: true,
+          message: 'Failed to generate training plan. Please try again.'
+        };
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: responseText,
       workoutRecommendations: workoutRecommendations.length > 0 ? workoutRecommendations : null,
+      trainingPlanPreview: trainingPlanPreview,
       usage: response.usage
     });
 

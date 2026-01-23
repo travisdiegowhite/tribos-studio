@@ -12,8 +12,12 @@ import {
   Badge,
   Loader,
   Paper,
+  Divider,
+  Progress,
+  SimpleGrid,
+  ThemeIcon,
 } from '@mantine/core';
-import { IconSend, IconRobot, IconUser, IconPlus, IconClock, IconFlame, IconCalendarPlus, IconCheck } from '@tabler/icons-react';
+import { IconSend, IconRobot, IconUser, IconPlus, IconClock, IconFlame, IconCalendarPlus, IconCheck, IconCalendar, IconTrendingUp, IconTarget, IconPlayerPlay } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { getWorkoutById } from '../data/workoutLibrary';
@@ -234,17 +238,18 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
 
       const data = await response.json();
 
-      // Add assistant message with workout recommendations
+      // Add assistant message with workout recommendations and/or training plan preview
       const assistantMessage = {
         role: 'assistant',
         content: data.message,
         workoutRecommendations: data.workoutRecommendations,
+        trainingPlanPreview: data.trainingPlanPreview,
         timestamp: new Date().toISOString()
       };
 
       setMessages(prev => [...prev, assistantMessage]);
 
-      // Save assistant message to database
+      // Save assistant message to database (include plan preview in context)
       await saveMessage('assistant', data.message, data.workoutRecommendations);
     } catch (error) {
       console.error('Error sending message:', error);
@@ -452,6 +457,154 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
     }
   };
 
+  // Activate a full training plan - saves all workouts to the database
+  const handleActivatePlan = async (planPreview) => {
+    if (!user?.id) {
+      notifications.show({
+        title: 'Error',
+        message: 'You must be logged in to activate a training plan',
+        color: 'red'
+      });
+      return;
+    }
+
+    if (!planPreview || planPreview.error) {
+      notifications.show({
+        title: 'Error',
+        message: 'Invalid training plan',
+        color: 'red'
+      });
+      return;
+    }
+
+    // Show loading notification
+    const notificationId = notifications.show({
+      title: 'Activating Training Plan',
+      message: `Creating ${planPreview.name} with ${planPreview.summary.total_workouts} workouts...`,
+      loading: true,
+      autoClose: false
+    });
+
+    try {
+      // First, deactivate any existing active plan
+      if (activePlan?.id) {
+        await supabase
+          .from('training_plans')
+          .update({ status: 'completed', ended_at: new Date().toISOString() })
+          .eq('id', activePlan.id);
+      }
+
+      // Create the training plan record
+      const { data: newPlan, error: planError } = await supabase
+        .from('training_plans')
+        .insert({
+          user_id: user.id,
+          template_id: 'ai_coach_generated',
+          name: planPreview.name,
+          duration_weeks: planPreview.duration_weeks,
+          methodology: planPreview.methodology,
+          goal: planPreview.goal,
+          started_at: planPreview.start_date,
+          start_date: planPreview.start_date,
+          status: 'active'
+        })
+        .select()
+        .single();
+
+      if (planError) {
+        console.error('Plan creation error:', planError);
+        throw new Error(`Failed to create training plan: ${planError.message}`);
+      }
+
+      console.log(`✅ Plan created: ${newPlan.id}`);
+
+      // Prepare all workouts for batch insert
+      const workoutsToInsert = planPreview.workouts
+        .filter(w => w.workout_type !== 'rest') // Don't insert rest days
+        .map(w => ({
+          plan_id: newPlan.id,
+          user_id: user.id,
+          scheduled_date: w.scheduled_date,
+          week_number: w.week_number,
+          day_of_week: w.day_of_week,
+          workout_type: w.workout_type,
+          workout_id: w.workout_id,
+          name: w.name,
+          duration_minutes: w.duration_minutes,
+          target_duration: w.duration_minutes,
+          target_tss: w.target_tss,
+          notes: `AI Coach: ${planPreview.methodology} training - ${w.phase} phase`,
+          completed: false
+        }));
+
+      console.log(`📝 Inserting ${workoutsToInsert.length} workouts...`);
+
+      // Batch insert all workouts
+      const { error: workoutsError } = await supabase
+        .from('planned_workouts')
+        .insert(workoutsToInsert);
+
+      if (workoutsError) {
+        console.error('Workouts insert error:', workoutsError);
+        // Try smaller batches if bulk insert fails
+        const batchSize = 20;
+        let successCount = 0;
+
+        for (let i = 0; i < workoutsToInsert.length; i += batchSize) {
+          const batch = workoutsToInsert.slice(i, i + batchSize);
+          const { error: batchError } = await supabase
+            .from('planned_workouts')
+            .insert(batch);
+
+          if (!batchError) {
+            successCount += batch.length;
+          } else {
+            console.error(`Batch ${i / batchSize + 1} failed:`, batchError);
+          }
+        }
+
+        if (successCount === 0) {
+          throw new Error('Failed to create workouts');
+        }
+
+        console.log(`⚠️ Created ${successCount} of ${workoutsToInsert.length} workouts via batch insert`);
+      } else {
+        console.log(`✅ All ${workoutsToInsert.length} workouts created successfully`);
+      }
+
+      // Update notification to success
+      notifications.update({
+        id: notificationId,
+        title: 'Training Plan Activated!',
+        message: `${planPreview.name} is now active with ${workoutsToInsert.length} workouts scheduled through ${planPreview.end_date}`,
+        color: 'lime',
+        icon: <IconCalendarPlus size={18} />,
+        loading: false,
+        autoClose: 6000
+      });
+
+      // Call parent callback to refresh the calendar
+      if (onAddWorkout) {
+        onAddWorkout({
+          planActivated: true,
+          planId: newPlan.id,
+          planName: planPreview.name
+        });
+      }
+
+    } catch (error) {
+      console.error('Error activating plan:', error);
+      notifications.update({
+        id: notificationId,
+        title: 'Error',
+        message: error.message || 'Failed to activate training plan',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    }
+  };
+
   return (
     <Card
       style={{
@@ -614,6 +767,142 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                         );
                       })}
                     </Stack>
+                  )}
+
+                  {/* Training Plan Preview */}
+                  {msg.trainingPlanPreview && !msg.trainingPlanPreview.error && (
+                    <Paper
+                      mt="md"
+                      p="md"
+                      style={{
+                        backgroundColor: tokens.colors.bgTertiary,
+                        border: `2px solid ${tokens.colors.electricLime}`,
+                        borderRadius: tokens.radius.md
+                      }}
+                    >
+                      {/* Plan Header */}
+                      <Group justify="space-between" align="flex-start" mb="md">
+                        <Box>
+                          <Group gap="xs" mb={4}>
+                            <ThemeIcon size="md" color="lime" variant="light">
+                              <IconCalendar size={16} />
+                            </ThemeIcon>
+                            <Text fw={700} size="lg" style={{ color: tokens.colors.textPrimary }}>
+                              {msg.trainingPlanPreview.name}
+                            </Text>
+                          </Group>
+                          <Group gap="xs">
+                            <Badge color="lime" variant="filled" size="sm">
+                              {msg.trainingPlanPreview.methodology}
+                            </Badge>
+                            <Badge variant="light" color="gray" size="sm">
+                              {msg.trainingPlanPreview.duration_weeks} weeks
+                            </Badge>
+                            <Badge variant="outline" color="gray" size="sm">
+                              {msg.trainingPlanPreview.goal?.replace('_', ' ')}
+                            </Badge>
+                          </Group>
+                        </Box>
+                      </Group>
+
+                      {/* Key Stats */}
+                      <SimpleGrid cols={3} spacing="xs" mb="md">
+                        <Paper p="xs" withBorder ta="center" style={{ backgroundColor: tokens.colors.bgSecondary }}>
+                          <IconTarget size={18} style={{ color: tokens.colors.electricLime, marginBottom: 4 }} />
+                          <Text size="lg" fw={700} style={{ color: tokens.colors.textPrimary }}>
+                            {msg.trainingPlanPreview.summary.total_workouts}
+                          </Text>
+                          <Text size="xs" c="dimmed">workouts</Text>
+                        </Paper>
+                        <Paper p="xs" withBorder ta="center" style={{ backgroundColor: tokens.colors.bgSecondary }}>
+                          <IconClock size={18} style={{ color: tokens.colors.electricLime, marginBottom: 4 }} />
+                          <Text size="lg" fw={700} style={{ color: tokens.colors.textPrimary }}>
+                            {msg.trainingPlanPreview.summary.avg_weekly_hours}
+                          </Text>
+                          <Text size="xs" c="dimmed">hrs/week</Text>
+                        </Paper>
+                        <Paper p="xs" withBorder ta="center" style={{ backgroundColor: tokens.colors.bgSecondary }}>
+                          <IconTrendingUp size={18} style={{ color: tokens.colors.electricLime, marginBottom: 4 }} />
+                          <Text size="lg" fw={700} style={{ color: tokens.colors.textPrimary }}>
+                            {msg.trainingPlanPreview.summary.avg_weekly_tss}
+                          </Text>
+                          <Text size="xs" c="dimmed">TSS/week</Text>
+                        </Paper>
+                      </SimpleGrid>
+
+                      {/* Phases */}
+                      <Box mb="md">
+                        <Text size="sm" fw={600} mb="xs" style={{ color: tokens.colors.textSecondary }}>
+                          Training Phases
+                        </Text>
+                        <Stack gap={4}>
+                          {msg.trainingPlanPreview.phases.map((phase, idx) => (
+                            <Group key={idx} gap="xs" wrap="nowrap">
+                              <Badge
+                                size="xs"
+                                variant="light"
+                                color={
+                                  phase.phase === 'recovery' ? 'blue' :
+                                  phase.phase === 'build' ? 'orange' :
+                                  phase.phase === 'peak' ? 'red' :
+                                  phase.phase === 'taper' ? 'green' : 'gray'
+                                }
+                                style={{ minWidth: 60 }}
+                              >
+                                {phase.weeks}
+                              </Badge>
+                              <Text size="xs" fw={500} style={{ color: tokens.colors.textPrimary, textTransform: 'capitalize' }}>
+                                {phase.phase}
+                              </Text>
+                              <Text size="xs" c="dimmed" style={{ flex: 1 }}>
+                                {phase.description}
+                              </Text>
+                            </Group>
+                          ))}
+                        </Stack>
+                      </Box>
+
+                      {/* Date Range */}
+                      <Group gap="lg" mb="md">
+                        <Box>
+                          <Text size="xs" c="dimmed">Starts</Text>
+                          <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                            {msg.trainingPlanPreview.start_date}
+                          </Text>
+                        </Box>
+                        <Box>
+                          <Text size="xs" c="dimmed">Ends</Text>
+                          <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                            {msg.trainingPlanPreview.end_date}
+                          </Text>
+                        </Box>
+                        {msg.trainingPlanPreview.target_event_date && (
+                          <Box>
+                            <Text size="xs" c="dimmed">Target Event</Text>
+                            <Text size="sm" fw={500} style={{ color: tokens.colors.electricLime }}>
+                              {msg.trainingPlanPreview.target_event_date}
+                            </Text>
+                          </Box>
+                        )}
+                      </Group>
+
+                      <Divider mb="md" />
+
+                      {/* Activate Button */}
+                      <Button
+                        color="lime"
+                        size="md"
+                        fullWidth
+                        leftSection={<IconPlayerPlay size={18} />}
+                        onClick={() => handleActivatePlan(msg.trainingPlanPreview)}
+                      >
+                        Activate Plan - Add {msg.trainingPlanPreview.summary.total_workouts} Workouts to Calendar
+                      </Button>
+
+                      <Text size="xs" c="dimmed" ta="center" mt="xs">
+                        This will create {msg.trainingPlanPreview.summary.total_workouts} scheduled workouts in your training calendar
+                      </Text>
+                    </Paper>
                   )}
                 </Box>
               </Group>
