@@ -238,6 +238,20 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
 
       const data = await response.json();
 
+      // Debug: Log the full response to see what's coming back
+      console.log('🤖 Coach API response:', {
+        hasMessage: !!data.message,
+        hasWorkoutRecommendations: !!data.workoutRecommendations,
+        workoutCount: data.workoutRecommendations?.length || 0,
+        hasTrainingPlanPreview: !!data.trainingPlanPreview,
+        trainingPlanPreview: data.trainingPlanPreview ? {
+          name: data.trainingPlanPreview.name,
+          weeks: data.trainingPlanPreview.duration_weeks,
+          workouts: data.trainingPlanPreview.summary?.total_workouts,
+          error: data.trainingPlanPreview.error
+        } : null
+      });
+
       // Add assistant message with workout recommendations and/or training plan preview
       const assistantMessage = {
         role: 'assistant',

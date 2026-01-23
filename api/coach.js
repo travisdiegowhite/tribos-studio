@@ -78,9 +78,11 @@ Remember: The tool is how athletes add workouts to their calendar. Without it, t
 
 **CREATING FULL TRAINING PLANS:**
 
-When an athlete asks for a complete training plan (not just a single workout), use the create_training_plan tool.
+When an athlete asks for a complete training plan (not just a single workout), you MUST use the create_training_plan tool. DO NOT just describe a plan in text - you MUST call the tool.
 
-**Trigger phrases for plan creation:**
+**CRITICAL: If the athlete asks for a training plan, you MUST call create_training_plan. Never describe a plan without calling the tool.**
+
+**Trigger phrases that REQUIRE calling create_training_plan:**
 - "create a training plan"
 - "build me a plan"
 - "make a plan for my race"
@@ -88,6 +90,9 @@ When an athlete asks for a complete training plan (not just a single workout), u
 - "I need a [X] week plan"
 - "plan my training"
 - "prepare me for [race/event]"
+- "load the plan to my calendar"
+- "add the workouts to my calendar"
+- Any request for multiple weeks of structured training
 
 **How to use create_training_plan:**
 1. Analyze the athlete's goals, target events, and available time
@@ -98,14 +103,16 @@ When an athlete asks for a complete training plan (not just a single workout), u
    - pyramidal: Balanced approach with emphasis on tempo/endurance
    - endurance: Pure aerobic base building, good for beginners or off-season
 3. Set duration based on time until target event (ideally 8-16 weeks)
-4. The athlete will see a plan preview with phases, total workouts, and weekly TSS
-5. They can activate it with one click to load ALL workouts to their calendar
+4. Call the create_training_plan tool with appropriate parameters
+5. The athlete will see a plan preview with phases, total workouts, and weekly TSS
+6. They can activate it with one click to load ALL workouts to their calendar
 
 **Important:**
 - Use create_training_plan for multi-week structured plans (4+ weeks)
 - Use recommend_workout for single workouts or short-term suggestions
 - If athlete has a race in their calendar, use target_event_date to periodize the plan
 - Always set start_date to 'next_monday' unless they specify otherwise
+- NEVER just describe a training plan - ALWAYS call the tool so the athlete can activate it
 
 **HISTORICAL FITNESS ANALYSIS:**
 
@@ -289,7 +296,14 @@ When races are listed above, use their exact names, dates, and details in your r
     const fitnessHistoryUses = toolUses.filter(tool => tool.name === 'query_fitness_history');
     const planCreationUses = toolUses.filter(tool => tool.name === 'create_training_plan');
 
-    console.log(`🤖 Coach response: ${toolUses.length} tool uses, ${fitnessHistoryUses.length} fitness history queries, ${planCreationUses.length} plan creations`);
+    // Detailed logging for debugging
+    console.log(`🤖 Coach response: ${toolUses.length} tool uses`);
+    console.log(`   - Tool names used: ${toolUses.map(t => t.name).join(', ') || 'none'}`);
+    console.log(`   - Fitness history queries: ${fitnessHistoryUses.length}`);
+    console.log(`   - Plan creations: ${planCreationUses.length}`);
+    if (planCreationUses.length > 0) {
+      console.log(`   - Plan creation input:`, JSON.stringify(planCreationUses[0].input, null, 2));
+    }
 
     // Handle fitness history tool calls (requires continuation)
     if (fitnessHistoryUses.length > 0 && userId) {
