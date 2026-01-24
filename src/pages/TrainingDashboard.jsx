@@ -1372,12 +1372,6 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
         />
       )}
 
-      {/* Health Trends */}
-      <HealthTrendsChart
-        data={healthHistory}
-        onOpenCheckIn={onOpenCheckIn}
-      />
-
       {/* Fitness Journey Chart */}
       <Card withBorder p="md">
         <Group justify="space-between" mb="md">
@@ -1420,6 +1414,12 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
       <AerobicDecoupling
         activities={activities}
         timeRange={90}
+      />
+
+      {/* Health Trends */}
+      <HealthTrendsChart
+        data={healthHistory}
+        onOpenCheckIn={onOpenCheckIn}
       />
 
       {/* Progress Cards */}
