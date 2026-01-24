@@ -1108,7 +1108,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               targetTSS={workout.target_tss}
                               workoutCategory={workout.workout_type}
                               size="xs"
-                              variant="icon"
+                              variant="text"
                             />
                           </Group>
                           {/* Create Route button - only for today or future workouts */}

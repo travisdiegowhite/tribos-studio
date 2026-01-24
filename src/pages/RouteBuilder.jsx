@@ -2752,11 +2752,11 @@ function RouteBuilder() {
               )}
 
               {/* Fuel Plan Section - Collapsible */}
-              {routeStats.duration >= 60 && routeGeometry && (
+              {routeStats.duration >= 45 && routeGeometry && (
                 <CollapsibleSection
                   title="Fuel Plan"
                   icon={<Text size="sm">🍌</Text>}
-                  defaultExpanded={routeStats.duration >= 90}
+                  defaultExpanded={routeStats.duration >= 60}
                 >
                   <Box mt="sm">
                     <FuelCard
