@@ -49,12 +49,13 @@ export default function FuelBadge({
     weather,
   });
 
-  // Determine display level
+  // Show badge for 90+ min workouts OR high fueling needs
+  const isLongWorkout = durationMinutes >= 90;
   const isHighFuel = plan.carbs.totalGramsMax > 150 || plan.hydration.heatAdjusted;
-  const isModerateFuel = plan.carbs.totalGramsMax > 60;
+  const isModerateFuel = plan.carbs.totalGramsMax > 30;
 
-  // Don't show for low fueling needs
-  if (!isModerateFuel) {
+  // Don't show for truly low fueling needs (under 60 min already filtered)
+  if (!isModerateFuel && !isLongWorkout) {
     return null;
   }
 

@@ -2756,7 +2756,7 @@ function RouteBuilder() {
                 <CollapsibleSection
                   title="Fuel Plan"
                   icon={<Text size="sm">🍌</Text>}
-                  defaultExpanded={false}
+                  defaultExpanded={routeStats.duration >= 90}
                 >
                   <Box mt="sm">
                     <FuelCard
