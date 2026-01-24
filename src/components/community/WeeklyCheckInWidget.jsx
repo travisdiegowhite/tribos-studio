@@ -270,20 +270,20 @@ function WeeklyCheckInWidget({
               <Box>
                 <Button
                   variant="subtle"
-                  size="xs"
+                  size="sm"
                   onClick={() => setShowFueling(!showFueling)}
-                  leftSection={<IconFlame size={14} />}
-                  rightSection={showFueling ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                  leftSection={<IconFlame size={16} />}
+                  rightSection={showFueling ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
                   style={{ color: tokens.colors.textSecondary }}
                 >
                   Fueling Check (optional)
                 </Button>
 
                 <Collapse in={showFueling}>
-                  <Stack gap="xs" pt="xs">
+                  <Stack gap="sm" pt="sm">
                     {/* Energy rating */}
                     <Box>
-                      <Text size="xs" fw={500} mb={4}>How did your energy feel?</Text>
+                      <Text size="sm" fw={500} mb={6}>How did your energy feel?</Text>
                       <SegmentedControl
                         value={energyRating || ''}
                         onChange={setEnergyRating}
@@ -291,7 +291,7 @@ function WeeklyCheckInWidget({
                           value: e.value,
                           label: e.emoji,
                         }))}
-                        size="xs"
+                        size="sm"
                         fullWidth
                         styles={{
                           root: {
@@ -306,7 +306,7 @@ function WeeklyCheckInWidget({
 
                     {/* Had bonks */}
                     <Box>
-                      <Text size="xs" fw={500} mb={4}>Any bonks or energy crashes?</Text>
+                      <Text size="sm" fw={500} mb={6}>Any bonks or energy crashes?</Text>
                       <SegmentedControl
                         value={hadBonks === null ? '' : hadBonks ? 'yes' : 'no'}
                         onChange={(val) => setHadBonks(val === 'yes')}
@@ -314,7 +314,7 @@ function WeeklyCheckInWidget({
                           { value: 'no', label: 'No' },
                           { value: 'yes', label: 'Yes' },
                         ]}
-                        size="xs"
+                        size="sm"
                         styles={{
                           root: {
                             backgroundColor: tokens.colors.bgTertiary,
@@ -328,12 +328,12 @@ function WeeklyCheckInWidget({
 
                     {/* Energy factors */}
                     <Box>
-                      <Text size="xs" fw={500} mb={4}>Affecting energy?</Text>
-                      <Group gap={4}>
+                      <Text size="sm" fw={500} mb={6}>Affecting energy?</Text>
+                      <Group gap={6}>
                         {ENERGY_FACTORS.map((factor) => (
                           <Badge
                             key={factor.value}
-                            size="xs"
+                            size="md"
                             variant={energyFactors.includes(factor.value) ? 'filled' : 'outline'}
                             color={energyFactors.includes(factor.value) ? 'lime' : 'gray'}
                             style={{ cursor: 'pointer' }}
@@ -486,10 +486,10 @@ function WeeklyCheckInWidget({
           <Box>
             <Button
               variant="subtle"
-              size="xs"
+              size="sm"
               onClick={() => setShowFueling(!showFueling)}
-              leftSection={<IconFlame size={14} />}
-              rightSection={showFueling ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+              leftSection={<IconFlame size={16} />}
+              rightSection={showFueling ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
               style={{ color: tokens.colors.textSecondary }}
             >
               Fueling Check (optional)
@@ -507,7 +507,7 @@ function WeeklyCheckInWidget({
                       value: e.value,
                       label: `${e.emoji} ${e.label}`,
                     }))}
-                    size="xs"
+                    size="sm"
                     fullWidth
                     styles={{
                       root: {
@@ -530,7 +530,7 @@ function WeeklyCheckInWidget({
                       { value: 'no', label: 'No' },
                       { value: 'yes', label: 'Yes' },
                     ]}
-                    size="xs"
+                    size="sm"
                     styles={{
                       root: {
                         backgroundColor: tokens.colors.bgTertiary,
@@ -545,10 +545,11 @@ function WeeklyCheckInWidget({
                 {/* Energy factors */}
                 <Box>
                   <Text size="sm" fw={500} mb="xs">Anything else affecting energy?</Text>
-                  <Group gap="xs">
+                  <Group gap="sm">
                     {ENERGY_FACTORS.map((factor) => (
                       <Badge
                         key={factor.value}
+                        size="md"
                         variant={energyFactors.includes(factor.value) ? 'filled' : 'outline'}
                         color={energyFactors.includes(factor.value) ? 'lime' : 'gray'}
                         style={{ cursor: 'pointer' }}

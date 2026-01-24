@@ -16,6 +16,8 @@ import {
   SegmentedControl,
   Alert,
   Loader,
+  Collapse,
+  Box,
 } from '@mantine/core';
 import {
   IconHeart,
@@ -29,6 +31,12 @@ import {
   IconInfoCircle,
   IconRefresh,
   IconBrandApple,
+  IconFlame,
+  IconChevronUp,
+  IconChevronDown,
+  IconDroplet,
+  IconMeat,
+  IconToolsKitchen2,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -52,6 +60,33 @@ const SORENESS_SCALE = {
   5: { label: 'Severe', color: 'red' },
 };
 
+// Fueling options
+const MEALS_OPTIONS = [
+  { value: '1', label: '1' },
+  { value: '2', label: '2' },
+  { value: '3', label: '3' },
+  { value: '4', label: '4' },
+  { value: '5', label: '5+' },
+];
+
+const PROTEIN_OPTIONS = [
+  { value: 'yes', label: '✓ Yes', color: 'green' },
+  { value: 'kinda', label: '~ Some', color: 'yellow' },
+  { value: 'no', label: '✗ No', color: 'red' },
+];
+
+const HYDRATION_OPTIONS = [
+  { value: 'low', label: '🥵 Low', color: 'red' },
+  { value: 'ok', label: '👌 OK', color: 'yellow' },
+  { value: 'good', label: '💧 Good', color: 'green' },
+];
+
+const PRE_WORKOUT_OPTIONS = [
+  { value: 'yes', label: 'Yes, fueled' },
+  { value: 'no', label: 'No, skipped' },
+  { value: 'no_workout', label: 'No workout' },
+];
+
 // Weight conversion helpers
 const KG_TO_LBS = 2.20462;
 const LBS_TO_KG = 0.453592;
@@ -73,10 +108,16 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
     stress_level: 3,
     weight_kg: null,
     notes: '',
+    // Fueling fields
+    meals_eaten: null,
+    protein_at_meals: null,
+    hydration_level: null,
+    pre_workout_fuel: null,
   });
 
   // For display - store weight in user's preferred unit
   const [displayWeight, setDisplayWeight] = useState(null);
+  const [showFueling, setShowFueling] = useState(false);
 
   // Check Garmin connection status when modal opens
   useEffect(() => {
@@ -102,9 +143,18 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         stress_level: existingData.stress_level || 3,
         weight_kg: weightKg,
         notes: existingData.notes || '',
+        // Fueling fields
+        meals_eaten: existingData.meals_eaten || null,
+        protein_at_meals: existingData.protein_at_meals || null,
+        hydration_level: existingData.hydration_level || null,
+        pre_workout_fuel: existingData.pre_workout_fuel || null,
       });
       // Convert weight for display
       setDisplayWeight(weightKg ? (isImperial ? Math.round(weightKg * KG_TO_LBS * 10) / 10 : weightKg) : null);
+      // Show fueling section if there's existing fueling data
+      if (existingData.meals_eaten || existingData.protein_at_meals || existingData.hydration_level || existingData.pre_workout_fuel) {
+        setShowFueling(true);
+      }
     }
   }, [existingData, isImperial]);
 
@@ -231,6 +281,11 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         weight_kg: formData.weight_kg,
         notes: formData.notes || null,
         source: 'manual',
+        // Fueling fields
+        meals_eaten: formData.meals_eaten,
+        protein_at_meals: formData.protein_at_meals,
+        hydration_level: formData.hydration_level,
+        pre_workout_fuel: formData.pre_workout_fuel,
       };
 
       const { data, error } = await supabase
@@ -394,6 +449,98 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
           suffix={isImperial ? ' lbs' : ' kg'}
           description={isImperial ? 'Stored as kg internally' : null}
         />
+
+        {/* Fueling Check Section - Collapsible */}
+        <Box>
+          <Button
+            variant="subtle"
+            size="sm"
+            onClick={() => setShowFueling(!showFueling)}
+            leftSection={<Text size="sm">🍌</Text>}
+            rightSection={showFueling ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+            style={{ marginBottom: showFueling ? 8 : 0 }}
+          >
+            Fueling Check (optional)
+          </Button>
+
+          <Collapse in={showFueling}>
+            <Paper withBorder p="md" radius="md">
+              <Stack gap="md">
+                <Text size="xs" c="dimmed">
+                  Quick fueling check to help identify energy patterns. No calorie counting needed!
+                </Text>
+
+                {/* Meals eaten */}
+                <Box>
+                  <Group gap="xs" mb={6}>
+                    <ThemeIcon size="sm" variant="light" color="orange">
+                      <IconToolsKitchen2 size={14} />
+                    </ThemeIcon>
+                    <Text size="sm" fw={500}>How many meals yesterday?</Text>
+                  </Group>
+                  <SegmentedControl
+                    fullWidth
+                    size="sm"
+                    value={formData.meals_eaten ? String(formData.meals_eaten) : ''}
+                    onChange={(v) => updateField('meals_eaten', v ? parseInt(v) : null)}
+                    data={MEALS_OPTIONS}
+                  />
+                </Box>
+
+                {/* Protein at meals */}
+                <Box>
+                  <Group gap="xs" mb={6}>
+                    <ThemeIcon size="sm" variant="light" color="red">
+                      <IconMeat size={14} />
+                    </ThemeIcon>
+                    <Text size="sm" fw={500}>Protein at most meals?</Text>
+                  </Group>
+                  <SegmentedControl
+                    fullWidth
+                    size="sm"
+                    value={formData.protein_at_meals || ''}
+                    onChange={(v) => updateField('protein_at_meals', v || null)}
+                    data={PROTEIN_OPTIONS}
+                  />
+                </Box>
+
+                {/* Hydration */}
+                <Box>
+                  <Group gap="xs" mb={6}>
+                    <ThemeIcon size="sm" variant="light" color="blue">
+                      <IconDroplet size={14} />
+                    </ThemeIcon>
+                    <Text size="sm" fw={500}>Hydration yesterday?</Text>
+                  </Group>
+                  <SegmentedControl
+                    fullWidth
+                    size="sm"
+                    value={formData.hydration_level || ''}
+                    onChange={(v) => updateField('hydration_level', v || null)}
+                    data={HYDRATION_OPTIONS}
+                  />
+                </Box>
+
+                {/* Pre-workout fuel */}
+                <Box>
+                  <Group gap="xs" mb={6}>
+                    <ThemeIcon size="sm" variant="light" color="lime">
+                      <IconFlame size={14} />
+                    </ThemeIcon>
+                    <Text size="sm" fw={500}>Pre-workout fueling?</Text>
+                  </Group>
+                  <SegmentedControl
+                    fullWidth
+                    size="sm"
+                    value={formData.pre_workout_fuel || ''}
+                    onChange={(v) => updateField('pre_workout_fuel', v || null)}
+                    data={PRE_WORKOUT_OPTIONS}
+                  />
+                </Box>
+              </Stack>
+            </Paper>
+          </Collapse>
+        </Box>
 
         <Textarea
           label="Notes (optional)"
