@@ -7,6 +7,7 @@ import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { generateTrainingPlan } from './utils/planGenerator.js';
 import { setupCors } from './utils/cors.js';
+import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 
 // Base coaching knowledge (date context added dynamically)
 const COACHING_KNOWLEDGE = `You are an expert cycling coach with deep knowledge of:
@@ -16,6 +17,7 @@ const COACHING_KNOWLEDGE = `You are an expert cycling coach with deep knowledge 
 - Recovery and fatigue management
 - Workout prescription for different training phases
 - Route planning and terrain strategy
+- Sports nutrition and on-bike fueling strategies
 
 Your Personality:
 - Supportive and encouraging, but honest and realistic
@@ -135,7 +137,46 @@ Use this tool whenever the athlete asks about:
 - "year over year"
 - "historically"
 
-IMPORTANT: Always use the query_fitness_history tool for historical questions. Never guess about past performance - the tool has actual data.`;
+IMPORTANT: Always use the query_fitness_history tool for historical questions. Never guess about past performance - the tool has actual data.
+
+**FUELING GUIDANCE:**
+
+You should proactively mention fueling considerations when recommending workouts that are:
+- 60+ minutes in duration
+- High intensity (tempo, threshold, VO2max)
+- Race day or race simulation efforts
+
+**Fueling Guidelines by Intensity:**
+| Intensity | Carbs/Hour |
+|-----------|------------|
+| Recovery/Easy | 0-30g (optional for <90 min) |
+| Endurance | 30-40g |
+| Tempo/Sweet Spot | 45-60g |
+| Threshold | 60-80g |
+| Race pace/VO2 | 80-120g (requires gut training) |
+
+**Hydration by Temperature:**
+- Cool (<65°F): 16-20 oz/hr
+- Moderate (65-80°F): 20-24 oz/hr
+- Hot (80-90°F): 24-32 oz/hr + electrolytes
+- Very hot (>90°F): 32-40 oz/hr + electrolytes + pre-hydration
+
+**When to mention fueling:**
+1. When recommending long rides (2+ hours): Include pre-ride and on-bike fueling guidance
+2. When discussing race preparation: Emphasize nutrition timing and gut training
+3. When athlete reports bonking or energy issues: Explore fueling patterns
+4. When prescribing high-volume weeks: Remind about increased nutrition needs
+5. When weather is hot: Emphasize hydration and electrolytes
+
+**Key fueling messages to include:**
+- "For this 3-hour ride, plan on 150-180g of carbs during the ride (about 5-6 gels or equivalent)"
+- "Start eating at the 45-minute mark and continue every 20-30 minutes"
+- "Hot weather means you'll need 24-32 oz of fluid per hour with electrolytes"
+- "Race-day nutrition: eat a carb-heavy meal 3-4 hours before, then fuel consistently"
+- "If you're bonking late in rides, try eating earlier and more often"
+
+**DISCLAIMER**: Always remind athletes that these are general guidelines. For personalized nutrition advice, they should consult a sports dietitian.`;
+
 
 export default async function handler(req, res) {
   // Handle CORS
@@ -295,6 +336,7 @@ When races are listed above, use their exact names, dates, and details in your r
     let toolUses = response.content.filter(block => block.type === 'tool_use');
     const fitnessHistoryUses = toolUses.filter(tool => tool.name === 'query_fitness_history');
     const planCreationUses = toolUses.filter(tool => tool.name === 'create_training_plan');
+    const fuelPlanUses = toolUses.filter(tool => tool.name === 'generate_fuel_plan');
 
     // Detailed logging for debugging
     console.log(`🤖 Coach response: ${toolUses.length} tool uses`);
@@ -386,6 +428,24 @@ When races are listed above, use their exact names, dates, and details in your r
       }
     }
 
+    // Handle fuel plan generation tool
+    let fuelPlan = null;
+    const fuelPlanTool = toolUses.find(tool => tool.name === 'generate_fuel_plan');
+
+    if (fuelPlanTool) {
+      console.log(`🍌 Generating fuel plan:`, fuelPlanTool.input);
+      try {
+        fuelPlan = generateFuelPlan(fuelPlanTool.input);
+        console.log(`✅ Fuel plan generated for ${fuelPlan.duration} ride`);
+      } catch (error) {
+        console.error('Fuel plan generation error:', error);
+        fuelPlan = {
+          error: true,
+          message: 'Failed to generate fuel plan. Please try again.'
+        };
+      }
+    }
+
     // Log the response we're about to send
     console.log(`📤 Sending response:`, {
       success: true,
@@ -393,7 +453,8 @@ When races are listed above, use their exact names, dates, and details in your r
       messageLength: responseText?.length || 0,
       hasWorkoutRecommendations: workoutRecommendations.length > 0,
       hasTrainingPlanPreview: !!trainingPlanPreview,
-      planPreviewWorkouts: trainingPlanPreview?.summary?.total_workouts || 0
+      planPreviewWorkouts: trainingPlanPreview?.summary?.total_workouts || 0,
+      hasFuelPlan: !!fuelPlan
     });
 
     return res.status(200).json({
@@ -401,6 +462,7 @@ When races are listed above, use their exact names, dates, and details in your r
       message: responseText,
       workoutRecommendations: workoutRecommendations.length > 0 ? workoutRecommendations : null,
       trainingPlanPreview: trainingPlanPreview,
+      fuelPlan: fuelPlan,
       usage: response.usage
     });
 

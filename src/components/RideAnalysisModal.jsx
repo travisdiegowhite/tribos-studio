@@ -41,6 +41,7 @@ import {
   getIFZone,
 } from './ActivityMetrics.jsx';
 import { ViewOnStravaLink, PoweredByStrava, StravaLogo } from './StravaBranding';
+import { FuelCard } from './fueling';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -529,6 +530,25 @@ const RideAnalysisModal = ({
                 </Paper>
               )}
             </SimpleGrid>
+          </>
+        )}
+
+        {/* Retrospective Fuel Analysis - for rides 60+ minutes */}
+        {metrics?.duration >= 3600 && (
+          <>
+            <Divider label="Fuel Analysis" labelPosition="center" />
+            <FuelCard
+              activity={{
+                movingTimeSeconds: metrics.duration,
+                averageWatts: metrics.avgPower || undefined,
+                kilojoules: metrics.kilojoules || undefined,
+                totalElevationGain: metrics.elevation || undefined,
+              }}
+              retrospective={true}
+              compact={true}
+              showPlainEnglish={true}
+              useImperial={!!formatDistance}
+            />
           </>
         )}
 

@@ -46,6 +46,7 @@ import { tokens } from '../theme';
 import { formatLocalDate, addDays, startOfMonth, endOfMonth, parsePlanStartDate } from '../utils/dateUtils';
 import RaceGoalModal from './RaceGoalModal';
 import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
+import { FuelBadge, FuelCard } from './fueling';
 
 /**
  * Enhanced Training Calendar Component
@@ -1101,6 +1102,14 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                                 {workout.target_tss} TSS
                               </Text>
                             )}
+                            {/* Fuel indicator for longer workouts */}
+                            <FuelBadge
+                              durationMinutes={workout.target_duration}
+                              targetTSS={workout.target_tss}
+                              workoutCategory={workout.workout_type}
+                              size="xs"
+                              variant="icon"
+                            />
                           </Group>
                           {/* Create Route button - only for today or future workouts */}
                           {!isPast && (
@@ -1322,6 +1331,19 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
               max={480}
             />
           </Group>
+
+          {/* Fuel Plan - shown for workouts 60+ minutes */}
+          {editForm.target_duration >= 60 && editForm.workout_type !== 'rest' && (
+            <FuelCard
+              workout={{
+                duration: editForm.target_duration,
+                targetTSS: editForm.target_tss,
+                category: editForm.workout_type,
+              }}
+              compact={true}
+              showDisclaimer={false}
+            />
+          )}
 
           <Textarea
             label="Notes"

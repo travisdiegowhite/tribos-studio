@@ -26,6 +26,7 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconX,
+  IconFlame,
 } from '@tabler/icons-react';
 import { tokens } from '../../theme';
 
@@ -35,6 +36,21 @@ const MOOD_OPTIONS = [
   { value: 'good', label: 'Good', emoji: '🙂' },
   { value: 'great', label: 'Great', emoji: '😊' },
   { value: 'crushing_it', label: 'Crushing it', emoji: '🔥' },
+];
+
+const ENERGY_RATING_OPTIONS = [
+  { value: 'running_on_empty', label: 'Running on empty', emoji: '😵' },
+  { value: 'flat', label: 'A little flat', emoji: '😑' },
+  { value: 'dialed', label: 'Dialed', emoji: '⚡' },
+  { value: 'overfueled', label: 'Overfueled', emoji: '🤢' },
+];
+
+const ENERGY_FACTORS = [
+  { value: 'stress', label: 'Stress/work' },
+  { value: 'illness', label: 'Illness/recovery' },
+  { value: 'travel', label: 'Travel' },
+  { value: 'sleep', label: 'Poor sleep' },
+  { value: 'nothing', label: 'Nothing unusual' },
 ];
 
 function WeeklyCheckInWidget({
@@ -52,6 +68,12 @@ function WeeklyCheckInWidget({
   const [nextWeekFocus, setNextWeekFocus] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Fueling section state
+  const [showFueling, setShowFueling] = useState(false);
+  const [energyRating, setEnergyRating] = useState(null);
+  const [hadBonks, setHadBonks] = useState(null);
+  const [energyFactors, setEnergyFactors] = useState([]);
+
   // Don't show if already checked in
   if (hasCheckedIn) {
     return null;
@@ -66,12 +88,20 @@ function WeeklyCheckInWidget({
         training_mood: mood,
         reflection: reflection.trim() || null,
         next_week_focus: nextWeekFocus.trim() || null,
+        // Fueling data
+        energy_rating: energyRating || null,
+        had_bonks: hadBonks,
+        energy_factors: energyFactors.length > 0 ? energyFactors : null,
       });
       close();
       // Reset form
       setMood(null);
       setReflection('');
       setNextWeekFocus('');
+      setEnergyRating(null);
+      setHadBonks(null);
+      setEnergyFactors([]);
+      setShowFueling(false);
     } catch (err) {
       console.error('Failed to submit check-in:', err);
     } finally {
@@ -363,6 +393,93 @@ function WeeklyCheckInWidget({
               },
             }}
           />
+
+          {/* Fueling section - collapsible */}
+          <Box>
+            <Button
+              variant="subtle"
+              size="xs"
+              onClick={() => setShowFueling(!showFueling)}
+              leftSection={<IconFlame size={14} />}
+              rightSection={showFueling ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+              style={{ color: tokens.colors.textSecondary }}
+            >
+              Fueling Check (optional)
+            </Button>
+
+            <Collapse in={showFueling}>
+              <Stack gap="sm" pt="sm">
+                {/* Energy rating */}
+                <Box>
+                  <Text size="sm" fw={500} mb="xs">How did your energy feel this week?</Text>
+                  <SegmentedControl
+                    value={energyRating || ''}
+                    onChange={setEnergyRating}
+                    data={ENERGY_RATING_OPTIONS.map(e => ({
+                      value: e.value,
+                      label: `${e.emoji} ${e.label}`,
+                    }))}
+                    size="xs"
+                    fullWidth
+                    styles={{
+                      root: {
+                        backgroundColor: tokens.colors.bgTertiary,
+                      },
+                      indicator: {
+                        backgroundColor: tokens.colors.electricLime,
+                      },
+                    }}
+                  />
+                </Box>
+
+                {/* Had bonks */}
+                <Box>
+                  <Text size="sm" fw={500} mb="xs">Any bonks or energy crashes?</Text>
+                  <SegmentedControl
+                    value={hadBonks === null ? '' : hadBonks ? 'yes' : 'no'}
+                    onChange={(val) => setHadBonks(val === 'yes')}
+                    data={[
+                      { value: 'no', label: 'No' },
+                      { value: 'yes', label: 'Yes' },
+                    ]}
+                    size="xs"
+                    styles={{
+                      root: {
+                        backgroundColor: tokens.colors.bgTertiary,
+                      },
+                      indicator: {
+                        backgroundColor: tokens.colors.electricLime,
+                      },
+                    }}
+                  />
+                </Box>
+
+                {/* Energy factors */}
+                <Box>
+                  <Text size="sm" fw={500} mb="xs">Anything else affecting energy?</Text>
+                  <Group gap="xs">
+                    {ENERGY_FACTORS.map((factor) => (
+                      <Badge
+                        key={factor.value}
+                        variant={energyFactors.includes(factor.value) ? 'filled' : 'outline'}
+                        color={energyFactors.includes(factor.value) ? 'lime' : 'gray'}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          setEnergyFactors(prev =>
+                            prev.includes(factor.value)
+                              ? prev.filter(f => f !== factor.value)
+                              : [...prev, factor.value]
+                          );
+                        }}
+                      >
+                        {factor.label}
+                      </Badge>
+                    ))}
+                  </Group>
+                </Box>
+              </Stack>
+            </Collapse>
+          </Box>
 
           {/* Next week focus */}
           <Textarea
