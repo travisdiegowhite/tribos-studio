@@ -89,6 +89,7 @@ import CriticalPowerModel from '../components/CriticalPowerModel.jsx';
 import TrainNow from '../components/TrainNow.jsx';
 import AerobicDecoupling from '../components/AerobicDecoupling.jsx';
 import AthleteBenchmarking from '../components/AthleteBenchmarking.jsx';
+import HealthTrendsChart from '../components/HealthTrendsChart.jsx';
 import HistoricalInsights from '../components/HistoricalInsights.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getAllPlans } from '../data/trainingPlanTemplates';
@@ -131,6 +132,7 @@ function TrainingDashboard() {
   const [fitUploadOpen, setFitUploadOpen] = useState(false);
   const [gpxUploadOpen, setGpxUploadOpen] = useState(false);
   const [todayHealthMetrics, setTodayHealthMetrics] = useState(null);
+  const [healthHistory, setHealthHistory] = useState([]);
   const [workoutModalOpen, setWorkoutModalOpen] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [activePlan, setActivePlan] = useState(null);
@@ -291,6 +293,23 @@ function TrainingDashboard() {
             resting_heart_rate: healthData.resting_hr,
             hrv_score: healthData.hrv_ms
           });
+        }
+
+        // Load health history for trends visualization (last 90 days)
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const { data: healthHistoryData, error: healthHistoryError } = await supabase
+          .from('health_metrics')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('metric_date', ninetyDaysAgo.toISOString().split('T')[0])
+          .order('metric_date', { ascending: true });
+
+        if (healthHistoryError) {
+          console.warn('Health history query failed:', healthHistoryError.message);
+        } else if (healthHistoryData) {
+          setHealthHistory(healthHistoryData);
+          console.log(`Loaded ${healthHistoryData.length} days of health history`);
         }
 
         // Load active training plan (use maybeSingle to handle 0 or 1 result gracefully)
@@ -954,6 +973,8 @@ function TrainingDashboard() {
                   isImperial={isImperial}
                   ftp={ftp}
                   weight={userWeight}
+                  healthHistory={healthHistory}
+                  onOpenCheckIn={() => setHealthCheckInOpen(true)}
                 />
               </Tabs.Panel>
 
@@ -1039,7 +1060,17 @@ function TrainingDashboard() {
       <HealthCheckInModal
         opened={healthCheckInOpen}
         onClose={() => setHealthCheckInOpen(false)}
-        onSave={(data) => setTodayHealthMetrics(data)}
+        onSave={(data) => {
+          setTodayHealthMetrics(data);
+          // Also update health history for immediate chart refresh
+          setHealthHistory(prev => {
+            const dateStr = data.metric_date || data.recorded_date;
+            const filtered = prev.filter(h => (h.metric_date || h.recorded_date) !== dateStr);
+            return [...filtered, data].sort((a, b) =>
+              new Date(a.metric_date || a.recorded_date) - new Date(b.metric_date || b.recorded_date)
+            );
+          });
+        }}
         existingData={todayHealthMetrics}
       />
 
@@ -1326,7 +1357,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
 // ============================================================================
 // TRENDS TAB
 // ============================================================================
-function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, formatDist, formatElev, isImperial, ftp, weight }) {
+function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, formatDist, formatElev, isImperial, ftp, weight, healthHistory, onOpenCheckIn }) {
   // Check if any activities are from Strava for attribution
   const hasStravaActivities = activities?.some(a => a.provider === 'strava');
 
@@ -1340,6 +1371,12 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
           showDetails={true}
         />
       )}
+
+      {/* Health Trends */}
+      <HealthTrendsChart
+        data={healthHistory}
+        onOpenCheckIn={onOpenCheckIn}
+      />
 
       {/* Fitness Journey Chart */}
       <Card withBorder p="md">
