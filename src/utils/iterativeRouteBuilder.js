@@ -124,6 +124,127 @@ function getDirectionName(bearing) {
 }
 
 /**
+ * Detect and remove tangent segments at the start of a coordinate array
+ * Tangents are identified as initial points that deviate significantly from
+ * the overall direction of travel, then return toward the main route
+ *
+ * @param {Array} coordinates - Array of [lon, lat] coordinates
+ * @param {[number, number]} previousEndPoint - The last point of the previous segment
+ * @param {number} maxTangentLength - Maximum number of points to check for tangents
+ * @returns {Array} - Coordinates with leading tangents removed
+ */
+function removeTangentAtJoin(coordinates, previousEndPoint, maxTangentLength = 10) {
+  if (!coordinates || coordinates.length < 4 || !previousEndPoint) {
+    return coordinates;
+  }
+
+  // Calculate the overall direction of the segment (from start to a point ~20% in)
+  const lookAheadIndex = Math.min(Math.floor(coordinates.length * 0.2), 20);
+  const overallBearing = calculateBearing(coordinates[0], coordinates[lookAheadIndex]);
+
+  // Check if the first few points form a tangent (go out and come back)
+  let tangentEndIndex = 0;
+
+  for (let i = 1; i < Math.min(maxTangentLength, coordinates.length - 2); i++) {
+    const point = coordinates[i];
+    const nextPoint = coordinates[i + 1];
+
+    // Calculate bearing from this point to next
+    const segmentBearing = calculateBearing(point, nextPoint);
+
+    // Calculate how far this point is from the previous segment's end point
+    const distFromPrevEnd = calculateDistance(previousEndPoint, point);
+
+    // Calculate bearing difference from overall direction
+    let bearingDiff = Math.abs(segmentBearing - overallBearing);
+    if (bearingDiff > 180) bearingDiff = 360 - bearingDiff;
+
+    // If we're moving back toward the overall direction AND we were close to the previous end
+    // AND the bearing is now within 45° of the overall direction, this might be after a tangent
+    if (bearingDiff < 45 && distFromPrevEnd < 0.3) { // 0.3 km = 300m
+      // Check if points before this were deviating
+      const startBearing = calculateBearing(coordinates[0], coordinates[1]);
+      let startBearingDiff = Math.abs(startBearing - overallBearing);
+      if (startBearingDiff > 180) startBearingDiff = 360 - startBearingDiff;
+
+      // If the initial bearing was significantly different, we found a tangent
+      if (startBearingDiff > 60) {
+        tangentEndIndex = i;
+        console.log(`🔧 Detected tangent at segment join: removing ${i} points (bearing diff: ${startBearingDiff.toFixed(0)}°)`);
+        break;
+      }
+    }
+  }
+
+  if (tangentEndIndex > 0) {
+    return coordinates.slice(tangentEndIndex);
+  }
+
+  return coordinates;
+}
+
+/**
+ * Join two coordinate arrays with tangent detection
+ * Removes tangent segments that appear at the join point
+ *
+ * @param {Array} existingCoords - Existing route coordinates
+ * @param {Array} newSegmentCoords - New segment to join
+ * @param {boolean} isFirstSegment - Whether this is the first segment (no join needed)
+ * @returns {Array} - Combined coordinates with tangents removed
+ */
+function joinSegmentsWithTangentRemoval(existingCoords, newSegmentCoords, isFirstSegment = false) {
+  if (isFirstSegment || !existingCoords || existingCoords.length === 0) {
+    return [...newSegmentCoords];
+  }
+
+  if (!newSegmentCoords || newSegmentCoords.length < 2) {
+    return existingCoords;
+  }
+
+  // Get the last point of the existing route
+  const previousEndPoint = existingCoords[existingCoords.length - 1];
+
+  // Remove any tangent at the start of the new segment
+  const cleanedNewSegment = removeTangentAtJoin(newSegmentCoords, previousEndPoint);
+
+  // Skip the first point of new segment to avoid duplicates (standard join)
+  const segmentToAdd = cleanedNewSegment.slice(1);
+
+  // Also check for tangent at the END of existing coords (less common but possible)
+  // Look for the last few points going out and coming back
+  let trimFromEnd = 0;
+  if (existingCoords.length > 5) {
+    const lastPoint = existingCoords[existingCoords.length - 1];
+    const firstNewPoint = segmentToAdd[0];
+
+    if (firstNewPoint) {
+      const connectionDist = calculateDistance(lastPoint, firstNewPoint);
+
+      // If the connection point is very close, check if there's backtracking before it
+      if (connectionDist < 0.1) { // Within 100m
+        for (let i = existingCoords.length - 2; i >= Math.max(0, existingCoords.length - 8); i--) {
+          const checkPoint = existingCoords[i];
+          const distToNew = calculateDistance(checkPoint, firstNewPoint);
+
+          // If an earlier point is closer to the new segment start than the last point
+          if (distToNew < connectionDist * 0.5) {
+            trimFromEnd = existingCoords.length - 1 - i;
+            console.log(`🔧 Trimming ${trimFromEnd} trailing tangent points from previous segment`);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  const trimmedExisting = trimFromEnd > 0
+    ? existingCoords.slice(0, existingCoords.length - trimFromEnd)
+    : existingCoords;
+
+  return [...trimmedExisting, ...segmentToAdd];
+}
+
+/**
  * Route a single segment between two points
  * Returns the routed path snapped to real roads
  *
@@ -258,12 +379,12 @@ async function buildQuarterLoop(params) {
     const segment = await routeSegment(currentPoint, targetPoint, options);
     segments.push(segment);
 
-    // Add coordinates (skip first point after first segment to avoid duplicates)
-    if (i === 0) {
-      allCoordinates = [...segment.coordinates];
-    } else {
-      allCoordinates = [...allCoordinates, ...segment.coordinates.slice(1)];
-    }
+    // Add coordinates with tangent detection at join points
+    allCoordinates = joinSegmentsWithTangentRemoval(
+      allCoordinates,
+      segment.coordinates,
+      i === 0 // isFirstSegment
+    );
 
     totalDistance += segment.distance;
     totalElevationGain += segment.elevationGain || 0;
@@ -287,8 +408,12 @@ async function buildQuarterLoop(params) {
   const closingSegment = await routeSegment(currentPoint, startPoint, options);
   segments.push(closingSegment);
 
-  // Add closing coordinates
-  allCoordinates = [...allCoordinates, ...closingSegment.coordinates.slice(1)];
+  // Add closing coordinates with tangent detection
+  allCoordinates = joinSegmentsWithTangentRemoval(
+    allCoordinates,
+    closingSegment.coordinates,
+    false // not first segment
+  );
   totalDistance += closingSegment.distance;
   totalElevationGain += closingSegment.elevationGain || 0;
 
@@ -352,11 +477,12 @@ async function buildOutAndBack(params) {
 
   onProgress && onProgress(1.0);
 
-  // Combine coordinates
-  const allCoordinates = [
-    ...outbound.coordinates,
-    ...returnSegment.coordinates.slice(1)
-  ];
+  // Combine coordinates with tangent detection at turnaround point
+  const allCoordinates = joinSegmentsWithTangentRemoval(
+    outbound.coordinates,
+    returnSegment.coordinates,
+    false // not first segment - need to join at turnaround
+  );
 
   const totalDistance = outbound.distance + returnSegment.distance;
 
@@ -412,11 +538,12 @@ async function buildPointToPoint(params) {
     const segment = await routeSegment(allPoints[i], allPoints[i + 1], options);
     segments.push(segment);
 
-    if (i === 0) {
-      allCoordinates = [...segment.coordinates];
-    } else {
-      allCoordinates = [...allCoordinates, ...segment.coordinates.slice(1)];
-    }
+    // Add coordinates with tangent detection at join points
+    allCoordinates = joinSegmentsWithTangentRemoval(
+      allCoordinates,
+      segment.coordinates,
+      i === 0 // isFirstSegment
+    );
 
     totalDistance += segment.distance;
     totalElevationGain += segment.elevationGain || 0;
