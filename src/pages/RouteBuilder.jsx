@@ -36,6 +36,7 @@ import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx
 import { fetchBikeInfrastructure } from '../utils/bikeInfrastructureService';
 import RouteExportMenu from '../components/RouteExportMenu.jsx';
 import MapControls from '../components/MapControls.jsx';
+import { FuelCard } from '../components/fueling';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -2745,6 +2746,30 @@ function RouteBuilder() {
                       isImperial={isImperial}
                       showWindAnalysis={routeGeometry?.coordinates?.length >= 2}
                       onWeatherUpdate={setWeatherData}
+                    />
+                  </Box>
+                </CollapsibleSection>
+              )}
+
+              {/* Fuel Plan Section - Collapsible */}
+              {routeStats.duration >= 60 && routeGeometry && (
+                <CollapsibleSection
+                  title="Fuel Plan"
+                  icon={<Text size="sm">🍌</Text>}
+                  defaultExpanded={false}
+                >
+                  <Box mt="sm">
+                    <FuelCard
+                      route={{
+                        estimatedDurationMinutes: routeStats.duration,
+                        elevationGainMeters: routeStats.elevation || 0,
+                      }}
+                      weather={weatherData ? {
+                        temperatureCelsius: weatherData.temperature,
+                        humidity: weatherData.humidity,
+                      } : undefined}
+                      compact={true}
+                      useImperial={isImperial}
                     />
                   </Box>
                 </CollapsibleSection>

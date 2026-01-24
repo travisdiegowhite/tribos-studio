@@ -27,7 +27,11 @@ import {
   IconCheck,
   IconTrash,
   IconTarget,
+  IconChevronDown,
+  IconChevronUp,
 } from '@tabler/icons-react';
+import { useDisclosure } from '@mantine/hooks';
+import { RaceFuelCard } from './fueling';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -69,6 +73,7 @@ const RaceGoalModal = ({
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [fuelPlanOpen, { toggle: toggleFuelPlan }] = useDisclosure(false);
 
   // Form state
   const [form, setForm] = useState({
@@ -494,6 +499,37 @@ const RaceGoalModal = ({
           onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
           rows={2}
         />
+
+        {/* Race Fuel Plan - Show for existing races with duration */}
+        {raceGoal && form.goal_time_minutes && form.goal_time_minutes >= 60 && (
+          <>
+            <Divider
+              label={
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  rightSection={fuelPlanOpen ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                  onClick={toggleFuelPlan}
+                  style={{ color: tokens.colors.electricLime }}
+                >
+                  Race Day Fuel Plan
+                </Button>
+              }
+              labelPosition="center"
+            />
+
+            {fuelPlanOpen && (
+              <RaceFuelCard
+                race={{
+                  name: form.name,
+                  estimatedDurationMinutes: form.goal_time_minutes,
+                  elevationGainMeters: form.elevation_gain_m || 0,
+                }}
+                useImperial={isImperial}
+              />
+            )}
+          </>
+        )}
 
         <Divider />
 

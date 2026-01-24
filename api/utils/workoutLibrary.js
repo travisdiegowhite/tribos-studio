@@ -186,9 +186,54 @@ IMPORTANT: Always use this tool when discussing historical fitness. Do not guess
   }
 };
 
-// Combined tools for AI coach (includes workout, fitness history, and plan creation)
+// Fuel Plan Tool - enables AI coach to generate fueling recommendations
+export const FUEL_PLAN_TOOL = {
+  name: "generate_fuel_plan",
+  description: `Generate fueling recommendations for a ride or race. Use this tool when the athlete asks about:
+- Nutrition for an upcoming ride or race
+- How to fuel for a long ride or race
+- Carbohydrate/hydration needs for specific durations or intensities
+- Pre-ride nutrition timing
+- What to pack for fueling
+
+This tool calculates personalized fueling recommendations based on ride duration, intensity, and weather conditions.`,
+  input_schema: {
+    type: "object",
+    properties: {
+      duration_minutes: {
+        type: "integer",
+        description: "Duration of the ride in minutes"
+      },
+      intensity: {
+        type: "string",
+        enum: ["recovery", "easy", "moderate", "tempo", "threshold", "race"],
+        description: "Intensity level of the ride"
+      },
+      temperature_fahrenheit: {
+        type: "integer",
+        description: "Expected temperature during the ride (optional, for hydration adjustments)"
+      },
+      elevation_gain_feet: {
+        type: "integer",
+        description: "Total elevation gain in feet (optional, for calorie adjustments)"
+      },
+      is_race_day: {
+        type: "boolean",
+        description: "Whether this is a race or key event (adjusts pre-ride nutrition)"
+      },
+      ride_name: {
+        type: "string",
+        description: "Name of the ride or event (for display purposes)"
+      }
+    },
+    required: ["duration_minutes", "intensity"]
+  }
+};
+
+// Combined tools for AI coach (includes workout, fitness history, plan creation, and fueling)
 export const ALL_COACH_TOOLS = [
   ...WORKOUT_TOOLS,
   FITNESS_HISTORY_TOOL,
-  CREATE_PLAN_TOOL
+  CREATE_PLAN_TOOL,
+  FUEL_PLAN_TOOL
 ];
