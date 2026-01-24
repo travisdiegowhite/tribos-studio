@@ -330,8 +330,36 @@ export async function generateAIRoutes(params) {
 
   console.log(`Generated ${realRoutes.length} quality routes from ${routes.length} attempts (filtered ${scoredRoutes.length - realRoutes.length} geometric fallbacks)`);
 
+  // Apply route optimization to remove tangent segments and clean up routes
+  const optimizedRoutes = realRoutes.map(route => {
+    if (route.coordinates && route.coordinates.length > 10) {
+      const isLoop = route.routeType === 'loop' ||
+                     (route.coordinates.length > 2 &&
+                      calculateDistance(route.coordinates[0], route.coordinates[route.coordinates.length - 1]) < 0.5);
+
+      if (isLoop) {
+        console.log(`🔧 Optimizing route "${route.name}" (${route.coordinates.length} points)`);
+        const optimizedCoords = optimizeLoopRoute(route.coordinates, {
+          aggressiveMode: true,
+          maxDeviationPercent: 0.25,
+          minSegmentLength: 150
+        });
+
+        if (optimizedCoords.length !== route.coordinates.length) {
+          console.log(`✂️ Removed ${route.coordinates.length - optimizedCoords.length} tangent points from "${route.name}"`);
+        }
+
+        return {
+          ...route,
+          coordinates: optimizedCoords
+        };
+      }
+    }
+    return route;
+  });
+
   // Return top 3-5 routes
-  return realRoutes.slice(0, 4);
+  return optimizedRoutes.slice(0, 4);
 }
 
 // Calculate target distance based on time, training goal, and performance metrics
