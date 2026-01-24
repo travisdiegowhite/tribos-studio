@@ -133,8 +133,8 @@ export default function FuelBadge({
   // Text variant
   if (variant === 'text') {
     const content = (
-      <Group spacing={4} style={{ cursor: showTooltip ? 'help' : 'default' }}>
-        <IconFlame size={iconSize} color={color === 'orange' ? '#fd7e14' : '#fab005'} />
+      <Group gap={4} style={{ cursor: showTooltip ? 'help' : 'default' }}>
+        <Text size={size}>🍌</Text>
         <Text size={size} c="dimmed">
           {plan.carbs.totalGramsMin}-{plan.carbs.totalGramsMax}g
         </Text>

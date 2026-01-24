@@ -266,6 +266,94 @@ function WeeklyCheckInWidget({
                 }}
               />
 
+              {/* Fueling section - inline */}
+              <Box>
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  onClick={() => setShowFueling(!showFueling)}
+                  leftSection={<IconFlame size={14} />}
+                  rightSection={showFueling ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                  style={{ color: tokens.colors.textSecondary }}
+                >
+                  Fueling Check (optional)
+                </Button>
+
+                <Collapse in={showFueling}>
+                  <Stack gap="xs" pt="xs">
+                    {/* Energy rating */}
+                    <Box>
+                      <Text size="xs" fw={500} mb={4}>How did your energy feel?</Text>
+                      <SegmentedControl
+                        value={energyRating || ''}
+                        onChange={setEnergyRating}
+                        data={ENERGY_RATING_OPTIONS.map(e => ({
+                          value: e.value,
+                          label: e.emoji,
+                        }))}
+                        size="xs"
+                        fullWidth
+                        styles={{
+                          root: {
+                            backgroundColor: tokens.colors.bgTertiary,
+                          },
+                          indicator: {
+                            backgroundColor: tokens.colors.electricLime,
+                          },
+                        }}
+                      />
+                    </Box>
+
+                    {/* Had bonks */}
+                    <Box>
+                      <Text size="xs" fw={500} mb={4}>Any bonks or energy crashes?</Text>
+                      <SegmentedControl
+                        value={hadBonks === null ? '' : hadBonks ? 'yes' : 'no'}
+                        onChange={(val) => setHadBonks(val === 'yes')}
+                        data={[
+                          { value: 'no', label: 'No' },
+                          { value: 'yes', label: 'Yes' },
+                        ]}
+                        size="xs"
+                        styles={{
+                          root: {
+                            backgroundColor: tokens.colors.bgTertiary,
+                          },
+                          indicator: {
+                            backgroundColor: tokens.colors.electricLime,
+                          },
+                        }}
+                      />
+                    </Box>
+
+                    {/* Energy factors */}
+                    <Box>
+                      <Text size="xs" fw={500} mb={4}>Affecting energy?</Text>
+                      <Group gap={4}>
+                        {ENERGY_FACTORS.map((factor) => (
+                          <Badge
+                            key={factor.value}
+                            size="xs"
+                            variant={energyFactors.includes(factor.value) ? 'filled' : 'outline'}
+                            color={energyFactors.includes(factor.value) ? 'lime' : 'gray'}
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => {
+                              setEnergyFactors(prev =>
+                                prev.includes(factor.value)
+                                  ? prev.filter(f => f !== factor.value)
+                                  : [...prev, factor.value]
+                              );
+                            }}
+                          >
+                            {factor.label}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Box>
+                  </Stack>
+                </Collapse>
+              </Box>
+
               <Group justify="flex-end">
                 <Button
                   size="sm"
