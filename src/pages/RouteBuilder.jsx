@@ -2501,6 +2501,26 @@ function RouteBuilder() {
                   speedProfile={speedProfile}
                   isImperial={isImperial}
                 />
+                {routeGeometry && (
+                  <Tooltip label={editMode ? 'Exit Edit Mode' : 'Edit Route'}>
+                    <Button
+                      variant={editMode ? 'filled' : 'default'}
+                      color={editMode ? 'red' : 'dark'}
+                      size="md"
+                      onClick={() => {
+                        setEditMode(!editMode);
+                        setSelectedSegment(null);
+                      }}
+                      style={{
+                        padding: '0 12px',
+                        backgroundColor: editMode ? '#ef4444' : tokens.colors.bgSecondary,
+                        border: `1px solid ${editMode ? '#ef4444' : tokens.colors.bgTertiary}`,
+                      }}
+                    >
+                      <IconScissors size={20} color={editMode ? '#fff' : '#fff'} />
+                    </Button>
+                  </Tooltip>
+                )}
               </Box>
             )}
 
@@ -2535,6 +2555,57 @@ function RouteBuilder() {
             {/* Bike Infrastructure Legend */}
             {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
               <BikeInfrastructureLegend visible={showBikeInfrastructure} />
+            )}
+
+            {/* Edit Mode Floating Panel */}
+            {editMode && (
+              <Paper
+                p="sm"
+                shadow="md"
+                style={{
+                  position: 'absolute',
+                  bottom: 120,
+                  left: 16,
+                  right: 16,
+                  zIndex: 10,
+                  backgroundColor: selectedSegment ? 'rgba(239, 68, 68, 0.95)' : tokens.colors.bgSecondary,
+                  border: `1px solid ${selectedSegment ? '#ef4444' : tokens.colors.bgTertiary}`,
+                }}
+              >
+                {selectedSegment ? (
+                  <Stack gap="xs">
+                    <Group justify="space-between">
+                      <Text size="sm" fw={500} c="white">Segment Selected</Text>
+                      <Text size="xs" c="rgba(255,255,255,0.8)">
+                        ~{selectedSegment.stats?.distanceSaved || 0}m shorter
+                      </Text>
+                    </Group>
+                    <Group grow>
+                      <Button
+                        size="sm"
+                        color="dark"
+                        onClick={handleRemoveSegment}
+                        loading={isRemovingSegment}
+                        leftSection={<IconTrash size={16} />}
+                      >
+                        Remove & Re-route
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        color="white"
+                        onClick={() => setSelectedSegment(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </Group>
+                  </Stack>
+                ) : (
+                  <Text size="sm" c="dimmed" ta="center">
+                    Click on a tangent segment to select it for removal
+                  </Text>
+                )}
+              </Paper>
             )}
 
             {/* Floating Route Settings */}
@@ -3280,6 +3351,26 @@ function RouteBuilder() {
                 speedProfile={speedProfile}
                 isImperial={isImperial}
               />
+              {routeGeometry && (
+                <Tooltip label={editMode ? 'Exit Edit Mode' : 'Edit Route (Remove Tangents)'}>
+                  <Button
+                    variant={editMode ? 'filled' : 'default'}
+                    color={editMode ? 'red' : 'dark'}
+                    size="md"
+                    onClick={() => {
+                      setEditMode(!editMode);
+                      setSelectedSegment(null);
+                    }}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: editMode ? '#ef4444' : tokens.colors.bgSecondary,
+                      border: `1px solid ${editMode ? '#ef4444' : tokens.colors.bgTertiary}`,
+                    }}
+                  >
+                    <IconScissors size={20} color="#fff" />
+                  </Button>
+                </Tooltip>
+              )}
             </Box>
           )}
 
@@ -3423,6 +3514,58 @@ function RouteBuilder() {
           {/* Bike Infrastructure Legend */}
           {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
             <BikeInfrastructureLegend visible={showBikeInfrastructure} />
+          )}
+
+          {/* Edit Mode Floating Panel */}
+          {editMode && (
+            <Paper
+              p="md"
+              shadow="md"
+              style={{
+                position: 'absolute',
+                bottom: 24,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 10,
+                minWidth: 320,
+                backgroundColor: selectedSegment ? 'rgba(239, 68, 68, 0.95)' : tokens.colors.bgSecondary,
+                border: `1px solid ${selectedSegment ? '#ef4444' : tokens.colors.bgTertiary}`,
+              }}
+            >
+              {selectedSegment ? (
+                <Stack gap="xs">
+                  <Group justify="space-between">
+                    <Text size="sm" fw={500} c="white">Segment Selected</Text>
+                    <Text size="xs" c="rgba(255,255,255,0.8)">
+                      ~{selectedSegment.stats?.distanceSaved || 0}m shorter
+                    </Text>
+                  </Group>
+                  <Group grow>
+                    <Button
+                      size="sm"
+                      color="dark"
+                      onClick={handleRemoveSegment}
+                      loading={isRemovingSegment}
+                      leftSection={<IconTrash size={16} />}
+                    >
+                      Remove & Re-route
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      color="white"
+                      onClick={() => setSelectedSegment(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </Group>
+                </Stack>
+              ) : (
+                <Text size="sm" c="dimmed" ta="center">
+                  Click on a tangent segment to select it for removal
+                </Text>
+              )}
+            </Paper>
           )}
 
           {/* Floating Route Settings */}
