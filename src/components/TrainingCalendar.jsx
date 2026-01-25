@@ -36,6 +36,11 @@ import {
   IconTrendingUp,
   IconGripVertical,
   IconTrophy,
+  IconActivity,
+  IconBarbell,
+  IconYoga,
+  IconRun,
+  IconStretching,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -47,6 +52,8 @@ import { formatLocalDate, addDays, startOfMonth, endOfMonth, parsePlanStartDate 
 import RaceGoalModal from './RaceGoalModal';
 import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { FuelBadge, FuelCard } from './fueling';
+import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
+import CrossTrainingModal from './CrossTrainingModal';
 
 /**
  * Enhanced Training Calendar Component
@@ -67,6 +74,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const [raceGoals, setRaceGoals] = useState([]);
   const [raceGoalModalOpen, setRaceGoalModalOpen] = useState(false);
   const [selectedRaceGoal, setSelectedRaceGoal] = useState(null);
+
+  // Cross-training state
+  const { fetchActivities, activities: crossTrainingActivities } = useCrossTraining();
+  const [crossTrainingModalOpen, setCrossTrainingModalOpen] = useState(false);
+  const [crossTrainingDate, setCrossTrainingDate] = useState(null);
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -179,6 +191,31 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     return raceGoals.find(r => r.race_date === dateStr);
   };
 
+  // Load cross-training activities for current month
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    const rangeStart = addDays(monthStart, -7);
+    const rangeEnd = addDays(monthEnd, 7);
+
+    const startDateStr = formatLocalDate(rangeStart);
+    const endDateStr = formatLocalDate(rangeEnd);
+
+    // Fetch activities using the hook
+    fetchActivities(startDateStr, endDateStr).catch(err => {
+      // Table might not exist yet - fail silently
+      console.log('Cross-training activities not available:', err.message);
+    });
+  }, [user?.id, currentDate, fetchActivities]);
+
+  // Open cross-training modal
+  const openCrossTrainingModal = (date) => {
+    setCrossTrainingDate(formatLocalDate(date));
+    setCrossTrainingModalOpen(true);
+  };
+
   // Open race goal modal
   const openRaceGoalModal = (raceGoal, date) => {
     setSelectedRaceGoal(raceGoal);
@@ -268,6 +305,25 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       const rideDateStr = formatLocalDate(rideDate);
       return rideDateStr === dateStr;
     });
+  };
+
+  // Get cross-training activities for a specific date
+  const getCrossTrainingForDate = (date) => {
+    if (!date || !crossTrainingActivities) return [];
+
+    const dateStr = formatLocalDate(date);
+    return crossTrainingActivities.filter(activity => activity.activity_date === dateStr);
+  };
+
+  // Helper to get icon for cross-training category
+  const getCrossTrainingIcon = (category) => {
+    switch (category) {
+      case 'strength': return <IconBarbell size={10} />;
+      case 'flexibility': return <IconYoga size={10} />;
+      case 'cardio': return <IconRun size={10} />;
+      case 'recovery': return <IconStretching size={10} />;
+      default: return <IconActivity size={10} />;
+    }
   };
 
   // Calculate weekly summary stats
@@ -981,7 +1037,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 const isPast = date < new Date() && !isToday;
                 const isFuture = date > new Date();
 
-                // Calculate day's TSS
+                // Calculate day's TSS (including cycling and cross-training)
                 let dayTSS = 0;
                 dayRides.forEach(ride => {
                   if (ride.average_watts && ftp) {
@@ -994,6 +1050,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       'endurance'
                     );
                   }
+                });
+
+                // Add cross-training TSS
+                const dayCrossTraining = getCrossTrainingForDate(date);
+                dayCrossTraining.forEach(activity => {
+                  dayTSS += activity.estimated_tss || 0;
                 });
 
                 // Determine border color based on workout completion and race goals
@@ -1204,6 +1266,52 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                         </Tooltip>
                       )}
 
+                      {/* Cross-training activities */}
+                      {(() => {
+                        const dayCrossTraining = getCrossTrainingForDate(date);
+                        if (dayCrossTraining.length === 0) return null;
+
+                        const totalDuration = dayCrossTraining.reduce((sum, a) => sum + a.duration_minutes, 0);
+                        const totalTSS = dayCrossTraining.reduce((sum, a) => sum + (a.estimated_tss || 0), 0);
+
+                        return (
+                          <Tooltip
+                            label={dayCrossTraining.map(a =>
+                              `${a.activity_type?.name || 'Activity'} - ${a.duration_minutes}min`
+                            ).join('\n')}
+                            multiline
+                          >
+                            <Box
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCrossTrainingModal(date);
+                              }}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <Group gap={4}>
+                                {dayCrossTraining.slice(0, 3).map((activity, idx) => (
+                                  <Badge
+                                    key={idx}
+                                    size="xs"
+                                    variant="light"
+                                    color={ACTIVITY_CATEGORIES[activity.activity_type?.category]?.color?.replace('#', '') || 'indigo'}
+                                    leftSection={getCrossTrainingIcon(activity.activity_type?.category)}
+                                  >
+                                    {activity.duration_minutes}m
+                                  </Badge>
+                                ))}
+                                {dayCrossTraining.length > 3 && (
+                                  <Text size="xs" c="dimmed">+{dayCrossTraining.length - 3}</Text>
+                                )}
+                              </Group>
+                              {totalTSS > 0 && (
+                                <Text size="xs" c="indigo" fw={500}>+{Math.round(totalTSS)} TSS</Text>
+                              )}
+                            </Box>
+                          </Tooltip>
+                        );
+                      })()}
+
                       {/* Show actual TSS if rides */}
                       {dayTSS > 0 && (
                         <Text size="xs" c="orange" fw={500}>{Math.round(dayTSS)} TSS</Text>
@@ -1397,6 +1505,24 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           if (onPlanUpdated) onPlanUpdated();
         }}
         isImperial={isImperial}
+      />
+
+      {/* Cross-Training Modal */}
+      <CrossTrainingModal
+        opened={crossTrainingModalOpen}
+        onClose={() => {
+          setCrossTrainingModalOpen(false);
+          setCrossTrainingDate(null);
+        }}
+        selectedDate={crossTrainingDate}
+        onSave={() => {
+          // Refresh cross-training activities for current month
+          const monthStart = startOfMonth(currentDate);
+          const monthEnd = endOfMonth(currentDate);
+          const rangeStart = addDays(monthStart, -7);
+          const rangeEnd = addDays(monthEnd, 7);
+          fetchActivities(formatLocalDate(rangeStart), formatLocalDate(rangeEnd));
+        }}
       />
     </Stack>
   );
