@@ -79,8 +79,22 @@ export function detectRouteClick(coordinates, clickLocation, threshold = 50) {
 }
 
 /**
+ * Calculate bearing between two points in degrees
+ */
+function calculateBearing(point1, point2) {
+  const lat1 = point1[1] * Math.PI / 180;
+  const lat2 = point2[1] * Math.PI / 180;
+  const deltaLon = (point2[0] - point1[0]) * Math.PI / 180;
+
+  const y = Math.sin(deltaLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
+
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+/**
  * Find a segment to remove around a clicked point
- * Uses heuristics to detect tangent/spur patterns
+ * Uses improved heuristics to detect tangent/spur patterns
  *
  * @param {Array} coordinates - Route coordinates
  * @param {number} clickIndex - Index of the clicked point
@@ -89,8 +103,8 @@ export function detectRouteClick(coordinates, clickLocation, threshold = 50) {
  */
 export function findSegmentToRemove(coordinates, clickIndex, options = {}) {
   const {
-    maxSegmentLength = 30, // Max points to consider for removal
-    minDistanceFromMain = 100, // Min meters the segment must deviate
+    maxSegmentLength = 50, // Max points to consider for removal
+    returnThreshold = 500, // How close points must be to consider "returned" (meters)
   } = options;
 
   if (coordinates.length < 5 || clickIndex < 2 || clickIndex > coordinates.length - 3) {
@@ -98,62 +112,129 @@ export function findSegmentToRemove(coordinates, clickIndex, options = {}) {
     return null;
   }
 
-  const clickedPoint = coordinates[clickIndex];
+  console.log(`🔍 Finding segment to remove around index ${clickIndex}`);
 
-  // Strategy: Find where the route "deviates" and "returns"
-  // Look backwards for where the segment starts deviating
-  // Look forwards for where it rejoins the main route
+  // Strategy: Find where the route "goes out and comes back"
+  // Look for pairs of points where the route passes close to itself
+  // The tangent is the section between those two close points
+
+  let bestSegment = null;
+  let bestSavings = 0;
+
+  // Search window around the clicked point
+  const searchStart = Math.max(0, clickIndex - maxSegmentLength);
+  const searchEnd = Math.min(coordinates.length - 1, clickIndex + maxSegmentLength);
+
+  // For each potential start point before the click
+  for (let i = searchStart; i < clickIndex; i++) {
+    const startPoint = coordinates[i];
+
+    // For each potential end point after the click
+    for (let j = clickIndex + 1; j <= searchEnd; j++) {
+      const endPoint = coordinates[j];
+
+      // Check if these two points are close to each other (route returns)
+      const returnDistance = haversineDistance(
+        startPoint[1], startPoint[0],
+        endPoint[1], endPoint[0]
+      );
+
+      if (returnDistance < returnThreshold) {
+        // Calculate the path length between these points
+        let segmentLength = 0;
+        for (let k = i; k < j; k++) {
+          segmentLength += haversineDistance(
+            coordinates[k][1], coordinates[k][0],
+            coordinates[k + 1][1], coordinates[k + 1][0]
+          );
+        }
+
+        // The savings is how much longer the segment is vs direct distance
+        const savings = segmentLength - returnDistance;
+
+        // Check that this is actually a tangent (goes far from the base)
+        let maxDeviation = 0;
+        for (let k = i + 1; k < j; k++) {
+          const deviation = haversineDistance(
+            startPoint[1], startPoint[0],
+            coordinates[k][1], coordinates[k][0]
+          );
+          maxDeviation = Math.max(maxDeviation, deviation);
+        }
+
+        // Must deviate significantly to be considered a tangent
+        // and must save meaningful distance
+        if (maxDeviation > 150 && savings > 100 && savings > bestSavings) {
+          // Prefer segments that include the clicked point more centrally
+          const clickPosition = (clickIndex - i) / (j - i);
+          const centrality = 1 - Math.abs(clickPosition - 0.5) * 2; // 1 when centered, 0 at edges
+
+          // Score based on savings and centrality
+          const score = savings * (0.5 + centrality * 0.5);
+
+          if (score > bestSavings) {
+            bestSavings = score;
+            bestSegment = {
+              startIndex: i,
+              endIndex: j,
+              segmentCoords: coordinates.slice(i, j + 1),
+              directDistance: returnDistance,
+              segmentLength,
+              savings,
+              maxDeviation
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // If we found a good segment with the return-detection method, use it
+  if (bestSegment) {
+    console.log(`✅ Found tangent segment: indices ${bestSegment.startIndex}-${bestSegment.endIndex}, saves ${Math.round(bestSegment.savings)}m`);
+    return bestSegment;
+  }
+
+  // Fallback: Use bearing changes to detect sharp turns indicating tangent start/end
+  console.log('🔄 Trying bearing-based detection...');
 
   let startIndex = clickIndex;
   let endIndex = clickIndex;
 
-  // Look backwards - find where the tangent started
-  for (let i = clickIndex - 1; i >= Math.max(0, clickIndex - maxSegmentLength); i--) {
-    const point = coordinates[i];
-    const nextPoint = coordinates[i + 1];
+  // Look backwards for sharp turn (>90°)
+  for (let i = clickIndex - 1; i >= Math.max(1, clickIndex - maxSegmentLength); i--) {
+    const prevBearing = calculateBearing(coordinates[i - 1], coordinates[i]);
+    const nextBearing = calculateBearing(coordinates[i], coordinates[i + 1]);
+    let turnAngle = Math.abs(nextBearing - prevBearing);
+    if (turnAngle > 180) turnAngle = 360 - turnAngle;
 
-    // Check if this point is on the "main" route (close to where we'll rejoin)
-    // by looking at the overall route direction
-    const distFromClicked = haversineDistance(
-      clickedPoint[1], clickedPoint[0],
-      point[1], point[0]
-    );
-
-    // If we've gone back far enough and the route hasn't deviated much yet,
-    // this is likely the start of the tangent
-    if (distFromClicked > minDistanceFromMain * 0.5) {
-      startIndex = i + 1;
+    if (turnAngle > 90) {
+      startIndex = i;
       break;
     }
-
     startIndex = i;
   }
 
-  // Look forwards - find where the tangent ends and route continues
-  for (let i = clickIndex + 1; i <= Math.min(coordinates.length - 1, clickIndex + maxSegmentLength); i++) {
-    const point = coordinates[i];
+  // Look forwards for sharp turn
+  for (let i = clickIndex + 1; i <= Math.min(coordinates.length - 2, clickIndex + maxSegmentLength); i++) {
+    const prevBearing = calculateBearing(coordinates[i - 1], coordinates[i]);
+    const nextBearing = calculateBearing(coordinates[i], coordinates[i + 1]);
+    let turnAngle = Math.abs(nextBearing - prevBearing);
+    if (turnAngle > 180) turnAngle = 360 - turnAngle;
 
-    const distFromClicked = haversineDistance(
-      clickedPoint[1], clickedPoint[0],
-      point[1], point[0]
-    );
-
-    // Similar logic - find where we're getting far from clicked point
-    if (distFromClicked > minDistanceFromMain * 0.5) {
-      endIndex = i - 1;
+    if (turnAngle > 90) {
+      endIndex = i;
       break;
     }
-
     endIndex = i;
   }
 
-  // Validate the segment makes sense to remove
+  // Validate the segment
   if (endIndex - startIndex < 2) {
-    // Too small to be a tangent
+    console.log('❌ Segment too small');
     return null;
   }
 
-  // Check that removing this segment would actually shorten the route significantly
   const startPoint = coordinates[startIndex];
   const endPoint = coordinates[endIndex];
   const directDistance = haversineDistance(
@@ -161,7 +242,6 @@ export function findSegmentToRemove(coordinates, clickIndex, options = {}) {
     endPoint[1], endPoint[0]
   );
 
-  // Calculate the path length of the segment
   let segmentLength = 0;
   for (let i = startIndex; i < endIndex; i++) {
     segmentLength += haversineDistance(
@@ -170,13 +250,14 @@ export function findSegmentToRemove(coordinates, clickIndex, options = {}) {
     );
   }
 
-  // Only suggest removal if the segment is significantly longer than direct path
-  // (indicating it's a detour/tangent)
-  if (segmentLength < directDistance * 1.5) {
-    // This doesn't look like a tangent, might be intentional route
-    // Still allow removal but warn
-    console.log('⚠️ Selected segment may be intentional route, not a tangent');
+  const savings = segmentLength - directDistance;
+
+  if (savings < 50) {
+    console.log('❌ Not enough savings to be a tangent');
+    return null;
   }
+
+  console.log(`✅ Found segment via bearing: indices ${startIndex}-${endIndex}, saves ${Math.round(savings)}m`);
 
   return {
     startIndex,
@@ -184,7 +265,7 @@ export function findSegmentToRemove(coordinates, clickIndex, options = {}) {
     segmentCoords: coordinates.slice(startIndex, endIndex + 1),
     directDistance,
     segmentLength,
-    savings: segmentLength - directDistance
+    savings
   };
 }
 
