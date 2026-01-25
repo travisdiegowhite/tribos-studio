@@ -18,6 +18,7 @@ import {
   Loader,
   Collapse,
   Box,
+  ActionIcon,
 } from '@mantine/core';
 import {
   IconHeart,
@@ -37,12 +38,19 @@ import {
   IconDroplet,
   IconMeat,
   IconToolsKitchen2,
+  IconActivity,
+  IconRun,
+  IconYoga,
+  IconBarbell,
+  IconPlus,
+  IconX,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useUserPreferences } from '../contexts/UserPreferencesContext.jsx';
 import { garminService } from '../utils/garminService';
+import { useCrossTraining } from '../hooks/useCrossTraining';
 
 const EMOJI_SCALE = {
   1: { emoji: '1', label: 'Very Low', color: 'red' },
@@ -118,6 +126,16 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
   // For display - store weight in user's preferred unit
   const [displayWeight, setDisplayWeight] = useState(null);
   const [showFueling, setShowFueling] = useState(false);
+  const [showCrossTraining, setShowCrossTraining] = useState(false);
+
+  // Cross-training quick add
+  const {
+    activityTypes,
+    createActivity,
+    getFrequentActivityTypes,
+  } = useCrossTraining();
+  const [quickActivities, setQuickActivities] = useState([]); // Activities to save
+  const [frequentTypes, setFrequentTypes] = useState([]);
 
   // Check Garmin connection status when modal opens
   useEffect(() => {
@@ -125,8 +143,22 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
       garminService.getConnectionStatus().then(status => {
         setGarminConnected(status.connected && !status.tokenExpired);
       });
+      // Load frequent activity types for quick add
+      getFrequentActivityTypes(6).then(types => {
+        // If no frequent types, show some popular defaults
+        if (types.length === 0) {
+          const defaults = activityTypes.filter(t =>
+            ['Weight Training', 'Yoga', 'Running', 'Stretching', 'Walking', 'Swimming'].includes(t.name)
+          ).slice(0, 6);
+          setFrequentTypes(defaults);
+        } else {
+          setFrequentTypes(types);
+        }
+      });
+      // Reset quick activities on open
+      setQuickActivities([]);
     }
-  }, [opened]);
+  }, [opened, activityTypes, getFrequentActivityTypes]);
 
   // Load existing data if editing (handle both mapped and production column names)
   useEffect(() => {
@@ -297,6 +329,30 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         .single();
 
       if (error) throw error;
+
+      // Save any quick-added cross-training activities
+      if (quickActivities.length > 0) {
+        const activityPromises = quickActivities.map(activity =>
+          createActivity({
+            activity_type_id: activity.activity_type_id,
+            activity_date: today,
+            duration_minutes: activity.duration_minutes,
+            intensity: activity.intensity,
+          })
+        );
+
+        const results = await Promise.allSettled(activityPromises);
+        const savedCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
+
+        if (savedCount > 0) {
+          notifications.show({
+            title: 'Activities Logged',
+            message: `${savedCount} cross-training activit${savedCount === 1 ? 'y' : 'ies'} recorded`,
+            color: 'indigo',
+            icon: <IconActivity size={16} />,
+          });
+        }
+      }
 
       notifications.show({
         title: 'Check-in Saved',
@@ -537,6 +593,133 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
                     data={PRE_WORKOUT_OPTIONS}
                   />
                 </Box>
+              </Stack>
+            </Paper>
+          </Collapse>
+        </Box>
+
+        {/* Cross-Training Quick Add Section */}
+        <Box>
+          <Button
+            variant="subtle"
+            size="sm"
+            onClick={() => setShowCrossTraining(!showCrossTraining)}
+            leftSection={<IconActivity size={16} />}
+            rightSection={showCrossTraining ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+            style={{ marginBottom: showCrossTraining ? 8 : 0 }}
+          >
+            Cross-Training Activities {quickActivities.length > 0 && `(${quickActivities.length})`}
+          </Button>
+
+          <Collapse in={showCrossTraining}>
+            <Paper withBorder p="md" radius="md">
+              <Stack gap="md">
+                <Text size="xs" c="dimmed">
+                  Log any other activities you did today. These contribute to your overall training load.
+                </Text>
+
+                {/* Quick add buttons */}
+                <Box>
+                  <Text size="sm" fw={500} mb="xs">Quick Add</Text>
+                  <Group gap="xs">
+                    {(frequentTypes.length > 0 ? frequentTypes : activityTypes.slice(0, 6)).map(type => (
+                      <Button
+                        key={type.id}
+                        size="xs"
+                        variant="light"
+                        color="indigo"
+                        leftSection={
+                          type.category === 'strength' ? <IconBarbell size={12} /> :
+                          type.category === 'flexibility' ? <IconYoga size={12} /> :
+                          type.category === 'cardio' ? <IconRun size={12} /> :
+                          <IconActivity size={12} />
+                        }
+                        onClick={() => {
+                          setQuickActivities(prev => [...prev, {
+                            id: Date.now(),
+                            activity_type_id: type.id,
+                            activity_type: type,
+                            duration_minutes: type.default_duration_minutes,
+                            intensity: type.default_intensity,
+                          }]);
+                        }}
+                      >
+                        {type.name}
+                      </Button>
+                    ))}
+                  </Group>
+                </Box>
+
+                {/* Added activities */}
+                {quickActivities.length > 0 && (
+                  <Box>
+                    <Text size="sm" fw={500} mb="xs">Today's Activities</Text>
+                    <Stack gap="xs">
+                      {quickActivities.map((activity, index) => (
+                        <Paper key={activity.id} withBorder p="xs">
+                          <Group justify="space-between" wrap="nowrap">
+                            <Group gap="xs" wrap="nowrap" style={{ flex: 1 }}>
+                              <ThemeIcon
+                                size="sm"
+                                variant="light"
+                                style={{
+                                  backgroundColor: `${activity.activity_type.color}20`,
+                                  color: activity.activity_type.color
+                                }}
+                              >
+                                {activity.activity_type.category === 'strength' ? <IconBarbell size={12} /> :
+                                 activity.activity_type.category === 'flexibility' ? <IconYoga size={12} /> :
+                                 activity.activity_type.category === 'cardio' ? <IconRun size={12} /> :
+                                 <IconActivity size={12} />}
+                              </ThemeIcon>
+                              <Text size="sm" fw={500}>{activity.activity_type.name}</Text>
+                            </Group>
+                            <Group gap="xs" wrap="nowrap">
+                              <NumberInput
+                                size="xs"
+                                w={70}
+                                value={activity.duration_minutes}
+                                onChange={(v) => {
+                                  setQuickActivities(prev => prev.map((a, i) =>
+                                    i === index ? { ...a, duration_minutes: v || 30 } : a
+                                  ));
+                                }}
+                                min={5}
+                                max={300}
+                                suffix="m"
+                              />
+                              <NumberInput
+                                size="xs"
+                                w={60}
+                                value={activity.intensity}
+                                onChange={(v) => {
+                                  setQuickActivities(prev => prev.map((a, i) =>
+                                    i === index ? { ...a, intensity: v || 5 } : a
+                                  ));
+                                }}
+                                min={1}
+                                max={10}
+                                label=""
+                                description=""
+                              />
+                              <Text size="xs" c="dimmed">RPE</Text>
+                              <ActionIcon
+                                size="sm"
+                                variant="subtle"
+                                color="red"
+                                onClick={() => {
+                                  setQuickActivities(prev => prev.filter((_, i) => i !== index));
+                                }}
+                              >
+                                <IconX size={14} />
+                              </ActionIcon>
+                            </Group>
+                          </Group>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Box>
+                )}
               </Stack>
             </Paper>
           </Collapse>

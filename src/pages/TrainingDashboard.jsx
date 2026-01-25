@@ -99,6 +99,7 @@ import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { PoweredByStrava } from '../components/StravaBranding';
 import { garminService } from '../utils/garminService.js';
 import PageHeader from '../components/PageHeader.jsx';
+import { useCrossTraining } from '../hooks/useCrossTraining';
 
 function TrainingDashboard() {
   const { user } = useAuth();
@@ -143,6 +144,10 @@ function TrainingDashboard() {
   const [rideAnalysisModalOpen, setRideAnalysisModalOpen] = useState(false);
   const [selectedRide, setSelectedRide] = useState(null);
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+
+  // Cross-training activities
+  const { getRecentActivitiesForContext, getDailyTSSRange } = useCrossTraining();
+  const [crossTrainingContext, setCrossTrainingContext] = useState([]);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -457,6 +462,26 @@ function TrainingDashboard() {
 
     loadRaceGoals();
   }, [user]);
+
+  // Load cross-training activities for AI context
+  useEffect(() => {
+    const loadCrossTrainingContext = async () => {
+      if (!user) return;
+
+      try {
+        const recentActivities = await getRecentActivitiesForContext(14);
+        setCrossTrainingContext(recentActivities);
+        if (recentActivities.length > 0) {
+          console.log(`Loaded ${recentActivities.length} cross-training activities for AI context`);
+        }
+      } catch (error) {
+        // Cross-training table might not exist yet
+        console.log('Cross-training context not available:', error.message);
+      }
+    };
+
+    loadCrossTrainingContext();
+  }, [user, getRecentActivitiesForContext]);
 
   // Calculate weekly stats (uses visibleActivities to exclude hidden)
   const weeklyStats = useMemo(() => {
@@ -933,7 +958,7 @@ function TrainingDashboard() {
                   <Card withBorder p="md">
                     <Box ref={aiCoachRef}>
                       <TrainingStrategist
-                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals)}
+                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
                         activePlan={activePlan}
                         onAddWorkout={async (workout) => {
                           notifications.show({
@@ -1297,7 +1322,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
       {/* AI Coach Section */}
       <Box ref={aiCoachRef}>
         <TrainingStrategist
-          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan, raceGoals)}
+          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
           activePlan={activePlan}
           onAddWorkout={(workout) => {
             // Show success notification - calendar will update on next load
@@ -2113,7 +2138,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
 }
 
 // Build training context for AI Coach
-function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null, raceGoals = []) {
+function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null, raceGoals = [], crossTrainingActivities = []) {
   const context = [];
   const distanceUnit = isImperial ? 'mi' : 'km';
 
@@ -2207,6 +2232,58 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
       } else {
         context.push(`BASE/EARLY BUILD: Good time to build aerobic base and address limiters.`);
       }
+    }
+  }
+
+  // Add cross-training activities context
+  if (crossTrainingActivities && crossTrainingActivities.length > 0) {
+    context.push(`\n--- Recent Cross-Training Activities ---`);
+    context.push(`IMPORTANT: The athlete does cross-training beyond cycling. Consider this when recommending workouts and recovery.`);
+
+    // Group by category
+    const byCategory = {};
+    let totalCrossTrainingTSS = 0;
+
+    crossTrainingActivities.forEach(activity => {
+      const category = activity.category || 'other';
+      if (!byCategory[category]) {
+        byCategory[category] = [];
+      }
+      byCategory[category].push(activity);
+      totalCrossTrainingTSS += activity.tss || 0;
+    });
+
+    context.push(`Total cross-training TSS (last 14 days): ${Math.round(totalCrossTrainingTSS)}`);
+    context.push(`Activities breakdown:`);
+
+    Object.entries(byCategory).forEach(([category, activities]) => {
+      const categoryLabel = category.charAt(0).toUpperCase() + category.slice(1).replace('_', ' ');
+      const totalDuration = activities.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
+      context.push(`- ${categoryLabel}: ${activities.length} session${activities.length !== 1 ? 's' : ''}, ${totalDuration} minutes total`);
+    });
+
+    // List recent activities
+    context.push(`\nRecent activities:`);
+    crossTrainingActivities.slice(0, 5).forEach(activity => {
+      context.push(`- ${activity.date}: ${activity.type} (${activity.durationMinutes}min, intensity ${activity.intensity}/10, ~${activity.tss || 0} TSS)`);
+    });
+
+    // Add coaching guidance for cross-training
+    const hasStrength = byCategory.strength && byCategory.strength.length > 0;
+    const hasCardio = byCategory.cardio && byCategory.cardio.length > 0;
+
+    if (hasStrength) {
+      const recentStrength = crossTrainingActivities.find(a => a.category === 'strength');
+      if (recentStrength) {
+        const daysSince = Math.floor((new Date() - new Date(recentStrength.date)) / (1000 * 60 * 60 * 24));
+        if (daysSince <= 1) {
+          context.push(`\nNOTE: Athlete did strength training ${daysSince === 0 ? 'today' : 'yesterday'}. Consider leg fatigue when prescribing cycling intensity.`);
+        }
+      }
+    }
+
+    if (hasCardio) {
+      context.push(`\nNOTE: Athlete does other cardio activities. Factor this into total weekly training load calculations.`);
     }
   }
 

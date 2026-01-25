@@ -41,7 +41,7 @@ export class EnhancedContextCollector {
   static async gatherDetailedPreferences(userId, baseParams) {
     // Ensure preferences exist
     await this.initializeUserPreferences(userId);
-    
+
     const context = {
       ...baseParams,
       // Get all preferences from database
@@ -50,10 +50,114 @@ export class EnhancedContextCollector {
       safetyPreferences: await this.getSafetyPreferences(userId),
       scenicPreferences: await this.getScenicPreferences(userId),
       trainingContext: await this.getTrainingContext(userId),
-      localKnowledge: await this.getLocalKnowledge(baseParams.startLocation, userId)
+      localKnowledge: await this.getLocalKnowledge(baseParams.startLocation, userId),
+      // Include cross-training activities for holistic training view
+      recentCrossTraining: await this.getRecentCrossTraining(userId),
     };
-    
+
     return context;
+  }
+
+  /**
+   * Get recent cross-training activities for AI context
+   * Helps the AI understand the athlete's overall training load
+   */
+  static async getRecentCrossTraining(userId, days = 14) {
+    try {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      const startDateStr = startDate.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('cross_training_activities')
+        .select(`
+          activity_date,
+          duration_minutes,
+          intensity,
+          estimated_tss,
+          notes,
+          activity_type:activity_types(name, category)
+        `)
+        .eq('user_id', userId)
+        .gte('activity_date', startDateStr)
+        .order('activity_date', { ascending: false });
+
+      if (error) {
+        console.log('Cross-training data not available:', error.message);
+        return [];
+      }
+
+      // Format for AI consumption
+      return (data || []).map(activity => ({
+        date: activity.activity_date,
+        type: activity.activity_type?.name || 'Unknown',
+        category: activity.activity_type?.category || 'other',
+        durationMinutes: activity.duration_minutes,
+        intensity: activity.intensity,
+        estimatedTSS: activity.estimated_tss || 0,
+        notes: activity.notes || null,
+      }));
+    } catch (error) {
+      console.log('Error fetching cross-training for context:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get cross-training summary statistics for AI context
+   */
+  static async getCrossTrainingSummary(userId, days = 7) {
+    try {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      const startDateStr = startDate.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('cross_training_activities')
+        .select(`
+          duration_minutes,
+          intensity,
+          estimated_tss,
+          activity_type:activity_types(category)
+        `)
+        .eq('user_id', userId)
+        .gte('activity_date', startDateStr);
+
+      if (error || !data || data.length === 0) {
+        return {
+          totalActivities: 0,
+          totalDuration: 0,
+          totalTSS: 0,
+          byCategory: {},
+          averageIntensity: 0,
+        };
+      }
+
+      const byCategory = {};
+      let totalDuration = 0;
+      let totalTSS = 0;
+      let totalIntensity = 0;
+
+      data.forEach(activity => {
+        totalDuration += activity.duration_minutes || 0;
+        totalTSS += activity.estimated_tss || 0;
+        totalIntensity += activity.intensity || 0;
+
+        const category = activity.activity_type?.category || 'other';
+        byCategory[category] = (byCategory[category] || 0) + 1;
+      });
+
+      return {
+        totalActivities: data.length,
+        totalDuration,
+        totalTSS: Math.round(totalTSS),
+        byCategory,
+        averageIntensity: Math.round((totalIntensity / data.length) * 10) / 10,
+      };
+    } catch (error) {
+      console.log('Error getting cross-training summary:', error);
+      return null;
+    }
   }
 
   /**
