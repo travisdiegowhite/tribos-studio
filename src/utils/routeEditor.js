@@ -80,7 +80,8 @@ export function detectRouteClick(coordinates, clickLocation, threshold = 50) {
 
 /**
  * Find a segment to remove around a clicked point
- * Uses heuristics to detect tangent/spur patterns
+ * Uses "pinch point" detection - finds where route entry/exit points are close together
+ * with the clicked point somewhere in between on the tangent
  *
  * @param {Array} coordinates - Route coordinates
  * @param {number} clickIndex - Index of the clicked point
@@ -89,8 +90,8 @@ export function detectRouteClick(coordinates, clickLocation, threshold = 50) {
  */
 export function findSegmentToRemove(coordinates, clickIndex, options = {}) {
   const {
-    maxSegmentLength = 30, // Max points to consider for removal
-    minDistanceFromMain = 100, // Min meters the segment must deviate
+    maxSegmentLength = 50, // Max points to consider for removal
+    pinchThreshold = 500, // Max meters between entry/exit points (the "pinch")
   } = options;
 
   if (coordinates.length < 5 || clickIndex < 2 || clickIndex > coordinates.length - 3) {
@@ -98,64 +99,66 @@ export function findSegmentToRemove(coordinates, clickIndex, options = {}) {
     return null;
   }
 
-  const clickedPoint = coordinates[clickIndex];
+  console.log(`🔍 Finding segment to remove around index ${clickIndex}`);
 
-  // Strategy: Find where the route "deviates" and "returns"
-  // Look backwards for where the segment starts deviating
-  // Look forwards for where it rejoins the main route
+  // Strategy: Find the "pinch point" - two points on the route (before and after the click)
+  // that are close to each other, indicating a tangent/spur between them
 
-  let startIndex = clickIndex;
-  let endIndex = clickIndex;
+  let bestStart = -1;
+  let bestEnd = -1;
+  let bestPinchDistance = Infinity;
 
-  // Look backwards - find where the tangent started
-  for (let i = clickIndex - 1; i >= Math.max(0, clickIndex - maxSegmentLength); i--) {
-    const point = coordinates[i];
-    const nextPoint = coordinates[i + 1];
+  // Search window: look backwards and forwards from click point
+  const searchBack = Math.min(clickIndex, maxSegmentLength);
+  const searchForward = Math.min(coordinates.length - 1 - clickIndex, maxSegmentLength);
 
-    // Check if this point is on the "main" route (close to where we'll rejoin)
-    // by looking at the overall route direction
-    const distFromClicked = haversineDistance(
-      clickedPoint[1], clickedPoint[0],
-      point[1], point[0]
-    );
+  // Try different combinations of start/end points
+  for (let back = 2; back <= searchBack; back++) {
+    const startIdx = clickIndex - back;
+    const startPoint = coordinates[startIdx];
 
-    // If we've gone back far enough and the route hasn't deviated much yet,
-    // this is likely the start of the tangent
-    if (distFromClicked > minDistanceFromMain * 0.5) {
-      startIndex = i + 1;
-      break;
+    for (let forward = 2; forward <= searchForward; forward++) {
+      const endIdx = clickIndex + forward;
+      const endPoint = coordinates[endIdx];
+
+      // Calculate distance between potential entry and exit points
+      const pinchDistance = haversineDistance(
+        startPoint[1], startPoint[0],
+        endPoint[1], endPoint[0]
+      );
+
+      // Check if this is a good "pinch" - entry/exit are close together
+      if (pinchDistance < pinchThreshold && pinchDistance < bestPinchDistance) {
+        // Verify the segment actually goes somewhere (not just a straight line)
+        // Find the max distance any point in the segment is from the start
+        let maxDeviation = 0;
+        for (let k = startIdx + 1; k < endIdx; k++) {
+          const deviation = haversineDistance(
+            startPoint[1], startPoint[0],
+            coordinates[k][1], coordinates[k][0]
+          );
+          maxDeviation = Math.max(maxDeviation, deviation);
+        }
+
+        // It's a tangent if the route deviates significantly from the pinch points
+        if (maxDeviation > pinchDistance * 0.5 && maxDeviation > 100) {
+          bestStart = startIdx;
+          bestEnd = endIdx;
+          bestPinchDistance = pinchDistance;
+          console.log(`  Found pinch: ${startIdx}-${endIdx}, pinch=${Math.round(pinchDistance)}m, deviation=${Math.round(maxDeviation)}m`);
+        }
+      }
     }
-
-    startIndex = i;
   }
 
-  // Look forwards - find where the tangent ends and route continues
-  for (let i = clickIndex + 1; i <= Math.min(coordinates.length - 1, clickIndex + maxSegmentLength); i++) {
-    const point = coordinates[i];
-
-    const distFromClicked = haversineDistance(
-      clickedPoint[1], clickedPoint[0],
-      point[1], point[0]
-    );
-
-    // Similar logic - find where we're getting far from clicked point
-    if (distFromClicked > minDistanceFromMain * 0.5) {
-      endIndex = i - 1;
-      break;
-    }
-
-    endIndex = i;
-  }
-
-  // Validate the segment makes sense to remove
-  if (endIndex - startIndex < 2) {
-    // Too small to be a tangent
+  if (bestStart < 0 || bestEnd < 0) {
+    console.log('❌ No pinch point found - this may not be a tangent');
     return null;
   }
 
-  // Check that removing this segment would actually shorten the route significantly
-  const startPoint = coordinates[startIndex];
-  const endPoint = coordinates[endIndex];
+  // Calculate segment statistics
+  const startPoint = coordinates[bestStart];
+  const endPoint = coordinates[bestEnd];
   const directDistance = haversineDistance(
     startPoint[1], startPoint[0],
     endPoint[1], endPoint[0]
@@ -163,25 +166,19 @@ export function findSegmentToRemove(coordinates, clickIndex, options = {}) {
 
   // Calculate the path length of the segment
   let segmentLength = 0;
-  for (let i = startIndex; i < endIndex; i++) {
+  for (let i = bestStart; i < bestEnd; i++) {
     segmentLength += haversineDistance(
       coordinates[i][1], coordinates[i][0],
       coordinates[i + 1][1], coordinates[i + 1][0]
     );
   }
 
-  // Only suggest removal if the segment is significantly longer than direct path
-  // (indicating it's a detour/tangent)
-  if (segmentLength < directDistance * 1.5) {
-    // This doesn't look like a tangent, might be intentional route
-    // Still allow removal but warn
-    console.log('⚠️ Selected segment may be intentional route, not a tangent');
-  }
+  console.log(`✅ Segment found: indices ${bestStart}-${bestEnd}, segment=${Math.round(segmentLength)}m, direct=${Math.round(directDistance)}m`);
 
   return {
-    startIndex,
-    endIndex,
-    segmentCoords: coordinates.slice(startIndex, endIndex + 1),
+    startIndex: bestStart,
+    endIndex: bestEnd,
+    segmentCoords: coordinates.slice(bestStart, bestEnd + 1),
     directDistance,
     segmentLength,
     savings: segmentLength - directDistance
