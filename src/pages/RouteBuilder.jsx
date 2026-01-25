@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -22,6 +22,7 @@ import ElevationProfile from '../components/ElevationProfile.jsx';
 import WeatherWidget from '../components/WeatherWidget.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
+import { detectRouteClick, findSegmentToRemove, removeSegmentAndReroute, getSegmentHighlight, getRemovalStats } from '../utils/routeEditor';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { supabase } from '../lib/supabase';
 import { useRouteBuilderStore, useRouteBuilderHydrated } from '../stores/routeBuilderStore';
@@ -556,6 +557,11 @@ function RouteBuilder() {
   const formatElev = (m) => formatElevation(m, isImperial);
   const formatSpd = (kmh) => formatSpeed(kmh, isImperial);
 
+  // Route editing state
+  const [editMode, setEditMode] = useState(false);
+  const [selectedSegment, setSelectedSegment] = useState(null); // { startIndex, endIndex, stats }
+  const [isRemovingSegment, setIsRemovingSegment] = useState(false);
+
   // Weather state
   const [weatherData, setWeatherData] = useState(null);
 
@@ -666,6 +672,16 @@ function RouteBuilder() {
     if (!routeGeometry) return null;
     return { type: 'Feature', geometry: routeGeometry };
   }, [routeGeometry]);
+
+  // Memoize segment highlight GeoJSON for edit mode
+  const segmentHighlightGeoJSON = useMemo(() => {
+    if (!selectedSegment || !routeGeometry?.coordinates) return null;
+    return getSegmentHighlight(
+      routeGeometry.coordinates,
+      selectedSegment.startIndex,
+      selectedSegment.endIndex
+    );
+  }, [selectedSegment, routeGeometry]);
 
   // Load user's units preference
   useEffect(() => {
@@ -989,13 +1005,54 @@ function RouteBuilder() {
     }
   }, []);
 
-  // Handle map click to add waypoint
+  // Handle map click - either add waypoint or select segment in edit mode
   const handleMapClick = useCallback((event) => {
     const { lng, lat } = event.lngLat;
+
+    // If in edit mode and we have a route, check for route click
+    if (editMode && routeGeometry?.coordinates) {
+      const routeClick = detectRouteClick(routeGeometry.coordinates, { lng, lat }, 100);
+
+      if (routeClick) {
+        // Found a click on the route - find segment to remove
+        const segment = findSegmentToRemove(routeGeometry.coordinates, routeClick.index);
+
+        if (segment) {
+          const stats = getRemovalStats(
+            routeGeometry.coordinates,
+            segment.startIndex,
+            segment.endIndex
+          );
+
+          setSelectedSegment({
+            ...segment,
+            stats
+          });
+
+          console.log('📍 Selected segment for removal:', {
+            indices: `${segment.startIndex} - ${segment.endIndex}`,
+            savings: stats ? `${stats.distanceSaved}m` : 'unknown'
+          });
+        } else {
+          notifications.show({
+            title: 'No segment detected',
+            message: 'Click closer to a tangent or spur to select it',
+            color: 'yellow'
+          });
+        }
+        return; // Don't add waypoint in edit mode
+      } else {
+        // Clicked away from route - deselect segment
+        setSelectedSegment(null);
+        return;
+      }
+    }
+
+    // Normal mode: add waypoint
     const newWaypoints = [...waypoints, { lng, lat, id: Date.now() }];
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
-  }, [waypoints, calculateRoute]);
+  }, [waypoints, calculateRoute, editMode, routeGeometry]);
 
   // Remove waypoint
   const removeWaypoint = useCallback((id) => {
@@ -1003,6 +1060,85 @@ function RouteBuilder() {
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
   }, [waypoints, calculateRoute]);
+
+  // Remove selected segment and re-route
+  const handleRemoveSegment = useCallback(async () => {
+    if (!selectedSegment || !routeGeometry?.coordinates) return;
+
+    setIsRemovingSegment(true);
+
+    notifications.show({
+      id: 'removing-segment',
+      title: 'Removing segment',
+      message: 'Re-routing around the selected section...',
+      loading: true,
+      autoClose: false
+    });
+
+    try {
+      const newCoordinates = await removeSegmentAndReroute(
+        routeGeometry.coordinates,
+        selectedSegment.startIndex,
+        selectedSegment.endIndex,
+        {
+          profile: routeProfile || 'road',
+          mapboxToken: import.meta.env.VITE_MAPBOX_TOKEN
+        }
+      );
+
+      // Update route geometry with new coordinates
+      setRouteGeometry({
+        type: 'LineString',
+        coordinates: newCoordinates
+      });
+
+      // Recalculate route stats
+      // Simple distance calculation (sum of segments)
+      let newDistance = 0;
+      for (let i = 0; i < newCoordinates.length - 1; i++) {
+        const [lon1, lat1] = newCoordinates[i];
+        const [lon2, lat2] = newCoordinates[i + 1];
+        const R = 6371; // Earth radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        newDistance += R * c;
+      }
+
+      setRouteStats(prev => ({
+        ...prev,
+        distance: parseFloat(newDistance.toFixed(1))
+      }));
+
+      // Clear selection
+      setSelectedSegment(null);
+
+      notifications.update({
+        id: 'removing-segment',
+        title: 'Segment removed',
+        message: `Route updated! Saved ~${selectedSegment.stats?.distanceSaved || 0}m`,
+        color: 'green',
+        loading: false,
+        autoClose: 3000
+      });
+
+    } catch (error) {
+      console.error('Error removing segment:', error);
+      notifications.update({
+        id: 'removing-segment',
+        title: 'Error',
+        message: 'Failed to remove segment. Please try again.',
+        color: 'red',
+        loading: false,
+        autoClose: 3000
+      });
+    } finally {
+      setIsRemovingSegment(false);
+    }
+  }, [selectedSegment, routeGeometry, routeProfile, setRouteGeometry, setRouteStats]);
 
   // clearRoute comes from the store (clears waypoints, geometry, stats, etc.)
 
@@ -2089,6 +2225,61 @@ function RouteBuilder() {
             Clear Route
           </Button>
         </Group>
+
+        {/* Edit Mode Toggle */}
+        {routeGeometry && (
+          <Button
+            variant={editMode ? 'filled' : 'light'}
+            color={editMode ? 'red' : 'gray'}
+            size="sm"
+            fullWidth
+            onClick={() => {
+              setEditMode(!editMode);
+              setSelectedSegment(null);
+            }}
+            leftSection={<IconScissors size={16} />}
+          >
+            {editMode ? 'Exit Edit Mode' : 'Edit Route (Remove Tangents)'}
+          </Button>
+        )}
+
+        {/* Selected Segment Actions */}
+        {editMode && selectedSegment && (
+          <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444' }}>
+            <Stack gap="xs">
+              <Text size="sm" fw={500} c="red">Segment Selected</Text>
+              <Text size="xs" c="dimmed">
+                {selectedSegment.stats?.pointsRemoved || 0} points • ~{selectedSegment.stats?.distanceSaved || 0}m shorter
+              </Text>
+              <Group grow>
+                <Button
+                  size="xs"
+                  color="red"
+                  onClick={handleRemoveSegment}
+                  loading={isRemovingSegment}
+                  leftSection={<IconTrash size={14} />}
+                >
+                  Remove & Re-route
+                </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  color="gray"
+                  onClick={() => setSelectedSegment(null)}
+                >
+                  Cancel
+                </Button>
+              </Group>
+            </Stack>
+          </Paper>
+        )}
+
+        {editMode && !selectedSegment && (
+          <Text size="xs" c="dimmed" ta="center">
+            Click on a tangent segment to select it for removal
+          </Text>
+        )}
+
         <Button
           variant="subtle"
           color="gray"
@@ -2151,9 +2342,24 @@ function RouteBuilder() {
                       id="route-line"
                       type="line"
                       paint={{
-                        'line-color': tokens.colors.electricLime,
+                        'line-color': editMode ? '#666666' : tokens.colors.electricLime,
                         'line-width': 4,
-                        'line-opacity': 0.8
+                        'line-opacity': editMode ? 0.6 : 0.8
+                      }}
+                    />
+                  </Source>
+                )}
+
+                {/* Selected segment highlight (edit mode) */}
+                {segmentHighlightGeoJSON && (
+                  <Source id="segment-highlight" type="geojson" data={segmentHighlightGeoJSON}>
+                    <Layer
+                      id="segment-highlight-line"
+                      type="line"
+                      paint={{
+                        'line-color': '#ef4444',
+                        'line-width': 6,
+                        'line-opacity': 0.9
                       }}
                     />
                   </Source>
@@ -2856,6 +3062,54 @@ function RouteBuilder() {
                   Clear Route
                 </Button>
               </Group>
+
+              {/* Edit Mode Toggle (Mobile) */}
+              {routeGeometry && (
+                <Button
+                  variant={editMode ? 'filled' : 'light'}
+                  color={editMode ? 'red' : 'gray'}
+                  size="sm"
+                  fullWidth
+                  onClick={() => {
+                    setEditMode(!editMode);
+                    setSelectedSegment(null);
+                  }}
+                  leftSection={<IconScissors size={16} />}
+                >
+                  {editMode ? 'Exit Edit Mode' : 'Edit Route'}
+                </Button>
+              )}
+
+              {/* Selected Segment Actions (Mobile) */}
+              {editMode && selectedSegment && (
+                <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444' }}>
+                  <Stack gap="xs">
+                    <Text size="sm" fw={500} c="red">Segment Selected</Text>
+                    <Text size="xs" c="dimmed">
+                      ~{selectedSegment.stats?.distanceSaved || 0}m shorter after removal
+                    </Text>
+                    <Group grow>
+                      <Button
+                        size="xs"
+                        color="red"
+                        onClick={handleRemoveSegment}
+                        loading={isRemovingSegment}
+                      >
+                        Remove
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        color="gray"
+                        onClick={() => setSelectedSegment(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Paper>
+              )}
+
               <Button
                 variant="subtle"
                 color="gray"
@@ -3070,9 +3324,24 @@ function RouteBuilder() {
                     id="route-line"
                     type="line"
                     paint={{
-                      'line-color': tokens.colors.electricLime,
+                      'line-color': editMode ? '#666666' : tokens.colors.electricLime,
                       'line-width': 4,
-                      'line-opacity': 0.8
+                      'line-opacity': editMode ? 0.6 : 0.8
+                    }}
+                  />
+                </Source>
+              )}
+
+              {/* Selected segment highlight (edit mode) */}
+              {segmentHighlightGeoJSON && (
+                <Source id="segment-highlight" type="geojson" data={segmentHighlightGeoJSON}>
+                  <Layer
+                    id="segment-highlight-line"
+                    type="line"
+                    paint={{
+                      'line-color': '#ef4444',
+                      'line-width': 6,
+                      'line-opacity': 0.9
                     }}
                   />
                 </Source>
