@@ -23,31 +23,122 @@ export function optimizeLoopRoute(coordinates, options = {}) {
 
   console.log('🔧 Optimizing loop route with', coordinates.length, 'points');
 
-  // Step 1: Remove unnecessary tangents (multiple passes for aggressive mode)
   let optimized = coordinates;
+
+  // Step 1: Remove peninsula/spur patterns (rectangular tangents that go out and return)
+  // This is the most important step for the tangent issue
+  const beforePeninsula = optimized.length;
+  optimized = removePeninsulas(optimized, aggressiveMode);
+  if (optimized.length !== beforePeninsula) {
+    console.log(`🔧 Peninsula removal: ${beforePeninsula} → ${optimized.length} points`);
+  }
+
+  // Step 2: Remove unnecessary tangents (multiple passes for aggressive mode)
   const passes = aggressiveMode ? 3 : 1;
   for (let pass = 0; pass < passes; pass++) {
     const before = optimized.length;
     optimized = removeTangents(optimized, maxDeviationPercent * (aggressiveMode ? 0.8 : 1));
     const after = optimized.length;
     if (before === after) break; // No more improvements
-    console.log(`🔧 Pass ${pass + 1}: ${before} → ${after} points`);
+    console.log(`🔧 Tangent pass ${pass + 1}: ${before} → ${after} points`);
   }
 
-  // Step 2: Remove obvious back-and-forth patterns
+  // Step 3: Remove obvious back-and-forth patterns
   optimized = removeBacktracking(optimized);
 
-  // Step 3: Smooth sharp turns that create detours
+  // Step 4: Smooth sharp turns that create detours
   optimized = smoothDetours(optimized, minSegmentLength);
 
-  // Step 4: Ensure proper loop closure
+  // Step 5: Ensure proper loop closure
   optimized = ensureProperLoop(optimized);
 
-  // Step 5: Remove redundant points
+  // Step 6: Remove redundant points
   optimized = removeRedundantPoints(optimized, minSegmentLength);
 
   console.log('✅ Route optimized:', coordinates.length, '→', optimized.length, 'points');
   return optimized;
+}
+
+/**
+ * Detect and remove "peninsula" patterns - sections where route goes out and returns
+ * These are the rectangular tangent spurs that the routing API creates
+ * Example pattern: main route → goes out → turns → continues → turns back → returns to main route
+ */
+function removePeninsulas(coordinates, aggressive = false) {
+  if (coordinates.length < 10) return coordinates;
+
+  const result = [];
+  let i = 0;
+  const maxLookAhead = aggressive ? 25 : 15; // How far to look for return points
+  const returnThreshold = aggressive ? 400 : 250; // meters - how close "return" point must be
+
+  while (i < coordinates.length) {
+    const current = coordinates[i];
+    let peninsulaEnd = -1;
+
+    // Look ahead for a point that returns close to where we are
+    // This detects spurs that go out and come back
+    for (let j = 4; j <= Math.min(maxLookAhead, coordinates.length - i - 1); j++) {
+      const futurePoint = coordinates[i + j];
+      const distToFuture = haversineDistance(
+        current[1], current[0],
+        futurePoint[1], futurePoint[0]
+      );
+
+      // Found a point that's close to current - potential peninsula detected
+      if (distToFuture < returnThreshold) {
+        // Verify this is actually a peninsula by checking the intermediate points go far away
+        let maxDistFromCurrent = 0;
+        let totalIntermediateLength = 0;
+
+        for (let k = 1; k < j; k++) {
+          const intermediatePoint = coordinates[i + k];
+          const distFromCurrent = haversineDistance(
+            current[1], current[0],
+            intermediatePoint[1], intermediatePoint[0]
+          );
+          maxDistFromCurrent = Math.max(maxDistFromCurrent, distFromCurrent);
+
+          // Also calculate the actual path length
+          if (k > 1) {
+            totalIntermediateLength += haversineDistance(
+              coordinates[i + k - 1][1], coordinates[i + k - 1][0],
+              intermediatePoint[1], intermediatePoint[0]
+            );
+          }
+        }
+
+        // It's a peninsula if:
+        // 1. We went significantly far from the current point
+        // 2. The return point is much closer than the max distance we traveled
+        // 3. The path length is much longer than the direct distance (inefficient)
+        const directDist = haversineDistance(
+          current[1], current[0],
+          futurePoint[1], futurePoint[0]
+        );
+
+        if (maxDistFromCurrent > 300 && // Went at least 300m out
+            distToFuture < maxDistFromCurrent * 0.4 && // Return is < 40% of max distance
+            totalIntermediateLength > directDist * 3) { // Path is 3x+ longer than direct
+
+          console.log(`🚫 Peninsula detected: skipping ${j} points (went ${Math.round(maxDistFromCurrent)}m, returned to ${Math.round(distToFuture)}m)`);
+          peninsulaEnd = i + j;
+          break;
+        }
+      }
+    }
+
+    if (peninsulaEnd > 0) {
+      // Skip the peninsula, but keep the current point
+      result.push(current);
+      i = peninsulaEnd;
+    } else {
+      result.push(current);
+      i++;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -81,6 +172,7 @@ function removeTangents(coordinates, maxDeviationPercent) {
 
 /**
  * Remove obvious backtracking patterns where route goes somewhere and immediately returns
+ * Extended look-ahead to catch longer backtracking patterns
  */
 function removeBacktracking(coordinates) {
   const cleaned = [];
@@ -90,9 +182,9 @@ function removeBacktracking(coordinates) {
     const current = coordinates[i];
     cleaned.push(current);
 
-    // Look ahead for potential backtracking
-    if (i < coordinates.length - 6) {
-      const lookAhead = 4; // Check next 4 points
+    // Look ahead for potential backtracking - extended range for rectangular patterns
+    if (i < coordinates.length - 8) {
+      const lookAhead = 12; // Extended: Check next 12 points to catch longer patterns
       let backtrackDetected = false;
 
       for (let j = 2; j <= lookAhead && i + j < coordinates.length; j++) {
@@ -102,8 +194,8 @@ function removeBacktracking(coordinates) {
           futurePoint[1], futurePoint[0]
         );
 
-        // If we end up very close to where we started after a few points
-        if (distanceToFuture < 200) { // Within 200m
+        // If we end up close to where we started after several points
+        if (distanceToFuture < 300) { // Within 300m (increased from 200m)
           // Check if this is actually backtracking by verifying intermediate distance
           let maxIntermediate = 0;
           for (let k = 1; k < j; k++) {
@@ -115,7 +207,8 @@ function removeBacktracking(coordinates) {
           }
 
           // If we went far and came back, it's likely backtracking
-          if (maxIntermediate > 300) {
+          // More aggressive: only need 200m out (reduced from 300m)
+          if (maxIntermediate > 200 && distanceToFuture < maxIntermediate * 0.5) {
             console.log(`🚫 Detected backtracking: went ${Math.round(maxIntermediate)}m and returned to ${Math.round(distanceToFuture)}m`);
             i += j; // Skip the backtracking section
             backtrackDetected = true;

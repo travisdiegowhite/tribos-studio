@@ -14,6 +14,7 @@
 import { getSmartCyclingRoute } from './smartCyclingRouter';
 import { fetchElevationProfile, calculateElevationStats } from './directions';
 import { generateSmartRouteName } from './routeNaming';
+import { optimizeLoopRoute } from './routeOptimizer';
 
 // Earth's radius in kilometers
 const EARTH_RADIUS_KM = 6371;
@@ -710,6 +711,23 @@ export async function generateIterativeRoute(params) {
     return null;
   }
 
+  // Apply route optimization to remove tangent segments
+  const isLoop = routeType.toLowerCase().includes('loop');
+  let optimizedCoordinates = route.coordinates;
+
+  if (route.coordinates.length > 10) {
+    console.log('🔧 Applying route optimization to remove tangent segments...');
+    optimizedCoordinates = optimizeLoopRoute(route.coordinates, {
+      aggressiveMode: true,
+      maxDeviationPercent: 0.25,
+      minSegmentLength: 100
+    });
+
+    if (optimizedCoordinates.length !== route.coordinates.length) {
+      console.log(`✂️ Optimization removed ${route.coordinates.length - optimizedCoordinates.length} tangent points`);
+    }
+  }
+
   // Generate a smart name for the route
   const routeName = generateSmartRouteName({
     distance: route.distanceKm,
@@ -721,6 +739,7 @@ export async function generateIterativeRoute(params) {
 
   return {
     ...route,
+    coordinates: optimizedCoordinates,
     name: routeName,
     description: `${route.distanceKm.toFixed(1)}km ${route.routeType.replace('_', ' ')} heading ${getDirectionName(initialBearing)}`,
     trainingGoal,
