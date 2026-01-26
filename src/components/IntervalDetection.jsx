@@ -285,7 +285,7 @@ const IntervalDetection = ({ activity, ftp }) => {
     <Card>
       <Group justify="space-between" mb="md">
         <Group gap="sm">
-          <IconChartAreaLine size={20} color={tokens.colors.electricLime} />
+          <IconChartAreaLine size={20} color={'var(--tribos-lime)'} />
           <Text size="sm" fw={600}>Workout Structure Analysis</Text>
         </Group>
         <Badge color={getTypeColor(analysis.type)} variant="light">
@@ -298,7 +298,7 @@ const IntervalDetection = ({ activity, ftp }) => {
         p="md"
         mb="md"
         style={{
-          backgroundColor: tokens.colors.bgTertiary,
+          backgroundColor: 'var(--tribos-bg-tertiary)',
           border: `1px solid var(--mantine-color-${getTypeColor(analysis.type)}-7)`,
         }}
       >
@@ -394,7 +394,7 @@ const IntervalDetection = ({ activity, ftp }) => {
       </Button>
 
       <Collapse in={showDetails}>
-        <Paper p="sm" mt="sm" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+        <Paper p="sm" mt="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <SimpleGrid cols={{ base: 2 }} spacing="sm">
             <Box>
               <Text size="xs" c="dimmed">Avg Power</Text>

@@ -898,7 +898,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       style={{
         cursor: 'pointer',
         transition: 'all 0.2s',
-        borderColor: tokens.colors.bgTertiary,
+        borderColor: 'var(--tribos-bg-tertiary)',
       }}
       onClick={() => handlePreviewPlan(plan)}
     >
@@ -907,7 +907,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           <Box style={{ flex: 1 }}>
             <Group gap="xs" mb={4}>
               <Text size="lg">{getGoalIcon(plan.goal)}</Text>
-              <Text fw={600} size="sm" style={{ color: tokens.colors.textPrimary }}>
+              <Text fw={600} size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
                 {plan.name}
               </Text>
             </Group>
@@ -940,13 +940,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
         <Group gap="lg">
           <Group gap={4}>
-            <IconClock size={14} style={{ color: tokens.colors.textMuted }} />
+            <IconClock size={14} style={{ color: 'var(--tribos-text-muted)' }} />
             <Text size="xs" c="dimmed">
               {plan.hoursPerWeek?.min}-{plan.hoursPerWeek?.max} hrs/wk
             </Text>
           </Group>
           <Group gap={4}>
-            <IconTrendingUp size={14} style={{ color: tokens.colors.textMuted }} />
+            <IconTrendingUp size={14} style={{ color: 'var(--tribos-text-muted)' }} />
             <Text size="xs" c="dimmed">
               {plan.weeklyTSS?.min}-{plan.weeklyTSS?.max} TSS
             </Text>
@@ -989,17 +989,17 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           {/* Key Stats */}
           <SimpleGrid cols={{ base: 3 }} spacing="xs">
             <Paper p="sm" withBorder ta="center">
-              <IconCalendar size={20} style={{ color: tokens.colors.textMuted, marginBottom: 4 }} />
+              <IconCalendar size={20} style={{ color: 'var(--tribos-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.duration}</Text>
               <Text size="xs" c="dimmed">weeks</Text>
             </Paper>
             <Paper p="sm" withBorder ta="center">
-              <IconClock size={20} style={{ color: tokens.colors.textMuted, marginBottom: 4 }} />
+              <IconClock size={20} style={{ color: 'var(--tribos-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.hoursPerWeek?.min}-{selectedPlan.hoursPerWeek?.max}</Text>
               <Text size="xs" c="dimmed">hrs/week</Text>
             </Paper>
             <Paper p="sm" withBorder ta="center">
-              <IconTrendingUp size={20} style={{ color: tokens.colors.textMuted, marginBottom: 4 }} />
+              <IconTrendingUp size={20} style={{ color: 'var(--tribos-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.weeklyTSS?.min}-{selectedPlan.weeklyTSS?.max}</Text>
               <Text size="xs" c="dimmed">weekly TSS</Text>
             </Paper>
@@ -1139,7 +1139,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   <Text size="sm" fw={500}>{plan.name}</Text>
                   <Text size="xs" c="dimmed">{plan.duration} weeks</Text>
                 </Box>
-                <IconChevronRight size={16} style={{ color: tokens.colors.textMuted }} />
+                <IconChevronRight size={16} style={{ color: 'var(--tribos-text-muted)' }} />
               </Group>
             </Paper>
           ))}
@@ -1159,7 +1159,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
     <Box>
       {/* Header */}
       <Group justify="space-between" mb="md" wrap="wrap" gap="sm">
-        <Text fw={600} size="lg" style={{ color: tokens.colors.textPrimary }}>
+        <Text fw={600} size="lg" style={{ color: 'var(--tribos-text-primary)' }}>
           Training Plans
         </Text>
         <Badge size="lg" color="gray" variant="light">
@@ -1224,7 +1224,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
       {/* Active Plan Card with Management */}
       {activePlan && (
-        <Card withBorder mb="md" p="md" style={{ borderColor: tokens.colors.electricLime, borderWidth: 2 }}>
+        <Card withBorder mb="md" p="md" style={{ borderColor: 'var(--tribos-lime)', borderWidth: 2 }}>
           <Group justify="space-between" mb="sm">
             <Group gap="sm">
               <ThemeIcon size="lg" color="lime" variant="light">
@@ -1380,7 +1380,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
           {/* Date Summary */}
           {selectedStartDate && planToActivate && (
-            <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${tokens.colors.electricLime}10` }}>
+            <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${'var(--tribos-lime)'}10` }}>
               <SimpleGrid cols={{ base: 1, xs: 2 }}>
                 <Box>
                   <Text size="xs" c="dimmed" tt="uppercase">Starts</Text>

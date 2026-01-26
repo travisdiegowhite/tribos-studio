@@ -250,7 +250,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
 
   if (!metrics) {
     return (
-      <Paper p="md" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+      <Paper p="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
         <Text size="sm" c="dimmed" ta="center">
           No power or heart rate data available
         </Text>
@@ -259,7 +259,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
   }
 
   return (
-    <Paper p="md" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+    <Paper p="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
       <Text size="sm" fw={600} mb="sm">Activity Metrics</Text>
 
       <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="sm">

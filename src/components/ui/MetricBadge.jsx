@@ -25,8 +25,8 @@ function MetricBadge({
   size = 'sm',
   highlighted = false,
 }) {
-  const color = highlighted ? tokens.colors.electricLime : tokens.colors.textMuted;
-  const bgColor = highlighted ? `${tokens.colors.electricLime}15` : `${tokens.colors.textMuted}10`;
+  const color = highlighted ? 'var(--tribos-lime)' : 'var(--tribos-text-muted)';
+  const bgColor = highlighted ? `${'var(--tribos-lime)'}15` : `${'var(--tribos-text-muted)'}10`;
 
   return (
     <Box

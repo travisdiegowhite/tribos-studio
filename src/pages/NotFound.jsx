@@ -8,7 +8,7 @@ function NotFound() {
     <Box
       style={{
         minHeight: '100vh',
-        backgroundColor: tokens.colors.bgPrimary,
+        backgroundColor: 'var(--tribos-bg-primary)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -17,13 +17,13 @@ function NotFound() {
       <Container size="sm">
         <Stack align="center" gap="xl">
           <Box style={{ textAlign: 'center' }}>
-            <IconRoute size={64} color={tokens.colors.electricLime} style={{ marginBottom: 16 }} />
+            <IconRoute size={64} color={'var(--tribos-lime)'} style={{ marginBottom: 16 }} />
             <Title
               order={1}
               style={{
                 fontSize: '6rem',
                 fontWeight: 800,
-                color: tokens.colors.electricLime,
+                color: 'var(--tribos-lime)',
                 lineHeight: 1,
               }}
             >
@@ -32,12 +32,12 @@ function NotFound() {
           </Box>
 
           <Stack align="center" gap="md">
-            <Title order={2} style={{ color: tokens.colors.textPrimary, textAlign: 'center' }}>
+            <Title order={2} style={{ color: 'var(--tribos-text-primary)', textAlign: 'center' }}>
               Route Not Found
             </Title>
             <Text
               size="lg"
-              style={{ color: tokens.colors.textSecondary, textAlign: 'center', maxWidth: 400 }}
+              style={{ color: 'var(--tribos-text-secondary)', textAlign: 'center', maxWidth: 400 }}
             >
               Looks like you've gone off course. The page you're looking for doesn't exist or has been moved.
             </Text>
@@ -65,9 +65,9 @@ function NotFound() {
             </Button>
           </Group>
 
-          <Text size="sm" style={{ color: tokens.colors.textMuted }}>
+          <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
             Need help?{' '}
-            <a href="mailto:travis@tribos.studio" style={{ color: tokens.colors.electricLime }}>
+            <a href="mailto:travis@tribos.studio" style={{ color: 'var(--tribos-lime)' }}>
               Contact support
             </a>
           </Text>

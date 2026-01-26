@@ -282,8 +282,8 @@ export default function FloatingRouteSettings({
         maxHeight: 'calc(100vh - 200px)',
         overflowY: 'auto',
         zIndex: 1000,
-        backgroundColor: tokens.colors.bgSecondary,
-        border: `1px solid ${tokens.colors.border}`,
+        backgroundColor: 'var(--tribos-bg-secondary)',
+        border: `1px solid ${'var(--tribos-border)'}`,
         borderRadius: tokens.radius.lg,
       }}
     >
@@ -291,8 +291,8 @@ export default function FloatingRouteSettings({
         {/* Header */}
         <Group justify="space-between" align="center">
           <Group gap="xs">
-            <IconSettings size={20} style={{ color: tokens.colors.electricLime }} />
-            <Title order={4} style={{ color: tokens.colors.textPrimary }}>
+            <IconSettings size={20} style={{ color: 'var(--tribos-lime)' }} />
+            <Title order={4} style={{ color: 'var(--tribos-text-primary)' }}>
               Route Settings
             </Title>
           </Group>
@@ -305,20 +305,20 @@ export default function FloatingRouteSettings({
         <Paper
           p="sm"
           style={{
-            backgroundColor: tokens.colors.bgTertiary,
-            border: `1px solid ${tokens.colors.electricLime}40`,
+            backgroundColor: 'var(--tribos-bg-tertiary)',
+            border: `1px solid ${'var(--tribos-lime)'}40`,
             borderRadius: tokens.radius.md,
           }}
         >
           <Group justify="space-between" align="center">
             <Group gap="xs">
-              <IconGauge size={18} style={{ color: tokens.colors.electricLime }} />
-              <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+              <IconGauge size={18} style={{ color: 'var(--tribos-lime)' }} />
+              <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                 Your Pace
               </Text>
             </Group>
             <Group gap="xs">
-              <Text size="lg" fw={700} style={{ color: tokens.colors.electricLime }}>
+              <Text size="lg" fw={700} style={{ color: 'var(--tribos-lime)' }}>
                 {formatSpeed(effectiveSpeed)}
               </Text>
               <Badge size="xs" color="gray" variant="light">
@@ -357,14 +357,14 @@ export default function FloatingRouteSettings({
                   <Group gap="md">
                     <Box>
                       <Text size="xs" c="dimmed">Road</Text>
-                      <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                      <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                         {formatSpeed(speedProfile.road_speed || speedProfile.average_speed)}
                       </Text>
                     </Box>
                     {speedProfile.gravel_speed && (
                       <Box>
                         <Text size="xs" c="dimmed">Gravel</Text>
-                        <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                        <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                           {formatSpeed(speedProfile.gravel_speed)}
                         </Text>
                       </Box>
@@ -372,7 +372,7 @@ export default function FloatingRouteSettings({
                     {speedProfile.mtb_speed && (
                       <Box>
                         <Text size="xs" c="dimmed">MTB</Text>
-                        <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                        <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                           {formatSpeed(speedProfile.mtb_speed)}
                         </Text>
                       </Box>
@@ -398,8 +398,8 @@ export default function FloatingRouteSettings({
                 onChange={(e) => saveManualSpeed(e.currentTarget.checked, manualSpeed || effectiveSpeed)}
                 size="sm"
                 styles={{
-                  label: { color: tokens.colors.textPrimary },
-                  description: { color: tokens.colors.textMuted },
+                  label: { color: 'var(--tribos-text-primary)' },
+                  description: { color: 'var(--tribos-text-muted)' },
                 }}
               />
 
@@ -419,11 +419,11 @@ export default function FloatingRouteSettings({
                   leftSection={<IconBike size={16} />}
                   styles={{
                     input: {
-                      backgroundColor: tokens.colors.bgTertiary,
-                      borderColor: tokens.colors.border,
-                      color: tokens.colors.textPrimary,
+                      backgroundColor: 'var(--tribos-bg-tertiary)',
+                      borderColor: 'var(--tribos-border)',
+                      color: 'var(--tribos-text-primary)',
                     },
-                    label: { color: tokens.colors.textSecondary },
+                    label: { color: 'var(--tribos-text-secondary)' },
                   }}
                 />
               )}
@@ -463,9 +463,9 @@ export default function FloatingRouteSettings({
                   { value: 'high', label: 'High - Any road type' },
                 ]}
                 styles={{
-                  input: { backgroundColor: tokens.colors.bgTertiary },
-                  label: { color: tokens.colors.textSecondary },
-                  description: { color: tokens.colors.textMuted },
+                  input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                  label: { color: 'var(--tribos-text-secondary)' },
+                  description: { color: 'var(--tribos-text-muted)' },
                 }}
               />
 
@@ -480,13 +480,13 @@ export default function FloatingRouteSettings({
                   { value: 'seek', label: 'Seek - Love climbing!' },
                 ]}
                 styles={{
-                  input: { backgroundColor: tokens.colors.bgTertiary },
-                  label: { color: tokens.colors.textSecondary },
+                  input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                  label: { color: 'var(--tribos-text-secondary)' },
                 }}
               />
 
               <Box>
-                <Text size="xs" fw={500} mb={4} style={{ color: tokens.colors.textSecondary }}>
+                <Text size="xs" fw={500} mb={4} style={{ color: 'var(--tribos-text-secondary)' }}>
                   Max Gradient: {maxGradient}%
                 </Text>
                 <Slider
@@ -516,8 +516,8 @@ export default function FloatingRouteSettings({
                   { value: 'poor_ok', label: 'Any - Adventure ready' },
                 ]}
                 styles={{
-                  input: { backgroundColor: tokens.colors.bgTertiary },
-                  label: { color: tokens.colors.textSecondary },
+                  input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                  label: { color: 'var(--tribos-text-secondary)' },
                 }}
               />
             </Stack>
@@ -539,9 +539,9 @@ export default function FloatingRouteSettings({
                   { value: 'flexible', label: 'Flexible - Any road' },
                 ]}
                 styles={{
-                  input: { backgroundColor: tokens.colors.bgTertiary },
-                  label: { color: tokens.colors.textSecondary },
-                  description: { color: tokens.colors.textMuted },
+                  input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                  label: { color: 'var(--tribos-text-secondary)' },
+                  description: { color: 'var(--tribos-text-muted)' },
                 }}
               />
 
@@ -557,9 +557,9 @@ export default function FloatingRouteSettings({
                   { value: 'low', label: 'Low - Noise not a concern' },
                 ]}
                 styles={{
-                  input: { backgroundColor: tokens.colors.bgTertiary },
-                  label: { color: tokens.colors.textSecondary },
-                  description: { color: tokens.colors.textMuted },
+                  input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                  label: { color: 'var(--tribos-text-secondary)' },
+                  description: { color: 'var(--tribos-text-muted)' },
                 }}
               />
 
@@ -575,8 +575,8 @@ export default function FloatingRouteSettings({
                   { value: 'not_important', label: 'Not important' },
                 ]}
                 styles={{
-                  input: { backgroundColor: tokens.colors.bgTertiary },
-                  label: { color: tokens.colors.textSecondary },
+                  input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                  label: { color: 'var(--tribos-text-secondary)' },
                 }}
               />
             </Stack>
@@ -588,8 +588,8 @@ export default function FloatingRouteSettings({
               {/* Scenic Section */}
               <Box>
                 <Group gap="xs" mb="xs">
-                  <IconCamera size={14} style={{ color: tokens.colors.electricLime }} />
-                  <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>Scenic</Text>
+                  <IconCamera size={14} style={{ color: 'var(--tribos-lime)' }} />
+                  <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Scenic</Text>
                 </Group>
                 <Stack gap="xs">
                   <Select
@@ -604,8 +604,8 @@ export default function FloatingRouteSettings({
                       { value: 'not_important', label: 'Not important' },
                     ]}
                     styles={{
-                      input: { backgroundColor: tokens.colors.bgTertiary },
-                      label: { color: tokens.colors.textSecondary },
+                      input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                      label: { color: 'var(--tribos-text-secondary)' },
                     }}
                   />
                   <MultiSelect
@@ -620,8 +620,8 @@ export default function FloatingRouteSettings({
                       { value: 'farmland', label: 'Farmland' },
                     ]}
                     styles={{
-                      input: { backgroundColor: tokens.colors.bgTertiary },
-                      label: { color: tokens.colors.textSecondary },
+                      input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                      label: { color: 'var(--tribos-text-secondary)' },
                     }}
                   />
                 </Stack>
@@ -630,8 +630,8 @@ export default function FloatingRouteSettings({
               {/* Training Section */}
               <Box>
                 <Group gap="xs" mb="xs">
-                  <IconHeart size={14} style={{ color: tokens.colors.electricLime }} />
-                  <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>Training</Text>
+                  <IconHeart size={14} style={{ color: 'var(--tribos-lime)' }} />
+                  <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Training</Text>
                 </Group>
                 <Stack gap="xs">
                   <Select
@@ -647,8 +647,8 @@ export default function FloatingRouteSettings({
                       { value: 'maintenance', label: 'Maintenance' },
                     ]}
                     styles={{
-                      input: { backgroundColor: tokens.colors.bgTertiary },
-                      label: { color: tokens.colors.textSecondary },
+                      input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                      label: { color: 'var(--tribos-text-secondary)' },
                     }}
                   />
                   <Select
@@ -663,8 +663,8 @@ export default function FloatingRouteSettings({
                       { value: 'exhausted', label: 'Exhausted - Recovery only' },
                     ]}
                     styles={{
-                      input: { backgroundColor: tokens.colors.bgTertiary },
-                      label: { color: tokens.colors.textSecondary },
+                      input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                      label: { color: 'var(--tribos-text-secondary)' },
                     }}
                   />
                 </Stack>
@@ -673,8 +673,8 @@ export default function FloatingRouteSettings({
               {/* Weather Section */}
               <Box>
                 <Group gap="xs" mb="xs">
-                  <IconCloud size={14} style={{ color: tokens.colors.electricLime }} />
-                  <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>Weather</Text>
+                  <IconCloud size={14} style={{ color: 'var(--tribos-lime)' }} />
+                  <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Weather</Text>
                 </Group>
                 <Stack gap="xs">
                   <Select
@@ -687,8 +687,8 @@ export default function FloatingRouteSettings({
                       label: preset.name,
                     }))}
                     styles={{
-                      input: { backgroundColor: tokens.colors.bgTertiary },
-                      label: { color: tokens.colors.textSecondary },
+                      input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                      label: { color: 'var(--tribos-text-secondary)' },
                     }}
                   />
                   <Select
@@ -702,8 +702,8 @@ export default function FloatingRouteSettings({
                       { value: 'any', label: 'Any - Rain doesn\'t bother me' },
                     ]}
                     styles={{
-                      input: { backgroundColor: tokens.colors.bgTertiary },
-                      label: { color: tokens.colors.textSecondary },
+                      input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                      label: { color: 'var(--tribos-text-secondary)' },
                     }}
                   />
                 </Stack>
@@ -761,8 +761,8 @@ export function RouteSettingsButton({ onClick, speedProfile, isImperial = true }
         onClick={onClick}
         leftSection={<IconGauge size={18} />}
         style={{
-          backgroundColor: tokens.colors.bgSecondary,
-          border: `1px solid ${tokens.colors.border}`,
+          backgroundColor: 'var(--tribos-bg-secondary)',
+          border: `1px solid ${'var(--tribos-border)'}`,
         }}
       >
         <Group gap={4}>

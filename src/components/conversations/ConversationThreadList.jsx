@@ -214,14 +214,14 @@ function ConversationThreadList({
         <Paper
           p="xs"
           style={{
-            backgroundColor: tokens.colors.bgTertiary,
+            backgroundColor: 'var(--tribos-bg-tertiary)',
             cursor: 'pointer',
-            border: `1px dashed ${tokens.colors.textMuted}`,
+            border: `1px dashed ${'var(--tribos-text-muted)'}`,
           }}
           onClick={onNewThread}
         >
           <Group gap="xs" justify="center">
-            <IconPlus size={14} style={{ color: tokens.colors.textMuted }} />
+            <IconPlus size={14} style={{ color: 'var(--tribos-text-muted)' }} />
             <Text size="sm" c="dimmed">New Conversation</Text>
           </Group>
         </Paper>
@@ -250,7 +250,7 @@ function ConversationThreadList({
                     style={{
                       backgroundColor: isActive
                         ? `${config.primary}15`
-                        : tokens.colors.bgTertiary,
+                        : 'var(--tribos-bg-tertiary)',
                       cursor: 'pointer',
                       border: isActive
                         ? `1px solid ${config.primary}`
@@ -286,7 +286,7 @@ function ConversationThreadList({
                           size="sm"
                           fw={isActive ? 600 : 500}
                           style={{
-                            color: tokens.colors.textPrimary,
+                            color: 'var(--tribos-text-primary)',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
@@ -299,7 +299,7 @@ function ConversationThreadList({
                       <Group gap="xs" wrap="nowrap">
                         {thread.status === 'archived' && (
                           <Tooltip label="Archived">
-                            <IconArchive size={12} style={{ color: tokens.colors.textMuted }} />
+                            <IconArchive size={12} style={{ color: 'var(--tribos-text-muted)' }} />
                           </Tooltip>
                         )}
 

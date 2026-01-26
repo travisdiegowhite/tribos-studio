@@ -40,15 +40,15 @@ function FeatureCard({ name, description, highlight }) {
       p="lg"
       radius="md"
       style={{
-        background: tokens.colors.bgSecondary,
-        border: `1px solid ${tokens.colors.bgTertiary}`,
+        background: 'var(--tribos-bg-secondary)',
+        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
       }}
     >
       <Stack gap="sm">
-        <Text fw={600} size="lg" c={tokens.colors.textPrimary}>
+        <Text fw={600} size="lg" c={'var(--tribos-text-primary)'}>
           {name}
         </Text>
-        <Text size="sm" c={tokens.colors.textSecondary} lh={1.6}>
+        <Text size="sm" c={'var(--tribos-text-secondary)'} lh={1.6}>
           {description}
         </Text>
         {highlight && (
@@ -81,17 +81,17 @@ function FeatureSection({ feature }) {
           <IconComponent size={20} />
         </ThemeIcon>
         <Box>
-          <Text size="xs" c={tokens.colors.textMuted} tt="uppercase" fw={500}>
+          <Text size="xs" c={'var(--tribos-text-muted)'} tt="uppercase" fw={500}>
             {feature.category}
           </Text>
-          <Title order={3} c={tokens.colors.textPrimary}>
+          <Title order={3} c={'var(--tribos-text-primary)'}>
             {feature.title}
           </Title>
         </Box>
       </Group>
 
       {feature.description && (
-        <Text size="sm" c={tokens.colors.textSecondary} mb="md" lh={1.6}>
+        <Text size="sm" c={'var(--tribos-text-secondary)'} mb="md" lh={1.6}>
           {feature.description}
         </Text>
       )}
@@ -108,13 +108,13 @@ function FeatureSection({ feature }) {
           mt="md"
           radius="md"
           style={{
-            background: `linear-gradient(135deg, ${tokens.colors.electricLime}15, ${tokens.colors.electricLime}05)`,
-            border: `1px solid ${tokens.colors.electricLime}30`,
+            background: `linear-gradient(135deg, ${'var(--tribos-lime)'}15, ${'var(--tribos-lime)'}05)`,
+            border: `1px solid ${'var(--tribos-lime)'}30`,
           }}
         >
           <Group gap="xs">
-            <IconBulb size={16} color={tokens.colors.electricLime} />
-            <Text size="sm" c={tokens.colors.textPrimary} fw={500}>
+            <IconBulb size={16} color={'var(--tribos-lime)'} />
+            <Text size="sm" c={'var(--tribos-text-primary)'} fw={500}>
               {feature.summary}
             </Text>
           </Group>
@@ -130,24 +130,24 @@ function UpdateCard({ update }) {
       p="lg"
       radius="md"
       style={{
-        background: tokens.colors.bgSecondary,
-        border: `1px solid ${tokens.colors.bgTertiary}`,
+        background: 'var(--tribos-bg-secondary)',
+        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
       }}
     >
       <Group justify="space-between" mb="sm">
         <Badge variant="light" color="lime" size="sm">
           {update.type === 'improvement' ? 'Improvement' : 'New'}
         </Badge>
-        <Text size="xs" c={tokens.colors.textMuted}>
+        <Text size="xs" c={'var(--tribos-text-muted)'}>
           {update.date}
         </Text>
       </Group>
 
-      <Text fw={600} size="lg" c={tokens.colors.textPrimary} mb="xs">
+      <Text fw={600} size="lg" c={'var(--tribos-text-primary)'} mb="xs">
         {update.title}
       </Text>
 
-      <Text size="sm" c={tokens.colors.textSecondary} mb="md" lh={1.6}>
+      <Text size="sm" c={'var(--tribos-text-secondary)'} mb="md" lh={1.6}>
         {update.description}
       </Text>
 
@@ -155,8 +155,8 @@ function UpdateCard({ update }) {
         <Stack gap={6}>
           {update.details.map((detail, idx) => (
             <Group key={idx} gap="xs" wrap="nowrap">
-              <IconArrowRight size={14} color={tokens.colors.electricLime} style={{ flexShrink: 0 }} />
-              <Text size="sm" c={tokens.colors.textSecondary}>
+              <IconArrowRight size={14} color={'var(--tribos-lime)'} style={{ flexShrink: 0 }} />
+              <Text size="sm" c={'var(--tribos-text-secondary)'}>
                 {detail}
               </Text>
             </Group>
@@ -177,27 +177,27 @@ function Updates() {
           {/* Welcome Section */}
           <Box mb="md">
             <Group gap="sm" mb="xs">
-              <IconSparkles size={28} color={tokens.colors.electricLime} />
-              <Title order={1} c={tokens.colors.textPrimary}>
+              <IconSparkles size={28} color={'var(--tribos-lime)'} />
+              <Title order={1} c={'var(--tribos-text-primary)'}>
                 {welcome.title}
               </Title>
             </Group>
-            <Text size="lg" c={tokens.colors.electricLime} fw={500} mb="sm">
+            <Text size="lg" c={'var(--tribos-lime)'} fw={500} mb="sm">
               {welcome.subtitle}
             </Text>
-            <Text size="md" c={tokens.colors.textSecondary} lh={1.7} maw={700}>
+            <Text size="md" c={'var(--tribos-text-secondary)'} lh={1.7} maw={700}>
               {welcome.description}
             </Text>
           </Box>
 
-          <Divider color={tokens.colors.bgTertiary} />
+          <Divider color={'var(--tribos-bg-tertiary)'} />
 
           {/* Feature Sections */}
           {features.map((feature) => (
             <FeatureSection key={feature.id} feature={feature} />
           ))}
 
-          <Divider color={tokens.colors.bgTertiary} />
+          <Divider color={'var(--tribos-bg-tertiary)'} />
 
           {/* Recent Updates */}
           <Box>
@@ -205,7 +205,7 @@ function Updates() {
               <ThemeIcon size="lg" radius="md" variant="light" color="lime">
                 <IconRocket size={20} />
               </ThemeIcon>
-              <Title order={2} c={tokens.colors.textPrimary}>
+              <Title order={2} c={'var(--tribos-text-primary)'}>
                 Recent Updates
               </Title>
             </Group>
@@ -220,7 +220,7 @@ function Updates() {
           {/* Coming Soon */}
           {comingSoon && comingSoon.length > 0 && (
             <Box>
-              <Text size="sm" c={tokens.colors.textMuted} tt="uppercase" fw={500} mb="md">
+              <Text size="sm" c={'var(--tribos-text-muted)'} tt="uppercase" fw={500} mb="md">
                 Coming Soon
               </Text>
               <Group gap="md">

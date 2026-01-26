@@ -1218,7 +1218,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             <Text size="sm" c="dimmed">TSB: {trainingMetrics.tsb > 0 ? '+' : ''}{Math.round(trainingMetrics.tsb)}</Text>
           </Group>
 
-          <Text size="lg" fw={600} mb="xs" style={{ color: tokens.colors.textPrimary }}>
+          <Text size="lg" fw={600} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>
             {getStory()}
           </Text>
 

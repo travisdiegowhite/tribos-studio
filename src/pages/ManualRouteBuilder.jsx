@@ -350,7 +350,7 @@ export default function ManualRouteBuilder() {
     id: 'route-line',
     type: 'line',
     paint: {
-      'line-color': tokens.colors.electricLime,
+      'line-color': 'var(--tribos-lime)',
       'line-width': 4,
       'line-opacity': 0.9,
     },
@@ -382,8 +382,8 @@ export default function ManualRouteBuilder() {
           shadow="sm"
           p="sm"
           style={{
-            backgroundColor: tokens.colors.bgSecondary,
-            borderBottom: `1px solid ${tokens.colors.border}`,
+            backgroundColor: 'var(--tribos-bg-secondary)',
+            borderBottom: `1px solid ${'var(--tribos-border)'}`,
             zIndex: 100,
           }}
         >
@@ -393,7 +393,7 @@ export default function ManualRouteBuilder() {
                 <IconRoute size={20} />
               </ThemeIcon>
               <div>
-                <Title order={4} style={{ color: tokens.colors.textPrimary }}>
+                <Title order={4} style={{ color: 'var(--tribos-text-primary)' }}>
                   Manual Route Builder
                 </Title>
                 <Text size="xs" c="dimmed">
@@ -487,8 +487,8 @@ export default function ManualRouteBuilder() {
               shadow="sm"
               style={{
                 width: 320,
-                backgroundColor: tokens.colors.bgSecondary,
-                borderRight: `1px solid ${tokens.colors.border}`,
+                backgroundColor: 'var(--tribos-bg-secondary)',
+                borderRight: `1px solid ${'var(--tribos-border)'}`,
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
@@ -572,9 +572,9 @@ export default function ManualRouteBuilder() {
                           radius="sm"
                           style={{
                             backgroundColor: selectedWaypoint === wp.id
-                              ? tokens.colors.bgTertiary
+                              ? 'var(--tribos-bg-tertiary)'
                               : 'transparent',
-                            border: `1px solid ${tokens.colors.border}`,
+                            border: `1px solid ${'var(--tribos-border)'}`,
                             cursor: 'pointer',
                           }}
                           onClick={() => setSelectedWaypoint(wp.id)}

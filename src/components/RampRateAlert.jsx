@@ -173,7 +173,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
                   size="lg"
                   radius="xl"
                   color={rampRateData.color}
-                  style={{ backgroundColor: tokens.colors.bgTertiary }}
+                  style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}
                 />
                 {/* Optimal zone markers */}
                 <Box
@@ -199,7 +199,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
             {/* Metrics */}
             <Group gap="lg">
               <Tooltip label="Average weekly CTL change over last 4 weeks">
-                <Paper p="xs" style={{ backgroundColor: tokens.colors.bgTertiary, flex: 1 }}>
+                <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)', flex: 1 }}>
                   <Text size="xs" c="dimmed">4-Week Avg</Text>
                   <Text size="sm" fw={600}>
                     {rampRateData.monthlyRampRate > 0 ? '+' : ''}{rampRateData.monthlyRampRate}/week
@@ -207,7 +207,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
                 </Paper>
               </Tooltip>
               <Tooltip label="How ramp rate is changing week over week">
-                <Paper p="xs" style={{ backgroundColor: tokens.colors.bgTertiary, flex: 1 }}>
+                <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)', flex: 1 }}>
                   <Text size="xs" c="dimmed">Trend</Text>
                   <Group gap={4}>
                     {rampRateData.trend > 0 ? (
@@ -222,7 +222,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
                 </Paper>
               </Tooltip>
               <Tooltip label="Current Chronic Training Load (fitness)">
-                <Paper p="xs" style={{ backgroundColor: tokens.colors.bgTertiary, flex: 1 }}>
+                <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)', flex: 1 }}>
                   <Text size="xs" c="dimmed">Current CTL</Text>
                   <Text size="sm" fw={600}>{rampRateData.ctlNow}</Text>
                 </Paper>
@@ -230,7 +230,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
             </Group>
 
             {/* Recommendation */}
-            <Paper p="xs" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+            <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
               <Text size="xs" c="dimmed" mb={2}>Recommendation</Text>
               <Text size="sm">{rampRateData.recommendation}</Text>
             </Paper>

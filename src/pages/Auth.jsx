@@ -140,7 +140,7 @@ function Auth() {
     <Box
       style={{
         minHeight: '100vh',
-        backgroundColor: tokens.colors.bgPrimary,
+        backgroundColor: 'var(--tribos-bg-primary)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -152,17 +152,17 @@ function Auth() {
           <Text
             size="lg"
             fw={600}
-            style={{ color: tokens.colors.electricLime, letterSpacing: '0.1em' }}
+            style={{ color: 'var(--tribos-lime)', letterSpacing: '0.1em' }}
             mb="xs"
           >
             TRIBOS.STUDIO
           </Text>
-          <Title order={2} style={{ color: tokens.colors.textPrimary }}>
+          <Title order={2} style={{ color: 'var(--tribos-text-primary)' }}>
             {isSignUp ? 'Create your account' : 'Welcome back'}
           </Title>
         </Box>
 
-        <Paper p="xl" radius="lg" style={{ backgroundColor: tokens.colors.bgSecondary }}>
+        <Paper p="xl" radius="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
           <form onSubmit={handleSubmit}>
             <Stack gap="md">
               {webviewInfo.isWebview && (
@@ -259,7 +259,7 @@ function Auth() {
             </Tooltip>
           </Stack>
 
-          <Text ta="center" mt="lg" size="sm" style={{ color: tokens.colors.textSecondary }}>
+          <Text ta="center" mt="lg" size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
             {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
             <Anchor
               component="button"
@@ -269,7 +269,7 @@ function Auth() {
                 setError('');
                 setMessage('');
               }}
-              style={{ color: tokens.colors.electricLime }}
+              style={{ color: 'var(--tribos-lime)' }}
             >
               {isSignUp ? 'Sign in' : 'Sign up'}
             </Anchor>

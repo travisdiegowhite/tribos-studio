@@ -77,10 +77,10 @@ const WeekSummary = ({
     <Card>
       <Stack gap="md">
         <Group justify="space-between">
-          <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
+          <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             This Week
           </Text>
-          <Text size="sm" style={{ color: tokens.colors.textMuted }}>
+          <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
             {weekStats.rides} ride{weekStats.rides !== 1 ? 's' : ''}
           </Text>
         </Group>
@@ -92,7 +92,7 @@ const WeekSummary = ({
             label="Distance"
             value={formatDist ? formatDist(weekStats.distance) : `${weekStats.distance} km`}
             progress={distanceProgress}
-            progressColor={tokens.colors.electricLime}
+            progressColor={'var(--tribos-lime)'}
             goal={formatDist ? formatDist(weeklyDistanceGoal) : `${weeklyDistanceGoal} km`}
           />
 
@@ -136,18 +136,18 @@ function StatBox({ icon: Icon, label, value, progress, progressColor, goal, icon
       style={{
         padding: tokens.spacing.md,
         borderRadius: tokens.radius.md,
-        backgroundColor: tokens.colors.bgTertiary,
+        backgroundColor: 'var(--tribos-bg-tertiary)',
       }}
     >
       <Stack gap="xs">
         <Group gap="xs">
-          <Icon size={16} color={iconColor || tokens.colors.textMuted} />
-          <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+          <Icon size={16} color={iconColor || 'var(--tribos-text-muted)'} />
+          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
             {label}
           </Text>
         </Group>
 
-        <Text size="xl" fw={700} style={{ color: tokens.colors.textPrimary }}>
+        <Text size="xl" fw={700} style={{ color: 'var(--tribos-text-primary)' }}>
           {value}
         </Text>
 
@@ -156,10 +156,10 @@ function StatBox({ icon: Icon, label, value, progress, progressColor, goal, icon
             <Progress
               value={progress}
               size="sm"
-              color={progressColor === tokens.colors.electricLime ? 'lime' : 'blue'}
-              style={{ backgroundColor: tokens.colors.bgSecondary }}
+              color={progressColor === 'var(--tribos-lime)' ? 'lime' : 'blue'}
+              style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}
             />
-            <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
               {Math.round(progress)}% of {goal} goal
             </Text>
           </Stack>

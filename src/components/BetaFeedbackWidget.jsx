@@ -224,7 +224,7 @@ function BetaFeedbackWidget() {
 
             <Text size="xs" c="dimmed" ta="center" mt="xs">
               Or email directly:{' '}
-              <a href="mailto:travis@tribos.studio" style={{ color: tokens.colors.electricLime }}>
+              <a href="mailto:travis@tribos.studio" style={{ color: 'var(--tribos-lime)' }}>
                 travis@tribos.studio
               </a>
             </Text>

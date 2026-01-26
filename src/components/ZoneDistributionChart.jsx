@@ -229,14 +229,14 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
     const data = payload[0].payload;
 
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: tokens.colors.bgSecondary }}>
+      <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
         <Group gap="xs" mb="xs">
           <Box w={12} h={12} style={{ backgroundColor: data.color, borderRadius: 2 }} />
-          <Text size="xs" fw={600} style={{ color: tokens.colors.textPrimary }}>
+          <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Zone {data.zone}: {data.name}
           </Text>
         </Group>
-        <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
           {formatTime(data.time)} ({data.percentage}%)
         </Text>
       </Card>
@@ -246,7 +246,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
   if (!zoneData.zones || zoneData.zones.length === 0) {
     return (
       <Card withBorder p="xl">
-        <Text style={{ color: tokens.colors.textMuted }} ta="center">
+        <Text style={{ color: 'var(--tribos-text-muted)' }} ta="center">
           No activity data available for zone analysis.
         </Text>
       </Card>
@@ -257,8 +257,8 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconChartPie size={20} color={tokens.colors.electricLime} />
-          <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+          <IconChartPie size={20} color={'var(--tribos-lime)'} />
+          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Training Zone Distribution
           </Text>
           {zoneData.distribution.type !== 'Unknown' && (
@@ -292,28 +292,28 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
 
       {/* Summary Stats */}
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs" mb="md">
-        <Paper p="xs" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs">
-            <IconClock size={14} color={tokens.colors.textMuted} />
+            <IconClock size={14} color={'var(--tribos-text-muted)'} />
             <Text size="xs" c="dimmed">Total Time</Text>
           </Group>
           <Text size="sm" fw={600}>{formatTime(zoneData.totalTime)}</Text>
         </Paper>
-        <Paper p="xs" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs">
             <Box w={8} h={8} style={{ backgroundColor: tokens.colors.zone2, borderRadius: '50%' }} />
             <Text size="xs" c="dimmed">Zone 2</Text>
           </Group>
           <Text size="sm" fw={600}>{Math.round(zoneData.polarizedRatio)}%</Text>
         </Paper>
-        <Paper p="xs" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs">
             <IconFlame size={14} color={tokens.colors.zone5} />
             <Text size="xs" c="dimmed">High Intensity</Text>
           </Group>
           <Text size="sm" fw={600}>{Math.round(zoneData.intensityRatio)}%</Text>
         </Paper>
-        <Paper p="xs" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Text size="xs" c="dimmed">Activities</Text>
           <Text size="sm" fw={600}>
             {activities?.filter(a => {
@@ -330,21 +330,21 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
       {viewMode === 'bar' ? (
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={zoneData.zones} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={tokens.colors.bgTertiary} />
+            <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 10, fill: tokens.colors.textMuted }}
+              tick={{ fontSize: 10, fill: 'var(--tribos-text-muted)' }}
               angle={-20}
               textAnchor="end"
               height={50}
             />
             <YAxis
-              tick={{ fontSize: 11, fill: tokens.colors.textMuted }}
+              tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
               label={{
                 value: '%',
                 angle: -90,
                 position: 'insideLeft',
-                style: { textAnchor: 'middle', fill: tokens.colors.textMuted, fontSize: 11 }
+                style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 11 }
               }}
             />
             <RechartsTooltip content={<CustomTooltip />} />
@@ -366,7 +366,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
               cy="50%"
               outerRadius={80}
               label={({ name, percentage }) => `${name}: ${percentage}%`}
-              labelLine={{ stroke: tokens.colors.textMuted }}
+              labelLine={{ stroke: 'var(--tribos-text-muted)' }}
             >
               {zoneData.zones.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
@@ -408,8 +408,8 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
 
       {/* Training Distribution Insight */}
       {zoneData.distribution.type !== 'Unknown' && (
-        <Paper p="xs" mt="md" style={{ backgroundColor: tokens.colors.bgTertiary }}>
-          <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+        <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+          <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
             <Text span fw={600} c={zoneData.distribution.color}>
               {zoneData.distribution.type} Distribution:
             </Text>
@@ -418,7 +418,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
         </Paper>
       )}
 
-      <Text size="xs" style={{ color: tokens.colors.textMuted }} mt="md">
+      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt="md">
         Zone distribution estimated from average power/HR. 80/20 polarized training is optimal for most athletes.
       </Text>
     </Card>

@@ -324,15 +324,15 @@ function CommunityPage() {
               padding="lg"
               radius="md"
               style={{
-                backgroundColor: tokens.colors.bgSecondary,
-                border: `1px solid ${tokens.colors.bgTertiary}`,
+                backgroundColor: 'var(--tribos-bg-secondary)',
+                border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
               }}
             >
               <Group justify="space-between" align="flex-start">
                 <Box>
                   <Group gap="sm" mb="xs">
-                    <IconCoffee size={24} color={tokens.colors.electricLime} />
-                    <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                    <IconCoffee size={24} color={'var(--tribos-lime)'} />
+                    <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
                       {cafe.name}
                     </Title>
                   </Group>
@@ -405,8 +405,8 @@ function CommunityPage() {
                         padding="lg"
                         radius="md"
                         style={{
-                          backgroundColor: tokens.colors.bgSecondary,
-                          border: `1px dashed ${tokens.colors.bgTertiary}`,
+                          backgroundColor: 'var(--tribos-bg-secondary)',
+                          border: `1px dashed ${'var(--tribos-bg-tertiary)'}`,
                           textAlign: 'center',
                         }}
                       >
@@ -464,8 +464,8 @@ function CommunityPage() {
                       leftSection={<IconPlus size={16} />}
                       onClick={openNewDiscussionModal}
                       style={{
-                        backgroundColor: tokens.colors.electricLime,
-                        color: tokens.colors.bgPrimary,
+                        backgroundColor: 'var(--tribos-lime)',
+                        color: 'var(--tribos-bg-primary)',
                       }}
                     >
                       New Discussion
@@ -515,13 +515,13 @@ function CommunityPage() {
         size="lg"
         styles={{
           header: {
-            backgroundColor: tokens.colors.bgSecondary,
+            backgroundColor: 'var(--tribos-bg-secondary)',
           },
           content: {
-            backgroundColor: tokens.colors.bgSecondary,
+            backgroundColor: 'var(--tribos-bg-secondary)',
           },
           title: {
-            color: tokens.colors.textPrimary,
+            color: 'var(--tribos-text-primary)',
             fontWeight: 600,
           },
         }}
@@ -540,7 +540,7 @@ function CommunityPage() {
               data={GOAL_OPTIONS}
               clearable
               styles={{
-                input: { backgroundColor: tokens.colors.bgTertiary },
+                input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
               }}
             />
             <Select
@@ -551,7 +551,7 @@ function CommunityPage() {
               data={EXPERIENCE_OPTIONS}
               clearable
               styles={{
-                input: { backgroundColor: tokens.colors.bgTertiary },
+                input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
               }}
             />
           </Group>
@@ -579,7 +579,7 @@ function CommunityPage() {
                   padding="md"
                   radius="md"
                   style={{
-                    backgroundColor: tokens.colors.bgTertiary,
+                    backgroundColor: 'var(--tribos-bg-tertiary)',
                   }}
                 >
                   <Group justify="space-between">
@@ -603,8 +603,8 @@ function CommunityPage() {
                       size="xs"
                       onClick={() => handleJoinCafe(cafe.cafe_id, cafe.cafe_name)}
                       style={{
-                        backgroundColor: tokens.colors.electricLime,
-                        color: tokens.colors.bgPrimary,
+                        backgroundColor: 'var(--tribos-lime)',
+                        color: 'var(--tribos-bg-primary)',
                       }}
                     >
                       Join
@@ -637,13 +637,13 @@ function CommunityPage() {
         title="Create a Cafe"
         styles={{
           header: {
-            backgroundColor: tokens.colors.bgSecondary,
+            backgroundColor: 'var(--tribos-bg-secondary)',
           },
           content: {
-            backgroundColor: tokens.colors.bgSecondary,
+            backgroundColor: 'var(--tribos-bg-secondary)',
           },
           title: {
-            color: tokens.colors.textPrimary,
+            color: 'var(--tribos-text-primary)',
             fontWeight: 600,
           },
         }}
@@ -656,7 +656,7 @@ function CommunityPage() {
             onChange={(e) => setNewCafe({ ...newCafe, name: e.target.value })}
             required
             styles={{
-              input: { backgroundColor: tokens.colors.bgTertiary },
+              input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
             }}
           />
 
@@ -666,7 +666,7 @@ function CommunityPage() {
             value={newCafe.description}
             onChange={(e) => setNewCafe({ ...newCafe, description: e.target.value })}
             styles={{
-              input: { backgroundColor: tokens.colors.bgTertiary },
+              input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
             }}
           />
 
@@ -676,7 +676,7 @@ function CommunityPage() {
             onChange={(val) => setNewCafe({ ...newCafe, goal_type: val })}
             data={GOAL_OPTIONS}
             styles={{
-              input: { backgroundColor: tokens.colors.bgTertiary },
+              input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
             }}
           />
 
@@ -686,7 +686,7 @@ function CommunityPage() {
             onChange={(val) => setNewCafe({ ...newCafe, experience_level: val })}
             data={EXPERIENCE_OPTIONS}
             styles={{
-              input: { backgroundColor: tokens.colors.bgTertiary },
+              input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
             }}
           />
 
@@ -695,8 +695,8 @@ function CommunityPage() {
             <Button
               onClick={handleCreateCafe}
               style={{
-                backgroundColor: tokens.colors.electricLime,
-                color: tokens.colors.bgPrimary,
+                backgroundColor: 'var(--tribos-lime)',
+                color: 'var(--tribos-bg-primary)',
               }}
             >
               Create Cafe
@@ -713,13 +713,13 @@ function CommunityPage() {
         size="lg"
         styles={{
           header: {
-            backgroundColor: tokens.colors.bgSecondary,
+            backgroundColor: 'var(--tribos-bg-secondary)',
           },
           content: {
-            backgroundColor: tokens.colors.bgSecondary,
+            backgroundColor: 'var(--tribos-bg-secondary)',
           },
           title: {
-            color: tokens.colors.textPrimary,
+            color: 'var(--tribos-text-primary)',
             fontWeight: 600,
           },
         }}
@@ -732,7 +732,7 @@ function CommunityPage() {
             onChange={(e) => setNewDiscussion({ ...newDiscussion, title: e.target.value })}
             required
             styles={{
-              input: { backgroundColor: tokens.colors.bgTertiary },
+              input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
             }}
           />
 
@@ -751,7 +751,7 @@ function CommunityPage() {
               { value: 'question', label: 'Question' },
             ]}
             styles={{
-              input: { backgroundColor: tokens.colors.bgTertiary },
+              input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
             }}
           />
 
@@ -763,7 +763,7 @@ function CommunityPage() {
             minRows={4}
             required
             styles={{
-              input: { backgroundColor: tokens.colors.bgTertiary },
+              input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
             }}
           />
 
@@ -772,8 +772,8 @@ function CommunityPage() {
             <Button
               onClick={handleCreateDiscussion}
               style={{
-                backgroundColor: tokens.colors.electricLime,
-                color: tokens.colors.bgPrimary,
+                backgroundColor: 'var(--tribos-lime)',
+                color: 'var(--tribos-bg-primary)',
               }}
             >
               Post Discussion
@@ -807,16 +807,16 @@ function NoCafeView({ onFind, onCreate }) {
       padding="xl"
       radius="md"
       style={{
-        backgroundColor: tokens.colors.bgSecondary,
-        border: `1px solid ${tokens.colors.bgTertiary}`,
+        backgroundColor: 'var(--tribos-bg-secondary)',
+        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
         textAlign: 'center',
       }}
     >
       <Stack gap="lg" align="center">
-        <IconCoffee size={48} color={tokens.colors.textMuted} />
+        <IconCoffee size={48} color={'var(--tribos-text-muted)'} />
 
         <Box>
-          <Title order={3} mb="xs" style={{ color: tokens.colors.textPrimary }}>
+          <Title order={3} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>
             Find Your Cafe
           </Title>
           <Text size="sm" c="dimmed" maw={400} mx="auto">
@@ -854,8 +854,8 @@ function NoCafeView({ onFind, onCreate }) {
             size="md"
             onClick={onFind}
             style={{
-              backgroundColor: tokens.colors.electricLime,
-              color: tokens.colors.bgPrimary,
+              backgroundColor: 'var(--tribos-lime)',
+              color: 'var(--tribos-bg-primary)',
             }}
             leftSection={<IconSearch size={18} />}
           >
@@ -879,7 +879,7 @@ function NoCafeView({ onFind, onCreate }) {
 function FeatureItem({ icon: Icon, title, description }) {
   return (
     <Box ta="left">
-      <Icon size={20} color={tokens.colors.electricLime} style={{ marginBottom: 4 }} />
+      <Icon size={20} color={'var(--tribos-lime)'} style={{ marginBottom: 4 }} />
       <Text size="sm" fw={500}>{title}</Text>
       <Text size="xs" c="dimmed">{description}</Text>
     </Box>
@@ -898,8 +898,8 @@ function CheckInCard({ checkIn, isOwn, onEncourage, compact = false }) {
       padding={compact ? 'sm' : 'md'}
       radius="md"
       style={{
-        backgroundColor: tokens.colors.bgSecondary,
-        border: `1px solid ${isOwn ? tokens.colors.electricLime + '40' : tokens.colors.bgTertiary}`,
+        backgroundColor: 'var(--tribos-bg-secondary)',
+        border: `1px solid ${isOwn ? 'var(--tribos-lime)' + '40' : 'var(--tribos-bg-tertiary)'}`,
       }}
     >
       <Stack gap="xs">
@@ -961,7 +961,7 @@ function CheckInCard({ checkIn, isOwn, onEncourage, compact = false }) {
           <Box
             p="xs"
             style={{
-              backgroundColor: tokens.colors.bgTertiary,
+              backgroundColor: 'var(--tribos-bg-tertiary)',
               borderRadius: 8,
             }}
           >

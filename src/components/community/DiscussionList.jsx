@@ -57,7 +57,7 @@ function DiscussionList({
         size="xs"
         styles={{
           root: {
-            backgroundColor: tokens.colors.bgTertiary,
+            backgroundColor: 'var(--tribos-bg-tertiary)',
           },
         }}
       />
@@ -68,8 +68,8 @@ function DiscussionList({
           padding="xl"
           radius="md"
           style={{
-            backgroundColor: tokens.colors.bgSecondary,
-            border: `1px dashed ${tokens.colors.bgTertiary}`,
+            backgroundColor: 'var(--tribos-bg-secondary)',
+            border: `1px dashed ${'var(--tribos-bg-tertiary)'}`,
             textAlign: 'center',
           }}
         >
@@ -105,27 +105,27 @@ function DiscussionCard({ discussion, onClick }) {
       padding="sm"
       radius="md"
       style={{
-        backgroundColor: tokens.colors.bgSecondary,
-        border: `1px solid ${tokens.colors.bgTertiary}`,
+        backgroundColor: 'var(--tribos-bg-secondary)',
+        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
         cursor: 'pointer',
         transition: 'border-color 0.15s',
       }}
       onClick={onClick}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = tokens.colors.electricLime + '60';
+        e.currentTarget.style.borderColor = 'var(--tribos-lime)' + '60';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = tokens.colors.bgTertiary;
+        e.currentTarget.style.borderColor = 'var(--tribos-bg-tertiary)';
       }}
     >
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Box style={{ flex: 1, minWidth: 0 }}>
           <Group gap="xs" mb={4}>
             {discussion.is_pinned && (
-              <IconPin size={14} color={tokens.colors.electricLime} />
+              <IconPin size={14} color={'var(--tribos-lime)'} />
             )}
             {discussion.is_locked && (
-              <IconLock size={14} color={tokens.colors.textMuted} />
+              <IconLock size={14} color={'var(--tribos-text-muted)'} />
             )}
             <Badge
               size="xs"
@@ -140,7 +140,7 @@ function DiscussionCard({ discussion, onClick }) {
             size="sm"
             fw={500}
             lineClamp={1}
-            style={{ color: tokens.colors.textPrimary }}
+            style={{ color: 'var(--tribos-text-primary)' }}
           >
             {discussion.title}
           </Text>
@@ -160,7 +160,7 @@ function DiscussionCard({ discussion, onClick }) {
         </Box>
 
         <Group gap={4} align="center">
-          <IconMessageCircle size={14} color={tokens.colors.textMuted} />
+          <IconMessageCircle size={14} color={'var(--tribos-text-muted)'} />
           <Text size="xs" c="dimmed">
             {discussion.reply_count}
           </Text>
