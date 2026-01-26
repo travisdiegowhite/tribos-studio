@@ -20,7 +20,8 @@ import {
   List,
   ThemeIcon,
 } from '@mantine/core';
-import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSparkles, IconArrowRight } from '@tabler/icons-react';
+import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSparkles, IconArrowRight, IconSun, IconMoon } from '@tabler/icons-react';
+import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -50,6 +51,7 @@ const getApiBaseUrl = () => {
 function Settings() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [stravaStatus, setStravaStatus] = useState({ connected: false, loading: true });
@@ -1503,6 +1505,38 @@ function Settings() {
               <Title order={3} style={{ color: tokens.colors.textPrimary }}>
                 Preferences
               </Title>
+
+              {/* Theme Toggle */}
+              <Group justify="space-between">
+                <Box>
+                  <Text style={{ color: tokens.colors.textPrimary }}>Appearance</Text>
+                  <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                    Choose your preferred color theme
+                  </Text>
+                </Box>
+                <Group gap="xs">
+                  <Button
+                    variant={colorScheme === 'dark' ? 'filled' : 'light'}
+                    color={colorScheme === 'dark' ? 'lime' : 'gray'}
+                    size="sm"
+                    leftSection={<IconMoon size={16} />}
+                    onClick={() => setColorScheme('dark')}
+                  >
+                    Dark
+                  </Button>
+                  <Button
+                    variant={colorScheme === 'light' ? 'filled' : 'light'}
+                    color={colorScheme === 'light' ? 'lime' : 'gray'}
+                    size="sm"
+                    leftSection={<IconSun size={16} />}
+                    onClick={() => setColorScheme('light')}
+                  >
+                    Light
+                  </Button>
+                </Group>
+              </Group>
+
+              <Divider />
 
               <Group justify="space-between">
                 <Box>

@@ -1,22 +1,137 @@
 /* Global Styles for tribos.studio */
-/* Inspired by Linear's clean, minimal aesthetic */
+/* Supports dark (default) and light (Claude-inspired cream) themes */
 
 * {
   box-sizing: border-box;
 }
 
+/* ===== CSS Variables for Theme Switching ===== */
+
+/* Dark theme (default) */
+:root,
+:root[data-mantine-color-scheme='dark'] {
+  /* Backgrounds */
+  --tribos-bg-primary: #0a0a0a;
+  --tribos-bg-secondary: #141414;
+  --tribos-bg-tertiary: #1c1c1c;
+  --tribos-bg-elevated: #242424;
+
+  /* Borders */
+  --tribos-border: rgba(255, 255, 255, 0.08);
+  --tribos-border-light: rgba(255, 255, 255, 0.12);
+  --tribos-border-focus: rgba(50, 205, 50, 0.5);
+
+  /* Text */
+  --tribos-text-primary: #fafafa;
+  --tribos-text-secondary: #a0a0a0;
+  --tribos-text-muted: #666666;
+
+  /* Primary accent */
+  --tribos-lime: #32CD32;
+  --tribos-lime-light: #5FE35F;
+  --tribos-lime-dark: #28A428;
+
+  /* Semantic */
+  --tribos-success: #32CD32;
+  --tribos-warning: #FFB800;
+  --tribos-error: #FF4444;
+  --tribos-info: #00B4D8;
+
+  /* Shadows */
+  --tribos-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --tribos-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --tribos-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --tribos-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6), 0 4px 8px rgba(0, 0, 0, 0.4);
+  --tribos-shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --tribos-shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 4px 16px rgba(0, 0, 0, 0.5);
+  --tribos-shadow-focus: 0 0 0 2px rgba(50, 205, 50, 0.3);
+
+  /* Scrollbar */
+  --tribos-scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --tribos-scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+
+  /* Selection */
+  --tribos-selection-bg: rgba(50, 205, 50, 0.25);
+  --tribos-selection-color: #ffffff;
+
+  /* Overlay */
+  --tribos-overlay: rgba(0, 0, 0, 0.7);
+
+  /* Mobile viewport height fix */
+  --vh: 1vh;
+}
+
+/* Light theme - Claude-inspired muted cream */
+:root[data-mantine-color-scheme='light'] {
+  /* Backgrounds - warm cream tones */
+  --tribos-bg-primary: #FAF9F6;
+  --tribos-bg-secondary: #FFFFFF;
+  --tribos-bg-tertiary: #F5F0E8;
+  --tribos-bg-elevated: #FFFEFA;
+
+  /* Borders - subtle warm grays */
+  --tribos-border: rgba(0, 0, 0, 0.08);
+  --tribos-border-light: rgba(0, 0, 0, 0.12);
+  --tribos-border-focus: rgba(34, 168, 34, 0.5);
+
+  /* Text - warm dark tones */
+  --tribos-text-primary: #1a1a1a;
+  --tribos-text-secondary: #5c5c5c;
+  --tribos-text-muted: #8c8c8c;
+
+  /* Primary accent - adjusted for light bg */
+  --tribos-lime: #22A822;
+  --tribos-lime-light: #32CD32;
+  --tribos-lime-dark: #1A8A1A;
+
+  /* Semantic - adjusted for light bg */
+  --tribos-success: #22A822;
+  --tribos-warning: #D99700;
+  --tribos-error: #DC3030;
+  --tribos-info: #0096B4;
+
+  /* Shadows - softer for light theme */
+  --tribos-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --tribos-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --tribos-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --tribos-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --tribos-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --tribos-shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --tribos-shadow-focus: 0 0 0 2px rgba(34, 168, 34, 0.25);
+
+  /* Scrollbar */
+  --tribos-scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --tribos-scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
+
+  /* Selection */
+  --tribos-selection-bg: rgba(34, 168, 34, 0.2);
+  --tribos-selection-color: #1a1a1a;
+
+  /* Overlay */
+  --tribos-overlay: rgba(0, 0, 0, 0.4);
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --vh: 1dvh;
+  }
+}
+
+/* ===== Base Styles ===== */
+
 html,
 body {
   margin: 0;
   padding: 0;
-  background-color: #0a0a0a;
-  color: #fafafa;
+  background-color: var(--tribos-bg-primary);
+  color: var(--tribos-text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
   letter-spacing: -0.01em;
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 /* Smooth transitions globally */
@@ -26,33 +141,22 @@ body {
   transition-timing-function: ease;
 }
 
-/* Mobile viewport height fix - accounts for browser UI */
-:root {
-  --vh: 1vh; /* Fallback */
-}
-
-@supports (height: 100dvh) {
-  :root {
-    --vh: 1dvh; /* Dynamic viewport height for mobile */
-  }
-}
-
 /* Loading screen */
 .loading-screen {
   min-height: 100vh;
-  min-height: 100dvh; /* Modern browsers with dvh support */
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #0a0a0a;
+  background-color: var(--tribos-bg-primary);
 }
 
 /* Loading spinner - refined */
 .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #32cd32;
+  border: 2px solid var(--tribos-border);
+  border-top-color: var(--tribos-lime);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -63,7 +167,8 @@ body {
   }
 }
 
-/* Mapbox overrides */
+/* ===== Mapbox Overrides ===== */
+
 .mapboxgl-map {
   font-family: inherit;
 }
@@ -73,17 +178,18 @@ body {
 }
 
 .mapboxgl-ctrl-attrib {
-  background-color: rgba(10, 10, 10, 0.9) !important;
-  color: #666 !important;
+  background-color: var(--tribos-bg-secondary) !important;
+  color: var(--tribos-text-muted) !important;
   font-size: 10px !important;
   border-radius: 4px;
 }
 
 .mapboxgl-ctrl-attrib a {
-  color: #a0a0a0 !important;
+  color: var(--tribos-text-secondary) !important;
 }
 
-/* Scrollbar styling - minimal */
+/* ===== Scrollbar Styling ===== */
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -94,33 +200,34 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--tribos-scrollbar-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--tribos-scrollbar-thumb-hover);
 }
 
 /* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  scrollbar-color: var(--tribos-scrollbar-thumb) transparent;
 }
 
-/* Selection */
+/* ===== Selection ===== */
+
 ::selection {
-  background-color: rgba(50, 205, 50, 0.25);
-  color: #ffffff;
+  background-color: var(--tribos-selection-bg);
+  color: var(--tribos-selection-color);
 }
 
-/* Focus styles - Accessibility with lime accent */
+/* ===== Focus Styles ===== */
+
 :focus-visible {
-  outline: 2px solid rgba(50, 205, 50, 0.6);
+  outline: 2px solid var(--tribos-border-focus);
   outline-offset: 2px;
 }
 
-/* Remove default focus for mouse users */
 :focus:not(:focus-visible) {
   outline: none;
 }
@@ -129,19 +236,19 @@ body {
 .mantine-Button-root:focus-visible,
 .mantine-ActionIcon-root:focus-visible,
 .mantine-UnstyledButton-root:focus-visible {
-  outline: 2px solid rgba(50, 205, 50, 0.6);
+  outline: 2px solid var(--tribos-border-focus);
   outline-offset: 2px;
 }
 
-/* Input focus states - refined */
+/* Input focus states */
 .mantine-Input-input:focus,
 .mantine-TextInput-input:focus,
 .mantine-Select-input:focus,
 .mantine-Textarea-input:focus,
 .mantine-NumberInput-input:focus {
-  border-color: #32cd32 !important;
+  border-color: var(--tribos-lime) !important;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(50, 205, 50, 0.2) !important;
+  box-shadow: var(--tribos-shadow-focus) !important;
 }
 
 /* Card/Paper hover effects */
@@ -153,33 +260,35 @@ body {
 /* Switch/Checkbox focus */
 .mantine-Switch-track:focus-visible,
 .mantine-Checkbox-input:focus-visible {
-  outline: 2px solid rgba(50, 205, 50, 0.6);
+  outline: 2px solid var(--tribos-border-focus);
   outline-offset: 2px;
 }
 
-/* Tab styling - refined */
+/* Tab styling */
 .mantine-Tabs-tab {
   transition: all 150ms ease !important;
 }
 
 .mantine-Tabs-tab:focus-visible {
-  outline: 2px solid rgba(50, 205, 50, 0.6);
+  outline: 2px solid var(--tribos-border-focus);
   outline-offset: -2px;
 }
 
-/* Link reset */
+/* ===== Link & Button Reset ===== */
+
 a {
   color: inherit;
   text-decoration: none;
 }
 
-/* Button reset & transitions */
 button {
   cursor: pointer;
   font-family: inherit;
 }
 
-/* Mantine dark theme overrides - updated colors */
+/* ===== Mantine Theme Overrides ===== */
+
+/* Dark theme specific */
 :root[data-mantine-color-scheme='dark'] {
   --mantine-color-body: #0a0a0a !important;
   --mantine-color-dark-7: #0a0a0a !important;
@@ -188,36 +297,45 @@ button {
   --mantine-color-dark-4: #242424 !important;
 }
 
+/* Light theme specific */
+:root[data-mantine-color-scheme='light'] {
+  --mantine-color-body: #FAF9F6 !important;
+  --mantine-color-gray-0: #FAF9F6 !important;
+  --mantine-color-gray-1: #F5F0E8 !important;
+}
+
 /* Modal/Drawer backgrounds */
 .mantine-Modal-content,
 .mantine-Drawer-content {
-  background-color: #141414 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: var(--tribos-bg-secondary) !important;
+  border: 1px solid var(--tribos-border);
 }
 
 .mantine-Modal-overlay,
 .mantine-Drawer-overlay {
-  background-color: rgba(0, 0, 0, 0.7) !important;
+  background-color: var(--tribos-overlay) !important;
   backdrop-filter: blur(4px);
 }
 
 /* Paper default */
 .mantine-Paper-root {
-  background-color: #141414;
+  background-color: var(--tribos-bg-secondary);
 }
 
-/* Recharts customization */
+/* ===== Recharts Customization ===== */
+
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
-  stroke: rgba(255, 255, 255, 0.06);
+  stroke: var(--tribos-border);
 }
 
 .recharts-text {
-  fill: #666;
+  fill: var(--tribos-text-muted);
   font-size: 11px;
 }
 
-/* Dashboard grid responsive layout */
+/* ===== Dashboard Grid ===== */
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -230,31 +348,29 @@ button {
   }
 }
 
-/* Divider styling */
+/* ===== Component Refinements ===== */
+
 .mantine-Divider-root {
-  border-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--tribos-border) !important;
 }
 
-/* Badge refinements */
 .mantine-Badge-root {
   font-weight: 500;
   letter-spacing: 0;
 }
 
-/* Menu items */
 .mantine-Menu-item {
   transition: background-color 100ms ease !important;
 }
 
-/* Tooltip styling */
 .mantine-Tooltip-tooltip {
   font-size: 12px;
   padding: 6px 10px;
 }
 
-/* Mobile touch improvements */
+/* ===== Mobile Improvements ===== */
+
 @media (max-width: 768px) {
-  /* Prevent text selection during touch interactions */
   .touch-none {
     touch-action: none;
     -webkit-touch-callout: none;
@@ -262,41 +378,35 @@ button {
     user-select: none;
   }
 
-  /* Improve touch target size */
   button,
   [role="button"],
   .mantine-Button-root {
     min-height: 44px;
   }
 
-  /* Remove tap highlight on mobile */
   * {
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Better scrolling on mobile */
   .scroll-container {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
   }
 
-  /* Card touch feedback - subtle */
   .mantine-Card-root:active {
     transform: scale(0.995);
     opacity: 0.95;
   }
 
-  /* Thinner scrollbars on mobile */
   ::-webkit-scrollbar {
     width: 3px;
     height: 3px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--tribos-scrollbar-thumb);
   }
 
-  /* Icon-only tabs on mobile - prevent overlap */
   .mantine-Tabs-list {
     flex-wrap: nowrap !important;
     overflow-x: auto;
@@ -318,7 +428,6 @@ button {
     padding: 10px 12px !important;
   }
 
-  /* Icon-only tabs - no margin needed on icon */
   .mantine-Tabs-tabSection {
     margin-right: 0 !important;
   }
@@ -328,7 +437,8 @@ button {
   }
 }
 
-/* Smooth page transitions */
+/* ===== Page Transitions ===== */
+
 @media (prefers-reduced-motion: no-preference) {
   .page-transition-enter {
     opacity: 0;
@@ -342,7 +452,8 @@ button {
   }
 }
 
-/* Reduced motion preference */
+/* ===== Reduced Motion ===== */
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -353,7 +464,8 @@ button {
   }
 }
 
-/* Print styles */
+/* ===== Print Styles ===== */
+
 @media print {
   body {
     background: white;
