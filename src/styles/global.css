@@ -61,23 +61,23 @@
   --vh: 1vh;
 }
 
-/* Light theme - Claude-inspired muted cream */
+/* Light theme - Tribos fresh gray-green */
 :root[data-mantine-color-scheme='light'] {
-  /* Backgrounds - warm muted cream tones (less bright) */
-  --tribos-bg-primary: #F5F1EB;
-  --tribos-bg-secondary: #FAF8F5;
-  --tribos-bg-tertiary: #EDE8E0;
-  --tribos-bg-elevated: #FFFCF7;
+  /* Backgrounds - cool gray with subtle green undertone */
+  --tribos-bg-primary: #F4F6F5;
+  --tribos-bg-secondary: #FAFBFA;
+  --tribos-bg-tertiary: #EAEDEB;
+  --tribos-bg-elevated: #FFFFFF;
 
   /* Borders - subtle warm grays */
   --tribos-border: rgba(0, 0, 0, 0.08);
   --tribos-border-light: rgba(0, 0, 0, 0.12);
   --tribos-border-focus: rgba(34, 168, 34, 0.5);
 
-  /* Text - warm dark tones */
-  --tribos-text-primary: #1a1a1a;
-  --tribos-text-secondary: #5c5c5c;
-  --tribos-text-muted: #8c8c8c;
+  /* Text - cool dark tones */
+  --tribos-text-primary: #1a1d1b;
+  --tribos-text-secondary: #545856;
+  --tribos-text-muted: #7d8480;
 
   /* Primary accent - adjusted for light bg */
   --tribos-lime: #22A822;
@@ -309,10 +309,10 @@ button {
 
 /* Light theme specific */
 :root[data-mantine-color-scheme='light'] {
-  --mantine-color-body: #F5F1EB !important;
-  --mantine-color-gray-0: #FAF8F5 !important;
-  --mantine-color-gray-1: #EDE8E0 !important;
-  --mantine-color-gray-2: #E5DFD5 !important;
+  --mantine-color-body: #F4F6F5 !important;
+  --mantine-color-gray-0: #FAFBFA !important;
+  --mantine-color-gray-1: #EAEDEB !important;
+  --mantine-color-gray-2: #DFE3E0 !important;
   --mantine-color-text: #1a1a1a !important;
   --mantine-color-dimmed: #5c5c5c !important;
 }

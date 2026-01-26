@@ -57,7 +57,7 @@ export const darkTokens = {
   },
 };
 
-// Light theme tokens - Claude-inspired muted cream
+// Light theme tokens - Tribos fresh gray-green
 export const lightTokens = {
   colors: {
     // Primary: Adjusted lime for light backgrounds
@@ -65,21 +65,21 @@ export const lightTokens = {
     electricLimeLight: '#32CD32',
     electricLimeDark: '#1A8A1A',
 
-    // Backgrounds - warm muted cream tones (less bright/harsh)
-    bgPrimary: '#F5F1EB',     // Warm cream base
-    bgSecondary: '#FAF8F5',   // Slightly lighter cream for cards
-    bgTertiary: '#EDE8E0',    // Muted warm gray-cream
-    bgElevated: '#FFFCF7',    // Elevated surfaces
+    // Backgrounds - cool gray with subtle green undertone
+    bgPrimary: '#F4F6F5',     // Soft gray-green base
+    bgSecondary: '#FAFBFA',   // Near-white with green hint for cards
+    bgTertiary: '#EAEDEB',    // Muted cool gray
+    bgElevated: '#FFFFFF',    // Pure white for elevated surfaces
 
     // Borders - subtle warm grays
     border: 'rgba(0, 0, 0, 0.08)',
     borderLight: 'rgba(0, 0, 0, 0.12)',
     borderFocus: 'rgba(34, 168, 34, 0.5)',
 
-    // Text - warm dark tones for readability
-    textPrimary: '#1a1a1a',
-    textSecondary: '#5c5c5c',
-    textMuted: '#8c8c8c',
+    // Text - cool dark tones for readability
+    textPrimary: '#1a1d1b',
+    textSecondary: '#545856',
+    textMuted: '#7d8480',
 
     // Semantic - slightly adjusted for light bg
     success: '#22A822',
