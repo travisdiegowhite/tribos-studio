@@ -13,6 +13,7 @@ import Landing from './pages/Landing.jsx';
 import Auth from './pages/Auth.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import RouteBuilder from './pages/RouteBuilder.jsx';
+import ManualRouteBuilder from './pages/ManualRouteBuilder.jsx';
 import MyRoutes from './pages/MyRoutes.jsx';
 import TrainingDashboard from './pages/TrainingDashboard.jsx';
 import PlannerPage from './pages/PlannerPage.tsx';
@@ -141,6 +142,23 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RouteBuilder />
+          </ProtectedRoute>
+        }
+      />
+      {/* Manual Route Builder - Traditional waypoint-based route building */}
+      <Route
+        path="/routes/manual"
+        element={
+          <ProtectedRoute>
+            <ManualRouteBuilder />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/routes/manual/:routeId"
+        element={
+          <ProtectedRoute>
+            <ManualRouteBuilder />
           </ProtectedRoute>
         }
       />
