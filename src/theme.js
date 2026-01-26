@@ -65,11 +65,11 @@ export const lightTokens = {
     electricLimeLight: '#32CD32',
     electricLimeDark: '#1A8A1A',
 
-    // Backgrounds - warm cream tones
-    bgPrimary: '#FAF9F6',    // Warm off-white
-    bgSecondary: '#FFFFFF',   // Pure white for cards
-    bgTertiary: '#F5F0E8',    // Subtle cream
-    bgElevated: '#FFFEFA',    // Elevated surfaces
+    // Backgrounds - warm muted cream tones (less bright/harsh)
+    bgPrimary: '#F5F1EB',     // Warm cream base
+    bgSecondary: '#FAF8F5',   // Slightly lighter cream for cards
+    bgTertiary: '#EDE8E0',    // Muted warm gray-cream
+    bgElevated: '#FFFCF7',    // Elevated surfaces
 
     // Borders - subtle warm grays
     border: 'rgba(0, 0, 0, 0.08)',

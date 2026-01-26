@@ -63,11 +63,11 @@
 
 /* Light theme - Claude-inspired muted cream */
 :root[data-mantine-color-scheme='light'] {
-  /* Backgrounds - warm cream tones */
-  --tribos-bg-primary: #FAF9F6;
-  --tribos-bg-secondary: #FFFFFF;
-  --tribos-bg-tertiary: #F5F0E8;
-  --tribos-bg-elevated: #FFFEFA;
+  /* Backgrounds - warm muted cream tones (less bright) */
+  --tribos-bg-primary: #F5F1EB;
+  --tribos-bg-secondary: #FAF8F5;
+  --tribos-bg-tertiary: #EDE8E0;
+  --tribos-bg-elevated: #FFFCF7;
 
   /* Borders - subtle warm grays */
   --tribos-border: rgba(0, 0, 0, 0.08);
@@ -188,6 +188,16 @@ body {
   color: var(--tribos-text-secondary) !important;
 }
 
+/* Mapbox controls for light theme */
+:root[data-mantine-color-scheme='light'] .mapboxgl-ctrl-attrib {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+:root[data-mantine-color-scheme='light'] .mapboxgl-ctrl-group {
+  background-color: var(--tribos-bg-secondary);
+  box-shadow: var(--tribos-shadow-sm);
+}
+
 /* ===== Scrollbar Styling ===== */
 
 ::-webkit-scrollbar {
@@ -299,9 +309,12 @@ button {
 
 /* Light theme specific */
 :root[data-mantine-color-scheme='light'] {
-  --mantine-color-body: #FAF9F6 !important;
-  --mantine-color-gray-0: #FAF9F6 !important;
-  --mantine-color-gray-1: #F5F0E8 !important;
+  --mantine-color-body: #F5F1EB !important;
+  --mantine-color-gray-0: #FAF8F5 !important;
+  --mantine-color-gray-1: #EDE8E0 !important;
+  --mantine-color-gray-2: #E5DFD5 !important;
+  --mantine-color-text: #1a1a1a !important;
+  --mantine-color-dimmed: #5c5c5c !important;
 }
 
 /* Modal/Drawer backgrounds */
@@ -320,6 +333,40 @@ button {
 /* Paper default */
 .mantine-Paper-root {
   background-color: var(--tribos-bg-secondary);
+}
+
+/* Card backgrounds - ensure theme switching */
+.mantine-Card-root {
+  background-color: var(--tribos-bg-secondary) !important;
+  color: var(--tribos-text-primary);
+}
+
+/* Ensure text colors adapt to theme */
+:root[data-mantine-color-scheme='light'] .mantine-Text-root {
+  color: inherit;
+}
+
+:root[data-mantine-color-scheme='light'] .mantine-Title-root {
+  color: var(--tribos-text-primary);
+}
+
+/* Badge styling for light theme */
+:root[data-mantine-color-scheme='light'] .mantine-Badge-root[data-variant="light"] {
+  background-color: var(--tribos-bg-tertiary);
+}
+
+/* Progress bar styling */
+:root[data-mantine-color-scheme='light'] .mantine-Progress-root {
+  background-color: var(--tribos-bg-tertiary);
+}
+
+/* Skeleton styling for light theme */
+:root[data-mantine-color-scheme='light'] .mantine-Skeleton-root::before {
+  background-color: var(--tribos-bg-tertiary);
+}
+
+:root[data-mantine-color-scheme='light'] .mantine-Skeleton-root::after {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
 }
 
 /* ===== Recharts Customization ===== */

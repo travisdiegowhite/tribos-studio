@@ -14,7 +14,6 @@ import {
   IconUsers,
   IconSettings,
 } from '@tabler/icons-react';
-import { tokens } from '../theme';
 import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
 
 // Flat navigation - 5 direct links, no dropdowns
@@ -47,7 +46,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
     <Box
       style={{
         minHeight: '100dvh',
-        backgroundColor: tokens.colors.bgPrimary,
+        backgroundColor: 'var(--tribos-bg-primary)',
         paddingBottom: isMobile && !hideNav ? 64 : 0,
       }}
     >
@@ -56,8 +55,8 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
         component="header"
         style={{
           height: 56,
-          backgroundColor: tokens.colors.bgPrimary,
-          borderBottom: `1px solid ${tokens.colors.bgTertiary}`,
+          backgroundColor: 'var(--tribos-bg-primary)',
+          borderBottom: '1px solid var(--tribos-border)',
           position: 'sticky',
           top: 0,
           zIndex: 100,
@@ -71,7 +70,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                 fw={700}
                 size="md"
                 style={{
-                  color: tokens.colors.textPrimary,
+                  color: 'var(--tribos-text-primary)',
                   letterSpacing: '-0.02em',
                 }}
               >
@@ -123,12 +122,12 @@ function DesktopNavLink({ to, label, icon: Icon, active }) {
       style={{
         padding: '6px 12px',
         borderRadius: 6,
-        backgroundColor: active ? tokens.colors.bgTertiary : 'transparent',
+        backgroundColor: active ? 'var(--tribos-bg-tertiary)' : 'transparent',
         transition: 'background-color 0.15s ease',
       }}
       onMouseEnter={(e) => {
         if (!active) {
-          e.currentTarget.style.backgroundColor = tokens.colors.bgSecondary;
+          e.currentTarget.style.backgroundColor = 'var(--tribos-bg-secondary)';
         }
       }}
       onMouseLeave={(e) => {
@@ -140,14 +139,14 @@ function DesktopNavLink({ to, label, icon: Icon, active }) {
       <Group gap={6}>
         <Icon
           size={16}
-          color={active ? tokens.colors.electricLime : tokens.colors.textSecondary}
+          color={active ? 'var(--tribos-lime)' : 'var(--tribos-text-secondary)'}
           stroke={1.5}
         />
         <Text
           size="sm"
           fw={active ? 500 : 400}
           style={{
-            color: active ? tokens.colors.textPrimary : tokens.colors.textSecondary,
+            color: active ? 'var(--tribos-text-primary)' : 'var(--tribos-text-secondary)',
           }}
         >
           {label}
@@ -169,8 +168,8 @@ function MobileBottomNav({ navItems, isActive }) {
         left: 0,
         right: 0,
         height: 64,
-        backgroundColor: tokens.colors.bgSecondary,
-        borderTop: `1px solid ${tokens.colors.bgTertiary}`,
+        backgroundColor: 'var(--tribos-bg-secondary)',
+        borderTop: '1px solid var(--tribos-border)',
         zIndex: 100,
         display: 'flex',
         justifyContent: 'space-around',
@@ -199,14 +198,14 @@ function MobileBottomNav({ navItems, isActive }) {
           >
             <Icon
               size={22}
-              color={active ? tokens.colors.electricLime : tokens.colors.textSecondary}
+              color={active ? 'var(--tribos-lime)' : 'var(--tribos-text-secondary)'}
               stroke={active ? 2 : 1.5}
             />
             <Text
               size="xs"
               fw={active ? 500 : 400}
               style={{
-                color: active ? tokens.colors.electricLime : tokens.colors.textSecondary,
+                color: active ? 'var(--tribos-lime)' : 'var(--tribos-text-secondary)',
                 fontSize: 10,
               }}
             >
