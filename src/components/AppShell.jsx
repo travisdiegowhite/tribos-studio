@@ -5,14 +5,19 @@ import {
   Text,
   UnstyledButton,
   Container,
+  ActionIcon,
+  Tooltip,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
+import { useMantineColorScheme } from '@mantine/core';
 import {
   IconHome,
   IconMap,
   IconActivity,
   IconUsers,
   IconSettings,
+  IconSun,
+  IconMoon,
 } from '@tabler/icons-react';
 import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
 
@@ -28,6 +33,7 @@ const navItems = [
 function AppShell({ children, fullWidth = false, hideNav = false }) {
   const location = useLocation();
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const { colorScheme, toggleColorScheme } = useMantineColorScheme();
 
   // Check if current path matches nav item
   const isActive = (item) => {
@@ -90,14 +96,35 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                     active={isActive(item)}
                   />
                 ))}
-                <Box ml="sm">
+                <Tooltip label={colorScheme === 'dark' ? 'Light mode' : 'Dark mode'}>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    onClick={toggleColorScheme}
+                    ml="xs"
+                  >
+                    {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
+                  </ActionIcon>
+                </Tooltip>
+                <Box ml="xs">
                   <BetaFeedbackWidget />
                 </Box>
               </Group>
             )}
 
-            {/* Mobile: Feedback button in header */}
-            {isMobile && <BetaFeedbackWidget />}
+            {/* Mobile: Theme toggle and Feedback button in header */}
+            {isMobile && (
+              <Group gap="xs">
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  onClick={toggleColorScheme}
+                >
+                  {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
+                </ActionIcon>
+                <BetaFeedbackWidget />
+              </Group>
+            )}
           </Group>
         </Container>
       </Box>
