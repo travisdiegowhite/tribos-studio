@@ -74,10 +74,10 @@
   --tribos-border-light: rgba(0, 0, 0, 0.12);
   --tribos-border-focus: rgba(34, 168, 34, 0.5);
 
-  /* Text - cool dark tones */
-  --tribos-text-primary: #1a1d1b;
-  --tribos-text-secondary: #545856;
-  --tribos-text-muted: #7d8480;
+  /* Text - darker for better contrast */
+  --tribos-text-primary: #171a18;
+  --tribos-text-secondary: #3d4240;
+  --tribos-text-muted: #5f6563;
 
   /* Primary accent - adjusted for light bg */
   --tribos-lime: #22A822;

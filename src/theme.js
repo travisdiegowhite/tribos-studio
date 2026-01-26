@@ -76,10 +76,10 @@ export const lightTokens = {
     borderLight: 'rgba(0, 0, 0, 0.12)',
     borderFocus: 'rgba(34, 168, 34, 0.5)',
 
-    // Text - cool dark tones for readability
-    textPrimary: '#1a1d1b',
-    textSecondary: '#545856',
-    textMuted: '#7d8480',
+    // Text - darker for better contrast
+    textPrimary: '#171a18',
+    textSecondary: '#3d4240',
+    textMuted: '#5f6563',
 
     // Semantic - slightly adjusted for light bg
     success: '#22A822',
