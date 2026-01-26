@@ -371,7 +371,7 @@ const RaceGoalModal = ({
 
         {/* Days until race badge */}
         {daysUntil !== null && daysUntil >= 0 && (
-          <Paper p="sm" withBorder style={{ backgroundColor: tokens.colors.bgTertiary }}>
+          <Paper p="sm" withBorder style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
             <Group justify="center" gap="md">
               <ThemeIcon size="lg" color={daysUntil < 14 ? 'red' : daysUntil < 30 ? 'orange' : 'lime'} variant="light">
                 <IconCalendarEvent size={18} />
@@ -510,7 +510,7 @@ const RaceGoalModal = ({
                   size="xs"
                   rightSection={fuelPlanOpen ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
                   onClick={toggleFuelPlan}
-                  style={{ color: tokens.colors.electricLime }}
+                  style={{ color: 'var(--tribos-lime)' }}
                 >
                   Race Day Fuel Plan
                 </Button>

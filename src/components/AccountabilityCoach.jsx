@@ -539,7 +539,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
     return (
       <Card
         style={{
-          backgroundColor: tokens.colors.bgSecondary,
+          backgroundColor: 'var(--tribos-bg-secondary)',
           height: '100%',
           display: 'flex',
           alignItems: 'center',
@@ -557,7 +557,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
   return (
     <Card
       style={{
-        backgroundColor: tokens.colors.bgSecondary,
+        backgroundColor: 'var(--tribos-bg-secondary)',
         height: '100%',
         display: 'flex',
         flexDirection: 'column'
@@ -570,7 +570,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
             <IconRobot size={20} />
           </ThemeIcon>
           <div>
-            <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
+            <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
               {coachSettings?.coach_name || 'Coach'}
             </Text>
             <Text size="xs" c="dimmed">
@@ -617,13 +617,13 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
           p="sm"
           mb="md"
           style={{
-            backgroundColor: tokens.colors.bgTertiary,
-            border: `1px solid ${tokens.colors.electricLime}33`
+            backgroundColor: 'var(--tribos-bg-tertiary)',
+            border: `1px solid ${'var(--tribos-lime)'}33`
           }}
         >
           <Group justify="space-between">
             <Group gap="sm">
-              <IconBike size={18} style={{ color: tokens.colors.electricLime }} />
+              <IconBike size={18} style={{ color: 'var(--tribos-lime)' }} />
               <div>
                 <Text size="sm" fw={500}>
                   Today: {todaysWorkout.workout_type} ({todaysWorkout.target_duration_mins} min)
@@ -652,18 +652,18 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                 padding: tokens.spacing.xl,
                 textAlign: 'center',
                 borderRadius: tokens.radius.md,
-                border: `1px dashed ${tokens.colors.bgTertiary}`,
+                border: `1px dashed ${'var(--tribos-bg-tertiary)'}`,
               }}
             >
-              <IconRobot size={48} style={{ color: tokens.colors.textMuted, marginBottom: 12 }} />
-              <Text style={{ color: tokens.colors.textSecondary }} mb="xs">
+              <IconRobot size={48} style={{ color: 'var(--tribos-text-muted)', marginBottom: 12 }} />
+              <Text style={{ color: 'var(--tribos-text-secondary)' }} mb="xs">
                 {getGreeting()}! I'm your accountability coach.
               </Text>
-              <Text size="sm" style={{ color: tokens.colors.textMuted }}>
+              <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
                 I'm here to help you stick to your training plan.
               </Text>
               <Stack gap="xs" mt="md" align="center">
-                <Text size="xs" style={{ color: tokens.colors.textMuted }}>Quick actions:</Text>
+                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Quick actions:</Text>
                 <Group gap="xs" justify="center" wrap="wrap">
                   {[
                     { text: "What's my plan today?", icon: <IconCalendar size={14} /> },
@@ -694,7 +694,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                     width: 32,
                     height: 32,
                     borderRadius: '50%',
-                    backgroundColor: msg.role === 'user' ? tokens.colors.bgTertiary : tokens.colors.electricLime,
+                    backgroundColor: msg.role === 'user' ? 'var(--tribos-bg-tertiary)' : 'var(--tribos-lime)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -702,9 +702,9 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                   }}
                 >
                   {msg.role === 'user' ? (
-                    <IconUser size={18} style={{ color: tokens.colors.textSecondary }} />
+                    <IconUser size={18} style={{ color: 'var(--tribos-text-secondary)' }} />
                   ) : (
-                    <IconRobot size={18} style={{ color: tokens.colors.bgPrimary }} />
+                    <IconRobot size={18} style={{ color: 'var(--tribos-bg-primary)' }} />
                   )}
                 </Box>
                 <Box style={{ flex: 1 }}>
@@ -721,7 +721,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                   <Text
                     size="sm"
                     style={{
-                      color: tokens.colors.textPrimary,
+                      color: 'var(--tribos-text-primary)',
                       whiteSpace: 'pre-wrap'
                     }}
                   >
@@ -739,13 +739,13 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                   width: 32,
                   height: 32,
                   borderRadius: '50%',
-                  backgroundColor: tokens.colors.electricLime,
+                  backgroundColor: 'var(--tribos-lime)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}
               >
-                <IconRobot size={18} style={{ color: tokens.colors.bgPrimary }} />
+                <IconRobot size={18} style={{ color: 'var(--tribos-bg-primary)' }} />
               </Box>
               <Box style={{ padding: '8px 0' }}>
                 <Loader size="sm" color="lime" type="dots" />
@@ -766,10 +766,10 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
           style={{ flex: 1 }}
           styles={{
             input: {
-              backgroundColor: tokens.colors.bgTertiary,
-              borderColor: tokens.colors.bgTertiary,
+              backgroundColor: 'var(--tribos-bg-tertiary)',
+              borderColor: 'var(--tribos-bg-tertiary)',
               '&:focus': {
-                borderColor: tokens.colors.electricLime
+                borderColor: 'var(--tribos-lime)'
               }
             }
           }}

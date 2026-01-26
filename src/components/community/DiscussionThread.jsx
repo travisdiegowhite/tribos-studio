@@ -71,7 +71,7 @@ function DiscussionThread({
         <ActionIcon
           variant="subtle"
           onClick={onBack}
-          style={{ color: tokens.colors.textSecondary }}
+          style={{ color: 'var(--tribos-text-secondary)' }}
         >
           <IconArrowLeft size={18} />
         </ActionIcon>
@@ -85,8 +85,8 @@ function DiscussionThread({
         padding="md"
         radius="md"
         style={{
-          backgroundColor: tokens.colors.bgSecondary,
-          border: `1px solid ${tokens.colors.bgTertiary}`,
+          backgroundColor: 'var(--tribos-bg-secondary)',
+          border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
         }}
       >
         <Stack gap="sm">
@@ -121,7 +121,7 @@ function DiscussionThread({
           </Group>
 
           {/* Title */}
-          <Text size="lg" fw={600} style={{ color: tokens.colors.textPrimary }}>
+          <Text size="lg" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             {discussion.title}
           </Text>
 
@@ -145,7 +145,7 @@ function DiscussionThread({
               padding="xs"
               radius="sm"
               style={{
-                backgroundColor: tokens.colors.bgTertiary,
+                backgroundColor: 'var(--tribos-bg-tertiary)',
               }}
             >
               <Group gap="lg">
@@ -181,7 +181,7 @@ function DiscussionThread({
           <Text
             size="sm"
             style={{
-              color: tokens.colors.textSecondary,
+              color: 'var(--tribos-text-secondary)',
               whiteSpace: 'pre-wrap',
             }}
           >
@@ -216,8 +216,8 @@ function DiscussionThread({
           padding="md"
           radius="md"
           style={{
-            backgroundColor: tokens.colors.bgSecondary,
-            border: `1px solid ${tokens.colors.bgTertiary}`,
+            backgroundColor: 'var(--tribos-bg-secondary)',
+            border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
           }}
         >
           <Stack gap="sm">
@@ -229,14 +229,14 @@ function DiscussionThread({
               maxRows={6}
               styles={{
                 input: {
-                  backgroundColor: tokens.colors.bgTertiary,
-                  border: `1px solid ${tokens.colors.bgTertiary}`,
-                  color: tokens.colors.textPrimary,
+                  backgroundColor: 'var(--tribos-bg-tertiary)',
+                  border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+                  color: 'var(--tribos-text-primary)',
                   '&::placeholder': {
-                    color: tokens.colors.textMuted,
+                    color: 'var(--tribos-text-muted)',
                   },
                   '&:focus': {
-                    borderColor: tokens.colors.electricLime,
+                    borderColor: 'var(--tribos-lime)',
                   },
                 },
               }}
@@ -248,8 +248,8 @@ function DiscussionThread({
                 loading={submitting}
                 disabled={!replyText.trim()}
                 style={{
-                  backgroundColor: tokens.colors.electricLime,
-                  color: tokens.colors.bgPrimary,
+                  backgroundColor: 'var(--tribos-lime)',
+                  color: 'var(--tribos-bg-primary)',
                 }}
               >
                 Reply
@@ -264,13 +264,13 @@ function DiscussionThread({
           padding="md"
           radius="md"
           style={{
-            backgroundColor: tokens.colors.bgSecondary,
-            border: `1px solid ${tokens.colors.bgTertiary}`,
+            backgroundColor: 'var(--tribos-bg-secondary)',
+            border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
             textAlign: 'center',
           }}
         >
           <Group gap="xs" justify="center">
-            <IconLock size={16} color={tokens.colors.textMuted} />
+            <IconLock size={16} color={'var(--tribos-text-muted)'} />
             <Text size="sm" c="dimmed">
               This discussion is locked
             </Text>
@@ -292,8 +292,8 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
       padding="sm"
       radius="md"
       style={{
-        backgroundColor: tokens.colors.bgSecondary,
-        border: `1px solid ${isOwn ? tokens.colors.electricLime + '30' : tokens.colors.bgTertiary}`,
+        backgroundColor: 'var(--tribos-bg-secondary)',
+        border: `1px solid ${isOwn ? 'var(--tribos-lime)' + '30' : 'var(--tribos-bg-tertiary)'}`,
       }}
     >
       <Stack gap="xs">
@@ -338,7 +338,7 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
             padding="xs"
             radius="sm"
             style={{
-              backgroundColor: tokens.colors.bgTertiary,
+              backgroundColor: 'var(--tribos-bg-tertiary)',
             }}
           >
             <Group gap="md">
@@ -362,7 +362,7 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
         <Text
           size="sm"
           style={{
-            color: tokens.colors.textSecondary,
+            color: 'var(--tribos-text-secondary)',
             whiteSpace: 'pre-wrap',
           }}
         >

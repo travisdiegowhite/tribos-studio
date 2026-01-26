@@ -158,14 +158,14 @@ const ElevationProfile = ({
           left: leftOffset,
           right: 0,
           zIndex: 100,
-          backgroundColor: tokens.colors.bgSecondary,
+          backgroundColor: 'var(--tribos-bg-secondary)',
           borderRadius: leftOffset > 0 ? '0' : '12px 12px 0 0',
-          borderTop: `1px solid ${tokens.colors.bgTertiary}`,
+          borderTop: `1px solid ${'var(--tribos-bg-tertiary)'}`,
         }}
       >
         <Group justify="center" gap="sm" py="md">
           <Loader size="sm" color="lime" />
-          <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+          <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
             Loading elevation profile...
           </Text>
         </Group>
@@ -191,16 +191,16 @@ const ElevationProfile = ({
         left: leftOffset,
         right: 0,
         zIndex: 100,
-        backgroundColor: tokens.colors.bgSecondary,
+        backgroundColor: 'var(--tribos-bg-secondary)',
         borderRadius: leftOffset > 0 ? '0' : '12px 12px 0 0',
-        borderTop: `1px solid ${tokens.colors.bgTertiary}`,
+        borderTop: `1px solid ${'var(--tribos-bg-tertiary)'}`,
       }}
     >
       <Stack gap="xs">
         {/* Header with stats */}
         <Group justify="space-between" align="center" wrap="wrap" gap="xs">
           <Group gap="xs">
-            <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+            <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
               Elevation Profile
             </Text>
             {loading && <Loader size={12} color="lime" />}
@@ -235,19 +235,19 @@ const ElevationProfile = ({
               viewBox={`0 0 ${svgWidth} ${chartConfig.chartHeight}`}
               preserveAspectRatio="none"
               style={{
-                background: `linear-gradient(to bottom, ${tokens.colors.bgTertiary} 0%, ${tokens.colors.bgPrimary} 100%)`,
+                background: `linear-gradient(to bottom, ${'var(--tribos-bg-tertiary)'} 0%, ${'var(--tribos-bg-primary)'} 100%)`,
                 borderRadius: '8px',
               }}
             >
               {/* Gradient definition */}
               <defs>
                 <linearGradient id="elevGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" style={{ stopColor: tokens.colors.electricLime, stopOpacity: 0.6 }} />
-                  <stop offset="50%" style={{ stopColor: tokens.colors.electricLime, stopOpacity: 0.3 }} />
-                  <stop offset="100%" style={{ stopColor: tokens.colors.electricLime, stopOpacity: 0.1 }} />
+                  <stop offset="0%" style={{ stopColor: 'var(--tribos-lime)', stopOpacity: 0.6 }} />
+                  <stop offset="50%" style={{ stopColor: 'var(--tribos-lime)', stopOpacity: 0.3 }} />
+                  <stop offset="100%" style={{ stopColor: 'var(--tribos-lime)', stopOpacity: 0.1 }} />
                 </linearGradient>
                 <pattern id="gridPattern" width="40" height="20" patternUnits="userSpaceOnUse">
-                  <path d="M 40 0 L 0 0 0 20" fill="none" stroke={tokens.colors.bgTertiary} strokeWidth="0.5" />
+                  <path d="M 40 0 L 0 0 0 20" fill="none" stroke={'var(--tribos-bg-tertiary)'} strokeWidth="0.5" />
                 </pattern>
               </defs>
 
@@ -261,7 +261,7 @@ const ElevationProfile = ({
               <path
                 d={line}
                 fill="none"
-                stroke={tokens.colors.electricLime}
+                stroke={'var(--tribos-lime)'}
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -272,7 +272,7 @@ const ElevationProfile = ({
                 x={chartConfig.padding + 5}
                 y={chartConfig.padding + 10}
                 fontSize="11"
-                fill={tokens.colors.textSecondary}
+                fill={'var(--tribos-text-secondary)'}
                 fontWeight="500"
               >
                 {formatElev(chartConfig.maxElevation)}
@@ -281,7 +281,7 @@ const ElevationProfile = ({
                 x={chartConfig.padding + 5}
                 y={chartConfig.chartHeight - chartConfig.padding - 2}
                 fontSize="11"
-                fill={tokens.colors.textSecondary}
+                fill={'var(--tribos-text-secondary)'}
                 fontWeight="500"
               >
                 {formatElev(chartConfig.minElevation)}
@@ -294,26 +294,26 @@ const ElevationProfile = ({
             style={{
               minWidth: 100,
               padding: '8px 12px',
-              backgroundColor: tokens.colors.bgTertiary,
+              backgroundColor: 'var(--tribos-bg-tertiary)',
               borderRadius: '6px',
             }}
           >
             <Stack gap={4}>
               <Group justify="space-between" gap="xs">
-                <Text size="xs" style={{ color: tokens.colors.textMuted }}>Range:</Text>
-                <Text size="xs" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Range:</Text>
+                <Text size="xs" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                   {formatElev(chartConfig.maxElevation - chartConfig.minElevation)}
                 </Text>
               </Group>
               <Group justify="space-between" gap="xs">
-                <Text size="xs" style={{ color: tokens.colors.textMuted }}>Min:</Text>
-                <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Min:</Text>
+                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
                   {formatElev(chartConfig.minElevation)}
                 </Text>
               </Group>
               <Group justify="space-between" gap="xs">
-                <Text size="xs" style={{ color: tokens.colors.textMuted }}>Max:</Text>
-                <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Max:</Text>
+                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
                   {formatElev(chartConfig.maxElevation)}
                 </Text>
               </Group>

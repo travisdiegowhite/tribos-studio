@@ -1,8 +1,10 @@
 import { createTheme } from '@mantine/core';
 
 // Design tokens for tribos.studio
-// Inspired by Linear's clean, minimal aesthetic
-export const tokens = {
+// Supports both dark (default) and light (Claude-inspired cream) themes
+
+// Dark theme tokens - Linear-inspired
+export const darkTokens = {
   colors: {
     // Primary: Electric Lime - use sparingly for CTAs and highlights
     electricLime: '#32CD32',
@@ -53,7 +55,68 @@ export const tokens = {
     // Lime glow for focus states
     focus: '0 0 0 2px rgba(50, 205, 50, 0.3)',
   },
+};
 
+// Light theme tokens - Tribos fresh gray-green
+export const lightTokens = {
+  colors: {
+    // Primary: Adjusted lime for light backgrounds
+    electricLime: '#22A822',
+    electricLimeLight: '#32CD32',
+    electricLimeDark: '#1A8A1A',
+
+    // Backgrounds - cool gray with subtle green undertone
+    bgPrimary: '#F4F6F5',     // Soft gray-green base
+    bgSecondary: '#FAFBFA',   // Near-white with green hint for cards
+    bgTertiary: '#EAEDEB',    // Muted cool gray
+    bgElevated: '#FFFFFF',    // Pure white for elevated surfaces
+
+    // Borders - subtle warm grays
+    border: 'rgba(0, 0, 0, 0.08)',
+    borderLight: 'rgba(0, 0, 0, 0.12)',
+    borderFocus: 'rgba(34, 168, 34, 0.5)',
+
+    // Text - darker for better contrast
+    textPrimary: '#171a18',
+    textSecondary: '#3d4240',
+    textMuted: '#5f6563',
+
+    // Semantic - slightly adjusted for light bg
+    success: '#22A822',
+    warning: '#D99700',
+    error: '#DC3030',
+    info: '#0096B4',
+
+    // Training Zone Colors - same for consistency
+    zone1: '#3B82F6',
+    zone2: '#22C55E',
+    zone3: '#EAB308',
+    zone4: '#F97316',
+    zone5: '#EF4444',
+    zone6: '#A855F7',
+    zone7: '#EC4899',
+  },
+
+  // Shadows for light theme - softer, warmer
+  shadows: {
+    xs: '0 1px 2px rgba(0, 0, 0, 0.05)',
+    sm: '0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
+    md: '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',
+    lg: '0 8px 24px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.06)',
+    // Card shadow - subtle lift
+    card: '0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
+    cardHover: '0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
+    // Green glow for focus states
+    focus: '0 0 0 2px rgba(34, 168, 34, 0.25)',
+  },
+};
+
+// Default export for backward compatibility - uses dark theme
+// Components should use useThemeTokens() hook for theme-aware tokens
+export const tokens = darkTokens;
+
+// Shared tokens (theme-independent)
+export const sharedTokens = {
   spacing: {
     xs: '4px',
     sm: '8px',
@@ -79,7 +142,7 @@ export const tokens = {
   },
 
   // Centralized breakpoints - use these consistently across all components
-  // Usage: useMediaQuery(`(max-width: ${tokens.breakpoints.sm})`)
+  // Usage: useMediaQuery(`(max-width: ${sharedTokens.breakpoints.sm})`)
   breakpoints: {
     xs: '480px',   // Small phones
     sm: '768px',   // Tablets / large phones (primary mobile breakpoint)
@@ -97,10 +160,20 @@ export const tokens = {
   },
 };
 
+// Merge shared tokens into both theme token sets
+Object.assign(tokens, sharedTokens);
+Object.assign(darkTokens, sharedTokens);
+Object.assign(lightTokens, sharedTokens);
+
+// Helper to get tokens based on color scheme
+export function getThemeTokens(colorScheme) {
+  return colorScheme === 'light' ? lightTokens : darkTokens;
+}
+
 // Mantine theme configuration
 export const theme = createTheme({
   primaryColor: 'lime',
-  primaryShade: 6,
+  primaryShade: { light: 6, dark: 5 },
 
   colors: {
     lime: [
@@ -109,8 +182,8 @@ export const theme = createTheme({
       '#bbf7c4',
       '#86efac',
       '#5FE35F',
-      '#32CD32', // Primary - index 5
-      '#28A428',
+      '#32CD32', // Primary dark - index 5
+      '#22A822', // Primary light - index 6
       '#1f8a1f',
       '#166d16',
       '#0d520d',
@@ -126,6 +199,19 @@ export const theme = createTheme({
       '#0a0a0a', // bg primary (body)
       '#050505',
       '#000000',
+    ],
+    // Light theme gray scale (warm tones)
+    gray: [
+      '#fafaf9',
+      '#f5f5f4',
+      '#e7e5e4',
+      '#d6d3d1',
+      '#a8a29e',
+      '#78716c',
+      '#57534e',
+      '#44403c',
+      '#292524',
+      '#1c1917',
     ],
   },
 
@@ -147,8 +233,8 @@ export const theme = createTheme({
 
   other: {
     // Expose tokens to components via theme.other
-    transitions: tokens.transitions,
-    shadows: tokens.shadows,
+    transitions: sharedTokens.transitions,
+    // Note: shadows are now theme-dependent, use useThemeTokens()
   },
 
   components: {
@@ -156,14 +242,10 @@ export const theme = createTheme({
       defaultProps: {
         radius: 'md',
       },
-      styles: (theme, props) => ({
+      styles: () => ({
         root: {
           fontWeight: 500,
           transition: 'all 150ms ease',
-          // Subtle shadow on filled buttons
-          ...(props.variant === 'filled' && {
-            boxShadow: tokens.shadows.sm,
-          }),
           '&:hover': {
             transform: 'translateY(-1px)',
           },
@@ -179,18 +261,18 @@ export const theme = createTheme({
         radius: 'lg',
         padding: 'lg',
       },
-      styles: {
+      styles: (theme) => ({
         root: {
-          backgroundColor: tokens.colors.bgSecondary,
-          border: `1px solid ${tokens.colors.border}`,
-          boxShadow: tokens.shadows.card,
+          backgroundColor: 'var(--tribos-bg-secondary)',
+          border: '1px solid var(--tribos-border)',
+          boxShadow: 'var(--tribos-shadow-card)',
           transition: 'all 150ms ease',
           '&:hover': {
-            boxShadow: tokens.shadows.cardHover,
-            borderColor: tokens.colors.borderLight,
+            boxShadow: 'var(--tribos-shadow-card-hover)',
+            borderColor: 'var(--tribos-border-light)',
           },
         },
-      },
+      }),
     },
 
     Paper: {
@@ -199,14 +281,14 @@ export const theme = createTheme({
       },
       styles: (theme, props) => ({
         root: {
-          backgroundColor: tokens.colors.bgSecondary,
+          backgroundColor: 'var(--tribos-bg-secondary)',
           ...(props.withBorder && {
-            border: `1px solid ${tokens.colors.border}`,
-            boxShadow: tokens.shadows.card,
+            border: '1px solid var(--tribos-border)',
+            boxShadow: 'var(--tribos-shadow-card)',
             transition: 'all 150ms ease',
             '&:hover': {
-              boxShadow: tokens.shadows.cardHover,
-              borderColor: tokens.colors.borderLight,
+              boxShadow: 'var(--tribos-shadow-card-hover)',
+              borderColor: 'var(--tribos-border-light)',
             },
           }),
         },
@@ -219,12 +301,12 @@ export const theme = createTheme({
       },
       styles: {
         input: {
-          backgroundColor: tokens.colors.bgPrimary,
-          borderColor: tokens.colors.border,
+          backgroundColor: 'var(--tribos-bg-primary)',
+          borderColor: 'var(--tribos-border)',
           transition: 'border-color 150ms ease, box-shadow 150ms ease',
           '&:focus': {
-            borderColor: tokens.colors.electricLime,
-            boxShadow: tokens.shadows.focus,
+            borderColor: 'var(--tribos-lime)',
+            boxShadow: 'var(--tribos-shadow-focus)',
           },
         },
       },
@@ -242,13 +324,13 @@ export const theme = createTheme({
       },
       styles: {
         input: {
-          backgroundColor: tokens.colors.bgPrimary,
-          borderColor: tokens.colors.border,
+          backgroundColor: 'var(--tribos-bg-primary)',
+          borderColor: 'var(--tribos-border)',
         },
         dropdown: {
-          backgroundColor: tokens.colors.bgSecondary,
-          border: `1px solid ${tokens.colors.border}`,
-          boxShadow: tokens.shadows.lg,
+          backgroundColor: 'var(--tribos-bg-secondary)',
+          border: '1px solid var(--tribos-border)',
+          boxShadow: 'var(--tribos-shadow-lg)',
         },
       },
     },
@@ -256,9 +338,9 @@ export const theme = createTheme({
     Menu: {
       styles: {
         dropdown: {
-          backgroundColor: tokens.colors.bgSecondary,
-          border: `1px solid ${tokens.colors.border}`,
-          boxShadow: tokens.shadows.lg,
+          backgroundColor: 'var(--tribos-bg-secondary)',
+          border: '1px solid var(--tribos-border)',
+          boxShadow: 'var(--tribos-shadow-lg)',
         },
         item: {
           transition: 'background-color 100ms ease',
@@ -273,11 +355,11 @@ export const theme = createTheme({
       },
       styles: {
         content: {
-          backgroundColor: tokens.colors.bgSecondary,
-          boxShadow: tokens.shadows.lg,
+          backgroundColor: 'var(--tribos-bg-secondary)',
+          boxShadow: 'var(--tribos-shadow-lg)',
         },
         header: {
-          backgroundColor: tokens.colors.bgSecondary,
+          backgroundColor: 'var(--tribos-bg-secondary)',
         },
       },
     },
@@ -285,7 +367,7 @@ export const theme = createTheme({
     Drawer: {
       styles: {
         content: {
-          backgroundColor: tokens.colors.bgSecondary,
+          backgroundColor: 'var(--tribos-bg-secondary)',
         },
       },
     },
@@ -296,9 +378,9 @@ export const theme = createTheme({
       },
       styles: {
         root: {
-          backgroundColor: tokens.colors.bgSecondary,
-          border: `1px solid ${tokens.colors.border}`,
-          boxShadow: tokens.shadows.md,
+          backgroundColor: 'var(--tribos-bg-secondary)',
+          border: '1px solid var(--tribos-border)',
+          boxShadow: 'var(--tribos-shadow-md)',
         },
       },
     },
@@ -308,7 +390,7 @@ export const theme = createTheme({
         tab: {
           transition: 'all 150ms ease',
           '&[data-active]': {
-            borderColor: tokens.colors.electricLime,
+            borderColor: 'var(--tribos-lime)',
           },
         },
       },
@@ -326,10 +408,10 @@ export const theme = createTheme({
     Tooltip: {
       styles: {
         tooltip: {
-          backgroundColor: tokens.colors.bgElevated,
-          color: tokens.colors.textPrimary,
-          boxShadow: tokens.shadows.md,
-          border: `1px solid ${tokens.colors.border}`,
+          backgroundColor: 'var(--tribos-bg-elevated)',
+          color: 'var(--tribos-text-primary)',
+          boxShadow: 'var(--tribos-shadow-md)',
+          border: '1px solid var(--tribos-border)',
         },
       },
     },

@@ -181,9 +181,9 @@ const ImportWizard = ({ opened, onClose }) => {
       size="lg"
       centered
       styles={{
-        header: { backgroundColor: tokens.colors.bgPrimary },
-        body: { backgroundColor: tokens.colors.bgPrimary },
-        content: { backgroundColor: tokens.colors.bgPrimary },
+        header: { backgroundColor: 'var(--tribos-bg-primary)' },
+        body: { backgroundColor: 'var(--tribos-bg-primary)' },
+        content: { backgroundColor: 'var(--tribos-bg-primary)' },
       }}
     >
       {checkingConnections ? (

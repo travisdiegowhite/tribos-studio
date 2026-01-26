@@ -108,7 +108,7 @@ function getFormStatus(tsb) {
     return {
       label: 'Ready',
       description: 'Good balance of fitness and freshness',
-      color: tokens.colors.electricLime,
+      color: 'var(--tribos-lime)',
       colorName: 'lime',
       advice: 'Solid training day ahead',
       icon: IconTrendingUp,
@@ -180,7 +180,7 @@ const FormWidget = ({ activities = [], loading = false }) => {
     <Card>
       <Stack gap="md">
         <Group justify="space-between">
-          <Text fw={600} style={{ color: tokens.colors.textPrimary }}>
+          <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Current Form
           </Text>
           <Badge
@@ -209,7 +209,7 @@ const FormWidget = ({ activities = [], loading = false }) => {
                 <Text size="lg" fw={700} style={{ color: formStatus.color }}>
                   {tsb > 0 ? '+' : ''}{tsb}
                 </Text>
-                <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                   TSB
                 </Text>
               </Box>
@@ -218,10 +218,10 @@ const FormWidget = ({ activities = [], loading = false }) => {
 
           {/* Status Description */}
           <Stack gap={4} style={{ flex: 1 }}>
-            <Text style={{ color: tokens.colors.textPrimary }}>
+            <Text style={{ color: 'var(--tribos-text-primary)' }}>
               {formStatus.description}
             </Text>
-            <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+            <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
               {formStatus.advice}
             </Text>
           </Stack>
@@ -233,10 +233,10 @@ const FormWidget = ({ activities = [], loading = false }) => {
             style={{
               padding: tokens.spacing.sm,
               borderRadius: tokens.radius.sm,
-              backgroundColor: tokens.colors.bgTertiary,
+              backgroundColor: 'var(--tribos-bg-tertiary)',
             }}
           >
-            <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
               Fitness (CTL)
             </Text>
             <Text fw={600} style={{ color: '#3b82f6' }}>
@@ -247,10 +247,10 @@ const FormWidget = ({ activities = [], loading = false }) => {
             style={{
               padding: tokens.spacing.sm,
               borderRadius: tokens.radius.sm,
-              backgroundColor: tokens.colors.bgTertiary,
+              backgroundColor: 'var(--tribos-bg-tertiary)',
             }}
           >
-            <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
               Fatigue (ATL)
             </Text>
             <Text fw={600} style={{ color: '#f59e0b' }}>

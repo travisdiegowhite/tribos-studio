@@ -265,8 +265,8 @@ const TrainNow = ({
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconTarget size={20} color={tokens.colors.electricLime} />
-          <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+          <IconTarget size={20} color={'var(--tribos-lime)'} />
+          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             TrainNow
           </Text>
           <Badge color={tsb > 5 ? 'green' : tsb > -10 ? 'yellow' : 'red'} variant="light" size="sm">
@@ -354,7 +354,7 @@ const TrainNow = ({
           <Paper
             key={rec.category}
             p="sm"
-            style={{ backgroundColor: tokens.colors.bgTertiary }}
+            style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}
           >
             <Group gap="sm" mb="xs">
               <ThemeIcon size="sm" color={rec.color} variant="light">
@@ -383,7 +383,7 @@ const TrainNow = ({
       </SimpleGrid>
 
       {/* Training Needs Summary */}
-      <Paper p="sm" mt="md" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+      <Paper p="sm" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
         <Text size="xs" fw={500} mb="xs">Training Needs Analysis</Text>
         <Group gap="md">
           <NeedIndicator label="Recovery" value={needs.recovery.score} color="teal" />
@@ -411,7 +411,7 @@ function NeedIndicator({ label, value, color }) {
         <Box
           style={{
             height: 4,
-            backgroundColor: tokens.colors.bgSecondary,
+            backgroundColor: 'var(--tribos-bg-secondary)',
             borderRadius: 2,
             overflow: 'hidden',
           }}

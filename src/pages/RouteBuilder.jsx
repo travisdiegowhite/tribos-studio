@@ -1792,7 +1792,7 @@ function RouteBuilder() {
         <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 60px)' }}>
           <Stack align="center" gap="md">
             <Loader color="lime" size="lg" />
-            <Text style={{ color: tokens.colors.textSecondary }}>Loading route...</Text>
+            <Text style={{ color: 'var(--tribos-text-secondary)' }}>Loading route...</Text>
           </Stack>
         </Box>
       </AppShell>
@@ -1836,19 +1836,19 @@ function RouteBuilder() {
         <Paper
           p="sm"
           style={{
-            backgroundColor: `${tokens.colors.electricLime}15`,
-            border: `1px solid ${tokens.colors.electricLime}`,
+            backgroundColor: `${'var(--tribos-lime)'}15`,
+            border: `1px solid ${'var(--tribos-lime)'}`,
           }}
           radius="md"
         >
           <Group justify="space-between" align="flex-start">
             <Group gap="xs">
-              <IconCalendar size={16} style={{ color: tokens.colors.electricLime }} />
+              <IconCalendar size={16} style={{ color: 'var(--tribos-lime)' }} />
               <Box>
-                <Text size="xs" fw={600} style={{ color: tokens.colors.electricLime }}>
+                <Text size="xs" fw={600} style={{ color: 'var(--tribos-lime)' }}>
                   Creating route for scheduled workout
                 </Text>
-                <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
                   {calendarContext.workoutName || calendarContext.workoutType} • {calendarContext.duration} min
                 </Text>
               </Box>
@@ -1865,7 +1865,7 @@ function RouteBuilder() {
       )}
 
       <Box>
-        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
           ROUTE NAME
         </Text>
         <TextInput
@@ -1883,8 +1883,8 @@ function RouteBuilder() {
         p="sm"
         radius="md"
         style={{
-          backgroundColor: useIterativeBuilder ? `${tokens.colors.electricLime}15` : tokens.colors.bgTertiary,
-          border: `1px solid ${useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.bgTertiary}`,
+          backgroundColor: useIterativeBuilder ? `${'var(--tribos-lime)'}15` : 'var(--tribos-bg-tertiary)',
+          border: `1px solid ${useIterativeBuilder ? 'var(--tribos-lime)' : 'var(--tribos-bg-tertiary)'}`,
           transition: 'all 0.2s ease'
         }}
       >
@@ -1893,18 +1893,18 @@ function RouteBuilder() {
             <IconRefreshDot
               size={20}
               style={{
-                color: useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.textMuted,
+                color: useIterativeBuilder ? 'var(--tribos-lime)' : 'var(--tribos-text-muted)',
                 transition: 'color 0.2s ease'
               }}
             />
             <Box>
               <Group gap="xs" align="center">
-                <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                   Iterative Builder
                 </Text>
                 <Badge size="xs" variant="light" color="blue">Beta</Badge>
               </Group>
-              <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                 Builds routes segment-by-segment for cleaner, more accurate paths
               </Text>
             </Box>
@@ -1920,7 +1920,7 @@ function RouteBuilder() {
 
       {/* Natural Language Input */}
       <Box>
-        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
           DESCRIBE YOUR RIDE
         </Text>
         <Textarea
@@ -1949,7 +1949,7 @@ function RouteBuilder() {
           fullWidth
           style={calendarContext ? {
             animation: 'pulse-glow 2s ease-in-out infinite',
-            boxShadow: `0 0 20px ${tokens.colors.electricLime}40`,
+            boxShadow: `0 0 20px ${'var(--tribos-lime)'}40`,
           } : undefined}
         >
           {calendarContext ? '✨ Generate Route for Workout' : 'Generate from Description'}
@@ -1960,11 +1960,11 @@ function RouteBuilder() {
       <style>{`
         @keyframes pulse-glow {
           0%, 100% {
-            box-shadow: 0 0 5px ${tokens.colors.electricLime}40;
+            box-shadow: 0 0 5px ${'var(--tribos-lime)'}40;
             transform: scale(1);
           }
           50% {
-            box-shadow: 0 0 25px ${tokens.colors.electricLime}80;
+            box-shadow: 0 0 25px ${'var(--tribos-lime)'}80;
             transform: scale(1.02);
           }
         }
@@ -1974,7 +1974,7 @@ function RouteBuilder() {
 
       {/* Route Profile */}
       <Box>
-        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
           ROUTE PROFILE
         </Text>
         <SegmentedControl
@@ -1989,14 +1989,14 @@ function RouteBuilder() {
             { label: '🏙️ Commute', value: 'commuting' }
           ]}
           styles={{
-            root: { backgroundColor: tokens.colors.bgTertiary }
+            root: { backgroundColor: 'var(--tribos-bg-tertiary)' }
           }}
         />
       </Box>
 
       {/* Training Goal */}
       <Box>
-        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
           TRAINING GOAL
         </Text>
         <SegmentedControl
@@ -2011,14 +2011,14 @@ function RouteBuilder() {
             { label: 'Hills', value: 'hills' }
           ]}
           styles={{
-            root: { backgroundColor: tokens.colors.bgTertiary }
+            root: { backgroundColor: 'var(--tribos-bg-tertiary)' }
           }}
         />
       </Box>
 
       <Group grow>
         <Box>
-          <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
             TIME (MIN)
           </Text>
           <NumberInput
@@ -2033,7 +2033,7 @@ function RouteBuilder() {
         </Box>
 
         <Box>
-          <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
             ROUTE TYPE
           </Text>
           <Select
@@ -2052,7 +2052,7 @@ function RouteBuilder() {
 
       {/* Workout Selection */}
       <Box>
-        <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
           WORKOUT (OPTIONAL)
         </Text>
         <Select
@@ -2080,7 +2080,7 @@ function RouteBuilder() {
         {/* Show color overlay toggle when workout is selected */}
         {selectedWorkout && (
           <Group justify="space-between" mt="xs">
-            <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
               Show color-coded zones
             </Text>
             <Switch
@@ -2106,7 +2106,7 @@ function RouteBuilder() {
       {/* AI Suggestions */}
       {aiSuggestions.length > 0 && (
         <Box>
-          <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
             AI SUGGESTIONS ({aiSuggestions.length})
           </Text>
           <Stack
@@ -2124,8 +2124,8 @@ function RouteBuilder() {
                 p="sm"
                 withBorder
                 style={{
-                  borderColor: convertingRoute === index ? tokens.colors.electricLime : tokens.colors.bgTertiary,
-                  backgroundColor: tokens.colors.bgPrimary,
+                  borderColor: convertingRoute === index ? 'var(--tribos-lime)' : 'var(--tribos-bg-tertiary)',
+                  backgroundColor: 'var(--tribos-bg-primary)',
                   cursor: convertingRoute !== null ? 'wait' : 'pointer',
                   opacity: convertingRoute !== null && convertingRoute !== index ? 0.5 : 1,
                   transition: 'all 0.2s',
@@ -2342,7 +2342,7 @@ function RouteBuilder() {
                       id="route-line"
                       type="line"
                       paint={{
-                        'line-color': editMode ? '#666666' : tokens.colors.electricLime,
+                        'line-color': editMode ? '#666666' : 'var(--tribos-lime)',
                         'line-width': 4,
                         'line-opacity': editMode ? 0.6 : 0.8
                       }}
@@ -2392,7 +2392,7 @@ function RouteBuilder() {
                     }}
                   >
                     <div style={{
-                      backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : tokens.colors.electricLime,
+                      backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : 'var(--tribos-lime)',
                       color: 'white',
                       width: 28,
                       height: 28,
@@ -2442,7 +2442,7 @@ function RouteBuilder() {
                     <IconX size={16} style={{ cursor: 'pointer' }} onClick={() => { setSearchQuery(''); setSearchResults([]); }} />
                   ) : null}
                   style={{ flex: 1 }}
-                  styles={{ input: { backgroundColor: tokens.colors.bgSecondary } }}
+                  styles={{ input: { backgroundColor: 'var(--tribos-bg-secondary)' } }}
                 />
                 <Tooltip label="My Location">
                   <Button variant="filled" color="lime" size="md" onClick={handleGeolocate} loading={isLocating} style={{ padding: '0 12px' }}>
@@ -2459,8 +2459,8 @@ function RouteBuilder() {
                     disabled={mapStyleId === 'cyclosm'}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: showBikeInfrastructure ? tokens.colors.electricLime : tokens.colors.bgSecondary,
-                      border: `1px solid ${tokens.colors.bgTertiary}`,
+                      backgroundColor: showBikeInfrastructure ? 'var(--tribos-lime)' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
                     <IconBike size={20} color={showBikeInfrastructure ? '#000' : '#fff'} />
@@ -2474,21 +2474,21 @@ function RouteBuilder() {
                       size="md"
                       style={{
                         padding: '0 12px',
-                        backgroundColor: tokens.colors.bgSecondary,
-                        border: `1px solid ${tokens.colors.bgTertiary}`,
+                        backgroundColor: 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
                       <IconMap size={20} />
                     </Button>
                   </Menu.Target>
-                  <Menu.Dropdown style={{ backgroundColor: tokens.colors.bgSecondary }}>
+                  <Menu.Dropdown style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
                     <Menu.Label>Basemap</Menu.Label>
                     {BASEMAP_STYLES.map((style) => (
                       <Menu.Item
                         key={style.id}
                         onClick={() => setMapStyleId(style.id)}
                         style={{
-                          backgroundColor: mapStyleId === style.id ? tokens.colors.bgTertiary : 'transparent',
+                          backgroundColor: mapStyleId === style.id ? 'var(--tribos-bg-tertiary)' : 'transparent',
                         }}
                       >
                         {style.label}
@@ -2513,8 +2513,8 @@ function RouteBuilder() {
                       }}
                       style={{
                         padding: '0 12px',
-                        backgroundColor: editMode ? '#ef4444' : tokens.colors.bgSecondary,
-                        border: `1px solid ${editMode ? '#ef4444' : tokens.colors.bgTertiary}`,
+                        backgroundColor: editMode ? '#ef4444' : 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${editMode ? '#ef4444' : 'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
                       <IconScissors size={20} color={editMode ? '#fff' : '#fff'} />
@@ -2536,14 +2536,14 @@ function RouteBuilder() {
                   zIndex: 10,
                   maxHeight: 200,
                   overflowY: 'auto',
-                  backgroundColor: tokens.colors.bgSecondary,
+                  backgroundColor: 'var(--tribos-bg-secondary)',
                 }}
               >
                 {searchResults.map((result, index) => (
                   <Box
                     key={index}
                     p="sm"
-                    style={{ cursor: 'pointer', borderBottom: `1px solid ${tokens.colors.bgTertiary}` }}
+                    style={{ cursor: 'pointer', borderBottom: `1px solid ${'var(--tribos-bg-tertiary)'}` }}
                     onClick={() => handleSelectSearchResult(result)}
                   >
                     <Text size="sm">{result.place_name}</Text>
@@ -2568,8 +2568,8 @@ function RouteBuilder() {
                   left: 16,
                   right: 16,
                   zIndex: 10,
-                  backgroundColor: selectedSegment ? 'rgba(239, 68, 68, 0.95)' : tokens.colors.bgSecondary,
-                  border: `1px solid ${selectedSegment ? '#ef4444' : tokens.colors.bgTertiary}`,
+                  backgroundColor: selectedSegment ? 'rgba(239, 68, 68, 0.95)' : 'var(--tribos-bg-secondary)',
+                  border: `1px solid ${selectedSegment ? '#ef4444' : 'var(--tribos-bg-tertiary)'}`,
                 }}
               >
                 {selectedSegment ? (
@@ -2639,8 +2639,8 @@ function RouteBuilder() {
         <Paper
           style={{
             width: 380,
-            backgroundColor: tokens.colors.bgSecondary,
-            borderRight: `1px solid ${tokens.colors.bgTertiary}`,
+            backgroundColor: 'var(--tribos-bg-secondary)',
+            borderRight: `1px solid ${'var(--tribos-bg-tertiary)'}`,
             display: 'flex',
             flexDirection: 'column',
           }}
@@ -2660,19 +2660,19 @@ function RouteBuilder() {
                 <Paper
                   p="sm"
                   style={{
-                    backgroundColor: `${tokens.colors.electricLime}15`,
-                    border: `1px solid ${tokens.colors.electricLime}`,
+                    backgroundColor: `${'var(--tribos-lime)'}15`,
+                    border: `1px solid ${'var(--tribos-lime)'}`,
                   }}
                   radius="md"
                 >
                   <Group justify="space-between" align="flex-start">
                     <Group gap="xs">
-                      <IconCalendar size={16} style={{ color: tokens.colors.electricLime }} />
+                      <IconCalendar size={16} style={{ color: 'var(--tribos-lime)' }} />
                       <Box>
-                        <Text size="xs" fw={600} style={{ color: tokens.colors.electricLime }}>
+                        <Text size="xs" fw={600} style={{ color: 'var(--tribos-lime)' }}>
                           Creating route for scheduled workout
                         </Text>
-                        <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
                           {calendarContext.workoutName || calendarContext.workoutType} • {calendarContext.duration} min
                           {calendarContext.scheduledDate && ` • ${new Date(calendarContext.scheduledDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
                         </Text>
@@ -2692,10 +2692,10 @@ function RouteBuilder() {
               {/* Route Name Input with validation */}
               <Box>
                 <Group justify="space-between" mb="xs">
-                  <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                  <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                     ROUTE NAME
                   </Text>
-                  <Text size="xs" style={{ color: routeName.length > 40 ? tokens.colors.warning : tokens.colors.textMuted }}>
+                  <Text size="xs" style={{ color: routeName.length > 40 ? 'var(--tribos-warning)' : 'var(--tribos-text-muted)' }}>
                     {routeName.length}/50
                   </Text>
                 </Group>
@@ -2706,12 +2706,12 @@ function RouteBuilder() {
                   size="md"
                   styles={{
                     input: {
-                      borderColor: routeName.length > 0 ? tokens.colors.electricLime : undefined,
-                      '&:focus': { borderColor: tokens.colors.electricLime },
+                      borderColor: routeName.length > 0 ? 'var(--tribos-lime)' : undefined,
+                      '&:focus': { borderColor: 'var(--tribos-lime)' },
                     }
                   }}
                   rightSection={routeName.length > 0 && routeName !== 'Untitled Route' && (
-                    <Box style={{ color: tokens.colors.electricLime }}>✓</Box>
+                    <Box style={{ color: 'var(--tribos-lime)' }}>✓</Box>
                   )}
                 />
               </Box>
@@ -2719,15 +2719,15 @@ function RouteBuilder() {
               {/* AI Route Generator Section - Visual Card */}
               <Box
                 style={{
-                  backgroundColor: `${tokens.colors.electricLime}08`,
-                  border: `1px solid ${tokens.colors.electricLime}25`,
+                  backgroundColor: `${'var(--tribos-lime)'}08`,
+                  border: `1px solid ${'var(--tribos-lime)'}25`,
                   borderRadius: tokens.radius.md,
                   padding: tokens.spacing.md,
                 }}
               >
                 <Group gap="xs" mb="md">
-                  <IconRobot size={20} style={{ color: tokens.colors.electricLime }} />
-                  <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+                  <IconRobot size={20} style={{ color: 'var(--tribos-lime)' }} />
+                  <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
                     AI Route Generator
                   </Text>
                 </Group>
@@ -2738,8 +2738,8 @@ function RouteBuilder() {
                     p="sm"
                     radius="md"
                     style={{
-                      backgroundColor: useIterativeBuilder ? `${tokens.colors.electricLime}15` : tokens.colors.bgTertiary,
-                      border: `1px solid ${useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.bgTertiary}`,
+                      backgroundColor: useIterativeBuilder ? `${'var(--tribos-lime)'}15` : 'var(--tribos-bg-tertiary)',
+                      border: `1px solid ${useIterativeBuilder ? 'var(--tribos-lime)' : 'var(--tribos-bg-tertiary)'}`,
                       transition: 'all 0.2s ease'
                     }}
                   >
@@ -2748,18 +2748,18 @@ function RouteBuilder() {
                         <IconRefreshDot
                           size={20}
                           style={{
-                            color: useIterativeBuilder ? tokens.colors.electricLime : tokens.colors.textMuted,
+                            color: useIterativeBuilder ? 'var(--tribos-lime)' : 'var(--tribos-text-muted)',
                             transition: 'color 0.2s ease'
                           }}
                         />
                         <Box>
                           <Group gap="xs" align="center">
-                            <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                            <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                               Iterative Builder
                             </Text>
                             <Badge size="xs" variant="light" color="blue">Beta</Badge>
                           </Group>
-                          <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                             Cleaner, more accurate paths
                           </Text>
                         </Box>
@@ -2798,7 +2798,7 @@ function RouteBuilder() {
                     fullWidth
                     style={calendarContext ? {
                       animation: 'pulse-glow 2s ease-in-out infinite',
-                      boxShadow: `0 0 20px ${tokens.colors.electricLime}40`,
+                      boxShadow: `0 0 20px ${'var(--tribos-lime)'}40`,
                     } : undefined}
                   >
                     {calendarContext ? '✨ Generate Route for Workout' : (useIterativeBuilder ? 'Generate Iterative Route' : 'Generate from Description')}
@@ -2810,11 +2810,11 @@ function RouteBuilder() {
               <style>{`
                 @keyframes pulse-glow {
                   0%, 100% {
-                    box-shadow: 0 0 5px ${tokens.colors.electricLime}40;
+                    box-shadow: 0 0 5px ${'var(--tribos-lime)'}40;
                     transform: scale(1);
                   }
                   50% {
-                    box-shadow: 0 0 25px ${tokens.colors.electricLime}80;
+                    box-shadow: 0 0 25px ${'var(--tribos-lime)'}80;
                     transform: scale(1.02);
                   }
                 }
@@ -2829,7 +2829,7 @@ function RouteBuilder() {
                 <Stack gap="sm" mt="sm">
                   {/* Route Profile Selector */}
                   <Box>
-                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
                       ROUTE PROFILE
                     </Text>
                     <SegmentedControl
@@ -2844,14 +2844,14 @@ function RouteBuilder() {
                         { label: '🏙️ Commute', value: 'commuting' }
                       ]}
                       styles={{
-                        root: { backgroundColor: tokens.colors.bgSecondary }
+                        root: { backgroundColor: 'var(--tribos-bg-secondary)' }
                       }}
                     />
                   </Box>
 
                   {/* Training Goal */}
                   <Box>
-                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
                       TRAINING GOAL
                     </Text>
                     <SegmentedControl
@@ -2866,14 +2866,14 @@ function RouteBuilder() {
                         { label: 'Hills', value: 'hills' }
                       ]}
                       styles={{
-                        root: { backgroundColor: tokens.colors.bgSecondary }
+                        root: { backgroundColor: 'var(--tribos-bg-secondary)' }
                       }}
                     />
                   </Box>
 
                   <Group grow>
                     <Box>
-                      <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
                         TIME (MIN)
                       </Text>
                       <NumberInput
@@ -2886,14 +2886,14 @@ function RouteBuilder() {
                         variant="filled"
                       />
                       {(timeAvailable < 30 || timeAvailable > 300) && (
-                        <Text size="xs" style={{ color: tokens.colors.warning }} mt={4}>
+                        <Text size="xs" style={{ color: 'var(--tribos-warning)' }} mt={4}>
                           {timeAvailable < 30 ? 'Very short ride' : 'Long ride!'}
                         </Text>
                       )}
                     </Box>
 
                     <Box>
-                      <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
                         ROUTE TYPE
                       </Text>
                       <Select
@@ -2912,7 +2912,7 @@ function RouteBuilder() {
 
                   {/* Workout Selection for Color-Coded Routes */}
                   <Box>
-                    <Text size="xs" style={{ color: tokens.colors.textMuted }} mb="xs">
+                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
                       WORKOUT (OPTIONAL)
                     </Text>
                     <Select
@@ -2969,7 +2969,7 @@ function RouteBuilder() {
                   icon={<IconSparkles size={18} />}
                   badge={`${aiSuggestions.length}`}
                   defaultExpanded={true}
-                  accentColor={tokens.colors.electricLime}
+                  accentColor={'var(--tribos-lime)'}
                 >
                   <Stack gap="sm" mt="sm" style={{ maxHeight: '350px', overflowY: 'auto' }}>
                     {aiSuggestions.map((suggestion, index) => (
@@ -3070,18 +3070,18 @@ function RouteBuilder() {
               <Box
                 style={{
                   padding: tokens.spacing.md,
-                  backgroundColor: tokens.colors.bgTertiary,
+                  backgroundColor: 'var(--tribos-bg-tertiary)',
                   borderRadius: tokens.radius.md,
-                  borderLeft: `3px solid ${tokens.colors.electricLime}`,
+                  borderLeft: `3px solid ${'var(--tribos-lime)'}`,
                 }}
               >
-                <Text size="sm" style={{ color: tokens.colors.textSecondary }}>
+                <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
                   {waypoints.length === 0 ? '📍 Click on the map to add your first waypoint' :
                    waypoints.length === 1 ? '📍 Add another waypoint to create a route' :
                    `✅ Route created! ${isCalculating ? 'Calculating...' : ''}`}
                 </Text>
                 {waypoints.length > 0 && (
-                  <Text size="xs" style={{ color: tokens.colors.textMuted }} mt={4}>
+                  <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt={4}>
                     Click waypoint markers to remove them
                   </Text>
                 )}
@@ -3093,8 +3093,8 @@ function RouteBuilder() {
           <Box
             style={{
               padding: tokens.spacing.md,
-              borderTop: `1px solid ${tokens.colors.bgTertiary}`,
-              backgroundColor: tokens.colors.bgSecondary,
+              borderTop: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+              backgroundColor: 'var(--tribos-bg-secondary)',
             }}
           >
             <Stack gap="sm">
@@ -3236,10 +3236,10 @@ function RouteBuilder() {
                   }
                   styles={{
                     input: {
-                      backgroundColor: tokens.colors.bgSecondary,
-                      borderColor: tokens.colors.bgTertiary,
+                      backgroundColor: 'var(--tribos-bg-secondary)',
+                      borderColor: 'var(--tribos-bg-tertiary)',
                       '&:focus': {
-                        borderColor: tokens.colors.electricLime,
+                        borderColor: 'var(--tribos-lime)',
                       },
                     },
                   }}
@@ -3253,8 +3253,8 @@ function RouteBuilder() {
                       left: 0,
                       right: 0,
                       marginTop: 4,
-                      backgroundColor: tokens.colors.bgSecondary,
-                      border: `1px solid ${tokens.colors.bgTertiary}`,
+                      backgroundColor: 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                       borderRadius: tokens.radius.sm,
                       overflow: 'hidden',
                       zIndex: 20,
@@ -3267,17 +3267,17 @@ function RouteBuilder() {
                         style={{
                           padding: '10px 12px',
                           cursor: 'pointer',
-                          borderBottom: `1px solid ${tokens.colors.bgTertiary}`,
+                          borderBottom: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                           transition: 'background-color 0.15s',
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = tokens.colors.bgTertiary;
+                          e.currentTarget.style.backgroundColor = 'var(--tribos-bg-tertiary)';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = 'transparent';
                         }}
                       >
-                        <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
+                        <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
                           {result.name}
                         </Text>
                       </Box>
@@ -3307,8 +3307,8 @@ function RouteBuilder() {
                   disabled={mapStyleId === 'cyclosm'}
                   style={{
                     padding: '0 12px',
-                    backgroundColor: showBikeInfrastructure ? tokens.colors.electricLime : tokens.colors.bgSecondary,
-                    border: `1px solid ${tokens.colors.bgTertiary}`,
+                    backgroundColor: showBikeInfrastructure ? 'var(--tribos-lime)' : 'var(--tribos-bg-secondary)',
+                    border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                   }}
                 >
                   <IconBike size={20} color={showBikeInfrastructure ? '#000' : '#fff'} />
@@ -3323,22 +3323,22 @@ function RouteBuilder() {
                       size="md"
                       style={{
                         padding: '0 12px',
-                        backgroundColor: tokens.colors.bgSecondary,
-                        border: `1px solid ${tokens.colors.bgTertiary}`,
+                        backgroundColor: 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
                       <IconMap size={20} />
                     </Button>
                   </Tooltip>
                 </Menu.Target>
-                <Menu.Dropdown style={{ backgroundColor: tokens.colors.bgSecondary }}>
+                <Menu.Dropdown style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
                   <Menu.Label>Basemap</Menu.Label>
                   {BASEMAP_STYLES.map((style) => (
                     <Menu.Item
                       key={style.id}
                       onClick={() => setMapStyleId(style.id)}
                       style={{
-                        backgroundColor: mapStyleId === style.id ? tokens.colors.bgTertiary : 'transparent',
+                        backgroundColor: mapStyleId === style.id ? 'var(--tribos-bg-tertiary)' : 'transparent',
                       }}
                     >
                       {style.label}
@@ -3363,8 +3363,8 @@ function RouteBuilder() {
                     }}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: editMode ? '#ef4444' : tokens.colors.bgSecondary,
-                      border: `1px solid ${editMode ? '#ef4444' : tokens.colors.bgTertiary}`,
+                      backgroundColor: editMode ? '#ef4444' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${editMode ? '#ef4444' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
                     <IconScissors size={20} color="#fff" />
@@ -3415,7 +3415,7 @@ function RouteBuilder() {
                     id="route-line"
                     type="line"
                     paint={{
-                      'line-color': editMode ? '#666666' : tokens.colors.electricLime,
+                      'line-color': editMode ? '#666666' : 'var(--tribos-lime)',
                       'line-width': 4,
                       'line-opacity': editMode ? 0.6 : 0.8
                     }}
@@ -3469,7 +3469,7 @@ function RouteBuilder() {
                   }}
                 >
                   <div style={{
-                    backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : tokens.colors.electricLime,
+                    backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : 'var(--tribos-lime)',
                     color: 'white',
                     width: 32,
                     height: 32,
@@ -3493,7 +3493,7 @@ function RouteBuilder() {
               style={{
                 width: '100%',
                 height: '100%',
-                backgroundColor: tokens.colors.bgPrimary,
+                backgroundColor: 'var(--tribos-bg-primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -3501,10 +3501,10 @@ function RouteBuilder() {
             >
               <Stack align="center" gap="md">
                 <Text size="4rem">🗺️</Text>
-                <Title order={2} style={{ color: tokens.colors.textPrimary }}>
+                <Title order={2} style={{ color: 'var(--tribos-text-primary)' }}>
                   Map Configuration Required
                 </Title>
-                <Text style={{ color: tokens.colors.textSecondary, maxWidth: 400, textAlign: 'center' }}>
+                <Text style={{ color: 'var(--tribos-text-secondary)', maxWidth: 400, textAlign: 'center' }}>
                   Configure VITE_MAPBOX_TOKEN in your .env file to enable the map.
                 </Text>
               </Stack>
@@ -3528,8 +3528,8 @@ function RouteBuilder() {
                 transform: 'translateX(-50%)',
                 zIndex: 10,
                 minWidth: 320,
-                backgroundColor: selectedSegment ? 'rgba(239, 68, 68, 0.95)' : tokens.colors.bgSecondary,
-                border: `1px solid ${selectedSegment ? '#ef4444' : tokens.colors.bgTertiary}`,
+                backgroundColor: selectedSegment ? 'rgba(239, 68, 68, 0.95)' : 'var(--tribos-bg-secondary)',
+                border: `1px solid ${selectedSegment ? '#ef4444' : 'var(--tribos-bg-tertiary)'}`,
               }}
             >
               {selectedSegment ? (

@@ -285,13 +285,13 @@ export default function CafeSettingsModal({
       size="lg"
       styles={{
         header: {
-          backgroundColor: tokens.colors.bgSecondary,
+          backgroundColor: 'var(--tribos-bg-secondary)',
         },
         content: {
-          backgroundColor: tokens.colors.bgSecondary,
+          backgroundColor: 'var(--tribos-bg-secondary)',
         },
         title: {
-          color: tokens.colors.textPrimary,
+          color: 'var(--tribos-text-primary)',
           fontWeight: 600,
         },
       }}
@@ -324,7 +324,7 @@ export default function CafeSettingsModal({
                 required
                 maxLength={50}
                 styles={{
-                  input: { backgroundColor: tokens.colors.bgTertiary },
+                  input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
                 }}
               />
 
@@ -336,7 +336,7 @@ export default function CafeSettingsModal({
                 autosize
                 minRows={2}
                 styles={{
-                  input: { backgroundColor: tokens.colors.bgTertiary },
+                  input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
                 }}
               />
 
@@ -347,7 +347,7 @@ export default function CafeSettingsModal({
                   onChange={(val) => setFormData({ ...formData, goal_type: val })}
                   data={GOAL_OPTIONS}
                   styles={{
-                    input: { backgroundColor: tokens.colors.bgTertiary },
+                    input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
                   }}
                 />
 
@@ -357,7 +357,7 @@ export default function CafeSettingsModal({
                   onChange={(val) => setFormData({ ...formData, experience_level: val })}
                   data={EXPERIENCE_OPTIONS}
                   styles={{
-                    input: { backgroundColor: tokens.colors.bgTertiary },
+                    input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
                   }}
                 />
               </Group>
@@ -370,7 +370,7 @@ export default function CafeSettingsModal({
                   onChange={(val) => setFormData({ ...formData, checkin_day: val })}
                   data={CHECKIN_DAY_OPTIONS}
                   styles={{
-                    input: { backgroundColor: tokens.colors.bgTertiary },
+                    input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
                   }}
                 />
 
@@ -381,7 +381,7 @@ export default function CafeSettingsModal({
                   min={3}
                   max={12}
                   styles={{
-                    input: { backgroundColor: tokens.colors.bgTertiary },
+                    input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
                   }}
                 />
               </Group>
@@ -412,8 +412,8 @@ export default function CafeSettingsModal({
                   onClick={handleSave}
                   loading={saving}
                   style={{
-                    backgroundColor: tokens.colors.electricLime,
-                    color: tokens.colors.bgPrimary,
+                    backgroundColor: 'var(--tribos-lime)',
+                    color: 'var(--tribos-bg-primary)',
                   }}
                 >
                   Save Changes
@@ -443,7 +443,7 @@ export default function CafeSettingsModal({
                       padding="sm"
                       radius="md"
                       style={{
-                        backgroundColor: tokens.colors.bgTertiary,
+                        backgroundColor: 'var(--tribos-bg-tertiary)',
                       }}
                     >
                       <Group justify="space-between">
@@ -457,7 +457,7 @@ export default function CafeSettingsModal({
                           </Avatar>
                           <Box>
                             <Group gap="xs">
-                              <Text size="sm" fw={500} style={{ color: tokens.colors.textPrimary }}>
+                              <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                                 {getMemberDisplayName(member)}
                               </Text>
                               {member.role === 'admin' && (
@@ -530,14 +530,14 @@ export default function CafeSettingsModal({
               padding="md"
               radius="md"
               style={{
-                backgroundColor: tokens.colors.bgTertiary,
+                backgroundColor: 'var(--tribos-bg-tertiary)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
               }}
             >
               <Stack gap="sm">
                 <Group>
-                  <IconDoorExit size={20} color={tokens.colors.textMuted} />
-                  <Text fw={500} style={{ color: tokens.colors.textPrimary }}>
+                  <IconDoorExit size={20} color={'var(--tribos-text-muted)'} />
+                  <Text fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                     Leave Cafe
                   </Text>
                 </Group>
@@ -588,7 +588,7 @@ export default function CafeSettingsModal({
                 padding="md"
                 radius="md"
                 style={{
-                  backgroundColor: tokens.colors.bgTertiary,
+                  backgroundColor: 'var(--tribos-bg-tertiary)',
                   border: '1px solid rgba(239, 68, 68, 0.5)',
                 }}
               >

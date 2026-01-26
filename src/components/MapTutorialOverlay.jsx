@@ -89,8 +89,8 @@ function MapTutorialOverlay({ show, onDismiss, waypointCount = 0 }) {
               width: 60,
               height: 60,
               borderRadius: '50%',
-              backgroundColor: `${tokens.colors.electricLime}40`,
-              border: `3px solid ${tokens.colors.electricLime}`,
+              backgroundColor: `${'var(--tribos-lime)'}40`,
+              border: `3px solid ${'var(--tribos-lime)'}`,
               animation: isPulsing ? 'pulse-tutorial 1.5s ease-in-out infinite' : 'none',
             }}
           />
@@ -107,8 +107,8 @@ function MapTutorialOverlay({ show, onDismiss, waypointCount = 0 }) {
           transform: 'translate(-50%, -50%)',
           zIndex: 102,
           padding: '20px 24px',
-          backgroundColor: tokens.colors.bgSecondary,
-          border: `1px solid ${tokens.colors.electricLime}`,
+          backgroundColor: 'var(--tribos-bg-secondary)',
+          border: `1px solid ${'var(--tribos-lime)'}`,
           maxWidth: 320,
           textAlign: 'center',
         }}
@@ -116,7 +116,7 @@ function MapTutorialOverlay({ show, onDismiss, waypointCount = 0 }) {
       >
         <Box
           style={{
-            color: tokens.colors.electricLime,
+            color: 'var(--tribos-lime)',
             marginBottom: '12px',
             display: 'flex',
             justifyContent: 'center',
@@ -125,11 +125,11 @@ function MapTutorialOverlay({ show, onDismiss, waypointCount = 0 }) {
           {currentStep.icon}
         </Box>
 
-        <Text size="lg" fw={700} style={{ color: tokens.colors.textPrimary, marginBottom: '8px' }}>
+        <Text size="lg" fw={700} style={{ color: 'var(--tribos-text-primary)', marginBottom: '8px' }}>
           {currentStep.title}
         </Text>
 
-        <Text size="sm" style={{ color: tokens.colors.textSecondary, marginBottom: '16px' }}>
+        <Text size="sm" style={{ color: 'var(--tribos-text-secondary)', marginBottom: '16px' }}>
           {currentStep.description}
         </Text>
 
@@ -138,7 +138,7 @@ function MapTutorialOverlay({ show, onDismiss, waypointCount = 0 }) {
             variant="subtle"
             size="xs"
             onClick={onDismiss}
-            style={{ color: tokens.colors.textMuted }}
+            style={{ color: 'var(--tribos-text-muted)' }}
           >
             Skip Tutorial
           </Button>
@@ -151,7 +151,7 @@ function MapTutorialOverlay({ show, onDismiss, waypointCount = 0 }) {
 
         {/* Keyboard shortcut hint */}
         <Box style={{ marginTop: '12px' }}>
-          <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
             Press <Kbd size="xs">H</Kbd> anytime for help
           </Text>
         </Box>

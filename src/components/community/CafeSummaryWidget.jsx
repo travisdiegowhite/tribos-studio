@@ -37,8 +37,8 @@ function CafeSummaryWidget({
         padding="md"
         radius="md"
         style={{
-          backgroundColor: tokens.colors.bgSecondary,
-          border: `1px solid ${tokens.colors.bgTertiary}`,
+          backgroundColor: 'var(--tribos-bg-secondary)',
+          border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
         }}
       >
         <Stack gap="sm">
@@ -57,13 +57,13 @@ function CafeSummaryWidget({
         padding="md"
         radius="md"
         style={{
-          backgroundColor: tokens.colors.bgSecondary,
-          border: `1px solid ${tokens.colors.bgTertiary}`,
+          backgroundColor: 'var(--tribos-bg-secondary)',
+          border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
         }}
       >
         <Stack gap="sm">
           <Group gap="xs">
-            <IconCoffee size={18} color={tokens.colors.textSecondary} />
+            <IconCoffee size={18} color={'var(--tribos-text-secondary)'} />
             <Text size="sm" fw={500} c="dimmed">
               The Cafe
             </Text>
@@ -79,8 +79,8 @@ function CafeSummaryWidget({
             leftSection={<IconPlus size={16} />}
             onClick={onFindCafe}
             style={{
-              backgroundColor: tokens.colors.bgTertiary,
-              color: tokens.colors.textPrimary,
+              backgroundColor: 'var(--tribos-bg-tertiary)',
+              color: 'var(--tribos-text-primary)',
             }}
           >
             Find a Cafe
@@ -97,15 +97,15 @@ function CafeSummaryWidget({
       padding="md"
       radius="md"
       style={{
-        backgroundColor: tokens.colors.bgSecondary,
-        border: `1px solid ${tokens.colors.bgTertiary}`,
+        backgroundColor: 'var(--tribos-bg-secondary)',
+        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
       }}
     >
       <Stack gap="sm">
         {/* Header */}
         <Group justify="space-between" align="flex-start">
           <Group gap="xs">
-            <IconCoffee size={18} color={tokens.colors.electricLime} />
+            <IconCoffee size={18} color={'var(--tribos-lime)'} />
             <Text size="sm" fw={500}>
               {cafe.name}
             </Text>
@@ -133,9 +133,9 @@ function CafeSummaryWidget({
             value={checkInPercent}
             size="sm"
             radius="xl"
-            color={tokens.colors.electricLime}
+            color={'var(--tribos-lime)'}
             style={{
-              backgroundColor: tokens.colors.bgTertiary,
+              backgroundColor: 'var(--tribos-bg-tertiary)',
             }}
           />
         </Box>
@@ -148,12 +148,12 @@ function CafeSummaryWidget({
           size="xs"
           rightSection={<IconChevronRight size={14} />}
           style={{
-            color: tokens.colors.textSecondary,
+            color: 'var(--tribos-text-secondary)',
           }}
           styles={{
             root: {
               '&:hover': {
-                backgroundColor: tokens.colors.bgTertiary,
+                backgroundColor: 'var(--tribos-bg-tertiary)',
               },
             },
           }}

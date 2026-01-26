@@ -27,7 +27,7 @@ function CollapsibleSection({
     <Box
       style={{
         borderRadius: tokens.radius.md,
-        backgroundColor: tokens.colors.bgTertiary,
+        backgroundColor: 'var(--tribos-bg-tertiary)',
         overflow: 'hidden',
         border: accentColor ? `1px solid ${accentColor}20` : 'none',
       }}
@@ -47,18 +47,18 @@ function CollapsibleSection({
       >
         <Group gap="xs">
           {icon && (
-            <Box style={{ color: accentColor || tokens.colors.electricLime }}>
+            <Box style={{ color: accentColor || 'var(--tribos-lime)' }}>
               {icon}
             </Box>
           )}
-          <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             {title}
           </Text>
           {badge && (
             <Box
               style={{
-                backgroundColor: tokens.colors.electricLime,
-                color: tokens.colors.bgPrimary,
+                backgroundColor: 'var(--tribos-lime)',
+                color: 'var(--tribos-bg-primary)',
                 padding: '2px 8px',
                 borderRadius: tokens.radius.full,
                 fontSize: '11px',
@@ -69,7 +69,7 @@ function CollapsibleSection({
             </Box>
           )}
         </Group>
-        <Box style={{ color: tokens.colors.textMuted, transition: 'transform 0.2s ease' }}>
+        <Box style={{ color: 'var(--tribos-text-muted)', transition: 'transform 0.2s ease' }}>
           {isExpanded ? <IconChevronDown size={18} /> : <IconChevronRight size={18} />}
         </Box>
       </UnstyledButton>

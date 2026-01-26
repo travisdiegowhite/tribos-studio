@@ -214,7 +214,7 @@ function AppRoutes() {
 function App() {
   return (
     <>
-      <ColorSchemeScript defaultColorScheme="dark" />
+      <ColorSchemeScript defaultColorScheme="dark" forceColorScheme={null} />
       <MantineProvider theme={theme} defaultColorScheme="dark">
         <DatesProvider settings={{ firstDayOfWeek: 0 }}>
           <ErrorBoundary>

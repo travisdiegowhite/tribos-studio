@@ -33,19 +33,19 @@ function AISuggestionCard({
   };
 
   // Visual Hierarchy: Neutral colors for unselected, accent for selected/converting
-  const metricColor = isConverting ? tokens.colors.electricLime : tokens.colors.textMuted;
-  const metricBg = isConverting ? `${tokens.colors.electricLime}15` : `${tokens.colors.textMuted}10`;
+  const metricColor = isConverting ? 'var(--tribos-lime)' : 'var(--tribos-text-muted)';
+  const metricBg = isConverting ? `${'var(--tribos-lime)'}15` : `${'var(--tribos-text-muted)'}10`;
 
   return (
     <Card
       padding="md"
       style={{
         backgroundColor: isConverting
-          ? `${tokens.colors.electricLime}08`
-          : tokens.colors.bgTertiary,
+          ? `${'var(--tribos-lime)'}08`
+          : 'var(--tribos-bg-tertiary)',
         cursor: isDisabled ? 'wait' : 'pointer',
         border: isConverting
-          ? `2px solid ${tokens.colors.electricLime}`
+          ? `2px solid ${'var(--tribos-lime)'}`
           : '1px solid var(--mantine-color-dark-5)',
         transition: 'all 0.2s ease',
         opacity: isDisabled && !isConverting ? 0.5 : 1,
@@ -73,7 +73,7 @@ function AISuggestionCard({
             size="md"
             lineClamp={2}
             style={{
-              color: tokens.colors.textPrimary,
+              color: 'var(--tribos-text-primary)',
               flex: 1,
               lineHeight: 1.3,
             }}
@@ -88,7 +88,7 @@ function AISuggestionCard({
           <Text
             size="xs"
             lineClamp={2}
-            style={{ color: tokens.colors.textSecondary }}
+            style={{ color: 'var(--tribos-text-secondary)' }}
           >
             {suggestion.description}
           </Text>

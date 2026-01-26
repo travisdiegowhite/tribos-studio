@@ -65,7 +65,7 @@ function AuthCallback() {
     <Box
       style={{
         minHeight: '100vh',
-        backgroundColor: tokens.colors.bgPrimary,
+        backgroundColor: 'var(--tribos-bg-primary)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -73,7 +73,7 @@ function AuthCallback() {
     >
       <Stack align="center" gap="md">
         <div className="loading-spinner" />
-        <Text style={{ color: tokens.colors.textSecondary }}>
+        <Text style={{ color: 'var(--tribos-text-secondary)' }}>
           Completing sign in...
         </Text>
       </Stack>

@@ -119,7 +119,7 @@ function ScaleBar({ latitude, zoom }) {
       <Text
         size="xs"
         style={{
-          color: tokens.colors.textSecondary,
+          color: 'var(--tribos-text-secondary)',
           fontSize: 10,
           fontWeight: 500,
         }}
@@ -130,7 +130,7 @@ function ScaleBar({ latitude, zoom }) {
         style={{
           width: width,
           height: 4,
-          backgroundColor: tokens.colors.textSecondary,
+          backgroundColor: 'var(--tribos-text-secondary)',
           borderRadius: 2,
           position: 'relative',
         }}
@@ -143,7 +143,7 @@ function ScaleBar({ latitude, zoom }) {
             top: -2,
             width: 2,
             height: 8,
-            backgroundColor: tokens.colors.textSecondary,
+            backgroundColor: 'var(--tribos-text-secondary)',
             borderRadius: 1,
           }}
         />
@@ -155,7 +155,7 @@ function ScaleBar({ latitude, zoom }) {
             top: -2,
             width: 2,
             height: 8,
-            backgroundColor: tokens.colors.textSecondary,
+            backgroundColor: 'var(--tribos-text-secondary)',
             borderRadius: 1,
           }}
         />
@@ -245,11 +245,11 @@ export default function MapControls({
   const isRotated = Math.abs(bearing) > 0.5;
 
   const controlButtonStyle = {
-    backgroundColor: tokens.colors.bgSecondary,
-    border: `1px solid ${tokens.colors.bgTertiary}`,
-    color: tokens.colors.textPrimary,
+    backgroundColor: 'var(--tribos-bg-secondary)',
+    border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+    color: 'var(--tribos-text-primary)',
     '&:hover': {
-      backgroundColor: tokens.colors.bgTertiary,
+      backgroundColor: 'var(--tribos-bg-tertiary)',
     },
   };
 
@@ -272,10 +272,10 @@ export default function MapControls({
           display: 'flex',
           flexDirection: 'column',
           gap: 4,
-          backgroundColor: tokens.colors.bgSecondary,
+          backgroundColor: 'var(--tribos-bg-secondary)',
           borderRadius: tokens.radius.md,
           padding: 4,
-          border: `1px solid ${tokens.colors.bgTertiary}`,
+          border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
         }}
       >
@@ -294,7 +294,7 @@ export default function MapControls({
             <IconCompass
               size={20}
               style={{
-                color: isRotated ? tokens.colors.electricLime : tokens.colors.textSecondary,
+                color: isRotated ? 'var(--tribos-lime)' : 'var(--tribos-text-secondary)',
               }}
             />
           </ActionIcon>
@@ -313,13 +313,13 @@ export default function MapControls({
               </ActionIcon>
             </Tooltip>
           </Menu.Target>
-          <Menu.Dropdown style={{ backgroundColor: tokens.colors.bgSecondary }}>
+          <Menu.Dropdown style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
             <Menu.Item
               leftSection={<IconCurrentLocation size={16} />}
               onClick={handleRecenterUser}
               disabled={isLocating}
               style={{
-                color: tokens.colors.textPrimary,
+                color: 'var(--tribos-text-primary)',
               }}
             >
               {hasUserLocation ? 'Go to My Location' : 'Find My Location'}
@@ -329,7 +329,7 @@ export default function MapControls({
               onClick={handleFitRoute}
               disabled={!hasRoute}
               style={{
-                color: hasRoute ? tokens.colors.textPrimary : tokens.colors.textMuted,
+                color: hasRoute ? 'var(--tribos-text-primary)' : 'var(--tribos-text-muted)',
               }}
             >
               Fit to Route

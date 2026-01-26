@@ -117,7 +117,7 @@ function Landing() {
       <Box
         style={{
           background: `radial-gradient(ellipse at top, rgba(190, 242, 100, 0.1) 0%, transparent 50%),
-                       linear-gradient(180deg, ${tokens.colors.bgPrimary} 0%, ${tokens.colors.bgSecondary} 100%)`,
+                       linear-gradient(180deg, ${'var(--tribos-bg-primary)'} 0%, ${'var(--tribos-bg-secondary)'} 100%)`,
           minHeight: '100vh',
         }}
       >
@@ -125,12 +125,12 @@ function Landing() {
       <Box py="md" px={{ base: 'md', md: 'xl' }}>
         <Group justify="space-between" align="center">
           <Group gap="sm">
-            <IconRoute size={24} color={tokens.colors.electricLime} />
+            <IconRoute size={24} color={'var(--tribos-lime)'} />
             <Text
               fw={700}
               size="lg"
               style={{
-                color: tokens.colors.electricLime,
+                color: 'var(--tribos-lime)',
                 letterSpacing: '-0.02em',
               }}
             >
@@ -162,14 +162,14 @@ function Landing() {
                   order={1}
                   style={{
                     fontSize: 'clamp(2.2rem, 5vw, 3.5rem)',
-                    color: tokens.colors.textPrimary,
+                    color: 'var(--tribos-text-primary)',
                     lineHeight: 1.1,
                   }}
                 >
                   Know Exactly What{' '}
                   <span
                     style={{
-                      background: `linear-gradient(135deg, ${tokens.colors.electricLime} 0%, #22d3ee 100%)`,
+                      background: `linear-gradient(135deg, ${'var(--tribos-lime)'} 0%, #22d3ee 100%)`,
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
                     }}
@@ -179,7 +179,7 @@ function Landing() {
                   {' '}Today
                 </Title>
 
-                <Text size="xl" style={{ color: tokens.colors.textSecondary }}>
+                <Text size="xl" style={{ color: 'var(--tribos-text-secondary)' }}>
                   The cycling training app that combines training load analytics, AI route planning, and recovery tracking—finally in one place.
                 </Text>
 
@@ -189,7 +189,7 @@ function Landing() {
                   radius="md"
                   style={{
                     background: 'rgba(190, 242, 100, 0.05)',
-                    border: `1px solid ${tokens.colors.electricLime}30`,
+                    border: `1px solid ${'var(--tribos-lime)'}30`,
                   }}
                 >
                   <form onSubmit={(e) => handleBetaSignup(e, email, setSubmitting)}>
@@ -203,8 +203,8 @@ function Landing() {
                         style={{ flex: 1 }}
                         styles={{
                           input: {
-                            backgroundColor: tokens.colors.bgPrimary,
-                            borderColor: tokens.colors.borderDefault,
+                            backgroundColor: 'var(--tribos-bg-primary)',
+                            borderColor: 'var(--tribos-border)',
                           },
                         }}
                       />
@@ -220,10 +220,10 @@ function Landing() {
                     </Group>
                   </form>
                   <Group gap="lg" mt="xs">
-                    <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                       <IconCheck size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Free access
                     </Text>
-                    <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                       <IconCheck size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> No credit card
                     </Text>
                   </Group>
@@ -237,12 +237,12 @@ function Landing() {
                 p="lg"
                 radius="lg"
                 style={{
-                  background: `linear-gradient(135deg, ${tokens.colors.bgSecondary} 0%, rgba(190, 242, 100, 0.05) 100%)`,
-                  border: `2px solid ${tokens.colors.electricLime}30`,
+                  background: `linear-gradient(135deg, ${'var(--tribos-bg-secondary)'} 0%, rgba(190, 242, 100, 0.05) 100%)`,
+                  border: `2px solid ${'var(--tribos-lime)'}30`,
                 }}
               >
                 <Stack gap="md">
-                  <Text size="sm" fw={600} style={{ color: tokens.colors.electricLime }}>
+                  <Text size="sm" fw={600} style={{ color: 'var(--tribos-lime)' }}>
                     TRAINING DASHBOARD PREVIEW
                   </Text>
 
@@ -251,7 +251,7 @@ function Landing() {
                     <Paper p="sm" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
                       <Text size="xs" c="dimmed">Today's Readiness</Text>
                       <Group gap="xs" align="baseline">
-                        <Text size="xl" fw={700} style={{ color: tokens.colors.electricLime }}>78</Text>
+                        <Text size="xl" fw={700} style={{ color: 'var(--tribos-lime)' }}>78</Text>
                         <Text size="xs" c="green">Good to train</Text>
                       </Group>
                     </Paper>
@@ -279,16 +279,16 @@ function Landing() {
                   </SimpleGrid>
 
                   {/* Recommendation */}
-                  <Paper p="sm" style={{ backgroundColor: tokens.colors.electricLime + '20', border: `1px solid ${tokens.colors.electricLime}50` }}>
+                  <Paper p="sm" style={{ backgroundColor: 'var(--tribos-lime)' + '20', border: `1px solid ${'var(--tribos-lime)'}50` }}>
                     <Group gap="sm">
                       <ThemeIcon color="lime" variant="light" radius="xl">
                         <IconBolt size={16} />
                       </ThemeIcon>
                       <div>
-                        <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+                        <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
                           Today: Threshold intervals
                         </Text>
-                        <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+                        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
                           Your form is good for intensity work
                         </Text>
                       </div>
@@ -302,35 +302,35 @@ function Landing() {
       </Box>
 
       {/* PROBLEM SECTION - Quick Pain Points */}
-      <Box py={{ base: 40, md: 60 }} px={{ base: 'md', md: 'xl' }} style={{ backgroundColor: `${tokens.colors.bgSecondary}50` }}>
+      <Box py={{ base: 40, md: 60 }} px={{ base: 'md', md: 'xl' }} style={{ backgroundColor: `${'var(--tribos-bg-secondary)'}50` }}>
         <Container size="md">
           <Stack align="center" gap="xl">
-            <Title order={2} size={28} ta="center" style={{ color: tokens.colors.textPrimary }}>
+            <Title order={2} size={28} ta="center" style={{ color: 'var(--tribos-text-primary)' }}>
               Sound Familiar?
             </Title>
 
             <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
               <Paper p="md" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
                 <Text size="lg" mb="xs">📊</Text>
-                <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
+                <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
                   "Strava shows me numbers but never tells me what to DO with them"
                 </Text>
               </Paper>
               <Paper p="md" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
                 <Text size="lg" mb="xs">🗺️</Text>
-                <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
+                <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
                   "Route builders don't know if I'm fresh or cooked"
                 </Text>
               </Paper>
               <Paper p="md" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
                 <Text size="lg" mb="xs">🔀</Text>
-                <Text size="sm" style={{ color: tokens.colors.textPrimary }}>
+                <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
                   "I'm paying for 5 apps that don't talk to each other"
                 </Text>
               </Paper>
             </SimpleGrid>
 
-            <Text size="lg" ta="center" style={{ color: tokens.colors.electricLime }} fw={600}>
+            <Text size="lg" ta="center" style={{ color: 'var(--tribos-lime)' }} fw={600}>
               tribos.studio brings it all together.
             </Text>
           </Stack>
@@ -349,36 +349,36 @@ function Landing() {
                     <ThemeIcon size={40} color="blue" variant="light">
                       <IconTrendingUp size={20} />
                     </ThemeIcon>
-                    <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                    <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
                       Cycling Analytics That Guide You
                     </Title>
                   </Group>
-                  <Text style={{ color: tokens.colors.textSecondary }}>
+                  <Text style={{ color: 'var(--tribos-text-secondary)' }}>
                     CTL, ATL, TSB aren't just numbers—our cycling training app tells you what they mean for TODAY's ride.
                     Track your fitness trajectory and know exactly when to push and when to rest.
                   </Text>
                   <Stack gap="xs">
                     <Group gap="xs">
-                      <IconCheck size={16} color={tokens.colors.electricLime} />
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>Daily readiness recommendations</Text>
+                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Daily readiness recommendations</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={tokens.colors.electricLime} />
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>TSS auto-calculated from power or HR</Text>
+                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>TSS auto-calculated from power or HR</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={tokens.colors.electricLime} />
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>Long-term fitness trend visualization</Text>
+                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Long-term fitness trend visualization</Text>
                     </Group>
                   </Stack>
                 </Stack>
               </Grid.Col>
               <Grid.Col span={{ base: 12, md: 6 }}>
-                <Paper p="lg" style={{ backgroundColor: tokens.colors.bgSecondary, border: `1px solid ${tokens.colors.borderDefault}` }}>
+                <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: `1px solid ${'var(--tribos-border)'}` }}>
                   <Text size="xs" c="dimmed" mb="md">FITNESS CHART</Text>
                   <Box style={{ height: 150, background: 'linear-gradient(90deg, rgba(190, 242, 100, 0.2) 0%, rgba(34, 211, 238, 0.2) 100%)', borderRadius: 8, display: 'flex', alignItems: 'flex-end', padding: 16, gap: 4 }}>
                     {[40, 55, 48, 62, 58, 70, 65, 75, 68, 80, 72, 85].map((h, i) => (
-                      <Box key={i} style={{ flex: 1, height: `${h}%`, backgroundColor: i > 8 ? tokens.colors.electricLime : '#22d3ee', borderRadius: 2, opacity: 0.8 }} />
+                      <Box key={i} style={{ flex: 1, height: `${h}%`, backgroundColor: i > 8 ? 'var(--tribos-lime)' : '#22d3ee', borderRadius: 2, opacity: 0.8 }} />
                     ))}
                   </Box>
                   <Group justify="space-between" mt="sm">
@@ -389,15 +389,15 @@ function Landing() {
               </Grid.Col>
             </Grid>
 
-            <Divider style={{ borderColor: `${tokens.colors.electricLime}20` }} />
+            <Divider style={{ borderColor: `${'var(--tribos-lime)'}20` }} />
 
             {/* Route Planning */}
             <Grid gutter="xl" align="center">
               <Grid.Col span={{ base: 12, md: 6 }} order={{ base: 2, md: 1 }}>
-                <Paper p="lg" style={{ backgroundColor: tokens.colors.bgSecondary, border: `1px solid ${tokens.colors.borderDefault}` }}>
+                <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: `1px solid ${'var(--tribos-border)'}` }}>
                   <Text size="xs" c="dimmed" mb="md">ROUTE BUILDER</Text>
                   <Box style={{ height: 180, background: `linear-gradient(135deg, rgba(34, 197, 94, 0.3) 0%, rgba(59, 130, 246, 0.3) 100%)`, borderRadius: 8, position: 'relative', overflow: 'hidden' }}>
-                    <Box style={{ position: 'absolute', top: '30%', left: '10%', right: '10%', height: 3, background: tokens.colors.electricLime, borderRadius: 2, transform: 'rotate(5deg)' }} />
+                    <Box style={{ position: 'absolute', top: '30%', left: '10%', right: '10%', height: 3, background: 'var(--tribos-lime)', borderRadius: 2, transform: 'rotate(5deg)' }} />
                     <Box style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: 4 }}>
                       <Text size="xs" c="white">42.5 km • 650m elev</Text>
                     </Box>
@@ -410,33 +410,33 @@ function Landing() {
                     <ThemeIcon size={40} color="green" variant="light">
                       <IconMapPin size={20} />
                     </ThemeIcon>
-                    <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                    <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
                       AI-Powered Route Planning
                     </Title>
                   </Group>
-                  <Text style={{ color: tokens.colors.textSecondary }}>
+                  <Text style={{ color: 'var(--tribos-text-secondary)' }}>
                     Our bike training planner lets you build routes manually or use AI to generate cycling routes based on your fitness goals.
                     Professional editing tools with elevation profiles and surface analysis.
                   </Text>
                   <Stack gap="xs">
                     <Group gap="xs">
-                      <IconCheck size={16} color={tokens.colors.electricLime} />
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>AI route generation based on your fitness</Text>
+                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>AI route generation based on your fitness</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={tokens.colors.electricLime} />
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>Export to Garmin, Wahoo, or GPX</Text>
+                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Export to Garmin, Wahoo, or GPX</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={tokens.colors.electricLime} />
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>Drag-and-drop route editing</Text>
+                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Drag-and-drop route editing</Text>
                     </Group>
                   </Stack>
                 </Stack>
               </Grid.Col>
             </Grid>
 
-            <Divider style={{ borderColor: `${tokens.colors.electricLime}20` }} />
+            <Divider style={{ borderColor: `${'var(--tribos-lime)'}20` }} />
 
             {/* Health & Recovery */}
             <Grid gutter="xl" align="center">
@@ -446,48 +446,48 @@ function Landing() {
                     <ThemeIcon size={40} color="red" variant="light">
                       <IconHeart size={20} />
                     </ThemeIcon>
-                    <Title order={3} style={{ color: tokens.colors.textPrimary }}>
+                    <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
                       Recovery Tracking
                     </Title>
                   </Group>
-                  <Text style={{ color: tokens.colors.textSecondary }}>
+                  <Text style={{ color: 'var(--tribos-text-secondary)' }}>
                     Log sleep, HRV, and how you feel. We combine your health data with training
                     load to give smarter recommendations.
                   </Text>
                   <Stack gap="xs">
                     <Group gap="xs">
-                      <IconCheck size={16} color={tokens.colors.electricLime} />
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>Daily health check-ins</Text>
+                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Daily health check-ins</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={tokens.colors.electricLime} />
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>HRV and resting HR tracking</Text>
+                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>HRV and resting HR tracking</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={tokens.colors.electricLime} />
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>Readiness score calculation</Text>
+                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Readiness score calculation</Text>
                     </Group>
                   </Stack>
                 </Stack>
               </Grid.Col>
               <Grid.Col span={{ base: 12, md: 6 }}>
-                <Paper p="lg" style={{ backgroundColor: tokens.colors.bgSecondary, border: `1px solid ${tokens.colors.borderDefault}` }}>
+                <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: `1px solid ${'var(--tribos-border)'}` }}>
                   <Text size="xs" c="dimmed" mb="md">HEALTH CHECK-IN</Text>
                   <Stack gap="sm">
                     <Group justify="space-between">
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>Sleep</Text>
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Sleep</Text>
                       <Badge color="green">7.5 hrs</Badge>
                     </Group>
                     <Group justify="space-between">
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>HRV</Text>
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>HRV</Text>
                       <Badge color="blue">58 ms</Badge>
                     </Group>
                     <Group justify="space-between">
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>Energy</Text>
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Energy</Text>
                       <Badge color="lime">4/5</Badge>
                     </Group>
                     <Group justify="space-between">
-                      <Text size="sm" style={{ color: tokens.colors.textPrimary }}>Soreness</Text>
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Soreness</Text>
                       <Badge color="orange">2/5</Badge>
                     </Group>
                   </Stack>
@@ -499,40 +499,40 @@ function Landing() {
       </Box>
 
       {/* INTEGRATIONS */}
-      <Box py={{ base: 40, md: 60 }} px={{ base: 'md', md: 'xl' }} style={{ backgroundColor: `${tokens.colors.bgSecondary}50` }}>
+      <Box py={{ base: 40, md: 60 }} px={{ base: 'md', md: 'xl' }} style={{ backgroundColor: `${'var(--tribos-bg-secondary)'}50` }}>
         <Container size="md">
           <Stack align="center" gap="xl">
-            <Title order={2} size={28} ta="center" style={{ color: tokens.colors.textPrimary }}>
+            <Title order={2} size={28} ta="center" style={{ color: 'var(--tribos-text-primary)' }}>
               Works With Your Gear
             </Title>
 
             <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
-              <Paper p="lg" style={{ backgroundColor: tokens.colors.bgSecondary, border: '2px solid #FC4C02', textAlign: 'center' }}>
+              <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: '2px solid #FC4C02', textAlign: 'center' }}>
                 <ThemeIcon size={50} radius="xl" color="orange" variant="light" mx="auto" mb="sm">
                   <IconActivity size={24} />
                 </ThemeIcon>
-                <Text fw={600} style={{ color: tokens.colors.textPrimary }}>Strava</Text>
+                <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Strava</Text>
                 <Text size="xs" c="dimmed">Auto-import rides</Text>
               </Paper>
-              <Paper p="lg" style={{ backgroundColor: tokens.colors.bgSecondary, border: '2px solid #007CC3', textAlign: 'center' }}>
+              <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: '2px solid #007CC3', textAlign: 'center' }}>
                 <ThemeIcon size={50} radius="xl" color="blue" variant="light" mx="auto" mb="sm">
                   <IconDeviceWatch size={24} />
                 </ThemeIcon>
-                <Text fw={600} style={{ color: tokens.colors.textPrimary }}>Garmin</Text>
+                <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Garmin</Text>
                 <Text size="xs" c="dimmed">Sync routes to device</Text>
               </Paper>
-              <Paper p="lg" style={{ backgroundColor: tokens.colors.bgSecondary, border: '2px solid #1A73E8', textAlign: 'center' }}>
+              <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: '2px solid #1A73E8', textAlign: 'center' }}>
                 <ThemeIcon size={50} radius="xl" color="cyan" variant="light" mx="auto" mb="sm">
                   <IconDeviceWatch size={24} />
                 </ThemeIcon>
-                <Text fw={600} style={{ color: tokens.colors.textPrimary }}>Wahoo</Text>
+                <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Wahoo</Text>
                 <Text size="xs" c="dimmed">Sync routes to device</Text>
               </Paper>
-              <Paper p="lg" style={{ backgroundColor: tokens.colors.bgSecondary, border: `2px solid ${tokens.colors.electricLime}`, textAlign: 'center' }}>
+              <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: `2px solid ${'var(--tribos-lime)'}`, textAlign: 'center' }}>
                 <ThemeIcon size={50} radius="xl" color="lime" variant="light" mx="auto" mb="sm">
                   <IconUpload size={24} />
                 </ThemeIcon>
-                <Text fw={600} style={{ color: tokens.colors.textPrimary }}>FIT Upload</Text>
+                <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>FIT Upload</Text>
                 <Text size="xs" c="dimmed">Direct file upload</Text>
               </Paper>
             </SimpleGrid>
@@ -544,10 +544,10 @@ function Landing() {
       <Box py={{ base: 60, md: 80 }} px={{ base: 'md', md: 'xl' }}>
         <Container size="sm">
           <Stack align="center" gap="xl">
-            <Title order={2} size={32} ta="center" style={{ color: tokens.colors.textPrimary }}>
+            <Title order={2} size={32} ta="center" style={{ color: 'var(--tribos-text-primary)' }}>
               Ready to Train Smarter?
             </Title>
-            <Text size="lg" ta="center" style={{ color: tokens.colors.textSecondary }}>
+            <Text size="lg" ta="center" style={{ color: 'var(--tribos-text-secondary)' }}>
               Join the beta and help build the cycling platform we've all been waiting for.
             </Text>
 
@@ -557,7 +557,7 @@ function Landing() {
               radius="lg"
               style={{
                 background: `linear-gradient(135deg, rgba(190, 242, 100, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%)`,
-                border: `2px solid ${tokens.colors.electricLime}40`,
+                border: `2px solid ${'var(--tribos-lime)'}40`,
                 maxWidth: 500,
                 width: '100%',
               }}
@@ -572,8 +572,8 @@ function Landing() {
                     leftSection={<IconMail size={20} />}
                     styles={{
                       input: {
-                        backgroundColor: tokens.colors.bgPrimary,
-                        borderColor: tokens.colors.borderDefault,
+                        backgroundColor: 'var(--tribos-bg-primary)',
+                        borderColor: 'var(--tribos-border)',
                       },
                     }}
                   />
@@ -591,7 +591,7 @@ function Landing() {
               </form>
             </Paper>
 
-            <Text size="sm" style={{ color: tokens.colors.textMuted }}>
+            <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
               Free to start • No credit card required
             </Text>
           </Stack>
@@ -599,26 +599,26 @@ function Landing() {
       </Box>
 
       {/* Footer */}
-      <Box py={30} px={{ base: 'md', md: 'xl' }} style={{ backgroundColor: tokens.colors.bgPrimary, borderTop: `1px solid ${tokens.colors.electricLime}20` }}>
+      <Box py={30} px={{ base: 'md', md: 'xl' }} style={{ backgroundColor: 'var(--tribos-bg-primary)', borderTop: `1px solid ${'var(--tribos-lime)'}20` }}>
         <Container size="lg">
           <Stack gap="sm">
             <Center>
               <Group gap="md">
-                <IconRoute size={20} color={tokens.colors.electricLime} />
-                <Text size="sm" style={{ color: tokens.colors.textMuted }}>
+                <IconRoute size={20} color={'var(--tribos-lime)'} />
+                <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
                   tribos.studio
                 </Text>
               </Group>
             </Center>
             <Center>
               <Group gap="lg">
-                <Anchor href="/privacy" size="xs" style={{ color: tokens.colors.textMuted }}>
+                <Anchor href="/privacy" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                   Privacy
                 </Anchor>
-                <Anchor href="/terms" size="xs" style={{ color: tokens.colors.textMuted }}>
+                <Anchor href="/terms" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                   Terms
                 </Anchor>
-                <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: tokens.colors.textMuted }}>
+                <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                   Contact
                 </Anchor>
               </Group>

@@ -167,14 +167,14 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
     const data = payload[0].payload;
 
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: tokens.colors.bgSecondary }}>
-        <Text size="xs" fw={600} mb="xs" style={{ color: tokens.colors.textPrimary }}>
+      <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+        <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>
           {data.name}
         </Text>
         {data.current && (
           <Group justify="space-between" gap="md">
             <Text size="xs" c="yellow">Current:</Text>
-            <Text size="xs" fw={600} style={{ color: tokens.colors.textPrimary }}>
+            <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
               {data.current}W {data.currentWkg && `(${data.currentWkg} W/kg)`}
             </Text>
           </Group>
@@ -199,7 +199,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
   if (!powerCurveData.current || powerCurveData.current.length === 0) {
     return (
       <Card withBorder p="xl">
-        <Text style={{ color: tokens.colors.textMuted }} ta="center">
+        <Text style={{ color: 'var(--tribos-text-muted)' }} ta="center">
           No power data available. Connect a power meter to see your power duration curve.
         </Text>
       </Card>
@@ -211,7 +211,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
           <IconBolt size={20} color={tokens.colors.zone4} />
-          <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Power Duration Curve
           </Text>
           {riderType && (
@@ -278,18 +278,18 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
       {/* Power Curve Chart */}
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={powerCurveData.current} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={tokens.colors.bgTertiary} />
+          <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
           <XAxis
             dataKey="duration"
-            tick={{ fontSize: 11, fill: tokens.colors.textMuted }}
+            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: tokens.colors.textMuted }}
+            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
             label={{
               value: 'Watts',
               angle: -90,
               position: 'insideLeft',
-              style: { textAnchor: 'middle', fill: tokens.colors.textMuted, fontSize: 11 }
+              style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 11 }
             }}
           />
           <RechartsTooltip content={<CustomTooltip />} />
@@ -313,7 +313,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
           <Line
             type="monotone"
             dataKey="previous"
-            stroke={tokens.colors.textMuted}
+            stroke={'var(--tribos-text-muted)'}
             strokeWidth={1}
             strokeDasharray="3 3"
             dot={false}
@@ -335,10 +335,10 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
 
       {/* Rider type description */}
       {riderType && (
-        <Paper p="xs" mt="md" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+        <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs">
-            <IconTrophy size={16} color={tokens.colors.electricLime} />
-            <Text size="xs" style={{ color: tokens.colors.textSecondary }}>
+            <IconTrophy size={16} color={'var(--tribos-lime)'} />
+            <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
               <Text span fw={600} c={riderType.color}>{riderType.type}</Text>
               {' - '}{riderType.description}
             </Text>
@@ -346,7 +346,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
         </Paper>
       )}
 
-      <Text size="xs" style={{ color: tokens.colors.textMuted }} mt="md">
+      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt="md">
         Power curve shows best efforts at each duration. Dashed line shows previous period for comparison.
       </Text>
     </Card>
@@ -357,7 +357,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
 function PowerMetricCard({ label, value, weight, ftp, color, isFtp }) {
   if (!value) {
     return (
-      <Paper p="xs" ta="center" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+      <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
         <Text size="xs" c="dimmed">{label}</Text>
         <Text size="sm" fw={600} c="dimmed">--</Text>
       </Paper>
@@ -377,7 +377,7 @@ function PowerMetricCard({ label, value, weight, ftp, color, isFtp }) {
         </Stack>
       }
     >
-      <Paper p="xs" ta="center" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+      <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
         <Text size="xs" c="dimmed">{label}</Text>
         <Text size="sm" fw={700} c={color}>{value}W</Text>
         {wkg && <Text size="xs" c="dimmed">{wkg}</Text>}

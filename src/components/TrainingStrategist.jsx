@@ -115,13 +115,13 @@ function WorkoutChip({ recommendation, onAdd }) {
     <Group
       gap={6}
       style={{
-        backgroundColor: tokens.colors.bgTertiary,
+        backgroundColor: 'var(--tribos-bg-tertiary)',
         borderRadius: 6,
         padding: '4px 8px',
         border: `1px solid ${STRATEGIST_THEME.primaryLight}`,
       }}
     >
-      <Text size="xs" fw={500} style={{ color: tokens.colors.textPrimary }}>
+      <Text size="xs" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
         {workout.name}
       </Text>
       <Badge size="xs" variant="light" color="gray">
@@ -649,7 +649,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
     <Card
       p="sm"
       style={{
-        backgroundColor: tokens.colors.bgSecondary,
+        backgroundColor: 'var(--tribos-bg-secondary)',
         display: 'flex',
         flexDirection: 'column'
       }}
@@ -671,7 +671,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
             >
               <IconChartLine size={14} style={{ color: 'white' }} />
             </Box>
-            <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+            <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
               {STRATEGIST_THEME.name}
             </Text>
             {messages.length > 0 && (
@@ -699,8 +699,8 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
             style={{ flex: 1 }}
             styles={{
               input: {
-                backgroundColor: tokens.colors.bgTertiary,
-                borderColor: tokens.colors.bgTertiary,
+                backgroundColor: 'var(--tribos-bg-tertiary)',
+                borderColor: 'var(--tribos-bg-tertiary)',
                 '&:focus': {
                   borderColor: STRATEGIST_THEME.primary
                 }
@@ -772,7 +772,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                 {showDivider && (
                   <Box
                     style={{
-                      borderTop: `1px solid ${tokens.colors.bgTertiary}`,
+                      borderTop: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                       margin: '8px 0',
                       position: 'relative',
                     }}
@@ -785,7 +785,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                         top: '-10px',
                         left: '50%',
                         transform: 'translateX(-50%)',
-                        backgroundColor: tokens.colors.bgSecondary,
+                        backgroundColor: 'var(--tribos-bg-secondary)',
                         padding: '0 8px',
                       }}
                     >
@@ -799,7 +799,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                     position: 'relative',
                     opacity: isOlderMessage ? 0.6 : 1,
                     paddingLeft: isOlderMessage ? 8 : 0,
-                    borderLeft: isOlderMessage ? `2px solid ${tokens.colors.bgTertiary}` : 'none',
+                    borderLeft: isOlderMessage ? `2px solid ${'var(--tribos-bg-tertiary)'}` : 'none',
                   }}
                   className="message-item"
                 >
@@ -810,7 +810,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                         height: 24,
                         borderRadius: '50%',
                         backgroundColor: msg.role === 'user'
-                          ? tokens.colors.bgTertiary
+                          ? 'var(--tribos-bg-tertiary)'
                           : isOlderMessage ? '#6B7280' : STRATEGIST_THEME.primary,
                         display: 'flex',
                         alignItems: 'center',
@@ -820,7 +820,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                       }}
                     >
                       {msg.role === 'user' ? (
-                        <IconUser size={14} style={{ color: tokens.colors.textSecondary }} />
+                        <IconUser size={14} style={{ color: 'var(--tribos-text-secondary)' }} />
                       ) : (
                         <IconChartLine size={14} style={{ color: 'white' }} />
                       )}
@@ -831,7 +831,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                         style={{
                           color: msg.role === 'user'
                             ? '#60A5FA'  // Blue for user questions
-                            : isOlderMessage ? tokens.colors.textSecondary : tokens.colors.textPrimary,
+                            : isOlderMessage ? 'var(--tribos-text-secondary)' : 'var(--tribos-text-primary)',
                           whiteSpace: 'pre-wrap',
                           lineHeight: 1.5,
                           fontWeight: msg.role === 'user' ? 500 : 400,
@@ -902,7 +902,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                   padding: '8px 0',
                 }}
               >
-                <IconHistory size={14} style={{ color: tokens.colors.textMuted }} />
+                <IconHistory size={14} style={{ color: 'var(--tribos-text-muted)' }} />
                 <Text size="sm" c="dimmed">
                   Show {hiddenMessageCount} older messages
                 </Text>

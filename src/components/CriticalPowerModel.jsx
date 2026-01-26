@@ -263,7 +263,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
     const data = payload[0].payload;
 
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: tokens.colors.bgSecondary }}>
+      <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
         <Text size="xs" fw={600} mb="xs">{data.label}</Text>
         <Group gap="md">
           <Box>
@@ -288,7 +288,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
   if (!cpModel) {
     return (
       <Card withBorder p="xl">
-        <Text style={{ color: tokens.colors.textMuted }} ta="center">
+        <Text style={{ color: 'var(--tribos-text-muted)' }} ta="center">
           Not enough power data to calculate Critical Power model.
           Connect a power meter to see your CP and W' values.
         </Text>
@@ -301,7 +301,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
           <IconBattery size={20} color={tokens.colors.zone5} />
-          <Text size="sm" fw={600} style={{ color: tokens.colors.textPrimary }}>
+          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Critical Power Model
           </Text>
           {cpModel.model === 'estimated' && (
@@ -323,7 +323,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
 
       {/* Key Metrics */}
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
-        <Paper p="sm" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+        <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs" mb={2}>
             <IconBolt size={14} color={tokens.colors.zone4} />
             <Text size="xs" c="dimmed">Critical Power</Text>
@@ -332,7 +332,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
           {weight && <Text size="xs" c="dimmed">{(cpModel.cp / weight).toFixed(2)} W/kg</Text>}
         </Paper>
 
-        <Paper p="sm" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+        <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs" mb={2}>
             <IconBattery size={14} color={tokens.colors.zone5} />
             <Text size="xs" c="dimmed">W' (W Prime)</Text>
@@ -341,7 +341,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
           <Text size="xs" c="dimmed">Anaerobic capacity</Text>
         </Paper>
 
-        <Paper p="sm" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+        <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs" mb={2}>
             <IconClock size={14} color={tokens.colors.zone2} />
             <Text size="xs" c="dimmed">TTE at 120% CP</Text>
@@ -352,7 +352,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
           <Text size="xs" c="dimmed">{Math.round(cpModel.cp * 1.2)}W effort</Text>
         </Paper>
 
-        <Paper p="sm" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+        <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs" mb={2}>
             <IconFlame size={14} color={tokens.colors.zone3} />
             <Text size="xs" c="dimmed">CP vs FTP</Text>
@@ -369,19 +369,19 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
           {/* Power-Duration Curve */}
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={powerDurationData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={tokens.colors.bgTertiary} />
+              <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 10, fill: tokens.colors.textMuted }}
+                tick={{ fontSize: 10, fill: 'var(--tribos-text-muted)' }}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: tokens.colors.textMuted }}
+                tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
                 domain={['auto', 'auto']}
                 label={{
                   value: 'Watts',
                   angle: -90,
                   position: 'insideLeft',
-                  style: { fill: tokens.colors.textMuted, fontSize: 11 }
+                  style: { fill: 'var(--tribos-text-muted)', fontSize: 11 }
                 }}
               />
               <RechartsTooltip content={<CustomTooltip />} />
@@ -422,7 +422,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
         /* Predictions View */
         <Stack gap="sm">
           {predictions?.map((p) => (
-            <Paper key={p.duration} p="sm" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+            <Paper key={p.duration} p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
               <Group justify="space-between">
                 <Box>
                   <Text size="sm" fw={600}>{p.label}</Text>
@@ -465,7 +465,7 @@ export function WPrimeBalanceGauge({ wBalancePercent, wPrimeKJ }) {
 
   return (
     <Tooltip label={`W' Balance: ${wBalancePercent.toFixed(0)}% of ${wPrimeKJ.toFixed(1)} kJ remaining`}>
-      <Paper p="xs" style={{ backgroundColor: tokens.colors.bgTertiary }}>
+      <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
         <Group gap="xs" mb={4}>
           <IconBattery size={14} />
           <Text size="xs">W' Balance</Text>

@@ -329,7 +329,7 @@ const RideAnalysisModal = ({
                       id="route-line"
                       type="line"
                       paint={{
-                        'line-color': tokens.colors.electricLime,
+                        'line-color': 'var(--tribos-lime)',
                         'line-width': 3,
                         'line-opacity': 0.9,
                       }}
@@ -421,7 +421,7 @@ const RideAnalysisModal = ({
                     <Text size="xs" c="dimmed">Avg Power</Text>
                     <Text fw={600}>{Math.round(metrics.avgPower)}W</Text>
                   </Box>
-                  <IconBolt size={20} style={{ color: tokens.colors.electricLime }} />
+                  <IconBolt size={20} style={{ color: 'var(--tribos-lime)' }} />
                 </Group>
               </Paper>
 

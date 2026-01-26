@@ -38,7 +38,7 @@ function RouteStatsPanel({
       icon: <IconRuler size={20} />,
       label: 'Distance',
       value: formatDist(stats.distance),
-      color: tokens.colors.electricLime,
+      color: 'var(--tribos-lime)',
     },
     {
       icon: <IconMountain size={20} />,
@@ -68,7 +68,7 @@ function RouteStatsPanel({
   return (
     <Box
       style={{
-        backgroundColor: tokens.colors.bgTertiary,
+        backgroundColor: 'var(--tribos-bg-tertiary)',
         borderRadius: tokens.radius.md,
         padding: tokens.spacing.md,
       }}
@@ -83,11 +83,11 @@ function RouteStatsPanel({
           >
             <Box
               style={{
-                backgroundColor: tokens.colors.bgSecondary,
+                backgroundColor: 'var(--tribos-bg-secondary)',
                 borderRadius: tokens.radius.md,
                 padding: '12px',
                 textAlign: 'center',
-                border: `1px solid ${tokens.colors.bgElevated}`,
+                border: `1px solid ${'var(--tribos-bg-elevated)'}`,
               }}
             >
               <Box
@@ -103,11 +103,11 @@ function RouteStatsPanel({
               <Text
                 size="lg"
                 fw={700}
-                style={{ color: tokens.colors.textPrimary, marginBottom: '2px' }}
+                style={{ color: 'var(--tribos-text-primary)', marginBottom: '2px' }}
               >
                 {item.value}
               </Text>
-              <Text size="xs" style={{ color: tokens.colors.textMuted }}>
+              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                 {item.label}
               </Text>
             </Box>
