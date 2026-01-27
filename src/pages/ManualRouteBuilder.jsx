@@ -346,11 +346,12 @@ export default function ManualRouteBuilder() {
   }, [saveRoute]);
 
   // === Route line layer style ===
+  // Note: Mapbox GL doesn't support CSS variables, use hardcoded hex
   const routeLayerStyle = {
     id: 'route-line',
     type: 'line',
     paint: {
-      'line-color': 'var(--tribos-lime)',
+      'line-color': '#32CD32', // electricLime - hardcoded for Mapbox GL
       'line-width': 4,
       'line-opacity': 0.9,
     },

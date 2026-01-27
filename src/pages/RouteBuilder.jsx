@@ -2343,7 +2343,7 @@ function RouteBuilder() {
                       id="route-line"
                       type="line"
                       paint={{
-                        'line-color': editMode ? '#666666' : 'var(--tribos-lime)',
+                        'line-color': editMode ? '#666666' : '#32CD32',
                         'line-width': 4,
                         'line-opacity': editMode ? 0.6 : 0.8
                       }}
@@ -3427,7 +3427,7 @@ function RouteBuilder() {
                     id="route-line"
                     type="line"
                     paint={{
-                      'line-color': editMode ? '#666666' : 'var(--tribos-lime)',
+                      'line-color': editMode ? '#666666' : '#32CD32',
                       'line-width': 4,
                       'line-opacity': editMode ? 0.6 : 0.8
                     }}
