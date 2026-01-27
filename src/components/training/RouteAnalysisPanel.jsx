@@ -572,6 +572,11 @@ export default function RouteAnalysisPanel({
 
     try {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+      // Ensure months is a valid primitive value (guard against DOM elements in state)
+      const monthsValue = typeof analysisMonths === 'string' ? analysisMonths : '3';
+      const monthsParam = monthsValue === 'all' ? 'all' : parseInt(monthsValue, 10) || 3;
+
       const response = await fetch('/api/route-analysis', {
         method: 'POST',
         headers: {
@@ -580,9 +585,9 @@ export default function RouteAnalysisPanel({
         },
         body: JSON.stringify({
           action: 'analyze_all',
-          months: analysisMonths === 'all' ? 'all' : parseInt(analysisMonths),
+          months: monthsParam,
           limit: 50,
-          force: force,
+          force: Boolean(force),
         }),
       });
 
@@ -733,7 +738,7 @@ export default function RouteAnalysisPanel({
           <SegmentedControl
             size="xs"
             value={viewMode}
-            onChange={(value) => typeof value === 'string' && setViewMode(value)}
+            onChange={setViewMode}
             data={[
               { label: 'Workouts', value: 'workouts' },
               { label: 'All Routes', value: 'all' },
@@ -742,7 +747,7 @@ export default function RouteAnalysisPanel({
           <SegmentedControl
             size="xs"
             value={analysisMonths}
-            onChange={(value) => typeof value === 'string' && setAnalysisMonths(value)}
+            onChange={setAnalysisMonths}
             data={[
               { label: '1 mo', value: '1' },
               { label: '3 mo', value: '3' },
