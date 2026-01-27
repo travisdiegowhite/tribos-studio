@@ -75,8 +75,9 @@ function getBounds(coords) {
  */
 function getActivityColor(activity, index) {
   // Color palette for rides - recent rides are brighter
+  // Note: Must use hex colors, not CSS variables, as Mapbox GL doesn't support CSS variables
   const colors = [
-    'var(--tribos-lime)', // Most recent
+    '#32CD32', // Tribos lime - most recent
     '#60a5fa', // Blue
     '#f59e0b', // Amber
     '#a855f7', // Purple
