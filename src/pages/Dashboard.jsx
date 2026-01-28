@@ -31,6 +31,7 @@ import { tokens } from '../theme';
 import { ViewOnStravaLink } from '../components/StravaBranding';
 import AppShell from '../components/AppShell.jsx';
 import OnboardingModal from '../components/OnboardingModal.jsx';
+import WhatsNewModal, { hasSeenLatestUpdates } from '../components/WhatsNewModal.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import { supabase } from '../lib/supabase';
@@ -46,6 +47,7 @@ function Dashboard() {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [activePlan, setActivePlan] = useState(null);
   const [todayWorkout, setTodayWorkout] = useState(null);
@@ -82,6 +84,10 @@ function Dashboard() {
           }
         } catch {
           // Profile load failed
+        }
+        // Check for What's New updates (only if not showing onboarding)
+        if (!hasSeenLatestUpdates(user.id)) {
+          setShowWhatsNew(true);
         }
         return;
       }
@@ -246,6 +252,11 @@ function Dashboard() {
       <OnboardingModal
         opened={showOnboarding}
         onClose={() => setShowOnboarding(false)}
+      />
+      <WhatsNewModal
+        opened={showWhatsNew}
+        onClose={() => setShowWhatsNew(false)}
+        userId={user?.id}
       />
       <Container size="xl" py="lg">
         <Stack gap="lg">

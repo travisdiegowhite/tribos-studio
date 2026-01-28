@@ -19,8 +19,10 @@ import {
   Alert,
   List,
   ThemeIcon,
+  Collapse,
+  UnstyledButton,
 } from '@mantine/core';
-import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSparkles, IconArrowRight, IconSun, IconMoon } from '@tabler/icons-react';
+import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSun, IconMoon, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
@@ -36,8 +38,6 @@ import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
 import { TIMEZONE_OPTIONS, getBrowserTimezone, getTimezoneOffset } from '../utils/timezoneUtils';
 import { formatSpeed } from '../utils/units';
-import updatesData from '../data/updates.json';
-import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 
 // Get the API base URL based on environment
@@ -1375,30 +1375,9 @@ function Settings() {
                 onDisconnect={disconnectWahoo}
                 unitsPreference={unitsPreference}
               />
-            </Stack>
-          </Card>
 
-          {/* Activity Maintenance */}
-          <Card>
-            <Stack gap="md">
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
-                Activity Maintenance
-              </Title>
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                Manage your activity library and sync full history
-              </Text>
-
-              {stravaStatus.connected && (
-                <Alert color="blue" variant="light" icon={<IconInfoCircle size={18} />}>
-                  <Text size="sm">
-                    <strong>Important:</strong> The regular "Sync Activities" button only imports recent activities (~2000 max).
-                    To import your complete Strava history for AI coach analysis and year-over-year comparisons,
-                    use the "Sync Full History" button below.
-                  </Text>
-                </Alert>
-              )}
-
-              <Divider />
+              {/* Activity Maintenance - Merged into Connected Services */}
+              <Divider label="Activity Maintenance" labelPosition="center" />
 
               {/* Full History Sync */}
               {stravaStatus.connected && (
@@ -1418,7 +1397,7 @@ function Settings() {
                         </Text>
                       </Group>
                       <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                        Import your complete Strava history (all years). This fetches all pages of activities and may take a minute.
+                        Import your complete Strava history (all years). Regular sync imports ~2000 max.
                       </Text>
                     </Box>
                     <Button
@@ -1453,21 +1432,19 @@ function Settings() {
                         </Text>
                       </Group>
                       <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                        Find and merge duplicate activities (e.g., same ride from Garmin and Strava). Keeps the best data from each.
+                        Find and merge duplicate activities (e.g., same ride from Garmin and Strava).
                       </Text>
                     </Box>
-                    <Group gap="xs">
-                      <Button
-                        size="sm"
-                        color="blue"
-                        variant="light"
-                        onClick={findDuplicateActivities}
-                        loading={findingDuplicates}
-                        disabled={findingDuplicates || cleaningDuplicates}
-                      >
-                        {findingDuplicates ? 'Scanning...' : 'Scan for Duplicates'}
-                      </Button>
-                    </Group>
+                    <Button
+                      size="sm"
+                      color="blue"
+                      variant="light"
+                      onClick={findDuplicateActivities}
+                      loading={findingDuplicates}
+                      disabled={findingDuplicates || cleaningDuplicates}
+                    >
+                      {findingDuplicates ? 'Scanning...' : 'Scan for Duplicates'}
+                    </Button>
                   </Group>
 
                   {/* Duplicate Preview */}
@@ -1562,183 +1539,6 @@ function Settings() {
             </Stack>
           </Card>
 
-          {/* Tools */}
-          <Card>
-            <Stack gap="md">
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
-                Tools
-              </Title>
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                Helpful calculators and utilities
-              </Text>
-              <Divider />
-              <TirePressureCalculator />
-            </Stack>
-          </Card>
-
-          {/* Data & Privacy */}
-          <Card>
-            <Stack gap="md">
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
-                Data & Privacy
-              </Title>
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                Manage your data and understand how we use it
-              </Text>
-
-              <Divider />
-
-              {/* Strava Data Info */}
-              {stravaStatus.connected && (
-                <Box
-                  style={{
-                    padding: tokens.spacing.md,
-                    backgroundColor: 'var(--tribos-bg-tertiary)',
-                    borderRadius: tokens.radius.md,
-                  }}
-                >
-                  <Group justify="space-between" align="flex-start">
-                    <Box>
-                      <Text fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
-                        Strava Data
-                      </Text>
-                      <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                        We store your activity data to calculate training metrics and speed profiles.
-                        Per Strava's API agreement, your data is never shared with third parties.
-                      </Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt="xs">
-                        Disconnecting Strava will permanently delete all your Strava activities and speed profile data.
-                      </Text>
-                    </Box>
-                  </Group>
-                </Box>
-              )}
-
-              {/* Privacy Links */}
-              <Group gap="md">
-                <Button
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  component="a"
-                  href="/privacy"
-                  target="_blank"
-                >
-                  Privacy Policy
-                </Button>
-                <Button
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  component="a"
-                  href="/terms"
-                  target="_blank"
-                >
-                  Terms of Service
-                </Button>
-                <Button
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  component="a"
-                  href="https://www.strava.com/legal/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Strava Privacy Policy
-                </Button>
-              </Group>
-
-              {/* Contact */}
-              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
-                Questions or concerns?{' '}
-                <a
-                  href="mailto:travis@tribos.studio"
-                  style={{ color: 'var(--tribos-text-secondary)', textDecoration: 'underline' }}
-                >
-                  Contact us
-                </a>
-              </Text>
-            </Stack>
-          </Card>
-
-          {/* What's New Section */}
-          <Card>
-            <Stack gap="md">
-              <Group gap="sm">
-                <IconSparkles size={20} color={'var(--tribos-lime)'} />
-                <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
-                  What's New
-                </Title>
-              </Group>
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                {updatesData.welcome?.subtitle || 'Latest updates and improvements'}
-              </Text>
-
-              <Divider />
-
-              {/* Recent Updates */}
-              <Stack gap="sm">
-                {updatesData.updates?.slice(0, 3).map((update) => (
-                  <Box
-                    key={update.id}
-                    style={{
-                      padding: tokens.spacing.md,
-                      backgroundColor: 'var(--tribos-bg-tertiary)',
-                      borderRadius: tokens.radius.md,
-                    }}
-                  >
-                    <Group justify="space-between" mb="xs">
-                      <Badge variant="light" color="lime" size="sm">
-                        {update.type === 'improvement' ? 'Improvement' : 'New'}
-                      </Badge>
-                      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
-                        {update.date}
-                      </Text>
-                    </Group>
-                    <Text fw={500} size="sm" style={{ color: 'var(--tribos-text-primary)' }} mb="xs">
-                      {update.title}
-                    </Text>
-                    <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                      {update.description}
-                    </Text>
-                    {update.details && update.details.length > 0 && (
-                      <Stack gap={4} mt="xs">
-                        {update.details.slice(0, 2).map((detail, idx) => (
-                          <Group key={idx} gap="xs" wrap="nowrap">
-                            <IconArrowRight size={12} color={'var(--tribos-lime)'} style={{ flexShrink: 0 }} />
-                            <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                              {detail}
-                            </Text>
-                          </Group>
-                        ))}
-                      </Stack>
-                    )}
-                  </Box>
-                ))}
-              </Stack>
-
-              {/* Coming Soon */}
-              {updatesData.comingSoon && updatesData.comingSoon.length > 0 && (
-                <>
-                  <Divider />
-                  <Box>
-                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} tt="uppercase" fw={500} mb="sm">
-                      Coming Soon
-                    </Text>
-                    <Group gap="xs">
-                      {updatesData.comingSoon.map((item, idx) => (
-                        <Badge key={idx} variant="outline" color="gray" size="sm">
-                          {item.title}
-                        </Badge>
-                      ))}
-                    </Group>
-                  </Box>
-                </>
-              )}
-            </Stack>
-          </Card>
-
           {/* Account Actions */}
           <Card>
             <Stack gap="md">
@@ -1759,6 +1559,7 @@ function Settings() {
 
 function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis, onBackfillGps, backfillingGps, onBackfillHistory, backfillingHistory, backfillStatus, unitsPreference }) {
   const isStrava = name === 'Strava';
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   if (loading) {
     return (
@@ -2019,96 +1820,120 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                       ))}
                     </Box>
                   )}
-                  {onRepair && (!webhookStatus.integration?.tokenValid || !webhookStatus.integration?.hasGarminUserId) && (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      color="yellow"
-                      onClick={onRepair}
-                      loading={repairing}
-                      style={{ marginTop: 8 }}
-                    >
-                      🔧 Repair Connection
-                    </Button>
-                  )}
-                  {onRecover && webhookStatus.integration?.tokenValid && (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      color="orange"
-                      onClick={onRecover}
-                      loading={recovering}
-                      style={{ marginTop: 8 }}
-                    >
-                      🔄 Recover Failed Events
-                    </Button>
-                  )}
-                  {onDiagnose && (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      color="grape"
-                      onClick={onDiagnose}
-                      style={{ marginTop: 8 }}
-                    >
-                      🔍 Diagnose Sync Issues
-                    </Button>
-                  )}
-                  {diagnosis && (
-                    <Box
-                      style={{
-                        backgroundColor: 'var(--tribos-bg-primary)',
-                        padding: tokens.spacing.sm,
-                        borderRadius: tokens.radius.sm,
-                        marginTop: 8,
-                        fontSize: '11px',
-                        maxHeight: '300px',
-                        overflow: 'auto'
-                      }}
-                    >
-                      <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginBottom: 4 }}>
-                        Diagnosis Results:
-                      </Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-lime)' }}>
-                        Activities in DB: {diagnosis.activities?.count || 0}
-                      </Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                        Webhook Events: {diagnosis.summary?.totalWebhooks || 0}
-                      </Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                        • PUSH events: {diagnosis.summary?.pushEvents || 0}
-                      </Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                        • PING events: {diagnosis.summary?.pingEvents || 0}
-                      </Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                        • With errors: {diagnosis.summary?.withErrors || 0}
-                      </Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                        • Imported: {diagnosis.summary?.imported || 0}
-                      </Text>
-                      {diagnosis.webhookEvents?.analysis?.length > 0 && (
-                        <>
-                          <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginTop: 8 }}>
-                            Recent Events:
-                          </Text>
-                          {diagnosis.webhookEvents.analysis.slice(0, 5).map((event, i) => (
-                            <Box key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${event.error ? 'red' : 'var(--tribos-lime)'}` }}>
-                              <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
-                                {event.activityName || event.activity_id || 'Unknown'} - {event.activityType || 'N/A'}
+
+                  {/* Collapsible Advanced Diagnostics */}
+                  {(onRepair || onRecover || onDiagnose) && (
+                    <Box mt="xs">
+                      <UnstyledButton
+                        onClick={() => setDiagnosticsOpen(!diagnosticsOpen)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '4px 0',
+                        }}
+                      >
+                        {diagnosticsOpen ? (
+                          <IconChevronDown size={14} color="var(--tribos-text-muted)" />
+                        ) : (
+                          <IconChevronRight size={14} color="var(--tribos-text-muted)" />
+                        )}
+                        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                          Advanced Diagnostics
+                        </Text>
+                      </UnstyledButton>
+                      <Collapse in={diagnosticsOpen}>
+                        <Stack gap="xs" mt="xs">
+                          {onRepair && (!webhookStatus.integration?.tokenValid || !webhookStatus.integration?.hasGarminUserId) && (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              color="yellow"
+                              onClick={onRepair}
+                              loading={repairing}
+                            >
+                              🔧 Repair Connection
+                            </Button>
+                          )}
+                          {onRecover && webhookStatus.integration?.tokenValid && (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              color="orange"
+                              onClick={onRecover}
+                              loading={recovering}
+                            >
+                              🔄 Recover Failed Events
+                            </Button>
+                          )}
+                          {onDiagnose && (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              color="grape"
+                              onClick={onDiagnose}
+                            >
+                              🔍 Diagnose Sync Issues
+                            </Button>
+                          )}
+                          {diagnosis && (
+                            <Box
+                              style={{
+                                backgroundColor: 'var(--tribos-bg-primary)',
+                                padding: tokens.spacing.sm,
+                                borderRadius: tokens.radius.sm,
+                                fontSize: '11px',
+                                maxHeight: '300px',
+                                overflow: 'auto'
+                              }}
+                            >
+                              <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginBottom: 4 }}>
+                                Diagnosis Results:
                               </Text>
-                              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
-                                {event.dataSource} | {event.distance || 'No distance'}
+                              <Text size="xs" style={{ color: 'var(--tribos-lime)' }}>
+                                Activities in DB: {diagnosis.activities?.count || 0}
                               </Text>
-                              {event.error && (
-                                <Text size="xs" style={{ color: 'red' }}>
-                                  Error: {event.error}
-                                </Text>
+                              <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                                Webhook Events: {diagnosis.summary?.totalWebhooks || 0}
+                              </Text>
+                              <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                                • PUSH events: {diagnosis.summary?.pushEvents || 0}
+                              </Text>
+                              <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                                • PING events: {diagnosis.summary?.pingEvents || 0}
+                              </Text>
+                              <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                                • With errors: {diagnosis.summary?.withErrors || 0}
+                              </Text>
+                              <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                                • Imported: {diagnosis.summary?.imported || 0}
+                              </Text>
+                              {diagnosis.webhookEvents?.analysis?.length > 0 && (
+                                <>
+                                  <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginTop: 8 }}>
+                                    Recent Events:
+                                  </Text>
+                                  {diagnosis.webhookEvents.analysis.slice(0, 5).map((event, i) => (
+                                    <Box key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${event.error ? 'red' : 'var(--tribos-lime)'}` }}>
+                                      <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+                                        {event.activityName || event.activity_id || 'Unknown'} - {event.activityType || 'N/A'}
+                                      </Text>
+                                      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                                        {event.dataSource} | {event.distance || 'No distance'}
+                                      </Text>
+                                      {event.error && (
+                                        <Text size="xs" style={{ color: 'red' }}>
+                                          Error: {event.error}
+                                        </Text>
+                                      )}
+                                    </Box>
+                                  ))}
+                                </>
                               )}
                             </Box>
-                          ))}
-                        </>
-                      )}
+                          )}
+                        </Stack>
+                      </Collapse>
                     </Box>
                   )}
                 </Stack>

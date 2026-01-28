@@ -7,6 +7,7 @@ import {
   Container,
   ActionIcon,
   Tooltip,
+  Anchor,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useMantineColorScheme } from '@mantine/core';
@@ -131,6 +132,32 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
 
       {/* Main content */}
       <Box component="main">{children}</Box>
+
+      {/* Desktop Footer with Privacy Links */}
+      {!isMobile && (
+        <Box
+          component="footer"
+          py="md"
+          mt="xl"
+          style={{
+            borderTop: '1px solid var(--tribos-border)',
+          }}
+        >
+          <Container size={fullWidth ? '100%' : 'xl'} px={fullWidth ? 'md' : undefined}>
+            <Group justify="center" gap="lg">
+              <Anchor href="/privacy" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                Privacy
+              </Anchor>
+              <Anchor href="/terms" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                Terms
+              </Anchor>
+              <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                Contact
+              </Anchor>
+            </Group>
+          </Container>
+        </Box>
+      )}
 
       {/* Mobile Bottom Tab Bar - 5 items, flat navigation */}
       {isMobile && !hideNav && (
