@@ -1820,126 +1820,133 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                       ))}
                     </Box>
                   )}
-
-                  {/* Collapsible Advanced Diagnostics */}
-                  {(onRepair || onRecover || onDiagnose) && (
-                    <Box mt="xs">
-                      <UnstyledButton
-                        onClick={() => setDiagnosticsOpen(!diagnosticsOpen)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '4px 0',
-                        }}
-                      >
-                        {diagnosticsOpen ? (
-                          <IconChevronDown size={14} color="var(--tribos-text-muted)" />
-                        ) : (
-                          <IconChevronRight size={14} color="var(--tribos-text-muted)" />
-                        )}
-                        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
-                          Advanced Diagnostics
-                        </Text>
-                      </UnstyledButton>
-                      <Collapse in={diagnosticsOpen}>
-                        <Stack gap="xs" mt="xs">
-                          {onRepair && (!webhookStatus.integration?.tokenValid || !webhookStatus.integration?.hasGarminUserId) && (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              color="yellow"
-                              onClick={onRepair}
-                              loading={repairing}
-                            >
-                              🔧 Repair Connection
-                            </Button>
-                          )}
-                          {onRecover && webhookStatus.integration?.tokenValid && (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              color="orange"
-                              onClick={onRecover}
-                              loading={recovering}
-                            >
-                              🔄 Recover Failed Events
-                            </Button>
-                          )}
-                          {onDiagnose && (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              color="grape"
-                              onClick={onDiagnose}
-                            >
-                              🔍 Diagnose Sync Issues
-                            </Button>
-                          )}
-                          {diagnosis && (
-                            <Box
-                              style={{
-                                backgroundColor: 'var(--tribos-bg-primary)',
-                                padding: tokens.spacing.sm,
-                                borderRadius: tokens.radius.sm,
-                                fontSize: '11px',
-                                maxHeight: '300px',
-                                overflow: 'auto'
-                              }}
-                            >
-                              <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginBottom: 4 }}>
-                                Diagnosis Results:
-                              </Text>
-                              <Text size="xs" style={{ color: 'var(--tribos-lime)' }}>
-                                Activities in DB: {diagnosis.activities?.count || 0}
-                              </Text>
-                              <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                                Webhook Events: {diagnosis.summary?.totalWebhooks || 0}
-                              </Text>
-                              <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                                • PUSH events: {diagnosis.summary?.pushEvents || 0}
-                              </Text>
-                              <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                                • PING events: {diagnosis.summary?.pingEvents || 0}
-                              </Text>
-                              <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                                • With errors: {diagnosis.summary?.withErrors || 0}
-                              </Text>
-                              <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                                • Imported: {diagnosis.summary?.imported || 0}
-                              </Text>
-                              {diagnosis.webhookEvents?.analysis?.length > 0 && (
-                                <>
-                                  <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginTop: 8 }}>
-                                    Recent Events:
-                                  </Text>
-                                  {diagnosis.webhookEvents.analysis.slice(0, 5).map((event, i) => (
-                                    <Box key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${event.error ? 'red' : 'var(--tribos-lime)'}` }}>
-                                      <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
-                                        {event.activityName || event.activity_id || 'Unknown'} - {event.activityType || 'N/A'}
-                                      </Text>
-                                      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
-                                        {event.dataSource} | {event.distance || 'No distance'}
-                                      </Text>
-                                      {event.error && (
-                                        <Text size="xs" style={{ color: 'red' }}>
-                                          Error: {event.error}
-                                        </Text>
-                                      )}
-                                    </Box>
-                                  ))}
-                                </>
-                              )}
-                            </Box>
-                          )}
-                        </Stack>
-                      </Collapse>
-                    </Box>
-                  )}
                 </Stack>
               </Box>
             )}
           </Stack>
+        </Box>
+      )}
+
+      {/* Collapsible Advanced Diagnostics (for Garmin when connected) */}
+      {connected && (onRepair || onRecover || onDiagnose) && (
+        <Box
+          style={{
+            backgroundColor: 'var(--tribos-bg-tertiary)',
+            padding: tokens.spacing.sm,
+            borderRadius: tokens.radius.sm,
+            marginLeft: '2.5rem'
+          }}
+        >
+          <UnstyledButton
+            onClick={() => setDiagnosticsOpen(!diagnosticsOpen)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              width: '100%',
+            }}
+          >
+            {diagnosticsOpen ? (
+              <IconChevronDown size={16} color="var(--tribos-text-secondary)" />
+            ) : (
+              <IconChevronRight size={16} color="var(--tribos-text-secondary)" />
+            )}
+            <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+              Advanced Diagnostics
+            </Text>
+          </UnstyledButton>
+          <Collapse in={diagnosticsOpen}>
+            <Stack gap="xs" mt="sm">
+              {onRepair && (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  color="yellow"
+                  onClick={onRepair}
+                  loading={repairing}
+                >
+                  🔧 Repair Connection
+                </Button>
+              )}
+              {onRecover && (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  color="orange"
+                  onClick={onRecover}
+                  loading={recovering}
+                >
+                  🔄 Recover Failed Events
+                </Button>
+              )}
+              {onDiagnose && (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  color="grape"
+                  onClick={onDiagnose}
+                >
+                  🔍 Diagnose Sync Issues
+                </Button>
+              )}
+              {diagnosis && (
+                <Box
+                  style={{
+                    backgroundColor: 'var(--tribos-bg-secondary)',
+                    padding: tokens.spacing.sm,
+                    borderRadius: tokens.radius.sm,
+                    fontSize: '11px',
+                    maxHeight: '300px',
+                    overflow: 'auto'
+                  }}
+                >
+                  <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginBottom: 4 }}>
+                    Diagnosis Results:
+                  </Text>
+                  <Text size="xs" style={{ color: 'var(--tribos-lime)' }}>
+                    Activities in DB: {diagnosis.activities?.count || 0}
+                  </Text>
+                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                    Webhook Events: {diagnosis.summary?.totalWebhooks || 0}
+                  </Text>
+                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                    • PUSH events: {diagnosis.summary?.pushEvents || 0}
+                  </Text>
+                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                    • PING events: {diagnosis.summary?.pingEvents || 0}
+                  </Text>
+                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                    • With errors: {diagnosis.summary?.withErrors || 0}
+                  </Text>
+                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                    • Imported: {diagnosis.summary?.imported || 0}
+                  </Text>
+                  {diagnosis.webhookEvents?.analysis?.length > 0 && (
+                    <>
+                      <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginTop: 8 }}>
+                        Recent Events:
+                      </Text>
+                      {diagnosis.webhookEvents.analysis.slice(0, 5).map((event, i) => (
+                        <Box key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${event.error ? 'red' : 'var(--tribos-lime)'}` }}>
+                          <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+                            {event.activityName || event.activity_id || 'Unknown'} - {event.activityType || 'N/A'}
+                          </Text>
+                          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                            {event.dataSource} | {event.distance || 'No distance'}
+                          </Text>
+                          {event.error && (
+                            <Text size="xs" style={{ color: 'red' }}>
+                              Error: {event.error}
+                            </Text>
+                          )}
+                        </Box>
+                      ))}
+                    </>
+                  )}
+                </Box>
+              )}
+            </Stack>
+          </Collapse>
         </Box>
       )}
     </Stack>
