@@ -560,6 +560,7 @@ function RouteBuilder() {
 
   // Route editing state
   const [editMode, setEditMode] = useState(false);
+  const [elevationHoverPosition, setElevationHoverPosition] = useState(null); // For elevation chart hover marker
   const [selectedSegment, setSelectedSegment] = useState(null); // { startIndex, endIndex, stats }
   const [isRemovingSegment, setIsRemovingSegment] = useState(false);
 
@@ -2393,7 +2394,7 @@ function RouteBuilder() {
                     }}
                   >
                     <div style={{
-                      backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : 'var(--tribos-lime)',
+                      backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : '#32CD32',
                       color: 'white',
                       width: 28,
                       height: 28,
@@ -2411,6 +2412,24 @@ function RouteBuilder() {
                     </div>
                   </Marker>
                 ))}
+
+                {/* Elevation profile hover marker */}
+                {elevationHoverPosition && (
+                  <Marker
+                    longitude={elevationHoverPosition.lng}
+                    latitude={elevationHoverPosition.lat}
+                    anchor="center"
+                  >
+                    <div style={{
+                      width: 14,
+                      height: 14,
+                      backgroundColor: '#32CD32',
+                      borderRadius: '50%',
+                      border: '2px solid white',
+                      boxShadow: '0 0 0 2px #32CD32, 0 2px 12px rgba(50, 205, 50, 0.6)',
+                    }} />
+                  </Marker>
+                )}
               </Map>
             ) : (
               <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -3481,7 +3500,7 @@ function RouteBuilder() {
                   }}
                 >
                   <div style={{
-                    backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : 'var(--tribos-lime)',
+                    backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : '#32CD32',
                     color: 'white',
                     width: 32,
                     height: 32,
@@ -3499,6 +3518,25 @@ function RouteBuilder() {
                   </div>
                 </Marker>
               ))}
+
+              {/* Elevation profile hover marker */}
+              {elevationHoverPosition && (
+                <Marker
+                  longitude={elevationHoverPosition.lng}
+                  latitude={elevationHoverPosition.lat}
+                  anchor="center"
+                >
+                  <div style={{
+                    width: 16,
+                    height: 16,
+                    backgroundColor: '#32CD32',
+                    borderRadius: '50%',
+                    border: '3px solid white',
+                    boxShadow: '0 0 0 2px #32CD32, 0 2px 12px rgba(50, 205, 50, 0.6)',
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                  }} />
+                </Marker>
+              )}
             </Map>
           ) : (
             <Box
@@ -3607,6 +3645,7 @@ function RouteBuilder() {
           totalDistance={routeStats.distance}
           isImperial={isImperial}
           leftOffset={380}
+          onHoverPosition={setElevationHoverPosition}
         />
       )}
     </AppShell>
