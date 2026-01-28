@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Paper, Text, Group, Badge, Stack, Box, Skeleton, Loader } from '@mantine/core';
 import { tokens } from '../theme';
 import { getElevationData, calculateElevationStats } from '../utils/elevation';
@@ -8,6 +8,7 @@ import { formatDistance, formatElevation } from '../utils/units';
  * ElevationProfileBar Component
  * Displays a fixed bottom bar with elevation profile chart
  * Uses OpenTopoData API for accurate elevation data
+ * Supports hover interaction to show position on map
  */
 const ElevationProfile = ({
   coordinates,
@@ -15,10 +16,13 @@ const ElevationProfile = ({
   isImperial = true,
   onStatsUpdate = null,
   leftOffset = 0, // Offset from left edge (for sidebar)
+  onHoverPosition = null, // Callback with {lng, lat, elevation, distance} or null when not hovering
 }) => {
   const [elevationData, setElevationData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
+  const [hoverInfo, setHoverInfo] = useState(null);
+  const svgRef = useRef(null);
 
   // Formatting helpers
   const formatDist = (km) => formatDistance(km, isImperial);
@@ -141,6 +145,70 @@ const ElevationProfile = ({
     return { line: linePath, area: areaPath };
   };
 
+  // Handle mouse move over the chart
+  const handleMouseMove = useCallback((event) => {
+    if (!svgRef.current || !elevationData || !chartConfig || !coordinates) return;
+
+    const svg = svgRef.current;
+    const rect = svg.getBoundingClientRect();
+    const { padding, maxDistance } = chartConfig;
+
+    // Get mouse position relative to SVG
+    const mouseX = event.clientX - rect.left;
+    const svgWidth = rect.width;
+
+    // Convert to chart coordinates (accounting for viewBox scaling)
+    const viewBoxWidth = 800;
+    const scaledX = (mouseX / svgWidth) * viewBoxWidth;
+
+    // Calculate distance along route
+    const chartWidth = viewBoxWidth - 2 * padding;
+    const distanceRatio = Math.max(0, Math.min(1, (scaledX - padding) / chartWidth));
+    const distance = distanceRatio * maxDistance;
+
+    // Find the closest elevation point
+    let closestPoint = elevationData[0];
+    let minDiff = Math.abs(elevationData[0].distance - distance);
+
+    for (const point of elevationData) {
+      const diff = Math.abs(point.distance - distance);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestPoint = point;
+      }
+    }
+
+    // Find the corresponding coordinate
+    // Use linear interpolation between coordinates based on distance
+    const coordIndex = Math.floor(distanceRatio * (coordinates.length - 1));
+    const nextIndex = Math.min(coordIndex + 1, coordinates.length - 1);
+    const localRatio = (distanceRatio * (coordinates.length - 1)) - coordIndex;
+
+    const lng = coordinates[coordIndex][0] + (coordinates[nextIndex][0] - coordinates[coordIndex][0]) * localRatio;
+    const lat = coordinates[coordIndex][1] + (coordinates[nextIndex][1] - coordinates[coordIndex][1]) * localRatio;
+
+    const info = {
+      lng,
+      lat,
+      elevation: closestPoint.elevation,
+      distance: closestPoint.distance,
+      x: scaledX, // For hover indicator position
+    };
+
+    setHoverInfo(info);
+
+    if (onHoverPosition) {
+      onHoverPosition(info);
+    }
+  }, [elevationData, chartConfig, coordinates, onHoverPosition]);
+
+  const handleMouseLeave = useCallback(() => {
+    setHoverInfo(null);
+    if (onHoverPosition) {
+      onHoverPosition(null);
+    }
+  }, [onHoverPosition]);
+
   // Don't render if no coordinates
   if (!coordinates || coordinates.length < 2) {
     return null;
@@ -230,6 +298,7 @@ const ElevationProfile = ({
           {/* Chart area */}
           <Box style={{ flex: 1, minWidth: 0 }}>
             <svg
+              ref={svgRef}
               width="100%"
               height={chartConfig.chartHeight}
               viewBox={`0 0 ${svgWidth} ${chartConfig.chartHeight}`}
@@ -237,7 +306,10 @@ const ElevationProfile = ({
               style={{
                 background: `linear-gradient(to bottom, ${'var(--tribos-bg-tertiary)'} 0%, ${'var(--tribos-bg-primary)'} 100%)`,
                 borderRadius: '8px',
+                cursor: 'crosshair',
               }}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
             >
               {/* Gradient definition */}
               <defs>
@@ -286,6 +358,49 @@ const ElevationProfile = ({
               >
                 {formatElev(chartConfig.minElevation)}
               </text>
+
+              {/* Hover indicator */}
+              {hoverInfo && (
+                <>
+                  {/* Vertical line */}
+                  <line
+                    x1={hoverInfo.x}
+                    y1={chartConfig.padding}
+                    x2={hoverInfo.x}
+                    y2={chartConfig.chartHeight - chartConfig.padding}
+                    stroke="#fff"
+                    strokeWidth="1"
+                    strokeDasharray="4,2"
+                    opacity="0.7"
+                  />
+                  {/* Dot on the line */}
+                  <circle
+                    cx={hoverInfo.x}
+                    cy={chartConfig.chartHeight - chartConfig.padding - ((hoverInfo.elevation - chartConfig.chartMin) / chartConfig.chartRange) * (chartConfig.chartHeight - 2 * chartConfig.padding)}
+                    r="5"
+                    fill="#32CD32"
+                    stroke="#fff"
+                    strokeWidth="2"
+                  />
+                  {/* Info tooltip */}
+                  <g transform={`translate(${Math.min(hoverInfo.x + 10, svgWidth - 90)}, ${chartConfig.padding + 5})`}>
+                    <rect
+                      x="0"
+                      y="0"
+                      width="80"
+                      height="36"
+                      rx="4"
+                      fill="rgba(0,0,0,0.85)"
+                    />
+                    <text x="8" y="14" fontSize="10" fill="#fff" fontWeight="500">
+                      {formatElev(hoverInfo.elevation)}
+                    </text>
+                    <text x="8" y="28" fontSize="10" fill="#aaa">
+                      {formatDist(hoverInfo.distance)} km
+                    </text>
+                  </g>
+                </>
+              )}
             </svg>
           </Box>
 
