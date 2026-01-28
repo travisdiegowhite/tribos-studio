@@ -38,6 +38,7 @@ import { fetchBikeInfrastructure } from '../utils/bikeInfrastructureService';
 import RouteExportMenu from '../components/RouteExportMenu.jsx';
 import MapControls from '../components/MapControls.jsx';
 import { FuelCard } from '../components/fueling';
+import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -3065,6 +3066,17 @@ function RouteBuilder() {
                   </Box>
                 </CollapsibleSection>
               )}
+
+              {/* Tools Section - Collapsible */}
+              <CollapsibleSection
+                title="Tools"
+                icon={<Text size="sm">🔧</Text>}
+                defaultExpanded={false}
+              >
+                <Box mt="sm">
+                  <TirePressureCalculator />
+                </Box>
+              </CollapsibleSection>
 
               {/* Map Instructions */}
               <Box
