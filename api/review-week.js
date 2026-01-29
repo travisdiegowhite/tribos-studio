@@ -1,6 +1,12 @@
 /**
  * Review Week API Endpoint
  * Analyzes a week's training plan and provides AI-powered suggestions
+ *
+ * Enhanced with Adaptive Training Intelligence:
+ * - Compares planned vs actual workouts
+ * - Analyzes workout adaptations
+ * - Considers user patterns for personalized suggestions
+ * - Generates actionable plan adjustments
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -8,28 +14,140 @@ import Anthropic from '@anthropic-ai/sdk';
 const anthropic = new Anthropic();
 
 /**
+ * Format adaptation analysis for the prompt
+ */
+function formatAdaptations(adaptations) {
+  if (!adaptations || adaptations.length === 0) {
+    return 'No adaptation data available for this week.';
+  }
+
+  return adaptations
+    .map((a) => {
+      const planned = a.planned || {};
+      const actual = a.actual || {};
+      const analysis = a.analysis || {};
+
+      let summary = `- ${a.adaptationType}: `;
+
+      if (planned.workoutType) {
+        summary += `Planned ${planned.workoutType} (${planned.duration}min, ${planned.tss} TSS)`;
+      }
+
+      if (actual.workoutType && a.adaptationType !== 'skipped') {
+        summary += ` → Actual ${actual.workoutType} (${actual.duration}min, ${actual.tss} TSS)`;
+      }
+
+      if (analysis.stimulusAchievedPct !== null && analysis.stimulusAchievedPct !== undefined) {
+        summary += ` [${analysis.stimulusAchievedPct}% stimulus achieved]`;
+      }
+
+      if (a.userFeedback?.reason) {
+        summary += ` (Reason: ${a.userFeedback.reason})`;
+      }
+
+      return summary;
+    })
+    .join('\n');
+}
+
+/**
+ * Format user patterns for the prompt
+ */
+function formatUserPatterns(patterns) {
+  if (!patterns || !patterns.hasEnoughData) {
+    return 'Insufficient historical data for pattern analysis.';
+  }
+
+  const lines = [];
+
+  if (patterns.avgWeeklyCompliance !== null) {
+    lines.push(`- Average weekly compliance: ${Math.round(patterns.avgWeeklyCompliance)}%`);
+  }
+
+  if (patterns.problematicDays?.length > 0) {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const problemDays = patterns.problematicDays.map((d) => dayNames[d]).join(', ');
+    lines.push(`- Frequently missed days: ${problemDays}`);
+  }
+
+  if (patterns.commonAdaptations?.length > 0) {
+    const topAdaptation = patterns.commonAdaptations[0];
+    lines.push(
+      `- Most common adaptation: ${topAdaptation.type} (${Math.round(topAdaptation.frequency * 100)}% of workouts)`
+    );
+  }
+
+  if (patterns.tendsToUndertrain) {
+    lines.push(
+      `- Pattern: Tends to undertrain (avg ${Math.round(patterns.avgTssAchievementPct || 0)}% of planned TSS)`
+    );
+  }
+
+  if (patterns.tendsToOverreach) {
+    lines.push(
+      `- Pattern: Tends to overreach (avg ${Math.round(patterns.avgTssAchievementPct || 0)}% of planned TSS)`
+    );
+  }
+
+  return lines.length > 0 ? lines.join('\n') : 'No significant patterns detected.';
+}
+
+/**
  * Build the prompt for week review
  */
 function buildReviewPrompt(data) {
-  const { weekStart, plannedWorkouts, goals, userContext } = data;
+  const {
+    weekStart,
+    plannedWorkouts,
+    completedActivities,
+    adaptations,
+    goals,
+    userContext,
+    userPatterns,
+  } = data;
 
-  // Format workouts for the prompt
+  // Determine if this is a retrospective review (has actual data) or prospective (planning only)
+  const isRetrospective = completedActivities?.length > 0 || adaptations?.length > 0;
+
+  // Format planned workouts
   const workoutSummary = plannedWorkouts
-    .map((w, i) => {
+    .map((w) => {
       const day = new Date(w.scheduledDate).toLocaleDateString('en-US', { weekday: 'long' });
       return `- ${day}: ${w.workout?.name || w.workoutType || 'Unknown'} (TSS: ${w.targetTSS}, Duration: ${w.targetDuration}min)`;
     })
     .join('\n');
 
+  // Format completed activities
+  const activitiesSummary =
+    completedActivities?.length > 0
+      ? completedActivities
+          .map((a) => {
+            const day = new Date(a.date).toLocaleDateString('en-US', { weekday: 'long' });
+            return `- ${day}: ${a.name || 'Activity'} (TSS: ${a.tss || 'N/A'}, Duration: ${a.duration}min, IF: ${a.intensityFactor?.toFixed(2) || 'N/A'})`;
+          })
+          .join('\n')
+      : 'No activities recorded yet.';
+
   // Calculate week totals
-  const totalTSS = plannedWorkouts.reduce((sum, w) => sum + (w.targetTSS || 0), 0);
-  const totalDuration = plannedWorkouts.reduce((sum, w) => sum + (w.targetDuration || 0), 0);
-  const workoutCount = plannedWorkouts.length;
+  const totalPlannedTSS = plannedWorkouts.reduce((sum, w) => sum + (w.targetTSS || 0), 0);
+  const totalPlannedDuration = plannedWorkouts.reduce((sum, w) => sum + (w.targetDuration || 0), 0);
+  const totalActualTSS = completedActivities?.reduce((sum, a) => sum + (a.tss || 0), 0) || 0;
+  const totalActualDuration = completedActivities?.reduce((sum, a) => sum + (a.duration || 0), 0) || 0;
+  const workoutCount = plannedWorkouts.filter((w) => w.workoutType !== 'rest').length;
+  const completedCount = completedActivities?.length || 0;
   const restDays = 7 - workoutCount;
+
+  // TSS achievement percentage
+  const tssAchievementPct = totalPlannedTSS > 0 ? Math.round((totalActualTSS / totalPlannedTSS) * 100) : 0;
 
   // Format goals
   const goalSummary = goals?.length
-    ? goals.map((g) => `- ${g.name} (Priority: ${g.priority}${g.targetDate ? `, Target: ${g.targetDate}` : ''})`).join('\n')
+    ? goals
+        .map(
+          (g) =>
+            `- ${g.name} (Priority: ${g.priority}${g.targetDate ? `, Target: ${g.targetDate}` : ''})`
+        )
+        .join('\n')
     : 'No specific goals set';
 
   // User context
@@ -40,25 +158,131 @@ Current Fitness Metrics:
 - CTL (Fitness): ${userContext.ctl || 'Unknown'}
 - ATL (Fatigue): ${userContext.atl || 'Unknown'}
 - TSB (Form): ${userContext.tsb || 'Unknown'}
+- Current Phase: ${userContext.currentPhase || 'Unknown'}
+- Weekly TSS Target: ${userContext.weeklyTssTarget || 'Not set'}
 `
     : '';
 
-  return `You are an expert cycling coach reviewing a week's training plan. Analyze the plan and provide actionable feedback.
+  // Adaptation summary
+  const adaptationSummary = formatAdaptations(adaptations);
+
+  // User patterns summary
+  const patternsSummary = formatUserPatterns(userPatterns);
+
+  // Build prompt based on mode
+  if (isRetrospective) {
+    // Retrospective analysis: comparing planned vs actual
+    return `You are an expert cycling coach analyzing a week's training comparing what was PLANNED vs what was ACTUALLY completed. Your goal is to provide actionable feedback and suggest plan adjustments for the remaining week or next week.
 
 Week Starting: ${weekStart}
 
+═══════════════════════════════════════════════════
 PLANNED WORKOUTS:
+═══════════════════════════════════════════════════
 ${workoutSummary || 'No workouts planned'}
 
+═══════════════════════════════════════════════════
+ACTUALLY COMPLETED:
+═══════════════════════════════════════════════════
+${activitiesSummary}
+
+═══════════════════════════════════════════════════
+ADAPTATION ANALYSIS:
+═══════════════════════════════════════════════════
+${adaptationSummary}
+
+═══════════════════════════════════════════════════
+WEEK COMPARISON:
+═══════════════════════════════════════════════════
+- Planned TSS: ${totalPlannedTSS} | Actual TSS: ${totalActualTSS} (${tssAchievementPct}% achieved)
+- Planned Duration: ${Math.round((totalPlannedDuration / 60) * 10) / 10} hours | Actual: ${Math.round((totalActualDuration / 60) * 10) / 10} hours
+- Planned Workouts: ${workoutCount} | Completed: ${completedCount}
+- Rest Days: ${restDays}
+
+═══════════════════════════════════════════════════
+ATHLETE PROFILE:
+═══════════════════════════════════════════════════
+Goals:
+${goalSummary}
+${contextInfo}
+Historical Patterns:
+${patternsSummary}
+
+═══════════════════════════════════════════════════
+ANALYSIS INSTRUCTIONS:
+═══════════════════════════════════════════════════
+1. Assess each adaptation: Was it beneficial, acceptable, or concerning?
+2. Calculate cumulative training stimulus deficit or surplus
+3. Identify patterns (e.g., consistently truncating workouts, skipping certain days)
+4. Consider the user's historical patterns when making suggestions
+5. Suggest specific adjustments to recover missed training stimulus
+
+Please provide your analysis in the following JSON format:
+
+{
+  "insights": [
+    {
+      "type": "suggestion" | "warning" | "praise" | "adaptation_needed",
+      "title": "Short title for the insight",
+      "message": "Detailed explanation and recommendation",
+      "priority": "high" | "medium" | "low",
+      "suggestedAction": {
+        "type": "add_workout" | "swap_workout" | "extend_phase" | "add_recovery" | "adjust_targets" | "reschedule",
+        "details": { ... action-specific details ... }
+      }
+    }
+  ],
+  "weeklyAnalysis": {
+    "plannedTSS": ${totalPlannedTSS},
+    "actualTSS": ${totalActualTSS},
+    "tssAchievementPct": ${tssAchievementPct},
+    "overallAssessment": "on_track" | "minor_deviation" | "significant_deviation" | "concerning",
+    "stimulusDeficit": {
+      "sweet_spot_minutes": 0,
+      "threshold_minutes": 0,
+      "endurance_minutes": 0,
+      "total_tss": 0
+    },
+    "recommendations": ["recommendation 1", "recommendation 2"],
+    "adjustmentUrgency": "none" | "low" | "medium" | "high"
+  }
+}
+
+Focus on:
+1. Whether adaptations were acceptable given the context (fatigue, time constraints)
+2. Cumulative impact on weekly training goals
+3. Specific suggestions to recover missed stimulus (if any)
+4. Pattern-based predictions for the remaining week
+5. Whether the current trajectory supports the athlete's goals
+
+Be specific and actionable. If suggesting a workout, include the type and duration.`;
+  } else {
+    // Prospective analysis: planning review only
+    return `You are an expert cycling coach reviewing a week's training plan. Analyze the plan and provide actionable feedback.
+
+Week Starting: ${weekStart}
+
+═══════════════════════════════════════════════════
+PLANNED WORKOUTS:
+═══════════════════════════════════════════════════
+${workoutSummary || 'No workouts planned'}
+
+═══════════════════════════════════════════════════
 WEEK SUMMARY:
-- Total Planned TSS: ${totalTSS}
-- Total Duration: ${Math.round(totalDuration / 60 * 10) / 10} hours
+═══════════════════════════════════════════════════
+- Total Planned TSS: ${totalPlannedTSS}
+- Total Duration: ${Math.round((totalPlannedDuration / 60) * 10) / 10} hours
 - Workout Days: ${workoutCount}
 - Rest Days: ${restDays}
 
-ATHLETE GOALS:
+═══════════════════════════════════════════════════
+ATHLETE PROFILE:
+═══════════════════════════════════════════════════
+Goals:
 ${goalSummary}
 ${contextInfo}
+Historical Patterns:
+${patternsSummary}
 
 Please analyze this training week and provide feedback in the following JSON format:
 
@@ -66,14 +290,16 @@ Please analyze this training week and provide feedback in the following JSON for
   "insights": [
     {
       "type": "suggestion" | "warning" | "praise",
+      "title": "Short title for the insight",
       "message": "Your feedback message",
       "priority": "high" | "medium" | "low",
-      "targetDate": "YYYY-MM-DD" (optional, if the suggestion is for a specific day),
-      "suggestedWorkoutId": "workout-id" (optional, if suggesting a specific workout)
+      "targetDate": "YYYY-MM-DD",
+      "suggestedWorkoutId": "workout-id"
     }
   ],
   "weeklyAnalysis": {
-    "plannedTSS": ${totalTSS},
+    "plannedTSS": ${totalPlannedTSS},
+    "overallAssessment": "well_balanced" | "needs_adjustment" | "too_hard" | "too_easy",
     "recommendations": ["recommendation 1", "recommendation 2"]
   }
 }
@@ -84,8 +310,10 @@ Focus on:
 3. Progression towards stated goals
 4. Variety and specificity of workouts
 5. Rest day placement
+6. Consider the athlete's historical patterns (if available)
 
 Keep insights concise and actionable. Limit to 3-5 most important insights.`;
+  }
 }
 
 /**
@@ -107,6 +335,7 @@ function parseAIResponse(text) {
     insights: [
       {
         type: 'suggestion',
+        title: 'Analysis Unavailable',
         message: 'Unable to analyze the training week. Please try again.',
         priority: 'medium',
       },
@@ -125,7 +354,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { weekStart, plannedWorkouts, goals, userContext } = req.body;
+    const {
+      weekStart,
+      plannedWorkouts,
+      completedActivities,
+      adaptations,
+      goals,
+      userContext,
+      userPatterns,
+    } = req.body;
 
     // Validate required fields
     if (!weekStart) {
@@ -136,14 +373,17 @@ export default async function handler(req, res) {
     const prompt = buildReviewPrompt({
       weekStart,
       plannedWorkouts: plannedWorkouts || [],
+      completedActivities: completedActivities || [],
+      adaptations: adaptations || [],
       goals: goals || [],
       userContext: userContext || null,
+      userPatterns: userPatterns || null,
     });
 
     // Call Claude API
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+      max_tokens: 2048, // Increased for more detailed analysis
       messages: [
         {
           role: 'user',
@@ -171,6 +411,7 @@ export default async function handler(req, res) {
       insights: [
         {
           type: 'warning',
+          title: 'Service Unavailable',
           message: 'AI review is temporarily unavailable. Please try again later.',
           priority: 'medium',
         },
