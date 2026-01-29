@@ -42,14 +42,18 @@ import { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 import { TwoWeekCalendar } from './TwoWeekCalendar';
 import { PeriodizationView } from './PeriodizationView';
 import { AvailabilitySettings } from '../settings/AvailabilitySettings';
+import { AdaptationFeedbackModal } from './AdaptationFeedbackModal';
+import { AdaptationInsightsPanel } from './AdaptationInsightsPanel';
 import RaceGoalsPanel from '../RaceGoalsPanel';
 import { supabase } from '../../lib/supabase';
 import { useTrainingPlannerStore } from '../../stores/trainingPlannerStore';
 import { useUserAvailability } from '../../hooks/useUserAvailability';
+import { useWorkoutAdaptations } from '../../hooks/useWorkoutAdaptations';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import { calculateTSS, estimateTSS } from '../../utils/trainingPlans';
+import { shouldPromptForFeedback } from '../../utils/adaptationTrigger';
 import type { TrainingPlannerProps } from '../../types/planner';
-import type { ResolvedAvailability, AvailabilityStatus } from '../../types/training';
+import type { ResolvedAvailability, AvailabilityStatus, WorkoutAdaptation, AdaptationReason } from '../../types/training';
 
 // Helper to format date as YYYY-MM-DD in local timezone
 function formatLocalDate(date: Date): string {
@@ -158,6 +162,25 @@ export function TrainingPlanner({
   // Race goals state (synced with database)
   const [raceGoals, setRaceGoals] = useState<RaceGoal[]>([]);
   const [raceGoalsLoading, setRaceGoalsLoading] = useState(true);
+
+  // Adaptation feedback modal state
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [selectedAdaptation, setSelectedAdaptation] = useState<WorkoutAdaptation | null>(null);
+
+  // Workout adaptations hook
+  const {
+    adaptations,
+    insights,
+    loading: adaptationsLoading,
+    fetchAdaptations,
+    getWeekSummary,
+    updateAdaptationFeedback,
+    dismissInsight,
+    applyInsight,
+  } = useWorkoutAdaptations({ userId });
+
+  // Week summary state
+  const [weekSummary, setWeekSummary] = useState<Awaited<ReturnType<typeof getWeekSummary>>>(null);
 
   // User availability hook
   const {
@@ -289,6 +312,81 @@ export function TrainingPlanner({
   useEffect(() => {
     loadRaceGoals();
   }, [loadRaceGoals]);
+
+  // Fetch adaptations and week summary when focused week changes
+  useEffect(() => {
+    if (!userId || !store.focusedWeekStart) return;
+
+    const weekStart = store.focusedWeekStart;
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 14); // Fetch 2 weeks
+
+    // Fetch adaptations for the visible date range
+    fetchAdaptations({
+      weekStart,
+      weekEnd: weekEnd.toISOString().split('T')[0],
+    });
+
+    // Fetch week summary
+    getWeekSummary(weekStart).then(setWeekSummary);
+  }, [userId, store.focusedWeekStart, fetchAdaptations, getWeekSummary]);
+
+  // Check for adaptations that need feedback
+  useEffect(() => {
+    if (adaptations.length === 0) return;
+
+    // Find the most recent adaptation that needs feedback
+    const needsFeedback = adaptations.find(
+      (a) => !a.userFeedback.reason && shouldPromptForFeedback(a)
+    );
+
+    if (needsFeedback && !feedbackModalOpen) {
+      setSelectedAdaptation(needsFeedback);
+      setFeedbackModalOpen(true);
+    }
+  }, [adaptations, feedbackModalOpen]);
+
+  // Handle adaptation feedback submission
+  const handleAdaptationFeedback = useCallback(
+    async (reason: AdaptationReason, notes: string) => {
+      if (!selectedAdaptation) return;
+      await updateAdaptationFeedback(selectedAdaptation.id, { reason, notes });
+      setFeedbackModalOpen(false);
+      setSelectedAdaptation(null);
+    },
+    [selectedAdaptation, updateAdaptationFeedback]
+  );
+
+  // Handle viewing an adaptation from the insights panel
+  const handleViewAdaptation = useCallback((adaptation: WorkoutAdaptation) => {
+    setSelectedAdaptation(adaptation);
+    setFeedbackModalOpen(true);
+  }, []);
+
+  // Handle dismissing an insight
+  const handleDismissInsight = useCallback(
+    (insightId: string) => {
+      dismissInsight(insightId);
+    },
+    [dismissInsight]
+  );
+
+  // Handle applying an insight (would need to integrate with store for actual workout changes)
+  const handleApplyInsight = useCallback(
+    async (insightId: string) => {
+      const insight = insights.find((i) => i.id === insightId);
+      if (!insight?.suggestedAction) return;
+
+      // Mark as applied
+      await applyInsight(insightId);
+
+      // TODO: Implement actual workout modifications based on suggestedAction.type
+      // For now, just mark as applied - the actual changes would need to be
+      // integrated with the training planner store
+      console.log('Applied insight action:', insight.suggestedAction);
+    },
+    [insights, applyInsight]
+  );
 
   // Convert race goals to map by date for calendar display
   const raceGoalsByDate = useMemo(() => {
@@ -678,7 +776,19 @@ export function TrainingPlanner({
           </Box>
         )}
 
-        {/* AI Hints Panel */}
+        {/* Adaptation Insights Panel - Shows week summary, adaptations, and AI insights */}
+        <AdaptationInsightsPanel
+          weekStart={store.focusedWeekStart}
+          adaptations={adaptations}
+          insights={insights}
+          weekSummary={weekSummary}
+          onDismissInsight={handleDismissInsight}
+          onApplyInsight={handleApplyInsight}
+          onViewAdaptation={handleViewAdaptation}
+          isLoading={adaptationsLoading}
+        />
+
+        {/* Legacy AI Hints Panel (from week review) */}
         {activeHints.length > 0 && (
           <Box
             p="sm"
@@ -777,6 +887,17 @@ export function TrainingPlanner({
           </Alert>
         )}
       </Box>
+
+      {/* Adaptation Feedback Modal */}
+      <AdaptationFeedbackModal
+        adaptation={selectedAdaptation}
+        opened={feedbackModalOpen}
+        onClose={() => {
+          setFeedbackModalOpen(false);
+          setSelectedAdaptation(null);
+        }}
+        onSubmit={handleAdaptationFeedback}
+      />
     </Box>
   );
 }

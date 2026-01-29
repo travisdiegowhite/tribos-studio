@@ -839,6 +839,431 @@ export interface PlanActivationPreview {
 }
 
 // ============================================================
+// WORKOUT ADAPTATION TYPES
+// ============================================================
+
+/**
+ * Types of adaptations that can occur when a workout is completed
+ */
+export type AdaptationType =
+  | 'completed_as_planned' // Workout done as intended
+  | 'time_truncated'       // Same type, shorter duration
+  | 'time_extended'        // Same type, longer duration
+  | 'intensity_swap'       // Different workout type, similar TSS
+  | 'downgraded'           // Lower intensity than planned
+  | 'upgraded'             // Higher intensity than planned
+  | 'skipped'              // Workout not completed
+  | 'unplanned';           // Activity without a planned workout
+
+/**
+ * Reasons why a user might adapt their workout
+ */
+export type AdaptationReason =
+  | 'time_constraint'
+  | 'felt_tired'
+  | 'felt_good'
+  | 'weather'
+  | 'equipment'
+  | 'coach_adjustment'
+  | 'illness_injury'
+  | 'life_event'
+  | 'other';
+
+/**
+ * AI assessment of how significant/concerning an adaptation is
+ */
+export type AdaptationAssessment =
+  | 'beneficial'      // Adaptation was actually better for training
+  | 'acceptable'      // Minor deviation, no real impact
+  | 'minor_concern'   // Worth noting but not problematic
+  | 'concerning';     // May negatively impact training goals
+
+/**
+ * Stimulus breakdown for missing or gained training
+ */
+export interface StimulusBreakdown {
+  /** Minutes of specific workout types (e.g., sweet_spot: 20, threshold: 10) */
+  [workoutType: string]: number;
+}
+
+/**
+ * Stimulus analysis breakdown
+ */
+export interface StimulusAnalysis {
+  /** Training stimulus that was missed compared to plan */
+  missing: StimulusBreakdown;
+  /** Training stimulus that was gained (different from plan or extra) */
+  gained: StimulusBreakdown;
+  /** Overall assessment of the stimulus change */
+  net_assessment: AdaptationAssessment;
+}
+
+/**
+ * Database model for workout adaptations
+ */
+export interface WorkoutAdaptationDB {
+  id: string;
+  user_id: string;
+  planned_workout_id: string | null;
+  activity_id: string | null;
+
+  adaptation_type: AdaptationType;
+
+  // Planned metrics
+  planned_workout_type: string | null;
+  planned_tss: number | null;
+  planned_duration: number | null;
+  planned_intensity_factor: number | null;
+
+  // Actual metrics
+  actual_workout_type: string | null;
+  actual_tss: number | null;
+  actual_duration: number | null;
+  actual_intensity_factor: number | null;
+  actual_normalized_power: number | null;
+
+  // Deltas
+  tss_delta: number | null;
+  duration_delta: number | null;
+  stimulus_achieved_pct: number | null;
+  stimulus_analysis: StimulusAnalysis | null;
+
+  // User feedback
+  user_reason: AdaptationReason | null;
+  user_notes: string | null;
+
+  // AI assessment
+  ai_assessment: AdaptationAssessment | null;
+  ai_explanation: string | null;
+  ai_recommendations: SuggestedAction[] | null;
+
+  // Context
+  week_number: number | null;
+  training_phase: TrainingPhase | null;
+  ctg_at_time: number | null;
+  atl_at_time: number | null;
+  tsb_at_time: number | null;
+
+  detected_at: string;
+  created_at: string;
+}
+
+/**
+ * Frontend-friendly workout adaptation
+ */
+export interface WorkoutAdaptation {
+  id: string;
+  plannedWorkoutId: string | null;
+  activityId: string | null;
+
+  adaptationType: AdaptationType;
+
+  planned: {
+    workoutType: string | null;
+    tss: number | null;
+    duration: number | null;
+    intensityFactor: number | null;
+  };
+
+  actual: {
+    workoutType: string | null;
+    tss: number | null;
+    duration: number | null;
+    intensityFactor: number | null;
+    normalizedPower: number | null;
+  };
+
+  analysis: {
+    tssDelta: number | null;
+    durationDelta: number | null;
+    stimulusAchievedPct: number | null;
+    stimulusAnalysis: StimulusAnalysis | null;
+  };
+
+  userFeedback: {
+    reason: AdaptationReason | null;
+    notes: string | null;
+  };
+
+  aiAssessment: {
+    assessment: AdaptationAssessment | null;
+    explanation: string | null;
+    recommendations: SuggestedAction[] | null;
+  };
+
+  context: {
+    weekNumber: number | null;
+    trainingPhase: TrainingPhase | null;
+    ctl: number | null;
+    atl: number | null;
+    tsb: number | null;
+  };
+
+  detectedAt: string;
+}
+
+// ============================================================
+// TRAINING INSIGHTS TYPES
+// ============================================================
+
+/**
+ * Scope of an insight
+ */
+export type InsightScope = 'workout' | 'day' | 'week' | 'block' | 'trend';
+
+/**
+ * Types of insights the system can generate
+ */
+export type InsightType =
+  | 'suggestion'          // Actionable recommendation
+  | 'warning'             // Something that needs attention
+  | 'praise'              // Positive reinforcement
+  | 'adaptation_needed'   // Plan needs adjustment
+  | 'pattern_detected'    // Noticed a user behavior pattern
+  | 'goal_at_risk'        // Current trajectory won't meet goal
+  | 'recovery_needed';    // User may be overreaching
+
+/**
+ * Priority levels for insights
+ */
+export type InsightPriority = 'low' | 'medium' | 'high' | 'critical';
+
+/**
+ * Status of an insight
+ */
+export type InsightStatus = 'active' | 'dismissed' | 'applied' | 'expired' | 'superseded';
+
+/**
+ * Types of suggested actions
+ */
+export type SuggestedActionType =
+  | 'add_workout'
+  | 'swap_workout'
+  | 'remove_workout'
+  | 'extend_phase'
+  | 'add_recovery'
+  | 'adjust_targets'
+  | 'reschedule'
+  | 'reduce_volume'
+  | 'increase_volume';
+
+/**
+ * Suggested action attached to an insight
+ */
+export interface SuggestedAction {
+  type: SuggestedActionType;
+  details: {
+    workoutId?: string;
+    targetDate?: string;
+    fromDate?: string;
+    toDate?: string;
+    fromWorkoutId?: string;
+    toWorkoutId?: string;
+    adjustmentPct?: number;
+    days?: number;
+    reason?: string;
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Database model for training insights
+ */
+export interface TrainingInsightDB {
+  id: string;
+  user_id: string;
+
+  insight_scope: InsightScope;
+  plan_id: string | null;
+  week_start: string | null;
+  week_number: number | null;
+
+  insight_type: InsightType;
+  priority: InsightPriority;
+  title: string;
+  message: string;
+
+  suggested_action: SuggestedAction | null;
+
+  related_workout_ids: string[] | null;
+  related_adaptation_ids: string[] | null;
+
+  status: InsightStatus;
+  applied_at: string | null;
+  dismissed_at: string | null;
+  dismissed_reason: string | null;
+  expires_at: string | null;
+
+  outcome_rating: number | null;
+  outcome_notes: string | null;
+
+  source: string;
+  ai_model_version: string | null;
+
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Frontend-friendly training insight
+ */
+export interface TrainingInsight {
+  id: string;
+
+  scope: InsightScope;
+  planId: string | null;
+  weekStart: string | null;
+  weekNumber: number | null;
+
+  type: InsightType;
+  priority: InsightPriority;
+  title: string;
+  message: string;
+
+  suggestedAction: SuggestedAction | null;
+
+  relatedWorkoutIds: string[];
+  relatedAdaptationIds: string[];
+
+  status: InsightStatus;
+  appliedAt: string | null;
+  dismissedAt: string | null;
+
+  outcomeRating: number | null;
+
+  createdAt: string;
+}
+
+// ============================================================
+// USER TRAINING PATTERNS TYPES
+// ============================================================
+
+/**
+ * Compliance trend direction
+ */
+export type ComplianceTrend = 'improving' | 'stable' | 'declining';
+
+/**
+ * Adaptation pattern entry
+ */
+export interface AdaptationPattern {
+  type: AdaptationType;
+  frequency: number;       // 0-1, how often this happens
+  avgDelta: number;        // Average deviation (e.g., -20 minutes for time_truncated)
+}
+
+/**
+ * Database model for user training patterns
+ */
+export interface UserTrainingPatternsDB {
+  user_id: string;
+
+  avg_weekly_compliance: number | null;
+  compliance_trend: ComplianceTrend | null;
+  total_workouts_tracked: number;
+  total_adaptations_tracked: number;
+
+  compliance_by_day: Record<string, number> | null;
+  preferred_workout_days: number[] | null;
+  problematic_days: number[] | null;
+
+  common_adaptations: AdaptationPattern[] | null;
+  adaptation_reasons: Record<AdaptationReason, number> | null;
+
+  avg_workout_time_preference: string | null;
+  avg_available_duration_by_day: Record<string, number> | null;
+
+  workout_type_compliance: Record<string, number> | null;
+  preferred_workout_types: string[] | null;
+  avoided_workout_types: string[] | null;
+
+  insights_shown: number;
+  insights_applied: number;
+  insights_dismissed: number;
+  insights_applied_rate: number | null;
+  successful_suggestion_types: string[] | null;
+
+  tends_to_overreach: boolean;
+  tends_to_undertrain: boolean;
+  avg_tss_achievement_pct: number | null;
+
+  seasonal_patterns: unknown | null;
+
+  first_tracked_at: string | null;
+  last_updated_at: string;
+  pattern_confidence: number;
+  min_data_for_predictions: number;
+}
+
+/**
+ * Frontend-friendly user training patterns
+ */
+export interface UserTrainingPatterns {
+  avgWeeklyCompliance: number | null;
+  complianceTrend: ComplianceTrend | null;
+  totalWorkoutsTracked: number;
+
+  complianceByDay: Record<string, number>;
+  preferredWorkoutDays: number[];
+  problematicDays: number[];
+
+  commonAdaptations: AdaptationPattern[];
+  adaptationReasons: Record<string, number>;
+
+  workoutTypeCompliance: Record<string, number>;
+  preferredWorkoutTypes: string[];
+  avoidedWorkoutTypes: string[];
+
+  insightsAppliedRate: number | null;
+
+  tendsToOverreach: boolean;
+  tendsToUndertrain: boolean;
+  avgTssAchievementPct: number | null;
+
+  patternConfidence: number;
+  hasEnoughData: boolean;
+}
+
+// ============================================================
+// WEEK SUMMARY TYPES
+// ============================================================
+
+/**
+ * Summary of adaptations for a week
+ */
+export interface WeekAdaptationsSummary {
+  weekStart: string;
+  totalPlanned: number;
+  totalCompleted: number;
+  totalAdapted: number;
+  totalSkipped: number;
+  avgStimulusAchieved: number | null;
+  adaptationTypes: Record<AdaptationType, number>;
+  tssPlanned: number;
+  tssActual: number;
+  tssAchievementPct: number;
+}
+
+/**
+ * Input for detecting an adaptation
+ */
+export interface DetectAdaptationInput {
+  plannedWorkout: PlannedWorkoutDB;
+  activity: ActivitySummary & {
+    intensityFactor?: number | null;
+    normalizedPower?: number | null;
+  };
+  userFtp?: number;
+  trainingContext?: {
+    weekNumber?: number;
+    trainingPhase?: TrainingPhase;
+    ctl?: number;
+    atl?: number;
+    tsb?: number;
+  };
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
