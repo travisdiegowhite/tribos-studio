@@ -51,7 +51,7 @@ import { useUserAvailability } from '../../hooks/useUserAvailability';
 import { useWorkoutAdaptations } from '../../hooks/useWorkoutAdaptations';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import { calculateTSS, estimateTSS } from '../../utils/trainingPlans';
-import { shouldPromptForFeedback } from '../../utils/adaptationTrigger';
+import { shouldPromptForFeedback, triggerAdaptationDetection } from '../../utils/adaptationTrigger';
 import type { TrainingPlannerProps } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutAdaptation, AdaptationReason } from '../../types/training';
 
@@ -201,6 +201,7 @@ export function TrainingPlanner({
       duration_seconds: number;
       distance?: number | null;
       trainer?: boolean;
+      isLinked?: boolean;
     }> = {};
 
     // Debug logging in development
@@ -222,6 +223,10 @@ export function TrainingPlanner({
       const tss = getActivityTSS(activity, ftp);
       const duration = activity.moving_time || activity.duration_seconds || 0;
 
+      // Check if this activity is already linked to a planned workout
+      const plannedWorkout = store.plannedWorkouts[date];
+      const isLinked = plannedWorkout?.activityId === activity.id;
+
       // Take the activity with highest TSS for the day
       if (!result[date] || (tss || 0) > (result[date].tss || 0)) {
         result[date] = {
@@ -232,6 +237,7 @@ export function TrainingPlanner({
           duration_seconds: duration,
           distance: activity.distance,
           trainer: activity.trainer,
+          isLinked,
         };
       }
     }
@@ -245,7 +251,7 @@ export function TrainingPlanner({
     }
 
     return result;
-  }, [activities, ftp]);
+  }, [activities, ftp, store.plannedWorkouts]);
 
   // Build availability by date for the current 2-week view
   const availabilityByDate = useMemo(() => {
@@ -386,6 +392,65 @@ export function TrainingPlanner({
       console.log('Applied insight action:', insight.suggestedAction);
     },
     [insights, applyInsight]
+  );
+
+  // Handle linking an activity to a planned workout
+  const handleLinkActivity = useCallback(
+    async (workoutId: string, activityId: string) => {
+      if (!userId) return;
+
+      try {
+        // Get the activity details
+        const activity = activities.find((a) => a.id === activityId);
+        if (!activity) {
+          console.error('Activity not found:', activityId);
+          return;
+        }
+
+        // Calculate actual TSS
+        const actualTss = getActivityTSS(activity, ftp);
+        const actualDuration = activity.moving_time
+          ? Math.round(activity.moving_time / 60)
+          : null;
+
+        // Update the planned workout in the database
+        const { error } = await supabase
+          .from('planned_workouts')
+          .update({
+            activity_id: activityId,
+            completed: true,
+            completed_at: new Date().toISOString(),
+            actual_tss: actualTss,
+            actual_duration: actualDuration,
+          })
+          .eq('id', workoutId);
+
+        if (error) throw error;
+
+        // Trigger adaptation detection (async, non-blocking)
+        triggerAdaptationDetection(userId, workoutId, activityId).then(
+          (result) => {
+            if (result.success && result.adaptation) {
+              console.log(
+                '[TrainingPlanner] Adaptation detected:',
+                result.adaptation.adaptationType
+              );
+              // Refresh adaptations to show in UI
+              if (store.focusedWeekStart) {
+                fetchAdaptations({ weekStart: store.focusedWeekStart });
+              }
+            }
+          }
+        );
+
+        // Refresh the store to show updated state
+        await store.syncWithDatabase();
+        console.log('[TrainingPlanner] Activity linked successfully');
+      } catch (err) {
+        console.error('[TrainingPlanner] Failed to link activity:', err);
+      }
+    },
+    [userId, activities, ftp, store, fetchAdaptations]
   );
 
   // Convert race goals to map by date for calendar display
@@ -717,6 +782,7 @@ export function TrainingPlanner({
               onDateClick={isMobile ? handleDateTap : store.selectDate}
               onNavigate={store.navigateWeeks}
               onSetAvailability={handleSetAvailability}
+              onLinkActivity={handleLinkActivity}
               isMobile={isMobile}
               selectedWorkoutId={selectedWorkoutId}
             />
