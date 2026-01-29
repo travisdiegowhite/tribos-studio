@@ -413,7 +413,7 @@ export function TrainingPlanner({
             .eq('id', workoutId);
 
           if (error) {
-            console.error('[TrainingPlanner] Auto-link failed:', error);
+            console.error('[TrainingPlanner] Auto-link failed:', error.message, error.code, error.details);
             continue;
           }
 
@@ -537,8 +537,9 @@ export function TrainingPlanner({
         // Refresh the store to show updated state
         await store.syncWithDatabase();
         console.log('[TrainingPlanner] Activity linked successfully');
-      } catch (err) {
-        console.error('[TrainingPlanner] Failed to link activity:', err);
+      } catch (err: unknown) {
+        const error = err as { message?: string; code?: string; details?: string };
+        console.error('[TrainingPlanner] Failed to link activity:', error.message, error.code, error.details);
       }
     },
     [userId, activities, ftp, store, fetchAdaptations]
