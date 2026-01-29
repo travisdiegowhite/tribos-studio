@@ -3,7 +3,7 @@
  * Main container for the drag-and-drop training planner
  */
 
-import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useEffect, useMemo, useCallback, useState, useRef } from 'react';
 import {
   Box,
   Group,
@@ -182,6 +182,9 @@ export function TrainingPlanner({
   // Week summary state
   const [weekSummary, setWeekSummary] = useState<Awaited<ReturnType<typeof getWeekSummary>>>(null);
 
+  // Track which activities have been processed for auto-linking (to prevent duplicates)
+  const autoLinkedActivitiesRef = useRef<Set<string>>(new Set());
+
   // User availability hook
   const {
     weeklyAvailability,
@@ -351,6 +354,94 @@ export function TrainingPlanner({
       setFeedbackModalOpen(true);
     }
   }, [adaptations, feedbackModalOpen]);
+
+  // Auto-link activities to planned workouts when they match by date
+  // This runs when activities or planned workouts change
+  useEffect(() => {
+    if (!userId || activities.length === 0) return;
+
+    const autoLinkActivities = async () => {
+      const plannedWorkouts = store.plannedWorkouts;
+      const workoutsToLink: { workoutId: string; activityId: string; activity: typeof activities[0] }[] = [];
+
+      // Find activities that have a matching planned workout on the same day
+      for (const activity of activities) {
+        // Skip if we've already processed this activity
+        if (autoLinkedActivitiesRef.current.has(activity.id)) continue;
+
+        const date = getLocalDateString(activity);
+        if (!date) continue;
+
+        const plannedWorkout = plannedWorkouts[date];
+
+        // Check if there's a planned workout that isn't already linked
+        if (plannedWorkout && plannedWorkout.id && !plannedWorkout.activityId) {
+          // Only auto-link cycling activities
+          const activityType = activity.type?.toLowerCase() || '';
+          const isCycling = activityType.includes('ride') || activityType.includes('cycling');
+
+          if (isCycling) {
+            workoutsToLink.push({
+              workoutId: plannedWorkout.id,
+              activityId: activity.id,
+              activity,
+            });
+          }
+        }
+      }
+
+      // Link each matching pair
+      for (const { workoutId, activityId, activity } of workoutsToLink) {
+        // Mark as processed to prevent re-linking
+        autoLinkedActivitiesRef.current.add(activityId);
+
+        try {
+          const actualTss = getActivityTSS(activity, ftp);
+          const actualDuration = activity.moving_time
+            ? Math.round(activity.moving_time / 60)
+            : null;
+
+          const { error } = await supabase
+            .from('planned_workouts')
+            .update({
+              activity_id: activityId,
+              completed: true,
+              completed_at: new Date().toISOString(),
+              actual_tss: actualTss,
+              actual_duration: actualDuration,
+            })
+            .eq('id', workoutId);
+
+          if (error) {
+            console.error('[TrainingPlanner] Auto-link failed:', error);
+            continue;
+          }
+
+          console.log('[TrainingPlanner] Auto-linked activity', activityId, 'to workout', workoutId);
+
+          // Trigger adaptation detection (async, non-blocking)
+          triggerAdaptationDetection(userId, workoutId, activityId).then((result) => {
+            if (result.success && result.adaptation) {
+              console.log('[TrainingPlanner] Adaptation detected:', result.adaptation.adaptationType);
+            }
+          });
+        } catch (err) {
+          console.error('[TrainingPlanner] Auto-link error:', err);
+        }
+      }
+
+      // Refresh store if we linked anything
+      if (workoutsToLink.length > 0) {
+        await store.syncWithDatabase();
+        // Refresh adaptations
+        if (store.focusedWeekStart) {
+          fetchAdaptations({ weekStart: store.focusedWeekStart });
+        }
+      }
+    };
+
+    autoLinkActivities();
+  }, [userId, activities, store.plannedWorkouts, ftp, store, fetchAdaptations]);
 
   // Handle adaptation feedback submission
   const handleAdaptationFeedback = useCallback(
