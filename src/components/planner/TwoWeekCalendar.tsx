@@ -49,6 +49,7 @@ interface TwoWeekCalendarProps {
     duration_seconds: number;
     distance?: number | null;
     trainer?: boolean;
+    isLinked?: boolean;
   }>;
   raceGoals?: Record<string, RaceGoal>;
   dropTargetDate: string | null;
@@ -60,6 +61,7 @@ interface TwoWeekCalendarProps {
   onDateClick: (date: string) => void;
   onNavigate: (direction: 'prev' | 'next') => void;
   onSetAvailability?: (date: string, status: AvailabilityStatus) => void;
+  onLinkActivity?: (workoutId: string, activityId: string) => void;
   isMobile?: boolean;
   selectedWorkoutId?: string | null; // For mobile tap-to-assign visual feedback
 }
@@ -124,6 +126,7 @@ export function TwoWeekCalendar({
   onDateClick,
   onNavigate,
   onSetAvailability,
+  onLinkActivity,
   isMobile = false,
   selectedWorkoutId = null,
 }: TwoWeekCalendarProps) {
@@ -336,6 +339,7 @@ export function TwoWeekCalendar({
             onClick={onDateClick}
             onSetAvailability={onSetAvailability}
             onWorkoutClick={handleWorkoutClick}
+            onLinkActivity={onLinkActivity}
           />
         ))}
       </SimpleGrid>

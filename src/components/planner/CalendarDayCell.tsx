@@ -3,8 +3,8 @@
  * Individual day cell in the 2-week calendar with drop zone
  */
 
-import { Box, Text, ActionIcon, Group, Tooltip, Badge, Progress, Stack, Menu, ThemeIcon } from '@mantine/core';
-import { IconX, IconCheck, IconPlus, IconArrowUp, IconArrowDown, IconMinus, IconBike, IconHome, IconCalendarOff, IconStar, IconCalendarEvent, IconLock, IconLockOpen, IconTrophy } from '@tabler/icons-react';
+import { Box, Text, ActionIcon, Group, Tooltip, Badge, Progress, Stack, Menu, ThemeIcon, Button } from '@mantine/core';
+import { IconX, IconCheck, IconPlus, IconArrowUp, IconArrowDown, IconMinus, IconBike, IconHome, IconCalendarOff, IconStar, IconCalendarEvent, IconLock, IconLockOpen, IconTrophy, IconLink } from '@tabler/icons-react';
 import { WorkoutCard } from './WorkoutCard';
 import type { PlannerWorkout } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutDefinition } from '../../types/training';
@@ -47,6 +47,7 @@ interface CalendarDayCellProps {
     duration_seconds: number;
     distance?: number | null;
     trainer?: boolean;
+    isLinked?: boolean; // Whether this activity is already linked to the workout
   };
   raceGoal?: RaceGoal;
   isToday: boolean;
@@ -60,6 +61,7 @@ interface CalendarDayCellProps {
   onClick: (date: string) => void;
   onSetAvailability?: (date: string, status: AvailabilityStatus) => void;
   onWorkoutClick?: (workout: WorkoutDefinition) => void;
+  onLinkActivity?: (workoutId: string, activityId: string) => void;
 }
 
 // Helper to format distance (in meters to km/mi)
@@ -111,6 +113,7 @@ export function CalendarDayCell({
   onClick,
   onSetAvailability,
   onWorkoutClick,
+  onLinkActivity,
 }: CalendarDayCellProps) {
   const isBlocked = availability?.status === 'blocked';
   const isPreferred = availability?.status === 'preferred';
@@ -432,6 +435,31 @@ export function CalendarDayCell({
                     </Text>
                   )}
                 </Group>
+
+                {/* Link Activity button - shows when activity is not linked */}
+                {onLinkActivity && !actualActivity.isLinked && plannedWorkout.id && (
+                  <Button
+                    size="compact-xs"
+                    variant="light"
+                    color="lime"
+                    leftSection={<IconLink size={12} />}
+                    mt={4}
+                    fullWidth
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      onLinkActivity(plannedWorkout.id!, actualActivity.id);
+                    }}
+                  >
+                    Link Activity
+                  </Button>
+                )}
+
+                {/* Linked indicator */}
+                {actualActivity.isLinked && (
+                  <Badge size="xs" color="green" variant="dot" mt={4}>
+                    Linked
+                  </Badge>
+                )}
               </Box>
             </Tooltip>
           )}
