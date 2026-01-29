@@ -23,6 +23,10 @@ import {
   type SuggestedPlacement,
   type WorkoutForRedistribution,
 } from '../utils/trainingPlans';
+import {
+  triggerAdaptationDetection,
+  fetchTrainingContext,
+} from '../utils/adaptationTrigger';
 import type {
   TrainingPlanDB,
   PlannedWorkoutDB,
@@ -734,12 +738,27 @@ export function useTrainingPlan({
             completed: true,
             completed_at: activity.start_date,
             actual_tss: activity.tss,
-            actual_duration: Math.round(activity.duration_seconds / 60),
-            actual_distance_km: activity.distance_meters ? activity.distance_meters / 1000 : null,
+            actual_duration: Math.round(activity.moving_time / 60),
+            actual_distance_km: activity.distance ? activity.distance / 1000 : null,
           })
           .eq('id', workoutId);
 
         if (updateError) throw updateError;
+
+        // Trigger adaptation detection (async, non-blocking)
+        if (userId) {
+          fetchTrainingContext(userId).then((context) => {
+            triggerAdaptationDetection(userId, workoutId, activityId, context)
+              .then((result) => {
+                if (result.success && result.adaptation) {
+                  console.log('Adaptation detected:', result.adaptation.adaptationType);
+                }
+              })
+              .catch((err) => {
+                console.error('Error detecting adaptation:', err);
+              });
+          });
+        }
 
         // Refresh workouts and plan
         await loadPlannedWorkouts();
@@ -752,7 +771,7 @@ export function useTrainingPlan({
         return false;
       }
     },
-    [loadPlannedWorkouts, loadActivePlan]
+    [userId, loadPlannedWorkouts, loadActivePlan]
   );
 
   // ============================================================
