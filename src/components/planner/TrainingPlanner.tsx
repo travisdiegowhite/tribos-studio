@@ -401,6 +401,13 @@ export function TrainingPlanner({
             ? Math.round(activity.moving_time / 60)
             : null;
 
+          console.log('[TrainingPlanner] Auto-link attempt:', {
+            workoutId,
+            activityId,
+            actualTss,
+            actualDuration,
+          });
+
           const { error } = await supabase
             .from('planned_workouts')
             .update({
@@ -413,7 +420,7 @@ export function TrainingPlanner({
             .eq('id', workoutId);
 
           if (error) {
-            console.error('[TrainingPlanner] Auto-link failed:', error.message, error.code, error.details);
+            console.error('[TrainingPlanner] Auto-link failed:', error.message, error.code, error.details, error);
             continue;
           }
 
@@ -504,6 +511,13 @@ export function TrainingPlanner({
           ? Math.round(activity.moving_time / 60)
           : null;
 
+        console.log('[TrainingPlanner] Manual link attempt:', {
+          workoutId,
+          activityId,
+          actualTss,
+          actualDuration,
+        });
+
         // Update the planned workout in the database
         const { error } = await supabase
           .from('planned_workouts')
@@ -516,7 +530,10 @@ export function TrainingPlanner({
           })
           .eq('id', workoutId);
 
-        if (error) throw error;
+        if (error) {
+          console.error('[TrainingPlanner] Link error details:', error.message, error.code, error.details, error);
+          throw error;
+        }
 
         // Trigger adaptation detection (async, non-blocking)
         triggerAdaptationDetection(userId, workoutId, activityId).then(
