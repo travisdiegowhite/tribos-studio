@@ -812,6 +812,7 @@ export default function EmailCampaigns() {
                           signedUpAfter: date ? date.toISOString() : undefined
                         })}
                         clearable
+                        popoverProps={{ withinPortal: true, zIndex: 1000 }}
                       />
                       <DateInput
                         label="Signed up before"
@@ -822,6 +823,7 @@ export default function EmailCampaigns() {
                           signedUpBefore: date ? date.toISOString() : undefined
                         })}
                         clearable
+                        popoverProps={{ withinPortal: true, zIndex: 1000 }}
                       />
                     </Group>
                     <Text size="xs" c="dimmed" mt="xs">
