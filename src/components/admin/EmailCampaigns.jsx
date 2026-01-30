@@ -436,10 +436,36 @@ export default function EmailCampaigns() {
   async function handleSendCampaign() {
     if (!editingCampaign) return;
 
+    // Validation: if in manual mode, must have selected users
+    if (selectionMode === 'manual' && selectedUserIds.length === 0) {
+      setError('You are in Manual Selection mode but have not selected any users. Please select users or switch to Use Filters mode.');
+      setConfirmSend(false);
+      return;
+    }
+
     setSendingCampaign(true);
     setError(null);
 
     try {
+      // IMPORTANT: Save the campaign first to persist selectedUserIds
+      const finalFilterCriteria = selectionMode === 'manual' && selectedUserIds.length > 0
+        ? { ...filterCriteria, selectedUserIds }
+        : { ...filterCriteria, selectedUserIds: undefined };
+
+      await updateCampaign(editingCampaign.id, {
+        name: formData.name,
+        subject: formData.subject,
+        htmlContent: formData.htmlContent,
+        textContent: formData.textContent || null,
+        campaignType: formData.campaignType,
+        audienceType: formData.audienceType,
+        filterCriteria: finalFilterCriteria,
+        fromName: formData.fromName,
+        fromEmail: formData.fromEmail,
+        replyTo: formData.replyTo || null
+      });
+
+      // Now send the campaign with the saved filter criteria
       const result = await sendCampaign(editingCampaign.id);
       alert(`Campaign sent! ${result.message}`);
       setConfirmSend(false);
@@ -1203,7 +1229,7 @@ export default function EmailCampaigns() {
           <Alert color="yellow" icon={<IconAlertTriangle size={16} />}>
             <Text fw={600}>Are you sure you want to send this campaign?</Text>
             <Text size="sm" mt="xs">
-              This will send emails to all recipients matching your filter criteria. This action cannot be undone.
+              This action cannot be undone.
             </Text>
           </Alert>
 
@@ -1221,8 +1247,27 @@ export default function EmailCampaigns() {
                 <Text c="dimmed">Audience</Text>
                 <Badge>{formData.audienceType}</Badge>
               </Group>
+              <Group justify="space-between">
+                <Text c="dimmed">Selection Mode</Text>
+                <Badge color={selectionMode === 'manual' ? 'green' : 'blue'}>
+                  {selectionMode === 'manual' ? 'Manual Selection' : 'Using Filters'}
+                </Badge>
+              </Group>
+              {selectionMode === 'manual' && (
+                <Group justify="space-between">
+                  <Text c="dimmed">Selected Users</Text>
+                  <Text fw={700} c="green">{selectedUserIds.length} users</Text>
+                </Group>
+              )}
             </Stack>
           </Paper>
+
+          {selectionMode === 'manual' && selectedUserIds.length === 0 && (
+            <Alert color="red" icon={<IconAlertTriangle size={16} />}>
+              <Text fw={600}>No users selected!</Text>
+              <Text size="sm">You must select users before sending in Manual Selection mode.</Text>
+            </Alert>
+          )}
 
           <Group justify="flex-end">
             <Button variant="light" onClick={() => setConfirmSend(false)}>
@@ -1233,6 +1278,7 @@ export default function EmailCampaigns() {
               leftSection={<IconSend size={16} />}
               onClick={handleSendCampaign}
               loading={sendingCampaign}
+              disabled={selectionMode === 'manual' && selectedUserIds.length === 0}
             >
               Yes, Send Campaign
             </Button>
