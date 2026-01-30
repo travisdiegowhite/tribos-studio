@@ -62,6 +62,7 @@ interface TwoWeekCalendarProps {
   onNavigate: (direction: 'prev' | 'next') => void;
   onSetAvailability?: (date: string, status: AvailabilityStatus) => void;
   onLinkActivity?: (workoutId: string, activityId: string) => void;
+  linkingWorkoutId?: string | null; // Which workout is currently being linked (for loading state)
   isMobile?: boolean;
   selectedWorkoutId?: string | null; // For mobile tap-to-assign visual feedback
 }
@@ -127,6 +128,7 @@ export function TwoWeekCalendar({
   onNavigate,
   onSetAvailability,
   onLinkActivity,
+  linkingWorkoutId = null,
   isMobile = false,
   selectedWorkoutId = null,
 }: TwoWeekCalendarProps) {
@@ -340,6 +342,7 @@ export function TwoWeekCalendar({
             onSetAvailability={onSetAvailability}
             onWorkoutClick={handleWorkoutClick}
             onLinkActivity={onLinkActivity}
+            linkingWorkoutId={linkingWorkoutId}
           />
         ))}
       </SimpleGrid>

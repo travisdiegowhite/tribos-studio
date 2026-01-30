@@ -62,6 +62,7 @@ interface CalendarDayCellProps {
   onSetAvailability?: (date: string, status: AvailabilityStatus) => void;
   onWorkoutClick?: (workout: WorkoutDefinition) => void;
   onLinkActivity?: (workoutId: string, activityId: string) => void;
+  linkingWorkoutId?: string | null; // Which workout is currently being linked (for loading state)
 }
 
 // Helper to format distance (in meters to km/mi)
@@ -114,6 +115,7 @@ export function CalendarDayCell({
   onSetAvailability,
   onWorkoutClick,
   onLinkActivity,
+  linkingWorkoutId,
 }: CalendarDayCellProps) {
   const isBlocked = availability?.status === 'blocked';
   const isPreferred = availability?.status === 'preferred';
@@ -445,12 +447,14 @@ export function CalendarDayCell({
                     leftSection={<IconLink size={12} />}
                     mt={4}
                     fullWidth
+                    loading={linkingWorkoutId === plannedWorkout.id}
+                    disabled={linkingWorkoutId !== null}
                     onClick={(e: React.MouseEvent) => {
                       e.stopPropagation();
                       onLinkActivity(plannedWorkout.id!, actualActivity.id);
                     }}
                   >
-                    Link Activity
+                    {linkingWorkoutId === plannedWorkout.id ? 'Linking...' : 'Link Activity'}
                   </Button>
                 )}
 
