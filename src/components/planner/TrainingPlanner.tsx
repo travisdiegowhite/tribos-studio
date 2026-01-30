@@ -23,6 +23,7 @@ import {
   Menu,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
+import { notifications } from '@mantine/notifications';
 import {
   IconBrain,
   IconDeviceFloppy,
@@ -37,6 +38,7 @@ import {
   IconDotsVertical,
   IconCalendarOff,
   IconSettings,
+  IconLink,
 } from '@tabler/icons-react';
 import { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 import { TwoWeekCalendar } from './TwoWeekCalendar';
@@ -166,6 +168,9 @@ export function TrainingPlanner({
   // Adaptation feedback modal state
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [selectedAdaptation, setSelectedAdaptation] = useState<WorkoutAdaptation | null>(null);
+
+  // Linking state - tracks which workout is being linked (for loading UI)
+  const [linkingWorkoutId, setLinkingWorkoutId] = useState<string | null>(null);
 
   // Workout adaptations hook
   const {
@@ -497,26 +502,30 @@ export function TrainingPlanner({
     async (workoutId: string, activityId: string) => {
       if (!userId) return;
 
+      // Set loading state
+      setLinkingWorkoutId(workoutId);
+
       try {
         // Get the activity details
         const activity = activities.find((a) => a.id === activityId);
         if (!activity) {
           console.error('Activity not found:', activityId);
+          notifications.show({
+            title: 'Error',
+            message: 'Could not find the activity to link.',
+            color: 'red',
+          });
           return;
         }
+
+        // Get the planned workout details for context
+        const plannedWorkout = Object.values(store.plannedWorkouts).find(w => w.id === workoutId);
 
         // Calculate actual TSS
         const actualTss = getActivityTSS(activity, ftp);
         const actualDuration = activity.moving_time
           ? Math.round(activity.moving_time / 60)
           : null;
-
-        console.log('[TrainingPlanner] Manual link attempt:', {
-          workoutId,
-          activityId,
-          actualTss,
-          actualDuration,
-        });
 
         // Update the planned workout in the database
         const { error } = await supabase
@@ -531,32 +540,98 @@ export function TrainingPlanner({
           .eq('id', workoutId);
 
         if (error) {
-          console.error('[TrainingPlanner] Link error details:', error.message, error.code, error.details, error);
+          console.error('[TrainingPlanner] Link error details:', error.message, error.code, error.details);
+          notifications.show({
+            title: 'Failed to link activity',
+            message: error.message || 'An error occurred while linking the activity.',
+            color: 'red',
+          });
           throw error;
         }
 
-        // Trigger adaptation detection (async, non-blocking)
-        triggerAdaptationDetection(userId, workoutId, activityId).then(
-          (result) => {
-            if (result.success && result.adaptation) {
-              console.log(
-                '[TrainingPlanner] Adaptation detected:',
-                result.adaptation.adaptationType
-              );
-              // Refresh adaptations to show in UI
-              if (store.focusedWeekStart) {
-                fetchAdaptations({ weekStart: store.focusedWeekStart });
-              }
-            }
-          }
-        );
+        // Trigger adaptation detection and wait for result
+        const adaptationResult = await triggerAdaptationDetection(userId, workoutId, activityId);
 
         // Refresh the store to show updated state
         await store.syncWithDatabase();
+
+        // Refresh adaptations
+        if (store.focusedWeekStart) {
+          fetchAdaptations({ weekStart: store.focusedWeekStart });
+        }
+
+        // Show success notification with adaptation summary
+        if (adaptationResult.success && adaptationResult.adaptation) {
+          const adaptation = adaptationResult.adaptation;
+          const adaptationType = adaptation.adaptationType.replace(/_/g, ' ');
+          const assessment = adaptation.analysis.assessment;
+
+          // Determine color and message based on assessment
+          let color = 'green';
+          let title = 'Activity Linked';
+          let message = '';
+
+          if (assessment === 'beneficial' || adaptation.adaptationType === 'completed_as_planned') {
+            color = 'green';
+            title = 'Great work!';
+            message = adaptation.adaptationType === 'completed_as_planned'
+              ? 'You completed this workout exactly as planned.'
+              : `Your ${adaptationType} adaptation was beneficial to your training.`;
+          } else if (assessment === 'acceptable') {
+            color = 'blue';
+            title = 'Workout Linked';
+            message = `Your workout was ${adaptationType}. This is acceptable for your current training.`;
+          } else if (assessment === 'concerning') {
+            color = 'orange';
+            title = 'Adaptation Noted';
+            message = `Your workout was ${adaptationType}. Let us know why so we can adjust your plan.`;
+          } else if (assessment === 'detrimental') {
+            color = 'red';
+            title = 'Significant Change Detected';
+            message = `Your workout was ${adaptationType}. This may impact your training goals.`;
+          }
+
+          // Add TSS comparison to message
+          if (plannedWorkout?.targetTSS && actualTss) {
+            const diff = actualTss - plannedWorkout.targetTSS;
+            const pct = Math.round((actualTss / plannedWorkout.targetTSS) * 100);
+            message += ` (${pct}% of planned TSS)`;
+          }
+
+          notifications.show({
+            title,
+            message,
+            color,
+            icon: <IconLink size={18} />,
+            autoClose: 5000,
+          });
+
+          // If it's a significant adaptation, prompt for feedback
+          if (assessment === 'concerning' || assessment === 'detrimental' ||
+              adaptation.adaptationType === 'skipped' ||
+              adaptation.adaptationType === 'downgraded') {
+            // Small delay so the notification shows first
+            setTimeout(() => {
+              setSelectedAdaptation(adaptation);
+              setFeedbackModalOpen(true);
+            }, 500);
+          }
+        } else {
+          // No adaptation detected (shouldn't happen, but handle gracefully)
+          notifications.show({
+            title: 'Activity Linked',
+            message: 'Your activity has been connected to this workout.',
+            color: 'green',
+            icon: <IconLink size={18} />,
+          });
+        }
+
         console.log('[TrainingPlanner] Activity linked successfully');
       } catch (err: unknown) {
         const error = err as { message?: string; code?: string; details?: string };
         console.error('[TrainingPlanner] Failed to link activity:', error.message, error.code, error.details);
+      } finally {
+        setLinkingWorkoutId(null);
       }
     },
     [userId, activities, ftp, store, fetchAdaptations]
@@ -892,6 +967,7 @@ export function TrainingPlanner({
               onNavigate={store.navigateWeeks}
               onSetAvailability={handleSetAvailability}
               onLinkActivity={handleLinkActivity}
+              linkingWorkoutId={linkingWorkoutId}
               isMobile={isMobile}
               selectedWorkoutId={selectedWorkoutId}
             />
