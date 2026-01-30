@@ -809,9 +809,10 @@ export default function EmailCampaigns() {
                         value={filterCriteria.signedUpAfter ? new Date(filterCriteria.signedUpAfter) : null}
                         onChange={(date) => setFilterCriteria({
                           ...filterCriteria,
-                          signedUpAfter: date ? date.toISOString() : undefined
+                          signedUpAfter: date instanceof Date ? date.toISOString() : undefined
                         })}
                         clearable
+                        popoverProps={{ withinPortal: true, zIndex: 1000 }}
                       />
                       <DateInput
                         label="Signed up before"
@@ -819,9 +820,10 @@ export default function EmailCampaigns() {
                         value={filterCriteria.signedUpBefore ? new Date(filterCriteria.signedUpBefore) : null}
                         onChange={(date) => setFilterCriteria({
                           ...filterCriteria,
-                          signedUpBefore: date ? date.toISOString() : undefined
+                          signedUpBefore: date instanceof Date ? date.toISOString() : undefined
                         })}
                         clearable
+                        popoverProps={{ withinPortal: true, zIndex: 1000 }}
                       />
                     </Group>
                     <Text size="xs" c="dimmed" mt="xs">
