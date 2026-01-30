@@ -556,8 +556,23 @@ function TrainingDashboard() {
 
   const formStatus = getFormStatus();
 
-  // Get suggested workout based on current form status
+  // Get suggested workout based on current form status and race proximity
   const getSuggestedWorkout = () => {
+    // Check for upcoming races - race proximity overrides TSB-based recommendations
+    const nextRace = raceGoals?.[0];
+    const daysUntilRace = nextRace ? Math.ceil((new Date(nextRace.race_date + 'T00:00:00') - new Date()) / (1000 * 60 * 60 * 24)) : null;
+
+    // RACE WEEK (0-7 days): Recovery and easy openers only
+    if (daysUntilRace !== null && daysUntilRace <= 7) {
+      return getWorkoutById('recovery_spin') || getWorkoutById('easy_recovery_ride');
+    }
+
+    // TAPER PERIOD (8-14 days): Easy endurance, reduced intensity
+    if (daysUntilRace !== null && daysUntilRace <= 14) {
+      return getWorkoutById('foundation_miles') || getWorkoutById('endurance_base_build');
+    }
+
+    // Normal TSB-based recommendations when not in taper/race week
     const tsb = trainingMetrics.tsb;
     // FRESH: High intensity day - VO2max or threshold work
     if (tsb >= 15) return getWorkoutById('five_by_four_vo2') || getWorkoutById('two_by_twenty_ftp');
@@ -1181,10 +1196,24 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
       : 'with fresh legs this week';
 
     const raceContext = daysUntilRace && nextRace
-      ? `With ${nextRace.name} in ${daysUntilRace} days, `
+      ? `With ${nextRace.name} in ${daysUntilRace} day${daysUntilRace === 1 ? '' : 's'}, `
       : '';
 
-    // Story based on form status
+    // RACE PROXIMITY TAKES PRIORITY OVER TSB
+    // Race week (0-2 days): Rest and mental prep
+    if (daysUntilRace !== null && daysUntilRace <= 2) {
+      return `${raceContext}race day is almost here! Focus on rest and mental preparation. A short easy spin or complete rest is best today.`;
+    }
+    // Race week (3-7 days): Easy spins and openers
+    if (daysUntilRace !== null && daysUntilRace <= 7) {
+      return `${raceContext}it's race week! Keep your legs fresh with easy spins or rest. Short openers can help you stay sharp without adding fatigue.`;
+    }
+    // Taper period (8-14 days): Reduced volume
+    if (daysUntilRace !== null && daysUntilRace <= 14) {
+      return `${raceContext}you're in the taper zone ${weekContext}. Reduce volume but keep some intensity. Focus on feeling fresh and sharp for race day.`;
+    }
+
+    // Normal TSB-based recommendations when not in taper/race week
     if (tsb >= 15) {
       return `${raceContext}You're feeling fresh ${weekContext}. Today is perfect for a hard effort or long ride to build fitness.`;
     }
