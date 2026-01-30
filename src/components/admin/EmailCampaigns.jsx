@@ -30,7 +30,10 @@ import {
   Progress,
   Divider,
   Code,
-  ScrollArea
+  ScrollArea,
+  Checkbox,
+  SegmentedControl,
+  ThemeIcon
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import {
@@ -49,7 +52,11 @@ import {
   IconCheck,
   IconX,
   IconTestPipe,
-  IconChartBar
+  IconChartBar,
+  IconCalendar,
+  IconUserCheck,
+  IconArrowUp,
+  IconArrowDown
 } from '@tabler/icons-react';
 import {
   listCampaigns,
@@ -163,6 +170,12 @@ export default function EmailCampaigns() {
   const [previewRecipientsList, setPreviewRecipientsList] = useState([]);
   const [previewTotal, setPreviewTotal] = useState(0);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewSortField, setPreviewSortField] = useState('created_at');
+  const [previewSortDirection, setPreviewSortDirection] = useState('desc');
+
+  // User selection state
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [selectionMode, setSelectionMode] = useState('filter'); // 'filter' or 'manual'
 
   // Campaign details state
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -209,6 +222,8 @@ export default function EmailCampaigns() {
       replyTo: 'travis@tribos.studio'
     });
     setFilterCriteria({});
+    setSelectedUserIds([]);
+    setSelectionMode('filter');
     setEditorOpen(true);
   }
 
@@ -226,7 +241,10 @@ export default function EmailCampaigns() {
       fromEmail: campaign.from_email,
       replyTo: campaign.reply_to || ''
     });
-    setFilterCriteria(campaign.filter_criteria || {});
+    const criteria = campaign.filter_criteria || {};
+    setFilterCriteria(criteria);
+    setSelectedUserIds(criteria.selectedUserIds || []);
+    setSelectionMode(criteria.selectedUserIds?.length > 0 ? 'manual' : 'filter');
     setEditorOpen(true);
   }
 
@@ -240,6 +258,11 @@ export default function EmailCampaigns() {
     setSaving(true);
     setError(null);
 
+    // Build final filter criteria based on selection mode
+    const finalFilterCriteria = selectionMode === 'manual' && selectedUserIds.length > 0
+      ? { ...filterCriteria, selectedUserIds }
+      : { ...filterCriteria, selectedUserIds: undefined };
+
     try {
       if (editingCampaign) {
         await updateCampaign(editingCampaign.id, {
@@ -249,7 +272,7 @@ export default function EmailCampaigns() {
           textContent: formData.textContent || null,
           campaignType: formData.campaignType,
           audienceType: formData.audienceType,
-          filterCriteria,
+          filterCriteria: finalFilterCriteria,
           fromName: formData.fromName,
           fromEmail: formData.fromEmail,
           replyTo: formData.replyTo || null
@@ -262,7 +285,7 @@ export default function EmailCampaigns() {
           textContent: formData.textContent || null,
           campaignType: formData.campaignType,
           audienceType: formData.audienceType,
-          filterCriteria,
+          filterCriteria: finalFilterCriteria,
           fromName: formData.fromName,
           fromEmail: formData.fromEmail,
           replyTo: formData.replyTo || null
@@ -298,7 +321,12 @@ export default function EmailCampaigns() {
   async function handlePreviewRecipients() {
     setPreviewLoading(true);
     try {
-      const result = await previewRecipients(formData.audienceType, filterCriteria);
+      // Build criteria including selectedUserIds if in manual mode
+      const previewCriteria = selectionMode === 'manual' && selectedUserIds.length > 0
+        ? { ...filterCriteria, selectedUserIds }
+        : filterCriteria;
+
+      const result = await previewRecipients(formData.audienceType, previewCriteria);
       setPreviewRecipientsList(result.recipients || []);
       setPreviewTotal(result.total || 0);
       setPreviewOpen(true);
@@ -307,6 +335,74 @@ export default function EmailCampaigns() {
       setError(err.message);
     } finally {
       setPreviewLoading(false);
+    }
+  }
+
+  // Toggle user selection in manual mode
+  function handleToggleUserSelection(userId, email) {
+    const key = userId || email; // Use userId if available, otherwise email
+    setSelectedUserIds(prev => {
+      if (prev.includes(key)) {
+        return prev.filter(id => id !== key);
+      } else {
+        return [...prev, key];
+      }
+    });
+  }
+
+  // Select/deselect all users in preview
+  function handleSelectAllUsers(recipients) {
+    const allKeys = recipients.map(r => r.user_id || r.email);
+    const allSelected = allKeys.every(key => selectedUserIds.includes(key));
+
+    if (allSelected) {
+      // Deselect all
+      setSelectedUserIds(prev => prev.filter(id => !allKeys.includes(id)));
+    } else {
+      // Select all
+      setSelectedUserIds(prev => {
+        const newSelected = [...prev];
+        allKeys.forEach(key => {
+          if (!newSelected.includes(key)) {
+            newSelected.push(key);
+          }
+        });
+        return newSelected;
+      });
+    }
+  }
+
+  // Sort preview recipients
+  function getSortedRecipients(recipients) {
+    return [...recipients].sort((a, b) => {
+      let aVal, bVal;
+
+      if (previewSortField === 'created_at') {
+        aVal = a.created_at ? new Date(a.created_at) : new Date(0);
+        bVal = b.created_at ? new Date(b.created_at) : new Date(0);
+      } else if (previewSortField === 'email') {
+        aVal = (a.email || '').toLowerCase();
+        bVal = (b.email || '').toLowerCase();
+      } else {
+        aVal = a[previewSortField] || '';
+        bVal = b[previewSortField] || '';
+      }
+
+      if (previewSortDirection === 'asc') {
+        return aVal > bVal ? 1 : -1;
+      } else {
+        return aVal < bVal ? 1 : -1;
+      }
+    });
+  }
+
+  // Toggle sort direction
+  function toggleSort(field) {
+    if (previewSortField === field) {
+      setPreviewSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setPreviewSortField(field);
+      setPreviewSortDirection('desc');
     }
   }
 
@@ -646,13 +742,92 @@ export default function EmailCampaigns() {
           {/* Audience Tab */}
           <Tabs.Panel value="audience" pt="md">
             <Stack gap="md">
-              <Alert icon={<IconFilter size={16} />} color="blue">
-                Configure filters to target specific users. Leave empty to include all users in the selected audience.
-              </Alert>
+              {/* Selection Mode Toggle */}
+              <Paper withBorder p="md">
+                <Group justify="space-between" mb="sm">
+                  <Text fw={600}>Selection Mode</Text>
+                  <SegmentedControl
+                    value={selectionMode}
+                    onChange={(value) => {
+                      setSelectionMode(value);
+                      if (value === 'filter') {
+                        setSelectedUserIds([]);
+                      }
+                    }}
+                    data={[
+                      { value: 'filter', label: 'Use Filters' },
+                      { value: 'manual', label: 'Manual Selection' }
+                    ]}
+                    size="sm"
+                  />
+                </Group>
 
+                {selectionMode === 'filter' ? (
+                  <Alert icon={<IconFilter size={16} />} color="blue">
+                    Configure filters to target specific users. Leave empty to include all users in the selected audience.
+                  </Alert>
+                ) : (
+                  <Alert icon={<IconUserCheck size={16} />} color="green">
+                    <Group>
+                      <Text size="sm">
+                        {selectedUserIds.length === 0
+                          ? 'Preview recipients below and select specific users to include.'
+                          : `${selectedUserIds.length} user${selectedUserIds.length === 1 ? '' : 's'} selected for this campaign.`}
+                      </Text>
+                      {selectedUserIds.length > 0 && (
+                        <Button
+                          size="xs"
+                          variant="light"
+                          color="red"
+                          onClick={() => setSelectedUserIds([])}
+                        >
+                          Clear Selection
+                        </Button>
+                      )}
+                    </Group>
+                  </Alert>
+                )}
+              </Paper>
+
+              {/* Filters (shown in filter mode or for initial user discovery in manual mode) */}
               {(formData.audienceType === 'users' || formData.audienceType === 'both') && (
                 <>
                   <Text fw={600}>Registered Users Filters</Text>
+
+                  {/* NEW: Date Range Filter for New Users */}
+                  <Paper withBorder p="md" bg="var(--mantine-color-dark-7)">
+                    <Group gap="xs" mb="sm">
+                      <ThemeIcon size="sm" variant="light" color="green">
+                        <IconCalendar size={14} />
+                      </ThemeIcon>
+                      <Text fw={500} size="sm">Filter by Signup Date (New Users)</Text>
+                    </Group>
+                    <Group grow>
+                      <DateInput
+                        label="Signed up after"
+                        placeholder="Select start date"
+                        value={filterCriteria.signedUpAfter ? new Date(filterCriteria.signedUpAfter) : null}
+                        onChange={(date) => setFilterCriteria({
+                          ...filterCriteria,
+                          signedUpAfter: date ? date.toISOString() : undefined
+                        })}
+                        clearable
+                      />
+                      <DateInput
+                        label="Signed up before"
+                        placeholder="Select end date"
+                        value={filterCriteria.signedUpBefore ? new Date(filterCriteria.signedUpBefore) : null}
+                        onChange={(date) => setFilterCriteria({
+                          ...filterCriteria,
+                          signedUpBefore: date ? date.toISOString() : undefined
+                        })}
+                        clearable
+                      />
+                    </Group>
+                    <Text size="xs" c="dimmed" mt="xs">
+                      Use these filters to target users who signed up within a specific date range.
+                    </Text>
+                  </Paper>
 
                   <Switch
                     label="Email verified only"
@@ -863,7 +1038,7 @@ export default function EmailCampaigns() {
             <Text fw={600}>Recipients Preview ({previewTotal} total)</Text>
           </Group>
         }
-        size="lg"
+        size="xl"
       >
         <Stack gap="md">
           <Alert color={previewTotal > 0 ? 'green' : 'yellow'}>
@@ -872,32 +1047,141 @@ export default function EmailCampaigns() {
               : 'No recipients match the current filter criteria.'}
           </Alert>
 
-          {previewRecipientsList.length > 0 && (
-            <Table striped>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Email</Table.Th>
-                  <Table.Th>Name</Table.Th>
-                  <Table.Th>Source</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {previewRecipientsList.map((r, i) => (
-                  <Table.Tr key={i}>
-                    <Table.Td>{r.email}</Table.Td>
-                    <Table.Td>{r.name || '-'}</Table.Td>
-                    <Table.Td>
-                      <Badge size="sm" variant="light">
-                        {r.source}
-                      </Badge>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+          {/* Selection mode info */}
+          {selectionMode === 'manual' && previewRecipientsList.length > 0 && (
+            <Alert icon={<IconUserCheck size={16} />} color="blue">
+              <Group justify="space-between">
+                <Text size="sm">
+                  Click the checkboxes to select specific users. {selectedUserIds.length} selected.
+                </Text>
+                <Group gap="xs">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    onClick={() => handleSelectAllUsers(previewRecipientsList)}
+                  >
+                    {previewRecipientsList.every(r => selectedUserIds.includes(r.user_id || r.email))
+                      ? 'Deselect All'
+                      : 'Select All Visible'}
+                  </Button>
+                  {selectedUserIds.length > 0 && (
+                    <Button
+                      size="xs"
+                      variant="light"
+                      color="green"
+                      onClick={() => setPreviewOpen(false)}
+                    >
+                      Confirm Selection
+                    </Button>
+                  )}
+                </Group>
+              </Group>
+            </Alert>
           )}
 
-          <Button onClick={() => setPreviewOpen(false)}>Close</Button>
+          {previewRecipientsList.length > 0 && (
+            <ScrollArea h={400}>
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    {selectionMode === 'manual' && (
+                      <Table.Th w={40}>
+                        <Checkbox
+                          checked={previewRecipientsList.every(r => selectedUserIds.includes(r.user_id || r.email))}
+                          indeterminate={
+                            previewRecipientsList.some(r => selectedUserIds.includes(r.user_id || r.email)) &&
+                            !previewRecipientsList.every(r => selectedUserIds.includes(r.user_id || r.email))
+                          }
+                          onChange={() => handleSelectAllUsers(previewRecipientsList)}
+                        />
+                      </Table.Th>
+                    )}
+                    <Table.Th
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => toggleSort('email')}
+                    >
+                      <Group gap={4}>
+                        Email
+                        {previewSortField === 'email' && (
+                          previewSortDirection === 'asc'
+                            ? <IconArrowUp size={14} />
+                            : <IconArrowDown size={14} />
+                        )}
+                      </Group>
+                    </Table.Th>
+                    <Table.Th>Name</Table.Th>
+                    <Table.Th
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => toggleSort('created_at')}
+                    >
+                      <Group gap={4}>
+                        Signed Up
+                        {previewSortField === 'created_at' && (
+                          previewSortDirection === 'asc'
+                            ? <IconArrowUp size={14} />
+                            : <IconArrowDown size={14} />
+                        )}
+                      </Group>
+                    </Table.Th>
+                    <Table.Th>Source</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {getSortedRecipients(previewRecipientsList).map((r, i) => {
+                    const key = r.user_id || r.email;
+                    const isSelected = selectedUserIds.includes(key);
+
+                    return (
+                      <Table.Tr
+                        key={i}
+                        style={{
+                          cursor: selectionMode === 'manual' ? 'pointer' : 'default',
+                          backgroundColor: isSelected && selectionMode === 'manual'
+                            ? 'var(--mantine-color-green-light)'
+                            : undefined
+                        }}
+                        onClick={selectionMode === 'manual' ? () => handleToggleUserSelection(r.user_id, r.email) : undefined}
+                      >
+                        {selectionMode === 'manual' && (
+                          <Table.Td onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onChange={() => handleToggleUserSelection(r.user_id, r.email)}
+                            />
+                          </Table.Td>
+                        )}
+                        <Table.Td>{r.email}</Table.Td>
+                        <Table.Td>{r.name || '-'}</Table.Td>
+                        <Table.Td>
+                          {r.created_at
+                            ? formatDate(r.created_at)
+                            : <Text size="sm" c="dimmed">-</Text>}
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge size="sm" variant="light">
+                            {r.source}
+                          </Badge>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            </ScrollArea>
+          )}
+
+          <Group justify="space-between">
+            <Button variant="light" onClick={() => setPreviewOpen(false)}>Close</Button>
+            {selectionMode === 'manual' && selectedUserIds.length > 0 && (
+              <Button
+                color="green"
+                leftSection={<IconCheck size={16} />}
+                onClick={() => setPreviewOpen(false)}
+              >
+                Use {selectedUserIds.length} Selected User{selectedUserIds.length === 1 ? '' : 's'}
+              </Button>
+            )}
+          </Group>
         </Stack>
       </Modal>
 

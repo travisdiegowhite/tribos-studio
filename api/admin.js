@@ -955,6 +955,9 @@ async function getFilteredRecipients(audienceType, filterCriteria) {
   const recipients = [];
   const seenEmails = new Set();
 
+  // Check if we're using manual selection mode
+  const isManualSelection = filterCriteria.selectedUserIds && filterCriteria.selectedUserIds.length > 0;
+
   // Get registered users if needed
   if (audienceType === 'users' || audienceType === 'both') {
     const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
@@ -966,86 +969,97 @@ async function getFilteredRecipients(audienceType, filterCriteria) {
 
     let users = authData.users || [];
 
-    // Apply filters
-    if (filterCriteria.emailVerified) {
-      users = users.filter(u => u.email_confirmed_at);
-    }
-
-    if (filterCriteria.signedUpAfter) {
-      const cutoff = new Date(filterCriteria.signedUpAfter);
-      users = users.filter(u => new Date(u.created_at) >= cutoff);
-    }
-
-    if (filterCriteria.signedUpBefore) {
-      const cutoff = new Date(filterCriteria.signedUpBefore);
-      users = users.filter(u => new Date(u.created_at) <= cutoff);
-    }
-
-    if (filterCriteria.lastSignInWithinDays) {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - filterCriteria.lastSignInWithinDays);
-      users = users.filter(u => u.last_sign_in_at && new Date(u.last_sign_in_at) >= cutoff);
-    }
-
-    const userIds = users.map(u => u.id);
-
-    // Activity-based filters
-    if (filterCriteria.hasActivity !== undefined || filterCriteria.activityCountMin) {
-      const { data: activities } = await supabase
-        .from('activities')
-        .select('user_id');
-
-      const activityCounts = {};
-      (activities || []).forEach(a => {
-        activityCounts[a.user_id] = (activityCounts[a.user_id] || 0) + 1;
-      });
-
-      if (filterCriteria.hasActivity === true) {
-        users = users.filter(u => (activityCounts[u.id] || 0) > 0);
-      } else if (filterCriteria.hasActivity === false) {
-        users = users.filter(u => (activityCounts[u.id] || 0) === 0);
+    // If manual selection mode, filter to only selected users
+    if (isManualSelection) {
+      users = users.filter(u =>
+        filterCriteria.selectedUserIds.includes(u.id) ||
+        filterCriteria.selectedUserIds.includes(u.email)
+      );
+    } else {
+      // Apply filters only in filter mode
+      if (filterCriteria.emailVerified) {
+        users = users.filter(u => u.email_confirmed_at);
       }
 
-      if (filterCriteria.activityCountMin) {
-        users = users.filter(u => (activityCounts[u.id] || 0) >= filterCriteria.activityCountMin);
+      if (filterCriteria.signedUpAfter) {
+        const cutoff = new Date(filterCriteria.signedUpAfter);
+        users = users.filter(u => new Date(u.created_at) >= cutoff);
       }
-    }
 
-    // Integration filters
-    if (filterCriteria.integrations && filterCriteria.integrations.length > 0) {
-      const { data: integrations } = await supabase
-        .from('bike_computer_integrations')
-        .select('user_id, provider')
-        .in('user_id', userIds);
+      if (filterCriteria.signedUpBefore) {
+        const cutoff = new Date(filterCriteria.signedUpBefore);
+        users = users.filter(u => new Date(u.created_at) <= cutoff);
+      }
 
-      const userIntegrations = {};
-      (integrations || []).forEach(i => {
-        if (!userIntegrations[i.user_id]) {
-          userIntegrations[i.user_id] = [];
+      if (filterCriteria.lastSignInWithinDays) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - filterCriteria.lastSignInWithinDays);
+        users = users.filter(u => u.last_sign_in_at && new Date(u.last_sign_in_at) >= cutoff);
+      }
+
+      const userIds = users.map(u => u.id);
+
+      // Activity-based filters
+      if (filterCriteria.hasActivity !== undefined || filterCriteria.activityCountMin) {
+        const { data: activities } = await supabase
+          .from('activities')
+          .select('user_id');
+
+        const activityCounts = {};
+        (activities || []).forEach(a => {
+          activityCounts[a.user_id] = (activityCounts[a.user_id] || 0) + 1;
+        });
+
+        if (filterCriteria.hasActivity === true) {
+          users = users.filter(u => (activityCounts[u.id] || 0) > 0);
+        } else if (filterCriteria.hasActivity === false) {
+          users = users.filter(u => (activityCounts[u.id] || 0) === 0);
         }
-        userIntegrations[i.user_id].push(i.provider);
-      });
 
-      users = users.filter(u => {
-        const userProviders = userIntegrations[u.id] || [];
-        return filterCriteria.integrations.some(p => userProviders.includes(p));
-      });
-    }
+        if (filterCriteria.activityCountMin) {
+          users = users.filter(u => (activityCounts[u.id] || 0) >= filterCriteria.activityCountMin);
+        }
+      }
 
-    if (filterCriteria.hasIntegration !== undefined) {
-      const { data: integrations } = await supabase
-        .from('bike_computer_integrations')
-        .select('user_id')
-        .in('user_id', userIds);
+      // Integration filters
+      if (filterCriteria.integrations && filterCriteria.integrations.length > 0) {
+        const { data: integrations } = await supabase
+          .from('bike_computer_integrations')
+          .select('user_id, provider')
+          .in('user_id', userIds);
 
-      const usersWithIntegrations = new Set((integrations || []).map(i => i.user_id));
+        const userIntegrations = {};
+        (integrations || []).forEach(i => {
+          if (!userIntegrations[i.user_id]) {
+            userIntegrations[i.user_id] = [];
+          }
+          userIntegrations[i.user_id].push(i.provider);
+        });
 
-      if (filterCriteria.hasIntegration === true) {
-        users = users.filter(u => usersWithIntegrations.has(u.id));
-      } else {
-        users = users.filter(u => !usersWithIntegrations.has(u.id));
+        users = users.filter(u => {
+          const userProviders = userIntegrations[u.id] || [];
+          return filterCriteria.integrations.some(p => userProviders.includes(p));
+        });
+      }
+
+      if (filterCriteria.hasIntegration !== undefined) {
+        const { data: integrations } = await supabase
+          .from('bike_computer_integrations')
+          .select('user_id')
+          .in('user_id', userIds);
+
+        const usersWithIntegrations = new Set((integrations || []).map(i => i.user_id));
+
+        if (filterCriteria.hasIntegration === true) {
+          users = users.filter(u => usersWithIntegrations.has(u.id));
+        } else {
+          users = users.filter(u => !usersWithIntegrations.has(u.id));
+        }
       }
     }
+
+    // Sort users by signup date (newest first)
+    users.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
     // Add to recipients
     for (const user of users) {
@@ -1055,7 +1069,8 @@ async function getFilteredRecipients(audienceType, filterCriteria) {
           user_id: user.id,
           email: user.email,
           name: user.user_metadata?.name || null,
-          source: 'users'
+          source: 'users',
+          created_at: user.created_at
         });
       }
     }
@@ -1065,13 +1080,21 @@ async function getFilteredRecipients(audienceType, filterCriteria) {
   if (audienceType === 'beta_signups' || audienceType === 'both') {
     let query = supabase.from('beta_signups').select('*');
 
-    if (filterCriteria.betaStatus) {
-      query = query.eq('status', filterCriteria.betaStatus);
+    // If manual selection, filter by selected emails
+    if (isManualSelection) {
+      query = query.in('email', filterCriteria.selectedUserIds);
+    } else {
+      if (filterCriteria.betaStatus) {
+        query = query.eq('status', filterCriteria.betaStatus);
+      }
+
+      if (filterCriteria.wantsNotifications !== undefined) {
+        query = query.eq('wants_notifications', filterCriteria.wantsNotifications);
+      }
     }
 
-    if (filterCriteria.wantsNotifications !== undefined) {
-      query = query.eq('wants_notifications', filterCriteria.wantsNotifications);
-    }
+    // Sort by signup date (newest first)
+    query = query.order('signed_up_at', { ascending: false });
 
     const { data: signups, error: signupsError } = await query;
 
@@ -1085,7 +1108,8 @@ async function getFilteredRecipients(audienceType, filterCriteria) {
             user_id: signup.user_id || null,
             email: signup.email,
             name: signup.name || null,
-            source: 'beta_signups'
+            source: 'beta_signups',
+            created_at: signup.signed_up_at || signup.created_at
           });
         }
       }
