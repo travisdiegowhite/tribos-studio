@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HelmetProvider } from '@dr.pogodin/react-helmet';
+import { PostHogProvider } from 'posthog-js/react';
 import { registerSW } from 'virtual:pwa-register';
 import { initSentry } from './lib/sentry';
 import App from './App.jsx';
@@ -28,10 +29,20 @@ registerSW({
   },
 });
 
+const posthogOptions = {
+  api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+  defaults: '2025-11-30',
+};
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <HelmetProvider>
-      <App />
-    </HelmetProvider>
+    <PostHogProvider
+      apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_KEY}
+      options={posthogOptions}
+    >
+      <HelmetProvider>
+        <App />
+      </HelmetProvider>
+    </PostHogProvider>
   </StrictMode>
 );
