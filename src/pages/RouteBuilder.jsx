@@ -532,6 +532,52 @@ async function scoreRoutePreference(coordinates, accessToken) {
   }
 }
 
+/**
+ * Fetch waypoints from familiar road segments to build a loop route
+ * @param {number} startLat - Start latitude
+ * @param {number} startLng - Start longitude
+ * @param {number} targetDistanceKm - Target route distance in km
+ * @param {string} accessToken - User's auth token
+ * @param {boolean} exploreMode - If true, use fewer familiar waypoints
+ * @returns {Promise<Object|null>} Waypoints and metadata or null if failed
+ */
+async function getFamiliarLoopWaypoints(startLat, startLng, targetDistanceKm, accessToken, exploreMode = false) {
+  if (!accessToken) {
+    return null;
+  }
+
+  try {
+    console.log(`🧠 Fetching familiar segments for ${targetDistanceKm}km loop...`);
+    const response = await fetch('/api/road-segments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        action: 'get_loop_waypoints',
+        startLat,
+        startLng,
+        targetDistanceKm,
+        minRideCount: 2,
+        exploreMode
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('Failed to get familiar waypoints:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log(`🧠 Got ${data.waypoints?.length || 0} familiar waypoints from ${data.totalFamiliarSegments || 0} segments`);
+    return data;
+  } catch (error) {
+    console.error('Error fetching familiar waypoints:', error);
+    return null;
+  }
+}
+
 function RouteBuilder() {
   const { routeId } = useParams();
   const navigate = useNavigate();
@@ -1622,22 +1668,92 @@ function RouteBuilder() {
           notifications.show({
             id: 'generating-route',
             title: 'Building Route',
-            message: `Creating ${duration}min ${goal} route iteratively...`,
+            message: `Creating ${duration}min ${goal} route...`,
             loading: true,
             autoClose: false
           });
 
-          const iterativeResult = await generateIterativeRoute({
-            startLocation,
-            targetDistanceKm,
-            routeType: type === 'out_back' ? 'out_and_back' : type,
-            direction,
-            options: {
+          // If user prefers familiar roads, try to get waypoints from their riding history
+          let useFamiliarWaypoints = false;
+          let familiarWaypointsData = null;
+
+          if (parsed.preferences?.preferFamiliar && accessToken && type === 'loop') {
+            console.log('🧠 User prefers familiar roads - fetching segment waypoints...');
+            familiarWaypointsData = await getFamiliarLoopWaypoints(
+              startLocation[1], // lat
+              startLocation[0], // lng
+              targetDistanceKm,
+              accessToken,
+              false // not explore mode
+            );
+
+            if (familiarWaypointsData && !familiarWaypointsData.fallbackToRandom && familiarWaypointsData.waypoints?.length >= 4) {
+              useFamiliarWaypoints = true;
+              console.log(`🧠 Using ${familiarWaypointsData.waypoints.length} familiar waypoints from ${familiarWaypointsData.segments?.length || 0} segments`);
+            } else {
+              console.log('🧠 Not enough familiar segments, falling back to iterative builder');
+            }
+          }
+
+          let iterativeResult;
+          let routeSource = 'iterative_quarter_loop';
+
+          if (useFamiliarWaypoints) {
+            // Build route through familiar waypoints
+            notifications.update({
+              id: 'generating-route',
+              title: 'Building Familiar Route',
+              message: `Routing through ${familiarWaypointsData.waypoints.length} familiar waypoints...`,
+              loading: true,
+              autoClose: false
+            });
+
+            // Convert waypoints to coordinate array: start -> familiar waypoints -> start (loop)
+            const waypointCoords = [
+              startLocation, // Start
+              ...familiarWaypointsData.waypoints.map(wp => [wp.lng, wp.lat]),
+              startLocation  // Return to start
+            ];
+
+            console.log(`🧠 Routing through ${waypointCoords.length} waypoints (including start/end)`);
+
+            const routeResult = await getSmartCyclingRoute(waypointCoords, {
               profile: parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
+              trainingGoal: goal,
+              mapboxToken: MAPBOX_TOKEN
+            });
+
+            if (routeResult && routeResult.coordinates && routeResult.coordinates.length >= 10) {
+              iterativeResult = {
+                coordinates: routeResult.coordinates,
+                distanceKm: routeResult.distance / 1000,
+                elevationGain: routeResult.elevationGain || 0,
+                duration: routeResult.duration || 0,
+                name: `Familiar ${(routeResult.distance / 1000).toFixed(0)}km ${goal} loop`,
+                source: 'familiar_segments'
+              };
+              routeSource = 'familiar_segments';
+            } else {
+              // Fallback to iterative if routing through waypoints failed
+              console.log('🧠 Routing through familiar waypoints failed, falling back to iterative');
+              useFamiliarWaypoints = false;
+            }
+          }
+
+          // Fallback to iterative route builder
+          if (!useFamiliarWaypoints) {
+            iterativeResult = await generateIterativeRoute({
+              startLocation,
+              targetDistanceKm,
+              routeType: type === 'out_back' ? 'out_and_back' : type,
+              direction,
+              options: {
+                profile: parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
+                trainingGoal: goal
+              },
               trainingGoal: goal
-            },
-            trainingGoal: goal
-          });
+            });
+          }
 
           if (!iterativeResult || !iterativeResult.coordinates || iterativeResult.coordinates.length < 10) {
             throw new Error('Could not generate a route. Try a different duration or location.');
@@ -1646,10 +1762,9 @@ function RouteBuilder() {
           const distanceKm = parseFloat(iterativeResult.distanceKm.toFixed(1));
           const generatedRouteName = iterativeResult.name || `${distanceKm}km ${goal} ${type}`;
 
-          // Score the route if user prefers familiar roads
+          // Score the route to show familiarity percentage
           let familiarityScore = null;
-          if (parsed.preferences?.preferFamiliar && accessToken) {
-            console.log('🧠 Scoring route against riding history...');
+          if (accessToken) {
             familiarityScore = await scoreRoutePreference(iterativeResult.coordinates, accessToken);
             if (familiarityScore) {
               console.log('🧠 Route familiarity:', familiarityScore);
@@ -1665,31 +1780,35 @@ function RouteBuilder() {
             distance: distanceKm,
             elevation: iterativeResult.elevationGain || 0,
             duration: Math.round((iterativeResult.duration || 0) / 60),
-            familiarityScore: familiarityScore // Include familiarity in stats
+            familiarityScore: familiarityScore
           });
 
           if (!calendarContext) {
             setRouteName(generatedRouteName);
           }
-          setRoutingSource(iterativeResult.source);
+          setRoutingSource(routeSource);
           setWaypoints([]);
 
-          // Build notification message with familiarity info if available
-          let notificationMessage = `${distanceKm} km ${type} route created (iterative)`;
+          // Build notification message
+          let notificationTitle = useFamiliarWaypoints ? 'Familiar Route Generated!' : 'Route Generated!';
+          let notificationMessage = `${distanceKm} km ${type} route`;
           if (familiarityScore) {
             notificationMessage += ` • ${familiarityScore.familiarityPercent || 0}% familiar roads`;
+          }
+          if (useFamiliarWaypoints) {
+            notificationMessage += ` (${familiarWaypointsData.segments?.length || 0} segments used)`;
           }
 
           notifications.update({
             id: 'generating-route',
-            title: 'Route Generated!',
+            title: notificationTitle,
             message: notificationMessage,
             color: 'lime',
             loading: false,
             autoClose: 4000
           });
 
-          console.log(`✅ Route generated: ${distanceKm} km via ${iterativeResult.source}`);
+          console.log(`✅ Route generated: ${distanceKm} km via ${routeSource}`);
           return; // Exit early - route is complete
         }
 
