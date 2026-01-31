@@ -211,7 +211,7 @@ export default function RoadPreferencesCard() {
           },
           body: JSON.stringify({
             action: 'extract_all',
-            limit: 50
+            limit: 5  // Small batch to avoid timeout
           })
         });
 

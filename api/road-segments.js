@@ -133,7 +133,7 @@ async function extractActivitySegments(req, res, authUser) {
  */
 async function extractAllActivitySegments(req, res, authUser) {
   const {
-    limit = 50,
+    limit = 5,  // Small default to avoid timeout
     force = false,
     months = null
   } = req.body || {};
@@ -149,7 +149,7 @@ async function extractAllActivitySegments(req, res, authUser) {
   }
 
   const result = await extractSegmentsForUser(authUser.id, {
-    limit: Math.min(parseInt(limit) || 50, 100),
+    limit: Math.min(parseInt(limit) || 5, 10),  // Cap at 10 to avoid timeout
     includeProcessed: force,
     afterDate
   });
