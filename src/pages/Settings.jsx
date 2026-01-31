@@ -39,6 +39,7 @@ import { wahooService } from '../utils/wahooService';
 import { TIMEZONE_OPTIONS, getBrowserTimezone, getTimezoneOffset } from '../utils/timezoneUtils';
 import { formatSpeed } from '../utils/units';
 import PageHeader from '../components/PageHeader.jsx';
+import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -1475,6 +1476,9 @@ function Settings() {
               </Box>
             </Stack>
           </Card>
+
+          {/* Route Learning */}
+          <RoadPreferencesCard />
 
           {/* Preferences */}
           <Card>
