@@ -10,6 +10,7 @@ import {
   extractSegmentsForUser,
   scoreRoutePreferences,
   extractSegmentsFromPolyline,
+  extractSegmentsFromPoints,
   decodePolyline,
 } from './utils/roadSegmentExtractor.js';
 
@@ -168,9 +169,19 @@ async function extractAllActivitySegments(req, res, authUser) {
 
 /**
  * Score a single route based on user's road preferences
+ * Accepts either polyline OR coordinates array [[lng, lat], ...]
  */
 async function scoreRoute(req, res, authUser) {
-  const { polyline, routeId } = req.body;
+  const { polyline, coordinates, routeId } = req.body;
+
+  // If coordinates provided directly, use them
+  if (coordinates && Array.isArray(coordinates) && coordinates.length > 0) {
+    const score = await scoreRouteFromCoordinates(coordinates, authUser.id);
+    return res.json({
+      success: true,
+      score
+    });
+  }
 
   let routePolyline = polyline;
 
@@ -187,18 +198,18 @@ async function scoreRoute(req, res, authUser) {
       return res.status(404).json({ error: 'Route not found' });
     }
 
-    // Convert GeoJSON to polyline if needed
+    // Convert GeoJSON to coordinates if available
     if (route.geometry?.coordinates) {
-      // The route stores coordinates as GeoJSON, we need to extract them
-      // For now, return an error - routes should provide polyline
-      return res.status(400).json({
-        error: 'Route preference scoring requires polyline format. Use an activity polyline or generated route.'
+      const score = await scoreRouteFromCoordinates(route.geometry.coordinates, authUser.id);
+      return res.json({
+        success: true,
+        score
       });
     }
   }
 
   if (!routePolyline) {
-    return res.status(400).json({ error: 'polyline or routeId required' });
+    return res.status(400).json({ error: 'polyline, coordinates, or routeId required' });
   }
 
   const score = await scoreRoutePreferences(routePolyline, authUser.id);
@@ -207,6 +218,86 @@ async function scoreRoute(req, res, authUser) {
     success: true,
     score
   });
+}
+
+/**
+ * Score a route from coordinates array [[lng, lat], ...]
+ */
+async function scoreRouteFromCoordinates(coordinates, userId) {
+  // Convert coordinates to the format expected by extractSegmentsFromPolyline
+  // The coordinates are [lng, lat] but extractSegmentsFromPolyline expects {lat, lng}
+  const points = coordinates.map(([lng, lat]) => ({ lat, lng }));
+
+  // Extract segments directly from points
+  const routeSegments = extractSegmentsFromPoints(points);
+
+  if (routeSegments.length === 0) {
+    return {
+      overallScore: 1.0,
+      familiarSegments: 0,
+      unknownSegments: 0,
+      totalSegments: 0,
+      familiarKm: 0,
+      unknownKm: 0,
+      confidence: 'unknown',
+    };
+  }
+
+  const segmentHashes = routeSegments.map(s => s.segmentHash);
+
+  // Fetch user's preferences for these segments
+  const { data: preferences, error } = await supabase.rpc('get_segment_preferences', {
+    p_user_id: userId,
+    p_segment_hashes: segmentHashes,
+  });
+
+  if (error) {
+    console.error('Failed to fetch preferences:', error);
+    return {
+      overallScore: 1.0,
+      familiarSegments: 0,
+      unknownSegments: routeSegments.length,
+      totalSegments: routeSegments.length,
+      confidence: 'unknown',
+      error: error.message,
+    };
+  }
+
+  const prefMap = new Map(preferences?.map(p => [p.segment_hash, p]) || []);
+
+  // Calculate scores
+  let totalScore = 0;
+  let familiarKm = 0;
+  let unknownKm = 0;
+  let familiarCount = 0;
+
+  for (const segment of routeSegments) {
+    const pref = prefMap.get(segment.segmentHash);
+    const segmentKm = segment.lengthM / 1000;
+
+    if (pref && pref.ride_count > 0) {
+      totalScore += pref.preference_score * segmentKm;
+      familiarKm += segmentKm;
+      familiarCount++;
+    } else {
+      totalScore += 0.5 * segmentKm; // Neutral score for unknown segments
+      unknownKm += segmentKm;
+    }
+  }
+
+  const totalKm = familiarKm + unknownKm;
+  const avgScore = totalKm > 0 ? totalScore / totalKm : 0.5;
+
+  return {
+    overallScore: parseFloat(avgScore.toFixed(3)),
+    familiarSegments: familiarCount,
+    unknownSegments: routeSegments.length - familiarCount,
+    totalSegments: routeSegments.length,
+    familiarKm: parseFloat(familiarKm.toFixed(2)),
+    unknownKm: parseFloat(unknownKm.toFixed(2)),
+    familiarityPercent: parseFloat(((familiarKm / totalKm) * 100).toFixed(1)),
+    confidence: familiarCount > 5 ? 'high' : familiarCount > 0 ? 'medium' : 'unknown',
+  };
 }
 
 /**

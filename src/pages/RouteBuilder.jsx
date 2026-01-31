@@ -189,7 +189,8 @@ Return ONLY a JSON object:
   "surfaceType": "gravel|paved|mixed",
   "avoidHighways": true/false,
   "trainingGoal": "endurance|intervals|recovery|hills" or null,
-  "direction": "north|south|east|west" if user mentioned a direction
+  "direction": "north|south|east|west" if user mentioned a direction,
+  "preferFamiliar": true if user mentions "familiar roads", "roads I know", "my usual routes", or similar
 }
 
 EXAMPLES:
@@ -327,8 +328,14 @@ function parseNaturalLanguageResponse(responseText) {
     result.preferences = {
       avoidHighways: parsed.avoidHighways,
       surfaceType: parsed.surfaceType || 'mixed',
-      trailPreference: parsed.surfaceType === 'gravel'
+      trailPreference: parsed.surfaceType === 'gravel',
+      preferFamiliar: parsed.preferFamiliar || false
     };
+
+    // Log if familiar roads preference is detected
+    if (parsed.preferFamiliar) {
+      console.log('🧠 User prefers familiar roads - will score against riding history');
+    }
 
     console.log('🎯 Extracted waypoints:', result.waypoints);
     console.log('🧭 Direction:', result.direction);
@@ -488,12 +495,61 @@ async function geocodeWaypoint(waypointName, proximityLocation) {
   }
 }
 
+/**
+ * Score a route against user's road segment history
+ * @param {Array<[number, number]>} coordinates - Route coordinates [[lng, lat], ...]
+ * @param {string} accessToken - User's auth token
+ * @returns {Promise<Object|null>} Score object or null if scoring fails
+ */
+async function scoreRoutePreference(coordinates, accessToken) {
+  if (!coordinates || coordinates.length < 2 || !accessToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch('/api/road-segments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        action: 'score_route',
+        coordinates
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('Route scoring failed:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.score || null;
+  } catch (error) {
+    console.error('Route scoring error:', error);
+    return null;
+  }
+}
+
 function RouteBuilder() {
   const { routeId } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
+
+  // Access token for road segment scoring
+  const [accessToken, setAccessToken] = useState(null);
+  useEffect(() => {
+    const getToken = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setAccessToken(session?.access_token || null);
+    };
+    if (user) {
+      getToken();
+    }
+  }, [user]);
 
   // === Persisted State (from Zustand store) ===
   const {
@@ -1590,6 +1646,16 @@ function RouteBuilder() {
           const distanceKm = parseFloat(iterativeResult.distanceKm.toFixed(1));
           const generatedRouteName = iterativeResult.name || `${distanceKm}km ${goal} ${type}`;
 
+          // Score the route if user prefers familiar roads
+          let familiarityScore = null;
+          if (parsed.preferences?.preferFamiliar && accessToken) {
+            console.log('🧠 Scoring route against riding history...');
+            familiarityScore = await scoreRoutePreference(iterativeResult.coordinates, accessToken);
+            if (familiarityScore) {
+              console.log('🧠 Route familiarity:', familiarityScore);
+            }
+          }
+
           setRouteGeometry({
             type: 'LineString',
             coordinates: iterativeResult.coordinates
@@ -1598,7 +1664,8 @@ function RouteBuilder() {
           setRouteStats({
             distance: distanceKm,
             elevation: iterativeResult.elevationGain || 0,
-            duration: Math.round((iterativeResult.duration || 0) / 60)
+            duration: Math.round((iterativeResult.duration || 0) / 60),
+            familiarityScore: familiarityScore // Include familiarity in stats
           });
 
           if (!calendarContext) {
@@ -1607,13 +1674,19 @@ function RouteBuilder() {
           setRoutingSource(iterativeResult.source);
           setWaypoints([]);
 
+          // Build notification message with familiarity info if available
+          let notificationMessage = `${distanceKm} km ${type} route created (iterative)`;
+          if (familiarityScore) {
+            notificationMessage += ` • ${familiarityScore.familiarityPercent || 0}% familiar roads`;
+          }
+
           notifications.update({
             id: 'generating-route',
             title: 'Route Generated!',
-            message: `${distanceKm} km ${type} route created (iterative)`,
+            message: notificationMessage,
             color: 'lime',
             loading: false,
-            autoClose: 3000
+            autoClose: 4000
           });
 
           console.log(`✅ Route generated: ${distanceKm} km via ${iterativeResult.source}`);
@@ -1666,6 +1739,16 @@ function RouteBuilder() {
         ? `${parsed.waypoints.join(' → ')} ${parsed.routeType}`
         : `${distanceKm}km ${parsed.trainingGoal || 'endurance'} ${parsed.routeType || 'loop'}`;
 
+      // Score the route if user prefers familiar roads
+      let familiarityScore = null;
+      if (parsed.preferences?.preferFamiliar && accessToken) {
+        console.log('🧠 Scoring route against riding history...');
+        familiarityScore = await scoreRoutePreference(routeResult.coordinates, accessToken);
+        if (familiarityScore) {
+          console.log('🧠 Route familiarity:', familiarityScore);
+        }
+      }
+
       setRouteGeometry({
         type: 'LineString',
         coordinates: routeResult.coordinates
@@ -1674,7 +1757,8 @@ function RouteBuilder() {
       setRouteStats({
         distance: distanceKm, // Now a number, not string
         elevation: routeResult.elevationGain || 0,
-        duration: Math.round(routeResult.duration / 60)
+        duration: Math.round(routeResult.duration / 60),
+        familiarityScore: familiarityScore // Include familiarity in stats
       });
 
       // Only update route name if not already set from calendar context
@@ -1684,13 +1768,19 @@ function RouteBuilder() {
       setRoutingSource(routeResult.source);
       setWaypoints([]); // Clear manual waypoints since we're using AI route
 
+      // Build notification message with familiarity info if available
+      let notificationMessage = `${distanceKm} km ${parsed.routeType || 'loop'} route created`;
+      if (familiarityScore) {
+        notificationMessage += ` • ${familiarityScore.familiarityPercent || 0}% familiar roads`;
+      }
+
       notifications.update({
         id: 'generating-route',
         title: 'Route Generated!',
-        message: `${distanceKm} km ${parsed.routeType || 'loop'} route created`,
+        message: notificationMessage,
         color: 'lime',
         loading: false,
-        autoClose: 3000
+        autoClose: 4000
       });
 
       console.log(`✅ Route generated: ${(routeResult.distance / 1000).toFixed(1)} km via ${routeResult.source}`);
@@ -1706,7 +1796,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [naturalLanguageInput, viewport, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext]);
+  }, [naturalLanguageInput, viewport, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext, accessToken]);
 
   // Search for address using Mapbox Geocoding API
   const handleAddressSearch = useCallback(async (query) => {
