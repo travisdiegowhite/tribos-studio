@@ -1607,10 +1607,11 @@ function PowerTab({ ftp, powerZones, navigate, activities, weight }) {
               <Text size="3rem" fw={700} style={{ color: '#fbbf24' }}>
                 {ftp}W
               </Text>
-              {/* Placeholder for W/kg - would need weight from profile */}
-              <Text size="lg" c="dimmed">
-                (~3.5 W/kg)
-              </Text>
+              {weight && (
+                <Text size="lg" c="dimmed">
+                  ({(ftp / weight).toFixed(2)} W/kg)
+                </Text>
+              )}
             </Group>
             <Text size="xs" c="dimmed" mt="xs">
               Last updated: Manual entry
