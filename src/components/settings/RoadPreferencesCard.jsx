@@ -140,7 +140,19 @@ export default function RoadPreferencesCard() {
   }, [session?.access_token]);
 
   const handleExtractSegments = async () => {
-    if (!session?.access_token) return;
+    console.log('Extract segments clicked');
+    console.log('Session:', session);
+    console.log('Access token:', session?.access_token ? 'present' : 'missing');
+
+    if (!session?.access_token) {
+      console.error('No access token available');
+      notifications.show({
+        title: 'Authentication Error',
+        message: 'Please sign in again to extract segments',
+        color: 'red',
+      });
+      return;
+    }
 
     setExtracting(true);
     setExtractionProgress({ processed: 0, total: unprocessedCount || 0, segments: 0 });
@@ -162,6 +174,7 @@ export default function RoadPreferencesCard() {
 
       // Process in batches until done
       while (remaining > 0) {
+        console.log('Fetching batch, remaining:', remaining);
         const response = await fetch(`${getApiBaseUrl()}/api/road-segments`, {
           method: 'POST',
           headers: {
@@ -174,12 +187,17 @@ export default function RoadPreferencesCard() {
           })
         });
 
+        console.log('Response status:', response.status);
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
+          console.error('Extraction API error:', errorData);
           throw new Error(errorData.error || 'Extraction failed');
         }
 
         const data = await response.json();
+        console.log('Extraction response:', data);
+
         totalProcessed += data.activitiesProcessed || 0;
         totalSegments += data.segmentsStored || 0;
         remaining = data.remaining || 0;
