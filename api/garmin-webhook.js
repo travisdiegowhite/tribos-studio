@@ -11,6 +11,7 @@ import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { updateBackfillChunkIfApplicable } from './utils/garminBackfill.js';
+import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -728,6 +729,13 @@ async function downloadAndProcessActivity(event, integration) {
             if (fitResult.powerMetrics?.normalizedPower) updates.push(`NP: ${fitResult.powerMetrics.normalizedPower}W`);
             if (fitResult.powerMetrics?.powerCurveSummary) updates.push(`Power curve: ${Object.keys(fitResult.powerMetrics.powerCurveSummary).length} points`);
             console.log(`✅ FIT data saved: ${updates.join(', ')}`);
+
+            // Extract road segments for preference-based routing (async, don't block)
+            if (fitResult.polyline) {
+              extractAndStoreActivitySegments(activity.id, integration.user_id).catch(err => {
+                console.warn(`⚠️ Segment extraction failed for activity ${activity.id}:`, err.message);
+              });
+            }
           }
         } else if (fitResult.error) {
           console.log('⚠️ Could not extract data from FIT:', fitResult.error);

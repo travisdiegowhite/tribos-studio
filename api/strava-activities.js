@@ -4,6 +4,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
+import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -412,14 +413,23 @@ async function storeActivities(userId, activities) {
     }
 
     // No duplicate - insert new activity
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from('activities')
-      .insert(activityData);
+      .insert(activityData)
+      .select('id')
+      .single();
 
     if (error) {
       console.error('Error storing activity:', a.id, error.message);
     } else {
       stored++;
+
+      // Extract road segments for preference-based routing (async, don't block)
+      if (activityData.map_summary_polyline && inserted?.id) {
+        extractAndStoreActivitySegments(inserted.id, userId).catch(err => {
+          console.warn(`⚠️ Segment extraction failed for activity ${a.id}:`, err.message);
+        });
+      }
     }
   }
 
