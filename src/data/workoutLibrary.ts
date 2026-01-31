@@ -1110,6 +1110,101 @@ export const WORKOUT_LIBRARY: WorkoutLibraryType = {
     }
   },
 
+  strength_quick_lower: {
+    id: 'strength_quick_lower',
+    name: 'Quick Lower Body Strength',
+    category: 'strength',
+    difficulty: 'beginner',
+    duration: 25,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Time-efficient lower body workout for busy cyclists. Builds strength in 25 minutes.',
+    focusArea: 'strength',
+    tags: ['strength', 'off-bike', 'gym', 'quick', 'beginner', 'time-efficient'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 5, zone: null, description: '2min light cardio + dynamic leg swings' },
+      main: [
+        { duration: 17, zone: null, description: 'Goblet Squat: 3x12 | Lunges: 2x10 each | Glute Bridge: 3x15 | Calf Raises: 2x15' }
+      ],
+      cooldown: { duration: 3, zone: null, description: 'Quick quad and hip flexor stretch' }
+    },
+    coachNotes: 'Perfect for time-crunched athletes. Focus on form over weight. Can do at home with minimal equipment.',
+    exercises: {
+      warmup: {
+        duration: 5,
+        description: 'Quick movement prep',
+        exercises: [
+          { name: 'Jumping Jacks', duration: 60, equipment: ['none'], muscleGroups: ['full_body'], instructions: 'Light jumping jacks to elevate heart rate.' },
+          { name: 'Leg Swings', duration: 60, sides: 'left_then_right', reps: 10, equipment: ['none'], muscleGroups: ['hip_flexors', 'hamstrings'], instructions: 'Front-to-back swings to loosen hips.' },
+          { name: 'Bodyweight Squats', duration: 60, reps: 8, equipment: ['none'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Slow controlled squats to prime movement.' }
+        ]
+      },
+      main: [
+        { name: 'Goblet Squat', sets: 3, reps: 12, weight: 'dumbbell or kettlebell', restSeconds: 45, equipment: ['dumbbells', 'kettlebell'], muscleGroups: ['quadriceps', 'glutes', 'core'], instructions: 'Hold weight at chest. Squat deep with chest up. Drive through heels.', alternatives: ['Bodyweight Squat'] },
+        { name: 'Walking Lunges', sets: 2, reps: '10 each leg', weight: 'bodyweight', restSeconds: 45, equipment: ['none'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Step forward, lower back knee toward ground. Keep torso upright.', alternatives: ['Reverse Lunges'] },
+        { name: 'Glute Bridge', sets: 3, reps: 15, restSeconds: 30, equipment: ['yoga_mat'], muscleGroups: ['glutes', 'hamstrings'], instructions: 'Lie on back, drive hips up by squeezing glutes. Hold 1 sec at top.' },
+        { name: 'Standing Calf Raises', sets: 2, reps: 15, restSeconds: 30, equipment: ['none'], muscleGroups: ['calves'], instructions: 'Rise onto balls of feet, squeeze at top, lower slowly.' }
+      ],
+      cooldown: {
+        duration: 3,
+        description: 'Essential stretches',
+        exercises: [
+          { name: 'Quad Stretch', duration: 30, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['quadriceps'], instructions: 'Pull heel to glute, push hips forward slightly.' },
+          { name: 'Hip Flexor Stretch', duration: 30, sides: 'left_then_right', equipment: ['none'], muscleGroups: ['hip_flexors'], instructions: 'Half-kneeling, push hips forward gently.' }
+        ]
+      }
+    }
+  },
+
+  strength_express_circuit: {
+    id: 'strength_express_circuit',
+    name: 'Express Strength Circuit',
+    category: 'strength',
+    difficulty: 'intermediate',
+    duration: 20,
+    targetTSS: 0,
+    intensityFactor: 0,
+    description: 'Fast-paced circuit workout hitting all major cycling muscles in just 20 minutes.',
+    focusArea: 'strength',
+    tags: ['strength', 'off-bike', 'circuit', 'quick', 'intermediate', 'time-efficient'],
+    terrainType: 'flat',
+    structure: {
+      warmup: { duration: 3, zone: null, description: 'Quick dynamic warmup' },
+      main: [
+        { duration: 15, zone: null, description: 'Circuit x3: Squat x10 | RDL x10 | Step-Ups x8 each | Plank 30s (minimal rest between exercises)' }
+      ],
+      cooldown: { duration: 2, zone: null, description: 'Deep breathing + quick stretch' }
+    },
+    coachNotes: 'High efficiency workout. Move quickly between exercises with 15-20s rest. Complete 3 rounds.',
+    exercises: {
+      warmup: {
+        duration: 3,
+        description: 'Quick activation',
+        exercises: [
+          { name: 'High Knees', duration: 30, equipment: ['none'], muscleGroups: ['hip_flexors'], instructions: 'Quick high knees in place.' },
+          { name: 'Butt Kicks', duration: 30, equipment: ['none'], muscleGroups: ['hamstrings'], instructions: 'Heel to glute while jogging in place.' },
+          { name: 'Arm Circles', duration: 30, equipment: ['none'], muscleGroups: ['shoulders'], instructions: 'Large arm circles forward and backward.' },
+          { name: 'Bodyweight Squats', duration: 30, reps: 8, equipment: ['none'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Deep squats to activate legs.' }
+        ]
+      },
+      main: [
+        { name: 'Goblet Squat', sets: 3, reps: 10, weight: 'moderate dumbbell', restSeconds: 15, equipment: ['dumbbells'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Fast controlled reps. Don\'t sacrifice form for speed.' },
+        { name: 'Romanian Deadlift', sets: 3, reps: 10, weight: 'dumbbells', restSeconds: 15, equipment: ['dumbbells'], muscleGroups: ['hamstrings', 'glutes'], instructions: 'Hinge at hips, keep back flat. Feel hamstring stretch.' },
+        { name: 'Step-Ups', sets: 3, reps: '8 each leg', restSeconds: 15, equipment: ['bench'], muscleGroups: ['quadriceps', 'glutes'], instructions: 'Use chair or bench. Drive through top foot, don\'t push off back foot.' },
+        { name: 'Plank', sets: 3, reps: '30 seconds', restSeconds: 15, equipment: ['yoga_mat'], muscleGroups: ['core'], instructions: 'Tight core, straight body. Squeeze glutes.' }
+      ],
+      cooldown: {
+        duration: 2,
+        description: 'Quick reset',
+        exercises: [
+          { name: 'Deep Breathing', duration: 30, equipment: ['none'], muscleGroups: ['full_body'], instructions: 'Stand tall, 5 deep breaths to lower heart rate.' },
+          { name: 'Forward Fold', duration: 30, equipment: ['none'], muscleGroups: ['hamstrings', 'lower_back'], instructions: 'Hang forward, let head and arms dangle. Relax.' }
+        ]
+      }
+    }
+  },
+
   // ============================================================
   // CORE TRAINING
   // Based on research: McGill, Penn State 2013
