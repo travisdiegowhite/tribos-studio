@@ -49,10 +49,12 @@ const SUPPLEMENT_CATEGORIES = {
     icon: IconBarbell,
     color: 'pink',
     workouts: [
+      'strength_express_circuit',
+      'strength_quick_lower',
+      'strength_maintenance',
       'strength_anatomical_adaptation',
       'strength_muscle_endurance',
       'strength_max_lower',
-      'strength_maintenance',
       'strength_explosive_power',
     ],
   },
@@ -185,14 +187,14 @@ export default function SupplementWorkoutModal({
       opened={opened}
       onClose={handleClose}
       title={
-        <Group spacing="xs">
+        <Group gap="xs">
           <IconBarbell size={20} />
           <Text fw={600}>Add Supplement Workout</Text>
         </Group>
       }
       size="xl"
     >
-      <Stack spacing="md">
+      <Stack gap="md">
         {/* Info Alert */}
         <Alert icon={<IconInfoCircle size={18} />} color="blue" variant="light">
           Add strength, core, or flexibility workouts to complement your cycling training.
@@ -200,7 +202,7 @@ export default function SupplementWorkoutModal({
         </Alert>
 
         {/* Category Tabs */}
-        <Tabs value={selectedCategory} onTabChange={(value) => {
+        <Tabs value={selectedCategory} onChange={(value) => {
           setSelectedCategory(value);
           setSelectedWorkout(null);
           setSelectedDate(null);
@@ -243,8 +245,8 @@ export default function SupplementWorkoutModal({
                       }}
                       onClick={() => handleSelectWorkout(workoutId)}
                     >
-                      <Group position="apart" mb={4}>
-                        <Group spacing="xs">
+                      <Group justify="space-between" mb={4}>
+                        <Group gap="xs">
                           <Text fw={500} size="sm">{workout.name}</Text>
                           {isHeavy && (
                             <Tooltip label="Heavy workout - needs 48-72h before hard bike sessions">
@@ -263,7 +265,7 @@ export default function SupplementWorkoutModal({
                         {workout.description}
                       </Text>
 
-                      <Group spacing="xs">
+                      <Group gap="xs">
                         <Badge size="xs" variant="light" leftSection={<IconClock size={10} />}>
                           {workout.duration} min
                         </Badge>
@@ -285,7 +287,7 @@ export default function SupplementWorkoutModal({
             <Divider />
 
             <Paper p="md" withBorder radius="md">
-              <Group position="apart" mb="sm">
+              <Group justify="space-between" mb="sm">
                 <div>
                   <Text fw={600}>{selectedWorkoutDetails.name}</Text>
                   <Text size="sm" c="dimmed">Select a day to add this workout</Text>
@@ -321,7 +323,7 @@ export default function SupplementWorkoutModal({
                 </Alert>
               ) : (
                 <ScrollArea>
-                  <Group spacing="xs" pb="xs" style={{ flexWrap: 'nowrap' }}>
+                  <Group gap="xs" pb="xs" style={{ flexWrap: 'nowrap' }}>
                     {suggestedDays.slice(0, 14).map((suggestion) => {
                       const isSelected = selectedDate === suggestion.date;
                       const scoreColor = getScoreColor(suggestion.score);
@@ -344,7 +346,7 @@ export default function SupplementWorkoutModal({
                             }}
                             onClick={() => handleSelectDate(suggestion.date)}
                           >
-                            <Stack spacing={4} align="center">
+                            <Stack gap={4} align="center">
                               <RingProgress
                                 size={36}
                                 thickness={4}
@@ -377,12 +379,12 @@ export default function SupplementWorkoutModal({
         )}
 
         {/* Action Buttons */}
-        <Group position="apart" mt="md">
+        <Group justify="space-between" mt="md">
           <Button variant="subtle" onClick={handleClose}>
             {selectedWorkout ? 'Cancel' : 'Close'}
           </Button>
 
-          <Group spacing="xs">
+          <Group gap="xs">
             {selectedWorkout && (
               <Button
                 variant="light"
