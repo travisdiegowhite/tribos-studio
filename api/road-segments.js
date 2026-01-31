@@ -246,34 +246,65 @@ async function scoreMultipleRoutes(req, res, authUser) {
  * Get user's segment statistics
  */
 async function getSegmentStats(req, res, authUser) {
+  let stats = {
+    total_segments: 0,
+    total_rides: 0,
+    unique_km: 0,
+    most_ridden_count: 0,
+    segments_by_ride_count: {},
+    recent_new_segments: 0
+  };
+  let unprocessedCount = 0;
+  let hasSegmentsColumn = true;
+
+  // Try to get segment stats from RPC
   const { data, error } = await supabase.rpc('get_user_segment_stats', {
     p_user_id: authUser.id
   });
 
   if (error) {
     console.error('Error fetching segment stats:', error);
-    return res.status(500).json({ error: 'Failed to fetch segment statistics' });
+    // Check if it's a "function does not exist" error
+    if (error.message?.includes('function') || error.code === '42883') {
+      return res.status(500).json({
+        error: 'Database function does not exist. Please run the migration.',
+        needsMigration: true
+      });
+    }
+  } else if (data?.[0]) {
+    stats = data[0];
   }
 
-  // Also get count of unprocessed activities
-  const { count: unprocessedCount } = await supabase
+  // Try to count unprocessed activities
+  // First check if segments_extracted_at column exists by trying the query
+  const { count, error: countError } = await supabase
     .from('activities')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', authUser.id)
     .not('map_summary_polyline', 'is', null)
     .is('segments_extracted_at', null);
 
+  if (countError) {
+    console.error('Error counting unprocessed activities:', countError);
+    // If column doesn't exist, count all activities with GPS data
+    if (countError.message?.includes('segments_extracted_at') || countError.code === '42703') {
+      hasSegmentsColumn = false;
+      const { count: allCount } = await supabase
+        .from('activities')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', authUser.id)
+        .not('map_summary_polyline', 'is', null);
+      unprocessedCount = allCount || 0;
+    }
+  } else {
+    unprocessedCount = count || 0;
+  }
+
   return res.json({
     success: true,
-    stats: data?.[0] || {
-      total_segments: 0,
-      total_rides: 0,
-      unique_km: 0,
-      most_ridden_count: 0,
-      segments_by_ride_count: {},
-      recent_new_segments: 0
-    },
-    unprocessedActivities: unprocessedCount || 0
+    stats,
+    unprocessedActivities: unprocessedCount,
+    needsColumnMigration: !hasSegmentsColumn
   });
 }
 

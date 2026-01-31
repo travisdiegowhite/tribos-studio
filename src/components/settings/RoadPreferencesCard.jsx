@@ -104,12 +104,18 @@ export default function RoadPreferencesCard() {
 
       if (statsRes.ok) {
         const statsData = await statsRes.json();
+        console.log('Road segments stats:', statsData);
         setStats(statsData.stats);
         setUnprocessedCount(statsData.unprocessedActivities || 0);
+        // Check if column migration is needed
+        if (statsData.needsColumnMigration) {
+          console.warn('segments_extracted_at column missing from activities table');
+        }
       } else {
         const errorData = await statsRes.json().catch(() => ({}));
+        console.error('Road segments API error:', errorData);
         // Check if it's a database migration issue
-        if (errorData.error?.includes('relation') || errorData.error?.includes('does not exist')) {
+        if (errorData.needsMigration || errorData.error?.includes('relation') || errorData.error?.includes('does not exist') || errorData.error?.includes('function')) {
           setNeedsMigration(true);
         } else {
           setApiError(errorData.error || 'Failed to load statistics');
