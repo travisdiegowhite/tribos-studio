@@ -51,6 +51,19 @@
   ],
   "updates": [
     {
+      "id": "route-learning",
+      "date": "2026-01",
+      "type": "new",
+      "title": "Route Learning - Ride Your Favorite Roads",
+      "description": "Tribos now learns which roads you ride most often. Ask for 'familiar roads' when building a route and it will guide you through segments you've actually ridden before.",
+      "details": [
+        "Automatically extracts road segments from your imported activities",
+        "Routes through your most-ridden roads when you ask for familiar routes",
+        "Configure your preferences in Settings or directly from Route Builder",
+        "Falls back to normal routing if you're in a new area"
+      ]
+    },
+    {
       "id": "the-cafe",
       "date": "2025-01",
       "type": "new",
