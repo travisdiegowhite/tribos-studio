@@ -71,41 +71,41 @@ function Dashboard() {
     const checkOnboardingAndLoadProfile = async () => {
       if (!user) return;
 
-      const hasSeenWelcome = localStorage.getItem(`tribos_welcome_seen_${user.id}`);
-      if (hasSeenWelcome) {
-        try {
-          const { data } = await supabase
-            .from('user_profiles')
-            .select('onboarding_completed, display_name, units_preference')
-            .eq('id', user.id)
-            .single();
-          if (data) {
-            setUserProfile(data);
-          }
-        } catch {
-          // Profile load failed
-        }
-        // Check for What's New updates (only if not showing onboarding)
-        if (!hasSeenLatestUpdates(user.id)) {
-          setShowWhatsNew(true);
-        }
-        return;
-      }
-
-      localStorage.setItem(`tribos_welcome_seen_${user.id}`, 'true');
-      setShowOnboarding(true);
-
+      // Always check database first for onboarding status (persists across browsers)
       try {
         const { data } = await supabase
           .from('user_profiles')
           .select('onboarding_completed, display_name, units_preference')
           .eq('id', user.id)
           .single();
+
         if (data) {
           setUserProfile(data);
+
+          // If onboarding is completed in database, update localStorage and skip onboarding
+          if (data.onboarding_completed) {
+            localStorage.setItem(`tribos_welcome_seen_${user.id}`, 'true');
+            // Check for What's New updates
+            if (!hasSeenLatestUpdates(user.id)) {
+              setShowWhatsNew(true);
+            }
+            return;
+          }
         }
       } catch {
-        // Profile doesn't exist yet
+        // Profile doesn't exist yet - user needs onboarding
+      }
+
+      // Only show onboarding if not completed in database
+      const hasSeenWelcome = localStorage.getItem(`tribos_welcome_seen_${user.id}`);
+      if (!hasSeenWelcome) {
+        localStorage.setItem(`tribos_welcome_seen_${user.id}`, 'true');
+        setShowOnboarding(true);
+      } else {
+        // Check for What's New updates if onboarding already seen locally
+        if (!hasSeenLatestUpdates(user.id)) {
+          setShowWhatsNew(true);
+        }
       }
     };
 

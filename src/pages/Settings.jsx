@@ -21,6 +21,7 @@ import {
   ThemeIcon,
   Collapse,
   UnstyledButton,
+  SimpleGrid,
 } from '@mantine/core';
 import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSun, IconMoon, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useMantineColorScheme } from '@mantine/core';
@@ -1161,7 +1162,7 @@ function Settings() {
                 Set your FTP to calculate personalized power zones
               </Text>
 
-              <Group grow>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
                 <NumberInput
                   label="FTP (Functional Threshold Power)"
                   description="Your 1-hour max sustainable power in watts"
@@ -1189,7 +1190,7 @@ function Settings() {
                   suffix={unitsPreference === 'imperial' ? ' lbs' : ' kg'}
                   decimalScale={1}
                 />
-              </Group>
+              </SimpleGrid>
 
               {ftp && weightKg && (
                 <Box
