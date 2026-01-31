@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -39,6 +39,7 @@ import RouteExportMenu from '../components/RouteExportMenu.jsx';
 import MapControls from '../components/MapControls.jsx';
 import { FuelCard } from '../components/fueling';
 import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
+import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -544,6 +545,9 @@ function RouteBuilder() {
 
   // Preferences modal state
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+
+  // Road preferences modal state
+  const [roadPreferencesOpen, setRoadPreferencesOpen] = useState(false);
 
   // Interval cues (derived from selectedWorkout)
   const [intervalCues, setIntervalCues] = useState(null);
@@ -2521,6 +2525,21 @@ function RouteBuilder() {
                   speedProfile={speedProfile}
                   isImperial={isImperial}
                 />
+                <Tooltip label="Route Learning - Prefer familiar roads">
+                  <Button
+                    variant="default"
+                    color="dark"
+                    size="md"
+                    onClick={() => setRoadPreferencesOpen(true)}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: 'var(--tribos-bg-secondary)',
+                      border: '1px solid var(--tribos-border)',
+                    }}
+                  >
+                    <IconBrain size={20} color="var(--tribos-lime)" />
+                  </Button>
+                </Tooltip>
                 {routeGeometry && (
                   <Tooltip label={editMode ? 'Exit Edit Mode' : 'Edit Route'}>
                     <Button
@@ -2636,6 +2655,35 @@ function RouteBuilder() {
               onSpeedProfileUpdate={setSpeedProfile}
               isImperial={isImperial}
             />
+
+            {/* Road Preferences Modal */}
+            <Modal
+              opened={roadPreferencesOpen}
+              onClose={() => setRoadPreferencesOpen(false)}
+              title={null}
+              size="lg"
+              centered
+              withCloseButton={false}
+              styles={{
+                content: {
+                  backgroundColor: 'var(--tribos-bg-primary)',
+                  border: '1px solid var(--tribos-border)',
+                },
+                body: { padding: 0 },
+              }}
+            >
+              <RoadPreferencesCard />
+              <Box p="md" pt={0}>
+                <Button
+                  fullWidth
+                  variant="subtle"
+                  color="gray"
+                  onClick={() => setRoadPreferencesOpen(false)}
+                >
+                  Close
+                </Button>
+              </Box>
+            </Modal>
           </Box>
 
           {/* Bottom Sheet with controls */}
@@ -3382,6 +3430,21 @@ function RouteBuilder() {
                 speedProfile={speedProfile}
                 isImperial={isImperial}
               />
+              <Tooltip label="Route Learning - Prefer familiar roads">
+                <Button
+                  variant="default"
+                  color="dark"
+                  size="md"
+                  onClick={() => setRoadPreferencesOpen(true)}
+                  style={{
+                    padding: '0 12px',
+                    backgroundColor: 'var(--tribos-bg-secondary)',
+                    border: '1px solid var(--tribos-border)',
+                  }}
+                >
+                  <IconBrain size={20} color="var(--tribos-lime)" />
+                </Button>
+              </Tooltip>
               {routeGeometry && (
                 <Tooltip label={editMode ? 'Exit Edit Mode' : 'Edit Route (Remove Tangents)'}>
                   <Button
@@ -3626,6 +3689,35 @@ function RouteBuilder() {
             onSpeedProfileUpdate={setSpeedProfile}
             isImperial={isImperial}
           />
+
+          {/* Road Preferences Modal */}
+          <Modal
+            opened={roadPreferencesOpen}
+            onClose={() => setRoadPreferencesOpen(false)}
+            title={null}
+            size="lg"
+            centered
+            withCloseButton={false}
+            styles={{
+              content: {
+                backgroundColor: 'var(--tribos-bg-primary)',
+                border: '1px solid var(--tribos-border)',
+              },
+              body: { padding: 0 },
+            }}
+          >
+            <RoadPreferencesCard />
+            <Box p="md" pt={0}>
+              <Button
+                fullWidth
+                variant="subtle"
+                color="gray"
+                onClick={() => setRoadPreferencesOpen(false)}
+              >
+                Close
+              </Button>
+            </Box>
+          </Modal>
 
           {/* Map Tutorial Overlay */}
           {MAPBOX_TOKEN && showTutorial && waypoints.length === 0 && !routeGeometry && (
