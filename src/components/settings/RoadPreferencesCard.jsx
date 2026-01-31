@@ -36,6 +36,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { supabase } from '../../lib/supabase';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -46,8 +47,9 @@ const getApiBaseUrl = () => {
 };
 
 export default function RoadPreferencesCard() {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [accessToken, setAccessToken] = useState(null);
   const [extracting, setExtracting] = useState(false);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -67,6 +69,18 @@ export default function RoadPreferencesCard() {
   // Extraction progress
   const [extractionProgress, setExtractionProgress] = useState(null);
 
+  // Get access token from Supabase session
+  useEffect(() => {
+    const getToken = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Got session:', session ? 'yes' : 'no');
+      setAccessToken(accessToken || null);
+    };
+    if (user) {
+      getToken();
+    }
+  }, [user]);
+
   // Debug logging
   useEffect(() => {
     console.log('RoadPreferencesCard state:', {
@@ -75,20 +89,20 @@ export default function RoadPreferencesCard() {
       apiError,
       stats,
       unprocessedCount,
-      hasSession: !!session,
-      hasAccessToken: !!session?.access_token
+      hasUser: !!user,
+      hasAccessToken: !!accessToken
     });
-  }, [loading, needsMigration, apiError, stats, unprocessedCount, session]);
+  }, [loading, needsMigration, apiError, stats, unprocessedCount, user, accessToken]);
 
   // Load stats and preferences on mount
   useEffect(() => {
-    if (session?.access_token) {
+    if (accessToken) {
       loadData();
     }
-  }, [session?.access_token]);
+  }, [accessToken]);
 
   const loadData = useCallback(async () => {
-    if (!session?.access_token) return;
+    if (!accessToken) return;
 
     setLoading(true);
     setApiError(null);
@@ -101,7 +115,7 @@ export default function RoadPreferencesCard() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
+            'Authorization': `Bearer ${accessToken}`
           },
           body: JSON.stringify({ action: 'get_stats' })
         }),
@@ -109,7 +123,7 @@ export default function RoadPreferencesCard() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
+            'Authorization': `Bearer ${accessToken}`
           },
           body: JSON.stringify({ action: 'get_preferences' })
         })
@@ -150,14 +164,14 @@ export default function RoadPreferencesCard() {
     } finally {
       setLoading(false);
     }
-  }, [session?.access_token]);
+  }, [accessToken]);
 
   const handleExtractSegments = async () => {
     console.log('Extract segments clicked');
-    console.log('Session:', session);
-    console.log('Access token:', session?.access_token ? 'present' : 'missing');
+    console.log('User:', user);
+    console.log('Access token:', accessToken ? 'present' : 'missing');
 
-    if (!session?.access_token) {
+    if (!accessToken) {
       console.error('No access token available');
       notifications.show({
         title: 'Authentication Error',
@@ -192,7 +206,7 @@ export default function RoadPreferencesCard() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
+            'Authorization': `Bearer ${accessToken}`
           },
           body: JSON.stringify({
             action: 'extract_all',
@@ -279,7 +293,7 @@ export default function RoadPreferencesCard() {
   };
 
   const handleSavePreferences = async () => {
-    if (!session?.access_token) return;
+    if (!accessToken) return;
 
     setSavingPrefs(true);
     try {
@@ -287,7 +301,7 @@ export default function RoadPreferencesCard() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
           action: 'update_preferences',
