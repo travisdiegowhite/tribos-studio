@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -39,6 +39,7 @@ import RouteExportMenu from '../components/RouteExportMenu.jsx';
 import MapControls from '../components/MapControls.jsx';
 import { FuelCard } from '../components/fueling';
 import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
+import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -188,7 +189,8 @@ Return ONLY a JSON object:
   "surfaceType": "gravel|paved|mixed",
   "avoidHighways": true/false,
   "trainingGoal": "endurance|intervals|recovery|hills" or null,
-  "direction": "north|south|east|west" if user mentioned a direction
+  "direction": "north|south|east|west" if user mentioned a direction,
+  "preferFamiliar": true if user mentions "familiar roads", "roads I know", "my usual routes", or similar
 }
 
 EXAMPLES:
@@ -326,8 +328,14 @@ function parseNaturalLanguageResponse(responseText) {
     result.preferences = {
       avoidHighways: parsed.avoidHighways,
       surfaceType: parsed.surfaceType || 'mixed',
-      trailPreference: parsed.surfaceType === 'gravel'
+      trailPreference: parsed.surfaceType === 'gravel',
+      preferFamiliar: parsed.preferFamiliar || false
     };
+
+    // Log if familiar roads preference is detected
+    if (parsed.preferFamiliar) {
+      console.log('🧠 User prefers familiar roads - will score against riding history');
+    }
 
     console.log('🎯 Extracted waypoints:', result.waypoints);
     console.log('🧭 Direction:', result.direction);
@@ -487,12 +495,107 @@ async function geocodeWaypoint(waypointName, proximityLocation) {
   }
 }
 
+/**
+ * Score a route against user's road segment history
+ * @param {Array<[number, number]>} coordinates - Route coordinates [[lng, lat], ...]
+ * @param {string} accessToken - User's auth token
+ * @returns {Promise<Object|null>} Score object or null if scoring fails
+ */
+async function scoreRoutePreference(coordinates, accessToken) {
+  if (!coordinates || coordinates.length < 2 || !accessToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch('/api/road-segments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        action: 'score_route',
+        coordinates
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('Route scoring failed:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.score || null;
+  } catch (error) {
+    console.error('Route scoring error:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetch waypoints from familiar road segments to build a loop route
+ * @param {number} startLat - Start latitude
+ * @param {number} startLng - Start longitude
+ * @param {number} targetDistanceKm - Target route distance in km
+ * @param {string} accessToken - User's auth token
+ * @param {boolean} exploreMode - If true, use fewer familiar waypoints
+ * @returns {Promise<Object|null>} Waypoints and metadata or null if failed
+ */
+async function getFamiliarLoopWaypoints(startLat, startLng, targetDistanceKm, accessToken, exploreMode = false) {
+  if (!accessToken) {
+    return null;
+  }
+
+  try {
+    console.log(`🧠 Fetching familiar segments for ${targetDistanceKm}km loop...`);
+    const response = await fetch('/api/road-segments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        action: 'get_loop_waypoints',
+        startLat,
+        startLng,
+        targetDistanceKm,
+        minRideCount: 2,
+        exploreMode
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('Failed to get familiar waypoints:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log(`🧠 Got ${data.waypoints?.length || 0} familiar waypoints from ${data.totalFamiliarSegments || 0} segments`);
+    return data;
+  } catch (error) {
+    console.error('Error fetching familiar waypoints:', error);
+    return null;
+  }
+}
+
 function RouteBuilder() {
   const { routeId } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
+
+  // Access token for road segment scoring
+  const [accessToken, setAccessToken] = useState(null);
+  useEffect(() => {
+    const getToken = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setAccessToken(session?.access_token || null);
+    };
+    if (user) {
+      getToken();
+    }
+  }, [user]);
 
   // === Persisted State (from Zustand store) ===
   const {
@@ -544,6 +647,9 @@ function RouteBuilder() {
 
   // Preferences modal state
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+
+  // Road preferences modal state
+  const [roadPreferencesOpen, setRoadPreferencesOpen] = useState(false);
 
   // Interval cues (derived from selectedWorkout)
   const [intervalCues, setIntervalCues] = useState(null);
@@ -1562,22 +1668,92 @@ function RouteBuilder() {
           notifications.show({
             id: 'generating-route',
             title: 'Building Route',
-            message: `Creating ${duration}min ${goal} route iteratively...`,
+            message: `Creating ${duration}min ${goal} route...`,
             loading: true,
             autoClose: false
           });
 
-          const iterativeResult = await generateIterativeRoute({
-            startLocation,
-            targetDistanceKm,
-            routeType: type === 'out_back' ? 'out_and_back' : type,
-            direction,
-            options: {
+          // If user prefers familiar roads, try to get waypoints from their riding history
+          let useFamiliarWaypoints = false;
+          let familiarWaypointsData = null;
+
+          if (parsed.preferences?.preferFamiliar && accessToken && type === 'loop') {
+            console.log('🧠 User prefers familiar roads - fetching segment waypoints...');
+            familiarWaypointsData = await getFamiliarLoopWaypoints(
+              startLocation[1], // lat
+              startLocation[0], // lng
+              targetDistanceKm,
+              accessToken,
+              false // not explore mode
+            );
+
+            if (familiarWaypointsData && !familiarWaypointsData.fallbackToRandom && familiarWaypointsData.waypoints?.length >= 4) {
+              useFamiliarWaypoints = true;
+              console.log(`🧠 Using ${familiarWaypointsData.waypoints.length} familiar waypoints from ${familiarWaypointsData.segments?.length || 0} segments`);
+            } else {
+              console.log('🧠 Not enough familiar segments, falling back to iterative builder');
+            }
+          }
+
+          let iterativeResult;
+          let routeSource = 'iterative_quarter_loop';
+
+          if (useFamiliarWaypoints) {
+            // Build route through familiar waypoints
+            notifications.update({
+              id: 'generating-route',
+              title: 'Building Familiar Route',
+              message: `Routing through ${familiarWaypointsData.waypoints.length} familiar waypoints...`,
+              loading: true,
+              autoClose: false
+            });
+
+            // Convert waypoints to coordinate array: start -> familiar waypoints -> start (loop)
+            const waypointCoords = [
+              startLocation, // Start
+              ...familiarWaypointsData.waypoints.map(wp => [wp.lng, wp.lat]),
+              startLocation  // Return to start
+            ];
+
+            console.log(`🧠 Routing through ${waypointCoords.length} waypoints (including start/end)`);
+
+            const routeResult = await getSmartCyclingRoute(waypointCoords, {
               profile: parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
+              trainingGoal: goal,
+              mapboxToken: MAPBOX_TOKEN
+            });
+
+            if (routeResult && routeResult.coordinates && routeResult.coordinates.length >= 10) {
+              iterativeResult = {
+                coordinates: routeResult.coordinates,
+                distanceKm: routeResult.distance / 1000,
+                elevationGain: routeResult.elevationGain || 0,
+                duration: routeResult.duration || 0,
+                name: `Familiar ${(routeResult.distance / 1000).toFixed(0)}km ${goal} loop`,
+                source: 'familiar_segments'
+              };
+              routeSource = 'familiar_segments';
+            } else {
+              // Fallback to iterative if routing through waypoints failed
+              console.log('🧠 Routing through familiar waypoints failed, falling back to iterative');
+              useFamiliarWaypoints = false;
+            }
+          }
+
+          // Fallback to iterative route builder
+          if (!useFamiliarWaypoints) {
+            iterativeResult = await generateIterativeRoute({
+              startLocation,
+              targetDistanceKm,
+              routeType: type === 'out_back' ? 'out_and_back' : type,
+              direction,
+              options: {
+                profile: parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
+                trainingGoal: goal
+              },
               trainingGoal: goal
-            },
-            trainingGoal: goal
-          });
+            });
+          }
 
           if (!iterativeResult || !iterativeResult.coordinates || iterativeResult.coordinates.length < 10) {
             throw new Error('Could not generate a route. Try a different duration or location.');
@@ -1585,6 +1761,15 @@ function RouteBuilder() {
 
           const distanceKm = parseFloat(iterativeResult.distanceKm.toFixed(1));
           const generatedRouteName = iterativeResult.name || `${distanceKm}km ${goal} ${type}`;
+
+          // Score the route to show familiarity percentage
+          let familiarityScore = null;
+          if (accessToken) {
+            familiarityScore = await scoreRoutePreference(iterativeResult.coordinates, accessToken);
+            if (familiarityScore) {
+              console.log('🧠 Route familiarity:', familiarityScore);
+            }
+          }
 
           setRouteGeometry({
             type: 'LineString',
@@ -1594,25 +1779,36 @@ function RouteBuilder() {
           setRouteStats({
             distance: distanceKm,
             elevation: iterativeResult.elevationGain || 0,
-            duration: Math.round((iterativeResult.duration || 0) / 60)
+            duration: Math.round((iterativeResult.duration || 0) / 60),
+            familiarityScore: familiarityScore
           });
 
           if (!calendarContext) {
             setRouteName(generatedRouteName);
           }
-          setRoutingSource(iterativeResult.source);
+          setRoutingSource(routeSource);
           setWaypoints([]);
+
+          // Build notification message
+          let notificationTitle = useFamiliarWaypoints ? 'Familiar Route Generated!' : 'Route Generated!';
+          let notificationMessage = `${distanceKm} km ${type} route`;
+          if (familiarityScore) {
+            notificationMessage += ` • ${familiarityScore.familiarityPercent || 0}% familiar roads`;
+          }
+          if (useFamiliarWaypoints) {
+            notificationMessage += ` (${familiarWaypointsData.segments?.length || 0} segments used)`;
+          }
 
           notifications.update({
             id: 'generating-route',
-            title: 'Route Generated!',
-            message: `${distanceKm} km ${type} route created (iterative)`,
+            title: notificationTitle,
+            message: notificationMessage,
             color: 'lime',
             loading: false,
-            autoClose: 3000
+            autoClose: 4000
           });
 
-          console.log(`✅ Route generated: ${distanceKm} km via ${iterativeResult.source}`);
+          console.log(`✅ Route generated: ${distanceKm} km via ${routeSource}`);
           return; // Exit early - route is complete
         }
 
@@ -1662,6 +1858,16 @@ function RouteBuilder() {
         ? `${parsed.waypoints.join(' → ')} ${parsed.routeType}`
         : `${distanceKm}km ${parsed.trainingGoal || 'endurance'} ${parsed.routeType || 'loop'}`;
 
+      // Score the route if user prefers familiar roads
+      let familiarityScore = null;
+      if (parsed.preferences?.preferFamiliar && accessToken) {
+        console.log('🧠 Scoring route against riding history...');
+        familiarityScore = await scoreRoutePreference(routeResult.coordinates, accessToken);
+        if (familiarityScore) {
+          console.log('🧠 Route familiarity:', familiarityScore);
+        }
+      }
+
       setRouteGeometry({
         type: 'LineString',
         coordinates: routeResult.coordinates
@@ -1670,7 +1876,8 @@ function RouteBuilder() {
       setRouteStats({
         distance: distanceKm, // Now a number, not string
         elevation: routeResult.elevationGain || 0,
-        duration: Math.round(routeResult.duration / 60)
+        duration: Math.round(routeResult.duration / 60),
+        familiarityScore: familiarityScore // Include familiarity in stats
       });
 
       // Only update route name if not already set from calendar context
@@ -1680,13 +1887,19 @@ function RouteBuilder() {
       setRoutingSource(routeResult.source);
       setWaypoints([]); // Clear manual waypoints since we're using AI route
 
+      // Build notification message with familiarity info if available
+      let notificationMessage = `${distanceKm} km ${parsed.routeType || 'loop'} route created`;
+      if (familiarityScore) {
+        notificationMessage += ` • ${familiarityScore.familiarityPercent || 0}% familiar roads`;
+      }
+
       notifications.update({
         id: 'generating-route',
         title: 'Route Generated!',
-        message: `${distanceKm} km ${parsed.routeType || 'loop'} route created`,
+        message: notificationMessage,
         color: 'lime',
         loading: false,
-        autoClose: 3000
+        autoClose: 4000
       });
 
       console.log(`✅ Route generated: ${(routeResult.distance / 1000).toFixed(1)} km via ${routeResult.source}`);
@@ -1702,7 +1915,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [naturalLanguageInput, viewport, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext]);
+  }, [naturalLanguageInput, viewport, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext, accessToken]);
 
   // Search for address using Mapbox Geocoding API
   const handleAddressSearch = useCallback(async (query) => {
@@ -2521,6 +2734,21 @@ function RouteBuilder() {
                   speedProfile={speedProfile}
                   isImperial={isImperial}
                 />
+                <Tooltip label="Route Learning - Prefer familiar roads">
+                  <Button
+                    variant="default"
+                    color="dark"
+                    size="md"
+                    onClick={() => setRoadPreferencesOpen(true)}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: 'var(--tribos-bg-secondary)',
+                      border: '1px solid var(--tribos-border)',
+                    }}
+                  >
+                    <IconBrain size={20} color="var(--tribos-lime)" />
+                  </Button>
+                </Tooltip>
                 {routeGeometry && (
                   <Tooltip label={editMode ? 'Exit Edit Mode' : 'Edit Route'}>
                     <Button
@@ -2636,6 +2864,35 @@ function RouteBuilder() {
               onSpeedProfileUpdate={setSpeedProfile}
               isImperial={isImperial}
             />
+
+            {/* Road Preferences Modal */}
+            <Modal
+              opened={roadPreferencesOpen}
+              onClose={() => setRoadPreferencesOpen(false)}
+              title={null}
+              size="lg"
+              centered
+              withCloseButton={false}
+              styles={{
+                content: {
+                  backgroundColor: 'var(--tribos-bg-primary)',
+                  border: '1px solid var(--tribos-border)',
+                },
+                body: { padding: 0 },
+              }}
+            >
+              <RoadPreferencesCard />
+              <Box p="md" pt={0}>
+                <Button
+                  fullWidth
+                  variant="subtle"
+                  color="gray"
+                  onClick={() => setRoadPreferencesOpen(false)}
+                >
+                  Close
+                </Button>
+              </Box>
+            </Modal>
           </Box>
 
           {/* Bottom Sheet with controls */}
@@ -3382,6 +3639,21 @@ function RouteBuilder() {
                 speedProfile={speedProfile}
                 isImperial={isImperial}
               />
+              <Tooltip label="Route Learning - Prefer familiar roads">
+                <Button
+                  variant="default"
+                  color="dark"
+                  size="md"
+                  onClick={() => setRoadPreferencesOpen(true)}
+                  style={{
+                    padding: '0 12px',
+                    backgroundColor: 'var(--tribos-bg-secondary)',
+                    border: '1px solid var(--tribos-border)',
+                  }}
+                >
+                  <IconBrain size={20} color="var(--tribos-lime)" />
+                </Button>
+              </Tooltip>
               {routeGeometry && (
                 <Tooltip label={editMode ? 'Exit Edit Mode' : 'Edit Route (Remove Tangents)'}>
                   <Button
@@ -3626,6 +3898,35 @@ function RouteBuilder() {
             onSpeedProfileUpdate={setSpeedProfile}
             isImperial={isImperial}
           />
+
+          {/* Road Preferences Modal */}
+          <Modal
+            opened={roadPreferencesOpen}
+            onClose={() => setRoadPreferencesOpen(false)}
+            title={null}
+            size="lg"
+            centered
+            withCloseButton={false}
+            styles={{
+              content: {
+                backgroundColor: 'var(--tribos-bg-primary)',
+                border: '1px solid var(--tribos-border)',
+              },
+              body: { padding: 0 },
+            }}
+          >
+            <RoadPreferencesCard />
+            <Box p="md" pt={0}>
+              <Button
+                fullWidth
+                variant="subtle"
+                color="gray"
+                onClick={() => setRoadPreferencesOpen(false)}
+              >
+                Close
+              </Button>
+            </Box>
+          </Modal>
 
           {/* Map Tutorial Overlay */}
           {MAPBOX_TOKEN && showTutorial && waypoints.length === 0 && !routeGeometry && (

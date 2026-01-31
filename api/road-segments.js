@@ -10,6 +10,7 @@ import {
   extractSegmentsForUser,
   scoreRoutePreferences,
   extractSegmentsFromPolyline,
+  extractSegmentsFromPoints,
   decodePolyline,
 } from './utils/roadSegmentExtractor.js';
 
@@ -79,6 +80,9 @@ export default async function handler(req, res) {
       case 'get_familiar_segments':
         return await getFamiliarSegments(req, res, authUser);
 
+      case 'get_loop_waypoints':
+        return await getLoopWaypoints(req, res, authUser);
+
       case 'visualize_segments':
         return await visualizeSegments(req, res, authUser);
 
@@ -94,6 +98,7 @@ export default async function handler(req, res) {
             'get_preferences',
             'update_preferences',
             'get_familiar_segments',
+            'get_loop_waypoints',
             'visualize_segments'
           ]
         });
@@ -168,9 +173,19 @@ async function extractAllActivitySegments(req, res, authUser) {
 
 /**
  * Score a single route based on user's road preferences
+ * Accepts either polyline OR coordinates array [[lng, lat], ...]
  */
 async function scoreRoute(req, res, authUser) {
-  const { polyline, routeId } = req.body;
+  const { polyline, coordinates, routeId } = req.body;
+
+  // If coordinates provided directly, use them
+  if (coordinates && Array.isArray(coordinates) && coordinates.length > 0) {
+    const score = await scoreRouteFromCoordinates(coordinates, authUser.id);
+    return res.json({
+      success: true,
+      score
+    });
+  }
 
   let routePolyline = polyline;
 
@@ -187,18 +202,18 @@ async function scoreRoute(req, res, authUser) {
       return res.status(404).json({ error: 'Route not found' });
     }
 
-    // Convert GeoJSON to polyline if needed
+    // Convert GeoJSON to coordinates if available
     if (route.geometry?.coordinates) {
-      // The route stores coordinates as GeoJSON, we need to extract them
-      // For now, return an error - routes should provide polyline
-      return res.status(400).json({
-        error: 'Route preference scoring requires polyline format. Use an activity polyline or generated route.'
+      const score = await scoreRouteFromCoordinates(route.geometry.coordinates, authUser.id);
+      return res.json({
+        success: true,
+        score
       });
     }
   }
 
   if (!routePolyline) {
-    return res.status(400).json({ error: 'polyline or routeId required' });
+    return res.status(400).json({ error: 'polyline, coordinates, or routeId required' });
   }
 
   const score = await scoreRoutePreferences(routePolyline, authUser.id);
@@ -207,6 +222,86 @@ async function scoreRoute(req, res, authUser) {
     success: true,
     score
   });
+}
+
+/**
+ * Score a route from coordinates array [[lng, lat], ...]
+ */
+async function scoreRouteFromCoordinates(coordinates, userId) {
+  // Convert coordinates to the format expected by extractSegmentsFromPolyline
+  // The coordinates are [lng, lat] but extractSegmentsFromPolyline expects {lat, lng}
+  const points = coordinates.map(([lng, lat]) => ({ lat, lng }));
+
+  // Extract segments directly from points
+  const routeSegments = extractSegmentsFromPoints(points);
+
+  if (routeSegments.length === 0) {
+    return {
+      overallScore: 1.0,
+      familiarSegments: 0,
+      unknownSegments: 0,
+      totalSegments: 0,
+      familiarKm: 0,
+      unknownKm: 0,
+      confidence: 'unknown',
+    };
+  }
+
+  const segmentHashes = routeSegments.map(s => s.segmentHash);
+
+  // Fetch user's preferences for these segments
+  const { data: preferences, error } = await supabase.rpc('get_segment_preferences', {
+    p_user_id: userId,
+    p_segment_hashes: segmentHashes,
+  });
+
+  if (error) {
+    console.error('Failed to fetch preferences:', error);
+    return {
+      overallScore: 1.0,
+      familiarSegments: 0,
+      unknownSegments: routeSegments.length,
+      totalSegments: routeSegments.length,
+      confidence: 'unknown',
+      error: error.message,
+    };
+  }
+
+  const prefMap = new Map(preferences?.map(p => [p.segment_hash, p]) || []);
+
+  // Calculate scores
+  let totalScore = 0;
+  let familiarKm = 0;
+  let unknownKm = 0;
+  let familiarCount = 0;
+
+  for (const segment of routeSegments) {
+    const pref = prefMap.get(segment.segmentHash);
+    const segmentKm = segment.lengthM / 1000;
+
+    if (pref && pref.ride_count > 0) {
+      totalScore += pref.preference_score * segmentKm;
+      familiarKm += segmentKm;
+      familiarCount++;
+    } else {
+      totalScore += 0.5 * segmentKm; // Neutral score for unknown segments
+      unknownKm += segmentKm;
+    }
+  }
+
+  const totalKm = familiarKm + unknownKm;
+  const avgScore = totalKm > 0 ? totalScore / totalKm : 0.5;
+
+  return {
+    overallScore: parseFloat(avgScore.toFixed(3)),
+    familiarSegments: familiarCount,
+    unknownSegments: routeSegments.length - familiarCount,
+    totalSegments: routeSegments.length,
+    familiarKm: parseFloat(familiarKm.toFixed(2)),
+    unknownKm: parseFloat(unknownKm.toFixed(2)),
+    familiarityPercent: parseFloat(((familiarKm / totalKm) * 100).toFixed(1)),
+    confidence: familiarCount > 5 ? 'high' : familiarCount > 0 ? 'medium' : 'unknown',
+  };
 }
 
 /**
@@ -391,7 +486,11 @@ async function getFamiliarSegments(req, res, authUser) {
     maxLat,
     minLng,
     maxLng,
-    minRideCount = 1
+    centerLat,
+    centerLng,
+    minRideCount = 1,
+    limit = 50,
+    forRouteBuilding = false
   } = req.method === 'GET' ? req.query : req.body;
 
   if (!minLat || !maxLat || !minLng || !maxLng) {
@@ -412,10 +511,274 @@ async function getFamiliarSegments(req, res, authUser) {
     return res.status(500).json({ error: 'Failed to fetch segments' });
   }
 
+  let segments = data || [];
+
+  // If center point provided, calculate distance and sort
+  if (centerLat && centerLng) {
+    const cLat = parseFloat(centerLat);
+    const cLng = parseFloat(centerLng);
+
+    segments = segments.map(seg => {
+      // Calculate distance from center to segment midpoint
+      const midLat = (seg.start_lat + seg.end_lat) / 2;
+      const midLng = (seg.start_lng + seg.end_lng) / 2;
+      const distance = haversineDistance(cLat, cLng, midLat, midLng);
+
+      // Calculate bearing from center to segment
+      const bearing = calculateBearing(cLat, cLng, midLat, midLng);
+
+      return {
+        ...seg,
+        distance_from_center: distance,
+        bearing_from_center: bearing,
+        midpoint: { lat: midLat, lng: midLng }
+      };
+    });
+
+    // Sort by distance first, then by ride count (descending)
+    segments.sort((a, b) => {
+      const distDiff = a.distance_from_center - b.distance_from_center;
+      if (Math.abs(distDiff) > 500) return distDiff; // 500m threshold
+      return b.ride_count - a.ride_count; // Higher ride count first
+    });
+  }
+
+  // Limit results
+  if (limit) {
+    segments = segments.slice(0, parseInt(limit));
+  }
+
+  // If for route building, include waypoint suggestions
+  if (forRouteBuilding) {
+    segments = segments.map(seg => ({
+      ...seg,
+      waypoints: [
+        { lat: seg.start_lat, lng: seg.start_lng, type: 'start' },
+        { lat: seg.midpoint?.lat || (seg.start_lat + seg.end_lat) / 2,
+          lng: seg.midpoint?.lng || (seg.start_lng + seg.end_lng) / 2,
+          type: 'mid' },
+        { lat: seg.end_lat, lng: seg.end_lng, type: 'end' }
+      ]
+    }));
+  }
+
   return res.json({
     success: true,
-    segments: data || [],
-    count: data?.length || 0
+    segments,
+    count: segments.length
+  });
+}
+
+// Helper: Haversine distance in meters
+function haversineDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Helper: Calculate bearing between two points
+function calculateBearing(lat1, lng1, lat2, lng2) {
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const lat1Rad = lat1 * Math.PI / 180;
+  const lat2Rad = lat2 * Math.PI / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2Rad);
+  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+    Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng);
+  let bearing = Math.atan2(y, x) * 180 / Math.PI;
+  return (bearing + 360) % 360;
+}
+
+/**
+ * Get waypoints from familiar segments to build a loop route
+ * Selects segments that form a logical loop around the start point
+ */
+async function getLoopWaypoints(req, res, authUser) {
+  const {
+    startLat,
+    startLng,
+    targetDistanceKm = 50,
+    minRideCount = 2,
+    exploreMode = false
+  } = req.body;
+
+  if (!startLat || !startLng) {
+    return res.status(400).json({ error: 'startLat and startLng required' });
+  }
+
+  const cLat = parseFloat(startLat);
+  const cLng = parseFloat(startLng);
+  const targetDistance = parseFloat(targetDistanceKm);
+
+  // Calculate bounding box based on target distance
+  // Rough estimate: 1 degree lat ≈ 111km, 1 degree lng varies with latitude
+  const latOffset = (targetDistance / 2) / 111;
+  const lngOffset = (targetDistance / 2) / (111 * Math.cos(cLat * Math.PI / 180));
+
+  console.log(`🧠 Fetching familiar segments for loop: ${targetDistance}km around [${cLat}, ${cLng}]`);
+
+  // Fetch all familiar segments in the area
+  const { data: allSegments, error } = await supabase.rpc('get_user_segments_in_bbox', {
+    p_user_id: authUser.id,
+    p_min_lat: cLat - latOffset,
+    p_max_lat: cLat + latOffset,
+    p_min_lng: cLng - lngOffset,
+    p_max_lng: cLng + lngOffset,
+    p_min_ride_count: parseInt(minRideCount)
+  });
+
+  if (error) {
+    console.error('Error fetching segments:', error);
+    return res.status(500).json({ error: 'Failed to fetch segments' });
+  }
+
+  if (!allSegments || allSegments.length === 0) {
+    console.log('🧠 No familiar segments found, returning empty');
+    return res.json({
+      success: true,
+      waypoints: [],
+      segments: [],
+      fallbackToRandom: true,
+      message: 'No familiar segments found in area'
+    });
+  }
+
+  console.log(`🧠 Found ${allSegments.length} familiar segments`);
+
+  // Enrich segments with distance and bearing from center
+  const enrichedSegments = allSegments.map(seg => {
+    const midLat = (seg.start_lat + seg.end_lat) / 2;
+    const midLng = (seg.start_lng + seg.end_lng) / 2;
+    const distance = haversineDistance(cLat, cLng, midLat, midLng);
+    const bearing = calculateBearing(cLat, cLng, midLat, midLng);
+
+    return {
+      ...seg,
+      midLat,
+      midLng,
+      distanceFromStart: distance,
+      bearingFromStart: bearing
+    };
+  });
+
+  // Select segments to form a loop
+  // Strategy: Pick segments in 4 quadrants (N, E, S, W) to form a loop
+  const quadrants = [
+    { name: 'North', minBearing: 315, maxBearing: 45, segments: [] },
+    { name: 'East', minBearing: 45, maxBearing: 135, segments: [] },
+    { name: 'South', minBearing: 135, maxBearing: 225, segments: [] },
+    { name: 'West', minBearing: 225, maxBearing: 315, segments: [] }
+  ];
+
+  // Assign segments to quadrants
+  for (const seg of enrichedSegments) {
+    const bearing = seg.bearingFromStart;
+    for (const quad of quadrants) {
+      if (quad.minBearing > quad.maxBearing) {
+        // Handles North quadrant wrapping around 0/360
+        if (bearing >= quad.minBearing || bearing < quad.maxBearing) {
+          quad.segments.push(seg);
+          break;
+        }
+      } else {
+        if (bearing >= quad.minBearing && bearing < quad.maxBearing) {
+          quad.segments.push(seg);
+          break;
+        }
+      }
+    }
+  }
+
+  // Sort each quadrant by distance first, then ride count
+  for (const quad of quadrants) {
+    quad.segments.sort((a, b) => {
+      // Prefer segments at target distance / 4 from center
+      const idealDistance = (targetDistance * 1000) / 4;
+      const aDiff = Math.abs(a.distanceFromStart - idealDistance);
+      const bDiff = Math.abs(b.distanceFromStart - idealDistance);
+
+      if (Math.abs(aDiff - bDiff) > 1000) return aDiff - bDiff;
+      return b.ride_count - a.ride_count;
+    });
+  }
+
+  // Select best segment from each quadrant
+  const selectedSegments = [];
+  const maxPerQuadrant = exploreMode ? 1 : 2; // Fewer segments in explore mode
+
+  for (const quad of quadrants) {
+    const toSelect = quad.segments.slice(0, maxPerQuadrant);
+    selectedSegments.push(...toSelect.map(s => ({
+      ...s,
+      quadrant: quad.name
+    })));
+  }
+
+  // Sort selected segments by bearing to create a clockwise loop
+  selectedSegments.sort((a, b) => a.bearingFromStart - b.bearingFromStart);
+
+  console.log(`🧠 Selected ${selectedSegments.length} segments for loop`);
+
+  // Convert segments to waypoints (start, mid, end for each)
+  const waypoints = [];
+
+  for (const seg of selectedSegments) {
+    // Add all 3 waypoints for each segment to force routing through it
+    waypoints.push({
+      lat: seg.start_lat,
+      lng: seg.start_lng,
+      type: 'segment_start',
+      segmentId: seg.id,
+      rideCount: seg.ride_count,
+      quadrant: seg.quadrant
+    });
+    waypoints.push({
+      lat: seg.midLat,
+      lng: seg.midLng,
+      type: 'segment_mid',
+      segmentId: seg.id,
+      rideCount: seg.ride_count,
+      quadrant: seg.quadrant
+    });
+    waypoints.push({
+      lat: seg.end_lat,
+      lng: seg.end_lng,
+      type: 'segment_end',
+      segmentId: seg.id,
+      rideCount: seg.ride_count,
+      quadrant: seg.quadrant
+    });
+  }
+
+  // Remove duplicate waypoints that are very close together
+  const uniqueWaypoints = [];
+  for (const wp of waypoints) {
+    const isDuplicate = uniqueWaypoints.some(existing =>
+      haversineDistance(existing.lat, existing.lng, wp.lat, wp.lng) < 100 // 100m threshold
+    );
+    if (!isDuplicate) {
+      uniqueWaypoints.push(wp);
+    }
+  }
+
+  console.log(`🧠 Generated ${uniqueWaypoints.length} unique waypoints`);
+
+  return res.json({
+    success: true,
+    waypoints: uniqueWaypoints,
+    segments: selectedSegments.map(s => ({
+      id: s.id,
+      rideCount: s.ride_count,
+      quadrant: s.quadrant,
+      distanceFromStart: s.distanceFromStart,
+      bearing: s.bearingFromStart
+    })),
+    totalFamiliarSegments: allSegments.length,
+    fallbackToRandom: false
   });
 }
 

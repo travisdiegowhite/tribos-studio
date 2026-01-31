@@ -274,6 +274,71 @@ export function extractSegmentsFromPolyline(polyline, options = {}) {
 }
 
 /**
+ * Extract segments directly from coordinate points
+ * @param {Array<{lat: number, lng: number}>} coords - Array of coordinate points
+ * @param {Object} options - Extraction options
+ * @returns {Array<ExtractedSegment>} Array of extracted segments
+ */
+export function extractSegmentsFromPoints(coords, options = {}) {
+  const {
+    minLength = CONFIG.MIN_SEGMENT_LENGTH,
+    targetLength = CONFIG.TARGET_SEGMENT_LENGTH,
+  } = options;
+
+  if (!coords || coords.length < 2) return [];
+
+  // Simplify track to reduce noise while preserving shape
+  const simplified = simplifyTrack(coords);
+  if (simplified.length < 2) return [];
+
+  const segments = [];
+  let segmentStart = simplified[0];
+  let segmentStartIndex = 0;
+  let accumulatedDistance = 0;
+
+  for (let i = 1; i < simplified.length; i++) {
+    const current = simplified[i];
+    const distToPoint = haversineDistance(
+      simplified[i - 1].lat, simplified[i - 1].lng,
+      current.lat, current.lng
+    );
+    accumulatedDistance += distToPoint;
+
+    // Check if we should create a segment
+    const shouldSplit = accumulatedDistance >= targetLength ||
+                        i === simplified.length - 1;
+
+    if (shouldSplit && accumulatedDistance >= minLength) {
+      const bearing = calculateBearing(
+        segmentStart.lat, segmentStart.lng,
+        current.lat, current.lng
+      );
+
+      segments.push({
+        startLat: roundCoord(segmentStart.lat),
+        startLng: roundCoord(segmentStart.lng),
+        endLat: roundCoord(current.lat),
+        endLng: roundCoord(current.lng),
+        segmentHash: createSegmentHash(
+          segmentStart.lat, segmentStart.lng,
+          current.lat, current.lng
+        ),
+        lengthM: Math.round(accumulatedDistance),
+        bearing: Math.round(bearing),
+        pointsInSegment: i - segmentStartIndex + 1,
+      });
+
+      // Start new segment
+      segmentStart = current;
+      segmentStartIndex = i;
+      accumulatedDistance = 0;
+    }
+  }
+
+  return segments;
+}
+
+/**
  * Extract segments from an activity and store in database
  * @param {string} activityId - Activity UUID
  * @param {string} userId - User UUID
