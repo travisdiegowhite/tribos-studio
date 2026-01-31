@@ -55,6 +55,8 @@ export default function RoadPreferencesCard() {
   // Stats
   const [stats, setStats] = useState(null);
   const [unprocessedCount, setUnprocessedCount] = useState(0);
+  const [apiError, setApiError] = useState(null);
+  const [needsMigration, setNeedsMigration] = useState(false);
 
   // Preferences
   const [familiarityStrength, setFamiliarityStrength] = useState(50);
@@ -76,6 +78,9 @@ export default function RoadPreferencesCard() {
     if (!session?.access_token) return;
 
     setLoading(true);
+    setApiError(null);
+    setNeedsMigration(false);
+
     try {
       // Load stats and preferences in parallel
       const [statsRes, prefsRes] = await Promise.all([
@@ -101,6 +106,14 @@ export default function RoadPreferencesCard() {
         const statsData = await statsRes.json();
         setStats(statsData.stats);
         setUnprocessedCount(statsData.unprocessedActivities || 0);
+      } else {
+        const errorData = await statsRes.json().catch(() => ({}));
+        // Check if it's a database migration issue
+        if (errorData.error?.includes('relation') || errorData.error?.includes('does not exist')) {
+          setNeedsMigration(true);
+        } else {
+          setApiError(errorData.error || 'Failed to load statistics');
+        }
       }
 
       if (prefsRes.ok) {
@@ -114,6 +127,7 @@ export default function RoadPreferencesCard() {
       }
     } catch (error) {
       console.error('Failed to load road preferences:', error);
+      setApiError('Failed to connect to server');
     } finally {
       setLoading(false);
     }
@@ -123,7 +137,7 @@ export default function RoadPreferencesCard() {
     if (!session?.access_token) return;
 
     setExtracting(true);
-    setExtractionProgress({ processed: 0, total: unprocessedCount, segments: 0 });
+    setExtractionProgress({ processed: 0, total: unprocessedCount || 0, segments: 0 });
 
     const notificationId = 'segment-extraction';
     notifications.show({
@@ -137,7 +151,8 @@ export default function RoadPreferencesCard() {
     try {
       let totalProcessed = 0;
       let totalSegments = 0;
-      let remaining = unprocessedCount;
+      let remaining = 1; // Start with 1 to enter the loop at least once
+      let estimatedTotal = unprocessedCount || 0;
 
       // Process in batches until done
       while (remaining > 0) {
@@ -154,7 +169,8 @@ export default function RoadPreferencesCard() {
         });
 
         if (!response.ok) {
-          throw new Error('Extraction failed');
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Extraction failed');
         }
 
         const data = await response.json();
@@ -162,11 +178,21 @@ export default function RoadPreferencesCard() {
         totalSegments += data.segmentsStored || 0;
         remaining = data.remaining || 0;
 
+        // Update estimated total on first response
+        if (estimatedTotal === 0 && data.remaining !== undefined) {
+          estimatedTotal = totalProcessed + remaining;
+        }
+
         setExtractionProgress({
           processed: totalProcessed,
-          total: unprocessedCount,
+          total: estimatedTotal || totalProcessed,
           segments: totalSegments
         });
+
+        // If nothing was processed, we're done
+        if (data.activitiesProcessed === 0) {
+          remaining = 0;
+        }
 
         // Small delay between batches
         if (remaining > 0) {
@@ -174,15 +200,27 @@ export default function RoadPreferencesCard() {
         }
       }
 
-      notifications.update({
-        id: notificationId,
-        title: 'Extraction Complete',
-        message: `Processed ${totalProcessed} activities, extracted ${totalSegments} road segments`,
-        color: 'green',
-        icon: <IconCheck size={16} />,
-        loading: false,
-        autoClose: 5000,
-      });
+      if (totalProcessed === 0) {
+        notifications.update({
+          id: notificationId,
+          title: 'No Activities to Process',
+          message: 'All your activities have already been processed, or no GPS data is available.',
+          color: 'blue',
+          icon: <IconCheck size={16} />,
+          loading: false,
+          autoClose: 5000,
+        });
+      } else {
+        notifications.update({
+          id: notificationId,
+          title: 'Extraction Complete',
+          message: `Processed ${totalProcessed} activities, extracted ${totalSegments} road segments`,
+          color: 'green',
+          icon: <IconCheck size={16} />,
+          loading: false,
+          autoClose: 5000,
+        });
+      }
 
       // Reload stats
       await loadData();
@@ -365,8 +403,35 @@ export default function RoadPreferencesCard() {
           </Box>
         )}
 
-        {/* Extract Segments Button */}
-        {unprocessedCount > 0 && (
+        {/* Migration Required Alert */}
+        {needsMigration && (
+          <Alert
+            icon={<IconAlertCircle size={18} />}
+            color="orange"
+            variant="light"
+          >
+            <Text size="sm">
+              <strong>Database setup required:</strong> The road segments feature needs a database migration.
+              Please run migration <code>035_user_road_segments.sql</code> in your Supabase SQL editor.
+            </Text>
+          </Alert>
+        )}
+
+        {/* API Error Alert */}
+        {apiError && !needsMigration && (
+          <Alert
+            icon={<IconAlertCircle size={18} />}
+            color="red"
+            variant="light"
+          >
+            <Text size="sm">
+              <strong>Error:</strong> {apiError}
+            </Text>
+          </Alert>
+        )}
+
+        {/* Extract Segments Button - Always show if no migration issues */}
+        {!needsMigration && (
           <Box
             style={{
               backgroundColor: 'var(--tribos-bg-tertiary)',
@@ -383,8 +448,11 @@ export default function RoadPreferencesCard() {
                   </Text>
                 </Group>
                 <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                  {unprocessedCount} activities haven't been analyzed yet.
-                  Extract road segments to improve route recommendations.
+                  {unprocessedCount > 0
+                    ? `${unprocessedCount} activities haven't been analyzed yet.`
+                    : stats?.total_segments > 0
+                      ? 'All activities processed! Click to check for new ones.'
+                      : 'Extract road segments from your activities to enable route learning.'}
                 </Text>
               </Box>
               <Button
@@ -395,7 +463,7 @@ export default function RoadPreferencesCard() {
                 loading={extracting}
                 leftSection={<IconRefresh size={16} />}
               >
-                {extracting ? 'Extracting...' : 'Extract Segments'}
+                {extracting ? 'Extracting...' : unprocessedCount > 0 ? 'Extract Segments' : 'Scan Activities'}
               </Button>
             </Group>
 
@@ -407,31 +475,23 @@ export default function RoadPreferencesCard() {
                     Processing activities...
                   </Text>
                   <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                    {extractionProgress.processed} / {extractionProgress.total}
+                    {extractionProgress.processed} / {extractionProgress.total || '?'}
                   </Text>
                 </Group>
-                <Progress
-                  value={(extractionProgress.processed / extractionProgress.total) * 100}
-                  color="lime"
-                  size="sm"
-                  animated
-                />
+                {extractionProgress.total > 0 && (
+                  <Progress
+                    value={(extractionProgress.processed / extractionProgress.total) * 100}
+                    color="lime"
+                    size="sm"
+                    animated
+                  />
+                )}
                 <Text size="xs" mt="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
                   {extractionProgress.segments} segments extracted
                 </Text>
               </Box>
             )}
           </Box>
-        )}
-
-        {/* No activities message */}
-        {!loading && (!stats || stats.total_segments === 0) && unprocessedCount === 0 && (
-          <Alert color="gray" variant="light">
-            <Text size="sm">
-              No activities with GPS data found. Sync your activities from Strava or Garmin to start
-              learning your preferred roads.
-            </Text>
-          </Alert>
         )}
 
         <Divider label="Routing Preferences" labelPosition="center" />
