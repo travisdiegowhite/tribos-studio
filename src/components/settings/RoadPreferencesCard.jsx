@@ -67,6 +67,19 @@ export default function RoadPreferencesCard() {
   // Extraction progress
   const [extractionProgress, setExtractionProgress] = useState(null);
 
+  // Debug logging
+  useEffect(() => {
+    console.log('RoadPreferencesCard state:', {
+      loading,
+      needsMigration,
+      apiError,
+      stats,
+      unprocessedCount,
+      hasSession: !!session,
+      hasAccessToken: !!session?.access_token
+    });
+  }, [loading, needsMigration, apiError, stats, unprocessedCount, session]);
+
   // Load stats and preferences on mount
   useEffect(() => {
     if (session?.access_token) {
@@ -454,69 +467,70 @@ export default function RoadPreferencesCard() {
           </Alert>
         )}
 
-        {/* Extract Segments Button - Always show if no migration issues */}
-        {!needsMigration && (
-          <Box
-            style={{
-              backgroundColor: 'var(--tribos-bg-tertiary)',
-              padding: tokens.spacing.md,
-              borderRadius: tokens.radius.sm
-            }}
-          >
-            <Group justify="space-between" align="flex-start">
-              <Box>
-                <Group gap="xs" mb={4}>
-                  <IconMap size={20} style={{ color: 'var(--tribos-text-primary)' }} />
-                  <Text fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
-                    Process Activity History
-                  </Text>
-                </Group>
-                <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                  {unprocessedCount > 0
+        {/* Extract Segments Button - Always show */}
+        <Box
+          style={{
+            backgroundColor: 'var(--tribos-bg-tertiary)',
+            padding: tokens.spacing.md,
+            borderRadius: tokens.radius.sm
+          }}
+        >
+          <Group justify="space-between" align="flex-start">
+            <Box>
+              <Group gap="xs" mb={4}>
+                <IconMap size={20} style={{ color: 'var(--tribos-text-primary)' }} />
+                <Text fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+                  Process Activity History
+                </Text>
+              </Group>
+              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                {needsMigration
+                  ? 'Database setup required before extracting segments.'
+                  : unprocessedCount > 0
                     ? `${unprocessedCount} activities haven't been analyzed yet.`
                     : stats?.total_segments > 0
                       ? 'All activities processed! Click to check for new ones.'
                       : 'Extract road segments from your activities to enable route learning.'}
-                </Text>
-              </Box>
-              <Button
-                size="sm"
-                color="lime"
-                variant="light"
-                onClick={handleExtractSegments}
-                loading={extracting}
-                leftSection={<IconRefresh size={16} />}
-              >
-                {extracting ? 'Extracting...' : unprocessedCount > 0 ? 'Extract Segments' : 'Scan Activities'}
-              </Button>
-            </Group>
+              </Text>
+            </Box>
+            <Button
+              size="sm"
+              color="lime"
+              variant="light"
+              onClick={handleExtractSegments}
+              loading={extracting}
+              disabled={needsMigration}
+              leftSection={<IconRefresh size={16} />}
+            >
+              {extracting ? 'Extracting...' : unprocessedCount > 0 ? 'Extract Segments' : 'Scan Activities'}
+            </Button>
+          </Group>
 
-            {/* Progress bar during extraction */}
-            {extractionProgress && (
-              <Box mt="md">
-                <Group justify="space-between" mb="xs">
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                    Processing activities...
-                  </Text>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                    {extractionProgress.processed} / {extractionProgress.total || '?'}
-                  </Text>
-                </Group>
-                {extractionProgress.total > 0 && (
-                  <Progress
-                    value={(extractionProgress.processed / extractionProgress.total) * 100}
-                    color="lime"
-                    size="sm"
-                    animated
-                  />
-                )}
-                <Text size="xs" mt="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                  {extractionProgress.segments} segments extracted
+          {/* Progress bar during extraction */}
+          {extractionProgress && (
+            <Box mt="md">
+              <Group justify="space-between" mb="xs">
+                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  Processing activities...
                 </Text>
-              </Box>
-            )}
-          </Box>
-        )}
+                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  {extractionProgress.processed} / {extractionProgress.total || '?'}
+                </Text>
+              </Group>
+              {extractionProgress.total > 0 && (
+                <Progress
+                  value={(extractionProgress.processed / extractionProgress.total) * 100}
+                  color="lime"
+                  size="sm"
+                  animated
+                />
+              )}
+              <Text size="xs" mt="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                {extractionProgress.segments} segments extracted
+              </Text>
+            </Box>
+          )}
+        </Box>
 
         <Divider label="Routing Preferences" labelPosition="center" />
 
