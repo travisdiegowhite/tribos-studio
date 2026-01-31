@@ -9,6 +9,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
+        // Allow larger files in precache (default is 2MB, our bundle is ~2.1MB)
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3MB
         // Network First for navigation (HTML pages)
         navigateFallback: null,
         // Network First for all assets - always try network, cache as fallback
