@@ -74,7 +74,8 @@ export default function RoadPreferencesCard() {
     const getToken = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       console.log('Got session:', session ? 'yes' : 'no');
-      setAccessToken(accessToken || null);
+      console.log('Session access token:', session?.access_token ? 'present' : 'missing');
+      setAccessToken(session?.access_token || null);
     };
     if (user) {
       getToken();
