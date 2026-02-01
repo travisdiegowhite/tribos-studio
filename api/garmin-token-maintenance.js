@@ -178,8 +178,7 @@ async function refreshGarminToken(userId, refreshToken) {
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token || refreshToken, // Garmin may return new refresh token
       token_expires_at: expiresAt.toISOString(),
-      updated_at: new Date().toISOString(),
-      sync_error: null // Clear any previous errors
+      updated_at: new Date().toISOString()
     })
     .eq('user_id', userId)
     .eq('provider', 'garmin');
