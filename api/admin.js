@@ -5,6 +5,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { setupCors } from './utils/cors.js';
+import { rateLimitMiddleware } from './utils/rateLimit.js';
 
 // Initialize Resend for batch email sending
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -88,6 +89,12 @@ export default async function handler(req, res) {
   const { user: adminUser, error: authError } = await verifyAdminAccess(req);
   if (!adminUser) {
     return res.status(403).json({ error: authError || 'Unauthorized' });
+  }
+
+  // Rate limiting: 30 requests per minute for admin operations
+  const rateLimitResult = await rateLimitMiddleware(req, res, 'ADMIN', 30, 1);
+  if (rateLimitResult !== null) {
+    return;
   }
 
   try {
