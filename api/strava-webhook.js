@@ -115,6 +115,20 @@ async function handleWebhook(req, res) {
     lastWebhookReceived = new Date().toISOString();
     const webhookData = req.body;
 
+    // 🔒 SECURITY MONITORING - Log webhook source details for analysis
+    // This helps detect suspicious patterns without blocking legitimate requests
+    console.log('🔒 Strava webhook security audit:', {
+      ip: clientIP,
+      userAgent: req.headers['user-agent'] || 'none',
+      subscriptionId: webhookData.subscription_id,
+      ownerId: webhookData.owner_id,
+      // Check for any signature headers (Strava doesn't send these, but log if they appear)
+      hasSignatureHeader: !!(req.headers['x-strava-signature'] || req.headers['x-hub-signature']),
+      // Log content-type to detect malformed requests
+      contentType: req.headers['content-type'],
+      timestamp: lastWebhookReceived
+    });
+
     console.log('📥 Strava webhook received:', {
       object_type: webhookData.object_type,
       aspect_type: webhookData.aspect_type,
@@ -228,7 +242,14 @@ async function processWebhookEvent(eventId, webhookData) {
   }
 
   if (!integration) {
-    console.log('⚠️ No integration found for Strava athlete:', webhookData.owner_id);
+    // 🔒 SECURITY: Unknown owner_id - could be legitimate (user disconnected) or spoofed request
+    console.warn('🔒 SECURITY: Webhook for unknown Strava athlete:', {
+      ownerId: webhookData.owner_id,
+      objectId: webhookData.object_id,
+      aspectType: webhookData.aspect_type,
+      subscriptionId: webhookData.subscription_id,
+      note: 'No matching integration found - user may have disconnected or request may be spoofed'
+    });
     if (eventId) {
       await markEventProcessed(eventId, `No integration found for Strava athlete ID: ${webhookData.owner_id}`);
     }
