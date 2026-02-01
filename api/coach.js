@@ -2,12 +2,19 @@
 // Server-side endpoint for AI coaching conversations
 
 import Anthropic from '@anthropic-ai/sdk';
+import { createClient } from '@supabase/supabase-js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { generateTrainingPlan } from './utils/planGenerator.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
+
+// Initialize Supabase for auth validation
+const supabase = createClient(
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
 // Base coaching knowledge (date context added dynamically)
 const COACHING_KNOWLEDGE = `You are an expert cycling coach with deep knowledge of:
@@ -228,6 +235,31 @@ export default async function handler(req, res) {
         success: false,
         error: `Message too long: ${message.length} characters (max 5,000)`
       });
+    }
+
+    // SECURITY: Validate user identity if auth header provided
+    // This ensures users can only access their own coaching data
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+      if (authError) {
+        console.error('Coach API auth validation failed:', authError.message);
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid or expired authentication token'
+        });
+      }
+
+      // If userId is provided, verify it matches the authenticated user
+      if (userId && user && user.id !== userId) {
+        console.error(`🚨 Coach API user mismatch: auth user ${user.id} requested data for ${userId}`);
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied: You can only access your own coaching data'
+        });
+      }
     }
 
     // Rate limiting (10 requests per 5 minutes per IP)

@@ -3,6 +3,32 @@ const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 /**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(str) {
+  if (!str) return str;
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Sanitize URL to prevent javascript: protocol injection
+ */
+function sanitizeUrl(url) {
+  if (!url) return url;
+  const sanitized = String(url).trim();
+  // Only allow http/https URLs
+  if (sanitized.startsWith('http://') || sanitized.startsWith('https://')) {
+    return escapeHtml(sanitized);
+  }
+  return '#';
+}
+
+/**
  * API endpoint to send beta feedback notification emails
  * POST /api/submit-beta-feedback
  * Body: { feedbackType, message, pageUrl, userEmail, userId }
@@ -85,13 +111,13 @@ module.exports = async (req, res) => {
                 <tr>
                   <td style="padding: 15px;">
                     <p style="margin: 0 0 8px; font-size: 14px; color: #909296;">
-                      <strong style="color: #c1c2c5;">From:</strong> ${userEmail || 'Unknown'}
+                      <strong style="color: #c1c2c5;">From:</strong> ${escapeHtml(userEmail) || 'Unknown'}
                     </p>
                     <p style="margin: 0 0 8px; font-size: 14px; color: #909296;">
-                      <strong style="color: #c1c2c5;">User ID:</strong> ${userId || 'N/A'}
+                      <strong style="color: #c1c2c5;">User ID:</strong> ${escapeHtml(userId) || 'N/A'}
                     </p>
                     <p style="margin: 0; font-size: 14px; color: #909296;">
-                      <strong style="color: #c1c2c5;">Page:</strong> ${pageUrl || 'Not specified'}
+                      <strong style="color: #c1c2c5;">Page:</strong> ${escapeHtml(pageUrl) || 'Not specified'}
                     </p>
                   </td>
                 </tr>
@@ -103,7 +129,7 @@ module.exports = async (req, res) => {
               </h2>
               <div style="padding: 20px; background-color: #2c2e33; border-left: 4px solid #bef264; border-radius: 4px; margin-bottom: 25px;">
                 <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #e9ecef; white-space: pre-wrap;">
-${message}
+${escapeHtml(message)}
                 </p>
               </div>
 
@@ -111,10 +137,10 @@ ${message}
               <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 30px;">
                 <tr>
                   <td align="center">
-                    <a href="mailto:${userEmail}" style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; margin-right: 10px;">
+                    <a href="mailto:${escapeHtml(userEmail)}" style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; margin-right: 10px;">
                       Reply to User
                     </a>
-                    <a href="${pageUrl}" style="display: inline-block; padding: 12px 24px; background-color: #4b5563; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">
+                    <a href="${sanitizeUrl(pageUrl)}" style="display: inline-block; padding: 12px 24px; background-color: #4b5563; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">
                       View Page
                     </a>
                   </td>
@@ -147,10 +173,6 @@ Page: ${pageUrl || 'Not specified'}
 
 Message:
 ${message}
-
----
-Reply to: ${userEmail}
-View page: ${pageUrl}
       `,
     });
 
