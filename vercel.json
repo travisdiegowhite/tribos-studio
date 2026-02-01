@@ -6,7 +6,7 @@
   "crons": [
     {
       "path": "/api/garmin-token-maintenance",
-      "schedule": "0 6 * * *"
+      "schedule": "0 */6 * * *"
     }
   ],
   "rewrites": [
