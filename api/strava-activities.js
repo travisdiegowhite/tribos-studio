@@ -125,10 +125,10 @@ async function getValidAccessToken(userId) {
     throw new Error('Strava not connected');
   }
 
-  // Check if token is expired (with 5 min buffer)
+  // Check if token is expired (with 10 min buffer for safety)
   const expiresAt = new Date(integration.token_expires_at);
   const now = new Date();
-  const isExpired = (expiresAt.getTime() - 300000) < now.getTime();
+  const isExpired = (expiresAt.getTime() - 600000) < now.getTime();
 
   if (!isExpired) {
     return integration.access_token;

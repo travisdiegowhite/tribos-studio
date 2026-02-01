@@ -69,7 +69,6 @@ function Auth() {
   }, []);
 
   const handleSubmit = async (e) => {
-    console.log('handleSubmit called');
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -77,7 +76,6 @@ function Auth() {
 
     try {
       if (isSignUp) {
-        console.log('Attempting sign up...');
         const { data, error } = await signUp(email, password, { full_name: name });
         if (error) throw error;
 
@@ -100,13 +98,10 @@ function Auth() {
 
         setMessage('Check your email for the confirmation link!');
       } else {
-        console.log('Attempting sign in...');
         const { error } = await signIn(email, password);
-        console.log('Sign in completed, error:', error);
         if (error) throw error;
         // Mark beta signup as activated on successful login
         await markBetaSignupActivated(email);
-        console.log('Navigating to dashboard...');
         navigate('/dashboard');
       }
     } catch (err) {
