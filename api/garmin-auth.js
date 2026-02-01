@@ -264,8 +264,8 @@ async function exchangeToken(req, res, userId, code, state) {
     const storedState = tempData.request_token;
     const codeVerifier = tempData.request_token_secret;
 
-    // Verify state matches (CSRF protection)
-    if (state && state !== storedState) {
+    // Verify state matches (CSRF protection) - state is REQUIRED
+    if (!state || state !== storedState) {
       throw new Error('State mismatch. Possible CSRF attack.');
     }
 
