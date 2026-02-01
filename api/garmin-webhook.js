@@ -968,15 +968,17 @@ async function ensureValidAccessToken(integration) {
   } else {
     const expiresAt = new Date(integration.token_expires_at);
     const now = new Date();
-    const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+    // Use 6-hour buffer since Garmin tokens only last ~24 hours
+    // This ensures we refresh proactively before the token expires
+    const sixHoursFromNow = new Date(now.getTime() + 6 * 60 * 60 * 1000);
 
-    // Check if token is still valid (with 5 minute buffer)
-    if (expiresAt > fiveMinutesFromNow) {
+    // Check if token is still valid (with 6 hour buffer)
+    if (expiresAt > sixHoursFromNow) {
       console.log('✅ Token still valid, expires:', expiresAt.toISOString());
       return integration.access_token;
     }
 
-    console.log('🔄 Token expired or expiring soon, refreshing...');
+    console.log('🔄 Token expired or expiring within 6 hours, refreshing...');
     console.log('   Token expires at:', expiresAt.toISOString());
     console.log('   Current time:', now.toISOString());
   }
@@ -1021,8 +1023,8 @@ async function ensureValidAccessToken(integration) {
 
   const tokenData = await response.json();
 
-  // Garmin tokens typically expire in 90 days, but use the actual expires_in value
-  const expiresInSeconds = tokenData.expires_in || 7776000; // Default 90 days
+  // Garmin tokens expire in ~24 hours, use the actual expires_in value from response
+  const expiresInSeconds = tokenData.expires_in || 86400; // Default 24 hours
   const newExpiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
 
   console.log('✅ Token refreshed successfully');

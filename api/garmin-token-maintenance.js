@@ -11,8 +11,9 @@ const supabase = createClient(
 
 const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oauth/token';
 
-// How many days before expiry to refresh (7 days gives us buffer)
-const REFRESH_THRESHOLD_DAYS = 7;
+// How many days before expiry to refresh
+// Garmin tokens expire in ~24 hours, so we need to be aggressive
+const REFRESH_THRESHOLD_DAYS = 1;
 
 export default async function handler(req, res) {
   // Verify this is a legitimate cron request or admin request
@@ -40,7 +41,8 @@ export default async function handler(req, res) {
   };
 
   try {
-    // Find all Garmin integrations with tokens expiring within threshold
+    // Find all Garmin integrations with tokens expired OR expiring within threshold
+    // We include expired tokens because refresh tokens may still work
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() + REFRESH_THRESHOLD_DAYS);
 
@@ -78,16 +80,11 @@ export default async function handler(req, res) {
       console.log(`  - Token expires: ${expiresAt.toISOString()} (${daysUntilExpiry} days)`);
       console.log(`  - Has Garmin User ID: ${!!integration.provider_user_id}`);
 
-      // Skip if already expired (needs manual reconnect)
-      if (expiresAt < new Date()) {
-        console.log('  - SKIPPED: Token already expired, needs reconnect');
-        results.skipped++;
-        results.errors.push({
-          userId,
-          error: 'Token already expired - user needs to reconnect',
-          expiresAt: expiresAt.toISOString()
-        });
-        continue;
+      // Even if access token is expired, we should try to refresh
+      // Garmin refresh tokens may still be valid even after access token expires
+      const isExpired = expiresAt < new Date();
+      if (isExpired) {
+        console.log('  - Token already expired, attempting refresh anyway...');
       }
 
       try {
@@ -170,9 +167,9 @@ async function refreshGarminToken(userId, refreshToken) {
 
   const tokenData = await response.json();
 
-  // Calculate new expiration (default 90 days)
+  // Calculate new expiration (Garmin tokens last ~24 hours)
   const expiresAt = new Date();
-  expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7776000));
+  expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 86400));
 
   // Update database with new tokens
   const { error: updateError } = await supabase
