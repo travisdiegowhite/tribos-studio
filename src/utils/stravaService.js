@@ -60,13 +60,6 @@ export class StravaService {
       throw new Error('Strava client ID must be configured');
     }
 
-    console.log('🔍 Strava OAuth Debug:', {
-      clientId: this.clientId,
-      redirectUri: this.redirectUri,
-      currentOrigin: window.location.origin,
-      environment: import.meta.env.MODE
-    });
-
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
@@ -80,8 +73,6 @@ export class StravaService {
     }
 
     const authUrl = `${STRAVA_OAUTH_BASE}/authorize?${params.toString()}`;
-    console.log('🔗 Generated Strava Auth URL:', authUrl);
-
     return authUrl;
   }
 

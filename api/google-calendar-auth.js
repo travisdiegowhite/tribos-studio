@@ -147,7 +147,7 @@ async function exchangeCodeForToken(req, res, { code, userId, redirectUri }) {
       });
 
     if (dbError) {
-      console.error('Database error storing tokens:', JSON.stringify(dbError, null, 2));
+      console.error('Database error storing tokens:', dbError.message || dbError.code);
       throw new Error(`Failed to store authentication data: ${dbError.message || dbError.code}`);
     }
 
