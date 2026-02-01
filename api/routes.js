@@ -39,10 +39,11 @@ async function validateUserAccess(req, res, requestedUserId) {
   const authUser = await getUserFromAuthHeader(req);
 
   if (!authUser) {
-    // No auth header - log warning but allow for backwards compatibility
-    // TODO: Make this required after frontend is updated
-    console.warn('⚠️ No Authorization header provided for routes request');
-    return null;
+    // Authentication required - reject unauthenticated requests
+    return res.status(401).json({
+      error: 'Authentication required',
+      message: 'Please sign in to access routes'
+    });
   }
 
   if (authUser.id !== requestedUserId) {
