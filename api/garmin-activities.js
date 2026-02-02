@@ -1490,7 +1490,7 @@ async function backfillPowerData(req, res, userId) {
       success: true,
       message: `Power backfill complete. ${success} activities updated with power data.`,
       stats: {
-        total: activitiesWithoutPower.length,
+        total: activitiesToProcess.length,
         processed,
         success,
         failed,
