@@ -80,6 +80,7 @@ export default function ActivityLinkingModal({
         .from('activities')
         .select('*')
         .eq('user_id', user.id)
+        .is('duplicate_of', null)
         .gte('start_date', startDate.toISOString())
         .order('start_date', { ascending: false });
 

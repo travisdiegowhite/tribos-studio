@@ -91,6 +91,7 @@ export default function PlannerPage() {
         }
 
         // Fetch activities (last 90 days for context)
+        // Exclude duplicates (duplicate_of IS NULL) to show only primary activities
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
@@ -98,6 +99,7 @@ export default function PlannerPage() {
           .from('activities')
           .select('*')
           .eq('user_id', userId)
+          .is('duplicate_of', null)
           .gte('start_date', ninetyDaysAgo.toISOString())
           .order('start_date', { ascending: false });
 

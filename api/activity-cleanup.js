@@ -1,15 +1,23 @@
 /**
  * API Route: Activity Cleanup
- * Find and merge duplicate activities across providers
+ * Find and handle duplicate activities across providers (e.g., Strava + Garmin)
  *
  * Endpoints:
  * - POST /api/activity-cleanup?action=find-duplicates - Find potential duplicates
- * - POST /api/activity-cleanup?action=merge-duplicates - Merge duplicates (keep best data)
- * - POST /api/activity-cleanup?action=delete-duplicate - Delete a specific duplicate
+ * - POST /api/activity-cleanup?action=mark-duplicates - Mark duplicates (non-destructive, recommended)
+ * - POST /api/activity-cleanup?action=merge-duplicates - Merge duplicates (keep best data, deletes others)
+ * - POST /api/activity-cleanup?action=auto-cleanup - Auto-cleanup with dry run support
+ *
+ * The mark-duplicates action is the recommended approach:
+ * - Sets duplicate_of field to link duplicates to their primary activity
+ * - Duplicates are excluded from UI lists and metric aggregations
+ * - Original data is preserved (non-destructive)
+ * - Uses provider priority: Garmin > Wahoo > Strava > Manual
  */
 
 import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
+import { findAndMarkDuplicates, PROVIDER_PRIORITY } from './utils/activityDedup.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
@@ -49,10 +57,12 @@ export default async function handler(req, res) {
       return findDuplicates(req, res);
     case 'merge-duplicates':
       return mergeDuplicates(req, res);
+    case 'mark-duplicates':
+      return markDuplicatesAction(req, res);
     case 'auto-cleanup':
       return autoCleanup(req, res);
     default:
-      return res.status(400).json({ error: 'Invalid action. Use: find-duplicates, merge-duplicates, or auto-cleanup' });
+      return res.status(400).json({ error: 'Invalid action. Use: find-duplicates, merge-duplicates, mark-duplicates, or auto-cleanup' });
   }
 }
 
@@ -142,6 +152,130 @@ async function findDuplicates(req, res) {
 
   } catch (error) {
     console.error('Find duplicates error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Mark duplicates using the new duplicate_of field (non-destructive)
+ * Instead of deleting duplicates, this marks lower-priority activities as duplicates
+ * of their higher-priority counterparts. Activities with duplicate_of set are excluded
+ * from aggregations and UI lists but not deleted.
+ */
+async function markDuplicatesAction(req, res) {
+  const authUser = await getUserFromAuthHeader(req);
+  if (!authUser) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { dryRun = true } = req.body;
+
+  try {
+    if (dryRun) {
+      // Just scan and report what would be marked
+      const { data: activities, error } = await supabase
+        .from('activities')
+        .select('id, provider, provider_activity_id, name, start_date, distance')
+        .eq('user_id', authUser.id)
+        .is('duplicate_of', null)
+        .order('start_date', { ascending: true });
+
+      if (error) throw error;
+
+      if (!activities || activities.length < 2) {
+        return res.json({
+          success: true,
+          dryRun: true,
+          message: 'Not enough activities to check for duplicates',
+          duplicateGroupsFound: 0,
+          wouldMark: 0
+        });
+      }
+
+      // Find potential duplicates
+      const duplicateGroups = [];
+      const processed = new Set();
+
+      for (let i = 0; i < activities.length; i++) {
+        const activity = activities[i];
+        if (processed.has(activity.id)) continue;
+
+        const activityTime = new Date(activity.start_date).getTime();
+        const activityDistance = activity.distance || 0;
+        const group = [activity];
+
+        for (let j = i + 1; j < activities.length; j++) {
+          const candidate = activities[j];
+          if (processed.has(candidate.id)) continue;
+
+          const candidateTime = new Date(candidate.start_date).getTime();
+          const candidateDistance = candidate.distance || 0;
+
+          // Check time window (±5 minutes)
+          const timeDiff = Math.abs(activityTime - candidateTime);
+          if (timeDiff > 5 * 60 * 1000) {
+            if (candidateTime > activityTime + 5 * 60 * 1000) break;
+            continue;
+          }
+
+          // Check distance tolerance (1% or 100m)
+          const distanceTolerance = Math.max(activityDistance * 0.01, 100);
+          const distanceDiff = Math.abs(activityDistance - candidateDistance);
+
+          if (distanceDiff <= distanceTolerance) {
+            group.push(candidate);
+            processed.add(candidate.id);
+          }
+        }
+
+        if (group.length > 1) {
+          // Sort by provider priority (highest first)
+          group.sort((a, b) => {
+            const priorityA = PROVIDER_PRIORITY[a.provider?.toLowerCase()] || 0;
+            const priorityB = PROVIDER_PRIORITY[b.provider?.toLowerCase()] || 0;
+            return priorityB - priorityA;
+          });
+
+          const primary = group[0];
+          const duplicates = group.slice(1);
+
+          duplicateGroups.push({
+            primary: { id: primary.id, provider: primary.provider, name: primary.name, date: primary.start_date },
+            duplicates: duplicates.map(d => ({ id: d.id, provider: d.provider, name: d.name, date: d.start_date }))
+          });
+        }
+
+        processed.add(activity.id);
+      }
+
+      return res.json({
+        success: true,
+        dryRun: true,
+        duplicateGroupsFound: duplicateGroups.length,
+        wouldMark: duplicateGroups.reduce((sum, g) => sum + g.duplicates.length, 0),
+        preview: duplicateGroups.slice(0, 10),
+        message: duplicateGroups.length > 0
+          ? `Found ${duplicateGroups.length} duplicate groups. Set dryRun=false to mark them.`
+          : 'No duplicates found.'
+      });
+    }
+
+    // Actually mark duplicates
+    const stats = await findAndMarkDuplicates(authUser.id);
+
+    return res.json({
+      success: true,
+      dryRun: false,
+      duplicatesFound: stats.found,
+      duplicatesMarked: stats.marked,
+      errors: stats.errors,
+      message: stats.marked > 0
+        ? `Successfully marked ${stats.marked} activities as duplicates. They will no longer appear in your activity list or be counted in your metrics.`
+        : 'No duplicates to mark.'
+    });
+
+  } catch (error) {
+    console.error('Mark duplicates error:', error);
     return res.status(500).json({ error: error.message });
   }
 }
