@@ -150,11 +150,19 @@ export default async function handler(req, res) {
       activityId = activityData.activityId?.toString();
     }
 
+    // Determine file URL from various payload formats
+    // IMPORTANT: Extract this BEFORE the duplicate check so we can use it
+    let fileUrl = webhookData.fileUrl || webhookData.activityFileUrl;
+    if (!fileUrl && activityData) {
+      fileUrl = activityData.callbackURL || activityData.fileUrl;
+    }
+
     console.log('📥 Garmin webhook received:', {
       webhookType,
       userId,
       activityId,
       hasActivityData: !!activityData,
+      hasFileUrl: !!fileUrl,
       ip: clientIP,
       timestamp: lastWebhookReceived
     });
@@ -212,12 +220,6 @@ export default async function handler(req, res) {
         console.log('ℹ️ Duplicate webhook ignored:', activityId);
         return res.status(200).json({ success: true, message: 'Already processed', eventId: existingEvent.id });
       }
-    }
-
-    // Determine file URL from various payload formats
-    let fileUrl = webhookData.fileUrl || webhookData.activityFileUrl;
-    if (!fileUrl && activityData) {
-      fileUrl = activityData.callbackURL || activityData.fileUrl;
     }
 
     // Store webhook event (keep this fast - no complex processing)
@@ -518,15 +520,17 @@ async function downloadAndProcessActivity(event, integration) {
 
     // For PUSH notifications (CONNECT_ACTIVITY, ACTIVITY_DETAIL), use payload data directly
     // This is faster and avoids "Invalid download token" errors
-    // Only fetch from API for PING notifications or if we're missing critical data
+    // For ACTIVITY_FILE_DATA (PING), the callbackURL returns binary FIT file, NOT JSON activity data
+    // So we need to fetch activity details from the API using summaryId
     let activityDetails = null;
     const hasSufficientData = webhookInfo &&
       (webhookInfo.distanceInMeters || webhookInfo.durationInSeconds || webhookInfo.startTimeInSeconds);
 
-    if (!isPushNotification && integration.access_token && webhookInfo?.callbackURL) {
-      // PING notification - fetch activity data from callback URL
-      console.log('📥 Fetching activity from callback URL (PING)...');
-      activityDetails = await fetchFromCallbackURL(webhookInfo.callbackURL, integration.access_token);
+    if (!isPushNotification && integration.access_token && summaryId) {
+      // ACTIVITY_FILE_DATA (PING notification) - fetch activity details from API
+      // NOTE: callbackURL is for FIT file download, NOT activity JSON data
+      console.log('📥 Fetching activity details from API for ACTIVITY_FILE_DATA...');
+      activityDetails = await fetchGarminActivityDetails(integration.access_token, summaryId);
     } else if (!hasSufficientData && integration.access_token && summaryId) {
       // Missing data - try to fetch from API as fallback
       console.log('📥 Fetching additional data from Garmin API...');
@@ -840,42 +844,6 @@ async function fetchGarminActivityDetails(accessToken, summaryId) {
 
   } catch (error) {
     console.error('❌ Error fetching activity from Garmin API:', error.message);
-    return null;
-  }
-}
-
-/**
- * Fetch activity data from Garmin callback URL (for PING notifications)
- * PING notifications include a callbackURL with an embedded token that's valid for 24 hours
- */
-async function fetchFromCallbackURL(callbackURL, accessToken) {
-  try {
-    console.log('📥 Fetching from callback URL:', callbackURL.substring(0, 50) + '...');
-
-    const response = await fetch(callbackURL, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Callback URL fetch error:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText
-      });
-      return null;
-    }
-
-    const data = await response.json();
-    console.log('✅ Fetched data from callback URL');
-    return data;
-
-  } catch (error) {
-    console.error('❌ Error fetching from callback URL:', error.message);
     return null;
   }
 }
