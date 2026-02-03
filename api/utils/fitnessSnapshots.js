@@ -177,16 +177,17 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
   historyStart.setDate(historyStart.getDate() - 90);
 
   // Fetch activities for the analysis period
-  // Use .or() to include both is_hidden=false AND is_hidden=null (default)
+  // Exclude hidden activities and duplicates (duplicate_of IS NULL means primary activity)
   const { data: activities, error } = await supabase
     .from('activities')
     .select(`
       id, start_date, moving_time, elapsed_time,
       distance, total_elevation_gain, average_watts,
-      kilojoules, average_heartrate, trainer, is_hidden
+      kilojoules, average_heartrate, trainer, is_hidden, duplicate_of
     `)
     .eq('user_id', userId)
     .or('is_hidden.eq.false,is_hidden.is.null')
+    .is('duplicate_of', null)
     .gte('start_date', historyStart.toISOString())
     .lt('start_date', weekEnd.toISOString())
     .order('start_date', { ascending: true });
@@ -287,12 +288,13 @@ export async function backfillSnapshots(supabase, userId, weeksBack = 52) {
   console.log(`📊 Total activities for user: ${totalCount}`);
 
   // Get oldest activity date to know how far back we can go
-  // Use .or() to include both is_hidden=false AND is_hidden=null (default)
+  // Exclude hidden activities and duplicates
   const { data: oldestActivity, error: oldestError } = await supabase
     .from('activities')
     .select('start_date')
     .eq('user_id', userId)
     .or('is_hidden.eq.false,is_hidden.is.null')
+    .is('duplicate_of', null)
     .order('start_date', { ascending: true })
     .limit(1)
     .single();

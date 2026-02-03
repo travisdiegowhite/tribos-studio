@@ -246,6 +246,7 @@ export function useCommunity({
         .from('activities')
         .select('duration_seconds, tss')
         .eq('user_id', userId)
+        .is('duplicate_of', null)
         .gte('start_date', weekStart.toISOString())
         .lte('start_date', weekEnd.toISOString());
 

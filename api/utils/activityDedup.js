@@ -16,7 +16,7 @@ const supabase = createClient(
 );
 
 // Provider priority - higher number = higher priority
-const PROVIDER_PRIORITY = {
+export const PROVIDER_PRIORITY = {
   'garmin': 100,  // Highest priority - has FIT files with real power data
   'wahoo': 90,
   'strava': 50,   // Lower priority - limited power data access
@@ -26,7 +26,7 @@ const PROVIDER_PRIORITY = {
 /**
  * Get priority for a provider
  */
-function getProviderPriority(provider) {
+export function getProviderPriority(provider) {
   return PROVIDER_PRIORITY[provider?.toLowerCase()] || 0;
 }
 
@@ -297,8 +297,188 @@ export async function mergeActivityData(existingActivityId, newData, newProvider
   }
 }
 
+/**
+ * Mark an activity as a duplicate of another (primary) activity.
+ * The duplicate activity will be excluded from aggregations and UI lists.
+ *
+ * @param {string} duplicateActivityId - ID of the activity to mark as duplicate
+ * @param {string} primaryActivityId - ID of the primary (canonical) activity
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function markAsDuplicate(duplicateActivityId, primaryActivityId) {
+  try {
+    const { error } = await supabase
+      .from('activities')
+      .update({
+        duplicate_of: primaryActivityId,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', duplicateActivityId);
+
+    if (error) {
+      console.error('Error marking activity as duplicate:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log(`✅ Marked activity ${duplicateActivityId} as duplicate of ${primaryActivityId}`);
+    return { success: true };
+
+  } catch (error) {
+    console.error('markAsDuplicate error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Find and mark duplicate activities for a user.
+ * Uses the same duplicate detection logic (time ±5min, distance ±1%).
+ * Lower-priority provider activities get marked as duplicates.
+ *
+ * @param {string} userId - User ID to scan for duplicates
+ * @returns {Promise<{found: number, marked: number, errors: number}>}
+ */
+export async function findAndMarkDuplicates(userId) {
+  const stats = { found: 0, marked: 0, errors: 0 };
+
+  try {
+    // Get all activities for the user that aren't already marked as duplicates
+    const { data: activities, error } = await supabase
+      .from('activities')
+      .select('id, provider, provider_activity_id, name, start_date, distance')
+      .eq('user_id', userId)
+      .is('duplicate_of', null)
+      .order('start_date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching activities for duplicate scan:', error);
+      return stats;
+    }
+
+    if (!activities || activities.length < 2) {
+      return stats;
+    }
+
+    console.log(`🔍 Scanning ${activities.length} activities for duplicates...`);
+
+    // Group activities that might be duplicates (within time window)
+    const processed = new Set();
+
+    for (let i = 0; i < activities.length; i++) {
+      const activity = activities[i];
+
+      if (processed.has(activity.id)) continue;
+
+      const activityTime = new Date(activity.start_date).getTime();
+      const activityDistance = activity.distance || 0;
+
+      // Find potential duplicates
+      const duplicateCandidates = [];
+
+      for (let j = i + 1; j < activities.length; j++) {
+        const candidate = activities[j];
+
+        if (processed.has(candidate.id)) continue;
+
+        const candidateTime = new Date(candidate.start_date).getTime();
+        const candidateDistance = candidate.distance || 0;
+
+        // Check time window (±5 minutes)
+        const timeDiff = Math.abs(activityTime - candidateTime);
+        if (timeDiff > 5 * 60 * 1000) {
+          // Activities are sorted by time, so if we're past the window, stop
+          if (candidateTime > activityTime + 5 * 60 * 1000) break;
+          continue;
+        }
+
+        // Check distance tolerance (1% or 100m)
+        const distanceTolerance = Math.max(activityDistance * 0.01, 100);
+        const distanceDiff = Math.abs(activityDistance - candidateDistance);
+
+        if (distanceDiff <= distanceTolerance) {
+          duplicateCandidates.push(candidate);
+        }
+      }
+
+      if (duplicateCandidates.length > 0) {
+        stats.found += duplicateCandidates.length;
+
+        // Determine which is the primary (highest priority)
+        const allActivities = [activity, ...duplicateCandidates];
+        allActivities.sort((a, b) => {
+          const priorityA = getProviderPriority(a.provider);
+          const priorityB = getProviderPriority(b.provider);
+          return priorityB - priorityA; // Higher priority first
+        });
+
+        const primary = allActivities[0];
+        const duplicates = allActivities.slice(1);
+
+        console.log(`\n🔄 Found duplicate group:`);
+        console.log(`   Primary: ${primary.provider} - "${primary.name}" (${primary.start_date})`);
+
+        for (const dup of duplicates) {
+          console.log(`   Duplicate: ${dup.provider} - "${dup.name}" (${dup.start_date})`);
+
+          const result = await markAsDuplicate(dup.id, primary.id);
+          if (result.success) {
+            stats.marked++;
+          } else {
+            stats.errors++;
+          }
+
+          processed.add(dup.id);
+        }
+
+        processed.add(primary.id);
+      }
+    }
+
+    console.log(`\n✅ Duplicate scan complete: found ${stats.found}, marked ${stats.marked}, errors ${stats.errors}`);
+    return stats;
+
+  } catch (error) {
+    console.error('findAndMarkDuplicates error:', error);
+    return stats;
+  }
+}
+
+/**
+ * Clear duplicate marking for an activity (unmark as duplicate)
+ *
+ * @param {string} activityId - ID of the activity to unmark
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function unmarkDuplicate(activityId) {
+  try {
+    const { error } = await supabase
+      .from('activities')
+      .update({
+        duplicate_of: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', activityId);
+
+    if (error) {
+      console.error('Error unmarking duplicate:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log(`✅ Unmarked activity ${activityId} as duplicate`);
+    return { success: true };
+
+  } catch (error) {
+    console.error('unmarkDuplicate error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 export default {
+  PROVIDER_PRIORITY,
+  getProviderPriority,
   checkForDuplicate,
   takeoverActivity,
-  mergeActivityData
+  mergeActivityData,
+  markAsDuplicate,
+  findAndMarkDuplicates,
+  unmarkDuplicate
 };

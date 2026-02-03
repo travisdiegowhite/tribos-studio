@@ -387,6 +387,7 @@ async function comparePeriods(recentSnapshots, compare_to, metrics, supabase, us
  */
 async function calculatePowerMetrics(supabase, userId, startDate, endDate) {
   // Query for all power-related fields including new FIT-derived metrics
+  // Exclude hidden activities and duplicates
   const { data: activities } = await supabase
     .from('activities')
     .select(`
@@ -396,6 +397,7 @@ async function calculatePowerMetrics(supabase, userId, startDate, endDate) {
     `)
     .eq('user_id', userId)
     .or('is_hidden.eq.false,is_hidden.is.null')
+    .is('duplicate_of', null)
     .gte('start_date', startDate.toISOString())
     .lt('start_date', endDate.toISOString())
     .gt('average_watts', 0);
