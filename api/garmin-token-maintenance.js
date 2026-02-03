@@ -167,9 +167,15 @@ async function refreshGarminToken(userId, refreshToken) {
 
   const tokenData = await response.json();
 
-  // Calculate new expiration (Garmin tokens last ~24 hours)
+  // Calculate new access token expiration (Garmin tokens last ~24 hours)
   const expiresAt = new Date();
   expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 86400));
+
+  // Calculate refresh token expiration (~90 days)
+  const refreshTokenExpiresAt = new Date();
+  refreshTokenExpiresAt.setSeconds(
+    refreshTokenExpiresAt.getSeconds() + (tokenData.refresh_token_expires_in || 7776000)
+  );
 
   // Update database with new tokens
   const { error: updateError } = await supabase
@@ -178,6 +184,7 @@ async function refreshGarminToken(userId, refreshToken) {
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token || refreshToken, // Garmin may return new refresh token
       token_expires_at: expiresAt.toISOString(),
+      refresh_token_expires_at: refreshTokenExpiresAt.toISOString(),
       updated_at: new Date().toISOString()
     })
     .eq('user_id', userId)
@@ -190,5 +197,9 @@ async function refreshGarminToken(userId, refreshToken) {
     };
   }
 
-  return { success: true, newExpiresAt: expiresAt.toISOString() };
+  return {
+    success: true,
+    newExpiresAt: expiresAt.toISOString(),
+    refreshTokenExpiresAt: refreshTokenExpiresAt.toISOString()
+  };
 }

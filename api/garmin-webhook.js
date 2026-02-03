@@ -992,6 +992,53 @@ async function ensureValidAccessToken(integration) {
     throw new Error('No refresh token available. User needs to reconnect Garmin account.');
   }
 
+  // === MUTEX: Try to acquire lock before refreshing ===
+  // This prevents race conditions when multiple webhooks try to refresh simultaneously
+  const lockDurationMs = 30000; // 30 second lock
+  const lockUntil = new Date(Date.now() + lockDurationMs).toISOString();
+
+  // Attempt to acquire lock using atomic update
+  // Only succeeds if no lock exists or existing lock has expired
+  const { data: lockResult, error: lockError } = await supabase
+    .from('bike_computer_integrations')
+    .update({ refresh_lock_until: lockUntil })
+    .eq('id', integration.id)
+    .or(`refresh_lock_until.is.null,refresh_lock_until.lt.${new Date().toISOString()}`)
+    .select('id')
+    .maybeSingle();
+
+  if (lockError) {
+    console.warn('⚠️ Lock acquisition query error:', lockError.message);
+    // Continue without lock - better than failing entirely
+  }
+
+  if (!lockResult) {
+    // Lock is held by another process - wait briefly and check if token was refreshed
+    console.log('🔒 Token refresh lock held by another process, waiting...');
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+
+    // Re-fetch the integration to see if token was refreshed
+    const { data: refreshedIntegration } = await supabase
+      .from('bike_computer_integrations')
+      .select('access_token, token_expires_at')
+      .eq('id', integration.id)
+      .single();
+
+    if (refreshedIntegration) {
+      const newExpiresAt = new Date(refreshedIntegration.token_expires_at);
+      if (newExpiresAt > new Date(Date.now() + 60000)) { // Valid for at least 1 more minute
+        console.log('✅ Token was refreshed by another process');
+        return refreshedIntegration.access_token;
+      }
+    }
+
+    // Token still not refreshed - try to acquire lock again or proceed anyway
+    console.log('⚠️ Proceeding with refresh despite lock (may cause race condition)');
+  } else {
+    console.log('🔒 Acquired token refresh lock');
+  }
+
+  // === Perform the actual token refresh ===
   console.log('🔄 Refreshing Garmin access token...');
 
   const response = await fetch(GARMIN_TOKEN_URL, {
@@ -1013,6 +1060,12 @@ async function ensureValidAccessToken(integration) {
       body: errorText
     });
 
+    // Release lock on failure
+    await supabase
+      .from('bike_computer_integrations')
+      .update({ refresh_lock_until: null })
+      .eq('id', integration.id);
+
     // Parse specific error conditions
     if (response.status === 400 || response.status === 401) {
       throw new Error(`Token refresh rejected (${response.status}). Refresh token may be invalid or revoked. User needs to reconnect Garmin.`);
@@ -1027,16 +1080,23 @@ async function ensureValidAccessToken(integration) {
   const expiresInSeconds = tokenData.expires_in || 86400; // Default 24 hours
   const newExpiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
 
-  console.log('✅ Token refreshed successfully');
-  console.log('   New expiration:', newExpiresAt);
+  // Calculate refresh token expiration (~90 days)
+  const refreshTokenExpiresInSeconds = tokenData.refresh_token_expires_in || 7776000; // Default 90 days
+  const refreshTokenExpiresAt = new Date(Date.now() + refreshTokenExpiresInSeconds * 1000).toISOString();
 
-  // Update tokens in database
+  console.log('✅ Token refreshed successfully');
+  console.log('   New access token expiration:', newExpiresAt);
+  console.log('   Refresh token expiration:', refreshTokenExpiresAt);
+
+  // Update tokens in database and release lock
   const { error: updateError } = await supabase
     .from('bike_computer_integrations')
     .update({
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token || integration.refresh_token,
       token_expires_at: newExpiresAt,
+      refresh_token_expires_at: refreshTokenExpiresAt,
+      refresh_lock_until: null, // Release lock
       updated_at: new Date().toISOString()
     })
     .eq('id', integration.id);
