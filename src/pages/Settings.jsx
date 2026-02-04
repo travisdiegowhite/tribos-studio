@@ -26,7 +26,7 @@ import {
 import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSun, IconMoon, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
@@ -41,6 +41,7 @@ import { TIMEZONE_OPTIONS, getBrowserTimezone, getTimezoneOffset } from '../util
 import { formatSpeed } from '../utils/units';
 import PageHeader from '../components/PageHeader.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
+import IntegrationAlert from '../components/IntegrationAlert.jsx';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -53,6 +54,7 @@ const getApiBaseUrl = () => {
 function Settings() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -72,6 +74,7 @@ function Settings() {
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showStravaDisconnectModal, setShowStravaDisconnectModal] = useState(false);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+  const [showGarminReconnectModal, setShowGarminReconnectModal] = useState(false);
 
   // Activity maintenance state
   const [fullHistorySyncing, setFullHistorySyncing] = useState(false);
@@ -189,6 +192,16 @@ function Settings() {
       loadWahooStatus();
     }
   }, [user]);
+
+  // Handle reconnect query parameter (from IntegrationAlert)
+  useEffect(() => {
+    if (searchParams.get('reconnect') === 'garmin') {
+      setShowGarminReconnectModal(true);
+      // Clear the query parameter
+      searchParams.delete('reconnect');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleSaveProfile = async () => {
     if (!user) return;
@@ -1068,6 +1081,75 @@ function Settings() {
         </Stack>
       </Modal>
 
+      {/* Garmin Reconnect Modal */}
+      <Modal
+        opened={showGarminReconnectModal}
+        onClose={() => setShowGarminReconnectModal(false)}
+        title={
+          <Group gap="sm">
+            <IconAlertTriangle size={24} color="orange" />
+            <Text fw={600}>Reconnect Garmin</Text>
+          </Group>
+        }
+        centered
+        size="md"
+      >
+        <Stack gap="md">
+          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={18} />}>
+            <Text size="sm" fw={500}>
+              Your Garmin connection has expired or become invalid. Activities are not syncing.
+            </Text>
+          </Alert>
+
+          <Text size="sm">
+            This can happen when:
+          </Text>
+          <List size="sm" spacing="xs">
+            <List.Item>Your Garmin refresh token expired (after ~90 days of inactivity)</List.Item>
+            <List.Item>You changed your Garmin password</List.Item>
+            <List.Item>You revoked app access in Garmin Connect settings</List.Item>
+          </List>
+
+          <Text size="sm" fw={500}>
+            To fix this, you need to disconnect and reconnect your Garmin account.
+            Your existing activities will not be affected.
+          </Text>
+
+          <Group justify="flex-end" gap="sm" mt="md">
+            <Button
+              variant="subtle"
+              color="gray"
+              onClick={() => setShowGarminReconnectModal(false)}
+            >
+              Later
+            </Button>
+            {garminStatus.connected ? (
+              <Button
+                color="orange"
+                onClick={async () => {
+                  setShowGarminReconnectModal(false);
+                  await disconnectGarmin();
+                  // Small delay then start connection
+                  setTimeout(() => connectGarmin(), 500);
+                }}
+              >
+                Reconnect Now
+              </Button>
+            ) : (
+              <Button
+                color="green"
+                onClick={() => {
+                  setShowGarminReconnectModal(false);
+                  connectGarmin();
+                }}
+              >
+                Connect Garmin
+              </Button>
+            )}
+          </Group>
+        </Stack>
+      </Modal>
+
       <Container size="md" py="lg">
         <Stack gap="xl">
           <PageHeader
@@ -1278,6 +1360,9 @@ function Settings() {
               <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
                 Connect your cycling platforms to sync activities automatically
               </Text>
+
+              {/* Integration Alert - shows if Garmin needs reconnection */}
+              <IntegrationAlert />
 
               <Divider />
 
