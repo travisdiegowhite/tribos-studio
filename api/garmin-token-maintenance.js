@@ -12,8 +12,10 @@ const supabase = createClient(
 const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oauth/token';
 
 // How many days before expiry to refresh
-// Garmin tokens expire in ~24 hours, so we need to be aggressive
-const REFRESH_THRESHOLD_DAYS = 1;
+// Garmin ACCESS tokens expire in ~24 hours, so we need to be aggressive
+const ACCESS_TOKEN_REFRESH_THRESHOLD_DAYS = 1;
+// Garmin REFRESH tokens expire in ~90 days - refresh them proactively to prevent silent death
+const REFRESH_TOKEN_REFRESH_THRESHOLD_DAYS = 30;
 
 export default async function handler(req, res) {
   // Verify this is a legitimate cron request or admin request
@@ -41,25 +43,49 @@ export default async function handler(req, res) {
   };
 
   try {
-    // Find all Garmin integrations with tokens expired OR expiring within threshold
+    // Find all Garmin integrations that need token refresh:
+    // 1. Access token expired or expiring within 1 day
+    // 2. Refresh token expiring within 30 days (to prevent silent death for inactive users)
     // We include expired tokens because refresh tokens may still work
-    const thresholdDate = new Date();
-    thresholdDate.setDate(thresholdDate.getDate() + REFRESH_THRESHOLD_DAYS);
+    const accessTokenThreshold = new Date();
+    accessTokenThreshold.setDate(accessTokenThreshold.getDate() + ACCESS_TOKEN_REFRESH_THRESHOLD_DAYS);
 
-    const { data: expiringIntegrations, error: fetchError } = await supabase
+    const refreshTokenThreshold = new Date();
+    refreshTokenThreshold.setDate(refreshTokenThreshold.getDate() + REFRESH_TOKEN_REFRESH_THRESHOLD_DAYS);
+
+    // Query 1: Access tokens expiring soon
+    const { data: accessTokenExpiring, error: accessError } = await supabase
       .from('bike_computer_integrations')
-      .select('id, user_id, refresh_token, token_expires_at, provider_user_id')
+      .select('id, user_id, refresh_token, token_expires_at, refresh_token_expires_at, provider_user_id, refresh_token_invalid')
       .eq('provider', 'garmin')
       .not('refresh_token', 'is', null)
-      .lt('token_expires_at', thresholdDate.toISOString());
+      .neq('refresh_token_invalid', true)
+      .lt('token_expires_at', accessTokenThreshold.toISOString());
 
-    if (fetchError) {
-      console.error('Failed to fetch integrations:', fetchError);
-      return res.status(500).json({ error: 'Database query failed', details: fetchError.message });
+    // Query 2: Refresh tokens expiring soon (even if access token is still valid)
+    // This catches inactive users before their refresh token expires
+    const { data: refreshTokenExpiring, error: refreshError } = await supabase
+      .from('bike_computer_integrations')
+      .select('id, user_id, refresh_token, token_expires_at, refresh_token_expires_at, provider_user_id, refresh_token_invalid')
+      .eq('provider', 'garmin')
+      .not('refresh_token', 'is', null)
+      .not('refresh_token_expires_at', 'is', null)
+      .neq('refresh_token_invalid', true)
+      .lt('refresh_token_expires_at', refreshTokenThreshold.toISOString());
+
+    if (accessError || refreshError) {
+      console.error('Failed to fetch integrations:', accessError || refreshError);
+      return res.status(500).json({ error: 'Database query failed', details: (accessError || refreshError).message });
     }
 
-    if (!expiringIntegrations || expiringIntegrations.length === 0) {
-      console.log('No tokens expiring within', REFRESH_THRESHOLD_DAYS, 'days');
+    // Combine and deduplicate by integration ID
+    const allIntegrations = [...(accessTokenExpiring || []), ...(refreshTokenExpiring || [])];
+    const uniqueIntegrations = Array.from(
+      new Map(allIntegrations.map(i => [i.id, i])).values()
+    );
+
+    if (uniqueIntegrations.length === 0) {
+      console.log('No tokens need refresh');
       return res.status(200).json({
         success: true,
         message: 'No tokens need refresh',
@@ -67,24 +93,39 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log(`Found ${expiringIntegrations.length} tokens to check`);
-    results.checked = expiringIntegrations.length;
+    console.log(`Found ${uniqueIntegrations.length} tokens to check:`);
+    console.log(`  - ${accessTokenExpiring?.length || 0} with access token expiring`);
+    console.log(`  - ${refreshTokenExpiring?.length || 0} with refresh token expiring`);
+    results.checked = uniqueIntegrations.length;
+
+    // Use the combined list
+    const expiringIntegrations = uniqueIntegrations;
 
     // Process each expiring token
     for (const integration of expiringIntegrations) {
       const userId = integration.user_id;
-      const expiresAt = new Date(integration.token_expires_at);
-      const daysUntilExpiry = Math.ceil((expiresAt - new Date()) / (1000 * 60 * 60 * 24));
+      const accessExpiresAt = integration.token_expires_at ? new Date(integration.token_expires_at) : null;
+      const refreshExpiresAt = integration.refresh_token_expires_at ? new Date(integration.refresh_token_expires_at) : null;
+      const now = new Date();
+
+      const accessDaysUntilExpiry = accessExpiresAt ? Math.ceil((accessExpiresAt - now) / (1000 * 60 * 60 * 24)) : null;
+      const refreshDaysUntilExpiry = refreshExpiresAt ? Math.ceil((refreshExpiresAt - now) / (1000 * 60 * 60 * 24)) : null;
 
       console.log(`\nProcessing user ${userId}:`);
-      console.log(`  - Token expires: ${expiresAt.toISOString()} (${daysUntilExpiry} days)`);
+      console.log(`  - Access token expires: ${accessExpiresAt?.toISOString() || 'unknown'} (${accessDaysUntilExpiry ?? 'unknown'} days)`);
+      console.log(`  - Refresh token expires: ${refreshExpiresAt?.toISOString() || 'unknown'} (${refreshDaysUntilExpiry ?? 'unknown'} days)`);
       console.log(`  - Has Garmin User ID: ${!!integration.provider_user_id}`);
 
-      // Even if access token is expired, we should try to refresh
-      // Garmin refresh tokens may still be valid even after access token expires
-      const isExpired = expiresAt < new Date();
-      if (isExpired) {
-        console.log('  - Token already expired, attempting refresh anyway...');
+      // Determine reason for refresh
+      const accessExpired = accessExpiresAt && accessExpiresAt < now;
+      const refreshExpiringSoon = refreshDaysUntilExpiry !== null && refreshDaysUntilExpiry <= REFRESH_TOKEN_REFRESH_THRESHOLD_DAYS;
+
+      if (accessExpired) {
+        console.log('  - Reason: Access token expired, attempting refresh...');
+      } else if (refreshExpiringSoon) {
+        console.log(`  - Reason: Refresh token expiring in ${refreshDaysUntilExpiry} days, proactive refresh...`);
+      } else {
+        console.log('  - Reason: Access token expiring soon...');
       }
 
       try {
