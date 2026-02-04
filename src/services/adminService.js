@@ -87,6 +87,14 @@ export async function getStats() {
   return adminFetch('get_stats');
 }
 
+/**
+ * Get Garmin integration health summary
+ * Returns breakdown by status and list of users needing action
+ */
+export async function getIntegrationHealth() {
+  return adminFetch('get_integration_health');
+}
+
 // User Activity Tracking endpoints
 
 /**
@@ -230,6 +238,7 @@ export default {
   listFeedback,
   listWebhooks,
   getStats,
+  getIntegrationHealth,
   getActivitySummary,
   getRecentActivity,
   getActivityStats,

@@ -1093,13 +1093,47 @@ async function ensureValidAccessToken(integration) {
   return tokenData.access_token;
 }
 
-async function markEventProcessed(eventId, error = null, activityId = null) {
+/**
+ * Mark a webhook event as processed
+ * @param {string} eventId - The webhook event ID
+ * @param {Object} options - Processing result options
+ * @param {string} [options.error] - Error message if processing failed (actual errors only)
+ * @param {string} [options.notes] - Informational notes (success messages, filtering reasons, etc.)
+ * @param {string} [options.activityId] - The imported/matched activity ID
+ */
+async function markEventProcessed(eventId, options = {}) {
+  // Support legacy call signature: markEventProcessed(eventId, errorOrNotes, activityId)
+  if (typeof options === 'string' || options === null) {
+    const legacyMessage = options;
+    const legacyActivityId = arguments[2] || null;
+
+    // Determine if this is an error or a note based on the message content
+    const isError = legacyMessage && (
+      legacyMessage.includes('failed') ||
+      legacyMessage.includes('Failed') ||
+      legacyMessage.includes('error') ||
+      legacyMessage.includes('Error') ||
+      legacyMessage.includes('Token refresh') ||
+      legacyMessage.includes('No integration found') ||
+      legacyMessage.includes('reconnect')
+    ) && !legacyMessage.includes('Data added') && !legacyMessage.includes('took over');
+
+    options = {
+      error: isError ? legacyMessage : null,
+      notes: isError ? null : legacyMessage,
+      activityId: legacyActivityId
+    };
+  }
+
+  const { error = null, notes = null, activityId = null } = options;
+
   await supabase
     .from('garmin_webhook_events')
     .update({
       processed: true,
       processed_at: new Date().toISOString(),
       process_error: error,
+      process_notes: notes,
       activity_imported_id: activityId
     })
     .eq('id', eventId);

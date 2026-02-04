@@ -129,6 +129,9 @@ export default async function handler(req, res) {
       case 'get_stats':
         return await getStats(req, res, adminUser);
 
+      case 'get_integration_health':
+        return await getIntegrationHealth(req, res, adminUser);
+
       // Email Campaign Actions
       case 'list_campaigns':
         return await listCampaigns(req, res, adminUser);
@@ -506,6 +509,143 @@ async function getStats(req, res, adminUser) {
       total_routes: routesResult.count || 0,
       total_feedback: feedbackResult.count || 0
     }
+  });
+}
+
+/**
+ * Get Garmin integration health summary across all users
+ * Returns breakdown by health status and list of users needing action
+ */
+async function getIntegrationHealth(req, res, adminUser) {
+  await logAdminAction(adminUser.id, 'get_integration_health', null, null);
+
+  // Get all Garmin integrations with user emails
+  const { data: integrations, error: intError } = await supabase
+    .from('bike_computer_integrations')
+    .select('id, user_id, provider_user_id, refresh_token_invalid, token_expires_at, refresh_token_expires_at, refresh_token, last_sync_at, updated_at')
+    .eq('provider', 'garmin');
+
+  if (intError) {
+    console.error('Error fetching integrations:', intError);
+    return res.status(500).json({ error: 'Failed to fetch integrations' });
+  }
+
+  // Get user emails
+  const { data: { users: authUsers } } = await supabase.auth.admin.listUsers();
+  const userEmailMap = {};
+  if (authUsers) {
+    authUsers.forEach(u => {
+      userEmailMap[u.id] = u.email;
+    });
+  }
+
+  // Get webhook error counts per user (last 7 days, actual errors only)
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: errorCounts } = await supabase
+    .from('garmin_webhook_events')
+    .select('garmin_user_id')
+    .not('process_error', 'is', null)
+    .gte('received_at', weekAgo);
+
+  const errorCountMap = {};
+  (errorCounts || []).forEach(e => {
+    errorCountMap[e.garmin_user_id] = (errorCountMap[e.garmin_user_id] || 0) + 1;
+  });
+
+  const now = new Date();
+
+  // Categorize integrations
+  const summary = {
+    healthy: [],
+    token_expired: [],
+    refresh_token_invalid: [],
+    refresh_token_expired: [],
+    missing_user_id: [],
+    missing_refresh_token: [],
+    stale_no_expiry: [] // NULL refresh_token_expires_at
+  };
+
+  (integrations || []).forEach(int => {
+    const email = userEmailMap[int.user_id] || 'unknown';
+    const tokenExpiresAt = int.token_expires_at ? new Date(int.token_expires_at) : null;
+    const refreshExpiresAt = int.refresh_token_expires_at ? new Date(int.refresh_token_expires_at) : null;
+    const tokenValid = tokenExpiresAt ? tokenExpiresAt > now : false;
+    const refreshValid = refreshExpiresAt ? refreshExpiresAt > now : true;
+    const recentErrors = errorCountMap[int.provider_user_id] || 0;
+
+    const record = {
+      email,
+      user_id: int.user_id,
+      garmin_user_id: int.provider_user_id,
+      last_sync_at: int.last_sync_at,
+      token_expires_at: int.token_expires_at,
+      refresh_token_expires_at: int.refresh_token_expires_at,
+      recent_errors: recentErrors
+    };
+
+    // Determine status (in priority order)
+    if (!int.provider_user_id) {
+      summary.missing_user_id.push(record);
+    } else if (int.refresh_token_invalid) {
+      summary.refresh_token_invalid.push(record);
+    } else if (!int.refresh_token) {
+      summary.missing_refresh_token.push(record);
+    } else if (int.refresh_token_expires_at === null && !tokenValid) {
+      summary.stale_no_expiry.push(record);
+    } else if (!refreshValid) {
+      summary.refresh_token_expired.push(record);
+    } else if (!tokenValid) {
+      summary.token_expired.push(record);
+    } else {
+      summary.healthy.push(record);
+    }
+  });
+
+  // Calculate totals
+  const totals = {
+    total: integrations?.length || 0,
+    healthy: summary.healthy.length,
+    needs_reconnect: summary.refresh_token_invalid.length +
+                     summary.refresh_token_expired.length +
+                     summary.missing_refresh_token.length +
+                     summary.missing_user_id.length +
+                     summary.stale_no_expiry.length,
+    auto_recoverable: summary.token_expired.length
+  };
+
+  // Get users needing reconnect with emails for easy notification
+  const usersNeedingReconnect = [
+    ...summary.refresh_token_invalid,
+    ...summary.refresh_token_expired,
+    ...summary.missing_refresh_token,
+    ...summary.missing_user_id,
+    ...summary.stale_no_expiry
+  ].map(u => ({
+    email: u.email,
+    reason: summary.refresh_token_invalid.includes(u) ? 'refresh_token_invalid' :
+            summary.refresh_token_expired.includes(u) ? 'refresh_token_expired' :
+            summary.missing_refresh_token.includes(u) ? 'missing_refresh_token' :
+            summary.missing_user_id.includes(u) ? 'missing_user_id' :
+            'stale_no_expiry',
+    last_sync_at: u.last_sync_at,
+    recent_errors: u.recent_errors
+  }));
+
+  return res.status(200).json({
+    success: true,
+    timestamp: new Date().toISOString(),
+    totals,
+    summary: {
+      healthy: summary.healthy.length,
+      token_expired: summary.token_expired.length,
+      refresh_token_invalid: summary.refresh_token_invalid.length,
+      refresh_token_expired: summary.refresh_token_expired.length,
+      missing_user_id: summary.missing_user_id.length,
+      missing_refresh_token: summary.missing_refresh_token.length,
+      stale_no_expiry: summary.stale_no_expiry.length
+    },
+    details: summary,
+    users_needing_reconnect: usersNeedingReconnect
   });
 }
 
