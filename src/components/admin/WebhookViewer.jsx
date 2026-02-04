@@ -35,7 +35,7 @@ import {
   IconFilterOff,
   IconUser
 } from '@tabler/icons-react';
-import { listWebhooks } from '../../services/adminService';
+import { listWebhooks, getIntegrationHealth } from '../../services/adminService';
 
 export default function WebhookViewer() {
   const [webhooks, setWebhooks] = useState([]);
@@ -45,8 +45,14 @@ export default function WebhookViewer() {
   const [selectedWebhook, setSelectedWebhook] = useState(null);
   const [filterUserId, setFilterUserId] = useState(null);
 
+  // Integration health state
+  const [healthData, setHealthData] = useState(null);
+  const [healthLoading, setHealthLoading] = useState(true);
+  const [healthError, setHealthError] = useState(null);
+
   useEffect(() => {
     loadWebhooks();
+    loadIntegrationHealth();
   }, [filterUserId]);
 
   async function loadWebhooks() {
@@ -64,6 +70,20 @@ export default function WebhookViewer() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadIntegrationHealth() {
+    setHealthLoading(true);
+    setHealthError(null);
+    try {
+      const result = await getIntegrationHealth();
+      setHealthData(result);
+    } catch (err) {
+      console.error('Failed to load integration health:', err);
+      setHealthError(err.message);
+    } finally {
+      setHealthLoading(false);
     }
   }
 
@@ -128,6 +148,127 @@ export default function WebhookViewer() {
 
   return (
     <Stack spacing="md">
+      {/* Integration Health Dashboard */}
+      <Paper withBorder p="md" bg="var(--mantine-color-dark-7)">
+        <Group justify="space-between" mb="md">
+          <Group>
+            <IconWebhook size={20} />
+            <Text fw={600}>Garmin Integration Health</Text>
+          </Group>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconRefresh size={14} />}
+            onClick={loadIntegrationHealth}
+            loading={healthLoading}
+          >
+            Refresh
+          </Button>
+        </Group>
+
+        {healthError ? (
+          <Alert color="red" icon={<IconAlertTriangle size={16} />}>
+            {healthError}
+          </Alert>
+        ) : healthLoading && !healthData ? (
+          <Group justify="center" py="md">
+            <Loader size="sm" />
+            <Text size="sm" c="dimmed">Loading health data...</Text>
+          </Group>
+        ) : healthData ? (
+          <Stack spacing="md">
+            {/* Summary Stats */}
+            <Group gap="lg">
+              <Paper withBorder p="sm" radius="md" style={{ flex: 1 }}>
+                <Text size="xs" c="dimmed" tt="uppercase">Total</Text>
+                <Text size="xl" fw={700}>{healthData.totals?.total || 0}</Text>
+              </Paper>
+              <Paper withBorder p="sm" radius="md" style={{ flex: 1, borderColor: 'var(--mantine-color-green-6)' }}>
+                <Text size="xs" c="dimmed" tt="uppercase">Healthy</Text>
+                <Text size="xl" fw={700} c="green">{healthData.totals?.healthy || 0}</Text>
+              </Paper>
+              <Paper withBorder p="sm" radius="md" style={{ flex: 1, borderColor: 'var(--mantine-color-red-6)' }}>
+                <Text size="xs" c="dimmed" tt="uppercase">Need Reconnect</Text>
+                <Text size="xl" fw={700} c="red">{healthData.totals?.needs_reconnect || 0}</Text>
+              </Paper>
+              <Paper withBorder p="sm" radius="md" style={{ flex: 1, borderColor: 'var(--mantine-color-yellow-6)' }}>
+                <Text size="xs" c="dimmed" tt="uppercase">Auto-Recoverable</Text>
+                <Text size="xl" fw={700} c="yellow">{healthData.totals?.auto_recoverable || 0}</Text>
+              </Paper>
+            </Group>
+
+            {/* Detailed Breakdown */}
+            {healthData.summary && (
+              <Group gap="xs" wrap="wrap">
+                <Badge color="green" variant="light" size="sm">
+                  Healthy: {healthData.summary.healthy}
+                </Badge>
+                <Badge color="yellow" variant="light" size="sm">
+                  Token Expired: {healthData.summary.token_expired}
+                </Badge>
+                <Badge color="red" variant="light" size="sm">
+                  Refresh Invalid: {healthData.summary.refresh_token_invalid}
+                </Badge>
+                <Badge color="red" variant="light" size="sm">
+                  Refresh Expired: {healthData.summary.refresh_token_expired}
+                </Badge>
+                <Badge color="orange" variant="light" size="sm">
+                  Stale (No Expiry): {healthData.summary.stale_no_expiry}
+                </Badge>
+                <Badge color="orange" variant="light" size="sm">
+                  Missing User ID: {healthData.summary.missing_user_id}
+                </Badge>
+              </Group>
+            )}
+
+            {/* Users Needing Reconnect */}
+            {healthData.users_needing_reconnect?.length > 0 && (
+              <Paper withBorder p="sm" radius="md">
+                <Text size="sm" fw={600} mb="xs" c="red">
+                  Users Needing Reconnection ({healthData.users_needing_reconnect.length})
+                </Text>
+                <ScrollArea h={healthData.users_needing_reconnect.length > 5 ? 200 : 'auto'}>
+                  <Table size="xs" striped>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Email</Table.Th>
+                        <Table.Th>Reason</Table.Th>
+                        <Table.Th>Last Sync</Table.Th>
+                        <Table.Th>Recent Errors</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {healthData.users_needing_reconnect.map((user, idx) => (
+                        <Table.Tr key={idx}>
+                          <Table.Td>
+                            <Text size="xs">{user.email}</Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge size="xs" color="red" variant="outline">
+                              {user.reason?.replace(/_/g, ' ')}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="xs" c="dimmed">
+                              {user.last_sync_at ? formatDate(user.last_sync_at) : 'Never'}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge size="xs" color={user.recent_errors > 0 ? 'red' : 'gray'} variant="light">
+                              {user.recent_errors || 0}
+                            </Badge>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </ScrollArea>
+              </Paper>
+            )}
+          </Stack>
+        ) : null}
+      </Paper>
+
       {/* Header with Filter */}
       <Paper withBorder p="md">
         <Group justify="space-between" wrap="wrap">
