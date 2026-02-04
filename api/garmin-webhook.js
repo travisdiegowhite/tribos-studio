@@ -1028,16 +1028,28 @@ async function ensureValidAccessToken(integration) {
       body: errorText
     });
 
-    // Release lock on failure
+    // Parse specific error conditions
+    if (response.status === 400 || response.status === 401) {
+      // Mark refresh token as invalid so the status endpoint can show the right message
+      // This prevents repeated failed refresh attempts
+      console.log('🚫 Marking refresh token as invalid for integration:', integration.id);
+      await supabase
+        .from('bike_computer_integrations')
+        .update({
+          refresh_lock_until: null,
+          refresh_token_invalid: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', integration.id);
+
+      throw new Error(`Token refresh rejected (${response.status}). Refresh token may be invalid or revoked. User needs to reconnect Garmin.`);
+    }
+
+    // Release lock on failure (other errors)
     await supabase
       .from('bike_computer_integrations')
       .update({ refresh_lock_until: null })
       .eq('id', integration.id);
-
-    // Parse specific error conditions
-    if (response.status === 400 || response.status === 401) {
-      throw new Error(`Token refresh rejected (${response.status}). Refresh token may be invalid or revoked. User needs to reconnect Garmin.`);
-    }
 
     throw new Error(`Token refresh failed: ${response.status} ${response.statusText} - ${errorText}`);
   }
@@ -1065,6 +1077,7 @@ async function ensureValidAccessToken(integration) {
       token_expires_at: newExpiresAt,
       refresh_token_expires_at: refreshTokenExpiresAt,
       refresh_lock_until: null, // Release lock
+      refresh_token_invalid: false, // Clear invalid flag on successful refresh
       updated_at: new Date().toISOString()
     })
     .eq('id', integration.id);
