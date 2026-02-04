@@ -69,7 +69,7 @@ async function getWebhookStats(userId) {
     // Get integration status first
     const { data: integration, error: integrationError } = await supabase
       .from('bike_computer_integrations')
-      .select('id, provider_user_id, sync_enabled, last_sync_at, token_expires_at, access_token, updated_at, refresh_token')
+      .select('id, provider_user_id, sync_enabled, last_sync_at, token_expires_at, refresh_token_expires_at, access_token, updated_at, refresh_token, refresh_token_invalid')
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .maybeSingle();
@@ -153,6 +153,12 @@ async function getWebhookStats(userId) {
     const tokenExpiresInDays = tokenExpiresAt ? Math.floor((tokenExpiresAt - now) / (1000 * 60 * 60 * 24)) : null;
     const tokenExpiresInHours = tokenExpiresAt ? Math.floor((tokenExpiresAt - now) / (1000 * 60 * 60)) : null;
 
+    // Check refresh token validity
+    const refreshTokenExpiresAt = integration?.refresh_token_expires_at ? new Date(integration.refresh_token_expires_at) : null;
+    const refreshTokenValid = refreshTokenExpiresAt ? refreshTokenExpiresAt > now : true; // Assume valid if no expiry set
+    const refreshTokenExpiresInDays = refreshTokenExpiresAt ? Math.floor((refreshTokenExpiresAt - now) / (1000 * 60 * 60 * 24)) : null;
+    const refreshTokenInvalid = integration?.refresh_token_invalid === true;
+
     // Build troubleshooting messages based on current state
     const troubleshooting = [];
 
@@ -161,15 +167,23 @@ async function getWebhookStats(userId) {
     } else if (!integration.provider_user_id) {
       troubleshooting.push('⚠️ CRITICAL: No Garmin User ID stored. Webhooks cannot be matched to your account.');
       troubleshooting.push('Solution: Disconnect and reconnect your Garmin account to fetch the Garmin User ID.');
+    } else if (refreshTokenInvalid) {
+      troubleshooting.push('❌ CRITICAL: Refresh token has been rejected by Garmin.');
+      troubleshooting.push('This can happen if you changed your Garmin password or revoked app access.');
+      troubleshooting.push('👉 Solution: Disconnect and reconnect your Garmin account.');
+    } else if (!integration.refresh_token) {
+      troubleshooting.push('❌ No refresh token available. Cannot auto-refresh.');
+      troubleshooting.push('👉 Solution: Disconnect and reconnect your Garmin account.');
+    } else if (!refreshTokenValid) {
+      troubleshooting.push('❌ Refresh token has expired. Activities will not sync.');
+      troubleshooting.push('👉 Solution: Disconnect and reconnect your Garmin account.');
+    } else if (refreshTokenExpiresInDays !== null && refreshTokenExpiresInDays < 14) {
+      troubleshooting.push(`⚠️ Refresh token expires in ${refreshTokenExpiresInDays} days.`);
+      troubleshooting.push('Consider reconnecting your Garmin account soon to avoid sync interruption.');
     } else if (!tokenValid) {
       troubleshooting.push('⚠️ Access token has expired. Activities may not sync.');
-      if (!integration.refresh_token) {
-        troubleshooting.push('❌ No refresh token available. Cannot auto-refresh.');
-        troubleshooting.push('👉 Solution: Disconnect and reconnect your Garmin account.');
-      } else {
-        troubleshooting.push('The system will attempt to refresh the token automatically on next webhook.');
-        troubleshooting.push('If issues persist, try disconnecting and reconnecting your Garmin account.');
-      }
+      troubleshooting.push('The system will attempt to refresh the token automatically on next webhook.');
+      troubleshooting.push('If issues persist, try disconnecting and reconnecting your Garmin account.');
     } else if (tokenExpiresInDays !== null && tokenExpiresInDays < 7) {
       troubleshooting.push(`⚠️ Token expires in ${tokenExpiresInDays} days. It will be refreshed automatically.`);
     }
@@ -192,16 +206,22 @@ async function getWebhookStats(userId) {
       connectionHealth: {
         status: !integration ? 'not_connected' :
                 !integration.provider_user_id ? 'missing_user_id' :
-                (!tokenValid && !integration.refresh_token) ? 'missing_refresh_token' :
+                refreshTokenInvalid ? 'refresh_token_invalid' :
+                !integration.refresh_token ? 'missing_refresh_token' :
+                !refreshTokenValid ? 'refresh_token_expired' :
                 !tokenValid ? 'token_expired' :
                 'healthy',
         statusEmoji: !integration ? '❌' :
                      !integration.provider_user_id ? '⚠️' :
-                     (!tokenValid && !integration.refresh_token) ? '❌' :
+                     refreshTokenInvalid ? '❌' :
+                     !integration.refresh_token ? '❌' :
+                     !refreshTokenValid ? '❌' :
                      !tokenValid ? '🔄' : '✅',
         message: !integration ? 'Not connected to Garmin' :
                  !integration.provider_user_id ? 'Missing Garmin User ID - reconnect required' :
-                 (!tokenValid && !integration.refresh_token) ? 'No refresh token - reconnect required' :
+                 refreshTokenInvalid ? 'Refresh token rejected by Garmin - reconnect required' :
+                 !integration.refresh_token ? 'No refresh token - reconnect required' :
+                 !refreshTokenValid ? 'Refresh token expired - reconnect required' :
                  !tokenValid ? 'Token expired - will refresh on next sync' :
                  'Connected and healthy'
       },
@@ -218,7 +238,13 @@ async function getWebhookStats(userId) {
              tokenExpiresInDays > 0 ? `${tokenExpiresInDays} days` :
              `${tokenExpiresInHours} hours`)
           : 'Unknown',
-        hasRefreshToken: !!integration.refresh_token
+        hasRefreshToken: !!integration.refresh_token,
+        refreshTokenValid: !refreshTokenInvalid && refreshTokenValid,
+        refreshTokenExpiresAt: integration.refresh_token_expires_at,
+        refreshTokenExpiresIn: refreshTokenInvalid ? 'Invalid' :
+          refreshTokenExpiresInDays !== null
+            ? (refreshTokenExpiresInDays < 0 ? 'Expired' : `${refreshTokenExpiresInDays} days`)
+            : 'Unknown'
       } : null,
       webhookStats: {
         totalEvents,
