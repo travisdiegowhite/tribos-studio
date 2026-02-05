@@ -186,19 +186,23 @@ This gives us the best of all three systems: race-aware (from `getSuggestedWorko
 1. Import `getWorkoutRecommendation` from the new service
 2. Replace the inline `getSuggestedWorkout()` function (lines 560-587) with a call to the service:
    ```javascript
+   const [focusTimeAvailable, setFocusTimeAvailable] = useState(null);
+
    const recommendation = useMemo(() => getWorkoutRecommendation({
      trainingMetrics,
      activities: visibleActivities,
      raceGoals,
      plannedWorkouts: [], // or from activePlan
      ftp,
-   }), [trainingMetrics, visibleActivities, raceGoals, ftp]);
+     timeAvailable: focusTimeAvailable,
+   }), [trainingMetrics, visibleActivities, raceGoals, ftp, focusTimeAvailable]);
 
    const suggestedWorkout = recommendation.primary?.workout || null;
    ```
-3. Optionally pass `recommendation.primary.reason` to TodaysFocusCard so it can show *why* this workout was picked (currently it just shows the workout name — this is a low-lift UX improvement)
+3. Add a compact `30m | 60m | 90m | 2h+` SegmentedControl to TodaysFocusCard (same pattern as TrainNow). Defaults to no filter. Recommendation updates instantly via the useMemo above.
+4. Pass `recommendation.primary.reason` to TodaysFocusCard so it can show *why* this workout was picked (currently it just shows the workout name — this is a low-lift UX improvement)
 
-**Verification:** TodaysFocusCard shows the same or better recommendations. The "View Suggested Workout" button still works. Race proximity still overrides TSB.
+**Verification:** TodaysFocusCard shows the same or better recommendations. The "View Suggested Workout" button still works. Race proximity still overrides TSB. Changing the time filter updates the suggestion immediately.
 
 ---
 
@@ -352,12 +356,19 @@ describe('getWorkoutRecommendation', () => {
 
 3. **Cache strategy:** Use `useMemo` in React (already the pattern in TrainNow). No separate cache layer needed — the computation is pure and fast (no API calls).
 
+4. **TodaysFocusCard gets a time selector.** Real schedules change — if a user suddenly only has 60 minutes, the hero recommendation should reflect that immediately, not show a 90-minute ride.
+   - Add a compact `30m | 60m | 90m | 2h+` SegmentedControl to TodaysFocusCard (same pattern as TrainNow)
+   - Defaults to no filter (best workout regardless of duration)
+   - TodaysFocusCard and TrainNow time selectors are **independent** — focus card is "what should I do with this time," TrainNow is "let me explore all options at a different duration"
+   - Both feed `timeAvailable` into the same service, so for identical inputs the primary pick is always consistent
+   - This is a Phase 2 addition (when TodaysFocusCard is wired to the service)
+
 ## Open Questions
 
-1. **Should `timeAvailable` affect TodaysFocusCard?** Currently only TrainNow has the time selector. Option: add a small time selector to TodaysFocusCard, or always default to 60min for the dashboard suggestion.
+None — all decisions resolved.
 
 ---
 
 *Document created: Feb 2026*
-*Status: Ready for implementation*
+*Status: Ready for implementation — all decisions finalized*
 *Supersedes: docs/WORKOUT_RECOMMENDATION_CONSOLIDATION.md (problem statement)*
