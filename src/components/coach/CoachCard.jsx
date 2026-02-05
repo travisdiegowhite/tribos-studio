@@ -24,13 +24,10 @@ import {
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../contexts/AuthContext';
 
-// Generate proactive suggestion based on training context
-function getProactiveSuggestion(trainingContext) {
+// Generate coaching message based on training context (no workout suggestions)
+function getCoachingMessage(trainingContext) {
   if (!trainingContext) {
-    return {
-      message: "Ready to help with your training. Ask me anything!",
-      workout: null,
-    };
+    return "Ready to help with your training. Ask me about your fitness, race prep, or training strategy.";
   }
 
   // Parse TSB from context if available
@@ -42,34 +39,19 @@ function getProactiveSuggestion(trainingContext) {
   const ctl = ctlMatch ? parseInt(ctlMatch[1], 10) : 50;
 
   if (tsb > 15) {
-    return {
-      message: "You're well-rested. Great day for a hard interval session or threshold work.",
-      workout: { workout_id: 'three_by_ten_sst', name: 'Sweet Spot Intervals', scheduled_date: 'today' },
-    };
+    return "You're feeling fresh and ready to push. Ask me about interval strategies, race tactics, or how to make the most of today's energy.";
   } else if (tsb > 5) {
-    return {
-      message: "Good form today. Consider a tempo ride to maintain fitness.",
-      workout: { workout_id: 'tempo_30', name: 'Tempo Ride', scheduled_date: 'today' },
-    };
+    return "Good form right now. Want to discuss pacing for your next race, or how to balance intensity with recovery this week?";
   } else if (tsb > -10) {
-    return {
-      message: "Balanced fatigue. An endurance ride would build aerobic base without overreaching.",
-      workout: { workout_id: 'endurance_90', name: 'Endurance Ride', scheduled_date: 'today' },
-    };
+    return "You're in a productive training phase. Ask me about optimizing your training load, nutrition timing, or upcoming goals.";
   } else if (tsb > -20) {
-    return {
-      message: "Accumulated fatigue detected. A recovery spin will help you absorb recent training.",
-      workout: { workout_id: 'recovery_spin', name: 'Recovery Spin', scheduled_date: 'today' },
-    };
+    return "I notice some accumulated fatigue. Let's talk about recovery strategies, sleep optimization, or adjusting your training plan.";
   } else {
-    return {
-      message: "High fatigue - consider a rest day or very easy spin to avoid overtraining.",
-      workout: { workout_id: 'recovery_spin', name: 'Easy Recovery', scheduled_date: 'today' },
-    };
+    return "Your body is asking for rest. I can help you think through recovery protocols, when to return to intensity, or mental training during rest days.";
   }
 }
 
-function CoachCard({ trainingContext, onAddWorkout, compact = false }) {
+function CoachCard({ trainingContext, onAddWorkout }) {
   const { user } = useAuth();
   const inputRef = useRef(null);
 
@@ -80,8 +62,8 @@ function CoachCard({ trainingContext, onAddWorkout, compact = false }) {
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(false);
 
-  // Get proactive suggestion
-  const suggestion = getProactiveSuggestion(trainingContext);
+  // Get coaching message based on current form
+  const coachingMessage = getCoachingMessage(trainingContext);
 
   // Reset response when component unmounts or context changes significantly
   useEffect(() => {
@@ -205,24 +187,11 @@ function CoachCard({ trainingContext, onAddWorkout, compact = false }) {
             )}
           </Group>
 
-          {/* Proactive Suggestion - show when no response */}
+          {/* Coaching Message - show when no response */}
           {!response && !isLoading && !error && (
-            <Box>
-              <Text size="sm" mb="md" style={{ color: 'var(--tribos-text-primary)', lineHeight: 1.6 }}>
-                {suggestion.message}
-              </Text>
-              {suggestion.workout && (
-                <Button
-                  size="sm"
-                  variant="filled"
-                  color="lime"
-                  leftSection={<IconCalendarPlus size={16} />}
-                  onClick={() => handleAddWorkout(suggestion.workout)}
-                >
-                  Add {suggestion.workout.name}
-                </Button>
-              )}
-            </Box>
+            <Text size="sm" style={{ color: 'var(--tribos-text-primary)', lineHeight: 1.6 }}>
+              {coachingMessage}
+            </Text>
           )}
 
           {/* Loading State */}
