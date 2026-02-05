@@ -66,8 +66,7 @@ import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parsePlanStartDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
-import TrainingStrategist from '../components/TrainingStrategist.jsx';
-import { CoachCommandBarTrigger } from '../components/coach';
+import { useCoachCommandBar } from '../components/coach';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
 // TrainingPlanBrowser moved to PlannerPage
@@ -115,7 +114,7 @@ function TrainingDashboard() {
   const validTabs = ['today', 'trends', 'power', 'routes', 'history', 'insights', 'calendar'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
   const [activeTab, setActiveTab] = useState(initialTab);
-  const aiCoachRef = useRef(null);
+  const { open: openCoachCommandBar } = useCoachCommandBar();
   const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);
   const [speedProfile, setSpeedProfile] = useState(null);
@@ -912,14 +911,7 @@ function TrainingDashboard() {
                         formatDist={formatDist}
                         formatTime={formatTime}
                         raceGoals={raceGoals}
-                        onAskCoach={() => {
-                          setTimeout(() => {
-                            aiCoachRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            setTimeout(() => {
-                              aiCoachRef.current?.querySelector('input')?.focus();
-                            }, 300);
-                          }, 100);
-                        }}
+                        onAskCoach={() => openCoachCommandBar()}
                         suggestedWorkout={suggestedWorkout}
                         onViewWorkout={handleViewWorkout}
                       />
@@ -970,61 +962,6 @@ function TrainingDashboard() {
                     </Collapse>
                   </Paper>
 
-                  {/* Row 3: AI Coach - Full Width */}
-                  {/* New Command Bar CTA Card */}
-                  <Card
-                    withBorder
-                    p="lg"
-                    style={{
-                      background: 'linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)',
-                      border: '1px solid rgba(50, 205, 50, 0.15)',
-                    }}
-                  >
-                    <Group justify="space-between" align="center">
-                      <Box>
-                        <Group gap="xs" mb={4}>
-                          <ThemeIcon size="sm" color="lime" variant="light" radius="md">
-                            <IconMessageCircle size={14} />
-                          </ThemeIcon>
-                          <Text fw={600} size="sm">AI Coach</Text>
-                        </Group>
-                        <Text size="xs" c="dimmed">
-                          Get personalized training advice, build plans, and analyze your fitness
-                        </Text>
-                      </Box>
-                      <CoachCommandBarTrigger showShortcut />
-                    </Group>
-                  </Card>
-
-                  {/* Existing Training Strategist Chat */}
-                  <Card withBorder p="md">
-                    <Box ref={aiCoachRef}>
-                      <TrainingStrategist
-                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
-                        activePlan={activePlan}
-                        onAddWorkout={async (workout) => {
-                          notifications.show({
-                            title: 'Workout Added to Calendar',
-                            message: `${workout.name} scheduled for ${workout.scheduledDate}`,
-                            color: 'blue'
-                          });
-                          // Reload planned workouts to show the new workout on the calendar
-                          if (activePlan?.id) {
-                            const { data: workoutsData } = await supabase
-                              .from('planned_workouts')
-                              .select('*')
-                              .eq('plan_id', activePlan.id)
-                              .order('scheduled_date', { ascending: true });
-                            if (workoutsData) {
-                              setPlannedWorkouts(workoutsData);
-                            }
-                          }
-                          // Trigger calendar refresh when user switches to calendar tab
-                          setCalendarRefreshKey(prev => prev + 1);
-                        }}
-                      />
-                    </Box>
-                  </Card>
                 </Stack>
               </Tabs.Panel>
 
@@ -1355,7 +1292,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
 // ============================================================================
 // TODAY TAB
 // ============================================================================
-function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities, ftp, formatDist, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, activePlan, aiCoachRef, raceGoals }) {
+function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities, ftp, formatDist, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, activePlan, raceGoals }) {
   const hasCheckedIn = !!todayHealthMetrics;
 
   return (
@@ -1374,48 +1311,6 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
           console.log('Selected workout:', workout);
         }}
       />
-
-      {/* AI Coach Section */}
-      {/* Command Bar Trigger Card */}
-      <Card
-        withBorder
-        p="lg"
-        style={{
-          background: 'linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)',
-          border: '1px solid rgba(50, 205, 50, 0.15)',
-        }}
-      >
-        <Group justify="space-between" align="center">
-          <Box>
-            <Group gap="xs" mb={4}>
-              <ThemeIcon size="sm" color="lime" variant="light" radius="md">
-                <IconMessageCircle size={14} />
-              </ThemeIcon>
-              <Text fw={600} size="sm">AI Coach</Text>
-            </Group>
-            <Text size="xs" c="dimmed">
-              Get personalized training advice, build plans, and analyze your fitness
-            </Text>
-          </Box>
-          <CoachCommandBarTrigger showShortcut />
-        </Group>
-      </Card>
-
-      {/* Existing Training Strategist Chat */}
-      <Box ref={aiCoachRef}>
-        <TrainingStrategist
-          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
-          activePlan={activePlan}
-          onAddWorkout={(workout) => {
-            // Show success notification - calendar will update on next load
-            notifications.show({
-              title: 'Workout Added to Calendar',
-              message: `${workout.name} scheduled for ${workout.scheduledDate}`,
-              color: 'blue'
-            });
-          }}
-        />
-      </Box>
 
       {/* Body Check-in Card */}
       <Card withBorder p="md">
