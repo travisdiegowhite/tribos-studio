@@ -60,13 +60,14 @@ import {
   IconFileImport,
   IconCalendarStats,
   IconCalendarEvent,
+  IconTrophy,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parsePlanStartDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
-import TrainingStrategist from '../components/TrainingStrategist.jsx';
+import { CoachCard } from '../components/coach';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
 // TrainingPlanBrowser moved to PlannerPage
@@ -114,7 +115,6 @@ function TrainingDashboard() {
   const validTabs = ['today', 'trends', 'power', 'routes', 'history', 'insights', 'calendar'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
   const [activeTab, setActiveTab] = useState(initialTab);
-  const aiCoachRef = useRef(null);
   const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);
   const [speedProfile, setSpeedProfile] = useState(null);
@@ -899,7 +899,7 @@ function TrainingDashboard() {
                     previousMetrics={null}
                   />
 
-                  {/* Row 1: Today's Focus + Race Goals */}
+                  {/* Row 1: Today's Focus + AI Coach */}
                   <Grid gutter="md">
                     <Grid.Col span={{ base: 12, md: 7 }}>
                       <TodaysFocusCard
@@ -911,20 +911,22 @@ function TrainingDashboard() {
                         formatDist={formatDist}
                         formatTime={formatTime}
                         raceGoals={raceGoals}
-                        onAskCoach={() => {
-                          setTimeout(() => {
-                            aiCoachRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            setTimeout(() => {
-                              aiCoachRef.current?.querySelector('input')?.focus();
-                            }, 300);
-                          }, 100);
-                        }}
                         suggestedWorkout={suggestedWorkout}
                         onViewWorkout={handleViewWorkout}
                       />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, md: 5 }}>
-                      <RaceGoalsPanel isImperial={isImperial} compact />
+                      <CoachCard
+                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
+                        onAddWorkout={async (workout) => {
+                          notifications.show({
+                            title: 'Workout Added',
+                            message: `${workout.name || workout.workout_id} scheduled`,
+                            color: 'lime'
+                          });
+                          setCalendarRefreshKey(prev => prev + 1);
+                        }}
+                      />
                     </Grid.Col>
                   </Grid>
 
@@ -969,35 +971,6 @@ function TrainingDashboard() {
                     </Collapse>
                   </Paper>
 
-                  {/* Row 3: AI Coach - Full Width */}
-                  <Card withBorder p="md">
-                    <Box ref={aiCoachRef}>
-                      <TrainingStrategist
-                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
-                        activePlan={activePlan}
-                        onAddWorkout={async (workout) => {
-                          notifications.show({
-                            title: 'Workout Added to Calendar',
-                            message: `${workout.name} scheduled for ${workout.scheduledDate}`,
-                            color: 'blue'
-                          });
-                          // Reload planned workouts to show the new workout on the calendar
-                          if (activePlan?.id) {
-                            const { data: workoutsData } = await supabase
-                              .from('planned_workouts')
-                              .select('*')
-                              .eq('plan_id', activePlan.id)
-                              .order('scheduled_date', { ascending: true });
-                            if (workoutsData) {
-                              setPlannedWorkouts(workoutsData);
-                            }
-                          }
-                          // Trigger calendar refresh when user switches to calendar tab
-                          setCalendarRefreshKey(prev => prev + 1);
-                        }}
-                      />
-                    </Box>
-                  </Card>
                 </Stack>
               </Tabs.Panel>
 
@@ -1177,7 +1150,7 @@ function TrainingDashboard() {
 // ============================================================================
 // TODAY'S FOCUS HERO CARD - Story-Driven Narrative
 // ============================================================================
-function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, raceGoals, onAskCoach, suggestedWorkout, onViewWorkout }) {
+function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, raceGoals, suggestedWorkout, onViewWorkout }) {
   const lastRide = activities[0];
   const FormIcon = formStatus.icon;
 
@@ -1251,24 +1224,17 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             {getStory()}
           </Text>
 
-          <Group gap="lg" mt="md">
+          {suggestedWorkout && (
             <Button
-              variant="filled"
+              variant="light"
               color="lime"
-              leftSection={<IconMessageCircle size={16} />}
-              onClick={onAskCoach}
-            >
-              Ask AI Coach
-            </Button>
-            <Button
-              variant="subtle"
-              color="gray"
+              mt="md"
               rightSection={<IconChevronRight size={16} />}
-              onClick={() => suggestedWorkout && onViewWorkout(suggestedWorkout)}
+              onClick={() => onViewWorkout(suggestedWorkout)}
             >
-              Suggested Workout
+              View Suggested Workout
             </Button>
-          </Group>
+          )}
         </Box>
 
         {/* Weekly Progress Ring - Neutral to avoid competing with status badge */}
@@ -1321,6 +1287,34 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
           </Group>
         </>
       )}
+
+      {/* Race Goals - Compact Countdown */}
+      {raceGoals && raceGoals.length > 0 && (
+        <>
+          <Divider my="md" />
+          <Group gap="md">
+            <ThemeIcon size="lg" variant="light" color="orange">
+              <IconTrophy size={18} />
+            </ThemeIcon>
+            <Group gap="lg" style={{ flex: 1 }}>
+              {raceGoals.slice(0, 3).map((race) => {
+                const daysUntil = Math.ceil((new Date(race.race_date + 'T00:00:00') - new Date()) / (1000 * 60 * 60 * 24));
+                return (
+                  <Group key={race.id} gap="xs">
+                    <Badge size="sm" color={daysUntil <= 14 ? 'red' : daysUntil <= 30 ? 'yellow' : 'gray'} variant="light">
+                      {race.priority || 'A'}
+                    </Badge>
+                    <Box>
+                      <Text size="sm" fw={500} lineClamp={1}>{race.name}</Text>
+                      <Text size="xs" c="dimmed">in {daysUntil} days</Text>
+                    </Box>
+                  </Group>
+                );
+              })}
+            </Group>
+          </Group>
+        </>
+      )}
     </Paper>
   );
 }
@@ -1328,7 +1322,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
 // ============================================================================
 // TODAY TAB
 // ============================================================================
-function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities, ftp, formatDist, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, activePlan, aiCoachRef, raceGoals }) {
+function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities, ftp, formatDist, formatTime, isImperial, todayHealthMetrics, onOpenHealthCheckIn, activePlan, raceGoals }) {
   const hasCheckedIn = !!todayHealthMetrics;
 
   return (
@@ -1347,22 +1341,6 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
           console.log('Selected workout:', workout);
         }}
       />
-
-      {/* AI Coach Section */}
-      <Box ref={aiCoachRef}>
-        <TrainingStrategist
-          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
-          activePlan={activePlan}
-          onAddWorkout={(workout) => {
-            // Show success notification - calendar will update on next load
-            notifications.show({
-              title: 'Workout Added to Calendar',
-              message: `${workout.name} scheduled for ${workout.scheduledDate}`,
-              color: 'blue'
-            });
-          }}
-        />
-      </Box>
 
       {/* Body Check-in Card */}
       <Card withBorder p="md">

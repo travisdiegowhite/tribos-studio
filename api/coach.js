@@ -219,7 +219,8 @@ export default async function handler(req, res) {
       trainingContext = null,
       userLocalDate = null,
       userId = null,
-      maxTokens = 1024
+      maxTokens = 1024,
+      quickMode = false
     } = req.body;
 
     if (!message || typeof message !== 'string') {
@@ -331,6 +332,17 @@ ${trainingContext}`;
     systemPrompt += `\n\n=== INSTRUCTIONS ===
 Use the current date context and athlete data above to provide personalized, time-appropriate coaching advice.
 When races are listed above, use their exact names, dates, and details in your response - you have full visibility into their calendar.`;
+
+    // Add quickMode instructions for concise responses (Command Bar mode)
+    if (quickMode) {
+      systemPrompt += `\n\n=== QUICK MODE (COMMAND BAR) ===
+The athlete is using the quick command bar. Provide CONCISE responses:
+- Keep responses to 2-4 sentences maximum
+- Focus on the most actionable advice
+- Be direct and specific
+- Still use tools (recommend_workout, create_training_plan) when appropriate
+- Prioritize immediate, practical guidance over detailed explanations`;
+    }
 
     // Limit conversation history to last 10 messages to prevent stale context from dominating
     // Also filter out any messages with empty content (Claude API requires non-empty content)
@@ -478,6 +490,47 @@ When races are listed above, use their exact names, dates, and details in your r
       }
     }
 
+    // Generate suggested actions for quickMode
+    let suggestedActions = null;
+    if (quickMode) {
+      suggestedActions = [];
+
+      // If there are workout recommendations, suggest adding to calendar
+      if (workoutRecommendations.length > 0) {
+        workoutRecommendations.forEach((rec, idx) => {
+          suggestedActions.push({
+            id: `add-workout-${idx}`,
+            label: `Add ${rec.workout_id} to ${rec.scheduled_date}`,
+            actionType: 'add_to_calendar',
+            primary: idx === 0,
+            payload: rec
+          });
+        });
+      }
+
+      // If there's a training plan, suggest activating it
+      if (trainingPlanPreview && !trainingPlanPreview.error) {
+        suggestedActions.push({
+          id: 'activate-plan',
+          label: 'Activate Training Plan',
+          actionType: 'create_plan',
+          primary: workoutRecommendations.length === 0,
+          payload: trainingPlanPreview
+        });
+      }
+
+      // Add contextual follow-up actions
+      if (suggestedActions.length === 0) {
+        // No specific actions, add generic follow-ups
+        suggestedActions.push({
+          id: 'view-details',
+          label: 'Tell me more',
+          actionType: 'view_details',
+          primary: false
+        });
+      }
+    }
+
     // Log the response we're about to send
     console.log(`📤 Sending response:`, {
       success: true,
@@ -486,7 +539,9 @@ When races are listed above, use their exact names, dates, and details in your r
       hasWorkoutRecommendations: workoutRecommendations.length > 0,
       hasTrainingPlanPreview: !!trainingPlanPreview,
       planPreviewWorkouts: trainingPlanPreview?.summary?.total_workouts || 0,
-      hasFuelPlan: !!fuelPlan
+      hasFuelPlan: !!fuelPlan,
+      quickMode: quickMode,
+      suggestedActionsCount: suggestedActions?.length || 0
     });
 
     return res.status(200).json({
@@ -495,6 +550,7 @@ When races are listed above, use their exact names, dates, and details in your r
       workoutRecommendations: workoutRecommendations.length > 0 ? workoutRecommendations : null,
       trainingPlanPreview: trainingPlanPreview,
       fuelPlan: fuelPlan,
+      suggestedActions: suggestedActions,
       usage: response.usage
     });
 
