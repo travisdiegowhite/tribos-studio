@@ -127,7 +127,12 @@ The service applies decisions in this order. Higher priority wins:
 
 4. ZONE GAP DETECTION (from TrainNow — currently missing in getSuggestedWorkout)
    ├─ No Z2 in last 7 days + ≥2 rides: boost endurance
+   │   Z2 defined as: avg power < 75% FTP and duration > 60min
    └─ No intensity in last 7 days + form favorable: boost intensity/VO2max
+       Intensity defined as: avg power > 90% FTP
+   Note: Thresholds are FTP-relative, not hardcoded watts. FTP fluctuates
+   between athletes and over time — the service takes ftp as an input and
+   computes these thresholds dynamically.
 
 5. TIME FILTERING (from TrainNow — applied as a filter, not a scoring input)
    └─ When timeAvailable set: filter workout.duration ≤ timeAvailable + 15
@@ -335,13 +340,21 @@ describe('getWorkoutRecommendation', () => {
 
 ---
 
+## Decisions Made
+
+1. **Race proximity always wins** unless the user explicitly tells the Coach otherwise in conversation. The Coach can override (e.g., "I know my race is in 5 days but I want one more hard session") but the default recommendation from the service always respects race proximity. This is non-negotiable at the service level.
+
+2. **Zone gap thresholds must be FTP-relative, not hardcoded watts.** The current TrainNow code uses 200W for Z2 and 220W for intensity — these are meaningless for a rider with a 150W FTP or a 350W FTP. The service will compute:
+   - Z2 threshold: avg power < **75% of FTP** and duration > 60min
+   - Intensity threshold: avg power > **90% of FTP**
+   - FTP is a required input to the service (defaults to 200 if unknown)
+   - This is a Phase 1 requirement, not a future improvement.
+
+3. **Cache strategy:** Use `useMemo` in React (already the pattern in TrainNow). No separate cache layer needed — the computation is pure and fast (no API calls).
+
 ## Open Questions
 
-1. **Should `timeAvailable` affect TodaysFocusCard?** Currently it doesn't — only TrainNow has the time selector. Option: add a small time selector to TodaysFocusCard, or always default to 60min for the dashboard suggestion.
-
-2. **Cache duration:** The doc mentions "caches result per session" — recommend using `useMemo` in React (already the pattern in TrainNow) rather than a separate cache layer. The computation is fast (no API calls).
-
-3. **Zone gap thresholds are hardcoded (200W for Z2, 220W for intensity).** These should probably be FTP-relative (e.g., Z2 = avg power < 75% FTP, intensity = avg power > 90% FTP). This is an improvement to make during Phase 1, but not a blocker.
+1. **Should `timeAvailable` affect TodaysFocusCard?** Currently only TrainNow has the time selector. Option: add a small time selector to TodaysFocusCard, or always default to 60min for the dashboard suggestion.
 
 ---
 
