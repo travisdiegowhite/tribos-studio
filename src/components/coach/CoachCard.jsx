@@ -175,112 +175,114 @@ function CoachCard({ trainingContext, onAddWorkout, compact = false }) {
 
   return (
     <Card
-      withBorder
-      padding="md"
+      padding="lg"
       radius="md"
+      h="100%"
       style={{
-        backgroundColor: 'var(--tribos-bg-secondary)',
-        borderColor: 'var(--tribos-border)',
+        background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15), transparent)',
+        border: '1px solid rgba(34, 197, 94, 0.2)',
       }}
     >
-      <Stack gap="sm">
+      <Stack gap="md" h="100%" justify="space-between">
         {/* Header */}
-        <Group justify="space-between">
-          <Group gap="xs">
-            <ThemeIcon size="sm" color="lime" variant="light" radius="md">
-              <IconSparkles size={14} />
-            </ThemeIcon>
-            <Text fw={600} size="sm">AI Coach</Text>
-          </Group>
-          {(response || error) && (
-            <ActionIcon
-              variant="subtle"
-              color="gray"
-              size="sm"
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
-            </ActionIcon>
-          )}
-        </Group>
-
-        {/* Proactive Suggestion - show when no response */}
-        {!response && !isLoading && !error && (
-          <Box>
-            <Text size="sm" c="dimmed" mb="xs">
-              {suggestion.message}
-            </Text>
-            {suggestion.workout && (
-              <Button
-                size="xs"
-                variant="light"
-                color="lime"
-                leftSection={<IconCalendarPlus size={14} />}
-                onClick={() => handleAddWorkout(suggestion.workout)}
+        <Box>
+          <Group justify="space-between" mb="md">
+            <Group gap="xs">
+              <ThemeIcon size="lg" color="lime" variant="light" radius="md">
+                <IconSparkles size={18} />
+              </ThemeIcon>
+              <Text fw={600}>AI Coach</Text>
+            </Group>
+            {(response || error) && (
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="sm"
+                onClick={() => setExpanded(!expanded)}
               >
-                Add {suggestion.workout.name}
-              </Button>
+                {expanded ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+              </ActionIcon>
             )}
-          </Box>
-        )}
-
-        {/* Loading State */}
-        {isLoading && (
-          <Group gap="xs">
-            <Loader size="xs" color="lime" />
-            <Text size="sm" c="dimmed">Thinking...</Text>
           </Group>
-        )}
 
-        {/* Response Area */}
-        <Collapse in={expanded && (response || error)}>
-          {error ? (
-            <Paper p="sm" style={{ backgroundColor: 'rgba(255, 68, 68, 0.1)' }}>
-              <Group justify="space-between">
-                <Text size="sm" c="red">{error}</Text>
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  color="red"
-                  onClick={() => {
-                    setError(null);
-                    handleSubmit();
-                  }}
-                >
-                  <IconRefresh size={14} />
-                </ActionIcon>
-              </Group>
-            </Paper>
-          ) : response ? (
-            <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
-              <Text size="sm" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                {response}
+          {/* Proactive Suggestion - show when no response */}
+          {!response && !isLoading && !error && (
+            <Box>
+              <Text size="sm" mb="md" style={{ color: 'var(--tribos-text-primary)', lineHeight: 1.6 }}>
+                {suggestion.message}
               </Text>
-              {responseActions.length > 0 && (
-                <Group gap="xs" mt="sm">
-                  {responseActions.map((action) => (
-                    <Button
-                      key={action.id}
-                      size="xs"
-                      variant="light"
-                      color="lime"
-                      leftSection={<IconCalendarPlus size={14} />}
-                      onClick={() => handleAddWorkout(action.workout)}
-                    >
-                      Add {action.label}
-                    </Button>
-                  ))}
-                </Group>
+              {suggestion.workout && (
+                <Button
+                  size="sm"
+                  variant="filled"
+                  color="lime"
+                  leftSection={<IconCalendarPlus size={16} />}
+                  onClick={() => handleAddWorkout(suggestion.workout)}
+                >
+                  Add {suggestion.workout.name}
+                </Button>
               )}
-            </Paper>
-          ) : null}
-        </Collapse>
+            </Box>
+          )}
 
-        {/* Input */}
+          {/* Loading State */}
+          {isLoading && (
+            <Group gap="xs">
+              <Loader size="sm" color="lime" />
+              <Text size="sm" c="dimmed">Thinking...</Text>
+            </Group>
+          )}
+
+          {/* Response Area */}
+          <Collapse in={expanded && (response || error)}>
+            {error ? (
+              <Paper p="sm" mt="sm" style={{ backgroundColor: 'rgba(255, 68, 68, 0.1)' }}>
+                <Group justify="space-between">
+                  <Text size="sm" c="red">{error}</Text>
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="red"
+                    onClick={() => {
+                      setError(null);
+                      handleSubmit();
+                    }}
+                  >
+                    <IconRefresh size={14} />
+                  </ActionIcon>
+                </Group>
+              </Paper>
+            ) : response ? (
+              <Paper p="sm" mt="sm" style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
+                <Text size="sm" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                  {response}
+                </Text>
+                {responseActions.length > 0 && (
+                  <Group gap="xs" mt="sm">
+                    {responseActions.map((action) => (
+                      <Button
+                        key={action.id}
+                        size="xs"
+                        variant="light"
+                        color="lime"
+                        leftSection={<IconCalendarPlus size={14} />}
+                        onClick={() => handleAddWorkout(action.workout)}
+                      >
+                        Add {action.label}
+                      </Button>
+                    ))}
+                  </Group>
+                )}
+              </Paper>
+            ) : null}
+          </Collapse>
+        </Box>
+
+        {/* Input - at bottom */}
         <Group gap="xs">
           <TextInput
             ref={inputRef}
-            placeholder="Ask something else..."
+            placeholder="Ask your coach anything..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -289,8 +291,8 @@ function CoachCard({ trainingContext, onAddWorkout, compact = false }) {
             style={{ flex: 1 }}
             styles={{
               input: {
-                backgroundColor: 'var(--tribos-bg-tertiary)',
-                borderColor: 'var(--tribos-border)',
+                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
                 '&:focus': {
                   borderColor: 'var(--tribos-lime)',
                 },

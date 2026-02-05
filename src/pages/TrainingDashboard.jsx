@@ -60,6 +60,7 @@ import {
   IconFileImport,
   IconCalendarStats,
   IconCalendarEvent,
+  IconTrophy,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -898,7 +899,7 @@ function TrainingDashboard() {
                     previousMetrics={null}
                   />
 
-                  {/* Row 1: Today's Focus + Race Goals + AI Coach */}
+                  {/* Row 1: Today's Focus + AI Coach */}
                   <Grid gutter="md">
                     <Grid.Col span={{ base: 12, md: 7 }}>
                       <TodaysFocusCard
@@ -915,20 +916,17 @@ function TrainingDashboard() {
                       />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, md: 5 }}>
-                      <Stack gap="md">
-                        <RaceGoalsPanel isImperial={isImperial} compact />
-                        <CoachCard
-                          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
-                          onAddWorkout={async (workout) => {
-                            notifications.show({
-                              title: 'Workout Added',
-                              message: `${workout.name || workout.workout_id} scheduled`,
-                              color: 'lime'
-                            });
-                            setCalendarRefreshKey(prev => prev + 1);
-                          }}
-                        />
-                      </Stack>
+                      <CoachCard
+                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
+                        onAddWorkout={async (workout) => {
+                          notifications.show({
+                            title: 'Workout Added',
+                            message: `${workout.name || workout.workout_id} scheduled`,
+                            color: 'lime'
+                          });
+                          setCalendarRefreshKey(prev => prev + 1);
+                        }}
+                      />
                     </Grid.Col>
                   </Grid>
 
@@ -1285,6 +1283,34 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
                   <Text size="xs" c="dimmed">avg power</Text>
                 </Box>
               )}
+            </Group>
+          </Group>
+        </>
+      )}
+
+      {/* Race Goals - Compact Countdown */}
+      {raceGoals && raceGoals.length > 0 && (
+        <>
+          <Divider my="md" />
+          <Group gap="md">
+            <ThemeIcon size="lg" variant="light" color="orange">
+              <IconTrophy size={18} />
+            </ThemeIcon>
+            <Group gap="lg" style={{ flex: 1 }}>
+              {raceGoals.slice(0, 3).map((race) => {
+                const daysUntil = Math.ceil((new Date(race.race_date + 'T00:00:00') - new Date()) / (1000 * 60 * 60 * 24));
+                return (
+                  <Group key={race.id} gap="xs">
+                    <Badge size="sm" color={daysUntil <= 14 ? 'red' : daysUntil <= 30 ? 'yellow' : 'gray'} variant="light">
+                      {race.priority || 'A'}
+                    </Badge>
+                    <Box>
+                      <Text size="sm" fw={500} lineClamp={1}>{race.name}</Text>
+                      <Text size="xs" c="dimmed">in {daysUntil} days</Text>
+                    </Box>
+                  </Group>
+                );
+              })}
             </Group>
           </Group>
         </>
