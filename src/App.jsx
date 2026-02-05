@@ -35,6 +35,7 @@ import GoogleCalendarCallback from './pages/oauth/GoogleCalendarCallback.jsx';
 // Components
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import PageTracker from './components/PageTracker.jsx';
+import { CoachCommandBarProvider, CoachCommandBar } from './components/coach';
 
 // Styles
 import '@mantine/core/styles.css';
@@ -221,12 +222,15 @@ function App() {
             <Notifications position="top-right" />
             <AuthProvider>
               <UserPreferencesProvider>
-                <BrowserRouter>
-                  <PageTracker />
-                  <AppRoutes />
-                </BrowserRouter>
-                <Analytics />
-                <SpeedInsights />
+                <CoachCommandBarProvider>
+                  <BrowserRouter>
+                    <PageTracker />
+                    <AppRoutes />
+                  </BrowserRouter>
+                  <CoachCommandBar />
+                  <Analytics />
+                  <SpeedInsights />
+                </CoachCommandBarProvider>
               </UserPreferencesProvider>
             </AuthProvider>
           </ErrorBoundary>

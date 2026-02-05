@@ -67,6 +67,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { parsePlanStartDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
 import TrainingStrategist from '../components/TrainingStrategist.jsx';
+import { CoachCommandBarTrigger } from '../components/coach';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
 // TrainingPlanBrowser moved to PlannerPage
@@ -970,6 +971,32 @@ function TrainingDashboard() {
                   </Paper>
 
                   {/* Row 3: AI Coach - Full Width */}
+                  {/* New Command Bar CTA Card */}
+                  <Card
+                    withBorder
+                    p="lg"
+                    style={{
+                      background: 'linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)',
+                      border: '1px solid rgba(50, 205, 50, 0.15)',
+                    }}
+                  >
+                    <Group justify="space-between" align="center">
+                      <Box>
+                        <Group gap="xs" mb={4}>
+                          <ThemeIcon size="sm" color="lime" variant="light" radius="md">
+                            <IconMessageCircle size={14} />
+                          </ThemeIcon>
+                          <Text fw={600} size="sm">AI Coach</Text>
+                        </Group>
+                        <Text size="xs" c="dimmed">
+                          Get personalized training advice, build plans, and analyze your fitness
+                        </Text>
+                      </Box>
+                      <CoachCommandBarTrigger showShortcut />
+                    </Group>
+                  </Card>
+
+                  {/* Existing Training Strategist Chat */}
                   <Card withBorder p="md">
                     <Box ref={aiCoachRef}>
                       <TrainingStrategist
@@ -1349,6 +1376,32 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
       />
 
       {/* AI Coach Section */}
+      {/* Command Bar Trigger Card */}
+      <Card
+        withBorder
+        p="lg"
+        style={{
+          background: 'linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)',
+          border: '1px solid rgba(50, 205, 50, 0.15)',
+        }}
+      >
+        <Group justify="space-between" align="center">
+          <Box>
+            <Group gap="xs" mb={4}>
+              <ThemeIcon size="sm" color="lime" variant="light" radius="md">
+                <IconMessageCircle size={14} />
+              </ThemeIcon>
+              <Text fw={600} size="sm">AI Coach</Text>
+            </Group>
+            <Text size="xs" c="dimmed">
+              Get personalized training advice, build plans, and analyze your fitness
+            </Text>
+          </Box>
+          <CoachCommandBarTrigger showShortcut />
+        </Group>
+      </Card>
+
+      {/* Existing Training Strategist Chat */}
       <Box ref={aiCoachRef}>
         <TrainingStrategist
           trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
