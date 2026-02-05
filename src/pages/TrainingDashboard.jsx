@@ -66,7 +66,7 @@ import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parsePlanStartDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
-import { useCoachCommandBar } from '../components/coach';
+import { CoachCard } from '../components/coach';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
 // TrainingPlanBrowser moved to PlannerPage
@@ -114,7 +114,6 @@ function TrainingDashboard() {
   const validTabs = ['today', 'trends', 'power', 'routes', 'history', 'insights', 'calendar'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
   const [activeTab, setActiveTab] = useState(initialTab);
-  const { open: openCoachCommandBar } = useCoachCommandBar();
   const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);
   const [speedProfile, setSpeedProfile] = useState(null);
@@ -899,7 +898,7 @@ function TrainingDashboard() {
                     previousMetrics={null}
                   />
 
-                  {/* Row 1: Today's Focus + Race Goals */}
+                  {/* Row 1: Today's Focus + Race Goals + AI Coach */}
                   <Grid gutter="md">
                     <Grid.Col span={{ base: 12, md: 7 }}>
                       <TodaysFocusCard
@@ -911,13 +910,25 @@ function TrainingDashboard() {
                         formatDist={formatDist}
                         formatTime={formatTime}
                         raceGoals={raceGoals}
-                        onAskCoach={() => openCoachCommandBar()}
                         suggestedWorkout={suggestedWorkout}
                         onViewWorkout={handleViewWorkout}
                       />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, md: 5 }}>
-                      <RaceGoalsPanel isImperial={isImperial} compact />
+                      <Stack gap="md">
+                        <RaceGoalsPanel isImperial={isImperial} compact />
+                        <CoachCard
+                          trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
+                          onAddWorkout={async (workout) => {
+                            notifications.show({
+                              title: 'Workout Added',
+                              message: `${workout.name || workout.workout_id} scheduled`,
+                              color: 'lime'
+                            });
+                            setCalendarRefreshKey(prev => prev + 1);
+                          }}
+                        />
+                      </Stack>
                     </Grid.Col>
                   </Grid>
 
@@ -1141,7 +1152,7 @@ function TrainingDashboard() {
 // ============================================================================
 // TODAY'S FOCUS HERO CARD - Story-Driven Narrative
 // ============================================================================
-function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, raceGoals, onAskCoach, suggestedWorkout, onViewWorkout }) {
+function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, raceGoals, suggestedWorkout, onViewWorkout }) {
   const lastRide = activities[0];
   const FormIcon = formStatus.icon;
 
@@ -1215,24 +1226,17 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             {getStory()}
           </Text>
 
-          <Group gap="lg" mt="md">
+          {suggestedWorkout && (
             <Button
-              variant="filled"
+              variant="light"
               color="lime"
-              leftSection={<IconMessageCircle size={16} />}
-              onClick={onAskCoach}
-            >
-              Ask AI Coach
-            </Button>
-            <Button
-              variant="subtle"
-              color="gray"
+              mt="md"
               rightSection={<IconChevronRight size={16} />}
-              onClick={() => suggestedWorkout && onViewWorkout(suggestedWorkout)}
+              onClick={() => onViewWorkout(suggestedWorkout)}
             >
-              Suggested Workout
+              View Suggested Workout
             </Button>
-          </Group>
+          )}
         </Box>
 
         {/* Weekly Progress Ring - Neutral to avoid competing with status badge */}
