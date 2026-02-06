@@ -2179,7 +2179,16 @@ function RouteBuilder() {
            `${waypoints.length} waypoints. Tap markers to remove.`}
         </Text>
         {routeGeometry && routeStats && (
-          <RouteStatsPanel routeStats={routeStats} isImperial={isImperial} routingSource={routingSource} />
+          <RouteStatsPanel
+            stats={routeStats}
+            routingSource={routingSource}
+            speedProfile={speedProfile}
+            formatDist={formatDist}
+            formatElev={formatElev}
+            formatSpd={formatSpd}
+            getUserSpeedForProfile={getUserSpeedForProfile}
+            routeProfile={routeProfile}
+          />
         )}
         <Button
           variant="light"
@@ -3228,9 +3237,14 @@ function RouteBuilder() {
                 {/* Route stats (when route exists) */}
                 {routeGeometry && routeStats && (
                   <RouteStatsPanel
-                    routeStats={routeStats}
-                    isImperial={isImperial}
+                    stats={routeStats}
                     routingSource={routingSource}
+                    speedProfile={speedProfile}
+                    formatDist={formatDist}
+                    formatElev={formatElev}
+                    formatSpd={formatSpd}
+                    getUserSpeedForProfile={getUserSpeedForProfile}
+                    routeProfile={routeProfile}
                   />
                 )}
 
