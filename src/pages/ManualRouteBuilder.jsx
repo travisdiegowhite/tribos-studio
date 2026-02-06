@@ -407,7 +407,7 @@ export default function ManualRouteBuilder() {
               {/* Undo/Redo */}
               <Tooltip label="Undo (Ctrl+Z)">
                 <ActionIcon
-                  variant="subtle"
+                  variant="light"
                   color="gray"
                   disabled={!canUndo}
                   onClick={undo}
@@ -418,7 +418,7 @@ export default function ManualRouteBuilder() {
 
               <Tooltip label="Redo (Ctrl+Y)">
                 <ActionIcon
-                  variant="subtle"
+                  variant="light"
                   color="gray"
                   disabled={!canRedo}
                   onClick={redo}
