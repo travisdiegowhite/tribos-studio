@@ -122,11 +122,12 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      {/* Redirect old /routes/list bookmarks to the builder */}
       <Route
         path="/routes/list"
         element={
           <ProtectedRoute>
-            <MyRoutes />
+            <Navigate to="/routes/new" replace />
           </ProtectedRoute>
         }
       />

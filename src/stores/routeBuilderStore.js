@@ -43,6 +43,9 @@ const initialState = {
   // Selected workout ID (we store ID, not the full object)
   selectedWorkoutId: null,
 
+  // Builder mode: 'ready' | 'ai' | 'manual' | 'editing'
+  builderMode: 'ready',
+
   // Routing source info
   routingSource: null,
 
@@ -126,6 +129,9 @@ export const useRouteBuilderStore = create(
         lastSaved: Date.now()
       }),
 
+      // === Builder Mode ===
+      setBuilderMode: (mode) => set({ builderMode: mode }),
+
       // === Routing Source ===
       setRoutingSource: (source) => set({
         routingSource: source,
@@ -141,6 +147,7 @@ export const useRouteBuilderStore = create(
         routeStats: routeData.stats || { distance: 0, elevation: 0, duration: 0 },
         waypoints: routeData.waypoints || [],
         routingSource: routeData.source || null,
+        builderMode: 'editing',
         lastSaved: Date.now()
       }),
 
@@ -152,7 +159,8 @@ export const useRouteBuilderStore = create(
         waypoints: [],
         aiSuggestions: [],
         routingSource: null,
-        explicitDistanceKm: null, // Clear explicit distance when clearing route
+        explicitDistanceKm: null,
+        builderMode: 'ready',
         lastSaved: Date.now()
       }),
 
@@ -196,6 +204,7 @@ export const useRouteBuilderStore = create(
         explicitDistanceKm: state.explicitDistanceKm,
         selectedWorkoutId: state.selectedWorkoutId,
         routingSource: state.routingSource,
+        builderMode: state.builderMode,
         lastSaved: state.lastSaved,
       }),
 

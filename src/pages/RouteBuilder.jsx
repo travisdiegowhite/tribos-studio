@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -42,6 +42,11 @@ import MapControls from '../components/MapControls.jsx';
 import { FuelCard } from '../components/fueling';
 import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
+import SavedRoutesDrawer from '../components/SavedRoutesDrawer.jsx';
+import ModeSelector from '../components/RouteBuilder/ModeSelector.jsx';
+import useRouteManipulation from '../hooks/useRouteManipulation';
+import { parseGpxFile } from '../utils/gpxParser';
+import { IconArrowsExchange } from '@tabler/icons-react';
 
 // Shared constants — single source of truth in components/RouteBuilder/index.js
 import { MAPBOX_TOKEN, BASEMAP_STYLES, CYCLOSM_STYLE } from '../components/RouteBuilder';
@@ -80,12 +85,27 @@ function RouteBuilder() {
     aiSuggestions, setAiSuggestions,
     selectedWorkoutId, setSelectedWorkoutId,
     routingSource, setRoutingSource,
+    builderMode, setBuilderMode,
     clearRoute,
     resetAll,
   } = useRouteBuilderStore();
 
   // Check if store has been hydrated from localStorage
   const storeHydrated = useRouteBuilderHydrated();
+
+  // Auto-detect builder mode on mount: if loading a saved route, go to editing;
+  // if there's already a route geometry from a previous session, go to editing.
+  useEffect(() => {
+    if (!storeHydrated) return;
+    if (routeId) {
+      // Loading a saved route → editing mode
+      setBuilderMode('editing');
+    } else if (routeGeometry?.coordinates?.length > 0) {
+      // Persisted route from last session → editing mode
+      setBuilderMode('editing');
+    }
+    // Otherwise keep whatever mode was persisted (or 'ready' default)
+  }, [storeHydrated, routeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Resolve selectedWorkout from ID
   const selectedWorkout = selectedWorkoutId ? WORKOUT_LIBRARY[selectedWorkoutId] : null;
@@ -94,6 +114,8 @@ function RouteBuilder() {
   }, [setSelectedWorkoutId]);
 
   // === Transient State (not persisted) ===
+  // Saved routes drawer
+  const [savedRoutesOpen, setSavedRoutesOpen] = useState(false);
   // Calendar context state (when navigating from training calendar)
   const [calendarContext, setCalendarContext] = useState(null);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -134,9 +156,31 @@ function RouteBuilder() {
 
   // Route editing state
   const [editMode, setEditMode] = useState(false);
+  const [elevationProfileData, setElevationProfileData] = useState([]);
   const [elevationHoverPosition, setElevationHoverPosition] = useState(null); // For elevation chart hover marker
   const [selectedSegment, setSelectedSegment] = useState(null); // { startIndex, endIndex, stats }
   const [isRemovingSegment, setIsRemovingSegment] = useState(false);
+
+  // Manual editing tools (undo/redo, reverse, snap-to-roads)
+  const {
+    undo: manualUndo,
+    redo: manualRedo,
+    canUndo: manualCanUndo,
+    canRedo: manualCanRedo,
+    reverseRoute: manualReverse,
+    snapToRoads: manualSnapToRoads,
+  } = useRouteManipulation({
+    waypoints,
+    setWaypoints,
+    routeGeometry,
+    setRouteGeometry,
+    routeStats,
+    setRouteStats,
+    elevationProfile: elevationProfileData,
+    setElevationProfile: setElevationProfileData,
+    routingProfile: routeProfile,
+    useSmartRouting: true,
+  });
 
   // Weather state
   const [weatherData, setWeatherData] = useState(null);
@@ -629,6 +673,9 @@ function RouteBuilder() {
       }
     }
 
+    // Only allow waypoint placement in manual or editing mode
+    if (builderMode === 'ready') return;
+
     // Normal mode: add waypoint (Shape B: matches useRouteManipulation convention)
     const newWaypoint = {
       id: `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -839,6 +886,69 @@ function RouteBuilder() {
     });
   }, [resetAll, routeId, navigate]);
 
+  // GPX/TCX import handler
+  const handleImportGPX = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.gpx,.tcx';
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const gpxData = await parseGpxFile(text, file.name);
+        if (!gpxData.trackPoints || gpxData.trackPoints.length < 2) {
+          throw new Error('File must contain at least 2 points');
+        }
+        const trackPoints = gpxData.trackPoints;
+        const coords = trackPoints.map(p => [p.longitude, p.latitude]);
+
+        // Create waypoints at start, intermediate, and end
+        const wpIndices = [0];
+        if (trackPoints.length > 100) {
+          const step = Math.floor(trackPoints.length / 5);
+          for (let i = step; i < trackPoints.length - step; i += step) {
+            wpIndices.push(i);
+          }
+        }
+        wpIndices.push(trackPoints.length - 1);
+
+        const wps = wpIndices.map((idx, i) => ({
+          id: `wp_${Date.now()}_${i}`,
+          position: [trackPoints[idx].longitude, trackPoints[idx].latitude],
+          type: i === 0 ? 'start' : i === wpIndices.length - 1 ? 'end' : 'waypoint',
+          name: i === 0 ? 'Start' : i === wpIndices.length - 1 ? 'End' : `Waypoint ${i}`,
+        }));
+
+        setWaypoints(wps);
+        setRouteGeometry({ type: 'LineString', coordinates: coords });
+        if (gpxData.metadata?.name) setRouteName(gpxData.metadata.name);
+        if (gpxData.summary) {
+          setRouteStats({
+            distance: (gpxData.summary.totalDistance || 0) / 1000,
+            elevation: gpxData.summary.totalAscent || 0,
+            duration: Math.round((gpxData.summary.totalDistance || 0) / 1000 / 25 * 60),
+          });
+        }
+        setBuilderMode('editing');
+        setRoutingSource('gpx_import');
+        notifications.show({
+          title: 'Route Imported',
+          message: `${gpxData.metadata?.name || file.name} - ${trackPoints.length} points`,
+          color: 'green',
+        });
+      } catch (err) {
+        console.error('Import failed:', err);
+        notifications.show({
+          title: 'Import Failed',
+          message: err.message || 'Failed to parse file',
+          color: 'red',
+        });
+      }
+    };
+    input.click();
+  }, [setWaypoints, setRouteGeometry, setRouteName, setRouteStats, setBuilderMode, setRoutingSource]);
+
   // Generate AI Routes using the comprehensive aiRouteGenerator or iterative builder
   const handleGenerateAIRoutes = useCallback(async () => {
     setGeneratingAI(true);
@@ -992,6 +1102,9 @@ function RouteBuilder() {
 
         // Track routing source for display
         setRoutingSource(suggestion.source || 'ai_generated');
+
+        // Transition to editing mode
+        setBuilderMode('editing');
 
         // Clear waypoints since we're using AI-generated route
         setWaypoints([]);
@@ -1550,6 +1663,37 @@ function RouteBuilder() {
   // Render the sidebar/bottom sheet controls
   const renderControls = () => (
     <Stack gap="md">
+      {/* My Routes button (mobile) */}
+      <Button
+        variant="light"
+        color="gray"
+        size="xs"
+        leftSection={<IconFolderOpen size={14} />}
+        onClick={() => setSavedRoutesOpen(true)}
+        fullWidth
+      >
+        My Routes
+      </Button>
+
+      {/* Mode selector (mobile - ready mode) */}
+      {builderMode === 'ready' && (
+        <ModeSelector
+          onSelectMode={(mode) => setBuilderMode(mode)}
+          onImportGPX={handleImportGPX}
+        />
+      )}
+
+      {/* AI / Editing controls (mobile) */}
+      {(builderMode === 'ai' || builderMode === 'editing') && (
+      <>
+
+      {/* Back to mode selection (mobile) */}
+      {builderMode === 'ai' && !routeGeometry && (
+        <Button variant="subtle" color="gray" size="xs" onClick={() => setBuilderMode('ready')}>
+          ← Back
+        </Button>
+      )}
+
       {/* Calendar Context Banner (mobile) */}
       {calendarContext && (
         <Paper
@@ -2010,6 +2154,45 @@ function RouteBuilder() {
           New Route (Clear Session)
         </Button>
       </Stack>
+      </>
+      )}
+
+      {/* Manual mode controls (mobile) */}
+      {builderMode === 'manual' && (
+      <>
+        {!routeGeometry && (
+          <Button variant="subtle" color="gray" size="xs" onClick={() => setBuilderMode('ready')}>
+            ← Back
+          </Button>
+        )}
+        <Box>
+          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">ROUTE NAME</Text>
+          <TextInput
+            value={routeName}
+            onChange={(e) => setRouteName(e.target.value.slice(0, 50))}
+            variant="filled"
+            size="sm"
+          />
+        </Box>
+        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+          {waypoints.length === 0 ? 'Tap on the map to place waypoints.' :
+           `${waypoints.length} waypoints. Tap markers to remove.`}
+        </Text>
+        {routeGeometry && routeStats && (
+          <RouteStatsPanel routeStats={routeStats} isImperial={isImperial} routingSource={routingSource} />
+        )}
+        <Button
+          variant="light"
+          color="lime"
+          size="xs"
+          leftSection={<IconRobot size={14} />}
+          onClick={() => setBuilderMode('ai')}
+          fullWidth
+        >
+          Switch to AI Builder
+        </Button>
+      </>
+      )}
     </Stack>
   );
 
@@ -2029,7 +2212,7 @@ function RouteBuilder() {
                 mapStyle={currentMapStyle}
                 mapboxAccessToken={MAPBOX_TOKEN}
                 style={{ width: '100%', height: '100%' }}
-                cursor="crosshair"
+                cursor={builderMode === 'manual' || builderMode === 'editing' ? 'crosshair' : 'grab'}
               >
                 {/* Bike Infrastructure Layer - renders below routes */}
                 {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
@@ -2408,6 +2591,13 @@ function RouteBuilder() {
             {renderControls()}
           </BottomSheet>
         </Box>
+
+        {/* Saved Routes Drawer (mobile) */}
+        <SavedRoutesDrawer
+          opened={savedRoutesOpen}
+          onClose={() => setSavedRoutesOpen(false)}
+          onRouteSelect={(id) => navigate(`/routes/${id}`)}
+        />
       </AppShell>
     );
   }
@@ -2430,6 +2620,41 @@ function RouteBuilder() {
           {/* Scrollable content area */}
           <Box style={{ flex: 1, overflowY: 'auto', padding: tokens.spacing.md }}>
             <Stack gap="md">
+              {/* My Routes button - always visible */}
+              <Button
+                variant="light"
+                color="gray"
+                size="xs"
+                leftSection={<IconFolderOpen size={14} />}
+                onClick={() => setSavedRoutesOpen(true)}
+                fullWidth
+              >
+                My Routes
+              </Button>
+
+              {/* === READY MODE: Mode selector === */}
+              {builderMode === 'ready' && (
+                <ModeSelector
+                  onSelectMode={(mode) => setBuilderMode(mode)}
+                />
+              )}
+
+              {/* === AI / EDITING MODE: Full AI builder controls === */}
+              {(builderMode === 'ai' || builderMode === 'editing') && (
+              <>
+              {/* Back to mode selection (only if no route yet) */}
+              {builderMode === 'ai' && !routeGeometry && (
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  size="xs"
+                  onClick={() => setBuilderMode('ready')}
+                  compact="true"
+                >
+                  ← Back
+                </Button>
+              )}
+
               {/* Step Indicator */}
               <StepIndicator
                 currentStep={currentWizardStep}
@@ -2878,6 +3103,150 @@ function RouteBuilder() {
                   </Text>
                 )}
               </Box>
+              </>
+              )}
+
+              {/* === MANUAL MODE: Manual builder controls === */}
+              {builderMode === 'manual' && (
+              <>
+                {/* Back to mode selection (only if no route yet) */}
+                {!routeGeometry && (
+                  <Button
+                    variant="subtle"
+                    color="gray"
+                    size="xs"
+                    onClick={() => setBuilderMode('ready')}
+                    compact="true"
+                  >
+                    ← Back
+                  </Button>
+                )}
+
+                {/* Route Name */}
+                <Box>
+                  <Group justify="space-between" mb="xs">
+                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                      ROUTE NAME
+                    </Text>
+                  </Group>
+                  <TextInput
+                    value={routeName}
+                    onChange={(e) => setRouteName(e.target.value.slice(0, 50))}
+                    variant="filled"
+                    size="md"
+                  />
+                </Box>
+
+                {/* Manual mode hint */}
+                <Box
+                  style={{
+                    padding: tokens.spacing.md,
+                    backgroundColor: '#3b82f608',
+                    border: '1px solid #3b82f625',
+                    borderRadius: tokens.radius.md,
+                  }}
+                >
+                  <Group gap="xs" mb="xs">
+                    <IconHandClick size={18} style={{ color: '#3b82f6' }} />
+                    <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                      Manual Route Builder
+                    </Text>
+                  </Group>
+                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                    {waypoints.length === 0 ? 'Click on the map to place your first waypoint.' :
+                     waypoints.length === 1 ? 'Click again to add more waypoints. Routes auto-snap to roads.' :
+                     `${waypoints.length} waypoints placed. Drag markers to adjust.`}
+                  </Text>
+                </Box>
+
+                {/* Manual editing toolbar */}
+                {waypoints.length > 0 && (
+                  <Group gap="xs">
+                    <Tooltip label="Undo">
+                      <ActionIcon
+                        variant="light"
+                        color="gray"
+                        size="md"
+                        onClick={manualUndo}
+                        disabled={!manualCanUndo}
+                      >
+                        <IconRefresh size={16} style={{ transform: 'scaleX(-1)' }} />
+                      </ActionIcon>
+                    </Tooltip>
+                    <Tooltip label="Redo">
+                      <ActionIcon
+                        variant="light"
+                        color="gray"
+                        size="md"
+                        onClick={manualRedo}
+                        disabled={!manualCanRedo}
+                      >
+                        <IconRefresh size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                    <Tooltip label="Reverse Route">
+                      <ActionIcon
+                        variant="light"
+                        color="gray"
+                        size="md"
+                        onClick={manualReverse}
+                        disabled={waypoints.length < 2}
+                      >
+                        <IconArrowsExchange size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                    <Tooltip label="Clear Route">
+                      <ActionIcon
+                        variant="light"
+                        color="red"
+                        size="md"
+                        onClick={() => {
+                          setWaypoints([]);
+                          setRouteGeometry(null);
+                          setRouteStats({ distance: 0, elevation: 0, duration: 0 });
+                        }}
+                      >
+                        <IconTrash size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
+                )}
+
+                {/* Routing profile for manual mode */}
+                <Select
+                  label="Routing Profile"
+                  size="xs"
+                  value={routeProfile}
+                  onChange={setRouteProfile}
+                  data={[
+                    { value: 'road', label: 'Road' },
+                    { value: 'gravel', label: 'Gravel' },
+                    { value: 'mountain', label: 'Mountain' },
+                  ]}
+                />
+
+                {/* Route stats (when route exists) */}
+                {routeGeometry && routeStats && (
+                  <RouteStatsPanel
+                    routeStats={routeStats}
+                    isImperial={isImperial}
+                    routingSource={routingSource}
+                  />
+                )}
+
+                {/* Switch to AI mode */}
+                <Button
+                  variant="light"
+                  color="lime"
+                  size="xs"
+                  leftSection={<IconRobot size={14} />}
+                  onClick={() => setBuilderMode('ai')}
+                  fullWidth
+                >
+                  Switch to AI Builder
+                </Button>
+              </>
+              )}
             </Stack>
           </Box>
 
@@ -2926,21 +3295,33 @@ function RouteBuilder() {
                 </Button>
               </Group>
 
-              {/* Edit Mode Toggle (Mobile) */}
+              {/* Edit and Manual Mode Toggles */}
               {routeGeometry && (
-                <Button
-                  variant={editMode ? 'filled' : 'light'}
-                  color={editMode ? 'red' : 'gray'}
-                  size="sm"
-                  fullWidth
-                  onClick={() => {
-                    setEditMode(!editMode);
-                    setSelectedSegment(null);
-                  }}
-                  leftSection={<IconScissors size={16} />}
-                >
-                  {editMode ? 'Exit Edit Mode' : 'Edit Route'}
-                </Button>
+                <Group grow>
+                  <Button
+                    variant={editMode ? 'filled' : 'light'}
+                    color={editMode ? 'red' : 'gray'}
+                    size="sm"
+                    onClick={() => {
+                      setEditMode(!editMode);
+                      setSelectedSegment(null);
+                    }}
+                    leftSection={<IconScissors size={16} />}
+                  >
+                    {editMode ? 'Exit Edit' : 'Edit Route'}
+                  </Button>
+                  {builderMode !== 'manual' && (
+                    <Button
+                      variant="light"
+                      color="blue"
+                      size="sm"
+                      onClick={() => setBuilderMode('manual')}
+                      leftSection={<IconHandClick size={16} />}
+                    >
+                      Manual Edit
+                    </Button>
+                  )}
+                </Group>
               )}
 
               {/* Selected Segment Actions (Mobile) */}
@@ -3190,7 +3571,7 @@ function RouteBuilder() {
               mapStyle={currentMapStyle}
               mapboxAccessToken={MAPBOX_TOKEN}
               style={{ width: '100%', height: '100%' }}
-              cursor="crosshair"
+              cursor={builderMode === 'manual' || builderMode === 'editing' ? 'crosshair' : 'grab'}
             >
               {/* Bike Infrastructure Layer - renders below routes */}
               {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
@@ -3453,6 +3834,13 @@ function RouteBuilder() {
           onHoverPosition={setElevationHoverPosition}
         />
       )}
+
+      {/* Saved Routes Drawer */}
+      <SavedRoutesDrawer
+        opened={savedRoutesOpen}
+        onClose={() => setSavedRoutesOpen(false)}
+        onRouteSelect={(id) => navigate(`/routes/${id}`)}
+      />
     </AppShell>
   );
 }

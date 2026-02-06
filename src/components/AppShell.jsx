@@ -25,7 +25,7 @@ import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
 // Flat navigation - 5 direct links, no dropdowns
 const navItems = [
   { path: '/dashboard', label: 'Home', icon: IconHome },
-  { path: '/routes/list', label: 'Routes', icon: IconMap },
+  { path: '/routes/new', label: 'Routes', icon: IconMap },
   { path: '/training', label: 'Training', icon: IconActivity },
   { path: '/community', label: 'Cafe', icon: IconUsers },
   { path: '/settings', label: 'Settings', icon: IconSettings },
@@ -38,8 +38,8 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
 
   // Check if current path matches nav item
   const isActive = (item) => {
-    // Special handling for routes - match both /routes/list and /routes/new
-    if (item.path === '/routes/list') {
+    // Special handling for routes - match all /routes/* paths
+    if (item.path === '/routes/new') {
       return location.pathname.startsWith('/routes');
     }
     // Special handling for training - match /training and /planner
