@@ -13,8 +13,7 @@ import Landing from './pages/Landing.jsx';
 import Auth from './pages/Auth.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import RouteBuilder from './pages/RouteBuilder.jsx';
-import ManualRouteBuilder from './pages/ManualRouteBuilder.jsx';
-import MyRoutes from './pages/MyRoutes.jsx';
+// ManualRouteBuilder and MyRoutes deprecated — functionality merged into RouteBuilder
 import TrainingDashboard from './pages/TrainingDashboard.jsx';
 import PlannerPage from './pages/PlannerPage.tsx';
 import Settings from './pages/Settings.jsx';
@@ -147,12 +146,12 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* Manual Route Builder - Traditional waypoint-based route building */}
+      {/* Manual builder deprecated — redirect to unified builder */}
       <Route
         path="/routes/manual"
         element={
           <ProtectedRoute>
-            <ManualRouteBuilder />
+            <Navigate to="/routes/new" replace />
           </ProtectedRoute>
         }
       />
@@ -160,7 +159,7 @@ function AppRoutes() {
         path="/routes/manual/:routeId"
         element={
           <ProtectedRoute>
-            <ManualRouteBuilder />
+            <Navigate to="/routes/new" replace />
           </ProtectedRoute>
         }
       />
