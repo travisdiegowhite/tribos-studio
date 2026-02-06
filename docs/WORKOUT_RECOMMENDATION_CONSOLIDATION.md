@@ -220,4 +220,5 @@ ftp: number
 ---
 
 *Document created: Feb 2026*
-*Status: Pending consolidation - gathering beta feedback*
+*Status: RESOLVED — consolidated via src/services/workoutRecommendation.js*
+*See: docs/WORKOUT_RECOMMENDATION_IMPLEMENTATION_PLAN.md for implementation details*
