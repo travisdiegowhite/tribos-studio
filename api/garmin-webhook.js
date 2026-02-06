@@ -9,6 +9,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
+import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 import { verifySignature, getSignatureFromHeaders } from './utils/garmin/signatureVerifier.js';
 import { parseWebhookPayload, extractActivityFields } from './utils/garmin/webhookPayloadParser.js';
 
@@ -19,11 +20,6 @@ const supabase = createClient(
 );
 
 const WEBHOOK_SECRET = process.env.GARMIN_WEBHOOK_SECRET;
-
-// Rate limiting (in-memory - Phase 4 will replace with Supabase-backed)
-const RATE_LIMIT_WINDOW_MS = 60000;
-const RATE_LIMIT_MAX_REQUESTS = 100;
-const rateLimitStore = new Map();
 
 let lastWebhookReceived = null;
 
@@ -52,20 +48,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Rate limiting
+  // Rate limiting (Supabase-backed, distributed across serverless instances)
   const clientIP = req.headers['x-forwarded-for']?.split(',')[0].trim() || 'unknown';
-  const now = Date.now();
-
-  let limitData = rateLimitStore.get(clientIP);
-  if (!limitData || now - limitData.windowStart > RATE_LIMIT_WINDOW_MS) {
-    limitData = { windowStart: now, count: 0 };
-  }
-  limitData.count++;
-  rateLimitStore.set(clientIP, limitData);
-
-  if (limitData.count > RATE_LIMIT_MAX_REQUESTS) {
-    return res.status(429).json({ error: 'Too many requests' });
-  }
+  const { limit, windowMinutes, name } = RATE_LIMITS.GARMIN_WEBHOOK;
+  const rateLimited = await rateLimitMiddleware(req, res, name, limit, windowMinutes);
+  if (rateLimited) return;
 
   // Signature verification
   const sigResult = verifySignature(

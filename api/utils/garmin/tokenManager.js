@@ -40,41 +40,51 @@ export async function ensureValidAccessToken(integration, supabase) {
     throw new Error('No refresh token available. User needs to reconnect Garmin account.');
   }
 
-  // === MUTEX: Try to acquire lock before refreshing ===
-  const lockDurationMs = 30000;
-  const lockUntil = new Date(Date.now() + lockDurationMs).toISOString();
-
-  const { data: lockResult, error: lockError } = await supabase
-    .from('bike_computer_integrations')
-    .update({ refresh_lock_until: lockUntil })
-    .eq('id', integration.id)
-    .or(`refresh_lock_until.is.null,refresh_lock_until.lt.${new Date().toISOString()}`)
-    .select('id')
-    .maybeSingle();
+  // === MUTEX: Acquire lock via Postgres FOR UPDATE RPC ===
+  const { data: lockResult, error: lockError } = await supabase.rpc('acquire_token_refresh_lock', {
+    p_integration_id: integration.id,
+    p_lock_duration_seconds: 30
+  });
 
   if (lockError) {
-    console.warn('⚠️ Lock acquisition query error:', lockError.message);
-  }
-
-  if (!lockResult) {
-    console.log('🔒 Token refresh lock held by another process, waiting...');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const { data: refreshedIntegration } = await supabase
+    console.warn('⚠️ Lock RPC error, falling back to direct lock:', lockError.message);
+    // Fallback: try direct update if RPC not yet deployed
+    const { data: fallbackLock } = await supabase
       .from('bike_computer_integrations')
-      .select('access_token, token_expires_at')
+      .update({ refresh_lock_until: new Date(Date.now() + 30000).toISOString() })
       .eq('id', integration.id)
-      .single();
+      .or(`refresh_lock_until.is.null,refresh_lock_until.lt.${new Date().toISOString()}`)
+      .select('id')
+      .maybeSingle();
 
-    if (refreshedIntegration) {
-      const newExpiresAt = new Date(refreshedIntegration.token_expires_at);
-      if (newExpiresAt > new Date(Date.now() + 60000)) {
-        console.log('✅ Token was refreshed by another process');
-        return refreshedIntegration.access_token;
-      }
+    if (!fallbackLock) {
+      throw new Error('Token refresh lock held by another process. Will retry on next attempt.');
     }
+    console.log('🔒 Acquired token refresh lock (fallback)');
+  } else if (!lockResult?.acquired) {
+    if (lockResult?.reason === 'locked') {
+      // Another process is refreshing — wait and check if it succeeded
+      console.log('🔒 Token refresh in progress by another process, waiting...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-    console.log('⚠️ Proceeding with refresh despite lock (may cause race condition)');
+      const { data: refreshedIntegration } = await supabase
+        .from('bike_computer_integrations')
+        .select('access_token, token_expires_at')
+        .eq('id', integration.id)
+        .single();
+
+      if (refreshedIntegration?.token_expires_at) {
+        const newExpiresAt = new Date(refreshedIntegration.token_expires_at);
+        if (newExpiresAt > new Date(Date.now() + 60000)) {
+          console.log('✅ Token was refreshed by another process');
+          return refreshedIntegration.access_token;
+        }
+      }
+
+      // Other process failed — do NOT proceed, let retry handle it
+      throw new Error('Token refresh lock held by another process that may have failed. Will retry on next attempt.');
+    }
+    throw new Error(`Could not acquire token refresh lock: ${lockResult?.reason || 'unknown'}`);
   } else {
     console.log('🔒 Acquired token refresh lock');
   }
