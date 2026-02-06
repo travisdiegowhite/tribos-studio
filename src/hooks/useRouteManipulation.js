@@ -146,7 +146,7 @@ export const useRouteManipulation = ({
   const clearRoute = useCallback(() => {
     setWaypoints([]);
     setRouteGeometry(null);
-    setRouteStats(null);
+    setRouteStats({ distance: 0, elevation: 0, duration: 0 });
     setElevationProfile([]);
     historyRef.current = [];
     historyIndexRef.current = -1;
