@@ -26,6 +26,7 @@ import {
   Tooltip,
   Grid,
   Collapse,
+  SegmentedControl,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
@@ -93,6 +94,7 @@ import AthleteBenchmarking from '../components/AthleteBenchmarking.jsx';
 import HealthTrendsChart from '../components/HealthTrendsChart.jsx';
 import HistoricalInsights from '../components/HistoricalInsights.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
+import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
@@ -556,37 +558,19 @@ function TrainingDashboard() {
 
   const formStatus = getFormStatus();
 
-  // Get suggested workout based on current form status and race proximity
-  const getSuggestedWorkout = () => {
-    // Check for upcoming races - race proximity overrides TSB-based recommendations
-    const nextRace = raceGoals?.[0];
-    const daysUntilRace = nextRace ? Math.ceil((new Date(nextRace.race_date + 'T00:00:00') - new Date()) / (1000 * 60 * 60 * 24)) : null;
+  // Unified workout recommendation — single source of truth
+  const [focusTimeAvailable, setFocusTimeAvailable] = useState(null);
 
-    // RACE WEEK (0-7 days): Recovery and easy openers only
-    if (daysUntilRace !== null && daysUntilRace <= 7) {
-      return getWorkoutById('recovery_spin') || getWorkoutById('easy_recovery_ride');
-    }
+  const recommendation = useMemo(() => getWorkoutRecommendation({
+    trainingMetrics,
+    activities: visibleActivities,
+    raceGoals,
+    plannedWorkouts: activePlan?.workouts || [],
+    ftp,
+    timeAvailable: focusTimeAvailable ? parseInt(focusTimeAvailable) : null,
+  }), [trainingMetrics, visibleActivities, raceGoals, activePlan, ftp, focusTimeAvailable]);
 
-    // TAPER PERIOD (8-14 days): Easy endurance, reduced intensity
-    if (daysUntilRace !== null && daysUntilRace <= 14) {
-      return getWorkoutById('foundation_miles') || getWorkoutById('endurance_base_build');
-    }
-
-    // Normal TSB-based recommendations when not in taper/race week
-    const tsb = trainingMetrics.tsb;
-    // FRESH: High intensity day - VO2max or threshold work
-    if (tsb >= 15) return getWorkoutById('five_by_four_vo2') || getWorkoutById('two_by_twenty_ftp');
-    // READY: Quality session - threshold or hard sweet spot
-    if (tsb >= 5) return getWorkoutById('two_by_twenty_ftp') || getWorkoutById('four_by_twelve_sst');
-    // OPTIMAL: Sweet spot for building fitness
-    if (tsb >= -10) return getWorkoutById('traditional_sst') || getWorkoutById('three_by_ten_sst');
-    // TIRED: Easy endurance or recovery
-    if (tsb >= -25) return getWorkoutById('foundation_miles') || getWorkoutById('endurance_base_build');
-    // FATIGUED: Recovery only
-    return getWorkoutById('recovery_spin') || getWorkoutById('easy_recovery_ride');
-  };
-
-  const suggestedWorkout = getSuggestedWorkout();
+  const suggestedWorkout = recommendation.primary?.workout || null;
 
   const handleViewWorkout = (workout) => {
     setSelectedWorkout(workout);
@@ -912,12 +896,16 @@ function TrainingDashboard() {
                         formatTime={formatTime}
                         raceGoals={raceGoals}
                         suggestedWorkout={suggestedWorkout}
+                        recommendationReason={recommendation.primary?.reason}
+                        focusTimeAvailable={focusTimeAvailable}
+                        onFocusTimeChange={setFocusTimeAvailable}
                         onViewWorkout={handleViewWorkout}
                       />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, md: 5 }}>
                       <CoachCard
-                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext)}
+                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation)}
+                        workoutRecommendation={recommendation}
                         onAddWorkout={async (workout) => {
                           notifications.show({
                             title: 'Workout Added',
@@ -961,8 +949,9 @@ function TrainingDashboard() {
                         <TrainNow
                           activities={visibleActivities}
                           trainingMetrics={trainingMetrics}
-                          plannedWorkouts={[]}
+                          plannedWorkouts={activePlan?.workouts || []}
                           ftp={ftp}
+                          raceGoals={raceGoals}
                           onSelectWorkout={(workout) => {
                             console.log('Selected workout:', workout);
                           }}
@@ -1150,7 +1139,7 @@ function TrainingDashboard() {
 // ============================================================================
 // TODAY'S FOCUS HERO CARD - Story-Driven Narrative
 // ============================================================================
-function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, raceGoals, suggestedWorkout, onViewWorkout }) {
+function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, raceGoals, suggestedWorkout, recommendationReason, focusTimeAvailable, onFocusTimeChange, onViewWorkout }) {
   const lastRide = activities[0];
   const FormIcon = formStatus.icon;
 
@@ -1225,16 +1214,42 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
           </Text>
 
           {suggestedWorkout && (
-            <Button
-              variant="light"
-              color="lime"
-              mt="md"
-              rightSection={<IconChevronRight size={16} />}
-              onClick={() => onViewWorkout(suggestedWorkout)}
-            >
-              View Suggested Workout
-            </Button>
+            <Box mt="md">
+              {recommendationReason && (
+                <Text size="xs" c="dimmed" mb="xs" fs="italic">{recommendationReason}</Text>
+              )}
+              <Group gap="sm" wrap="wrap">
+                <Button
+                  variant="light"
+                  color="lime"
+                  rightSection={<IconChevronRight size={16} />}
+                  onClick={() => onViewWorkout(suggestedWorkout)}
+                >
+                  {suggestedWorkout.name || 'View Suggested Workout'}
+                </Button>
+                {suggestedWorkout.duration && (
+                  <Badge size="lg" variant="light" color="gray">{suggestedWorkout.duration}m</Badge>
+                )}
+              </Group>
+            </Box>
           )}
+
+          {/* Time Available Selector */}
+          <Group gap="xs" mt="md">
+            <Text size="xs" c="dimmed">Time available:</Text>
+            <SegmentedControl
+              size="xs"
+              value={focusTimeAvailable || ''}
+              onChange={(val) => onFocusTimeChange?.(val || null)}
+              data={[
+                { label: 'Any', value: '' },
+                { label: '30m', value: '30' },
+                { label: '60m', value: '60' },
+                { label: '90m', value: '90' },
+                { label: '2h+', value: '120' },
+              ]}
+            />
+          </Group>
         </Box>
 
         {/* Weekly Progress Ring - Neutral to avoid competing with status badge */}
@@ -2146,7 +2161,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
 }
 
 // Build training context for AI Coach
-function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null, raceGoals = [], crossTrainingActivities = []) {
+function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null, raceGoals = [], crossTrainingActivities = [], workoutRecommendation = null) {
   const context = [];
   const distanceUnit = isImperial ? 'mi' : 'km';
 
@@ -2332,6 +2347,32 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     context.push(`- Consider the current training phase when making recommendations`);
     if (raceGoals && raceGoals.length > 0) {
       context.push(`- PRIORITIZE upcoming race goals when planning workouts and recovery`);
+    }
+  }
+
+  // Add today's workout recommendation from unified service
+  if (workoutRecommendation?.primary) {
+    const rec = workoutRecommendation.primary;
+    const analysis = workoutRecommendation.analysis;
+    context.push(`\n--- TODAY'S WORKOUT RECOMMENDATION ---`);
+    context.push(`IMPORTANT: The dashboard is currently showing the following recommendation to the athlete. Your workout advice should be consistent with this unless the athlete asks you to override it.`);
+    context.push(`Primary: ${rec.workout?.name || 'None'} (${rec.workout?.id || 'unknown'})`);
+    context.push(`Category: ${rec.category}`);
+    context.push(`Reason: ${rec.reason}`);
+    if (analysis?.formStatus) {
+      context.push(`Form Status: ${analysis.formStatus}`);
+    }
+    if (analysis?.raceProximity?.phase) {
+      context.push(`Race Proximity: ${analysis.raceProximity.phase} (${analysis.raceProximity.daysUntilRace} days to ${analysis.raceProximity.nextRace?.name})`);
+    }
+    if (analysis?.gaps) {
+      const gapNotes = [];
+      if (analysis.gaps.missingZ2) gapNotes.push('no Z2 ride this week');
+      if (analysis.gaps.missingIntensity) gapNotes.push('no intensity this week');
+      if (gapNotes.length > 0) context.push(`Training Gaps: ${gapNotes.join(', ')}`);
+    }
+    if (workoutRecommendation.alternatives?.length > 0) {
+      context.push(`Alternatives: ${workoutRecommendation.alternatives.map(a => a.workout?.name).join(', ')}`);
     }
   }
 
