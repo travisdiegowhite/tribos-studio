@@ -1049,7 +1049,7 @@ function RouteBuilder() {
 
     setIsCalculating(true);
     try {
-      const coordinates = points.map(p => `${p.lng},${p.lat}`).join(';');
+      const coordinates = points.map(p => `${p.position[0]},${p.position[1]}`).join(';');
       const url = `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?` +
         `geometries=geojson&overview=full&steps=true&` +
         `access_token=${MAPBOX_TOKEN}`;
@@ -1121,8 +1121,22 @@ function RouteBuilder() {
       }
     }
 
-    // Normal mode: add waypoint
-    const newWaypoints = [...waypoints, { lng, lat, id: Date.now() }];
+    // Normal mode: add waypoint (Shape B: matches useRouteManipulation convention)
+    const newWaypoint = {
+      id: `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      position: [lng, lat],
+      type: waypoints.length === 0 ? 'start' : 'end',
+      name: waypoints.length === 0 ? 'Start' : `Waypoint ${waypoints.length}`,
+    };
+    const newWaypoints = [...waypoints];
+    if (newWaypoints.length > 0) {
+      // Re-type previous endpoint as a through-waypoint
+      newWaypoints[newWaypoints.length - 1] = {
+        ...newWaypoints[newWaypoints.length - 1],
+        type: 'waypoint',
+      };
+    }
+    newWaypoints.push(newWaypoint);
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
   }, [waypoints, calculateRoute, editMode, routeGeometry]);
@@ -1221,11 +1235,11 @@ function RouteBuilder() {
     return {
       name: routeName,
       coordinates: routeGeometry.coordinates,
-      waypoints: waypoints.map((wp, i) => ({
-        lat: wp.lat,
-        lng: wp.lng,
-        name: i === 0 ? 'Start' : i === waypoints.length - 1 ? 'End' : `Waypoint ${i}`,
-        type: i === 0 ? 'start' : i === waypoints.length - 1 ? 'end' : 'waypoint'
+      waypoints: waypoints.map((wp) => ({
+        lat: wp.position[1],
+        lng: wp.position[0],
+        name: wp.name || 'Waypoint',
+        type: wp.type || 'waypoint',
       })),
       distanceKm: routeStats?.distance,
       elevationGainM: routeStats?.elevationGain,
@@ -1556,7 +1570,7 @@ function RouteBuilder() {
 
       if (waypoints.length > 0) {
         // User has placed waypoints on the map - use the first one as start
-        startLocation = [waypoints[0].lng, waypoints[0].lat];
+        startLocation = [waypoints[0].position[0], waypoints[0].position[1]];
         startLocationSource = 'waypoint';
         console.log('📍 Using user-placed waypoint as start:', startLocation);
       } else if (userLocation) {
@@ -2563,8 +2577,8 @@ function RouteBuilder() {
                 {waypoints.map((waypoint, index) => (
                   <Marker
                     key={waypoint.id}
-                    longitude={waypoint.lng}
-                    latitude={waypoint.lat}
+                    longitude={waypoint.position[0]}
+                    latitude={waypoint.position[1]}
                     anchor="bottom"
                     onClick={(e) => {
                       e.originalEvent.stopPropagation();
@@ -3728,8 +3742,8 @@ function RouteBuilder() {
               {waypoints.map((waypoint, index) => (
                 <Marker
                   key={waypoint.id}
-                  longitude={waypoint.lng}
-                  latitude={waypoint.lat}
+                  longitude={waypoint.position[0]}
+                  latitude={waypoint.position[1]}
                   anchor="bottom"
                   onClick={(e) => {
                     e.originalEvent.stopPropagation();
