@@ -694,7 +694,7 @@ function RouteBuilder() {
     newWaypoints.push(newWaypoint);
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
-  }, [waypoints, calculateRoute, editMode, routeGeometry]);
+  }, [waypoints, calculateRoute, editMode, routeGeometry, builderMode]);
 
   // Remove waypoint
   const removeWaypoint = useCallback((id) => {
