@@ -66,10 +66,13 @@ export const useRouteBuilderStore = create(
         lastSaved: Date.now()
       }),
 
-      setRouteStats: (stats) => set({
-        routeStats: stats,
+      // Supports both direct object and functional updates: setRouteStats({...}) or setRouteStats(prev => ({...prev, ...}))
+      setRouteStats: (statsOrUpdater) => set((state) => ({
+        routeStats: typeof statsOrUpdater === 'function'
+          ? statsOrUpdater(state.routeStats)
+          : statsOrUpdater,
         lastSaved: Date.now()
-      }),
+      })),
 
       setWaypoints: (waypoints) => set({
         waypoints,

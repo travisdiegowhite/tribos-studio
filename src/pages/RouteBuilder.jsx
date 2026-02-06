@@ -1039,7 +1039,9 @@ function RouteBuilder() {
     };
   }, [viewport, showBikeInfrastructure, mapStyleId, fetchInfrastructureForViewport]);
 
-  // Calculate route using Mapbox Directions API
+  // Calculate route using smart multi-provider routing (Stadia/BRouter/Mapbox)
+  // Replaces the previous Mapbox-only approach so click-to-route gets the same
+  // quality routing as the iterative builder and manual builder.
   const calculateRoute = useCallback(async (points) => {
     if (points.length < 2) {
       setRouteGeometry(null);
@@ -1049,34 +1051,37 @@ function RouteBuilder() {
 
     setIsCalculating(true);
     try {
-      const coordinates = points.map(p => `${p.position[0]},${p.position[1]}`).join(';');
-      const url = `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?` +
-        `geometries=geojson&overview=full&steps=true&` +
-        `access_token=${MAPBOX_TOKEN}`;
+      const waypointCoordinates = points.map(p => p.position);
 
-      const response = await fetch(url);
-      const data = await response.json();
+      const smartRoute = await getSmartCyclingRoute(waypointCoordinates, {
+        profile: routeProfile === 'gravel' ? 'gravel' :
+                 routeProfile === 'mountain' ? 'mountain' : 'bike',
+        mapboxToken: MAPBOX_TOKEN,
+      });
 
-      if (data.code !== 'Ok') {
-        console.error('Mapbox API error:', data);
-        return;
-      }
-
-      if (data.routes && data.routes[0]) {
-        const route = data.routes[0];
-        setRouteGeometry(route.geometry);
-        setRouteStats({
-          distance: parseFloat((route.distance / 1000).toFixed(1)), // Convert to km (as number)
-          elevation: 0, // Mapbox doesn't provide elevation in basic API
-          duration: Math.round(route.duration / 60) // Convert to minutes
+      if (smartRoute?.coordinates?.length > 0) {
+        setRouteGeometry({
+          type: 'LineString',
+          coordinates: smartRoute.coordinates,
         });
+        setRouteStats({
+          distance: parseFloat(((smartRoute.distance || 0) / 1000).toFixed(1)), // meters → km
+          elevation: smartRoute.elevationGain || 0,
+          duration: Math.round((smartRoute.duration || 0) / 60), // seconds → minutes
+          routingSource: smartRoute.source || 'smart',
+        });
+        setRoutingSource(smartRoute.source || 'smart');
+
+        console.log(`✅ Smart route via ${smartRoute.source}: ${((smartRoute.distance || 0) / 1000).toFixed(1)}km`);
+      } else {
+        console.warn('Smart routing returned no results');
       }
     } catch (error) {
       console.error('Error calculating route:', error);
     } finally {
       setIsCalculating(false);
     }
-  }, []);
+  }, [routeProfile, setRouteGeometry, setRouteStats, setRoutingSource]);
 
   // Handle map click - either add waypoint or select segment in edit mode
   const handleMapClick = useCallback((event) => {
