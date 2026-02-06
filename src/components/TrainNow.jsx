@@ -27,203 +27,28 @@ import {
   IconChevronRight,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
-import { getWorkoutById, getWorkoutsByCategory, WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { WorkoutDifficultyBadge, getQuickDifficultyEstimate } from './WorkoutDifficultyBadge';
+import { getWorkoutRecommendations } from '../services/workoutRecommendation';
 
 /**
  * TrainNow Component
  *
- * Smart workout recommendations based on:
- * - Current form (TSB)
- * - Recent training patterns
- * - Time available
- * - What hasn't been trained recently
- * - Training plan context (if active)
+ * Smart workout recommendations powered by the unified recommendation service.
+ * Displays ranked category cards with time filtering.
  *
  * Inspired by TrainerRoad's TrainNow feature
  */
 
-/**
- * Calculate what the athlete needs based on recent training
- */
-function analyzeTrainingNeeds(activities, tsb, ctl, plannedWorkouts = []) {
-  const needs = {
-    recovery: { score: 0, reason: '' },
-    endurance: { score: 0, reason: '' },
-    intensity: { score: 0, reason: '' },
-    vo2max: { score: 0, reason: '' },
-    threshold: { score: 0, reason: '' },
-  };
+// Map category keys to UI presentation (icons, colors)
+const CATEGORY_UI = {
+  recovery:  { icon: IconZzz,   color: 'teal' },
+  endurance: { icon: IconHeart, color: 'blue' },
+  threshold: { icon: IconFlame, color: 'orange' },
+  vo2max:    { icon: IconBolt,  color: 'red' },
+};
 
-  // Get last 7 days of activities
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-
-  const recentActivities = activities?.filter(a =>
-    new Date(a.start_date) >= weekAgo
-  ) || [];
-
-  const totalRides = recentActivities.length;
-  const totalTSS = recentActivities.reduce((sum, a) => {
-    const tss = a.training_stress_score || (a.moving_time / 3600) * 50;
-    return sum + tss;
-  }, 0);
-
-  // Check form/fatigue
-  if (tsb < -25) {
-    needs.recovery.score = 90;
-    needs.recovery.reason = 'High fatigue - recovery is essential';
-    needs.endurance.score = 20;
-    needs.intensity.score = 5;
-  } else if (tsb < -10) {
-    needs.recovery.score = 60;
-    needs.recovery.reason = 'Moderate fatigue - easy day recommended';
-    needs.endurance.score = 50;
-    needs.intensity.score = 30;
-  } else if (tsb > 15) {
-    needs.recovery.score = 10;
-    needs.intensity.score = 80;
-    needs.intensity.reason = 'Fresh and ready for hard work!';
-    needs.vo2max.score = 70;
-    needs.threshold.score = 75;
-  } else if (tsb > 5) {
-    needs.recovery.score = 20;
-    needs.intensity.score = 65;
-    needs.endurance.score = 60;
-    needs.threshold.score = 60;
-  } else {
-    // Neutral form
-    needs.endurance.score = 65;
-    needs.intensity.score = 50;
-    needs.threshold.score = 55;
-    needs.recovery.score = 30;
-  }
-
-  // Check what's been trained recently
-  const hasZ2Recent = recentActivities.some(a => {
-    const duration = (a.moving_time || 0) / 60;
-    return duration > 60 && (!a.average_watts || a.average_watts < 200);
-  });
-
-  const hasIntensityRecent = recentActivities.some(a =>
-    a.average_watts && a.average_watts > 220
-  );
-
-  if (!hasZ2Recent && totalRides >= 2) {
-    needs.endurance.score += 20;
-    needs.endurance.reason = 'No long Z2 ride in the last week';
-  }
-
-  if (!hasIntensityRecent && tsb > -10) {
-    needs.intensity.score += 15;
-    needs.vo2max.score += 15;
-    needs.vo2max.reason = 'No high intensity in the last week';
-  }
-
-  // Check training plan context
-  if (plannedWorkouts.length > 0) {
-    const today = new Date().toISOString().split('T')[0];
-    const todayWorkout = plannedWorkouts.find(w => w.scheduled_date === today);
-
-    if (todayWorkout) {
-      const type = todayWorkout.workout_type || 'endurance';
-      if (type === 'recovery' || type === 'rest') {
-        needs.recovery.score = Math.max(needs.recovery.score, 80);
-        needs.recovery.reason = 'Planned recovery day';
-      } else if (type === 'vo2max' || type === 'threshold') {
-        needs.intensity.score = Math.max(needs.intensity.score, 75);
-        needs.intensity.reason = `Planned ${type} workout today`;
-      }
-    }
-  }
-
-  return needs;
-}
-
-/**
- * Get recommended workouts based on training needs
- */
-function getRecommendedWorkouts(needs, timeAvailable = 60, ftp) {
-  const recommendations = [];
-
-  // Recovery recommendations
-  if (needs.recovery.score >= 60) {
-    const recoveryWorkouts = getWorkoutsByCategory?.('recovery') || [];
-    if (recoveryWorkouts.length > 0) {
-      recommendations.push({
-        category: 'recovery',
-        title: 'Recovery',
-        reason: needs.recovery.reason || 'Active recovery to reduce fatigue',
-        score: needs.recovery.score,
-        icon: IconZzz,
-        color: 'teal',
-        workouts: recoveryWorkouts.slice(0, 2),
-      });
-    }
-  }
-
-  // Endurance recommendations
-  if (needs.endurance.score >= 50) {
-    const enduranceWorkouts = getWorkoutsByCategory?.('endurance') || [];
-    const filtered = enduranceWorkouts.filter(w =>
-      !timeAvailable || (w.duration <= timeAvailable + 15)
-    );
-    if (filtered.length > 0) {
-      recommendations.push({
-        category: 'endurance',
-        title: 'Endurance',
-        reason: needs.endurance.reason || 'Build aerobic base',
-        score: needs.endurance.score,
-        icon: IconHeart,
-        color: 'blue',
-        workouts: filtered.slice(0, 2),
-      });
-    }
-  }
-
-  // Threshold recommendations
-  if (needs.threshold.score >= 50) {
-    const thresholdWorkouts = getWorkoutsByCategory?.('threshold') || [];
-    const sst = getWorkoutsByCategory?.('sweet_spot') || [];
-    const combined = [...thresholdWorkouts, ...sst].filter(w =>
-      !timeAvailable || (w.duration <= timeAvailable + 15)
-    );
-    if (combined.length > 0) {
-      recommendations.push({
-        category: 'threshold',
-        title: 'Threshold / Sweet Spot',
-        reason: needs.threshold.reason || 'Improve FTP and lactate clearance',
-        score: needs.threshold.score,
-        icon: IconFlame,
-        color: 'orange',
-        workouts: combined.slice(0, 2),
-      });
-    }
-  }
-
-  // VO2max recommendations
-  if (needs.vo2max.score >= 50) {
-    const vo2Workouts = getWorkoutsByCategory?.('vo2max') || [];
-    const filtered = vo2Workouts.filter(w =>
-      !timeAvailable || (w.duration <= timeAvailable + 15)
-    );
-    if (filtered.length > 0) {
-      recommendations.push({
-        category: 'vo2max',
-        title: 'VO2 Max',
-        reason: needs.vo2max.reason || 'Develop maximum aerobic capacity',
-        score: needs.vo2max.score,
-        icon: IconBolt,
-        color: 'red',
-        workouts: filtered.slice(0, 2),
-      });
-    }
-  }
-
-  // Sort by score and return top 3 categories
-  return recommendations
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
+function getCategoryUI(category) {
+  return CATEGORY_UI[category] || { icon: IconTarget, color: 'gray' };
 }
 
 /**
@@ -234,23 +59,29 @@ const TrainNow = ({
   trainingMetrics,
   plannedWorkouts = [],
   ftp,
+  raceGoals = [],
   onSelectWorkout,
 }) => {
   const [timeAvailable, setTimeAvailable] = useState('60');
   const { ctl = 50, atl = 0, tsb = 0 } = trainingMetrics || {};
 
-  // Analyze training needs
-  const needs = useMemo(() => {
-    return analyzeTrainingNeeds(activities, tsb, ctl, plannedWorkouts);
-  }, [activities, tsb, ctl, plannedWorkouts]);
+  // Get recommendations from unified service
+  const { categories: recommendations, analysis } = useMemo(() => {
+    return getWorkoutRecommendations({
+      trainingMetrics,
+      activities,
+      raceGoals,
+      plannedWorkouts,
+      ftp,
+      timeAvailable: parseInt(timeAvailable),
+    });
+  }, [trainingMetrics, activities, raceGoals, plannedWorkouts, ftp, timeAvailable]);
 
-  // Get recommendations
-  const recommendations = useMemo(() => {
-    return getRecommendedWorkouts(needs, parseInt(timeAvailable), ftp);
-  }, [needs, timeAvailable, ftp]);
+  const needs = analysis?.needs || {};
 
   // Primary recommendation
   const primaryRec = recommendations[0];
+  const primaryUI = primaryRec ? getCategoryUI(primaryRec.category) : null;
 
   // Athlete state for difficulty calculation
   const athleteState = useMemo(() => ({
@@ -290,20 +121,20 @@ const TrainNow = ({
       </Group>
 
       {/* Primary Recommendation */}
-      {primaryRec && (
+      {primaryRec && primaryUI && (
         <Paper
           p="md"
           mb="md"
           style={{
-            background: `linear-gradient(135deg, var(--mantine-color-${primaryRec.color}-9), transparent)`,
-            border: `1px solid var(--mantine-color-${primaryRec.color}-7)`,
+            background: `linear-gradient(135deg, var(--mantine-color-${primaryUI.color}-9), transparent)`,
+            border: `1px solid var(--mantine-color-${primaryUI.color}-7)`,
           }}
         >
           <Group justify="space-between" align="flex-start" wrap="wrap">
             <Box style={{ flex: 1 }}>
               <Group gap="sm" mb="xs">
-                <ThemeIcon size="lg" color={primaryRec.color} variant="light">
-                  <primaryRec.icon size={18} />
+                <ThemeIcon size="lg" color={primaryUI.color} variant="light">
+                  <primaryUI.icon size={18} />
                 </ThemeIcon>
                 <Box>
                   <Text fw={600} size="lg">Recommended: {primaryRec.title}</Text>
@@ -331,7 +162,7 @@ const TrainNow = ({
                     </Box>
                     <Button
                       variant="filled"
-                      color={primaryRec.color}
+                      color={primaryUI.color}
                       size="sm"
                       onClick={() => onSelectWorkout?.(primaryRec.workouts[0])}
                     >
@@ -350,46 +181,49 @@ const TrainNow = ({
         Other Options
       </Text>
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-        {recommendations.slice(1).map((rec) => (
-          <Paper
-            key={rec.category}
-            p="sm"
-            style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}
-          >
-            <Group gap="sm" mb="xs">
-              <ThemeIcon size="sm" color={rec.color} variant="light">
-                <rec.icon size={14} />
-              </ThemeIcon>
-              <Text size="sm" fw={500}>{rec.title}</Text>
-            </Group>
-
-            {rec.workouts[0] && (
-              <Group justify="space-between" align="center">
-                <Box>
-                  <Text size="xs" lineClamp={1}>{rec.workouts[0].name}</Text>
-                  <Text size="xs" c="dimmed">{rec.workouts[0].duration}m</Text>
-                </Box>
-                <ActionIcon
-                  variant="light"
-                  color={rec.color}
-                  onClick={() => onSelectWorkout?.(rec.workouts[0])}
-                >
-                  <IconChevronRight size={16} />
-                </ActionIcon>
+        {recommendations.slice(1).map((rec) => {
+          const ui = getCategoryUI(rec.category);
+          return (
+            <Paper
+              key={rec.category}
+              p="sm"
+              style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}
+            >
+              <Group gap="sm" mb="xs">
+                <ThemeIcon size="sm" color={ui.color} variant="light">
+                  <ui.icon size={14} />
+                </ThemeIcon>
+                <Text size="sm" fw={500}>{rec.title}</Text>
               </Group>
-            )}
-          </Paper>
-        ))}
+
+              {rec.workouts[0] && (
+                <Group justify="space-between" align="center">
+                  <Box>
+                    <Text size="xs" lineClamp={1}>{rec.workouts[0].name}</Text>
+                    <Text size="xs" c="dimmed">{rec.workouts[0].duration}m</Text>
+                  </Box>
+                  <ActionIcon
+                    variant="light"
+                    color={ui.color}
+                    onClick={() => onSelectWorkout?.(rec.workouts[0])}
+                  >
+                    <IconChevronRight size={16} />
+                  </ActionIcon>
+                </Group>
+              )}
+            </Paper>
+          );
+        })}
       </SimpleGrid>
 
       {/* Training Needs Summary */}
       <Paper p="sm" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
         <Text size="xs" fw={500} mb="xs">Training Needs Analysis</Text>
         <Group gap="md">
-          <NeedIndicator label="Recovery" value={needs.recovery.score} color="teal" />
-          <NeedIndicator label="Endurance" value={needs.endurance.score} color="blue" />
-          <NeedIndicator label="Threshold" value={needs.threshold.score} color="orange" />
-          <NeedIndicator label="VO2max" value={needs.vo2max.score} color="red" />
+          <NeedIndicator label="Recovery" value={needs.recovery?.score || 0} color="teal" />
+          <NeedIndicator label="Endurance" value={needs.endurance?.score || 0} color="blue" />
+          <NeedIndicator label="Threshold" value={needs.threshold?.score || 0} color="orange" />
+          <NeedIndicator label="VO2max" value={needs.vo2max?.score || 0} color="red" />
         </Group>
       </Paper>
 

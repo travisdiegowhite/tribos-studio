@@ -24,19 +24,21 @@ import {
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../contexts/AuthContext';
 
-// Generate coaching message based on training context (no workout suggestions)
-function getCoachingMessage(trainingContext) {
+// Generate coaching message — now includes workout recommendation for consistency
+function getCoachingMessage(trainingContext, workoutRecommendation) {
   if (!trainingContext) {
     return "Ready to help with your training. Ask me about your fitness, race prep, or training strategy.";
   }
 
-  // Parse TSB from context if available
+  // If we have a recommendation from the unified service, reference it
+  const rec = workoutRecommendation?.primary;
+  if (rec?.workout?.name && rec?.reason) {
+    return `Today I'd suggest ${rec.workout.name} — ${rec.reason.charAt(0).toLowerCase() + rec.reason.slice(1)} Ask me if you want to adjust or discuss alternatives.`;
+  }
+
+  // Fallback: TSB-based message if no recommendation available
   const tsbMatch = trainingContext.match(/TSB[:\s]+(-?\d+)/i);
   const tsb = tsbMatch ? parseInt(tsbMatch[1], 10) : 0;
-
-  // Parse CTL if available
-  const ctlMatch = trainingContext.match(/CTL[:\s]+(\d+)/i);
-  const ctl = ctlMatch ? parseInt(ctlMatch[1], 10) : 50;
 
   if (tsb > 15) {
     return "You're feeling fresh and ready to push. Ask me about interval strategies, race tactics, or how to make the most of today's energy.";
@@ -51,7 +53,7 @@ function getCoachingMessage(trainingContext) {
   }
 }
 
-function CoachCard({ trainingContext, onAddWorkout }) {
+function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
   const { user } = useAuth();
   const inputRef = useRef(null);
 
@@ -63,7 +65,7 @@ function CoachCard({ trainingContext, onAddWorkout }) {
   const [expanded, setExpanded] = useState(false);
 
   // Get coaching message based on current form
-  const coachingMessage = getCoachingMessage(trainingContext);
+  const coachingMessage = getCoachingMessage(trainingContext, workoutRecommendation);
 
   // Reset response when component unmounts or context changes significantly
   useEffect(() => {
