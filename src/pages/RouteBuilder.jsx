@@ -161,6 +161,9 @@ function RouteBuilder() {
   const [selectedSegment, setSelectedSegment] = useState(null); // { startIndex, endIndex, stats }
   const [isRemovingSegment, setIsRemovingSegment] = useState(false);
 
+  // Track drag state to suppress click-to-remove during drag
+  const waypointDragRef = useRef(false);
+
   // Manual editing tools (undo/redo, reverse, snap-to-roads)
   const {
     undo: manualUndo,
@@ -169,6 +172,7 @@ function RouteBuilder() {
     canRedo: manualCanRedo,
     reverseRoute: manualReverse,
     snapToRoads: manualSnapToRoads,
+    updateWaypointPosition,
   } = useRouteManipulation({
     waypoints,
     setWaypoints,
@@ -696,12 +700,22 @@ function RouteBuilder() {
     calculateRoute(newWaypoints);
   }, [waypoints, calculateRoute, editMode, routeGeometry, builderMode]);
 
-  // Remove waypoint
+  // Remove waypoint (suppressed during drag)
   const removeWaypoint = useCallback((id) => {
+    if (waypointDragRef.current) return; // Don't remove on drag-end click
     const newWaypoints = waypoints.filter(w => w.id !== id);
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
   }, [waypoints, calculateRoute]);
+
+  // Handle waypoint drag end — update position and recalculate route
+  const handleWaypointDragEnd = useCallback((waypointId, event) => {
+    const { lng, lat } = event.lngLat;
+    const updated = updateWaypointPosition(waypointId, { lng, lat });
+    calculateRoute(updated);
+    // Clear drag flag after a short delay so the click event is suppressed
+    setTimeout(() => { waypointDragRef.current = false; }, 100);
+  }, [updateWaypointPosition, calculateRoute]);
 
   // Remove selected segment and re-route
   const handleRemoveSegment = useCallback(async () => {
@@ -2291,13 +2305,16 @@ function RouteBuilder() {
                   </Marker>
                 )}
 
-                {/* Waypoint markers */}
+                {/* Waypoint markers — draggable */}
                 {waypoints.map((waypoint, index) => (
                   <Marker
                     key={waypoint.id}
                     longitude={waypoint.position[0]}
                     latitude={waypoint.position[1]}
                     anchor="bottom"
+                    draggable
+                    onDragStart={() => { waypointDragRef.current = true; }}
+                    onDragEnd={(e) => handleWaypointDragEnd(waypoint.id, e)}
                     onClick={(e) => {
                       e.originalEvent.stopPropagation();
                       removeWaypoint(waypoint.id);
@@ -2314,7 +2331,7 @@ function RouteBuilder() {
                       justifyContent: 'center',
                       fontWeight: 600,
                       fontSize: 12,
-                      cursor: 'pointer',
+                      cursor: 'grab',
                       border: '2px solid white',
                       boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
                     }}>
@@ -3660,13 +3677,16 @@ function RouteBuilder() {
                 </Marker>
               )}
 
-              {/* Render waypoint markers */}
+              {/* Render waypoint markers — draggable */}
               {waypoints.map((waypoint, index) => (
                 <Marker
                   key={waypoint.id}
                   longitude={waypoint.position[0]}
                   latitude={waypoint.position[1]}
                   anchor="bottom"
+                  draggable
+                  onDragStart={() => { waypointDragRef.current = true; }}
+                  onDragEnd={(e) => handleWaypointDragEnd(waypoint.id, e)}
                   onClick={(e) => {
                     e.originalEvent.stopPropagation();
                     removeWaypoint(waypoint.id);
@@ -3683,7 +3703,7 @@ function RouteBuilder() {
                     justifyContent: 'center',
                     fontWeight: 600,
                     fontSize: 14,
-                    cursor: 'pointer',
+                    cursor: 'grab',
                     border: '2px solid white',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                   }}>
