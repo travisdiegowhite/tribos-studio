@@ -212,5 +212,10 @@ export const RATE_LIMITS = {
     limit: 10,
     windowMinutes: 1,
     name: 'oauth-callback'
+  },
+  GARMIN_WEBHOOK: {
+    limit: 100,
+    windowMinutes: 1,
+    name: 'garmin-webhook'
   }
 };

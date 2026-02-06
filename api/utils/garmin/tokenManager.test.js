@@ -1,24 +1,24 @@
 import { ensureValidAccessToken } from './tokenManager.js';
 
-// Helper to build a mock supabase client
+// Helper to build a mock supabase client with RPC support
 function mockSupabase(overrides = {}) {
   const defaults = {
-    lockResult: { data: { id: 'int-1' }, error: null },
+    rpcResult: { data: { acquired: true, lock_until: new Date().toISOString() }, error: null },
     updateResult: { error: null },
     refreshedIntegration: null
   };
   const opts = { ...defaults, ...overrides };
 
   return {
+    rpc: vi.fn().mockResolvedValue(opts.rpcResult),
     from: vi.fn().mockReturnValue({
       update: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
           or: vi.fn().mockReturnValue({
             select: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue(opts.lockResult)
+              maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'int-1' }, error: null })
             })
           }),
-          // plain .update().eq() for token persist and lock release
           ...opts.updateResult
         })
       }),
@@ -51,18 +51,19 @@ describe('ensureValidAccessToken', () => {
     const integration = {
       id: 'int-1',
       access_token: 'still-valid-token',
-      token_expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(), // 12h from now
+      token_expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
       refresh_token: 'refresh-123'
     };
 
     const supabase = mockSupabase();
     const token = await ensureValidAccessToken(integration, supabase);
     expect(token).toBe('still-valid-token');
-    // Should not have called supabase at all (no refresh needed)
+    // Should not have called supabase or rpc at all
+    expect(supabase.rpc).not.toHaveBeenCalled();
     expect(supabase.from).not.toHaveBeenCalled();
   });
 
-  it('refreshes token when expiring within 6 hours', async () => {
+  it('acquires lock via RPC and refreshes token', async () => {
     const integration = {
       id: 'int-1',
       access_token: 'old-token',
@@ -79,38 +80,104 @@ describe('ensureValidAccessToken', () => {
       })
     });
 
-    // Build a supabase mock that supports the chained calls
-    const updateEqMock = vi.fn().mockReturnThis();
-    const updateOrMock = vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'int-1' }, error: null })
-      })
-    });
-    const updateMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockImplementation(() => ({
-        or: updateOrMock,
-        // For the final token persist update
-        error: null
-      }))
-    });
-
-    const supabase = {
-      from: vi.fn().mockReturnValue({
-        update: updateMock,
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: null, error: null })
-          })
-        })
-      })
-    };
-
+    const supabase = mockSupabase();
     const token = await ensureValidAccessToken(integration, supabase);
+
     expect(token).toBe('new-token');
+    expect(supabase.rpc).toHaveBeenCalledWith('acquire_token_refresh_lock', {
+      p_integration_id: 'int-1',
+      p_lock_duration_seconds: 30
+    });
     expect(fetch).toHaveBeenCalledWith(
       'https://diauth.garmin.com/di-oauth2-service/oauth/token',
       expect.objectContaining({ method: 'POST' })
     );
+  });
+
+  it('throws when lock is held and other process did not refresh', async () => {
+    const integration = {
+      id: 'int-1',
+      access_token: 'old-token',
+      token_expires_at: new Date(Date.now() - 1000).toISOString(), // expired
+      refresh_token: 'refresh-123'
+    };
+
+    const supabase = mockSupabase({
+      rpcResult: {
+        data: {
+          acquired: false,
+          reason: 'locked',
+          access_token: 'old-token',
+          token_expires_at: new Date(Date.now() - 1000).toISOString()
+        },
+        error: null
+      },
+      refreshedIntegration: {
+        access_token: 'old-token',
+        token_expires_at: new Date(Date.now() - 1000).toISOString() // still expired
+      }
+    });
+
+    await expect(ensureValidAccessToken(integration, supabase))
+      .rejects.toThrow('Token refresh lock held by another process');
+  }, 10000);
+
+  it('returns refreshed token when lock is held by another process that succeeded', async () => {
+    const integration = {
+      id: 'int-1',
+      access_token: 'old-token',
+      token_expires_at: new Date(Date.now() - 1000).toISOString(),
+      refresh_token: 'refresh-123'
+    };
+
+    const freshExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    const supabase = mockSupabase({
+      rpcResult: {
+        data: {
+          acquired: false,
+          reason: 'locked',
+          access_token: 'old-token',
+          token_expires_at: new Date(Date.now() - 1000).toISOString()
+        },
+        error: null
+      },
+      refreshedIntegration: {
+        access_token: 'other-process-refreshed-token',
+        token_expires_at: freshExpiry
+      }
+    });
+
+    const token = await ensureValidAccessToken(integration, supabase);
+    expect(token).toBe('other-process-refreshed-token');
+  }, 10000);
+
+  it('falls back to direct lock when RPC is not deployed', async () => {
+    const integration = {
+      id: 'int-1',
+      access_token: 'old-token',
+      token_expires_at: new Date(Date.now() - 1000).toISOString(),
+      refresh_token: 'refresh-123'
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        access_token: 'new-token',
+        refresh_token: 'new-refresh',
+        expires_in: 86400
+      })
+    });
+
+    const supabase = mockSupabase({
+      rpcResult: { data: null, error: { message: 'function not found' } }
+    });
+
+    const token = await ensureValidAccessToken(integration, supabase);
+    expect(token).toBe('new-token');
+    // Should have tried RPC first, then fallen back to direct update
+    expect(supabase.rpc).toHaveBeenCalled();
+    expect(supabase.from).toHaveBeenCalled();
   });
 
   it('throws when missing Garmin API credentials', async () => {
@@ -120,7 +187,7 @@ describe('ensureValidAccessToken', () => {
     const integration = {
       id: 'int-1',
       access_token: 'old-token',
-      token_expires_at: new Date(Date.now() - 1000).toISOString(), // expired
+      token_expires_at: new Date(Date.now() - 1000).toISOString(),
       refresh_token: 'refresh-123'
     };
 
