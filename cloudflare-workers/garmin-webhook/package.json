@@ -1,7 +1,7 @@
 {
   "name": "garmin-webhook-worker",
-  "version": "2.0.0",
-  "description": "Cloudflare Worker for Garmin activity webhooks - uses activities table",
+  "version": "3.0.0",
+  "description": "Cloudflare Worker: thin Garmin webhook proxy (store-and-respond only)",
   "main": "src/index.js",
   "scripts": {
     "dev": "wrangler dev",
