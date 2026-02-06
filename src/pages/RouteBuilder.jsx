@@ -1632,20 +1632,21 @@ function RouteBuilder() {
   }
 
   // Render route stats for the bottom sheet peek content
+  const safeStats = routeStats || { distance: 0, elevation: 0, duration: 0 };
   const renderPeekContent = () => (
     <Group justify="space-between" style={{ width: '100%' }}>
       <Box>
         <Text size="xs" c="dimmed">Distance</Text>
-        <Text fw={600} size="sm">{formatDist(routeStats.distance)}</Text>
+        <Text fw={600} size="sm">{formatDist(safeStats.distance)}</Text>
       </Box>
       <Box>
         <Text size="xs" c="dimmed">Elevation</Text>
-        <Text fw={600} size="sm">{routeStats.elevation > 0 ? formatElev(routeStats.elevation) : '--'}</Text>
+        <Text fw={600} size="sm">{safeStats.elevation > 0 ? formatElev(safeStats.elevation) : '--'}</Text>
       </Box>
       <Box>
         <Text size="xs" c="dimmed">Time</Text>
         <Text fw={600} size="sm">
-          {routeStats.duration > 0 ? `${Math.floor(routeStats.duration / 60)}h ${routeStats.duration % 60}m` : '--:--'}
+          {safeStats.duration > 0 ? `${Math.floor(safeStats.duration / 60)}h ${safeStats.duration % 60}m` : '--:--'}
         </Text>
       </Box>
       <Button
@@ -2645,6 +2646,7 @@ function RouteBuilder() {
               {builderMode === 'ready' && (
                 <ModeSelector
                   onSelectMode={(mode) => setBuilderMode(mode)}
+                  onImportGPX={handleImportGPX}
                 />
               )}
 
