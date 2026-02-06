@@ -486,7 +486,7 @@ function buildActivityData(userId, activityId, activityInfo, source = 'webhook')
       ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
       : new Date().toISOString(),
     start_date_local: activityInfo.startTimeInSeconds
-      ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
+      ? new Date((activityInfo.startTimeInSeconds + (activityInfo.startTimeOffsetInSeconds || 0)) * 1000).toISOString()
       : new Date().toISOString(),
     // Distance (Garmin sends in meters)
     distance: activityInfo.distanceInMeters ?? activityInfo.distance ?? null,
@@ -529,7 +529,10 @@ function buildActivityData(userId, activityId, activityInfo, source = 'webhook')
       ?? activityInfo.avg_cadence
       ?? null,
     // Training flags
-    trainer: activityInfo.isParent === false || (activityInfo.deviceName || '').toLowerCase().includes('indoor') || false,
+    trainer: isIndoorActivityType(activityInfo.activityType) ||
+      (activityInfo.deviceName || '').toLowerCase().includes('indoor') ||
+      (activityInfo.deviceName || '').toLowerCase().includes('trainer') ||
+      false,
     // Store ALL original data in raw_data so nothing is lost
     raw_data: activityInfo,
     imported_from: source,
@@ -537,6 +540,19 @@ function buildActivityData(userId, activityId, activityInfo, source = 'webhook')
   };
 
   return safeData;
+}
+
+/**
+ * Check if a Garmin activity type is an indoor/trainer activity
+ */
+function isIndoorActivityType(garminType) {
+  const lowerType = (garminType || '').toLowerCase();
+  const indoorTypes = [
+    'indoor_cycling', 'virtual_ride', 'indoor_running', 'treadmill_running',
+    'indoor_walking', 'treadmill_walking', 'indoor_rowing', 'lap_swimming',
+    'indoor_cardio', 'elliptical', 'stair_climbing', 'indoor_climbing',
+  ];
+  return indoorTypes.includes(lowerType);
 }
 
 /**
