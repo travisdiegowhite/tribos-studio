@@ -340,21 +340,11 @@ async function buildQuarterLoop(params) {
   console.log(`📏 Target distance: ${targetDistanceKm.toFixed(1)}km`);
   console.log(`🧭 Initial direction: ${getDirectionName(initialBearing)} (${initialBearing}°)`);
 
-  // Calculate quarter distance
-  // Road routing typically adds 25-35% to straight-line distance, so we target less
-  // to compensate. We target ~75% of the quarter distance as straight-line to get
-  // closer to the actual target after road routing.
-  const roadRoutingFactor = 0.75; // Compensate for roads being ~33% longer than straight line
-  const quarterDistance = (targetDistanceKm / 4) * roadRoutingFactor;
-
-  // Minimal variation to keep routes consistent but not perfectly identical
-  // Reduced from ±10-15% to ±2-3% for more predictable results
-  const quarterVariations = [
-    quarterDistance * (0.98 + Math.random() * 0.04),  // Q1: 98-102%
-    quarterDistance * (0.98 + Math.random() * 0.04),  // Q2: 98-102%
-    quarterDistance * (0.98 + Math.random() * 0.04),  // Q3: 98-102%
-    // Q4 will be calculated to close the loop
-  ];
+  // Calculate quarter distance with initial estimate.
+  // After Q1 routes, we learn the actual road-detour ratio for this area
+  // and adapt Q2/Q3 targets for better total distance accuracy.
+  const defaultRoutingFactor = 0.75; // Initial estimate: roads are ~33% longer than straight line
+  const targetQuarterDistanceKm = targetDistanceKm / 4;
 
   const segments = [];
   let currentPoint = startPoint;
@@ -362,6 +352,7 @@ async function buildQuarterLoop(params) {
   let totalDistance = 0;
   let totalElevationGain = 0;
   let allCoordinates = [];
+  let adaptiveRoutingFactor = defaultRoutingFactor;
 
   // Build first 3 quarters
   for (let i = 0; i < 3; i++) {
@@ -369,16 +360,33 @@ async function buildQuarterLoop(params) {
 
     console.log(`\n📐 Quarter ${i + 1}/4: Heading ${getDirectionName(currentBearing)}`);
 
+    // Use adaptive factor (learned from Q1) for Q2+, default for Q1
+    const routingFactor = i === 0 ? defaultRoutingFactor : adaptiveRoutingFactor;
+    const straightLineTarget = targetQuarterDistanceKm * routingFactor;
+    // Minimal variation (±2%) for slight route diversity
+    const variation = 0.98 + Math.random() * 0.04;
+
     // Calculate target point for this quarter
     const targetPoint = calculateDestinationPoint(
       currentPoint,
       currentBearing,
-      quarterVariations[i]
+      straightLineTarget * variation
     );
 
     // Route this segment
     const segment = await routeSegment(currentPoint, targetPoint, options);
     segments.push(segment);
+
+    // After Q1: learn the actual road-detour ratio for this area
+    if (i === 0) {
+      const straightLineDist = calculateDistance(startPoint, segment.endPoint);
+      if (straightLineDist > 0.1) { // Avoid division by near-zero
+        const actualRatio = straightLineDist / segment.distance;
+        // Clamp to reasonable bounds: urban grid ~0.85, mountain switchbacks ~0.4
+        adaptiveRoutingFactor = Math.max(0.4, Math.min(0.9, actualRatio));
+        console.log(`📐 Adaptive routing factor: ${adaptiveRoutingFactor.toFixed(3)} (from Q1: ${segment.distance.toFixed(1)}km routed / ${straightLineDist.toFixed(1)}km straight)`);
+      }
+    }
 
     // Add coordinates with tangent detection at join points
     allCoordinates = joinSegmentsWithTangentRemoval(
