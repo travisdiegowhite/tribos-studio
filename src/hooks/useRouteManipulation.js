@@ -301,6 +301,9 @@ export const useRouteManipulation = ({
       setRouteGeometry(geometry);
 
       // Set route stats
+      // UNIT CONTRACT: distance here is in METERS (raw from routing APIs).
+      // useRouteOperations.exportRouteFile divides by 1000 to get km for export.
+      // Note: The AI builder's Zustand store uses KM. These are separate state.
       const stats = {
         distance: routeDistance,
         duration: routeDuration,

@@ -16,6 +16,10 @@ const initialState = {
   // Route data
   routeGeometry: null,
   routeName: 'Untitled Route',
+  // UNIT CONTRACT: distance is in KM (matches formatDistance, ElevationProfile, DB field distance_km)
+  // Note: useRouteManipulation.snapToRoads stores distance in METERS (API convention).
+  // The Manual builder uses its own local state, not this store, so no conflict currently.
+  // If unifying routing paths, normalize at the boundary.
   routeStats: { distance: 0, elevation: 0, duration: 0 },
   waypoints: [],
 
