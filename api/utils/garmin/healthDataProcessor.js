@@ -10,9 +10,12 @@
  * @param {string} dataType - Type of health data (dailies, sleeps, etc.)
  * @param {object[]} dataArray - Array of health data records
  * @param {object} supabase - Supabase client instance
+ * @returns {Promise<{processed: number, skipped: number, results: string[]}>}
  */
 export async function processHealthPushData(dataType, dataArray, supabase) {
   console.log(`🏥 Processing ${dataArray.length} ${dataType} records`);
+
+  const summary = { processed: 0, skipped: 0, results: [] };
 
   for (const record of dataArray) {
     try {
@@ -27,30 +30,37 @@ export async function processHealthPushData(dataType, dataArray, supabase) {
 
       if (integrationError || !integration) {
         console.warn(`⚠️ No integration found for Garmin user: ${garminUserId}`);
+        summary.skipped++;
+        summary.results.push(`skipped: no integration for ${garminUserId}`);
         continue;
       }
 
       const userId = integration.user_id;
+      let result = null;
 
       switch (dataType) {
         case 'dailies':
-          await processDailySummary(userId, record, supabase);
+          result = await processDailySummary(userId, record, supabase);
           break;
         case 'sleeps':
-          await processSleepSummary(userId, record, supabase);
+          result = await processSleepSummary(userId, record, supabase);
           break;
         case 'bodyComps':
-          await processBodyCompSummary(userId, record, supabase);
+          result = await processBodyCompSummary(userId, record, supabase);
           break;
         case 'stressDetails':
-          await processStressDetails(userId, record, supabase);
+          result = await processStressDetails(userId, record, supabase);
           break;
         case 'hrv':
-          await processHrvSummary(userId, record, supabase);
+          result = await processHrvSummary(userId, record, supabase);
           break;
         default:
           console.log(`ℹ️ Unhandled health data type: ${dataType}`);
+          result = `unhandled type: ${dataType}`;
       }
+
+      summary.processed++;
+      if (result) summary.results.push(result);
 
     } catch (err) {
       console.error(`❌ Error processing ${dataType} record:`, {
@@ -59,8 +69,11 @@ export async function processHealthPushData(dataType, dataArray, supabase) {
         error: err.message,
         stack: err.stack
       });
+      summary.results.push(`error: ${err.message}`);
     }
   }
+
+  return summary;
 }
 
 /**
@@ -149,7 +162,7 @@ async function processDailySummary(userId, data, supabase) {
   const metricDate = data.calendarDate;
   if (!metricDate) {
     console.warn('Daily summary missing calendarDate');
-    return;
+    return 'skipped: missing calendarDate';
   }
 
   console.log(`📊 Processing daily summary for ${metricDate}:`, {
@@ -178,16 +191,22 @@ async function processDailySummary(userId, data, supabase) {
 
   if (error) {
     console.error('❌ Error saving daily summary:', error);
-  } else {
-    console.log(`✅ Daily summary saved for ${metricDate}`);
+    return `error: ${error.message}`;
   }
+
+  const saved = [];
+  if (healthData.resting_hr) saved.push(`resting_hr=${healthData.resting_hr}`);
+  if (healthData.stress_level) saved.push(`stress=${healthData.stress_level}`);
+  if (healthData.body_battery) saved.push(`battery=${healthData.body_battery}`);
+  console.log(`✅ Daily summary saved for ${metricDate}`);
+  return `daily ${metricDate}: ${saved.join(', ') || 'no metrics'}`;
 }
 
 async function processSleepSummary(userId, data, supabase) {
   const metricDate = data.calendarDate;
   if (!metricDate) {
     console.warn('Sleep summary missing calendarDate');
-    return;
+    return 'skipped: missing calendarDate';
   }
 
   const sleepHours = data.durationInSeconds
@@ -222,9 +241,14 @@ async function processSleepSummary(userId, data, supabase) {
 
   if (error) {
     console.error('❌ Error saving sleep summary:', error);
-  } else {
-    console.log(`✅ Sleep summary saved for ${metricDate}`);
+    return `error: ${error.message}`;
   }
+
+  const saved = [];
+  if (sleepHours) saved.push(`${sleepHours}h`);
+  if (sleepQuality) saved.push(`quality=${sleepQuality}`);
+  console.log(`✅ Sleep summary saved for ${metricDate}`);
+  return `sleep ${metricDate}: ${saved.join(', ') || 'no metrics'}`;
 }
 
 async function processBodyCompSummary(userId, data, supabase) {
@@ -246,7 +270,7 @@ async function processBodyCompSummary(userId, data, supabase) {
 
   if (!weightKg && !bodyFatPercent) {
     console.log('No useful body comp data to save');
-    return;
+    return 'skipped: no weight or body fat data';
   }
 
   const healthData = {
@@ -266,14 +290,19 @@ async function processBodyCompSummary(userId, data, supabase) {
 
   if (error) {
     console.error('❌ Error saving body comp:', error);
-  } else {
-    console.log(`✅ Body comp saved for ${metricDate}`);
+    return `error: ${error.message}`;
   }
+
+  const saved = [];
+  if (weightKg) saved.push(`${weightKg}kg`);
+  if (bodyFatPercent) saved.push(`${bodyFatPercent}% bf`);
+  console.log(`✅ Body comp saved for ${metricDate}`);
+  return `bodyComp ${metricDate}: ${saved.join(', ')}`;
 }
 
 async function processStressDetails(userId, data, supabase) {
   const metricDate = data.calendarDate;
-  if (!metricDate) return;
+  if (!metricDate) return 'skipped: missing calendarDate';
 
   const bodyBatteryValues = data.timeOffsetBodyBatteryValues;
   let latestBodyBattery = null;
@@ -287,7 +316,7 @@ async function processStressDetails(userId, data, supabase) {
     bodyBattery: latestBodyBattery
   });
 
-  if (latestBodyBattery == null) return;
+  if (latestBodyBattery == null) return `stress ${metricDate}: no body battery data`;
 
   const healthData = {
     user_id: userId,
@@ -303,14 +332,16 @@ async function processStressDetails(userId, data, supabase) {
 
   if (error) {
     console.error('❌ Error saving stress details:', error);
-  } else {
-    console.log(`✅ Stress details saved for ${metricDate}`);
+    return `error: ${error.message}`;
   }
+
+  console.log(`✅ Stress details saved for ${metricDate}`);
+  return `stress ${metricDate}: battery=${latestBodyBattery}`;
 }
 
 async function processHrvSummary(userId, data, supabase) {
   const metricDate = data.calendarDate;
-  if (!metricDate) return;
+  if (!metricDate) return 'skipped: missing calendarDate';
 
   const hrvMs = data.lastNightAvg || null;
 
@@ -318,7 +349,7 @@ async function processHrvSummary(userId, data, supabase) {
     hrv: hrvMs
   });
 
-  if (hrvMs == null) return;
+  if (hrvMs == null) return `hrv ${metricDate}: no data`;
 
   const healthData = {
     user_id: userId,
@@ -334,7 +365,9 @@ async function processHrvSummary(userId, data, supabase) {
 
   if (error) {
     console.error('❌ Error saving HRV summary:', error);
-  } else {
-    console.log(`✅ HRV summary saved for ${metricDate}`);
+    return `error: ${error.message}`;
   }
+
+  console.log(`✅ HRV summary saved for ${metricDate}`);
+  return `hrv ${metricDate}: ${hrvMs}ms`;
 }
