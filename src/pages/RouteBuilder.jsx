@@ -899,6 +899,38 @@ function RouteBuilder() {
         });
       }
 
+      // Score routes against user's riding history and rank by composite score
+      if (routes.length > 1 && accessToken) {
+        console.log('🎯 Scoring routes against riding history...');
+        const targetDistKm = explicitDistanceKm || ((timeAvailable / 60) * (speedProfile?.average_speed || 28));
+
+        const scoredRoutes = await Promise.all(routes.map(async (route) => {
+          try {
+            const score = route.coordinates
+              ? await scoreRoutePreference(route.coordinates, accessToken)
+              : null;
+            const distanceAccuracy = route.distance && targetDistKm
+              ? 1 - Math.abs(route.distance - targetDistKm) / targetDistKm
+              : 0.5;
+            const familiarityPercent = score?.familiarityPercent || 0;
+            // Composite: 70% distance accuracy, 30% familiarity
+            const compositeScore = (0.7 * Math.max(0, distanceAccuracy)) + (0.3 * (familiarityPercent / 100));
+            return { ...route, familiarityScore: score, compositeScore };
+          } catch {
+            return { ...route, familiarityScore: null, compositeScore: 0 };
+          }
+        }));
+
+        // Sort by composite score (highest first)
+        scoredRoutes.sort((a, b) => (b.compositeScore || 0) - (a.compositeScore || 0));
+
+        const topScore = scoredRoutes[0]?.familiarityScore;
+        if (topScore) {
+          console.log(`🎯 Top route familiarity: ${topScore.familiarityPercent?.toFixed(0)}%`);
+        }
+        routes = scoredRoutes;
+      }
+
       // Routes already have full coordinates
       setAiSuggestions(routes);
       notifications.show({
@@ -916,7 +948,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [viewport, timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm]);
+  }, [viewport, timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm, accessToken]);
 
   // Get user's speed for the current route profile
   const getUserSpeedForProfile = useCallback((profile) => {
