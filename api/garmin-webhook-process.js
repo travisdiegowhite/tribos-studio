@@ -131,15 +131,44 @@ async function processHealthEvent(event) {
   const healthType = event.event_type.replace('HEALTH_', '');
   const payload = event.payload;
 
-  const items = payload[healthType];
-  if (!items?.length) {
+  const allItems = payload[healthType];
+  if (!allItems?.length) {
     await markEventProcessed(event.id, `No ${healthType} data in payload`);
     return;
   }
 
-  await processHealthPushData(healthType, items, supabase);
-  await markEventProcessed(event.id, null);
-  console.log(`✅ Health event processed: ${healthType} (${items.length} records)`);
+  // Use batch_index to process only the specific item for this event
+  // (each item in a batch was stored as a separate event by the webhook handler)
+  const idx = event.batch_index || 0;
+  const item = allItems[idx];
+  if (!item) {
+    await markEventProcessed(event.id, `No item at batch_index ${idx}`);
+    return;
+  }
+
+  // Look up integration to populate user_id/integration_id on the event (audit trail)
+  if (item.userId) {
+    const { data: integration } = await supabase
+      .from('bike_computer_integrations')
+      .select('id, user_id')
+      .eq('provider', 'garmin')
+      .eq('provider_user_id', item.userId)
+      .maybeSingle();
+
+    if (integration) {
+      await supabase
+        .from('garmin_webhook_events')
+        .update({ user_id: integration.user_id, integration_id: integration.id })
+        .eq('id', event.id);
+    }
+  }
+
+  // Process the single item and capture what was saved
+  const summary = await processHealthPushData(healthType, [item], supabase);
+  const resultMsg = summary.results.length > 0 ? summary.results.join('; ') : null;
+
+  await markEventProcessed(event.id, resultMsg);
+  console.log(`✅ Health event processed: ${healthType}`, resultMsg || '(no detail)');
 }
 
 // ============================================================================

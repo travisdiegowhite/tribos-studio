@@ -28,10 +28,10 @@ function mockSupabase({ integration = { user_id: 'user-1' }, upsertError = null 
 }
 
 describe('processHealthPushData', () => {
-  it('processes daily summaries', async () => {
+  it('processes daily summaries and returns summary', async () => {
     const supabase = mockSupabase();
 
-    await processHealthPushData('dailies', [{
+    const summary = await processHealthPushData('dailies', [{
       userId: 'garmin-123',
       calendarDate: '2025-01-15',
       restingHeartRateInBeatsPerMinute: 55,
@@ -45,12 +45,19 @@ describe('processHealthPushData', () => {
     expect(call.data.metric_date).toBe('2025-01-15');
     expect(call.data.resting_hr).toBe(55);
     expect(call.data.source).toBe('garmin');
+
+    // Verify return value
+    expect(summary.processed).toBe(1);
+    expect(summary.skipped).toBe(0);
+    expect(summary.results).toHaveLength(1);
+    expect(summary.results[0]).toContain('daily 2025-01-15');
+    expect(summary.results[0]).toContain('resting_hr=55');
   });
 
-  it('processes sleep summaries', async () => {
+  it('processes sleep summaries and returns summary', async () => {
     const supabase = mockSupabase();
 
-    await processHealthPushData('sleeps', [{
+    const summary = await processHealthPushData('sleeps', [{
       userId: 'garmin-123',
       calendarDate: '2025-01-15',
       durationInSeconds: 28800, // 8 hours
@@ -61,12 +68,16 @@ describe('processHealthPushData', () => {
     const call = supabase._upsertCalls[0];
     expect(call.data.sleep_hours).toBe(8);
     expect(call.data.sleep_quality).toBe(4); // 75/20 rounded = 4
+
+    expect(summary.processed).toBe(1);
+    expect(summary.results[0]).toContain('sleep 2025-01-15');
+    expect(summary.results[0]).toContain('8h');
   });
 
-  it('processes body composition data', async () => {
+  it('processes body composition data and returns summary', async () => {
     const supabase = mockSupabase();
 
-    await processHealthPushData('bodyComps', [{
+    const summary = await processHealthPushData('bodyComps', [{
       userId: 'garmin-123',
       measurementTimeInSeconds: 1705312800,
       weightInGrams: 75000,
@@ -77,12 +88,16 @@ describe('processHealthPushData', () => {
     const call = supabase._upsertCalls[0];
     expect(call.data.weight_kg).toBe(75);
     expect(call.data.body_fat_percent).toBe(15.5);
+
+    expect(summary.processed).toBe(1);
+    expect(summary.results[0]).toContain('75kg');
+    expect(summary.results[0]).toContain('15.5% bf');
   });
 
-  it('processes HRV summaries', async () => {
+  it('processes HRV summaries and returns summary', async () => {
     const supabase = mockSupabase();
 
-    await processHealthPushData('hrv', [{
+    const summary = await processHealthPushData('hrv', [{
       userId: 'garmin-123',
       calendarDate: '2025-01-15',
       lastNightAvg: 42
@@ -90,12 +105,15 @@ describe('processHealthPushData', () => {
 
     expect(supabase._upsertCalls).toHaveLength(1);
     expect(supabase._upsertCalls[0].data.hrv_ms).toBe(42);
+
+    expect(summary.processed).toBe(1);
+    expect(summary.results[0]).toContain('42ms');
   });
 
   it('processes stress details with body battery', async () => {
     const supabase = mockSupabase();
 
-    await processHealthPushData('stressDetails', [{
+    const summary = await processHealthPushData('stressDetails', [{
       userId: 'garmin-123',
       calendarDate: '2025-01-15',
       timeOffsetBodyBatteryValues: {
@@ -108,29 +126,37 @@ describe('processHealthPushData', () => {
     expect(supabase._upsertCalls).toHaveLength(1);
     // Should pick the latest offset (7200)
     expect(supabase._upsertCalls[0].data.body_battery).toBe(60);
+
+    expect(summary.processed).toBe(1);
+    expect(summary.results[0]).toContain('battery=60');
   });
 
-  it('skips records with no matching integration', async () => {
+  it('skips records with no matching integration and reports it', async () => {
     const supabase = mockSupabase({ integration: null });
 
-    await processHealthPushData('dailies', [{
+    const summary = await processHealthPushData('dailies', [{
       userId: 'unknown-user',
       calendarDate: '2025-01-15',
       restingHeartRateInBeatsPerMinute: 55
     }], supabase);
 
     expect(supabase._upsertCalls).toHaveLength(0);
+    expect(summary.skipped).toBe(1);
+    expect(summary.processed).toBe(0);
+    expect(summary.results[0]).toContain('no integration');
   });
 
   it('handles multiple records in batch', async () => {
     const supabase = mockSupabase();
 
-    await processHealthPushData('dailies', [
+    const summary = await processHealthPushData('dailies', [
       { userId: 'garmin-123', calendarDate: '2025-01-14', restingHeartRateInBeatsPerMinute: 56 },
       { userId: 'garmin-123', calendarDate: '2025-01-15', restingHeartRateInBeatsPerMinute: 55 }
     ], supabase);
 
     expect(supabase._upsertCalls).toHaveLength(2);
+    expect(summary.processed).toBe(2);
+    expect(summary.results).toHaveLength(2);
   });
 });
 
