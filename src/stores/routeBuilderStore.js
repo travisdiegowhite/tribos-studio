@@ -16,6 +16,10 @@ const initialState = {
   // Route data
   routeGeometry: null,
   routeName: 'Untitled Route',
+  // UNIT CONTRACT: distance is in KM (matches formatDistance, ElevationProfile, DB field distance_km)
+  // Note: useRouteManipulation.snapToRoads stores distance in METERS (API convention).
+  // The Manual builder uses its own local state, not this store, so no conflict currently.
+  // If unifying routing paths, normalize at the boundary.
   routeStats: { distance: 0, elevation: 0, duration: 0 },
   waypoints: [],
 
@@ -62,10 +66,13 @@ export const useRouteBuilderStore = create(
         lastSaved: Date.now()
       }),
 
-      setRouteStats: (stats) => set({
-        routeStats: stats,
+      // Supports both direct object and functional updates: setRouteStats({...}) or setRouteStats(prev => ({...prev, ...}))
+      setRouteStats: (statsOrUpdater) => set((state) => ({
+        routeStats: typeof statsOrUpdater === 'function'
+          ? statsOrUpdater(state.routeStats)
+          : statsOrUpdater,
         lastSaved: Date.now()
-      }),
+      })),
 
       setWaypoints: (waypoints) => set({
         waypoints,
@@ -174,6 +181,8 @@ export const useRouteBuilderStore = create(
       storage: createJSONStorage(() => localStorage),
 
       // Only persist these specific fields (not transient UI state)
+      // Note: aiSuggestions are intentionally excluded — they contain large
+      // coordinate arrays that would bloat localStorage. Users regenerate on demand.
       partialize: (state) => ({
         routeGeometry: state.routeGeometry,
         routeName: state.routeName,
@@ -185,7 +194,6 @@ export const useRouteBuilderStore = create(
         routeType: state.routeType,
         routeProfile: state.routeProfile,
         explicitDistanceKm: state.explicitDistanceKm,
-        aiSuggestions: state.aiSuggestions,
         selectedWorkoutId: state.selectedWorkoutId,
         routingSource: state.routingSource,
         lastSaved: state.lastSaved,

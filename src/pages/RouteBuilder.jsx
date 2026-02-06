@@ -11,8 +11,10 @@ import AppShell from '../components/AppShell.jsx';
 import BottomSheet from '../components/BottomSheet.jsx';
 import { generateAIRoutes, generateSmartWaypoints } from '../utils/aiRouteGenerator';
 import { generateIterativeRoute, generateIterativeRouteVariations } from '../utils/iterativeRouteBuilder';
-import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
-import { matchRouteToOSM } from '../utils/osmCyclingService';
+import { getSmartCyclingRoute, getRoutingSourceLabel } from '../utils/smartCyclingRouter';
+import { buildNaturalLanguagePrompt, parseNaturalLanguageResponse } from '../utils/naturalLanguagePrompt';
+import { geocodeWaypoint } from '../utils/geocoding';
+import { scoreRoutePreference, getFamiliarLoopWaypoints } from '../utils/routeScoring';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { stravaService } from '../utils/stravaService';
 import { saveRoute, getRoute } from '../utils/routesService';
@@ -41,542 +43,8 @@ import { FuelCard } from '../components/fueling';
 import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-
-// CyclOSM raster tile style for Mapbox GL
-const CYCLOSM_STYLE = {
-  version: 8,
-  name: 'CyclOSM',
-  sources: {
-    'cyclosm-tiles': {
-      type: 'raster',
-      tiles: [
-        'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
-        'https://b.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
-        'https://c.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
-      ],
-      tileSize: 256,
-      attribution: '© <a href="https://www.cyclosm.org">CyclOSM</a> | © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    },
-  },
-  layers: [
-    {
-      id: 'cyclosm-layer',
-      type: 'raster',
-      source: 'cyclosm-tiles',
-      minzoom: 0,
-      maxzoom: 20,
-    },
-  ],
-};
-
-// Basemap style options for the map switcher
-const BASEMAP_STYLES = [
-  { id: 'dark', label: 'Dark', style: 'mapbox://styles/mapbox/dark-v11' },
-  { id: 'outdoors', label: 'Outdoors', style: 'mapbox://styles/mapbox/outdoors-v12' },
-  { id: 'satellite', label: 'Satellite', style: 'mapbox://styles/mapbox/satellite-streets-v12' },
-  { id: 'streets', label: 'Streets', style: 'mapbox://styles/mapbox/streets-v12' },
-  { id: 'cyclosm', label: 'CyclOSM', style: CYCLOSM_STYLE },
-];
-
-/**
- * Build a prompt for Claude to parse natural language route requests
- * Returns waypoint NAMES that will be geocoded, not generic route suggestions
- * @param {string} userRequest - The user's natural language request
- * @param {object} weatherData - Current weather conditions
- * @param {object} userLocation - User's location {latitude, longitude}
- * @param {string} userAddress - User's address for regional context
- * @param {object} calendarData - Calendar context with upcoming workouts
- */
-function buildNaturalLanguagePrompt(userRequest, weatherData, userLocation, userAddress, calendarData = null) {
-  // Extract region/area from user's address for context
-  let regionContext = '';
-  let gravelExamples = '';
-
-  if (userAddress) {
-    const addressLower = userAddress.toLowerCase();
-
-    if (addressLower.includes('colorado') || addressLower.includes(', co')) {
-      regionContext = 'The cyclist is in Colorado.';
-      gravelExamples = `
-   **Colorado Front Range Examples:**
-   - Erie → Lafayette → Superior → Louisville (county roads)
-   - Boulder → Lyons → Hygiene → Longmont (dirt roads in foothills)
-   - Boulder → Nederland → Ward → Jamestown (high country gravel)
-   - Golden → Morrison → Evergreen → Conifer (mountain roads)`;
-    } else if (addressLower.includes('california') || addressLower.includes(', ca')) {
-      regionContext = 'The cyclist is in California.';
-      gravelExamples = `
-   **California Examples:**
-   - Use small towns connected by county roads
-   - Suggest towns in wine country, foothills, or rural areas
-   - Look for agricultural areas with farm roads`;
-    } else {
-      regionContext = `The cyclist is near: ${userAddress}`;
-      gravelExamples = `
-   **General Strategy:**
-   - Suggest small towns/communities near the cyclist's location
-   - Rural areas typically have more gravel/dirt roads
-   - County roads between small towns are often unpaved`;
-    }
-  } else {
-    regionContext = 'Cyclist location unknown.';
-    gravelExamples = `
-   **General Strategy:**
-   - Suggest small towns logically placed between start and destination
-   - Rural areas and small communities often have gravel roads
-   - Use actual town names that will geocode reliably`;
-  }
-
-  // Build calendar context string if available
-  let calendarContext = '';
-  if (calendarData?.todaysWorkout || calendarData?.upcomingWorkouts?.length > 0) {
-    calendarContext = `
-TRAINING CALENDAR CONTEXT:
-The cyclist has a training plan. When they reference "today's workout", "my scheduled ride", "this week's long ride", etc., use this information:
-`;
-    if (calendarData.todaysWorkout) {
-      const tw = calendarData.todaysWorkout;
-      calendarContext += `
-- TODAY'S WORKOUT: ${tw.name || tw.workout_type} (${tw.target_duration || 60} minutes, ${tw.workout_type} type)`;
-    }
-    if (calendarData.upcomingWorkouts?.length > 0) {
-      calendarContext += `
-- UPCOMING WORKOUTS:`;
-      calendarData.upcomingWorkouts.slice(0, 5).forEach(w => {
-        const date = new Date(w.scheduled_date + 'T00:00:00');
-        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-        calendarContext += `
-  * ${dayName}: ${w.name || w.workout_type} (${w.target_duration || 60} min)`;
-      });
-    }
-  }
-
-  return `You are an expert cycling route planner. A cyclist has requested: "${userRequest}"
-
-${regionContext}
-${calendarContext}
-
-Your task is to extract the route requirements and return a structured JSON response with ACTUAL WAYPOINT NAMES that can be geocoded.
-
-CRITICAL: If the user mentions SPECIFIC trail names or paths (e.g., "Coal Creek Path", "Boulder Creek Trail", "Cherry Creek Trail"), you MUST include those EXACT names as waypoints. These are the user's primary request.
-
-Extract the following:
-1. Start location (if mentioned)
-2. Waypoints - CRITICAL: Include any trail names, path names, roads, or landmarks the user specifically mentioned
-3. Route type (loop, out_back, point_to_point)
-4. Distance or time
-5. Surface preference (gravel, paved, mixed)
-
-ROUTE TYPE DEFINITIONS:
-- "loop": Returns to start via DIFFERENT roads. If user says "heading south and back", this is a loop.
-- "out_back": Returns via the SAME route (only when explicitly requested)
-- "point_to_point": Different start and end
-
-Current conditions:
-${weatherData ? `- Weather: ${weatherData.temperature}°C, ${weatherData.description}
-- Wind: ${weatherData.windSpeed} km/h` : '- Weather data not available'}
-
-${gravelExamples}
-
-Return ONLY a JSON object:
-{
-  "startLocation": "start location if mentioned, or null",
-  "waypoints": ["IMPORTANT: Include EXACT trail/path names user mentioned here", "additional waypoint"],
-  "routeType": "loop|out_back|point_to_point",
-  "distance": number in km (or null),
-  "timeAvailable": number in minutes (or null),
-  "surfaceType": "gravel|paved|mixed",
-  "avoidHighways": true/false,
-  "trainingGoal": "endurance|intervals|recovery|hills" or null,
-  "direction": "north|south|east|west" if user mentioned a direction,
-  "preferFamiliar": true if user mentions "familiar roads", "roads I know", "my usual routes", or similar
-}
-
-EXAMPLES:
-
-User: "30 mile loop heading south on Coal Creek Path"
-Response:
-{
-  "startLocation": null,
-  "waypoints": ["Coal Creek Path"],
-  "routeType": "loop",
-  "distance": 48.3,
-  "surfaceType": "paved",
-  "direction": "south"
-}
-
-User: "Ride to Boulder Creek Trail and back on gravel"
-Response:
-{
-  "startLocation": null,
-  "waypoints": ["Boulder Creek Trail"],
-  "routeType": "loop",
-  "surfaceType": "gravel"
-}
-
-User: "40 mile loop through Hygiene and Lyons on dirt roads"
-Response:
-{
-  "startLocation": null,
-  "waypoints": ["Hygiene", "Lyons"],
-  "routeType": "loop",
-  "distance": 64.4,
-  "surfaceType": "gravel"
-}
-
-User: "Create a route for today's workout" (when today's workout is a 90-minute endurance ride)
-Response:
-{
-  "startLocation": null,
-  "waypoints": [],
-  "routeType": "loop",
-  "timeAvailable": 90,
-  "trainingGoal": "endurance",
-  "surfaceType": "mixed"
-}
-
-User: "Route for my Saturday long ride" (when Saturday has a 3-hour endurance workout scheduled)
-Response:
-{
-  "startLocation": null,
-  "waypoints": [],
-  "routeType": "loop",
-  "timeAvailable": 180,
-  "trainingGoal": "endurance",
-  "surfaceType": "mixed"
-}
-
-CRITICAL RULES:
-1. If user mentions a TRAIL NAME (Coal Creek Path, Boulder Creek, etc.), it MUST be in waypoints
-2. Return ONLY valid JSON, no extra text
-3. Waypoints should be actual place names that can be geocoded
-4. If user references their training calendar (today's workout, this week's ride, etc.), use the TRAINING CALENDAR CONTEXT above
-5. IMPORTANT: "home", "back home", or "back to [Place]" at the END of a route means the user wants to return to a specific location. Include that location as the FINAL waypoint. If they say "home to Erie", add "Erie" as the last waypoint.
-6. For loop routes that mention returning home, include the home location as the final waypoint so the route closes properly.
-
-EXAMPLES OF HANDLING "HOME":
-
-User: "Ride to Lochbuie and Hudson then back home to Erie"
-Response:
-{
-  "startLocation": "Erie",
-  "waypoints": ["Lochbuie", "Hudson", "Erie"],
-  "routeType": "loop",
-  "surfaceType": "mixed"
-}
-
-User: "Loop from here to Louisville then North Boulder and back home"
-Response:
-{
-  "startLocation": null,
-  "waypoints": ["Louisville", "North Boulder"],
-  "routeType": "loop",
-  "surfaceType": "mixed"
-}
-Note: "back home" without a place name = return to start (handled automatically for loops)`;
-}
-
-/**
- * Parse Claude's natural language response to extract waypoints
- */
-function parseNaturalLanguageResponse(responseText) {
-  try {
-    // Try to extract JSON from the response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    console.log('📝 Parsed natural language response:', parsed);
-
-    // Convert to route generator parameters
-    const result = {};
-
-    // Determine route type
-    if (parsed.routeType) {
-      result.routeType = parsed.routeType;
-    } else if (parsed.endLocation && parsed.endLocation !== parsed.startLocation) {
-      result.routeType = 'point_to_point';
-    } else {
-      result.routeType = 'loop';
-    }
-
-    // Set time or distance
-    if (parsed.timeAvailable) {
-      result.timeAvailable = parsed.timeAvailable;
-    } else if (parsed.distance) {
-      // Estimate time from distance (assume 25 km/h average)
-      result.timeAvailable = Math.round((parsed.distance / 25) * 60);
-      result.targetDistanceKm = parsed.distance;
-    }
-
-    // Set training goal
-    if (parsed.trainingGoal) {
-      result.trainingGoal = parsed.trainingGoal;
-    } else {
-      result.trainingGoal = 'endurance';
-    }
-
-    // Extract waypoints - THIS IS THE KEY DIFFERENCE
-    result.startLocationName = parsed.startLocation;
-    result.waypoints = parsed.waypoints || [];
-    result.direction = parsed.direction;
-
-    // Surface/preferences
-    result.preferences = {
-      avoidHighways: parsed.avoidHighways,
-      surfaceType: parsed.surfaceType || 'mixed',
-      trailPreference: parsed.surfaceType === 'gravel',
-      preferFamiliar: parsed.preferFamiliar || false
-    };
-
-    // Log if familiar roads preference is detected
-    if (parsed.preferFamiliar) {
-      console.log('🧠 User prefers familiar roads - will score against riding history');
-    }
-
-    console.log('🎯 Extracted waypoints:', result.waypoints);
-    console.log('🧭 Direction:', result.direction);
-    return result;
-
-  } catch (error) {
-    console.error('Failed to parse natural language response:', error);
-    throw new Error('Could not understand the route request. Please try being more specific.');
-  }
-}
-
-/**
- * Geocode a waypoint name to coordinates
- * IMPORTANT: Uses Mapbox with bounding box, falls back to OSM for trails
- */
-async function geocodeWaypoint(waypointName, proximityLocation) {
-  if (!waypointName || !MAPBOX_TOKEN) return null;
-
-  const isTrailOrPath = waypointName.toLowerCase().includes('path') ||
-                        waypointName.toLowerCase().includes('trail') ||
-                        waypointName.toLowerCase().includes('creek') ||
-                        waypointName.toLowerCase().includes('greenway');
-
-  // For trails/paths, try OSM first since it has better trail data
-  if (isTrailOrPath && proximityLocation) {
-    try {
-      console.log(`🗺️ Trying OSM for trail: "${waypointName}"`);
-      const osmMatch = await matchRouteToOSM(
-        { name: waypointName },
-        { lat: proximityLocation[1], lng: proximityLocation[0] }
-      );
-
-      if (osmMatch) {
-        console.log(`✅ OSM found "${waypointName}" at: ${osmMatch.name}`);
-        return {
-          coordinates: [osmMatch.lng, osmMatch.lat], // [lng, lat]
-          name: osmMatch.name
-        };
-      }
-    } catch (osmError) {
-      console.log(`⚠️ OSM lookup failed for "${waypointName}", trying Mapbox...`);
-    }
-  }
-
-  // Fall back to Mapbox geocoding
-  try {
-    // Append state hint to trail names to prevent geocoding to wrong state
-    let searchName = waypointName;
-
-    if (proximityLocation && isTrailOrPath) {
-      if (!waypointName.toLowerCase().includes('colorado') &&
-          !waypointName.toLowerCase().includes(', co')) {
-        searchName = `${waypointName}, Colorado`;
-      }
-    }
-
-    const encodedName = encodeURIComponent(searchName);
-    // Prioritize neighborhood and place types - put them first
-    let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedName}.json?access_token=${MAPBOX_TOKEN}&country=US&types=neighborhood,place,locality,poi`;
-
-    // Add proximity bias and bounding box if we have a user location
-    if (proximityLocation) {
-      url += `&proximity=${proximityLocation[0]},${proximityLocation[1]}`;
-
-      // Add tighter bounding box around the user (about 50 miles / 80km radius)
-      const lng = proximityLocation[0];
-      const lat = proximityLocation[1];
-      const radius = 0.75; // degrees, roughly 50 miles - tighter to avoid far-away matches
-      const bbox = `${lng - radius},${lat - radius},${lng + radius},${lat + radius}`;
-      url += `&bbox=${bbox}`;
-    }
-
-    console.log(`🔍 Geocoding waypoint: "${searchName}"`);
-
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (data.features && data.features.length > 0) {
-      // Score results to find the best match
-      const scoredResults = data.features.map(feature => {
-        let score = 0;
-        const placeName = feature.place_name.toLowerCase();
-        const searchLower = waypointName.toLowerCase().replace(/,?\s*(co|colorado)$/i, '').trim();
-
-        // Strong bonus if the place name starts with or closely matches our search term
-        if (placeName.startsWith(searchLower)) {
-          score += 50;
-        } else if (placeName.includes(searchLower + ',')) {
-          // The search term is a distinct part of the name (e.g., "Jamestown, Colorado")
-          score += 40;
-        } else if (placeName.includes(searchLower)) {
-          score += 20;
-        }
-
-        // Bonus for neighborhood and place types (more likely to be what user means)
-        if (feature.place_type?.includes('neighborhood')) score += 30;
-        if (feature.place_type?.includes('place')) score += 25;
-        if (feature.place_type?.includes('locality')) score += 20;
-
-        // Penalize if the name has extra words before the search term
-        // e.g., "North Boulder County Hill Cutoff" vs "North Boulder"
-        const nameWords = feature.text?.toLowerCase().split(/\s+/) || [];
-        const searchWords = searchLower.split(/\s+/);
-        if (nameWords.length > searchWords.length + 1) {
-          score -= 15; // Penalize overly long/complex names
-        }
-
-        // Proximity bonus - closer is better
-        if (proximityLocation) {
-          const [resultLng, resultLat] = feature.center;
-          const distance = Math.sqrt(
-            Math.pow(resultLng - proximityLocation[0], 2) +
-            Math.pow(resultLat - proximityLocation[1], 2)
-          );
-          // Closer results get higher score (max 20 points for being very close)
-          score += Math.max(0, 20 - distance * 20);
-        }
-
-        return { feature, score };
-      });
-
-      // Sort by score (highest first) and pick the best
-      scoredResults.sort((a, b) => b.score - a.score);
-
-      console.log(`📊 Geocoding candidates for "${waypointName}":`,
-        scoredResults.slice(0, 3).map(r => `${r.feature.place_name} (score: ${r.score.toFixed(1)})`));
-
-      const bestResult = scoredResults[0];
-      const feature = bestResult.feature;
-
-      // Verify the result is reasonably close to the user (within ~100km)
-      if (proximityLocation) {
-        const [resultLng, resultLat] = feature.center;
-        const distance = Math.sqrt(
-          Math.pow(resultLng - proximityLocation[0], 2) +
-          Math.pow(resultLat - proximityLocation[1], 2)
-        );
-        // If result is more than 1 degree away (~110km), it's probably wrong
-        if (distance > 1) {
-          console.warn(`⚠️ Geocoded result for "${waypointName}" is too far away (${distance.toFixed(2)}° from user), skipping`);
-          return null;
-        }
-      }
-
-      console.log(`✅ Geocoded "${waypointName}" to: ${feature.place_name} (score: ${bestResult.score.toFixed(1)})`);
-      return {
-        coordinates: feature.center, // [lng, lat]
-        name: feature.place_name
-      };
-    } else {
-      console.warn(`⚠️ Could not geocode: ${waypointName}`);
-      return null;
-    }
-  } catch (error) {
-    console.error(`Geocoding error for ${waypointName}:`, error);
-    return null;
-  }
-}
-
-/**
- * Score a route against user's road segment history
- * @param {Array<[number, number]>} coordinates - Route coordinates [[lng, lat], ...]
- * @param {string} accessToken - User's auth token
- * @returns {Promise<Object|null>} Score object or null if scoring fails
- */
-async function scoreRoutePreference(coordinates, accessToken) {
-  if (!coordinates || coordinates.length < 2 || !accessToken) {
-    return null;
-  }
-
-  try {
-    const response = await fetch('/api/road-segments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify({
-        action: 'score_route',
-        coordinates
-      })
-    });
-
-    if (!response.ok) {
-      console.warn('Route scoring failed:', response.status);
-      return null;
-    }
-
-    const data = await response.json();
-    return data.score || null;
-  } catch (error) {
-    console.error('Route scoring error:', error);
-    return null;
-  }
-}
-
-/**
- * Fetch waypoints from familiar road segments to build a loop route
- * @param {number} startLat - Start latitude
- * @param {number} startLng - Start longitude
- * @param {number} targetDistanceKm - Target route distance in km
- * @param {string} accessToken - User's auth token
- * @param {boolean} exploreMode - If true, use fewer familiar waypoints
- * @returns {Promise<Object|null>} Waypoints and metadata or null if failed
- */
-async function getFamiliarLoopWaypoints(startLat, startLng, targetDistanceKm, accessToken, exploreMode = false) {
-  if (!accessToken) {
-    return null;
-  }
-
-  try {
-    console.log(`🧠 Fetching familiar segments for ${targetDistanceKm}km loop...`);
-    const response = await fetch('/api/road-segments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify({
-        action: 'get_loop_waypoints',
-        startLat,
-        startLng,
-        targetDistanceKm,
-        minRideCount: 2,
-        exploreMode
-      })
-    });
-
-    if (!response.ok) {
-      console.warn('Failed to get familiar waypoints:', response.status);
-      return null;
-    }
-
-    const data = await response.json();
-    console.log(`🧠 Got ${data.waypoints?.length || 0} familiar waypoints from ${data.totalFamiliarSegments || 0} segments`);
-    return data;
-  } catch (error) {
-    console.error('Error fetching familiar waypoints:', error);
-    return null;
-  }
-}
+// Shared constants — single source of truth in components/RouteBuilder/index.js
+import { MAPBOX_TOKEN, BASEMAP_STYLES, CYCLOSM_STYLE } from '../components/RouteBuilder';
 
 function RouteBuilder() {
   const { routeId } = useParams();
@@ -1074,7 +542,9 @@ function RouteBuilder() {
     };
   }, [viewport, showBikeInfrastructure, mapStyleId, fetchInfrastructureForViewport]);
 
-  // Calculate route using Mapbox Directions API
+  // Calculate route using smart multi-provider routing (Stadia/BRouter/Mapbox)
+  // Replaces the previous Mapbox-only approach so click-to-route gets the same
+  // quality routing as the iterative builder and manual builder.
   const calculateRoute = useCallback(async (points) => {
     if (points.length < 2) {
       setRouteGeometry(null);
@@ -1084,34 +554,37 @@ function RouteBuilder() {
 
     setIsCalculating(true);
     try {
-      const coordinates = points.map(p => `${p.lng},${p.lat}`).join(';');
-      const url = `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?` +
-        `geometries=geojson&overview=full&steps=true&` +
-        `access_token=${MAPBOX_TOKEN}`;
+      const waypointCoordinates = points.map(p => p.position);
 
-      const response = await fetch(url);
-      const data = await response.json();
+      const smartRoute = await getSmartCyclingRoute(waypointCoordinates, {
+        profile: routeProfile === 'gravel' ? 'gravel' :
+                 routeProfile === 'mountain' ? 'mountain' : 'bike',
+        mapboxToken: MAPBOX_TOKEN,
+      });
 
-      if (data.code !== 'Ok') {
-        console.error('Mapbox API error:', data);
-        return;
-      }
-
-      if (data.routes && data.routes[0]) {
-        const route = data.routes[0];
-        setRouteGeometry(route.geometry);
-        setRouteStats({
-          distance: parseFloat((route.distance / 1000).toFixed(1)), // Convert to km (as number)
-          elevation: 0, // Mapbox doesn't provide elevation in basic API
-          duration: Math.round(route.duration / 60) // Convert to minutes
+      if (smartRoute?.coordinates?.length > 0) {
+        setRouteGeometry({
+          type: 'LineString',
+          coordinates: smartRoute.coordinates,
         });
+        setRouteStats({
+          distance: parseFloat(((smartRoute.distance || 0) / 1000).toFixed(1)), // meters → km
+          elevation: smartRoute.elevationGain || 0,
+          duration: Math.round((smartRoute.duration || 0) / 60), // seconds → minutes
+          routingSource: smartRoute.source || 'smart',
+        });
+        setRoutingSource(smartRoute.source || 'smart');
+
+        console.log(`✅ Smart route via ${smartRoute.source}: ${((smartRoute.distance || 0) / 1000).toFixed(1)}km`);
+      } else {
+        console.warn('Smart routing returned no results');
       }
     } catch (error) {
       console.error('Error calculating route:', error);
     } finally {
       setIsCalculating(false);
     }
-  }, []);
+  }, [routeProfile, setRouteGeometry, setRouteStats, setRoutingSource]);
 
   // Handle map click - either add waypoint or select segment in edit mode
   const handleMapClick = useCallback((event) => {
@@ -1156,8 +629,22 @@ function RouteBuilder() {
       }
     }
 
-    // Normal mode: add waypoint
-    const newWaypoints = [...waypoints, { lng, lat, id: Date.now() }];
+    // Normal mode: add waypoint (Shape B: matches useRouteManipulation convention)
+    const newWaypoint = {
+      id: `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      position: [lng, lat],
+      type: waypoints.length === 0 ? 'start' : 'end',
+      name: waypoints.length === 0 ? 'Start' : `Waypoint ${waypoints.length}`,
+    };
+    const newWaypoints = [...waypoints];
+    if (newWaypoints.length > 0) {
+      // Re-type previous endpoint as a through-waypoint
+      newWaypoints[newWaypoints.length - 1] = {
+        ...newWaypoints[newWaypoints.length - 1],
+        type: 'waypoint',
+      };
+    }
+    newWaypoints.push(newWaypoint);
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
   }, [waypoints, calculateRoute, editMode, routeGeometry]);
@@ -1256,11 +743,11 @@ function RouteBuilder() {
     return {
       name: routeName,
       coordinates: routeGeometry.coordinates,
-      waypoints: waypoints.map((wp, i) => ({
-        lat: wp.lat,
-        lng: wp.lng,
-        name: i === 0 ? 'Start' : i === waypoints.length - 1 ? 'End' : `Waypoint ${i}`,
-        type: i === 0 ? 'start' : i === waypoints.length - 1 ? 'end' : 'waypoint'
+      waypoints: waypoints.map((wp) => ({
+        lat: wp.position[1],
+        lng: wp.position[0],
+        name: wp.name || 'Waypoint',
+        type: wp.type || 'waypoint',
       })),
       distanceKm: routeStats?.distance,
       elevationGainM: routeStats?.elevationGain,
@@ -1412,6 +899,38 @@ function RouteBuilder() {
         });
       }
 
+      // Score routes against user's riding history and rank by composite score
+      if (routes.length > 1 && accessToken) {
+        console.log('🎯 Scoring routes against riding history...');
+        const targetDistKm = explicitDistanceKm || ((timeAvailable / 60) * (speedProfile?.average_speed || 28));
+
+        const scoredRoutes = await Promise.all(routes.map(async (route) => {
+          try {
+            const score = route.coordinates
+              ? await scoreRoutePreference(route.coordinates, accessToken)
+              : null;
+            const distanceAccuracy = route.distance && targetDistKm
+              ? 1 - Math.abs(route.distance - targetDistKm) / targetDistKm
+              : 0.5;
+            const familiarityPercent = score?.familiarityPercent || 0;
+            // Composite: 70% distance accuracy, 30% familiarity
+            const compositeScore = (0.7 * Math.max(0, distanceAccuracy)) + (0.3 * (familiarityPercent / 100));
+            return { ...route, familiarityScore: score, compositeScore };
+          } catch {
+            return { ...route, familiarityScore: null, compositeScore: 0 };
+          }
+        }));
+
+        // Sort by composite score (highest first)
+        scoredRoutes.sort((a, b) => (b.compositeScore || 0) - (a.compositeScore || 0));
+
+        const topScore = scoredRoutes[0]?.familiarityScore;
+        if (topScore) {
+          console.log(`🎯 Top route familiarity: ${topScore.familiarityPercent?.toFixed(0)}%`);
+        }
+        routes = scoredRoutes;
+      }
+
       // Routes already have full coordinates
       setAiSuggestions(routes);
       notifications.show({
@@ -1429,7 +948,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [viewport, timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm]);
+  }, [viewport, timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm, accessToken]);
 
   // Get user's speed for the current route profile
   const getUserSpeedForProfile = useCallback((profile) => {
@@ -1498,21 +1017,6 @@ function RouteBuilder() {
       setConvertingRoute(null);
     }
   }, []);
-
-  // Get human-readable label for routing source
-  const getRoutingSourceLabel = (source) => {
-    switch (source) {
-      case 'stadia_maps': return 'Stadia Maps (Valhalla)';
-      case 'brouter': return 'BRouter';
-      case 'brouter_gravel': return 'BRouter Gravel';
-      case 'mapbox_fallback': return 'Mapbox';
-      case 'iterative_quarter_loop': return 'Iterative Builder (Loop)';
-      case 'iterative_out_and_back': return 'Iterative Builder (Out & Back)';
-      case 'iterative_point_to_point': return 'Iterative Builder (P2P)';
-      case 'iterative_builder': return 'Iterative Builder';
-      default: return source || 'Unknown';
-    }
-  };
 
   // Handle natural language route generation - NEW APPROACH
   // Uses Claude to extract waypoint NAMES, then geocodes and routes through them
@@ -1591,7 +1095,7 @@ function RouteBuilder() {
 
       if (waypoints.length > 0) {
         // User has placed waypoints on the map - use the first one as start
-        startLocation = [waypoints[0].lng, waypoints[0].lat];
+        startLocation = [waypoints[0].position[0], waypoints[0].position[1]];
         startLocationSource = 'waypoint';
         console.log('📍 Using user-placed waypoint as start:', startLocation);
       } else if (userLocation) {
@@ -2598,8 +2102,8 @@ function RouteBuilder() {
                 {waypoints.map((waypoint, index) => (
                   <Marker
                     key={waypoint.id}
-                    longitude={waypoint.lng}
-                    latitude={waypoint.lat}
+                    longitude={waypoint.position[0]}
+                    latitude={waypoint.position[1]}
                     anchor="bottom"
                     onClick={(e) => {
                       e.originalEvent.stopPropagation();
@@ -3763,8 +3267,8 @@ function RouteBuilder() {
               {waypoints.map((waypoint, index) => (
                 <Marker
                   key={waypoint.id}
-                  longitude={waypoint.lng}
-                  latitude={waypoint.lat}
+                  longitude={waypoint.position[0]}
+                  latitude={waypoint.position[1]}
                   anchor="bottom"
                   onClick={(e) => {
                     e.originalEvent.stopPropagation();

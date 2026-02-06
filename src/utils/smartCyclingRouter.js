@@ -301,8 +301,28 @@ export function isBRouterAvailable() {
   return true;
 }
 
+/**
+ * Get human-readable label for a routing source identifier
+ * @param {string} source - Routing source (e.g. 'stadia_maps', 'brouter')
+ * @returns {string} Human-readable label
+ */
+export function getRoutingSourceLabel(source) {
+  switch (source) {
+    case 'stadia_maps': return 'Stadia Maps (Valhalla)';
+    case 'brouter': return 'BRouter';
+    case 'brouter_gravel': return 'BRouter Gravel';
+    case 'mapbox_fallback': return 'Mapbox';
+    case 'iterative_quarter_loop': return 'Iterative Builder (Loop)';
+    case 'iterative_out_and_back': return 'Iterative Builder (Out & Back)';
+    case 'iterative_point_to_point': return 'Iterative Builder (P2P)';
+    case 'iterative_builder': return 'Iterative Builder';
+    default: return source || 'Unknown';
+  }
+}
+
 export default {
   getSmartCyclingRoute,
   getRoutingStrategyDescription,
+  getRoutingSourceLabel,
   isBRouterAvailable
 };
