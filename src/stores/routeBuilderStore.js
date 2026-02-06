@@ -174,6 +174,8 @@ export const useRouteBuilderStore = create(
       storage: createJSONStorage(() => localStorage),
 
       // Only persist these specific fields (not transient UI state)
+      // Note: aiSuggestions are intentionally excluded — they contain large
+      // coordinate arrays that would bloat localStorage. Users regenerate on demand.
       partialize: (state) => ({
         routeGeometry: state.routeGeometry,
         routeName: state.routeName,
@@ -185,7 +187,6 @@ export const useRouteBuilderStore = create(
         routeType: state.routeType,
         routeProfile: state.routeProfile,
         explicitDistanceKm: state.explicitDistanceKm,
-        aiSuggestions: state.aiSuggestions,
         selectedWorkoutId: state.selectedWorkoutId,
         routingSource: state.routingSource,
         lastSaved: state.lastSaved,

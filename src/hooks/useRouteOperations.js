@@ -29,8 +29,9 @@ export const useRouteOperations = ({
 }) => {
   const { user } = useAuth();
 
-  // === Export GPX ===
-  const exportGPX = useCallback(() => {
+  // === Export route file (shared logic for GPX and TCX) ===
+  const exportRouteFile = useCallback((format) => {
+    const formatLabel = format.toUpperCase();
     const coords = routeGeometry?.coordinates || waypoints.map(w => w.position);
     if (coords.length < 2) {
       notifications.show({
@@ -71,7 +72,7 @@ export const useRouteOperations = ({
 
     try {
       const result = exportRoute(routeData, {
-        format: 'gpx',
+        format,
         includeWaypoints: true,
         includeElevation: true,
         author: 'Tribos Studio',
@@ -79,12 +80,12 @@ export const useRouteOperations = ({
       downloadRoute(result);
 
       notifications.show({
-        title: 'GPX exported',
-        message: `${routeName || 'Route'} downloaded successfully`,
+        title: `${formatLabel} exported`,
+        message: `${routeName || 'Route'} downloaded${format === 'tcx' ? ' for Garmin' : ' successfully'}`,
         color: 'green',
       });
     } catch (err) {
-      console.error('GPX export failed:', err);
+      console.error(`${formatLabel} export failed:`, err);
       notifications.show({
         title: 'Export failed',
         message: err.message,
@@ -93,67 +94,8 @@ export const useRouteOperations = ({
     }
   }, [routeGeometry, waypoints, routeName, routeDescription, routeStats, elevationProfile]);
 
-  // === Export TCX (Garmin format) ===
-  const exportTCX = useCallback(() => {
-    const coords = routeGeometry?.coordinates || waypoints.map(w => w.position);
-    if (coords.length < 2) {
-      notifications.show({
-        title: 'Cannot export',
-        message: 'Need at least 2 points to export',
-        color: 'yellow',
-      });
-      return;
-    }
-
-    // Merge elevation data
-    let coordsWithElevation = coords;
-    if (elevationProfile?.length === coords.length) {
-      coordsWithElevation = coords.map((coord, i) => [
-        coord[0],
-        coord[1],
-        elevationProfile[i]?.elevation || 0,
-      ]);
-    }
-
-    const exportWaypoints = waypoints.map(wp => ({
-      lat: wp.position[1],
-      lng: wp.position[0],
-      name: wp.name,
-      type: wp.type,
-    }));
-
-    const routeData = {
-      name: routeName || 'My Route',
-      description: routeDescription,
-      coordinates: coordsWithElevation,
-      waypoints: exportWaypoints,
-      distanceKm: routeStats?.distance ? routeStats.distance / 1000 : 0,
-      elevationGainM: routeStats?.gain || 0,
-    };
-
-    try {
-      const result = exportRoute(routeData, {
-        format: 'tcx',
-        includeWaypoints: true,
-        includeElevation: true,
-        author: 'Tribos Studio',
-      });
-      downloadRoute(result);
-
-      notifications.show({
-        title: 'TCX exported',
-        message: `${routeName || 'Route'} downloaded for Garmin`,
-        color: 'green',
-      });
-    } catch (err) {
-      console.error('TCX export failed:', err);
-      notifications.show({
-        title: 'Export failed',
-        message: err.message,
-        color: 'red',
-      });
-    }
-  }, [routeGeometry, waypoints, routeName, routeDescription, routeStats, elevationProfile]);
+  const exportGPX = useCallback(() => exportRouteFile('gpx'), [exportRouteFile]);
+  const exportTCX = useCallback(() => exportRouteFile('tcx'), [exportRouteFile]);
 
   // === Import GPX ===
   const importGPX = useCallback(async (file) => {

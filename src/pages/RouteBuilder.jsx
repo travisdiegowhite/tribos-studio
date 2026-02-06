@@ -41,43 +41,8 @@ import { FuelCard } from '../components/fueling';
 import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-
-// CyclOSM raster tile style for Mapbox GL
-const CYCLOSM_STYLE = {
-  version: 8,
-  name: 'CyclOSM',
-  sources: {
-    'cyclosm-tiles': {
-      type: 'raster',
-      tiles: [
-        'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
-        'https://b.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
-        'https://c.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
-      ],
-      tileSize: 256,
-      attribution: '© <a href="https://www.cyclosm.org">CyclOSM</a> | © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    },
-  },
-  layers: [
-    {
-      id: 'cyclosm-layer',
-      type: 'raster',
-      source: 'cyclosm-tiles',
-      minzoom: 0,
-      maxzoom: 20,
-    },
-  ],
-};
-
-// Basemap style options for the map switcher
-const BASEMAP_STYLES = [
-  { id: 'dark', label: 'Dark', style: 'mapbox://styles/mapbox/dark-v11' },
-  { id: 'outdoors', label: 'Outdoors', style: 'mapbox://styles/mapbox/outdoors-v12' },
-  { id: 'satellite', label: 'Satellite', style: 'mapbox://styles/mapbox/satellite-streets-v12' },
-  { id: 'streets', label: 'Streets', style: 'mapbox://styles/mapbox/streets-v12' },
-  { id: 'cyclosm', label: 'CyclOSM', style: CYCLOSM_STYLE },
-];
+// Shared constants — single source of truth in components/RouteBuilder/index.js
+import { MAPBOX_TOKEN, BASEMAP_STYLES, CYCLOSM_STYLE } from '../components/RouteBuilder';
 
 /**
  * Build a prompt for Claude to parse natural language route requests

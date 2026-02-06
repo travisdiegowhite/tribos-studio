@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { getElevationData, calculateElevationStats } from '../utils/elevation';
 import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
@@ -21,8 +21,11 @@ export const useRouteManipulation = ({
   useSmartRouting = true,
 }) => {
   // History for undo/redo
+  // Refs hold the actual data (no re-render on change), state drives UI reactivity
   const historyRef = useRef([]);
   const historyIndexRef = useRef(-1);
+  const [historyLength, setHistoryLength] = useState(0);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
   // === Push to History ===
   const pushToHistory = useCallback((waypointState) => {
@@ -30,6 +33,9 @@ export const useRouteManipulation = ({
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
     historyRef.current.push(JSON.parse(JSON.stringify(waypointState)));
     historyIndexRef.current = historyRef.current.length - 1;
+    // Sync reactive state for canUndo/canRedo
+    setHistoryIndex(historyIndexRef.current);
+    setHistoryLength(historyRef.current.length);
   }, []);
 
   // === Add Waypoint ===
@@ -144,6 +150,8 @@ export const useRouteManipulation = ({
     setElevationProfile([]);
     historyRef.current = [];
     historyIndexRef.current = -1;
+    setHistoryIndex(-1);
+    setHistoryLength(0);
 
     notifications.show({
       title: 'Route cleared',
@@ -156,6 +164,7 @@ export const useRouteManipulation = ({
   const undo = useCallback(() => {
     if (historyIndexRef.current > 0) {
       historyIndexRef.current -= 1;
+      setHistoryIndex(historyIndexRef.current);
       const previousState = historyRef.current[historyIndexRef.current];
       setWaypoints(JSON.parse(JSON.stringify(previousState)));
 
@@ -180,6 +189,7 @@ export const useRouteManipulation = ({
   const redo = useCallback(() => {
     if (historyIndexRef.current < historyRef.current.length - 1) {
       historyIndexRef.current += 1;
+      setHistoryIndex(historyIndexRef.current);
       const nextState = historyRef.current[historyIndexRef.current];
       setWaypoints(JSON.parse(JSON.stringify(nextState)));
 
@@ -200,9 +210,9 @@ export const useRouteManipulation = ({
     }
   }, [waypoints, setWaypoints]);
 
-  // === Check if can undo/redo ===
-  const canUndo = historyIndexRef.current > 0;
-  const canRedo = historyIndexRef.current < historyRef.current.length - 1;
+  // === Check if can undo/redo (derived from reactive state) ===
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < historyLength - 1;
 
   // === Snap to Roads ===
   const snapToRoads = useCallback(async (waypointsToSnap = waypoints) => {
