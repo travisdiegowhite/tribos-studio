@@ -7,6 +7,10 @@
     {
       "path": "/api/garmin-token-maintenance",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/garmin-webhook-process",
+      "schedule": "* * * * *"
     }
   ],
   "rewrites": [
