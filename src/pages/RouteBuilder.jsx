@@ -54,40 +54,22 @@ import { MAPBOX_TOKEN, BASEMAP_STYLES, CYCLOSM_STYLE } from '../components/Route
  * @param {object} calendarData - Calendar context with upcoming workouts
  */
 function buildNaturalLanguagePrompt(userRequest, weatherData, userLocation, userAddress, calendarData = null) {
-  // Extract region/area from user's address for context
+  // Build region context from user's address (no hardcoded state assumptions)
   let regionContext = '';
   let gravelExamples = '';
 
   if (userAddress) {
-    const addressLower = userAddress.toLowerCase();
-
-    if (addressLower.includes('colorado') || addressLower.includes(', co')) {
-      regionContext = 'The cyclist is in Colorado.';
-      gravelExamples = `
-   **Colorado Front Range Examples:**
-   - Erie → Lafayette → Superior → Louisville (county roads)
-   - Boulder → Lyons → Hygiene → Longmont (dirt roads in foothills)
-   - Boulder → Nederland → Ward → Jamestown (high country gravel)
-   - Golden → Morrison → Evergreen → Conifer (mountain roads)`;
-    } else if (addressLower.includes('california') || addressLower.includes(', ca')) {
-      regionContext = 'The cyclist is in California.';
-      gravelExamples = `
-   **California Examples:**
-   - Use small towns connected by county roads
-   - Suggest towns in wine country, foothills, or rural areas
-   - Look for agricultural areas with farm roads`;
-    } else {
-      regionContext = `The cyclist is near: ${userAddress}`;
-      gravelExamples = `
-   **General Strategy:**
-   - Suggest small towns/communities near the cyclist's location
-   - Rural areas typically have more gravel/dirt roads
-   - County roads between small towns are often unpaved`;
-    }
+    regionContext = `The cyclist is near: ${userAddress}`;
+    gravelExamples = `
+   **Gravel Route Strategy:**
+   - Suggest small towns and communities near the cyclist's location
+   - Rural areas and county roads between small towns are often unpaved
+   - Agricultural areas and foothills typically have good gravel riding
+   - Use actual, geocodable town or landmark names from the cyclist's region`;
   } else {
     regionContext = 'Cyclist location unknown.';
     gravelExamples = `
-   **General Strategy:**
+   **Gravel Route Strategy:**
    - Suggest small towns logically placed between start and destination
    - Rural areas and small communities often have gravel roads
    - Use actual town names that will geocode reliably`;
@@ -160,31 +142,31 @@ Return ONLY a JSON object:
 
 EXAMPLES:
 
-User: "30 mile loop heading south on Coal Creek Path"
+User: "30 mile loop heading south on the river trail"
 Response:
 {
   "startLocation": null,
-  "waypoints": ["Coal Creek Path"],
+  "waypoints": ["River Trail"],
   "routeType": "loop",
   "distance": 48.3,
   "surfaceType": "paved",
   "direction": "south"
 }
 
-User: "Ride to Boulder Creek Trail and back on gravel"
+User: "Ride to the creek path and back on gravel"
 Response:
 {
   "startLocation": null,
-  "waypoints": ["Boulder Creek Trail"],
+  "waypoints": ["Creek Path"],
   "routeType": "loop",
   "surfaceType": "gravel"
 }
 
-User: "40 mile loop through Hygiene and Lyons on dirt roads"
+User: "40 mile loop through Smithville and Riverside on dirt roads"
 Response:
 {
   "startLocation": null,
-  "waypoints": ["Hygiene", "Lyons"],
+  "waypoints": ["Smithville", "Riverside"],
   "routeType": "loop",
   "distance": 64.4,
   "surfaceType": "gravel"
@@ -213,29 +195,29 @@ Response:
 }
 
 CRITICAL RULES:
-1. If user mentions a TRAIL NAME (Coal Creek Path, Boulder Creek, etc.), it MUST be in waypoints
+1. If user mentions a TRAIL NAME or PATH NAME, it MUST be in waypoints exactly as named
 2. Return ONLY valid JSON, no extra text
 3. Waypoints should be actual place names that can be geocoded
 4. If user references their training calendar (today's workout, this week's ride, etc.), use the TRAINING CALENDAR CONTEXT above
-5. IMPORTANT: "home", "back home", or "back to [Place]" at the END of a route means the user wants to return to a specific location. Include that location as the FINAL waypoint. If they say "home to Erie", add "Erie" as the last waypoint.
+5. IMPORTANT: "home", "back home", or "back to [Place]" at the END of a route means the user wants to return to a specific location. Include that location as the FINAL waypoint.
 6. For loop routes that mention returning home, include the home location as the final waypoint so the route closes properly.
 
 EXAMPLES OF HANDLING "HOME":
 
-User: "Ride to Lochbuie and Hudson then back home to Erie"
+User: "Ride to Oakdale and Riverside then back home to Springfield"
 Response:
 {
-  "startLocation": "Erie",
-  "waypoints": ["Lochbuie", "Hudson", "Erie"],
+  "startLocation": "Springfield",
+  "waypoints": ["Oakdale", "Riverside", "Springfield"],
   "routeType": "loop",
   "surfaceType": "mixed"
 }
 
-User: "Loop from here to Louisville then North Boulder and back home"
+User: "Loop from here to Greenville then Lakewood and back home"
 Response:
 {
   "startLocation": null,
-  "waypoints": ["Louisville", "North Boulder"],
+  "waypoints": ["Greenville", "Lakewood"],
   "routeType": "loop",
   "surfaceType": "mixed"
 }
@@ -347,15 +329,10 @@ async function geocodeWaypoint(waypointName, proximityLocation) {
 
   // Fall back to Mapbox geocoding
   try {
-    // Append state hint to trail names to prevent geocoding to wrong state
+    // For trails/paths, keep the original name — the proximity bias and
+    // bounding box from the user's location will constrain results to
+    // the correct region without hardcoding a state name.
     let searchName = waypointName;
-
-    if (proximityLocation && isTrailOrPath) {
-      if (!waypointName.toLowerCase().includes('colorado') &&
-          !waypointName.toLowerCase().includes(', co')) {
-        searchName = `${waypointName}, Colorado`;
-      }
-    }
 
     const encodedName = encodeURIComponent(searchName);
     // Prioritize neighborhood and place types - put them first
@@ -383,7 +360,8 @@ async function geocodeWaypoint(waypointName, proximityLocation) {
       const scoredResults = data.features.map(feature => {
         let score = 0;
         const placeName = feature.place_name.toLowerCase();
-        const searchLower = waypointName.toLowerCase().replace(/,?\s*(co|colorado)$/i, '').trim();
+        // Strip trailing ", State" or ", XX" suffixes for matching (e.g. ", Colorado", ", CA")
+        const searchLower = waypointName.toLowerCase().replace(/,\s*\w{2,}$/i, '').trim() || waypointName.toLowerCase().trim();
 
         // Strong bonus if the place name starts with or closely matches our search term
         if (placeName.startsWith(searchLower)) {
