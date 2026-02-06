@@ -492,7 +492,7 @@ async function processBasicActivityData(event, integration, supabase, env) {
           ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
           : new Date().toISOString(),
         start_date_local: activityInfo.startTimeInSeconds
-          ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
+          ? new Date((activityInfo.startTimeInSeconds + (activityInfo.startTimeOffsetInSeconds || 0)) * 1000).toISOString()
           : new Date().toISOString(),
         // Distance (meters)
         distance: activityInfo.distanceInMeters ?? activityInfo.distance ?? null,
@@ -513,7 +513,10 @@ async function processBasicActivityData(event, integration, supabase, env) {
         average_cadence: activityInfo.averageBikingCadenceInRPM ?? activityInfo.averageRunningCadenceInStepsPerMinute ?? null,
         // Calories
         kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
-        trainer: activityInfo.isParent === false || activityInfo.deviceName?.toLowerCase().includes('indoor') || false,
+        trainer: isIndoorActivityType(activityInfo.activityType) ||
+          (activityInfo.deviceName || '').toLowerCase().includes('indoor') ||
+          (activityInfo.deviceName || '').toLowerCase().includes('trainer') ||
+          false,
         raw_data: { webhook: event.payload, api: activityDetails },
         imported_from: 'garmin_webhook'
       })
@@ -810,7 +813,7 @@ async function processActivityDetail(event, integration, supabase, env) {
           ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
           : new Date().toISOString(),
         start_date_local: activityInfo.startTimeInSeconds
-          ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
+          ? new Date((activityInfo.startTimeInSeconds + (activityInfo.startTimeOffsetInSeconds || 0)) * 1000).toISOString()
           : new Date().toISOString(),
         // Distance (meters)
         distance: activityInfo.distanceInMeters ?? activityInfo.distance ?? null,
@@ -831,7 +834,10 @@ async function processActivityDetail(event, integration, supabase, env) {
         average_cadence: activityInfo.averageBikingCadenceInRPM ?? null,
         // Calories
         kilojoules: activityInfo.activeKilocalories ? activityInfo.activeKilocalories * 4.184 : null,
-        trainer: activityInfo.isParent === false || activityInfo.deviceName?.toLowerCase().includes('indoor') || false,
+        trainer: isIndoorActivityType(activityInfo.activityType) ||
+          (activityInfo.deviceName || '').toLowerCase().includes('indoor') ||
+          (activityInfo.deviceName || '').toLowerCase().includes('trainer') ||
+          false,
         raw_data: { webhook: event.payload, api: activityDetails },
         imported_from: 'garmin_webhook'
       })
@@ -862,6 +868,19 @@ async function processActivityDetail(event, integration, supabase, env) {
     console.error('ACTIVITY_DETAIL processing error:', error);
     throw error;
   }
+}
+
+/**
+ * Check if a Garmin activity type is an indoor/trainer activity
+ */
+function isIndoorActivityType(garminType) {
+  const lowerType = (garminType || '').toLowerCase();
+  const indoorTypes = [
+    'indoor_cycling', 'virtual_ride', 'indoor_running', 'treadmill_running',
+    'indoor_walking', 'treadmill_walking', 'indoor_rowing', 'lap_swimming',
+    'indoor_cardio', 'elliptical', 'stair_climbing', 'indoor_climbing',
+  ];
+  return indoorTypes.includes(lowerType);
 }
 
 /**

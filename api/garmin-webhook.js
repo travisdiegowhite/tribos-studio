@@ -77,16 +77,19 @@ export default async function handler(req, res) {
   // Webhook signature verification (if configured)
   if (WEBHOOK_SECRET) {
     const signature = req.headers['x-garmin-signature'] || req.headers['x-webhook-signature'];
-    if (signature) {
-      const expectedSignature = crypto
-        .createHmac('sha256', WEBHOOK_SECRET)
-        .update(JSON.stringify(req.body))
-        .digest('hex');
+    if (!signature) {
+      console.warn('Missing webhook signature from:', clientIP);
+      return res.status(401).json({ error: 'Missing signature' });
+    }
 
-      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
-        console.warn('Invalid webhook signature from:', clientIP);
-        return res.status(401).json({ error: 'Invalid signature' });
-      }
+    const expectedSignature = crypto
+      .createHmac('sha256', WEBHOOK_SECRET)
+      .update(JSON.stringify(req.body))
+      .digest('hex');
+
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+      console.warn('Invalid webhook signature from:', clientIP);
+      return res.status(401).json({ error: 'Invalid signature' });
     }
   }
 
@@ -95,7 +98,6 @@ export default async function handler(req, res) {
     lastWebhookReceived = new Date().toISOString();
 
     const webhookData = req.body;
-    const clientIP = req.headers['x-forwarded-for']?.split(',')[0].trim() || 'unknown';
 
     // Detect Health API Push notifications (dailies, sleeps, bodyComps, etc.)
     const healthDataTypes = ['dailies', 'epochs', 'sleeps', 'bodyComps', 'stressDetails', 'userMetrics', 'hrv'];
@@ -1196,6 +1198,19 @@ function shouldFilterActivityType(garminType) {
 }
 
 /**
+ * Check if a Garmin activity type is an indoor/trainer activity
+ */
+function isIndoorActivityType(garminType) {
+  const lowerType = (garminType || '').toLowerCase();
+  const indoorTypes = [
+    'indoor_cycling', 'virtual_ride', 'indoor_running', 'treadmill_running',
+    'indoor_walking', 'treadmill_walking', 'indoor_rowing', 'lap_swimming',
+    'indoor_cardio', 'elliptical', 'stair_climbing', 'indoor_climbing',
+  ];
+  return indoorTypes.includes(lowerType);
+}
+
+/**
  * Extract health metrics from activity data and save to health_metrics table
  * This captures useful data from health/monitoring activities for Body Check-in
  */
@@ -1400,7 +1415,7 @@ function buildActivityData(userId, activityId, activityInfo, source = 'webhook')
       ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
       : new Date().toISOString(),
     start_date_local: activityInfo.startTimeInSeconds
-      ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
+      ? new Date((activityInfo.startTimeInSeconds + (activityInfo.startTimeOffsetInSeconds || 0)) * 1000).toISOString()
       : new Date().toISOString(),
     // Distance (Garmin sends in meters)
     distance: activityInfo.distanceInMeters ?? activityInfo.distance ?? null,
@@ -1443,7 +1458,10 @@ function buildActivityData(userId, activityId, activityInfo, source = 'webhook')
       ?? activityInfo.avg_cadence
       ?? null,
     // Training flags
-    trainer: activityInfo.isParent === false || (activityInfo.deviceName || '').toLowerCase().includes('indoor') || false,
+    trainer: isIndoorActivityType(activityInfo.activityType) ||
+      (activityInfo.deviceName || '').toLowerCase().includes('indoor') ||
+      (activityInfo.deviceName || '').toLowerCase().includes('trainer') ||
+      false,
     // Store ALL original data in raw_data so nothing is lost
     raw_data: activityInfo,
     imported_from: source,
