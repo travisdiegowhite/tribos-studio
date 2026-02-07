@@ -725,7 +725,56 @@ function RouteBuilder() {
     // Only allow waypoint placement in manual or editing mode
     if (builderMode === 'ready') return;
 
-    // Normal mode: add waypoint (Shape B: matches useRouteManipulation convention)
+    // If we have an existing route with 2+ waypoints, check if click is on the route
+    // to insert a control point between existing waypoints
+    if (routeGeometry?.coordinates && waypoints.length >= 2) {
+      const routeClick = detectRouteClick(routeGeometry.coordinates, { lng, lat }, 80);
+      if (routeClick) {
+        // Determine which waypoint pair this click falls between.
+        // Find the nearest waypoint to each side of the clicked index by checking
+        // which existing waypoint positions are closest in the route coordinate space.
+        const clickIdx = routeClick.index;
+        const coords = routeGeometry.coordinates;
+
+        // For each waypoint, find its closest index in the route coordinates
+        const wpIndices = waypoints.map(wp => {
+          let bestIdx = 0, bestDist = Infinity;
+          for (let i = 0; i < coords.length; i++) {
+            const d = Math.abs(coords[i][0] - wp.position[0]) + Math.abs(coords[i][1] - wp.position[1]);
+            if (d < bestDist) { bestDist = d; bestIdx = i; }
+          }
+          return bestIdx;
+        });
+
+        // Find the insertion index: the first waypoint whose route index is after the click
+        let insertAfter = 0;
+        for (let i = 0; i < wpIndices.length - 1; i++) {
+          if (clickIdx >= wpIndices[i]) insertAfter = i;
+        }
+
+        const newWaypoint = {
+          id: `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          position: [lng, lat],
+          type: 'waypoint',
+          name: `Waypoint ${insertAfter + 1}`,
+        };
+
+        const newWaypoints = [...waypoints];
+        newWaypoints.splice(insertAfter + 1, 0, newWaypoint);
+        // Re-type all waypoints
+        newWaypoints.forEach((wp, i) => {
+          if (i === 0) wp.type = 'start';
+          else if (i === newWaypoints.length - 1) wp.type = 'end';
+          else wp.type = 'waypoint';
+        });
+        setWaypoints(newWaypoints);
+        calculateRoute(newWaypoints);
+        console.log(`📌 Inserted waypoint between index ${insertAfter} and ${insertAfter + 1}`);
+        return;
+      }
+    }
+
+    // No route hit — append waypoint at end
     const newWaypoint = {
       id: `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       position: [lng, lat],
