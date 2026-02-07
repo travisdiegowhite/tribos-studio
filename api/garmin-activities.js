@@ -11,6 +11,11 @@ import {
   resetFailedChunks,
   markStaleChunksAsReceived
 } from './utils/garminBackfill.js';
+import {
+  buildActivityData as buildActivityDataShared,
+  mapGarminActivityType as mapGarminActivityTypeShared,
+  generateActivityName as generateActivityNameShared
+} from './utils/garmin/activityBuilder.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -410,7 +415,10 @@ async function getActivityDetails(req, res, userId, activityId) {
         maxHeartRate: activity.maxHeartRateInBeatsPerMinute,
         avgPower: activity.averageBikingPowerInWatts,
         avgCadence: activity.averageBikingCadenceInRPM,
-        kilojoules: activity.activeKilocalories ? activity.activeKilocalories * 4.184 : null,
+        // Work (kJ) = mechanical work from power, not metabolic calories
+        kilojoules: (activity.averageBikingPowerInWatts && activity.durationInSeconds)
+          ? Math.round(activity.averageBikingPowerInWatts * activity.durationInSeconds / 1000)
+          : null,
         raw: activity
       }
     });
@@ -438,7 +446,7 @@ async function storeActivities(userId, activities) {
       }
 
       // Build activity data using only columns known to exist in the schema
-      const activityData = buildActivityData(userId, activityId, a, 'garmin_sync');
+      const activityData = buildActivityDataShared(userId, activityId, a, 'garmin_sync');
 
       // Upsert (update if exists)
       const { error } = await supabase
@@ -462,151 +470,8 @@ async function storeActivities(userId, activities) {
   return storedCount;
 }
 
-/**
- * Build activity data object with only columns that exist in the schema
- * This prevents insert failures due to unknown columns
- */
-function buildActivityData(userId, activityId, activityInfo, source = 'webhook') {
-  // These are the ONLY columns that exist in the activities table
-  // Based on the actual schema - if a column doesn't exist, don't include it
-
-  // Garmin uses different field names in different contexts:
-  // - Webhook PUSH: elevationGainInMeters, averageBikingPowerInWatts
-  // - API response: totalElevationGainInMeters, avgPower
-  // - Various: totalElevationGain, averagePower
-
-  const safeData = {
-    user_id: userId,
-    provider: 'garmin',
-    provider_activity_id: activityId,
-    name: activityInfo.activityName || generateActivityName(activityInfo.activityType, activityInfo.startTimeInSeconds),
-    type: mapGarminActivityType(activityInfo.activityType),
-    sport_type: activityInfo.activityType || null,
-    start_date: activityInfo.startTimeInSeconds
-      ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
-      : new Date().toISOString(),
-    start_date_local: activityInfo.startTimeInSeconds
-      ? new Date((activityInfo.startTimeInSeconds + (activityInfo.startTimeOffsetInSeconds || 0)) * 1000).toISOString()
-      : new Date().toISOString(),
-    // Distance (Garmin sends in meters)
-    distance: activityInfo.distanceInMeters ?? activityInfo.distance ?? null,
-    // Duration (Garmin sends in seconds)
-    moving_time: activityInfo.movingDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
-    elapsed_time: activityInfo.elapsedDurationInSeconds ?? activityInfo.durationInSeconds ?? activityInfo.duration ?? null,
-    // Elevation (multiple possible field names from Garmin)
-    total_elevation_gain: activityInfo.elevationGainInMeters
-      ?? activityInfo.totalElevationGainInMeters
-      ?? activityInfo.totalElevationGain
-      ?? activityInfo.total_ascent
-      ?? null,
-    // Speed (m/s)
-    average_speed: activityInfo.averageSpeedInMetersPerSecond ?? activityInfo.averageSpeed ?? activityInfo.avg_speed ?? null,
-    max_speed: activityInfo.maxSpeedInMetersPerSecond ?? activityInfo.maxSpeed ?? activityInfo.max_speed ?? null,
-    // Power (multiple possible field names from Garmin)
-    average_watts: activityInfo.averageBikingPowerInWatts
-      ?? activityInfo.averagePower
-      ?? activityInfo.avgPower
-      ?? activityInfo.avg_power
-      ?? null,
-    // Calories -> kilojoules (1 kcal = 4.184 kJ)
-    kilojoules: activityInfo.activeKilocalories
-      ? activityInfo.activeKilocalories * 4.184
-      : (activityInfo.calories ? activityInfo.calories * 4.184 : null),
-    // Heart rate (bpm)
-    average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute
-      ?? activityInfo.averageHeartRate
-      ?? activityInfo.avgHeartRate
-      ?? activityInfo.avg_heart_rate
-      ?? null,
-    max_heartrate: activityInfo.maxHeartRateInBeatsPerMinute
-      ?? activityInfo.maxHeartRate
-      ?? activityInfo.max_heart_rate
-      ?? null,
-    // Cadence
-    average_cadence: activityInfo.averageBikingCadenceInRPM
-      ?? activityInfo.averageRunningCadenceInStepsPerMinute
-      ?? activityInfo.avgCadence
-      ?? activityInfo.avg_cadence
-      ?? null,
-    // Training flags
-    trainer: isIndoorActivityType(activityInfo.activityType) ||
-      (activityInfo.deviceName || '').toLowerCase().includes('indoor') ||
-      (activityInfo.deviceName || '').toLowerCase().includes('trainer') ||
-      false,
-    // Store ALL original data in raw_data so nothing is lost
-    raw_data: activityInfo,
-    imported_from: source,
-    updated_at: new Date().toISOString()
-  };
-
-  return safeData;
-}
-
-/**
- * Check if a Garmin activity type is an indoor/trainer activity
- */
-function isIndoorActivityType(garminType) {
-  const lowerType = (garminType || '').toLowerCase();
-  const indoorTypes = [
-    'indoor_cycling', 'virtual_ride', 'indoor_running', 'treadmill_running',
-    'indoor_walking', 'treadmill_walking', 'indoor_rowing', 'lap_swimming',
-    'indoor_cardio', 'elliptical', 'stair_climbing', 'indoor_climbing',
-  ];
-  return indoorTypes.includes(lowerType);
-}
-
-/**
- * Map Garmin activity type to standard format
- */
-function mapGarminActivityType(garminType) {
-  const typeMap = {
-    'cycling': 'Ride',
-    'road_biking': 'Ride',
-    'road_cycling': 'Ride',
-    'virtual_ride': 'VirtualRide',
-    'indoor_cycling': 'VirtualRide',
-    'mountain_biking': 'MountainBikeRide',
-    'gravel_cycling': 'GravelRide',
-    'cyclocross': 'Ride',
-    'e_biking': 'EBikeRide',
-    'running': 'Run',
-    'walking': 'Walk',
-    'hiking': 'Hike',
-    'swimming': 'Swim'
-  };
-
-  const lowerType = (garminType || '').toLowerCase().replace(/ /g, '_');
-  return typeMap[lowerType] || 'Ride';
-}
-
-/**
- * Generate activity name if not provided
- */
-function generateActivityName(activityType, startTimeInSeconds) {
-  const date = startTimeInSeconds
-    ? new Date(startTimeInSeconds * 1000)
-    : new Date();
-
-  const timeOfDay = date.getHours() < 12 ? 'Morning' :
-                    date.getHours() < 17 ? 'Afternoon' : 'Evening';
-
-  const typeNames = {
-    'cycling': 'Ride',
-    'road_biking': 'Road Ride',
-    'mountain_biking': 'Mountain Bike Ride',
-    'gravel_cycling': 'Gravel Ride',
-    'indoor_cycling': 'Indoor Ride',
-    'virtual_ride': 'Virtual Ride',
-    'running': 'Run',
-    'trail_running': 'Trail Run',
-    'walking': 'Walk',
-    'hiking': 'Hike',
-    'swimming': 'Swim'
-  };
-
-  const activityName = typeNames[(activityType || '').toLowerCase()] || 'Activity';
-  return `${timeOfDay} ${activityName}`;
-}
+// Local buildActivityData, mapGarminActivityType, isIndoorActivityType, generateActivityName
+// are now imported from ./utils/garmin/activityBuilder.js as buildActivityDataShared etc.
 
 /**
  * Reprocess failed webhook events using payload data
@@ -723,7 +588,7 @@ async function reprocessFailedEvents(req, res, userId) {
         }
 
         // Build activity data using centralized helper - ONLY uses columns that exist in the schema
-        const activityData = buildActivityData(userId, activityId, activityInfo, `reprocessed_${dataSource}`);
+        const activityData = buildActivityDataShared(userId, activityId, activityInfo, `reprocessed_${dataSource}`);
         // Override raw_data to include reprocessing metadata
         activityData.raw_data = { payload: payload, reprocessed: true, dataSource };
 
@@ -1197,11 +1062,24 @@ async function backfillPowerData(req, res, userId) {
     // Mode 'all' (default): activities missing average_watts OR missing power_curve_summary
     // Mode 'mmp_only': only activities missing power_curve_summary (have avg watts but no MMP)
     // Mode 'no_power': only activities missing average_watts entirely
+    // Mode 'force': ALL cycling activities - reprocess from FIT files (fixes corrupted data)
     const rideTypes = ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'];
 
     let activitiesToProcess = [];
 
-    if (mode === 'no_power') {
+    if (mode === 'force') {
+      // Force reprocess ALL cycling activities (for fixing corrupted sentinel values etc.)
+      const { data, error } = await supabase
+        .from('activities')
+        .select('id, provider_activity_id, name, type, start_date, distance, moving_time, raw_data, average_watts, power_curve_summary')
+        .eq('user_id', userId)
+        .eq('provider', 'garmin')
+        .in('type', rideTypes)
+        .order('start_date', { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      activitiesToProcess = data || [];
+    } else if (mode === 'no_power') {
       // Only activities with no power at all
       const { data, error } = await supabase
         .from('activities')
@@ -1384,6 +1262,7 @@ async function backfillPowerData(req, res, userId) {
         if (pm.trainingStressScore) updateData.tss = pm.trainingStressScore;
         if (pm.intensityFactor) updateData.intensity_factor = pm.intensityFactor;
         if (pm.powerCurveSummary) updateData.power_curve_summary = pm.powerCurveSummary;
+        if (pm.workKj) updateData.kilojoules = pm.workKj;
 
         // Update activity with power data
         const { error: updateError } = await supabase
