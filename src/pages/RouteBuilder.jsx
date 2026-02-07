@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil, IconMountain, IconHeartRateMonitor, IconMapPin } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil, IconMountain, IconHeartRateMonitor, IconMapPin, IconArrowRight } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -54,6 +54,9 @@ import { calculatePersonalizedETA } from '../utils/personalizedETA';
 import { queryPOIsAlongRoute, POI_CATEGORIES } from '../utils/routePOIService';
 import RoutePOILayer from '../components/RouteBuilder/RoutePOILayer.jsx';
 import POIPanel from '../components/RouteBuilder/POIPanel.jsx';
+import { generateSegmentAlternatives } from '../utils/segmentAlternatives';
+import SegmentAlternativesPanel from '../components/RouteBuilder/SegmentAlternativesPanel.jsx';
+import AlternativeRouteLayers from '../components/RouteBuilder/AlternativeRouteLayers.jsx';
 import { IconArrowsExchange } from '@tabler/icons-react';
 
 // Shared constants — single source of truth in components/RouteBuilder/index.js
@@ -264,6 +267,13 @@ function RouteBuilder() {
     () => new Set(Object.keys(POI_CATEGORIES))
   );
   const [selectedPOI, setSelectedPOI] = useState(null);
+
+  // Segment alternatives (Phase 3.3)
+  const [altMode, setAltMode] = useState(false);      // alternatives mode toggle
+  const [altSegmentIdx, setAltSegmentIdx] = useState(null);   // which waypoint-pair (0 = wp0→wp1)
+  const [altData, setAltData] = useState([]);          // alternative route objects
+  const [altLoading, setAltLoading] = useState(false);
+  const [altHovered, setAltHovered] = useState(null);  // hovered alternative index
 
   // Step indicator - determine current step based on form state
   const wizardSteps = useMemo(() => [
@@ -1010,6 +1020,127 @@ function RouteBuilder() {
     if (map && poi) {
       map.flyTo({ center: [poi.lon, poi.lat], zoom: Math.max(map.getZoom(), 15), duration: 600 });
     }
+  }, []);
+
+  // ── Segment alternatives logic ──────────────────────────────────────
+
+  // Current segment stats (between selected waypoint pair)
+  const currentSegmentStats = useMemo(() => {
+    if (altSegmentIdx == null || !routeGeometry?.coordinates || waypoints.length < 2) return null;
+    const wp1 = waypoints[altSegmentIdx];
+    const wp2 = waypoints[altSegmentIdx + 1];
+    if (!wp1 || !wp2) return null;
+
+    // Compute straight distance as a rough proxy
+    const coords = routeGeometry.coordinates;
+    // Find route indices closest to each waypoint
+    const findIdx = (pos) => {
+      let best = 0, bestD = Infinity;
+      for (let i = 0; i < coords.length; i++) {
+        const d = Math.abs(coords[i][0] - pos[0]) + Math.abs(coords[i][1] - pos[1]);
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      return best;
+    };
+    const idxA = findIdx(wp1.position);
+    const idxB = findIdx(wp2.position);
+    const segCoords = coords.slice(Math.min(idxA, idxB), Math.max(idxA, idxB) + 1);
+    let dist = 0;
+    for (let i = 1; i < segCoords.length; i++) {
+      const [lo1, la1] = segCoords[i - 1];
+      const [lo2, la2] = segCoords[i];
+      const R = 6371;
+      const dLat = (la2 - la1) * Math.PI / 180;
+      const dLon = (lo2 - lo1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+      dist += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+    return { distanceKm: Math.round(dist * 10) / 10, elevationGain: 0, startIdx: idxA, endIdx: idxB };
+  }, [altSegmentIdx, routeGeometry, waypoints]);
+
+  // Select a waypoint-pair segment in alternatives mode
+  const handleSelectAltSegment = useCallback(async (segIdx) => {
+    if (segIdx === altSegmentIdx) {
+      // Toggle off
+      setAltSegmentIdx(null);
+      setAltData([]);
+      return;
+    }
+    setAltSegmentIdx(segIdx);
+    setAltData([]);
+    setAltLoading(true);
+
+    const wp1 = waypoints[segIdx];
+    const wp2 = waypoints[segIdx + 1];
+    if (!wp1 || !wp2) { setAltLoading(false); return; }
+
+    try {
+      const alts = await generateSegmentAlternatives(
+        wp1.position,
+        wp2.position,
+        { profile: routeProfile, mapboxToken: MAPBOX_TOKEN }
+      );
+      setAltData(alts);
+    } catch (err) {
+      console.error('Alternatives failed:', err);
+      notifications.show({
+        title: 'Alternatives unavailable',
+        message: err.message || 'Could not generate alternatives for this segment.',
+        color: 'yellow',
+      });
+    } finally {
+      setAltLoading(false);
+    }
+  }, [altSegmentIdx, waypoints, routeProfile]);
+
+  // Apply an alternative — replace the segment coordinates in the full route
+  const handleApplyAlternative = useCallback((alt) => {
+    if (!routeGeometry?.coordinates || !currentSegmentStats) return;
+    const coords = routeGeometry.coordinates;
+    const { startIdx, endIdx } = currentSegmentStats;
+    const lo = Math.min(startIdx, endIdx);
+    const hi = Math.max(startIdx, endIdx);
+
+    // Splice: keep coords[0..lo], insert alt.coordinates, keep coords[hi..]
+    const newCoords = [
+      ...coords.slice(0, lo),
+      ...alt.coordinates,
+      ...coords.slice(hi + 1),
+    ];
+
+    setRouteGeometry({ type: 'LineString', coordinates: newCoords });
+
+    // Recalculate distance
+    let newDist = 0;
+    for (let i = 1; i < newCoords.length; i++) {
+      const [lo1, la1] = newCoords[i - 1];
+      const [lo2, la2] = newCoords[i];
+      const R = 6371;
+      const dLat = (la2 - la1) * Math.PI / 180;
+      const dLon = (lo2 - lo1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+      newDist += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+    setRouteStats(prev => ({ ...prev, distance: Math.round(newDist * 10) / 10 }));
+
+    // Clear alternatives
+    setAltSegmentIdx(null);
+    setAltData([]);
+    setAltHovered(null);
+
+    notifications.show({
+      title: 'Alternative applied',
+      message: `Segment replaced with "${alt.label}" route`,
+      color: 'green',
+    });
+  }, [routeGeometry, currentSegmentStats, setRouteGeometry, setRouteStats]);
+
+  // Exit alternatives mode cleanly
+  const exitAltMode = useCallback(() => {
+    setAltMode(false);
+    setAltSegmentIdx(null);
+    setAltData([]);
+    setAltHovered(null);
   }, []);
 
   // Remove selected segment and re-route
@@ -2453,6 +2584,52 @@ function RouteBuilder() {
           </Text>
         )}
 
+        {/* Segment Alternatives Toggle */}
+        {routeGeometry && waypoints.length >= 2 && !editMode && (
+          <Button
+            variant={altMode ? 'filled' : 'light'}
+            color={altMode ? 'violet' : 'gray'}
+            size="sm"
+            fullWidth
+            onClick={() => altMode ? exitAltMode() : setAltMode(true)}
+            leftSection={<IconArrowsExchange size={16} />}
+          >
+            {altMode ? 'Exit Alternatives' : 'Compare Segment Routes'}
+          </Button>
+        )}
+
+        {/* Segment alternatives: waypoint-pair selector */}
+        {altMode && !altSegmentIdx && altSegmentIdx !== 0 && (
+          <Stack gap={4}>
+            <Text size="xs" c="dimmed" ta="center">Select a segment to compare routes:</Text>
+            {waypoints.slice(0, -1).map((wp, i) => (
+              <Button
+                key={wp.id}
+                size="xs"
+                variant="light"
+                color="violet"
+                onClick={() => handleSelectAltSegment(i)}
+                leftSection={<IconArrowRight size={14} />}
+              >
+                {wp.name || `Waypoint ${i}`} → {waypoints[i + 1]?.name || `Waypoint ${i + 1}`}
+              </Button>
+            ))}
+          </Stack>
+        )}
+
+        {/* Segment alternatives panel */}
+        {altMode && altSegmentIdx != null && (
+          <SegmentAlternativesPanel
+            alternatives={altData}
+            loading={altLoading}
+            hoveredIndex={altHovered}
+            onHover={setAltHovered}
+            onApply={handleApplyAlternative}
+            onClose={() => { setAltSegmentIdx(null); setAltData([]); }}
+            currentSegment={currentSegmentStats}
+          />
+        )}
+
         <Button
           variant="subtle"
           color="gray"
@@ -2552,6 +2729,11 @@ function RouteBuilder() {
                     onSelect={handleSelectPOI}
                     selectedId={selectedPOI?.id}
                   />
+                )}
+
+                {/* Segment alternative route overlays */}
+                {altMode && altData.length > 0 && (
+                  <AlternativeRouteLayers alternatives={altData} hoveredIndex={altHovered} />
                 )}
 
                 {/* Colored route segments */}
@@ -2837,6 +3019,23 @@ function RouteBuilder() {
                       }}
                     >
                       <IconScissors size={20} color={editMode ? '#fff' : '#fff'} />
+                    </Button>
+                  </Tooltip>
+                )}
+                {routeGeometry && waypoints.length >= 2 && !editMode && (
+                  <Tooltip label={altMode ? 'Exit Alternatives' : 'Compare Segment Routes'}>
+                    <Button
+                      variant={altMode ? 'filled' : 'default'}
+                      color={altMode ? 'violet' : 'dark'}
+                      size="md"
+                      onClick={() => altMode ? exitAltMode() : setAltMode(true)}
+                      style={{
+                        padding: '0 12px',
+                        backgroundColor: altMode ? '#8b5cf6' : 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${altMode ? '#8b5cf6' : 'var(--tribos-bg-tertiary)'}`,
+                      }}
+                    >
+                      <IconArrowsExchange size={20} color="#fff" />
                     </Button>
                   </Tooltip>
                 )}
@@ -4099,6 +4298,11 @@ function RouteBuilder() {
                 />
               )}
 
+              {/* Segment alternative route overlays */}
+              {altMode && altData.length > 0 && (
+                <AlternativeRouteLayers alternatives={altData} hoveredIndex={altHovered} />
+              )}
+
               {/* Route visualization layers — priority: workout > surface > gradient > flat */}
               {coloredSegments && (
                 <Source id="colored-route" type="geojson" data={coloredSegments}>
@@ -4285,6 +4489,49 @@ function RouteBuilder() {
                 onClose={() => setShowPOIs(false)}
                 formatDist={formatDist}
               />
+            </Box>
+          )}
+
+          {/* Segment Alternatives Panel (desktop) */}
+          {altMode && (
+            <Box style={{ position: 'absolute', bottom: 20, right: 20, width: 320, zIndex: 10 }}>
+              {altSegmentIdx == null ? (
+                <Box style={{
+                  backgroundColor: 'var(--tribos-bg-secondary)',
+                  borderRadius: tokens.radius.md,
+                  border: '1px solid var(--tribos-bg-tertiary)',
+                  padding: tokens.spacing.sm,
+                }}>
+                  <Text size="sm" fw={500} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+                    Select a segment to compare:
+                  </Text>
+                  <Stack gap={4}>
+                    {waypoints.slice(0, -1).map((wp, i) => (
+                      <Button
+                        key={wp.id}
+                        size="xs"
+                        variant="light"
+                        color="violet"
+                        fullWidth
+                        onClick={() => handleSelectAltSegment(i)}
+                        leftSection={<IconArrowRight size={14} />}
+                      >
+                        {wp.name || `Waypoint ${i}`} → {waypoints[i + 1]?.name || `Waypoint ${i + 1}`}
+                      </Button>
+                    ))}
+                  </Stack>
+                </Box>
+              ) : (
+                <SegmentAlternativesPanel
+                  alternatives={altData}
+                  loading={altLoading}
+                  hoveredIndex={altHovered}
+                  onHover={setAltHovered}
+                  onApply={handleApplyAlternative}
+                  onClose={() => { setAltSegmentIdx(null); setAltData([]); }}
+                  currentSegment={currentSegmentStats}
+                />
+              )}
             </Box>
           )}
 
