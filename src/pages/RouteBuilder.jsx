@@ -57,7 +57,9 @@ import POIPanel from '../components/RouteBuilder/POIPanel.jsx';
 import { generateSegmentAlternatives } from '../utils/segmentAlternatives';
 import SegmentAlternativesPanel from '../components/RouteBuilder/SegmentAlternativesPanel.jsx';
 import AlternativeRouteLayers from '../components/RouteBuilder/AlternativeRouteLayers.jsx';
-import { IconArrowsExchange } from '@tabler/icons-react';
+import { IconArrowsExchange, IconWand } from '@tabler/icons-react';
+import { applyRouteEdit, classifyEditIntent } from '../utils/aiRouteEditService';
+import AIEditPanel from '../components/RouteBuilder/AIEditPanel.jsx';
 
 // Shared constants — single source of truth in components/RouteBuilder/index.js
 import { MAPBOX_TOKEN, BASEMAP_STYLES, CYCLOSM_STYLE } from '../components/RouteBuilder';
@@ -274,6 +276,12 @@ function RouteBuilder() {
   const [altData, setAltData] = useState([]);          // alternative route objects
   const [altLoading, setAltLoading] = useState(false);
   const [altHovered, setAltHovered] = useState(null);  // hovered alternative index
+
+  // AI-assisted editing (Phase 3.1)
+  const [aiEditMode, setAiEditMode] = useState(false);
+  const [aiEditLoading, setAiEditLoading] = useState(false);
+  const [aiEditResult, setAiEditResult] = useState(null);
+  const [aiEditPrevGeometry, setAiEditPrevGeometry] = useState(null);
 
   // Effective waypoints for segment alternatives: use actual waypoints if available,
   // otherwise derive start/end from route geometry (covers AI-generated routes)
@@ -1164,6 +1172,80 @@ function RouteBuilder() {
     setAltData([]);
     setAltHovered(null);
   }, []);
+
+  // AI-assisted route editing (Phase 3.1)
+  const handleAIEditSubmit = useCallback(async (editIntent) => {
+    if (!routeGeometry?.coordinates) return;
+    setAiEditLoading(true);
+    setAiEditResult(null);
+    setAiEditPrevGeometry(routeGeometry);
+
+    try {
+      const result = await applyRouteEdit({
+        routeGeometry,
+        routeProfile: routeProfile || 'road',
+        routeStats: routeStats || { distance: 0, elevation: 0, duration: 0 },
+        editIntent,
+        mapboxToken: MAPBOX_TOKEN,
+      });
+
+      setAiEditResult(result);
+
+      if (result.success && result.editedRoute?.coordinates) {
+        // Preview: apply the edit so user can see it on the map
+        setRouteGeometry({
+          type: 'LineString',
+          coordinates: result.editedRoute.coordinates,
+        });
+
+        // If the edited route needs re-routing (e.g. trimmed coordinates)
+        if (result.editedRoute.needsReroute) {
+          try {
+            const rerouted = await getSmartCyclingRoute(
+              result.editedRoute.coordinates.filter(
+                (_, i) => i === 0 || i === result.editedRoute.coordinates.length - 1 ||
+                i % Math.max(1, Math.floor(result.editedRoute.coordinates.length / 4)) === 0
+              ),
+              { profile: routeProfile || 'road' }
+            );
+            if (rerouted?.coordinates?.length > 1) {
+              setRouteGeometry({
+                type: 'LineString',
+                coordinates: rerouted.coordinates,
+              });
+            }
+          } catch (e) {
+            console.warn('[AI Edit] Re-route after trim failed:', e.message);
+          }
+        }
+      }
+    } catch (err) {
+      setAiEditResult({ success: false, message: `Edit failed: ${err.message}` });
+    } finally {
+      setAiEditLoading(false);
+    }
+  }, [routeGeometry, routeProfile, routeStats, setRouteGeometry]);
+
+  const handleAIEditAccept = useCallback(() => {
+    // Commit the edit: clear preview state, keep the new geometry
+    setAiEditResult(null);
+    setAiEditPrevGeometry(null);
+    notifications.show({
+      title: 'Route updated',
+      message: 'AI edit applied successfully',
+      color: 'lime',
+      autoClose: 3000,
+    });
+  }, []);
+
+  const handleAIEditReject = useCallback(() => {
+    // Revert to previous geometry
+    if (aiEditPrevGeometry) {
+      setRouteGeometry(aiEditPrevGeometry);
+    }
+    setAiEditResult(null);
+    setAiEditPrevGeometry(null);
+  }, [aiEditPrevGeometry, setRouteGeometry]);
 
   // Remove selected segment and re-route
   const handleRemoveSegment = useCallback(async () => {
@@ -2652,6 +2734,36 @@ function RouteBuilder() {
           />
         )}
 
+        {/* AI Edit Toggle (mobile) */}
+        {routeGeometry && !editMode && !altMode && (
+          <Button
+            variant={aiEditMode ? 'filled' : 'light'}
+            color={aiEditMode ? 'lime' : 'gray'}
+            size="sm"
+            fullWidth
+            onClick={() => {
+              setAiEditMode(!aiEditMode);
+              if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
+            }}
+            leftSection={<IconWand size={16} />}
+          >
+            {aiEditMode ? 'Close AI Edit' : 'AI Edit Route'}
+          </Button>
+        )}
+
+        {/* AI Edit Panel (mobile) */}
+        {aiEditMode && (
+          <AIEditPanel
+            loading={aiEditLoading}
+            lastResult={aiEditResult}
+            onSubmitEdit={handleAIEditSubmit}
+            onAccept={handleAIEditAccept}
+            onReject={handleAIEditReject}
+            onClose={() => { setAiEditMode(false); setAiEditResult(null); setAiEditPrevGeometry(null); }}
+            formatDist={formatDist}
+          />
+        )}
+
         <Button
           variant="subtle"
           color="gray"
@@ -3058,6 +3170,26 @@ function RouteBuilder() {
                       }}
                     >
                       <IconArrowsExchange size={20} color="#fff" />
+                    </Button>
+                  </Tooltip>
+                )}
+                {routeGeometry && !editMode && (
+                  <Tooltip label={aiEditMode ? 'Close AI Edit' : 'AI Edit Route'}>
+                    <Button
+                      variant={aiEditMode ? 'filled' : 'default'}
+                      color={aiEditMode ? 'lime' : 'dark'}
+                      size="md"
+                      onClick={() => {
+                        setAiEditMode(!aiEditMode);
+                        if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
+                      }}
+                      style={{
+                        padding: '0 12px',
+                        backgroundColor: aiEditMode ? '#84cc16' : 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${aiEditMode ? '#84cc16' : 'var(--tribos-bg-tertiary)'}`,
+                      }}
+                    >
+                      <IconWand size={20} color={aiEditMode ? '#000' : '#fff'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -4024,6 +4156,36 @@ function RouteBuilder() {
                 </Paper>
               )}
 
+              {/* AI Edit Toggle (desktop sidebar) */}
+              {routeGeometry && !editMode && !altMode && (
+                <Button
+                  variant={aiEditMode ? 'filled' : 'light'}
+                  color={aiEditMode ? 'lime' : 'gray'}
+                  size="sm"
+                  fullWidth
+                  onClick={() => {
+                    setAiEditMode(!aiEditMode);
+                    if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
+                  }}
+                  leftSection={<IconWand size={16} />}
+                >
+                  {aiEditMode ? 'Close AI Edit' : 'AI Edit Route'}
+                </Button>
+              )}
+
+              {/* AI Edit Panel (desktop sidebar) */}
+              {aiEditMode && (
+                <AIEditPanel
+                  loading={aiEditLoading}
+                  lastResult={aiEditResult}
+                  onSubmitEdit={handleAIEditSubmit}
+                  onAccept={handleAIEditAccept}
+                  onReject={handleAIEditReject}
+                  onClose={() => { setAiEditMode(false); setAiEditResult(null); setAiEditPrevGeometry(null); }}
+                  formatDist={formatDist}
+                />
+              )}
+
               <Button
                 variant="subtle"
                 color="gray"
@@ -4262,6 +4424,26 @@ function RouteBuilder() {
                     }}
                   >
                     <IconArrowsExchange size={20} color="#fff" />
+                  </Button>
+                </Tooltip>
+              )}
+              {routeGeometry && !editMode && (
+                <Tooltip label={aiEditMode ? 'Close AI Edit' : 'AI Edit Route'}>
+                  <Button
+                    variant={aiEditMode ? 'filled' : 'default'}
+                    color={aiEditMode ? 'lime' : 'dark'}
+                    size="md"
+                    onClick={() => {
+                      setAiEditMode(!aiEditMode);
+                      if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
+                    }}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: aiEditMode ? '#84cc16' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${aiEditMode ? '#84cc16' : 'var(--tribos-bg-tertiary)'}`,
+                    }}
+                  >
+                    <IconWand size={20} color={aiEditMode ? '#000' : '#fff'} />
                   </Button>
                 </Tooltip>
               )}
