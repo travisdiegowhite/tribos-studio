@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil, IconMountain } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil, IconMountain, IconHeartRateMonitor } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -3696,8 +3696,9 @@ function RouteBuilder() {
                 right: 16,
                 zIndex: 10,
                 display: 'flex',
+                flexWrap: 'wrap',
                 gap: 8,
-                maxWidth: 500,
+                maxWidth: 600,
               }}
             >
               <Box style={{ flex: 1, position: 'relative' }}>
@@ -3888,7 +3889,7 @@ function RouteBuilder() {
                       border: `1px solid ${showWorkoutOverlay ? '#84cc16' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconBike size={20} color="#fff" />
+                    <IconHeartRateMonitor size={20} color="#fff" />
                   </Button>
                 </Tooltip>
               )}
