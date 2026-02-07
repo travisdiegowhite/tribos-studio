@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil, IconMountain, IconHeartRateMonitor } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil, IconMountain, IconHeartRateMonitor, IconMapPin } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -51,6 +51,9 @@ import WaypointList from '../components/RouteBuilder/WaypointList.jsx';
 import useRouteManipulation from '../hooks/useRouteManipulation';
 import { parseGpxFile } from '../utils/gpxParser';
 import { calculatePersonalizedETA } from '../utils/personalizedETA';
+import { queryPOIsAlongRoute, POI_CATEGORIES } from '../utils/routePOIService';
+import RoutePOILayer from '../components/RouteBuilder/RoutePOILayer.jsx';
+import POIPanel from '../components/RouteBuilder/POIPanel.jsx';
 import { IconArrowsExchange } from '@tabler/icons-react';
 
 // Shared constants — single source of truth in components/RouteBuilder/index.js
@@ -252,6 +255,15 @@ function RouteBuilder() {
   const [infrastructureData, setInfrastructureData] = useState(null);
   const [infrastructureLoading, setInfrastructureLoading] = useState(false);
   const infrastructureFetchTimeout = useRef(null);
+
+  // Smart POIs along route (Phase 3.2)
+  const [showPOIs, setShowPOIs] = useState(false);
+  const [poiData, setPOIData] = useState([]);
+  const [poiLoading, setPOILoading] = useState(false);
+  const [poiCategories, setPOICategories] = useState(
+    () => new Set(Object.keys(POI_CATEGORIES))
+  );
+  const [selectedPOI, setSelectedPOI] = useState(null);
 
   // Step indicator - determine current step based on form state
   const wizardSteps = useMemo(() => [
@@ -666,6 +678,34 @@ function RouteBuilder() {
     };
   }, [viewport, showBikeInfrastructure, mapStyleId, fetchInfrastructureForViewport]);
 
+  // Fetch POIs along route when toggle is on and route changes
+  useEffect(() => {
+    if (!showPOIs || !routeGeometry?.coordinates || routeGeometry.coordinates.length < 2) {
+      setPOIData([]);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchPOIs = async () => {
+      setPOILoading(true);
+      try {
+        const pois = await queryPOIsAlongRoute(
+          routeGeometry.coordinates,
+          Array.from(poiCategories),
+          0.5, // 500m corridor
+        );
+        if (!cancelled) setPOIData(pois);
+      } catch (err) {
+        console.error('POI fetch failed:', err);
+      } finally {
+        if (!cancelled) setPOILoading(false);
+      }
+    };
+
+    fetchPOIs();
+    return () => { cancelled = true; };
+  }, [showPOIs, routeGeometry, poiCategories]);
+
   // Calculate route — either via smart routing (snap) or direct lines (freehand)
   const calculateRoute = useCallback(async (points) => {
     if (points.length < 2) {
@@ -951,6 +991,25 @@ function RouteBuilder() {
 
   const handleMapMouseLeave = useCallback(() => {
     setMapHoverDistance(null);
+  }, []);
+
+  // POI category toggle
+  const handleTogglePOICategory = useCallback((catId) => {
+    setPOICategories(prev => {
+      const next = new Set(prev);
+      if (next.has(catId)) next.delete(catId);
+      else next.add(catId);
+      return next;
+    });
+  }, []);
+
+  // POI selection — pan map to selected POI
+  const handleSelectPOI = useCallback((poi) => {
+    setSelectedPOI(prev => prev?.id === poi.id ? null : poi);
+    const map = mapRef.current?.getMap();
+    if (map && poi) {
+      map.flyTo({ center: [poi.lon, poi.lat], zoom: Math.max(map.getZoom(), 15), duration: 600 });
+    }
   }, []);
 
   // Remove selected segment and re-route
@@ -2485,6 +2544,16 @@ function RouteBuilder() {
                   />
                 )}
 
+                {/* Smart POIs along route */}
+                {showPOIs && poiData.length > 0 && (
+                  <RoutePOILayer
+                    pois={poiData}
+                    activeCategories={poiCategories}
+                    onSelect={handleSelectPOI}
+                    selectedId={selectedPOI?.id}
+                  />
+                )}
+
                 {/* Colored route segments */}
                 {coloredSegments && (
                   <Source id="colored-route" type="geojson" data={coloredSegments}>
@@ -2683,6 +2752,24 @@ function RouteBuilder() {
                     <IconBike size={20} color={showBikeInfrastructure ? '#000' : '#fff'} />
                   </Button>
                 </Tooltip>
+                {routeGeometry && (
+                  <Tooltip label={showPOIs ? 'Hide POIs' : 'Show Nearby POIs'}>
+                    <Button
+                      variant={showPOIs ? 'filled' : 'default'}
+                      color={showPOIs ? 'blue' : 'dark'}
+                      size="md"
+                      onClick={() => setShowPOIs(!showPOIs)}
+                      loading={poiLoading}
+                      style={{
+                        padding: '0 12px',
+                        backgroundColor: showPOIs ? '#3b82f6' : 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+                      }}
+                    >
+                      <IconMapPin size={20} color={showPOIs ? '#fff' : '#fff'} />
+                    </Button>
+                  </Tooltip>
+                )}
                 <Menu position="bottom-end" withArrow shadow="md">
                   <Menu.Target>
                     <Button
@@ -2787,6 +2874,20 @@ function RouteBuilder() {
             {/* Bike Infrastructure Legend */}
             {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
               <BikeInfrastructureLegend visible={showBikeInfrastructure} />
+            )}
+
+            {/* POI Panel (mobile) */}
+            {showPOIs && (
+              <POIPanel
+                pois={poiData}
+                loading={poiLoading}
+                activeCategories={poiCategories}
+                onToggleCategory={handleTogglePOICategory}
+                onSelectPOI={handleSelectPOI}
+                selectedId={selectedPOI?.id}
+                onClose={() => setShowPOIs(false)}
+                formatDist={formatDist}
+              />
             )}
 
             {/* Edit Mode Floating Panel */}
@@ -3822,6 +3923,24 @@ function RouteBuilder() {
                   <IconBike size={20} color={showBikeInfrastructure ? '#000' : '#fff'} />
                 </Button>
               </Tooltip>
+              {routeGeometry && (
+                <Tooltip label={showPOIs ? 'Hide POIs' : 'Show Nearby POIs'}>
+                  <Button
+                    variant={showPOIs ? 'filled' : 'default'}
+                    color={showPOIs ? 'blue' : 'dark'}
+                    size="md"
+                    onClick={() => setShowPOIs(!showPOIs)}
+                    loading={poiLoading}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: showPOIs ? '#3b82f6' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+                    }}
+                  >
+                    <IconMapPin size={20} color="#fff" />
+                  </Button>
+                </Tooltip>
+              )}
               <Menu position="bottom-end" withArrow shadow="md">
                 <Menu.Target>
                   <Tooltip label="Change Basemap">
@@ -3967,6 +4086,16 @@ function RouteBuilder() {
                 <BikeInfrastructureLayer
                   data={infrastructureData}
                   visible={showBikeInfrastructure}
+                />
+              )}
+
+              {/* Smart POIs along route */}
+              {showPOIs && poiData.length > 0 && (
+                <RoutePOILayer
+                  pois={poiData}
+                  activeCategories={poiCategories}
+                  onSelect={handleSelectPOI}
+                  selectedId={selectedPOI?.id}
                 />
               )}
 
@@ -4141,6 +4270,22 @@ function RouteBuilder() {
           {/* Bike Infrastructure Legend */}
           {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
             <BikeInfrastructureLegend visible={showBikeInfrastructure} />
+          )}
+
+          {/* POI Panel (desktop) */}
+          {showPOIs && (
+            <Box style={{ position: 'absolute', bottom: 20, left: 20, width: 320, zIndex: 10 }}>
+              <POIPanel
+                pois={poiData}
+                loading={poiLoading}
+                activeCategories={poiCategories}
+                onToggleCategory={handleTogglePOICategory}
+                onSelectPOI={handleSelectPOI}
+                selectedId={selectedPOI?.id}
+                onClose={() => setShowPOIs(false)}
+                formatDist={formatDist}
+              />
+            </Box>
           )}
 
           {/* Edit Mode Floating Panel */}
