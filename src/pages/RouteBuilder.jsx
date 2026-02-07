@@ -45,6 +45,7 @@ import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import SavedRoutesDrawer from '../components/SavedRoutesDrawer.jsx';
 import ModeSelector from '../components/RouteBuilder/ModeSelector.jsx';
+import WaypointList from '../components/RouteBuilder/WaypointList.jsx';
 import useRouteManipulation from '../hooks/useRouteManipulation';
 import { parseGpxFile } from '../utils/gpxParser';
 import { IconArrowsExchange } from '@tabler/icons-react';
@@ -751,6 +752,29 @@ function RouteBuilder() {
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
   }, [waypoints, calculateRoute]);
+
+  // Reorder waypoints — swap fromIndex ↔ toIndex, re-type start/end, recalculate
+  const reorderWaypoints = useCallback((fromIndex, toIndex) => {
+    if (toIndex < 0 || toIndex >= waypoints.length) return;
+    const reordered = [...waypoints];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    // Re-assign types
+    reordered.forEach((wp, i) => {
+      if (i === 0) { wp.type = 'start'; wp.name = 'Start'; }
+      else if (i === reordered.length - 1) { wp.type = 'end'; wp.name = 'End'; }
+      else { wp.type = 'waypoint'; wp.name = `Waypoint ${i}`; }
+    });
+    setWaypoints(reordered);
+    calculateRoute(reordered);
+  }, [waypoints, setWaypoints, calculateRoute]);
+
+  // Focus map on a waypoint
+  const focusWaypoint = useCallback((wp) => {
+    if (mapRef.current && wp?.position) {
+      mapRef.current.flyTo({ center: wp.position, zoom: 15, duration: 800 });
+    }
+  }, []);
 
   // Handle waypoint drag end — update position and recalculate route
   const handleWaypointDragEnd = useCallback((waypointId, event) => {
@@ -3353,6 +3377,16 @@ function RouteBuilder() {
                       { value: 'gravel', label: 'Gravel' },
                       { value: 'mountain', label: 'Mountain' },
                     ]}
+                  />
+                )}
+
+                {/* Waypoint list with reorder controls */}
+                {waypoints.length >= 2 && (
+                  <WaypointList
+                    waypoints={waypoints}
+                    onReorder={reorderWaypoints}
+                    onRemove={removeWaypoint}
+                    onFocus={focusWaypoint}
                   />
                 )}
 
