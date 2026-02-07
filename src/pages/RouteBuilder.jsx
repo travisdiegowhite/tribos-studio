@@ -3980,7 +3980,21 @@ function RouteBuilder() {
                 </Group>
               )}
 
-              {/* Selected Segment Actions (Mobile) */}
+              {/* Segment Alternatives Toggle (desktop sidebar) */}
+              {routeGeometry && altWaypoints.length >= 2 && !editMode && (
+                <Button
+                  variant={altMode ? 'filled' : 'light'}
+                  color={altMode ? 'violet' : 'gray'}
+                  size="sm"
+                  fullWidth
+                  onClick={() => altMode ? exitAltMode() : setAltMode(true)}
+                  leftSection={<IconArrowsExchange size={16} />}
+                >
+                  {altMode ? 'Exit Alternatives' : 'Compare Segment Routes'}
+                </Button>
+              )}
+
+              {/* Selected Segment Actions (desktop sidebar) */}
               {editMode && selectedSegment && (
                 <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444' }}>
                   <Stack gap="xs">
@@ -4231,6 +4245,23 @@ function RouteBuilder() {
                     }}
                   >
                     <IconScissors size={20} color="#fff" />
+                  </Button>
+                </Tooltip>
+              )}
+              {routeGeometry && altWaypoints.length >= 2 && !editMode && (
+                <Tooltip label={altMode ? 'Exit Alternatives' : 'Compare Segment Routes'}>
+                  <Button
+                    variant={altMode ? 'filled' : 'default'}
+                    color={altMode ? 'violet' : 'dark'}
+                    size="md"
+                    onClick={() => altMode ? exitAltMode() : setAltMode(true)}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: altMode ? '#8b5cf6' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${altMode ? '#8b5cf6' : 'var(--tribos-bg-tertiary)'}`,
+                    }}
+                  >
+                    <IconArrowsExchange size={20} color="#fff" />
                   </Button>
                 </Tooltip>
               )}
