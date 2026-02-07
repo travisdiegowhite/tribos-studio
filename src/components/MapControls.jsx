@@ -2,9 +2,11 @@
  * MapControls Component
  *
  * Custom map controls for the route builder including:
+ * - Zoom in / zoom out
+ * - Compass/North button (reset bearing + pitch)
+ * - Reset pitch button (flatten view, independent of bearing)
  * - Recenter on user location
  * - Recenter on route (fit bounds)
- * - Compass/North button (reset bearing)
  * - Scale bar
  */
 
@@ -15,6 +17,9 @@ import {
   IconRoute,
   IconCompass,
   IconFocus2,
+  IconPlus,
+  IconMinus,
+  IconTiltShift,
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import { useUnits } from '../utils/units';
@@ -176,15 +181,19 @@ export default function MapControls({
   isLocating = false,
 }) {
   const [bearing, setBearing] = useState(0);
+  const [pitch, setPitch] = useState(0);
 
-  // Update bearing when viewport changes
+  // Update bearing and pitch when viewport changes
   useEffect(() => {
     if (viewport?.bearing !== undefined) {
       setBearing(viewport.bearing);
     }
-  }, [viewport?.bearing]);
+    if (viewport?.pitch !== undefined) {
+      setPitch(viewport.pitch);
+    }
+  }, [viewport?.bearing, viewport?.pitch]);
 
-  // Reset bearing to north
+  // Reset bearing and pitch to north/flat
   const handleResetNorth = useCallback(() => {
     const map = mapRef?.current?.getMap?.();
     if (map) {
@@ -192,6 +201,39 @@ export default function MapControls({
         bearing: 0,
         pitch: 0,
         duration: 300,
+      });
+    }
+  }, [mapRef]);
+
+  // Reset only pitch (flatten view), preserving bearing
+  const handleResetPitch = useCallback(() => {
+    const map = mapRef?.current?.getMap?.();
+    if (map) {
+      map.easeTo({
+        pitch: 0,
+        duration: 300,
+      });
+    }
+  }, [mapRef]);
+
+  // Zoom in one step
+  const handleZoomIn = useCallback(() => {
+    const map = mapRef?.current?.getMap?.();
+    if (map) {
+      map.easeTo({
+        zoom: map.getZoom() + 1,
+        duration: 200,
+      });
+    }
+  }, [mapRef]);
+
+  // Zoom out one step
+  const handleZoomOut = useCallback(() => {
+    const map = mapRef?.current?.getMap?.();
+    if (map) {
+      map.easeTo({
+        zoom: map.getZoom() - 1,
+        duration: 200,
       });
     }
   }, [mapRef]);
@@ -243,6 +285,7 @@ export default function MapControls({
   const hasRoute = routeGeometry?.coordinates?.length > 1;
   const hasUserLocation = !!userLocation;
   const isRotated = Math.abs(bearing) > 0.5;
+  const isTilted = pitch > 1;
 
   const controlButtonStyle = {
     backgroundColor: 'var(--tribos-bg-secondary)',
@@ -279,8 +322,41 @@ export default function MapControls({
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
         }}
       >
+        {/* Zoom In */}
+        <Tooltip label="Zoom In" position="left">
+          <ActionIcon
+            size="lg"
+            variant="subtle"
+            onClick={handleZoomIn}
+            style={controlButtonStyle}
+          >
+            <IconPlus size={18} />
+          </ActionIcon>
+        </Tooltip>
+
+        {/* Zoom Out */}
+        <Tooltip label="Zoom Out" position="left">
+          <ActionIcon
+            size="lg"
+            variant="subtle"
+            onClick={handleZoomOut}
+            style={controlButtonStyle}
+          >
+            <IconMinus size={18} />
+          </ActionIcon>
+        </Tooltip>
+
+        {/* Divider */}
+        <Box
+          style={{
+            height: 1,
+            backgroundColor: 'var(--tribos-bg-tertiary)',
+            margin: '2px 4px',
+          }}
+        />
+
         {/* Compass / North Button */}
-        <Tooltip label={isRotated ? 'Reset to North' : 'Facing North'} position="left">
+        <Tooltip label={isRotated || isTilted ? 'Reset to North' : 'Facing North'} position="left">
           <ActionIcon
             size="lg"
             variant="subtle"
@@ -299,6 +375,32 @@ export default function MapControls({
             />
           </ActionIcon>
         </Tooltip>
+
+        {/* Reset Pitch / Flatten View */}
+        <Tooltip label={isTilted ? `Reset to Flat View (${Math.round(pitch)}°)` : 'Flat View'} position="left">
+          <ActionIcon
+            size="lg"
+            variant="subtle"
+            onClick={handleResetPitch}
+            style={controlButtonStyle}
+          >
+            <IconTiltShift
+              size={20}
+              style={{
+                color: isTilted ? 'var(--tribos-lime)' : 'var(--tribos-text-secondary)',
+              }}
+            />
+          </ActionIcon>
+        </Tooltip>
+
+        {/* Divider */}
+        <Box
+          style={{
+            height: 1,
+            backgroundColor: 'var(--tribos-bg-tertiary)',
+            margin: '2px 4px',
+          }}
+        />
 
         {/* Recenter Menu */}
         <Menu position="left" withArrow shadow="md">
