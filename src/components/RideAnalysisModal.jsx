@@ -197,13 +197,14 @@ const RideAnalysisModal = ({
     const avgCadence = ride.average_cadence || 0;
     const kilojoules = ride.kilojoules || 0;
 
-    // Power metrics
+    // Power metrics - prefer stored values from FIT parser (calculated from actual power stream)
+    // Fall back to client-side estimation from avg/max power
     let np = null, intensityFactor = null, vi = null, powerTSS = null, ifZone = null;
     if (avgPower > 0) {
-      np = estimateNormalizedPower(avgPower, maxPower);
-      intensityFactor = calculateIF(np, ftp);
+      np = ride.normalized_power || estimateNormalizedPower(avgPower, maxPower);
+      intensityFactor = ride.intensity_factor || calculateIF(np, ftp);
       vi = calculateVI(np, avgPower);
-      powerTSS = calculateTSSFromPower(duration, np, ftp);
+      powerTSS = ride.tss || calculateTSSFromPower(duration, np, ftp);
       ifZone = getIFZone(intensityFactor);
     }
 

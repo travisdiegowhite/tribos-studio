@@ -4,6 +4,13 @@
 
 import EasyFit from 'easy-fit';
 
+// Maximum valid values for FIT data fields
+// FIT protocol uses sentinel values (e.g., 0xFFFF = 65535 for uint16) to indicate "invalid/no data"
+// These must be filtered out before any metric calculations
+const MAX_VALID_POWER_WATTS = 2500;    // Covers elite track sprinters
+const MAX_VALID_HR_BPM = 250;          // Physiological maximum
+const MAX_VALID_CADENCE_RPM = 250;     // Covers high-cadence drills
+
 /**
  * Parse a FIT file buffer and extract GPS track points
  * @param {Buffer|ArrayBuffer} fitBuffer - The raw FIT file data
@@ -59,8 +66,12 @@ export function parseFitFile(fitBuffer) {
             // Calculate average power from the stream
             const avgPowerFromStream = calculateAveragePower(powerStream);
 
-            // Calculate max power from stream (more accurate than summary which might be smoothed)
+            // Calculate max power from stream (already filtered for sentinel values)
             const maxPowerFromStream = powerStream.length > 0 ? Math.max(...powerStream) : null;
+
+            // Calculate mechanical work (kJ) from power stream
+            // Each sample is ~1 second, so sum of watts = joules
+            const workKj = Math.round(powerStream.reduce((sum, p) => sum + p, 0) / 1000);
 
             powerMetrics = {
               normalizedPower,
@@ -71,11 +82,12 @@ export function parseFitFile(fitBuffer) {
               intensityFactor: summary?.intensityFactor || null,
               thresholdPower: summary?.threshold_power || null,
               powerCurveSummary,
+              workKj: workKj > 0 ? workKj : null,
               hasPowerData: true,
               powerSampleCount: powerStream.length
             };
 
-            console.log(`⚡ Power metrics extracted: NP=${normalizedPower}W, Avg=${avgPowerFromStream}W, Max=${powerMetrics.maxPower}W, Samples=${powerStream.length}`);
+            console.log(`⚡ Power metrics extracted: NP=${normalizedPower}W, Avg=${avgPowerFromStream}W, Max=${powerMetrics.maxPower}W, Work=${workKj}kJ, Samples=${powerStream.length}`);
           }
 
           resolve({
@@ -115,9 +127,9 @@ function extractTrackPoints(records) {
         timestamp: record.timestamp instanceof Date
           ? record.timestamp.toISOString()
           : record.timestamp,
-        heartRate: record.heart_rate || null,
-        power: record.power || null,
-        cadence: record.cadence || null,
+        heartRate: record.heart_rate > 0 && record.heart_rate < MAX_VALID_HR_BPM ? record.heart_rate : null,
+        power: record.power > 0 && record.power < MAX_VALID_POWER_WATTS ? record.power : null,
+        cadence: record.cadence > 0 && record.cadence < MAX_VALID_CADENCE_RPM ? record.cadence : null,
         speed: record.enhanced_speed || record.speed || null,
         distance: record.distance || null
       });
@@ -142,9 +154,9 @@ function extractAllDataPoints(records) {
         timestamp: record.timestamp instanceof Date
           ? record.timestamp.toISOString()
           : record.timestamp,
-        power: record.power ?? null,
-        heartRate: record.heart_rate ?? null,
-        cadence: record.cadence ?? null,
+        power: record.power > 0 && record.power < MAX_VALID_POWER_WATTS ? record.power : null,
+        heartRate: record.heart_rate > 0 && record.heart_rate < MAX_VALID_HR_BPM ? record.heart_rate : null,
+        cadence: record.cadence > 0 && record.cadence < MAX_VALID_CADENCE_RPM ? record.cadence : null,
         speed: record.enhanced_speed ?? record.speed ?? null,
         distance: record.distance ?? null,
         elevation: record.enhanced_altitude ?? record.altitude ?? null,
@@ -165,6 +177,9 @@ function extractSummary(data) {
   const session = data.sessions?.[0];
 
   if (session) {
+    // Helper to validate a value is within a reasonable range
+    const validRange = (val, max) => (val > 0 && val < max) ? val : null;
+
     return {
       totalDistance: session.total_distance || 0,
       totalTime: session.total_timer_time || session.total_elapsed_time || 0,
@@ -172,19 +187,19 @@ function extractSummary(data) {
       totalDescent: session.total_descent || 0,
       avgSpeed: session.avg_speed || null,
       maxSpeed: session.max_speed || null,
-      avgHeartRate: session.avg_heart_rate || null,
-      maxHeartRate: session.max_heart_rate || null,
-      avgPower: session.avg_power || null,
-      maxPower: session.max_power || null,
-      avgCadence: session.avg_cadence || null,
+      avgHeartRate: validRange(session.avg_heart_rate, MAX_VALID_HR_BPM),
+      maxHeartRate: validRange(session.max_heart_rate, MAX_VALID_HR_BPM),
+      avgPower: validRange(session.avg_power, MAX_VALID_POWER_WATTS),
+      maxPower: validRange(session.max_power, MAX_VALID_POWER_WATTS),
+      avgCadence: validRange(session.avg_cadence, MAX_VALID_CADENCE_RPM),
       sport: session.sport || 'cycling',
       subSport: session.sub_sport || null,
       // Power metrics from device (if available)
-      normalizedPower: session.normalized_power || null,
+      normalizedPower: validRange(session.normalized_power, MAX_VALID_POWER_WATTS),
       trainingStressScore: session.training_stress_score || null,
       intensityFactor: session.intensity_factor || null,
-      threshold_power: session.threshold_power || null, // FTP setting on device
-      totalWork: session.total_work || null, // kJ
+      threshold_power: validRange(session.threshold_power, MAX_VALID_POWER_WATTS),
+      totalWork: session.total_work || null, // joules from device
       totalCalories: session.total_calories || null
     };
   }
@@ -299,8 +314,9 @@ function extractPowerStream(dataPoints) {
     return null;
   }
 
+  // Filter out null/zero AND sentinel values (e.g., 65535 = 0xFFFF from FIT protocol)
   const powerValues = dataPoints
-    .filter(p => p.power !== null && p.power !== undefined && p.power > 0)
+    .filter(p => p.power !== null && p.power !== undefined && p.power > 0 && p.power < MAX_VALID_POWER_WATTS)
     .map(p => p.power);
 
   return powerValues.length > 0 ? powerValues : null;

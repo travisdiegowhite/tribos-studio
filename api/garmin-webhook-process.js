@@ -267,6 +267,7 @@ async function handleExistingActivity(event, existing, integration) {
       if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
       if (pm.intensityFactor) activityUpdate.intensity_factor = pm.intensityFactor;
       if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
+      if (pm.workKj) activityUpdate.kilojoules = pm.workKj;
       if (pm.normalizedPower) updates.push(`NP: ${pm.normalizedPower}W`);
     }
     if (pm.avgPower || pm.normalizedPower) {
@@ -440,6 +441,7 @@ async function handleDuplicateActivity(event, integration, activityData, activit
             if (fitResult.powerMetrics?.normalizedPower) fitUpdate.normalized_power = fitResult.powerMetrics.normalizedPower;
             if (fitResult.powerMetrics?.maxPower) fitUpdate.max_watts = fitResult.powerMetrics.maxPower;
             if (fitResult.powerMetrics?.powerCurveSummary) fitUpdate.power_curve_summary = fitResult.powerMetrics.powerCurveSummary;
+            if (fitResult.powerMetrics?.workKj) fitUpdate.kilojoules = fitResult.powerMetrics.workKj;
             fitUpdate.device_watts = true;
 
             await supabase
@@ -495,9 +497,10 @@ async function processFitFile(activityId, fitFileUrl, accessToken) {
       if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
       if (pm.intensityFactor) activityUpdate.intensity_factor = pm.intensityFactor;
       if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
+      if (pm.workKj) activityUpdate.kilojoules = pm.workKj;
       activityUpdate.device_watts = true;
 
-      console.log(`⚡ Power metrics from FIT: Avg=${pm.avgPower}W, NP=${pm.normalizedPower}W, Max=${pm.maxPower}W`);
+      console.log(`⚡ Power metrics from FIT: Avg=${pm.avgPower}W, NP=${pm.normalizedPower}W, Max=${pm.maxPower}W, Work=${pm.workKj}kJ`);
     }
 
     if (Object.keys(activityUpdate).length > 1) {
