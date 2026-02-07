@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil, IconMountain } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -27,6 +27,7 @@ import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '..
 import { detectRouteClick, findNearestPointOnRoute, findSegmentToRemove, removeSegmentAndReroute, getSegmentHighlight, getRemovalStats } from '../utils/routeEditor';
 import { getElevationData, calculateElevationStats, calculateCumulativeDistances } from '../utils/elevation';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
+import { createGradientRoute, GRADE_COLORS } from '../utils/routeGradient';
 import { supabase } from '../lib/supabase';
 import { useRouteBuilderStore, useRouteBuilderHydrated } from '../stores/routeBuilderStore';
 import CollapsibleSection from '../components/CollapsibleSection.jsx';
@@ -299,6 +300,18 @@ function RouteBuilder() {
     if (!routeGeometry) return null;
     return { type: 'Feature', geometry: routeGeometry };
   }, [routeGeometry]);
+
+  // Gradient-colored route (slope-based coloring) — toggle state
+  const [showGradient, setShowGradient] = useLocalStorage({
+    key: 'tribos-route-gradient',
+    defaultValue: false,
+  });
+
+  // Compute gradient route GeoJSON from elevation data
+  const gradientRouteGeoJSON = useMemo(() => {
+    if (!showGradient || !routeGeometry?.coordinates || !elevationProfileData?.length) return null;
+    return createGradientRoute(routeGeometry.coordinates, elevationProfileData);
+  }, [showGradient, routeGeometry, elevationProfileData]);
 
   // Memoize segment highlight GeoJSON for edit mode
   const segmentHighlightGeoJSON = useMemo(() => {
@@ -2417,8 +2430,23 @@ function RouteBuilder() {
                   </Source>
                 )}
 
-                {/* Route line */}
-                {routeGeoJSON && !coloredSegments && (
+                {/* Gradient-colored route line (slope-based) */}
+                {gradientRouteGeoJSON && !coloredSegments && (
+                  <Source id="gradient-route" type="geojson" data={gradientRouteGeoJSON}>
+                    <Layer
+                      id="route-gradient"
+                      type="line"
+                      paint={{
+                        'line-color': ['get', 'color'],
+                        'line-width': 5,
+                        'line-opacity': 0.9,
+                      }}
+                    />
+                  </Source>
+                )}
+
+                {/* Flat route line (fallback when no gradient or workout overlay) */}
+                {routeGeoJSON && !coloredSegments && !gradientRouteGeoJSON && (
                   <Source id="route" type="geojson" data={routeGeoJSON}>
                     <Layer
                       id="route-line"
@@ -3775,6 +3803,23 @@ function RouteBuilder() {
                     }}
                   >
                     <IconScissors size={20} color="#fff" />
+                  </Button>
+                </Tooltip>
+              )}
+              {routeGeometry && (
+                <Tooltip label={showGradient ? 'Hide slope gradient' : 'Show slope gradient on route'}>
+                  <Button
+                    variant={showGradient ? 'filled' : 'default'}
+                    color={showGradient ? 'green' : 'dark'}
+                    size="md"
+                    onClick={() => setShowGradient(!showGradient)}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: showGradient ? '#22c55e' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${showGradient ? '#22c55e' : 'var(--tribos-bg-tertiary)'}`,
+                    }}
+                  >
+                    <IconMountain size={20} color="#fff" />
                   </Button>
                 </Tooltip>
               )}
