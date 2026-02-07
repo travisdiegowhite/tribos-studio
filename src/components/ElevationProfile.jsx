@@ -17,6 +17,7 @@ const ElevationProfile = ({
   onStatsUpdate = null,
   leftOffset = 0, // Offset from left edge (for sidebar)
   onHoverPosition = null, // Callback with {lng, lat, elevation, distance} or null when not hovering
+  highlightDistance = null, // External highlight distance (km) — e.g. from map hover. Internal hover takes priority.
 }) => {
   const [elevationData, setElevationData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -209,6 +210,28 @@ const ElevationProfile = ({
     }
   }, [onHoverPosition]);
 
+  // Compute external highlight position (from map hover)
+  const externalHighlight = useMemo(() => {
+    if (highlightDistance == null || !elevationData || !chartConfig) return null;
+    const { padding, maxDistance } = chartConfig;
+    const viewBoxWidth = 800;
+    const chartWidth = viewBoxWidth - 2 * padding;
+
+    // Find closest elevation point to the highlighted distance
+    let closestPoint = elevationData[0];
+    let minDiff = Math.abs(elevationData[0].distance - highlightDistance);
+    for (const point of elevationData) {
+      const diff = Math.abs(point.distance - highlightDistance);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestPoint = point;
+      }
+    }
+
+    const x = padding + (highlightDistance / maxDistance) * chartWidth;
+    return { x: Math.max(padding, Math.min(x, padding + chartWidth)), elevation: closestPoint.elevation, distance: closestPoint.distance };
+  }, [highlightDistance, elevationData, chartConfig]);
+
   // Don't render if no coordinates
   if (!coordinates || coordinates.length < 2) {
     return null;
@@ -359,10 +382,9 @@ const ElevationProfile = ({
                 {formatElev(chartConfig.minElevation)}
               </text>
 
-              {/* Hover indicator */}
+              {/* Hover indicator (internal — from chart hover) */}
               {hoverInfo && (
                 <>
-                  {/* Vertical line */}
                   <line
                     x1={hoverInfo.x}
                     y1={chartConfig.padding}
@@ -373,7 +395,6 @@ const ElevationProfile = ({
                     strokeDasharray="4,2"
                     opacity="0.7"
                   />
-                  {/* Dot on the line */}
                   <circle
                     cx={hoverInfo.x}
                     cy={chartConfig.chartHeight - chartConfig.padding - ((hoverInfo.elevation - chartConfig.chartMin) / chartConfig.chartRange) * (chartConfig.chartHeight - 2 * chartConfig.padding)}
@@ -382,7 +403,6 @@ const ElevationProfile = ({
                     stroke="#fff"
                     strokeWidth="2"
                   />
-                  {/* Info tooltip */}
                   <g transform={`translate(${Math.min(hoverInfo.x + 10, svgWidth - 90)}, ${chartConfig.padding + 5})`}>
                     <rect
                       x="0"
@@ -397,6 +417,46 @@ const ElevationProfile = ({
                     </text>
                     <text x="8" y="28" fontSize="10" fill="#aaa">
                       {formatDist(hoverInfo.distance)} km
+                    </text>
+                  </g>
+                </>
+              )}
+
+              {/* External highlight (from map hover) — only shown when not internally hovering */}
+              {!hoverInfo && externalHighlight && (
+                <>
+                  <line
+                    x1={externalHighlight.x}
+                    y1={chartConfig.padding}
+                    x2={externalHighlight.x}
+                    y2={chartConfig.chartHeight - chartConfig.padding}
+                    stroke="#3b82f6"
+                    strokeWidth="1"
+                    strokeDasharray="4,2"
+                    opacity="0.7"
+                  />
+                  <circle
+                    cx={externalHighlight.x}
+                    cy={chartConfig.chartHeight - chartConfig.padding - ((externalHighlight.elevation - chartConfig.chartMin) / chartConfig.chartRange) * (chartConfig.chartHeight - 2 * chartConfig.padding)}
+                    r="5"
+                    fill="#3b82f6"
+                    stroke="#fff"
+                    strokeWidth="2"
+                  />
+                  <g transform={`translate(${Math.min(externalHighlight.x + 10, svgWidth - 90)}, ${chartConfig.padding + 5})`}>
+                    <rect
+                      x="0"
+                      y="0"
+                      width="80"
+                      height="36"
+                      rx="4"
+                      fill="rgba(0,0,0,0.85)"
+                    />
+                    <text x="8" y="14" fontSize="10" fill="#fff" fontWeight="500">
+                      {formatElev(externalHighlight.elevation)}
+                    </text>
+                    <text x="8" y="28" fontSize="10" fill="#aaa">
+                      {formatDist(externalHighlight.distance)} km
                     </text>
                   </g>
                 </>

@@ -24,8 +24,8 @@ import ElevationProfile from '../components/ElevationProfile.jsx';
 import WeatherWidget from '../components/WeatherWidget.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
-import { detectRouteClick, findSegmentToRemove, removeSegmentAndReroute, getSegmentHighlight, getRemovalStats } from '../utils/routeEditor';
-import { getElevationData, calculateElevationStats } from '../utils/elevation';
+import { detectRouteClick, findNearestPointOnRoute, findSegmentToRemove, removeSegmentAndReroute, getSegmentHighlight, getRemovalStats } from '../utils/routeEditor';
+import { getElevationData, calculateElevationStats, calculateCumulativeDistances } from '../utils/elevation';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { supabase } from '../lib/supabase';
 import { useRouteBuilderStore, useRouteBuilderHydrated } from '../stores/routeBuilderStore';
@@ -760,6 +760,43 @@ function RouteBuilder() {
     // Clear drag flag after a short delay so the click event is suppressed
     setTimeout(() => { waypointDragRef.current = false; }, 100);
   }, [updateWaypointPosition, calculateRoute]);
+
+  // Map → Elevation chart hover sync: when mouse moves near the route on the map,
+  // compute the distance along the route and pass it to ElevationProfile as highlightDistance.
+  const [mapHoverDistance, setMapHoverDistance] = useState(null);
+  const cumulativeDistancesRef = useRef(null);
+  const lastRouteGeometryRef = useRef(null);
+
+  // Recompute cumulative distances when route geometry changes
+  useEffect(() => {
+    if (routeGeometry?.coordinates?.length > 1) {
+      if (routeGeometry !== lastRouteGeometryRef.current) {
+        cumulativeDistancesRef.current = calculateCumulativeDistances(routeGeometry.coordinates);
+        lastRouteGeometryRef.current = routeGeometry;
+      }
+    } else {
+      cumulativeDistancesRef.current = null;
+    }
+  }, [routeGeometry]);
+
+  const handleMapMouseMove = useCallback((event) => {
+    if (!routeGeometry?.coordinates || !cumulativeDistancesRef.current) {
+      setMapHoverDistance(null);
+      return;
+    }
+    const { lng, lat } = event.lngLat;
+    const nearest = findNearestPointOnRoute(routeGeometry.coordinates, { lng, lat });
+    if (nearest && nearest.distance < 200) { // within 200m of route
+      const distKm = cumulativeDistancesRef.current[nearest.index] || 0;
+      setMapHoverDistance(distKm);
+    } else {
+      setMapHoverDistance(null);
+    }
+  }, [routeGeometry]);
+
+  const handleMapMouseLeave = useCallback(() => {
+    setMapHoverDistance(null);
+  }, []);
 
   // Remove selected segment and re-route
   const handleRemoveSegment = useCallback(async () => {
@@ -2276,6 +2313,8 @@ function RouteBuilder() {
                 ref={mapRef}
                 {...viewport}
                 onMove={evt => setViewport(evt.viewState)}
+                onMouseMove={handleMapMouseMove}
+                onMouseLeave={handleMapMouseLeave}
                 onClick={handleMapClick}
                 mapStyle={currentMapStyle}
                 mapboxAccessToken={MAPBOX_TOKEN}
@@ -3664,6 +3703,8 @@ function RouteBuilder() {
               ref={mapRef}
               {...viewport}
               onMove={evt => setViewport(evt.viewState)}
+              onMouseMove={handleMapMouseMove}
+              onMouseLeave={handleMapMouseLeave}
               onClick={handleMapClick}
               mapStyle={currentMapStyle}
               mapboxAccessToken={MAPBOX_TOKEN}
@@ -3931,8 +3972,9 @@ function RouteBuilder() {
           coordinates={routeGeometry.coordinates}
           totalDistance={routeStats.distance}
           isImperial={isImperial}
-          leftOffset={380}
+          leftOffset={isMobile ? 0 : 380}
           onHoverPosition={setElevationHoverPosition}
+          highlightDistance={mapHoverDistance}
         />
       )}
 
