@@ -28,6 +28,7 @@ import { detectRouteClick, findNearestPointOnRoute, findSegmentToRemove, removeS
 import { getElevationData, calculateElevationStats, calculateCumulativeDistances } from '../utils/elevation';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { createGradientRoute, GRADE_COLORS } from '../utils/routeGradient';
+import { fetchRouteSurfaceData, createSurfaceRoute, computeSurfaceDistribution, SURFACE_COLORS, SURFACE_LABELS } from '../utils/surfaceOverlay';
 import { supabase } from '../lib/supabase';
 import { useRouteBuilderStore, useRouteBuilderHydrated } from '../stores/routeBuilderStore';
 import CollapsibleSection from '../components/CollapsibleSection.jsx';
@@ -312,6 +313,50 @@ function RouteBuilder() {
     if (!showGradient || !routeGeometry?.coordinates || !elevationProfileData?.length) return null;
     return createGradientRoute(routeGeometry.coordinates, elevationProfileData);
   }, [showGradient, routeGeometry, elevationProfileData]);
+
+  // Surface type overlay
+  const [showSurface, setShowSurface] = useLocalStorage({
+    key: 'tribos-route-surface',
+    defaultValue: false,
+  });
+  const [surfaceSegments, setSurfaceSegments] = useState(null);
+  const [surfaceLoading, setSurfaceLoading] = useState(false);
+  const surfaceRouteRef = useRef(null); // cache: coordinates hash → surfaceSegments
+
+  // Fetch surface data when toggled on and route changes
+  useEffect(() => {
+    if (!showSurface || !routeGeometry?.coordinates || routeGeometry.coordinates.length < 2) {
+      return;
+    }
+    // Simple cache key: first + last coordinate + length
+    const coords = routeGeometry.coordinates;
+    const cacheKey = `${coords[0][0].toFixed(4)},${coords[0][1].toFixed(4)}_${coords.length}`;
+    if (surfaceRouteRef.current?.key === cacheKey) return; // already fetched
+
+    let cancelled = false;
+    setSurfaceLoading(true);
+    fetchRouteSurfaceData(coords).then(data => {
+      if (cancelled) return;
+      setSurfaceSegments(data);
+      surfaceRouteRef.current = { key: cacheKey, data };
+      setSurfaceLoading(false);
+    }).catch(() => {
+      if (!cancelled) setSurfaceLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [showSurface, routeGeometry]);
+
+  // Build surface GeoJSON FeatureCollection
+  const surfaceRouteGeoJSON = useMemo(() => {
+    if (!showSurface || !surfaceSegments || !routeGeometry?.coordinates) return null;
+    return createSurfaceRoute(routeGeometry.coordinates, surfaceSegments);
+  }, [showSurface, surfaceSegments, routeGeometry]);
+
+  // Surface distribution for summary bar
+  const surfaceDistribution = useMemo(() => {
+    if (!surfaceSegments) return null;
+    return computeSurfaceDistribution(surfaceSegments);
+  }, [surfaceSegments]);
 
   // Memoize segment highlight GeoJSON for edit mode
   const segmentHighlightGeoJSON = useMemo(() => {
@@ -2430,8 +2475,23 @@ function RouteBuilder() {
                   </Source>
                 )}
 
+                {/* Surface-colored route line (paved/gravel/unpaved) */}
+                {surfaceRouteGeoJSON && !coloredSegments && (
+                  <Source id="surface-route" type="geojson" data={surfaceRouteGeoJSON}>
+                    <Layer
+                      id="route-surface"
+                      type="line"
+                      paint={{
+                        'line-color': ['get', 'color'],
+                        'line-width': 5,
+                        'line-opacity': 0.9,
+                      }}
+                    />
+                  </Source>
+                )}
+
                 {/* Gradient-colored route line (slope-based) */}
-                {gradientRouteGeoJSON && !coloredSegments && (
+                {gradientRouteGeoJSON && !coloredSegments && !surfaceRouteGeoJSON && (
                   <Source id="gradient-route" type="geojson" data={gradientRouteGeoJSON}>
                     <Layer
                       id="route-gradient"
@@ -2445,8 +2505,8 @@ function RouteBuilder() {
                   </Source>
                 )}
 
-                {/* Flat route line (fallback when no gradient or workout overlay) */}
-                {routeGeoJSON && !coloredSegments && !gradientRouteGeoJSON && (
+                {/* Flat route line (fallback when no overlay active) */}
+                {routeGeoJSON && !coloredSegments && !surfaceRouteGeoJSON && !gradientRouteGeoJSON && (
                   <Source id="route" type="geojson" data={routeGeoJSON}>
                     <Layer
                       id="route-line"
@@ -3812,7 +3872,7 @@ function RouteBuilder() {
                     variant={showGradient ? 'filled' : 'default'}
                     color={showGradient ? 'green' : 'dark'}
                     size="md"
-                    onClick={() => setShowGradient(!showGradient)}
+                    onClick={() => { setShowGradient(!showGradient); if (!showGradient) setShowSurface(false); }}
                     style={{
                       padding: '0 12px',
                       backgroundColor: showGradient ? '#22c55e' : 'var(--tribos-bg-secondary)',
@@ -3820,6 +3880,24 @@ function RouteBuilder() {
                     }}
                   >
                     <IconMountain size={20} color="#fff" />
+                  </Button>
+                </Tooltip>
+              )}
+              {routeGeometry && (
+                <Tooltip label={showSurface ? 'Hide surface types' : 'Show surface types (paved/gravel/unpaved)'}>
+                  <Button
+                    variant={showSurface ? 'filled' : 'default'}
+                    color={showSurface ? 'orange' : 'dark'}
+                    size="md"
+                    loading={surfaceLoading}
+                    onClick={() => { setShowSurface(!showSurface); if (!showSurface) setShowGradient(false); }}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: showSurface ? '#D97706' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${showSurface ? '#D97706' : 'var(--tribos-bg-tertiary)'}`,
+                    }}
+                  >
+                    <IconRoad size={20} color="#fff" />
                   </Button>
                 </Tooltip>
               )}
@@ -4093,6 +4171,34 @@ function RouteBuilder() {
           )}
         </Box>
       </Box>
+
+      {/* Surface distribution bar — shown above elevation profile when surface overlay is active */}
+      {showSurface && surfaceDistribution && Object.keys(surfaceDistribution).length > 0 && (
+        <Box
+          style={{
+            position: 'fixed',
+            bottom: 120, // above elevation profile
+            left: isMobile ? 0 : 380,
+            right: 0,
+            zIndex: 100,
+            padding: '4px 12px',
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+            backgroundColor: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          {Object.entries(surfaceDistribution).map(([surface, pct]) => (
+            <Group key={surface} gap={4}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: SURFACE_COLORS[surface] }} />
+              <Text size="xs" style={{ color: '#fff' }}>
+                {SURFACE_LABELS[surface]} {pct}%
+              </Text>
+            </Group>
+          ))}
+        </Box>
+      )}
 
       {/* Elevation Profile - Fixed at bottom of screen, offset by sidebar width */}
       {routeGeometry?.coordinates && routeGeometry.coordinates.length > 1 && (
