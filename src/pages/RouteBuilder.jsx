@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -25,6 +25,7 @@ import WeatherWidget from '../components/WeatherWidget.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
 import { detectRouteClick, findSegmentToRemove, removeSegmentAndReroute, getSegmentHighlight, getRemovalStats } from '../utils/routeEditor';
+import { getElevationData, calculateElevationStats } from '../utils/elevation';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { supabase } from '../lib/supabase';
 import { useRouteBuilderStore, useRouteBuilderHydrated } from '../stores/routeBuilderStore';
@@ -85,6 +86,7 @@ function RouteBuilder() {
     aiSuggestions, setAiSuggestions,
     selectedWorkoutId, setSelectedWorkoutId,
     routingSource, setRoutingSource,
+    snapToRoads, setSnapToRoads,
     builderMode, setBuilderMode,
     clearRoute,
     resetAll,
@@ -590,9 +592,7 @@ function RouteBuilder() {
     };
   }, [viewport, showBikeInfrastructure, mapStyleId, fetchInfrastructureForViewport]);
 
-  // Calculate route using smart multi-provider routing (Stadia/BRouter/Mapbox)
-  // Replaces the previous Mapbox-only approach so click-to-route gets the same
-  // quality routing as the iterative builder and manual builder.
+  // Calculate route — either via smart routing (snap) or direct lines (freehand)
   const calculateRoute = useCallback(async (points) => {
     if (points.length < 2) {
       setRouteGeometry(null);
@@ -604,6 +604,43 @@ function RouteBuilder() {
     try {
       const waypointCoordinates = points.map(p => p.position);
 
+      if (!snapToRoads) {
+        // Freehand mode: connect waypoints with straight lines
+        const coordinates = waypointCoordinates;
+        // Calculate straight-line distance (haversine)
+        let totalDistance = 0;
+        for (let i = 1; i < coordinates.length; i++) {
+          const [lon1, lat1] = coordinates[i - 1];
+          const [lon2, lat2] = coordinates[i];
+          const R = 6371000;
+          const dLat = (lat2 - lat1) * Math.PI / 180;
+          const dLon = (lon2 - lon1) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+          totalDistance += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        setRouteGeometry({ type: 'LineString', coordinates });
+        setRouteStats({
+          distance: parseFloat((totalDistance / 1000).toFixed(1)),
+          elevation: 0,
+          duration: 0,
+          routingSource: 'freehand',
+        });
+        setRoutingSource('freehand');
+
+        // Fetch elevation for the freehand line
+        const elevation = await getElevationData(coordinates);
+        if (elevation) {
+          setElevationProfileData(elevation);
+          const elevStats = calculateElevationStats(elevation);
+          setRouteStats(prev => ({ ...prev, ...elevStats }));
+        }
+
+        console.log(`✏️ Freehand route: ${(totalDistance / 1000).toFixed(1)}km`);
+        return;
+      }
+
+      // Snap-to-roads: smart multi-provider routing (Stadia/BRouter/Mapbox)
       const smartRoute = await getSmartCyclingRoute(waypointCoordinates, {
         profile: routeProfile === 'gravel' ? 'gravel' :
                  routeProfile === 'mountain' ? 'mountain' : 'bike',
@@ -632,7 +669,14 @@ function RouteBuilder() {
     } finally {
       setIsCalculating(false);
     }
-  }, [routeProfile, setRouteGeometry, setRouteStats, setRoutingSource]);
+  }, [routeProfile, snapToRoads, setRouteGeometry, setRouteStats, setRoutingSource]);
+
+  // Recalculate route when snap-to-roads mode changes
+  useEffect(() => {
+    if (waypoints.length >= 2) {
+      calculateRoute(waypoints);
+    }
+  }, [snapToRoads]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle map click - either add waypoint or select segment in edit mode
   const handleMapClick = useCallback((event) => {
@@ -2270,7 +2314,8 @@ function RouteBuilder() {
                       paint={{
                         'line-color': editMode ? '#666666' : '#32CD32',
                         'line-width': 4,
-                        'line-opacity': editMode ? 0.6 : 0.8
+                        'line-opacity': editMode ? 0.6 : 0.8,
+                        ...(!snapToRoads && { 'line-dasharray': [2, 1] }),
                       }}
                     />
                   </Source>
@@ -3182,7 +3227,7 @@ function RouteBuilder() {
                   </Group>
                   <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
                     {waypoints.length === 0 ? 'Click on the map to place your first waypoint.' :
-                     waypoints.length === 1 ? 'Click again to add more waypoints. Routes auto-snap to roads.' :
+                     waypoints.length === 1 ? `Click again to add more waypoints. ${snapToRoads ? 'Routes auto-snap to roads.' : 'Freehand mode: straight lines between points.'}` :
                      `${waypoints.length} waypoints placed. Drag markers to adjust.`}
                   </Text>
                 </Box>
@@ -3240,18 +3285,37 @@ function RouteBuilder() {
                   </Group>
                 )}
 
-                {/* Routing profile for manual mode */}
-                <Select
-                  label="Routing Profile"
-                  size="xs"
-                  value={routeProfile}
-                  onChange={setRouteProfile}
-                  data={[
-                    { value: 'road', label: 'Road' },
-                    { value: 'gravel', label: 'Gravel' },
-                    { value: 'mountain', label: 'Mountain' },
-                  ]}
-                />
+                {/* Snap to roads / freehand toggle */}
+                <Tooltip label={snapToRoads ? 'Switch to freehand drawing' : 'Switch to snap-to-roads'}>
+                  <Button
+                    variant={snapToRoads ? 'light' : 'outline'}
+                    color={snapToRoads ? 'blue' : 'gray'}
+                    size="xs"
+                    fullWidth
+                    leftSection={snapToRoads ? <IconRoad size={16} /> : <IconPencil size={16} />}
+                    onClick={() => {
+                      setSnapToRoads(!snapToRoads);
+                      // Route will recalculate via the effect below
+                    }}
+                  >
+                    {snapToRoads ? 'Snap to Roads' : 'Freehand'}
+                  </Button>
+                </Tooltip>
+
+                {/* Routing profile for manual mode (only relevant when snapping) */}
+                {snapToRoads && (
+                  <Select
+                    label="Routing Profile"
+                    size="xs"
+                    value={routeProfile}
+                    onChange={setRouteProfile}
+                    data={[
+                      { value: 'road', label: 'Road' },
+                      { value: 'gravel', label: 'Gravel' },
+                      { value: 'mountain', label: 'Mountain' },
+                    ]}
+                  />
+                )}
 
                 {/* Route stats (when route exists) */}
                 {routeGeometry && routeStats && (
@@ -3638,7 +3702,8 @@ function RouteBuilder() {
                     paint={{
                       'line-color': editMode ? '#666666' : '#32CD32',
                       'line-width': 4,
-                      'line-opacity': editMode ? 0.6 : 0.8
+                      'line-opacity': editMode ? 0.6 : 0.8,
+                      ...(!snapToRoads && { 'line-dasharray': [2, 1] }),
                     }}
                   />
                 </Source>

@@ -46,6 +46,9 @@ const initialState = {
   // Builder mode: 'ready' | 'ai' | 'manual' | 'editing'
   builderMode: 'ready',
 
+  // Snap-to-roads: true = auto-route along roads, false = freehand straight lines
+  snapToRoads: true,
+
   // Routing source info
   routingSource: null,
 
@@ -132,6 +135,9 @@ export const useRouteBuilderStore = create(
       // === Builder Mode ===
       setBuilderMode: (mode) => set({ builderMode: mode }),
 
+      // === Snap to Roads ===
+      setSnapToRoads: (snap) => set({ snapToRoads: snap }),
+
       // === Routing Source ===
       setRoutingSource: (source) => set({
         routingSource: source,
@@ -203,6 +209,7 @@ export const useRouteBuilderStore = create(
         routeProfile: state.routeProfile,
         explicitDistanceKm: state.explicitDistanceKm,
         selectedWorkoutId: state.selectedWorkoutId,
+        snapToRoads: state.snapToRoads,
         routingSource: state.routingSource,
         builderMode: state.builderMode,
         lastSaved: state.lastSaved,
