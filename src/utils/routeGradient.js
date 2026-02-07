@@ -55,11 +55,8 @@ export function createGradientRoute(coordinates, elevationData) {
     return null;
   }
 
-  // Build a lookup: for each route coordinate, find the closest elevation point
-  // We interpolate elevation along the route based on cumulative distance
   const totalRouteCoords = coordinates.length;
   const totalElevPoints = elevationData.length;
-  const maxElevDist = elevationData[totalElevPoints - 1].distance; // km
 
   // Calculate cumulative distance for each coordinate (in km)
   const coordDistances = [0];
@@ -75,27 +72,6 @@ export function createGradientRoute(coordinates, elevationData) {
     coordDistances.push(coordDistances[i - 1] + R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
   }
 
-  // Interpolate elevation at each coordinate
-  const elevations = [];
-  let elevIdx = 0;
-  for (let i = 0; i < totalRouteCoords; i++) {
-    const dist = coordDistances[i];
-    // Advance elevIdx to bracket this distance
-    while (elevIdx < totalElevPoints - 1 && elevationData[elevIdx + 1].distance < dist) {
-      elevIdx++;
-    }
-    if (elevIdx >= totalElevPoints - 1) {
-      elevations.push(elevationData[totalElevPoints - 1].elevation);
-    } else {
-      const d1 = elevationData[elevIdx].distance;
-      const d2 = elevationData[elevIdx + 1].distance;
-      const range = d2 - d1;
-      const t = range > 0 ? (dist - d1) / range : 0;
-      elevations.push(elevationData[elevIdx].elevation + t * (elevationData[elevIdx + 1].elevation - elevationData[elevIdx + 1].elevation - elevationData[elevIdx].elevation));
-    }
-  }
-
-  // Fix the interpolation bug above — rewrite cleanly
   // Interpolate elevation for each coordinate distance
   const interpolatedElevations = new Float64Array(totalRouteCoords);
   let eIdx = 0;
@@ -116,10 +92,15 @@ export function createGradientRoute(coordinates, elevationData) {
   // Build segments grouped by grade band
   const features = [];
   let segStart = 0;
-  let segColor = null;
 
   // Smoothing: calculate grade over a window rather than per-point
   const WINDOW = 5; // points to average over for grade calculation
+
+  // Initialize with the first point's grade color
+  const firstGrade = totalRouteCoords > 1
+    ? calculateGrade(0, interpolatedElevations[1] - interpolatedElevations[0], (coordDistances[1] - coordDistances[0]) * 1000)
+    : 0;
+  let segColor = getGradeColor(firstGrade);
 
   for (let i = 1; i < totalRouteCoords; i++) {
     // Calculate grade using a smoothing window
@@ -131,7 +112,7 @@ export function createGradientRoute(coordinates, elevationData) {
 
     if (color !== segColor) {
       // Flush the previous segment
-      if (segColor !== null && i > segStart) {
+      if (i > segStart) {
         features.push({
           type: 'Feature',
           properties: { color: segColor },
