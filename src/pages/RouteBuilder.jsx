@@ -275,6 +275,28 @@ function RouteBuilder() {
   const [altLoading, setAltLoading] = useState(false);
   const [altHovered, setAltHovered] = useState(null);  // hovered alternative index
 
+  // Effective waypoints for segment alternatives: use actual waypoints if available,
+  // otherwise derive start/end from route geometry (covers AI-generated routes)
+  const altWaypoints = useMemo(() => {
+    if (waypoints.length >= 2) return waypoints;
+    if (!routeGeometry?.coordinates || routeGeometry.coordinates.length < 2) return [];
+    const coords = routeGeometry.coordinates;
+    // Split long routes into 2-4 segments for meaningful alternatives
+    const numSegments = Math.min(4, Math.max(2, Math.floor(coords.length / 200)));
+    const wps = [];
+    for (let i = 0; i <= numSegments; i++) {
+      const idx = Math.min(Math.round(i * (coords.length - 1) / numSegments), coords.length - 1);
+      const pos = coords[idx];
+      wps.push({
+        id: `alt_wp_${i}`,
+        position: pos,
+        type: i === 0 ? 'start' : i === numSegments ? 'end' : 'waypoint',
+        name: i === 0 ? 'Start' : i === numSegments ? 'End' : `Mid ${i}`,
+      });
+    }
+    return wps;
+  }, [waypoints, routeGeometry]);
+
   // Step indicator - determine current step based on form state
   const wizardSteps = useMemo(() => [
     { id: 1, label: 'Describe', icon: '📝' },
@@ -1026,12 +1048,12 @@ function RouteBuilder() {
 
   // Current segment stats (between selected waypoint pair)
   const currentSegmentStats = useMemo(() => {
-    if (altSegmentIdx == null || !routeGeometry?.coordinates || waypoints.length < 2) return null;
-    const wp1 = waypoints[altSegmentIdx];
-    const wp2 = waypoints[altSegmentIdx + 1];
+    if (altSegmentIdx == null || !routeGeometry?.coordinates || altWaypoints.length < 2) return null;
+    const wp1 = altWaypoints[altSegmentIdx];
+    const wp2 = altWaypoints[altSegmentIdx + 1];
     if (!wp1 || !wp2) return null;
 
-    // Compute straight distance as a rough proxy
+    // Compute segment distance along the route
     const coords = routeGeometry.coordinates;
     // Find route indices closest to each waypoint
     const findIdx = (pos) => {
@@ -1056,7 +1078,7 @@ function RouteBuilder() {
       dist += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
     return { distanceKm: Math.round(dist * 10) / 10, elevationGain: 0, startIdx: idxA, endIdx: idxB };
-  }, [altSegmentIdx, routeGeometry, waypoints]);
+  }, [altSegmentIdx, routeGeometry, altWaypoints]);
 
   // Select a waypoint-pair segment in alternatives mode
   const handleSelectAltSegment = useCallback(async (segIdx) => {
@@ -1070,8 +1092,8 @@ function RouteBuilder() {
     setAltData([]);
     setAltLoading(true);
 
-    const wp1 = waypoints[segIdx];
-    const wp2 = waypoints[segIdx + 1];
+    const wp1 = altWaypoints[segIdx];
+    const wp2 = altWaypoints[segIdx + 1];
     if (!wp1 || !wp2) { setAltLoading(false); return; }
 
     try {
@@ -1091,7 +1113,7 @@ function RouteBuilder() {
     } finally {
       setAltLoading(false);
     }
-  }, [altSegmentIdx, waypoints, routeProfile]);
+  }, [altSegmentIdx, altWaypoints, routeProfile]);
 
   // Apply an alternative — replace the segment coordinates in the full route
   const handleApplyAlternative = useCallback((alt) => {
@@ -2585,7 +2607,7 @@ function RouteBuilder() {
         )}
 
         {/* Segment Alternatives Toggle */}
-        {routeGeometry && waypoints.length >= 2 && !editMode && (
+        {routeGeometry && altWaypoints.length >= 2 && !editMode && (
           <Button
             variant={altMode ? 'filled' : 'light'}
             color={altMode ? 'violet' : 'gray'}
@@ -2599,10 +2621,10 @@ function RouteBuilder() {
         )}
 
         {/* Segment alternatives: waypoint-pair selector */}
-        {altMode && !altSegmentIdx && altSegmentIdx !== 0 && (
+        {altMode && altSegmentIdx == null && (
           <Stack gap={4}>
             <Text size="xs" c="dimmed" ta="center">Select a segment to compare routes:</Text>
-            {waypoints.slice(0, -1).map((wp, i) => (
+            {altWaypoints.slice(0, -1).map((wp, i) => (
               <Button
                 key={wp.id}
                 size="xs"
@@ -2611,7 +2633,7 @@ function RouteBuilder() {
                 onClick={() => handleSelectAltSegment(i)}
                 leftSection={<IconArrowRight size={14} />}
               >
-                {wp.name || `Waypoint ${i}`} → {waypoints[i + 1]?.name || `Waypoint ${i + 1}`}
+                {wp.name || `Waypoint ${i}`} → {altWaypoints[i + 1]?.name || `Waypoint ${i + 1}`}
               </Button>
             ))}
           </Stack>
@@ -3022,7 +3044,7 @@ function RouteBuilder() {
                     </Button>
                   </Tooltip>
                 )}
-                {routeGeometry && waypoints.length >= 2 && !editMode && (
+                {routeGeometry && altWaypoints.length >= 2 && !editMode && (
                   <Tooltip label={altMode ? 'Exit Alternatives' : 'Compare Segment Routes'}>
                     <Button
                       variant={altMode ? 'filled' : 'default'}
@@ -4506,7 +4528,7 @@ function RouteBuilder() {
                     Select a segment to compare:
                   </Text>
                   <Stack gap={4}>
-                    {waypoints.slice(0, -1).map((wp, i) => (
+                    {altWaypoints.slice(0, -1).map((wp, i) => (
                       <Button
                         key={wp.id}
                         size="xs"
@@ -4516,7 +4538,7 @@ function RouteBuilder() {
                         onClick={() => handleSelectAltSegment(i)}
                         leftSection={<IconArrowRight size={14} />}
                       >
-                        {wp.name || `Waypoint ${i}`} → {waypoints[i + 1]?.name || `Waypoint ${i + 1}`}
+                        {wp.name || `Waypoint ${i}`} → {altWaypoints[i + 1]?.name || `Waypoint ${i + 1}`}
                       </Button>
                     ))}
                   </Stack>
