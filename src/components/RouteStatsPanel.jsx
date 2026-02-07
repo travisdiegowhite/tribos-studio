@@ -1,9 +1,9 @@
-import { Box, SimpleGrid, Text, Tooltip, Badge } from '@mantine/core';
-import { IconRuler, IconMountain, IconClock, IconBolt } from '@tabler/icons-react';
+import { Box, SimpleGrid, Text, Tooltip, Badge, Stack } from '@mantine/core';
+import { IconRuler, IconMountain, IconClock, IconBolt, IconUser, IconTrendingUp } from '@tabler/icons-react';
 import { tokens } from '../theme';
 
 /**
- * RouteStatsPanel - Redesigned route stats with icons and grid layout
+ * RouteStatsPanel - Route stats with icons, grid layout, and personalized ETA
  * @param {object} stats - { distance, elevation, duration }
  * @param {string} routingSource - The routing engine used
  * @param {object} speedProfile - User's speed profile from Strava
@@ -12,6 +12,7 @@ import { tokens } from '../theme';
  * @param {function} formatSpd - Speed formatter function
  * @param {function} getUserSpeedForProfile - Function to get speed for profile
  * @param {string} routeProfile - Current route profile (road, gravel, etc)
+ * @param {object} personalizedETA - Output from calculatePersonalizedETA()
  */
 function RouteStatsPanel({
   stats,
@@ -22,6 +23,7 @@ function RouteStatsPanel({
   formatSpd,
   getUserSpeedForProfile,
   routeProfile,
+  personalizedETA,
 }) {
   const getRoutingSourceLabel = (source) => {
     switch (source) {
@@ -32,6 +34,12 @@ function RouteStatsPanel({
       default: return source || 'Unknown';
     }
   };
+
+  // Use personalized ETA if available, fall back to raw routing duration
+  const hasETA = personalizedETA && personalizedETA.totalSeconds > 0;
+  const rawDuration = stats.duration > 0
+    ? `${Math.floor(stats.duration / 60)}h ${stats.duration % 60}m`
+    : null;
 
   const statItems = [
     {
@@ -47,21 +55,28 @@ function RouteStatsPanel({
       color: tokens.colors.zone4,
     },
     {
-      icon: <IconClock size={20} />,
-      label: 'Est. Time',
-      value: stats.duration > 0
-        ? `${Math.floor(stats.duration / 60)}h ${stats.duration % 60}m`
-        : '--:--',
-      color: tokens.colors.zone1,
+      icon: hasETA ? <IconUser size={20} /> : <IconClock size={20} />,
+      label: hasETA ? 'Your ETA' : 'Est. Time',
+      value: hasETA
+        ? personalizedETA.formattedTime
+        : (rawDuration || '--:--'),
+      color: hasETA ? 'var(--tribos-lime)' : tokens.colors.zone1,
+      tooltip: hasETA
+        ? buildETATooltip(personalizedETA, rawDuration)
+        : null,
     },
     {
       icon: <IconBolt size={20} />,
-      label: 'Your Speed',
-      value: speedProfile
-        ? formatSpd(getUserSpeedForProfile(routeProfile) || speedProfile.average_speed)
-        : '--',
+      label: hasETA ? 'Eff. Speed' : 'Your Speed',
+      value: hasETA
+        ? formatSpd(personalizedETA.effectiveSpeed)
+        : (speedProfile
+          ? formatSpd(getUserSpeedForProfile(routeProfile) || speedProfile.average_speed)
+          : '--'),
       color: tokens.colors.zone6,
-      tooltip: speedProfile ? `Based on ${speedProfile.rides_analyzed} Strava rides` : null,
+      tooltip: hasETA
+        ? `Terrain-adjusted avg speed (flat: ${formatSpd(personalizedETA.breakdown.baseSpeed)})`
+        : (speedProfile ? `Based on ${speedProfile.rides_analyzed} Strava rides` : null),
     },
   ];
 
@@ -80,6 +95,8 @@ function RouteStatsPanel({
             label={item.tooltip}
             disabled={!item.tooltip}
             position="top"
+            multiline
+            w={240}
           >
             <Box
               style={{
@@ -115,6 +132,11 @@ function RouteStatsPanel({
         ))}
       </SimpleGrid>
 
+      {/* Personalized ETA breakdown bar */}
+      {hasETA && (
+        <ETABreakdownBar breakdown={personalizedETA.breakdown} isPersonalized={personalizedETA.isPersonalized} />
+      )}
+
       {/* Routing source indicator */}
       {routingSource && (
         <Box
@@ -138,6 +160,77 @@ function RouteStatsPanel({
       )}
     </Box>
   );
+}
+
+/**
+ * Compact horizontal bar showing what factors affected the ETA
+ */
+function ETABreakdownBar({ breakdown, isPersonalized }) {
+  const factors = [];
+
+  if (breakdown.surfaceModifier < 0.98) {
+    const pct = Math.round((1 - breakdown.surfaceModifier) * 100);
+    factors.push({ label: `Surface -${pct}%`, color: '#D97706' });
+  }
+  if (breakdown.avgGradeModifier < 0.95) {
+    const pct = Math.round((1 - breakdown.avgGradeModifier) * 100);
+    factors.push({ label: `Climbing -${pct}%`, color: tokens.colors.zone4 });
+  }
+  if (breakdown.avgFatigueModifier < 0.98) {
+    const pct = Math.round((1 - breakdown.avgFatigueModifier) * 100);
+    factors.push({ label: `Fatigue -${pct}%`, color: tokens.colors.zone5 });
+  }
+  if (breakdown.goalModifier < 0.98) {
+    const pct = Math.round((1 - breakdown.goalModifier) * 100);
+    factors.push({ label: `Goal -${pct}%`, color: tokens.colors.zone1 });
+  } else if (breakdown.goalModifier > 1.02) {
+    const pct = Math.round((breakdown.goalModifier - 1) * 100);
+    factors.push({ label: `Goal +${pct}%`, color: 'var(--tribos-lime)' });
+  }
+
+  return (
+    <Box
+      style={{
+        marginTop: tokens.spacing.sm,
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '4px',
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      <Badge
+        size="xs"
+        variant="light"
+        color={isPersonalized ? 'lime' : 'gray'}
+        leftSection={isPersonalized ? <IconUser size={10} /> : <IconTrendingUp size={10} />}
+      >
+        {isPersonalized ? 'Strava-tuned' : 'Default speed'}
+      </Badge>
+      {factors.map((f, i) => (
+        <Badge key={i} size="xs" variant="outline" style={{ borderColor: f.color, color: f.color }}>
+          {f.label}
+        </Badge>
+      ))}
+    </Box>
+  );
+}
+
+function buildETATooltip(eta, rawDuration) {
+  const { breakdown } = eta;
+  const lines = [
+    `Base speed: ${breakdown.baseSpeed} km/h`,
+  ];
+  if (breakdown.surfaceModifier < 1.0) {
+    lines.push(`Surface: ${Math.round(breakdown.surfaceModifier * 100)}% of paved speed`);
+  }
+  if (breakdown.avgGradePercent > 0) {
+    lines.push(`Avg grade: ${breakdown.avgGradePercent}%`);
+  }
+  if (rawDuration) {
+    lines.push(`Flat estimate: ${rawDuration}`);
+  }
+  return lines.join('\n');
 }
 
 export default RouteStatsPanel;

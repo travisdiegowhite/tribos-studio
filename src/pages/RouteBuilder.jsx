@@ -50,6 +50,7 @@ import ModeSelector from '../components/RouteBuilder/ModeSelector.jsx';
 import WaypointList from '../components/RouteBuilder/WaypointList.jsx';
 import useRouteManipulation from '../hooks/useRouteManipulation';
 import { parseGpxFile } from '../utils/gpxParser';
+import { calculatePersonalizedETA } from '../utils/personalizedETA';
 import { IconArrowsExchange } from '@tabler/icons-react';
 
 // Shared constants — single source of truth in components/RouteBuilder/index.js
@@ -357,6 +358,20 @@ function RouteBuilder() {
     if (!surfaceSegments) return null;
     return computeSurfaceDistribution(surfaceSegments);
   }, [surfaceSegments]);
+
+  // Personalized ETA: terrain- and fitness-aware ride time
+  const personalizedETA = useMemo(() => {
+    if (!routeStats?.distance || routeStats.distance <= 0) return null;
+    if (!elevationProfileData || elevationProfileData.length < 2) return null;
+    return calculatePersonalizedETA({
+      distanceKm: routeStats.distance,
+      elevationProfile: elevationProfileData,
+      surfaceDistribution: surfaceDistribution,
+      speedProfile: speedProfile,
+      routeProfile: routeProfile,
+      trainingGoal: trainingGoal,
+    });
+  }, [routeStats?.distance, elevationProfileData, surfaceDistribution, speedProfile, routeProfile, trainingGoal]);
 
   // Memoize segment highlight GeoJSON for edit mode
   const segmentHighlightGeoJSON = useMemo(() => {
@@ -2424,6 +2439,7 @@ function RouteBuilder() {
             formatSpd={formatSpd}
             getUserSpeedForProfile={getUserSpeedForProfile}
             routeProfile={routeProfile}
+            personalizedETA={personalizedETA}
           />
         )}
         <Button
@@ -3292,6 +3308,7 @@ function RouteBuilder() {
                     formatSpd={formatSpd}
                     getUserSpeedForProfile={getUserSpeedForProfile}
                     routeProfile={routeProfile}
+                    personalizedETA={personalizedETA}
                   />
                 </Box>
               </CollapsibleSection>
@@ -3547,6 +3564,7 @@ function RouteBuilder() {
                     formatSpd={formatSpd}
                     getUserSpeedForProfile={getUserSpeedForProfile}
                     routeProfile={routeProfile}
+                    personalizedETA={personalizedETA}
                   />
                 )}
 
