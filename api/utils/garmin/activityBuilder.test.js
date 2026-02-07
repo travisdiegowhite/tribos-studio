@@ -142,9 +142,10 @@ describe('buildActivityData', () => {
     expect(result.trainer).toBe(false);
   });
 
-  it('converts calories to kilojoules', () => {
+  it('calculates work (kJ) from power and duration', () => {
     const result = buildActivityData('user-1', 'act-1', baseInfo);
-    expect(result.kilojoules).toBeCloseTo(800 * 4.184, 1);
+    // Work = avgPower * duration / 1000 = 200W * 3600s / 1000 = 720 kJ
+    expect(result.kilojoules).toBe(720);
   });
 
   it('handles alternative field names (API vs PUSH vs FIT)', () => {
@@ -169,7 +170,8 @@ describe('buildActivityData', () => {
     expect(result.average_watts).toBe(180);
     expect(result.average_heartrate).toBe(150);
     expect(result.total_elevation_gain).toBe(100);
-    expect(result.kilojoules).toBeCloseTo(500 * 4.184, 1);
+    // Work = avgPower * duration / 1000 = 180W * 2400s / 1000 = 432 kJ
+    expect(result.kilojoules).toBe(432);
   });
 
   it('generates activity name when none provided', () => {

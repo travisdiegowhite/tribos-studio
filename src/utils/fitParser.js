@@ -438,7 +438,8 @@ export function fitToActivityFormat(fitData, userId, fileName = null, stravaActi
     average_speed: avgSpeed,
     max_speed: maxSpeedVal,
     average_watts: avgPower,
-    kilojoules: summary.totalCalories ? Math.min(summary.totalCalories * 4.184, 20000) : null, // Max 20MJ
+    // Work (kJ) = mechanical work from power, not metabolic calories
+    kilojoules: (avgPower && movingTime) ? Math.round(avgPower * movingTime / 1000) : null,
     average_heartrate: avgHR,
     max_heartrate: maxHR,
     suffer_score: null,
