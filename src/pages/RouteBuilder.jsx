@@ -3021,6 +3021,7 @@ function RouteBuilder() {
                   routeGeometry={routeGeometry}
                   onGeolocate={handleGeolocate}
                   isLocating={isLocating}
+                  bottomOffset={routeGeometry?.coordinates?.length > 1 ? 140 : 0}
                 />
               </Map>
             ) : (
@@ -4701,6 +4702,7 @@ function RouteBuilder() {
                 routeGeometry={routeGeometry}
                 onGeolocate={handleGeolocate}
                 isLocating={isLocating}
+                bottomOffset={routeGeometry?.coordinates?.length > 1 ? 140 : 0}
               />
             </Map>
           ) : (

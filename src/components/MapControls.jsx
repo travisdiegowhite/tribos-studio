@@ -179,6 +179,7 @@ export default function MapControls({
   routeGeometry,
   onGeolocate,
   isLocating = false,
+  bottomOffset = 0,
 }) {
   const [bearing, setBearing] = useState(0);
   const [pitch, setPitch] = useState(0);
@@ -300,9 +301,10 @@ export default function MapControls({
     <Box
       style={{
         position: 'absolute',
-        bottom: 24,
+        bottom: 24 + bottomOffset,
         right: 16,
         zIndex: 10,
+        transition: 'bottom 0.2s ease-out',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
