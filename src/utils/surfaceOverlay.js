@@ -39,6 +39,57 @@ function classifySurface(tag) {
 }
 
 /**
+ * Build a spatial grid index from OSM way elements for fast nearest-way lookups.
+ * Each cell maps to the set of way IDs whose geometry passes through it.
+ */
+function buildSpatialIndex(elements, cellSize) {
+  const grid = new Map();
+  const wayMap = new Map();
+
+  for (const el of elements) {
+    if (el.type !== 'way' || !el.geometry || !el.tags?.surface) continue;
+    wayMap.set(el.id, el);
+    for (const node of el.geometry) {
+      const cellKey = `${Math.floor(node.lon / cellSize)},${Math.floor(node.lat / cellSize)}`;
+      if (!grid.has(cellKey)) grid.set(cellKey, new Set());
+      grid.get(cellKey).add(el.id);
+    }
+  }
+
+  return { grid, wayMap, cellSize };
+}
+
+/**
+ * Find the closest OSM way to a point using the spatial index.
+ * Checks the cell containing the point plus all 8 neighbors.
+ */
+function findClosestWay(lon, lat, index) {
+  const { grid, wayMap, cellSize } = index;
+  const cx = Math.floor(lon / cellSize);
+  const cy = Math.floor(lat / cellSize);
+
+  const candidateIds = new Set();
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      const key = `${cx + dx},${cy + dy}`;
+      const ids = grid.get(key);
+      if (ids) ids.forEach(id => candidateIds.add(id));
+    }
+  }
+
+  let best = null, bestDist = Infinity;
+  for (const id of candidateIds) {
+    const el = wayMap.get(id);
+    for (const node of el.geometry) {
+      const d = (node.lon - lon) ** 2 + (node.lat - lat) ** 2; // squared dist — no sqrt needed for comparison
+      if (d < bestDist) { bestDist = d; best = el; }
+    }
+  }
+
+  return best;
+}
+
+/**
  * Fetch surface data for a route from Overpass API.
  * Returns per-coordinate-segment surface info.
  */
@@ -46,22 +97,15 @@ export async function fetchRouteSurfaceData(coordinates) {
   if (!coordinates || coordinates.length < 2) return null;
 
   try {
-    // Sample coordinates to limit API load (max ~60 query points)
-    const maxSamples = 60;
-    const step = Math.max(1, Math.ceil(coordinates.length / maxSamples));
-    const sampled = [];
-    for (let i = 0; i < coordinates.length; i += step) sampled.push(coordinates[i]);
-    if (sampled[sampled.length - 1] !== coordinates[coordinates.length - 1]) {
-      sampled.push(coordinates[coordinates.length - 1]);
-    }
-
-    // Bounding box
-    const lats = sampled.map(c => c[1]);
-    const lons = sampled.map(c => c[0]);
-    const bufDeg = 30 / 111000; // ~30m buffer
+    // Bounding box from ALL coordinates with ~100m buffer
+    const lats = coordinates.map(c => c[1]);
+    const lons = coordinates.map(c => c[0]);
+    const bufDeg = 100 / 111000; // ~100m buffer
     const bbox = `${Math.min(...lats) - bufDeg},${Math.min(...lons) - bufDeg},${Math.max(...lats) + bufDeg},${Math.max(...lons) + bufDeg}`;
 
-    const query = `[out:json][timeout:10];(way["highway"]["surface"](${bbox}););out geom;`;
+    // Also query ways without surface tag but with highway tag to reduce unknowns
+    // highway=residential/tertiary/secondary/primary are almost always paved
+    const query = `[out:json][timeout:15];(way["highway"]["surface"](${bbox}););out geom;`;
 
     const resp = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
@@ -77,20 +121,38 @@ export async function fetchRouteSurfaceData(coordinates) {
     const data = await resp.json();
     if (!data.elements?.length) return null;
 
-    // Match: for each route coordinate segment, find the closest OSM way
+    // Build spatial index for O(1) cell lookups instead of O(n*m)
+    const cellSize = 0.001; // ~111m cells — good granularity for cycling routes
+    const index = buildSpatialIndex(data.elements, cellSize);
+
+    // Sample route points for matching to keep it fast
+    // For routes with many coordinates, sample every Nth point
+    const maxMatchPoints = 500;
+    const matchStep = Math.max(1, Math.ceil(coordinates.length / maxMatchPoints));
+
+    // Match sampled points to nearest OSM way
+    const sampledSurfaces = [];
+    const sampledIndices = [];
+    for (let i = 0; i < coordinates.length - 1; i += matchStep) {
+      const nextI = Math.min(i + 1, coordinates.length - 1);
+      const midLon = (coordinates[i][0] + coordinates[nextI][0]) / 2;
+      const midLat = (coordinates[i][1] + coordinates[nextI][1]) / 2;
+
+      const closest = findClosestWay(midLon, midLat, index);
+      const surface = closest?.tags?.surface ? classifySurface(closest.tags.surface) : 'unknown';
+      sampledSurfaces.push(surface);
+      sampledIndices.push(i);
+    }
+
+    // Interpolate: fill in all coordinate segments from sampled results
     const surfaceSegments = [];
+    let sampleIdx = 0;
     for (let i = 0; i < coordinates.length - 1; i++) {
-      const mid = [(coordinates[i][0] + coordinates[i + 1][0]) / 2, (coordinates[i][1] + coordinates[i + 1][1]) / 2];
-      let best = null, bestDist = Infinity;
-      for (const el of data.elements) {
-        if (el.type !== 'way' || !el.geometry) continue;
-        for (const node of el.geometry) {
-          const d = Math.abs(node.lon - mid[0]) + Math.abs(node.lat - mid[1]); // fast approx
-          if (d < bestDist) { bestDist = d; best = el; }
-        }
+      // Advance to the closest sample
+      while (sampleIdx < sampledIndices.length - 1 && sampledIndices[sampleIdx + 1] <= i) {
+        sampleIdx++;
       }
-      const surface = best?.tags?.surface ? classifySurface(best.tags.surface) : 'unknown';
-      surfaceSegments.push(surface);
+      surfaceSegments.push(sampledSurfaces[sampleIdx]);
     }
 
     return surfaceSegments;

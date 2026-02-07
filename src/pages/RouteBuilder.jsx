@@ -719,6 +719,15 @@ function RouteBuilder() {
         });
         setRoutingSource(smartRoute.source || 'smart');
 
+        // Fetch elevation profile data for gradient overlay and elevation chart
+        getElevationData(smartRoute.coordinates).then(elevation => {
+          if (elevation) {
+            setElevationProfileData(elevation);
+            const elevStats = calculateElevationStats(elevation);
+            setRouteStats(prev => ({ ...prev, ...elevStats }));
+          }
+        }).catch(err => console.warn('Elevation fetch failed:', err));
+
         console.log(`✅ Smart route via ${smartRoute.source}: ${((smartRoute.distance || 0) / 1000).toFixed(1)}km`);
       } else {
         console.warn('Smart routing returned no results');
