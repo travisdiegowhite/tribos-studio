@@ -725,6 +725,13 @@ export default function ManualRouteBuilder() {
                   </Box>
                 </Marker>
               ))}
+
+              {/* Map Controls */}
+              <MapControls
+                mapRef={mapRef}
+                viewport={viewport}
+                routeGeometry={routeGeometry}
+              />
             </Map>
 
             {/* Map controls */}

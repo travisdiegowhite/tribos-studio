@@ -3012,6 +3012,16 @@ function RouteBuilder() {
                     }} />
                   </Marker>
                 )}
+
+                {/* Map Controls */}
+                <MapControls
+                  mapRef={mapRef}
+                  viewport={viewport}
+                  userLocation={userLocation}
+                  routeGeometry={routeGeometry}
+                  onGeolocate={handleGeolocate}
+                  isLocating={isLocating}
+                />
               </Map>
             ) : (
               <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -4682,6 +4692,16 @@ function RouteBuilder() {
                   }} />
                 </Marker>
               )}
+
+              {/* Map Controls */}
+              <MapControls
+                mapRef={mapRef}
+                viewport={viewport}
+                userLocation={userLocation}
+                routeGeometry={routeGeometry}
+                onGeolocate={handleGeolocate}
+                isLocating={isLocating}
+              />
             </Map>
           ) : (
             <Box
