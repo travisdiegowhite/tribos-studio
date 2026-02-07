@@ -17,12 +17,18 @@ const ElevationProfile = ({
   onStatsUpdate = null,
   leftOffset = 0, // Offset from left edge (for sidebar)
   onHoverPosition = null, // Callback with {lng, lat, elevation, distance} or null when not hovering
+  highlightDistance = null, // External highlight distance (km) — e.g. from map hover. Internal hover takes priority.
 }) => {
   const [elevationData, setElevationData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
   const [hoverInfo, setHoverInfo] = useState(null);
   const svgRef = useRef(null);
+
+  // Selection state for click-drag zoom
+  const [selection, setSelection] = useState(null); // { startDist, endDist } in km
+  const isDragSelecting = useRef(false);
+  const dragStartDist = useRef(null);
 
   // Formatting helpers
   const formatDist = (km) => formatDistance(km, isImperial);
@@ -145,6 +151,41 @@ const ElevationProfile = ({
     return { line: linePath, area: areaPath };
   };
 
+  // Convert a mouse event to distance along the route (km)
+  const mouseToDistance = useCallback((event) => {
+    if (!svgRef.current || !chartConfig) return null;
+    const svg = svgRef.current;
+    const rect = svg.getBoundingClientRect();
+    const { padding, maxDistance } = chartConfig;
+    const mouseX = event.clientX - rect.left;
+    const svgWidth = rect.width;
+    const viewBoxWidth = 800;
+    const scaledX = (mouseX / svgWidth) * viewBoxWidth;
+    const chartWidth = viewBoxWidth - 2 * padding;
+    const distanceRatio = Math.max(0, Math.min(1, (scaledX - padding) / chartWidth));
+    return distanceRatio * maxDistance;
+  }, [chartConfig]);
+
+  // Selection drag handlers
+  const handleMouseDown = useCallback((event) => {
+    if (event.button !== 0) return; // left click only
+    const dist = mouseToDistance(event);
+    if (dist == null) return;
+    isDragSelecting.current = true;
+    dragStartDist.current = dist;
+    setSelection(null); // clear previous selection
+  }, [mouseToDistance]);
+
+  const handleMouseUp = useCallback(() => {
+    if (!isDragSelecting.current || dragStartDist.current == null) return;
+    isDragSelecting.current = false;
+    // Selection is already set in handleMouseMove during drag
+  }, []);
+
+  const handleDoubleClick = useCallback(() => {
+    setSelection(null); // clear selection on double-click
+  }, []);
+
   // Handle mouse move over the chart
   const handleMouseMove = useCallback((event) => {
     if (!svgRef.current || !elevationData || !chartConfig || !coordinates) return;
@@ -197,6 +238,15 @@ const ElevationProfile = ({
 
     setHoverInfo(info);
 
+    // Update drag selection if in progress
+    if (isDragSelecting.current && dragStartDist.current != null) {
+      const startDist = Math.min(dragStartDist.current, distance);
+      const endDist = Math.max(dragStartDist.current, distance);
+      if (endDist - startDist > 0.05) { // minimum 50m selection
+        setSelection({ startDist, endDist });
+      }
+    }
+
     if (onHoverPosition) {
       onHoverPosition(info);
     }
@@ -208,6 +258,61 @@ const ElevationProfile = ({
       onHoverPosition(null);
     }
   }, [onHoverPosition]);
+
+  // Compute section metrics when a selection exists
+  const sectionMetrics = useMemo(() => {
+    if (!selection || !elevationData) return null;
+    const { startDist, endDist } = selection;
+    const sectionPoints = elevationData.filter(p => p.distance >= startDist && p.distance <= endDist);
+    if (sectionPoints.length < 2) return null;
+
+    const sectionStats = calculateElevationStats(sectionPoints);
+    const distance = endDist - startDist;
+    const netElevChange = sectionPoints[sectionPoints.length - 1].elevation - sectionPoints[0].elevation;
+    const avgGrade = distance > 0 ? (netElevChange / (distance * 1000)) * 100 : 0;
+
+    return {
+      distance,
+      gain: sectionStats.gain,
+      loss: sectionStats.loss,
+      avgGrade: avgGrade.toFixed(1),
+      min: sectionStats.min,
+      max: sectionStats.max,
+    };
+  }, [selection, elevationData]);
+
+  // Convert selection distances to SVG x coordinates
+  const selectionSvg = useMemo(() => {
+    if (!selection || !chartConfig) return null;
+    const { padding, maxDistance } = chartConfig;
+    const viewBoxWidth = 800;
+    const chartWidth = viewBoxWidth - 2 * padding;
+    const x1 = padding + (selection.startDist / maxDistance) * chartWidth;
+    const x2 = padding + (selection.endDist / maxDistance) * chartWidth;
+    return { x1, x2 };
+  }, [selection, chartConfig]);
+
+  // Compute external highlight position (from map hover)
+  const externalHighlight = useMemo(() => {
+    if (highlightDistance == null || !elevationData || !chartConfig) return null;
+    const { padding, maxDistance } = chartConfig;
+    const viewBoxWidth = 800;
+    const chartWidth = viewBoxWidth - 2 * padding;
+
+    // Find closest elevation point to the highlighted distance
+    let closestPoint = elevationData[0];
+    let minDiff = Math.abs(elevationData[0].distance - highlightDistance);
+    for (const point of elevationData) {
+      const diff = Math.abs(point.distance - highlightDistance);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestPoint = point;
+      }
+    }
+
+    const x = padding + (highlightDistance / maxDistance) * chartWidth;
+    return { x: Math.max(padding, Math.min(x, padding + chartWidth)), elevation: closestPoint.elevation, distance: closestPoint.distance };
+  }, [highlightDistance, elevationData, chartConfig]);
 
   // Don't render if no coordinates
   if (!coordinates || coordinates.length < 2) {
@@ -293,6 +398,31 @@ const ElevationProfile = ({
           </Group>
         </Group>
 
+        {/* Section metrics (shown when a section is selected via click-drag) */}
+        {sectionMetrics && (
+          <Group gap="xs" wrap="wrap" style={{ padding: '2px 0' }}>
+            <Badge variant="light" color="blue" size="xs">
+              {formatDist(sectionMetrics.distance)}
+            </Badge>
+            <Badge variant="light" color="green" size="xs">
+              ↗ {formatElev(sectionMetrics.gain)}
+            </Badge>
+            <Badge variant="light" color="red" size="xs">
+              ↘ {formatElev(sectionMetrics.loss)}
+            </Badge>
+            <Badge variant="light" color="yellow" size="xs">
+              avg {sectionMetrics.avgGrade}%
+            </Badge>
+            <Text
+              size="xs"
+              style={{ color: 'var(--tribos-text-muted)', cursor: 'pointer' }}
+              onClick={() => setSelection(null)}
+            >
+              clear
+            </Text>
+          </Group>
+        )}
+
         {/* SVG Chart */}
         <Box style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           {/* Chart area */}
@@ -308,8 +438,11 @@ const ElevationProfile = ({
                 borderRadius: '8px',
                 cursor: 'crosshair',
               }}
+              onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseLeave}
+              onDoubleClick={handleDoubleClick}
             >
               {/* Gradient definition */}
               <defs>
@@ -325,6 +458,20 @@ const ElevationProfile = ({
 
               {/* Grid */}
               <rect width="100%" height="100%" fill="url(#gridPattern)" opacity="0.5" />
+
+              {/* Selection highlight overlay */}
+              {selectionSvg && (
+                <rect
+                  x={selectionSvg.x1}
+                  y={chartConfig.padding}
+                  width={selectionSvg.x2 - selectionSvg.x1}
+                  height={chartConfig.chartHeight - 2 * chartConfig.padding}
+                  fill="rgba(59, 130, 246, 0.15)"
+                  stroke="#3b82f6"
+                  strokeWidth="1"
+                  strokeDasharray="4,2"
+                />
+              )}
 
               {/* Area fill */}
               <path d={area} fill="url(#elevGradient)" />
@@ -359,10 +506,9 @@ const ElevationProfile = ({
                 {formatElev(chartConfig.minElevation)}
               </text>
 
-              {/* Hover indicator */}
+              {/* Hover indicator (internal — from chart hover) */}
               {hoverInfo && (
                 <>
-                  {/* Vertical line */}
                   <line
                     x1={hoverInfo.x}
                     y1={chartConfig.padding}
@@ -373,7 +519,6 @@ const ElevationProfile = ({
                     strokeDasharray="4,2"
                     opacity="0.7"
                   />
-                  {/* Dot on the line */}
                   <circle
                     cx={hoverInfo.x}
                     cy={chartConfig.chartHeight - chartConfig.padding - ((hoverInfo.elevation - chartConfig.chartMin) / chartConfig.chartRange) * (chartConfig.chartHeight - 2 * chartConfig.padding)}
@@ -382,7 +527,6 @@ const ElevationProfile = ({
                     stroke="#fff"
                     strokeWidth="2"
                   />
-                  {/* Info tooltip */}
                   <g transform={`translate(${Math.min(hoverInfo.x + 10, svgWidth - 90)}, ${chartConfig.padding + 5})`}>
                     <rect
                       x="0"
@@ -397,6 +541,46 @@ const ElevationProfile = ({
                     </text>
                     <text x="8" y="28" fontSize="10" fill="#aaa">
                       {formatDist(hoverInfo.distance)} km
+                    </text>
+                  </g>
+                </>
+              )}
+
+              {/* External highlight (from map hover) — only shown when not internally hovering */}
+              {!hoverInfo && externalHighlight && (
+                <>
+                  <line
+                    x1={externalHighlight.x}
+                    y1={chartConfig.padding}
+                    x2={externalHighlight.x}
+                    y2={chartConfig.chartHeight - chartConfig.padding}
+                    stroke="#3b82f6"
+                    strokeWidth="1"
+                    strokeDasharray="4,2"
+                    opacity="0.7"
+                  />
+                  <circle
+                    cx={externalHighlight.x}
+                    cy={chartConfig.chartHeight - chartConfig.padding - ((externalHighlight.elevation - chartConfig.chartMin) / chartConfig.chartRange) * (chartConfig.chartHeight - 2 * chartConfig.padding)}
+                    r="5"
+                    fill="#3b82f6"
+                    stroke="#fff"
+                    strokeWidth="2"
+                  />
+                  <g transform={`translate(${Math.min(externalHighlight.x + 10, svgWidth - 90)}, ${chartConfig.padding + 5})`}>
+                    <rect
+                      x="0"
+                      y="0"
+                      width="80"
+                      height="36"
+                      rx="4"
+                      fill="rgba(0,0,0,0.85)"
+                    />
+                    <text x="8" y="14" fontSize="10" fill="#fff" fontWeight="500">
+                      {formatElev(externalHighlight.elevation)}
+                    </text>
+                    <text x="8" y="28" fontSize="10" fill="#aaa">
+                      {formatDist(externalHighlight.distance)} km
                     </text>
                   </g>
                 </>

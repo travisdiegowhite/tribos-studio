@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil, IconMountain } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -24,8 +24,11 @@ import ElevationProfile from '../components/ElevationProfile.jsx';
 import WeatherWidget from '../components/WeatherWidget.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
-import { detectRouteClick, findSegmentToRemove, removeSegmentAndReroute, getSegmentHighlight, getRemovalStats } from '../utils/routeEditor';
+import { detectRouteClick, findNearestPointOnRoute, findSegmentToRemove, removeSegmentAndReroute, getSegmentHighlight, getRemovalStats } from '../utils/routeEditor';
+import { getElevationData, calculateElevationStats, calculateCumulativeDistances } from '../utils/elevation';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
+import { createGradientRoute, GRADE_COLORS } from '../utils/routeGradient';
+import { fetchRouteSurfaceData, createSurfaceRoute, computeSurfaceDistribution, SURFACE_COLORS, SURFACE_LABELS } from '../utils/surfaceOverlay';
 import { supabase } from '../lib/supabase';
 import { useRouteBuilderStore, useRouteBuilderHydrated } from '../stores/routeBuilderStore';
 import CollapsibleSection from '../components/CollapsibleSection.jsx';
@@ -44,6 +47,7 @@ import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import SavedRoutesDrawer from '../components/SavedRoutesDrawer.jsx';
 import ModeSelector from '../components/RouteBuilder/ModeSelector.jsx';
+import WaypointList from '../components/RouteBuilder/WaypointList.jsx';
 import useRouteManipulation from '../hooks/useRouteManipulation';
 import { parseGpxFile } from '../utils/gpxParser';
 import { IconArrowsExchange } from '@tabler/icons-react';
@@ -85,6 +89,7 @@ function RouteBuilder() {
     aiSuggestions, setAiSuggestions,
     selectedWorkoutId, setSelectedWorkoutId,
     routingSource, setRoutingSource,
+    snapToRoads, setSnapToRoads,
     builderMode, setBuilderMode,
     clearRoute,
     resetAll,
@@ -161,6 +166,9 @@ function RouteBuilder() {
   const [selectedSegment, setSelectedSegment] = useState(null); // { startIndex, endIndex, stats }
   const [isRemovingSegment, setIsRemovingSegment] = useState(false);
 
+  // Track drag state to suppress click-to-remove during drag
+  const waypointDragRef = useRef(false);
+
   // Manual editing tools (undo/redo, reverse, snap-to-roads)
   const {
     undo: manualUndo,
@@ -169,6 +177,7 @@ function RouteBuilder() {
     canRedo: manualCanRedo,
     reverseRoute: manualReverse,
     snapToRoads: manualSnapToRoads,
+    updateWaypointPosition,
   } = useRouteManipulation({
     waypoints,
     setWaypoints,
@@ -292,6 +301,62 @@ function RouteBuilder() {
     if (!routeGeometry) return null;
     return { type: 'Feature', geometry: routeGeometry };
   }, [routeGeometry]);
+
+  // Gradient-colored route (slope-based coloring) — toggle state
+  const [showGradient, setShowGradient] = useLocalStorage({
+    key: 'tribos-route-gradient',
+    defaultValue: false,
+  });
+
+  // Compute gradient route GeoJSON from elevation data
+  const gradientRouteGeoJSON = useMemo(() => {
+    if (!showGradient || !routeGeometry?.coordinates || !elevationProfileData?.length) return null;
+    return createGradientRoute(routeGeometry.coordinates, elevationProfileData);
+  }, [showGradient, routeGeometry, elevationProfileData]);
+
+  // Surface type overlay
+  const [showSurface, setShowSurface] = useLocalStorage({
+    key: 'tribos-route-surface',
+    defaultValue: false,
+  });
+  const [surfaceSegments, setSurfaceSegments] = useState(null);
+  const [surfaceLoading, setSurfaceLoading] = useState(false);
+  const surfaceRouteRef = useRef(null); // cache: coordinates hash → surfaceSegments
+
+  // Fetch surface data when toggled on and route changes
+  useEffect(() => {
+    if (!showSurface || !routeGeometry?.coordinates || routeGeometry.coordinates.length < 2) {
+      return;
+    }
+    // Simple cache key: first + last coordinate + length
+    const coords = routeGeometry.coordinates;
+    const cacheKey = `${coords[0][0].toFixed(4)},${coords[0][1].toFixed(4)}_${coords.length}`;
+    if (surfaceRouteRef.current?.key === cacheKey) return; // already fetched
+
+    let cancelled = false;
+    setSurfaceLoading(true);
+    fetchRouteSurfaceData(coords).then(data => {
+      if (cancelled) return;
+      setSurfaceSegments(data);
+      surfaceRouteRef.current = { key: cacheKey, data };
+      setSurfaceLoading(false);
+    }).catch(() => {
+      if (!cancelled) setSurfaceLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [showSurface, routeGeometry]);
+
+  // Build surface GeoJSON FeatureCollection
+  const surfaceRouteGeoJSON = useMemo(() => {
+    if (!showSurface || !surfaceSegments || !routeGeometry?.coordinates) return null;
+    return createSurfaceRoute(routeGeometry.coordinates, surfaceSegments);
+  }, [showSurface, surfaceSegments, routeGeometry]);
+
+  // Surface distribution for summary bar
+  const surfaceDistribution = useMemo(() => {
+    if (!surfaceSegments) return null;
+    return computeSurfaceDistribution(surfaceSegments);
+  }, [surfaceSegments]);
 
   // Memoize segment highlight GeoJSON for edit mode
   const segmentHighlightGeoJSON = useMemo(() => {
@@ -586,9 +651,7 @@ function RouteBuilder() {
     };
   }, [viewport, showBikeInfrastructure, mapStyleId, fetchInfrastructureForViewport]);
 
-  // Calculate route using smart multi-provider routing (Stadia/BRouter/Mapbox)
-  // Replaces the previous Mapbox-only approach so click-to-route gets the same
-  // quality routing as the iterative builder and manual builder.
+  // Calculate route — either via smart routing (snap) or direct lines (freehand)
   const calculateRoute = useCallback(async (points) => {
     if (points.length < 2) {
       setRouteGeometry(null);
@@ -600,6 +663,43 @@ function RouteBuilder() {
     try {
       const waypointCoordinates = points.map(p => p.position);
 
+      if (!snapToRoads) {
+        // Freehand mode: connect waypoints with straight lines
+        const coordinates = waypointCoordinates;
+        // Calculate straight-line distance (haversine)
+        let totalDistance = 0;
+        for (let i = 1; i < coordinates.length; i++) {
+          const [lon1, lat1] = coordinates[i - 1];
+          const [lon2, lat2] = coordinates[i];
+          const R = 6371000;
+          const dLat = (lat2 - lat1) * Math.PI / 180;
+          const dLon = (lon2 - lon1) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+          totalDistance += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        setRouteGeometry({ type: 'LineString', coordinates });
+        setRouteStats({
+          distance: parseFloat((totalDistance / 1000).toFixed(1)),
+          elevation: 0,
+          duration: 0,
+          routingSource: 'freehand',
+        });
+        setRoutingSource('freehand');
+
+        // Fetch elevation for the freehand line
+        const elevation = await getElevationData(coordinates);
+        if (elevation) {
+          setElevationProfileData(elevation);
+          const elevStats = calculateElevationStats(elevation);
+          setRouteStats(prev => ({ ...prev, ...elevStats }));
+        }
+
+        console.log(`✏️ Freehand route: ${(totalDistance / 1000).toFixed(1)}km`);
+        return;
+      }
+
+      // Snap-to-roads: smart multi-provider routing (Stadia/BRouter/Mapbox)
       const smartRoute = await getSmartCyclingRoute(waypointCoordinates, {
         profile: routeProfile === 'gravel' ? 'gravel' :
                  routeProfile === 'mountain' ? 'mountain' : 'bike',
@@ -628,7 +728,14 @@ function RouteBuilder() {
     } finally {
       setIsCalculating(false);
     }
-  }, [routeProfile, setRouteGeometry, setRouteStats, setRoutingSource]);
+  }, [routeProfile, snapToRoads, setRouteGeometry, setRouteStats, setRoutingSource]);
+
+  // Recalculate route when snap-to-roads mode changes
+  useEffect(() => {
+    if (waypoints.length >= 2) {
+      calculateRoute(waypoints);
+    }
+  }, [snapToRoads]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle map click - either add waypoint or select segment in edit mode
   const handleMapClick = useCallback((event) => {
@@ -676,7 +783,56 @@ function RouteBuilder() {
     // Only allow waypoint placement in manual or editing mode
     if (builderMode === 'ready') return;
 
-    // Normal mode: add waypoint (Shape B: matches useRouteManipulation convention)
+    // If we have an existing route with 2+ waypoints, check if click is on the route
+    // to insert a control point between existing waypoints
+    if (routeGeometry?.coordinates && waypoints.length >= 2) {
+      const routeClick = detectRouteClick(routeGeometry.coordinates, { lng, lat }, 80);
+      if (routeClick) {
+        // Determine which waypoint pair this click falls between.
+        // Find the nearest waypoint to each side of the clicked index by checking
+        // which existing waypoint positions are closest in the route coordinate space.
+        const clickIdx = routeClick.index;
+        const coords = routeGeometry.coordinates;
+
+        // For each waypoint, find its closest index in the route coordinates
+        const wpIndices = waypoints.map(wp => {
+          let bestIdx = 0, bestDist = Infinity;
+          for (let i = 0; i < coords.length; i++) {
+            const d = Math.abs(coords[i][0] - wp.position[0]) + Math.abs(coords[i][1] - wp.position[1]);
+            if (d < bestDist) { bestDist = d; bestIdx = i; }
+          }
+          return bestIdx;
+        });
+
+        // Find the insertion index: the first waypoint whose route index is after the click
+        let insertAfter = 0;
+        for (let i = 0; i < wpIndices.length - 1; i++) {
+          if (clickIdx >= wpIndices[i]) insertAfter = i;
+        }
+
+        const newWaypoint = {
+          id: `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          position: [lng, lat],
+          type: 'waypoint',
+          name: `Waypoint ${insertAfter + 1}`,
+        };
+
+        const newWaypoints = [...waypoints];
+        newWaypoints.splice(insertAfter + 1, 0, newWaypoint);
+        // Re-type all waypoints
+        newWaypoints.forEach((wp, i) => {
+          if (i === 0) wp.type = 'start';
+          else if (i === newWaypoints.length - 1) wp.type = 'end';
+          else wp.type = 'waypoint';
+        });
+        setWaypoints(newWaypoints);
+        calculateRoute(newWaypoints);
+        console.log(`📌 Inserted waypoint between index ${insertAfter} and ${insertAfter + 1}`);
+        return;
+      }
+    }
+
+    // No route hit — append waypoint at end
     const newWaypoint = {
       id: `wp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       position: [lng, lat],
@@ -696,12 +852,82 @@ function RouteBuilder() {
     calculateRoute(newWaypoints);
   }, [waypoints, calculateRoute, editMode, routeGeometry, builderMode]);
 
-  // Remove waypoint
+  // Remove waypoint (suppressed during drag)
   const removeWaypoint = useCallback((id) => {
+    if (waypointDragRef.current) return; // Don't remove on drag-end click
     const newWaypoints = waypoints.filter(w => w.id !== id);
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
   }, [waypoints, calculateRoute]);
+
+  // Reorder waypoints — swap fromIndex ↔ toIndex, re-type start/end, recalculate
+  const reorderWaypoints = useCallback((fromIndex, toIndex) => {
+    if (toIndex < 0 || toIndex >= waypoints.length) return;
+    const reordered = [...waypoints];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    // Re-assign types
+    reordered.forEach((wp, i) => {
+      if (i === 0) { wp.type = 'start'; wp.name = 'Start'; }
+      else if (i === reordered.length - 1) { wp.type = 'end'; wp.name = 'End'; }
+      else { wp.type = 'waypoint'; wp.name = `Waypoint ${i}`; }
+    });
+    setWaypoints(reordered);
+    calculateRoute(reordered);
+  }, [waypoints, setWaypoints, calculateRoute]);
+
+  // Focus map on a waypoint
+  const focusWaypoint = useCallback((wp) => {
+    if (mapRef.current && wp?.position) {
+      mapRef.current.flyTo({ center: wp.position, zoom: 15, duration: 800 });
+    }
+  }, []);
+
+  // Handle waypoint drag end — update position and recalculate route
+  const handleWaypointDragEnd = useCallback((waypointId, event) => {
+    const { lng, lat } = event.lngLat;
+    const updated = updateWaypointPosition(waypointId, { lng, lat });
+    calculateRoute(updated);
+    // Clear drag flag after a short delay so the click event is suppressed
+    setTimeout(() => { waypointDragRef.current = false; }, 100);
+  }, [updateWaypointPosition, calculateRoute]);
+
+  // Map → Elevation chart hover sync: when mouse moves near the route on the map,
+  // compute the distance along the route and pass it to ElevationProfile as highlightDistance.
+  const [mapHoverDistance, setMapHoverDistance] = useState(null);
+  const cumulativeDistancesRef = useRef(null);
+  const lastRouteGeometryRef = useRef(null);
+
+  // Recompute cumulative distances when route geometry changes
+  useEffect(() => {
+    if (routeGeometry?.coordinates?.length > 1) {
+      if (routeGeometry !== lastRouteGeometryRef.current) {
+        cumulativeDistancesRef.current = calculateCumulativeDistances(routeGeometry.coordinates);
+        lastRouteGeometryRef.current = routeGeometry;
+      }
+    } else {
+      cumulativeDistancesRef.current = null;
+    }
+  }, [routeGeometry]);
+
+  const handleMapMouseMove = useCallback((event) => {
+    if (!routeGeometry?.coordinates || !cumulativeDistancesRef.current) {
+      setMapHoverDistance(null);
+      return;
+    }
+    const { lng, lat } = event.lngLat;
+    const nearest = findNearestPointOnRoute(routeGeometry.coordinates, { lng, lat });
+    if (nearest && nearest.distance < 200) { // within 200m of route
+      const distKm = cumulativeDistancesRef.current[nearest.index] || 0;
+      setMapHoverDistance(distKm);
+    } else {
+      setMapHoverDistance(null);
+    }
+  }, [routeGeometry]);
+
+  const handleMapMouseLeave = useCallback(() => {
+    setMapHoverDistance(null);
+  }, []);
 
   // Remove selected segment and re-route
   const handleRemoveSegment = useCallback(async () => {
@@ -2218,6 +2444,8 @@ function RouteBuilder() {
                 ref={mapRef}
                 {...viewport}
                 onMove={evt => setViewport(evt.viewState)}
+                onMouseMove={handleMapMouseMove}
+                onMouseLeave={handleMapMouseLeave}
                 onClick={handleMapClick}
                 mapStyle={currentMapStyle}
                 mapboxAccessToken={MAPBOX_TOKEN}
@@ -2247,8 +2475,38 @@ function RouteBuilder() {
                   </Source>
                 )}
 
-                {/* Route line */}
-                {routeGeoJSON && !coloredSegments && (
+                {/* Surface-colored route line (paved/gravel/unpaved) */}
+                {surfaceRouteGeoJSON && !coloredSegments && (
+                  <Source id="surface-route" type="geojson" data={surfaceRouteGeoJSON}>
+                    <Layer
+                      id="route-surface"
+                      type="line"
+                      paint={{
+                        'line-color': ['get', 'color'],
+                        'line-width': 5,
+                        'line-opacity': 0.9,
+                      }}
+                    />
+                  </Source>
+                )}
+
+                {/* Gradient-colored route line (slope-based) */}
+                {gradientRouteGeoJSON && !coloredSegments && !surfaceRouteGeoJSON && (
+                  <Source id="gradient-route" type="geojson" data={gradientRouteGeoJSON}>
+                    <Layer
+                      id="route-gradient"
+                      type="line"
+                      paint={{
+                        'line-color': ['get', 'color'],
+                        'line-width': 5,
+                        'line-opacity': 0.9,
+                      }}
+                    />
+                  </Source>
+                )}
+
+                {/* Flat route line (fallback when no overlay active) */}
+                {routeGeoJSON && !coloredSegments && !surfaceRouteGeoJSON && !gradientRouteGeoJSON && (
                   <Source id="route" type="geojson" data={routeGeoJSON}>
                     <Layer
                       id="route-line"
@@ -2256,7 +2514,8 @@ function RouteBuilder() {
                       paint={{
                         'line-color': editMode ? '#666666' : '#32CD32',
                         'line-width': 4,
-                        'line-opacity': editMode ? 0.6 : 0.8
+                        'line-opacity': editMode ? 0.6 : 0.8,
+                        ...(!snapToRoads && { 'line-dasharray': [2, 1] }),
                       }}
                     />
                   </Source>
@@ -2291,13 +2550,16 @@ function RouteBuilder() {
                   </Marker>
                 )}
 
-                {/* Waypoint markers */}
+                {/* Waypoint markers — draggable */}
                 {waypoints.map((waypoint, index) => (
                   <Marker
                     key={waypoint.id}
                     longitude={waypoint.position[0]}
                     latitude={waypoint.position[1]}
                     anchor="bottom"
+                    draggable
+                    onDragStart={() => { waypointDragRef.current = true; }}
+                    onDragEnd={(e) => handleWaypointDragEnd(waypoint.id, e)}
                     onClick={(e) => {
                       e.originalEvent.stopPropagation();
                       removeWaypoint(waypoint.id);
@@ -2314,7 +2576,7 @@ function RouteBuilder() {
                       justifyContent: 'center',
                       fontWeight: 600,
                       fontSize: 12,
-                      cursor: 'pointer',
+                      cursor: 'grab',
                       border: '2px solid white',
                       boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
                     }}>
@@ -3165,7 +3427,7 @@ function RouteBuilder() {
                   </Group>
                   <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
                     {waypoints.length === 0 ? 'Click on the map to place your first waypoint.' :
-                     waypoints.length === 1 ? 'Click again to add more waypoints. Routes auto-snap to roads.' :
+                     waypoints.length === 1 ? `Click again to add more waypoints. ${snapToRoads ? 'Routes auto-snap to roads.' : 'Freehand mode: straight lines between points.'}` :
                      `${waypoints.length} waypoints placed. Drag markers to adjust.`}
                   </Text>
                 </Box>
@@ -3223,18 +3485,47 @@ function RouteBuilder() {
                   </Group>
                 )}
 
-                {/* Routing profile for manual mode */}
-                <Select
-                  label="Routing Profile"
-                  size="xs"
-                  value={routeProfile}
-                  onChange={setRouteProfile}
-                  data={[
-                    { value: 'road', label: 'Road' },
-                    { value: 'gravel', label: 'Gravel' },
-                    { value: 'mountain', label: 'Mountain' },
-                  ]}
-                />
+                {/* Snap to roads / freehand toggle */}
+                <Tooltip label={snapToRoads ? 'Switch to freehand drawing' : 'Switch to snap-to-roads'}>
+                  <Button
+                    variant={snapToRoads ? 'light' : 'outline'}
+                    color={snapToRoads ? 'blue' : 'gray'}
+                    size="xs"
+                    fullWidth
+                    leftSection={snapToRoads ? <IconRoad size={16} /> : <IconPencil size={16} />}
+                    onClick={() => {
+                      setSnapToRoads(!snapToRoads);
+                      // Route will recalculate via the effect below
+                    }}
+                  >
+                    {snapToRoads ? 'Snap to Roads' : 'Freehand'}
+                  </Button>
+                </Tooltip>
+
+                {/* Routing profile for manual mode (only relevant when snapping) */}
+                {snapToRoads && (
+                  <Select
+                    label="Routing Profile"
+                    size="xs"
+                    value={routeProfile}
+                    onChange={setRouteProfile}
+                    data={[
+                      { value: 'road', label: 'Road' },
+                      { value: 'gravel', label: 'Gravel' },
+                      { value: 'mountain', label: 'Mountain' },
+                    ]}
+                  />
+                )}
+
+                {/* Waypoint list with reorder controls */}
+                {waypoints.length >= 2 && (
+                  <WaypointList
+                    waypoints={waypoints}
+                    onReorder={reorderWaypoints}
+                    onRemove={removeWaypoint}
+                    onFocus={focusWaypoint}
+                  />
+                )}
 
                 {/* Route stats (when route exists) */}
                 {routeGeometry && routeStats && (
@@ -3575,6 +3866,41 @@ function RouteBuilder() {
                   </Button>
                 </Tooltip>
               )}
+              {routeGeometry && (
+                <Tooltip label={showGradient ? 'Hide slope gradient' : 'Show slope gradient on route'}>
+                  <Button
+                    variant={showGradient ? 'filled' : 'default'}
+                    color={showGradient ? 'green' : 'dark'}
+                    size="md"
+                    onClick={() => { setShowGradient(!showGradient); if (!showGradient) setShowSurface(false); }}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: showGradient ? '#22c55e' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${showGradient ? '#22c55e' : 'var(--tribos-bg-tertiary)'}`,
+                    }}
+                  >
+                    <IconMountain size={20} color="#fff" />
+                  </Button>
+                </Tooltip>
+              )}
+              {routeGeometry && (
+                <Tooltip label={showSurface ? 'Hide surface types' : 'Show surface types (paved/gravel/unpaved)'}>
+                  <Button
+                    variant={showSurface ? 'filled' : 'default'}
+                    color={showSurface ? 'orange' : 'dark'}
+                    size="md"
+                    loading={surfaceLoading}
+                    onClick={() => { setShowSurface(!showSurface); if (!showSurface) setShowGradient(false); }}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: showSurface ? '#D97706' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${showSurface ? '#D97706' : 'var(--tribos-bg-tertiary)'}`,
+                    }}
+                  >
+                    <IconRoad size={20} color="#fff" />
+                  </Button>
+                </Tooltip>
+              )}
             </Box>
           )}
 
@@ -3583,6 +3909,8 @@ function RouteBuilder() {
               ref={mapRef}
               {...viewport}
               onMove={evt => setViewport(evt.viewState)}
+              onMouseMove={handleMapMouseMove}
+              onMouseLeave={handleMapMouseLeave}
               onClick={handleMapClick}
               mapStyle={currentMapStyle}
               mapboxAccessToken={MAPBOX_TOKEN}
@@ -3621,7 +3949,8 @@ function RouteBuilder() {
                     paint={{
                       'line-color': editMode ? '#666666' : '#32CD32',
                       'line-width': 4,
-                      'line-opacity': editMode ? 0.6 : 0.8
+                      'line-opacity': editMode ? 0.6 : 0.8,
+                      ...(!snapToRoads && { 'line-dasharray': [2, 1] }),
                     }}
                   />
                 </Source>
@@ -3660,13 +3989,16 @@ function RouteBuilder() {
                 </Marker>
               )}
 
-              {/* Render waypoint markers */}
+              {/* Render waypoint markers — draggable */}
               {waypoints.map((waypoint, index) => (
                 <Marker
                   key={waypoint.id}
                   longitude={waypoint.position[0]}
                   latitude={waypoint.position[1]}
                   anchor="bottom"
+                  draggable
+                  onDragStart={() => { waypointDragRef.current = true; }}
+                  onDragEnd={(e) => handleWaypointDragEnd(waypoint.id, e)}
                   onClick={(e) => {
                     e.originalEvent.stopPropagation();
                     removeWaypoint(waypoint.id);
@@ -3683,7 +4015,7 @@ function RouteBuilder() {
                     justifyContent: 'center',
                     fontWeight: 600,
                     fontSize: 14,
-                    cursor: 'pointer',
+                    cursor: 'grab',
                     border: '2px solid white',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                   }}>
@@ -3840,14 +4172,43 @@ function RouteBuilder() {
         </Box>
       </Box>
 
+      {/* Surface distribution bar — shown above elevation profile when surface overlay is active */}
+      {showSurface && surfaceDistribution && Object.keys(surfaceDistribution).length > 0 && (
+        <Box
+          style={{
+            position: 'fixed',
+            bottom: 120, // above elevation profile
+            left: isMobile ? 0 : 380,
+            right: 0,
+            zIndex: 100,
+            padding: '4px 12px',
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+            backgroundColor: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          {Object.entries(surfaceDistribution).map(([surface, pct]) => (
+            <Group key={surface} gap={4}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: SURFACE_COLORS[surface] }} />
+              <Text size="xs" style={{ color: '#fff' }}>
+                {SURFACE_LABELS[surface]} {pct}%
+              </Text>
+            </Group>
+          ))}
+        </Box>
+      )}
+
       {/* Elevation Profile - Fixed at bottom of screen, offset by sidebar width */}
       {routeGeometry?.coordinates && routeGeometry.coordinates.length > 1 && (
         <ElevationProfile
           coordinates={routeGeometry.coordinates}
           totalDistance={routeStats.distance}
           isImperial={isImperial}
-          leftOffset={380}
+          leftOffset={isMobile ? 0 : 380}
           onHoverPosition={setElevationHoverPosition}
+          highlightDistance={mapHoverDistance}
         />
       )}
 

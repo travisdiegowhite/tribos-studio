@@ -1,0 +1,165 @@
+/**
+ * Route Gradient Utilities
+ *
+ * Creates a GeoJSON FeatureCollection where each feature is a route segment
+ * colored by its slope grade. Used to render elevation-aware route lines.
+ */
+
+// Grade → color mapping following cycling conventions
+const GRADE_COLORS = [
+  { min: -Infinity, max: -8, color: '#2563EB', label: '< -8%' },   // steep downhill — blue
+  { min: -8,        max: -3, color: '#60A5FA', label: '-8% to -3%' }, // downhill — light blue
+  { min: -3,        max: 3,  color: '#22C55E', label: '-3% to 3%' },  // flat — green
+  { min: 3,         max: 6,  color: '#EAB308', label: '3% to 6%' },   // moderate uphill — yellow
+  { min: 6,         max: 9,  color: '#F97316', label: '6% to 9%' },   // challenging — orange
+  { min: 9,         max: 12, color: '#EF4444', label: '9% to 12%' },  // steep — red
+  { min: 12,        max: Infinity, color: '#991B1B', label: '> 12%' }, // very steep — dark red
+];
+
+export { GRADE_COLORS };
+
+/**
+ * Get the color for a given grade percentage
+ */
+function getGradeColor(grade) {
+  for (const band of GRADE_COLORS) {
+    if (grade >= band.min && grade < band.max) return band.color;
+  }
+  return '#22C55E'; // fallback: green/flat
+}
+
+/**
+ * Calculate grade between two points
+ * @param {number} elev1 - elevation at point 1 (meters)
+ * @param {number} elev2 - elevation at point 2 (meters)
+ * @param {number} distanceMeters - horizontal distance between points (meters)
+ * @returns {number} grade as percentage
+ */
+function calculateGrade(elev1, elev2, distanceMeters) {
+  if (distanceMeters < 1) return 0; // avoid division by near-zero
+  return ((elev2 - elev1) / distanceMeters) * 100;
+}
+
+/**
+ * Create a gradient-colored route as a GeoJSON FeatureCollection.
+ *
+ * Groups consecutive coordinates with similar grade into single LineString
+ * features to keep GeoJSON size reasonable.
+ *
+ * @param {Array} coordinates - [[lng, lat], ...] route coordinates
+ * @param {Array} elevationData - [{ distance, elevation, lat, lon }, ...] from getElevationData
+ * @returns {Object} GeoJSON FeatureCollection or null
+ */
+export function createGradientRoute(coordinates, elevationData) {
+  if (!coordinates || coordinates.length < 2 || !elevationData || elevationData.length < 2) {
+    return null;
+  }
+
+  // Build a lookup: for each route coordinate, find the closest elevation point
+  // We interpolate elevation along the route based on cumulative distance
+  const totalRouteCoords = coordinates.length;
+  const totalElevPoints = elevationData.length;
+  const maxElevDist = elevationData[totalElevPoints - 1].distance; // km
+
+  // Calculate cumulative distance for each coordinate (in km)
+  const coordDistances = [0];
+  for (let i = 1; i < totalRouteCoords; i++) {
+    const [lng1, lat1] = coordinates[i - 1];
+    const [lng2, lat2] = coordinates[i];
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng / 2) ** 2;
+    coordDistances.push(coordDistances[i - 1] + R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  }
+
+  // Interpolate elevation at each coordinate
+  const elevations = [];
+  let elevIdx = 0;
+  for (let i = 0; i < totalRouteCoords; i++) {
+    const dist = coordDistances[i];
+    // Advance elevIdx to bracket this distance
+    while (elevIdx < totalElevPoints - 1 && elevationData[elevIdx + 1].distance < dist) {
+      elevIdx++;
+    }
+    if (elevIdx >= totalElevPoints - 1) {
+      elevations.push(elevationData[totalElevPoints - 1].elevation);
+    } else {
+      const d1 = elevationData[elevIdx].distance;
+      const d2 = elevationData[elevIdx + 1].distance;
+      const range = d2 - d1;
+      const t = range > 0 ? (dist - d1) / range : 0;
+      elevations.push(elevationData[elevIdx].elevation + t * (elevationData[elevIdx + 1].elevation - elevationData[elevIdx + 1].elevation - elevationData[elevIdx].elevation));
+    }
+  }
+
+  // Fix the interpolation bug above — rewrite cleanly
+  // Interpolate elevation for each coordinate distance
+  const interpolatedElevations = new Float64Array(totalRouteCoords);
+  let eIdx = 0;
+  for (let i = 0; i < totalRouteCoords; i++) {
+    const dist = coordDistances[i];
+    while (eIdx < totalElevPoints - 2 && elevationData[eIdx + 1].distance < dist) {
+      eIdx++;
+    }
+    const d1 = elevationData[eIdx].distance;
+    const d2 = elevationData[Math.min(eIdx + 1, totalElevPoints - 1)].distance;
+    const e1 = elevationData[eIdx].elevation;
+    const e2 = elevationData[Math.min(eIdx + 1, totalElevPoints - 1)].elevation;
+    const range = d2 - d1;
+    const t = range > 0 ? Math.max(0, Math.min(1, (dist - d1) / range)) : 0;
+    interpolatedElevations[i] = e1 + t * (e2 - e1);
+  }
+
+  // Build segments grouped by grade band
+  const features = [];
+  let segStart = 0;
+  let segColor = null;
+
+  // Smoothing: calculate grade over a window rather than per-point
+  const WINDOW = 5; // points to average over for grade calculation
+
+  for (let i = 1; i < totalRouteCoords; i++) {
+    // Calculate grade using a smoothing window
+    const lookBack = Math.max(0, i - WINDOW);
+    const distM = (coordDistances[i] - coordDistances[lookBack]) * 1000; // km → m
+    const elevDiff = interpolatedElevations[i] - interpolatedElevations[lookBack];
+    const grade = calculateGrade(0, elevDiff, distM);
+    const color = getGradeColor(grade);
+
+    if (color !== segColor) {
+      // Flush the previous segment
+      if (segColor !== null && i > segStart) {
+        features.push({
+          type: 'Feature',
+          properties: { color: segColor },
+          geometry: {
+            type: 'LineString',
+            coordinates: coordinates.slice(segStart, i + 1), // overlap by 1 for continuity
+          },
+        });
+      }
+      segStart = i;
+      segColor = color;
+    }
+  }
+
+  // Flush the last segment
+  if (segColor !== null && totalRouteCoords > segStart) {
+    features.push({
+      type: 'Feature',
+      properties: { color: segColor },
+      geometry: {
+        type: 'LineString',
+        coordinates: coordinates.slice(segStart),
+      },
+    });
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features,
+  };
+}
