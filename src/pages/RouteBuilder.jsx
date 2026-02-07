@@ -3875,13 +3875,30 @@ function RouteBuilder() {
                   </Button>
                 </Tooltip>
               )}
+              {routeGeometry && selectedWorkout && (
+                <Tooltip label={showWorkoutOverlay ? 'Hide workout zones' : 'Show workout zone coloring'}>
+                  <Button
+                    variant={showWorkoutOverlay ? 'filled' : 'default'}
+                    color={showWorkoutOverlay ? 'lime' : 'dark'}
+                    size="md"
+                    onClick={() => { setShowWorkoutOverlay(!showWorkoutOverlay); if (!showWorkoutOverlay) { setShowGradient(false); setShowSurface(false); } }}
+                    style={{
+                      padding: '0 12px',
+                      backgroundColor: showWorkoutOverlay ? '#84cc16' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${showWorkoutOverlay ? '#84cc16' : 'var(--tribos-bg-tertiary)'}`,
+                    }}
+                  >
+                    <IconBike size={20} color="#fff" />
+                  </Button>
+                </Tooltip>
+              )}
               {routeGeometry && (
                 <Tooltip label={showGradient ? 'Hide slope gradient' : 'Show slope gradient on route'}>
                   <Button
                     variant={showGradient ? 'filled' : 'default'}
                     color={showGradient ? 'green' : 'dark'}
                     size="md"
-                    onClick={() => { setShowGradient(!showGradient); if (!showGradient) setShowSurface(false); }}
+                    onClick={() => { setShowGradient(!showGradient); if (!showGradient) { setShowSurface(false); setShowWorkoutOverlay(false); } }}
                     style={{
                       padding: '0 12px',
                       backgroundColor: showGradient ? '#22c55e' : 'var(--tribos-bg-secondary)',
@@ -3899,7 +3916,7 @@ function RouteBuilder() {
                     color={showSurface ? 'orange' : 'dark'}
                     size="md"
                     loading={surfaceLoading}
-                    onClick={() => { setShowSurface(!showSurface); if (!showSurface) setShowGradient(false); }}
+                    onClick={() => { setShowSurface(!showSurface); if (!showSurface) { setShowGradient(false); setShowWorkoutOverlay(false); } }}
                     style={{
                       padding: '0 12px',
                       backgroundColor: showSurface ? '#D97706' : 'var(--tribos-bg-secondary)',
@@ -3934,7 +3951,7 @@ function RouteBuilder() {
                 />
               )}
 
-              {/* Render colored route segments when workout is selected */}
+              {/* Route visualization layers — priority: workout > surface > gradient > flat */}
               {coloredSegments && (
                 <Source id="colored-route" type="geojson" data={coloredSegments}>
                   <Layer
@@ -3949,8 +3966,35 @@ function RouteBuilder() {
                 </Source>
               )}
 
-              {/* Render route line (shown when no workout selected, or as outline) */}
-              {routeGeoJSON && !coloredSegments && (
+              {surfaceRouteGeoJSON && !coloredSegments && (
+                <Source id="surface-route" type="geojson" data={surfaceRouteGeoJSON}>
+                  <Layer
+                    id="route-surface"
+                    type="line"
+                    paint={{
+                      'line-color': ['get', 'color'],
+                      'line-width': 6,
+                      'line-opacity': 0.85,
+                    }}
+                  />
+                </Source>
+              )}
+
+              {gradientRouteGeoJSON && !coloredSegments && !surfaceRouteGeoJSON && (
+                <Source id="gradient-route" type="geojson" data={gradientRouteGeoJSON}>
+                  <Layer
+                    id="route-gradient"
+                    type="line"
+                    paint={{
+                      'line-color': ['get', 'color'],
+                      'line-width': 6,
+                      'line-opacity': 0.85,
+                    }}
+                  />
+                </Source>
+              )}
+
+              {routeGeoJSON && !coloredSegments && !surfaceRouteGeoJSON && !gradientRouteGeoJSON && (
                 <Source id="route" type="geojson" data={routeGeoJSON}>
                   <Layer
                     id="route-line"

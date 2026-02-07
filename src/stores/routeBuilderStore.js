@@ -166,6 +166,7 @@ export const useRouteBuilderStore = create(
         aiSuggestions: [],
         routingSource: null,
         explicitDistanceKm: null,
+        selectedWorkoutId: null,
         builderMode: 'ready',
         lastSaved: Date.now()
       }),
