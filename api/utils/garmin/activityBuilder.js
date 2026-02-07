@@ -187,10 +187,17 @@ export function buildActivityData(userId, activityId, activityInfo, source = 'we
       ?? activityInfo.avgPower
       ?? activityInfo.avg_power
       ?? null,
-    // Calories -> kilojoules (1 kcal = 4.184 kJ)
-    kilojoules: activityInfo.activeKilocalories
-      ? activityInfo.activeKilocalories * 4.184
-      : (activityInfo.calories ? activityInfo.calories * 4.184 : null),
+    // Work (kJ) = mechanical energy output from power meter
+    // Calculate from avg power * duration if power data available
+    // Note: calories * 4.184 gives total metabolic energy (~4-5x mechanical work), NOT actual work
+    kilojoules: (() => {
+      const power = activityInfo.averageBikingPowerInWatts
+        ?? activityInfo.averagePower ?? activityInfo.avgPower ?? activityInfo.avg_power;
+      const dur = activityInfo.movingDurationInSeconds
+        ?? activityInfo.durationInSeconds ?? activityInfo.duration;
+      if (power && dur) return Math.round(power * dur / 1000);
+      return null;
+    })(),
     // Heart rate (bpm)
     average_heartrate: activityInfo.averageHeartRateInBeatsPerMinute
       ?? activityInfo.averageHeartRate
