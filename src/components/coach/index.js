@@ -5,6 +5,7 @@ export { default as CoachCommandBarTrigger } from './CoachCommandBarTrigger';
 export { default as CoachQuickActions } from './CoachQuickActions';
 export { default as CoachRecentQuestions } from './CoachRecentQuestions';
 export { default as CoachResponseArea } from './CoachResponseArea';
+export { default as TrainingPlanPreview } from './TrainingPlanPreview';
 
 // Context and Hook
 export {
