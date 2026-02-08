@@ -131,8 +131,16 @@ export default async function handler(req, res) {
       case 'backfill_reset_failed':
         return await resetFailedBackfillChunks(req, res, userId);
 
+      case 'update_activity': {
+        const { activityId: updateId, metrics: updateMetrics } = req.body;
+        if (!updateId || !updateMetrics) {
+          return res.status(400).json({ error: 'activityId and metrics required' });
+        }
+        return await updateActivityMetrics(req, res, userId, updateId, updateMetrics);
+      }
+
       default:
-        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, backfill_historical, backfill_status, backfill_reset_failed, get_activity, reprocess_failed, diagnose, backfill_gps, backfill_power' });
+        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, backfill_historical, backfill_status, backfill_reset_failed, get_activity, reprocess_failed, diagnose, backfill_gps, backfill_power, update_activity' });
     }
 
   } catch (error) {
@@ -142,6 +150,49 @@ export default async function handler(req, res) {
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
+}
+
+/**
+ * Directly update activity metrics in the database.
+ * For manually correcting corrupted values without re-downloading FIT files.
+ */
+async function updateActivityMetrics(req, res, userId, activityId, metrics) {
+  // Whitelist of allowed fields to prevent arbitrary DB writes
+  const allowedFields = [
+    'average_watts', 'max_watts', 'normalized_power', 'kilojoules',
+    'intensity_factor', 'tss', 'average_heartrate', 'max_heartrate',
+    'average_cadence', 'distance', 'moving_time', 'total_elevation_gain',
+  ];
+
+  const updateData = {};
+  for (const [key, value] of Object.entries(metrics)) {
+    if (allowedFields.includes(key)) {
+      updateData[key] = value;
+    }
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return res.status(400).json({ error: 'No valid metric fields provided', allowedFields });
+  }
+
+  updateData.updated_at = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('activities')
+    .update(updateData)
+    .eq('provider_activity_id', activityId)
+    .eq('user_id', userId)
+    .select('id, name, provider_activity_id, average_watts, max_watts, normalized_power, kilojoules, tss, intensity_factor');
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  if (!data || data.length === 0) {
+    return res.status(404).json({ error: 'Activity not found' });
+  }
+
+  return res.status(200).json({ success: true, updated: data[0] });
 }
 
 /**
