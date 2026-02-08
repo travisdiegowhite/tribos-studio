@@ -7,51 +7,127 @@
 
 /* ===== CSS Variables for Theme Switching ===== */
 
-/* Dark theme (default) */
+/* Dark theme (default) - Depth & Contrast system */
 :root,
 :root[data-mantine-color-scheme='dark'] {
-  /* Backgrounds */
-  --tribos-bg-primary: #0a0a0a;
-  --tribos-bg-secondary: #141414;
-  --tribos-bg-tertiary: #1c1c1c;
-  --tribos-bg-elevated: #242424;
+  /* ===== SURFACES (new elevation scale) ===== */
+  --tribos-void: #000000;
+  --tribos-nav: #08090b;
+  --tribos-panel: #12161b;
+  --tribos-card: #181d24;
+  --tribos-card-top: #1e242d;
+  --tribos-card-bottom: #161a22;
+  --tribos-card-hover: #1e242d;
+  --tribos-elevated: #2a323e;
+  --tribos-input: #111519;
 
-  /* Borders */
-  --tribos-border: rgba(255, 255, 255, 0.08);
-  --tribos-border-light: rgba(255, 255, 255, 0.12);
-  --tribos-border-focus: rgba(50, 205, 50, 0.5);
+  /* ===== BORDERS ===== */
+  --tribos-border-subtle: #1a2029;
+  --tribos-border-default: #2a3140;
+  --tribos-border-hover: #3a4455;
 
-  /* Text */
-  --tribos-text-primary: #fafafa;
-  --tribos-text-secondary: #a0a0a0;
-  --tribos-text-muted: #666666;
+  /* ===== EDGE LIGHTING ===== */
+  --tribos-edge-light: rgba(255, 255, 255, 0.06);
+  --tribos-edge-light-strong: rgba(255, 255, 255, 0.09);
 
-  /* Primary accent */
-  --tribos-lime: #32CD32;
-  --tribos-lime-light: #5FE35F;
-  --tribos-lime-dark: #28A428;
+  /* ===== SHADOWS ===== */
+  --tribos-inner-glow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --tribos-inner-glow-strong:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 30px rgba(255, 255, 255, 0.01);
 
-  /* Semantic */
-  --tribos-success: #32CD32;
-  --tribos-warning: #FFB800;
-  --tribos-error: #FF4444;
-  --tribos-info: #00B4D8;
+  --tribos-shadow-card:
+    0 1px 1px rgba(0, 0, 0, 0.4),
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    0 12px 32px rgba(0, 0, 0, 0.35),
+    0 24px 56px rgba(0, 0, 0, 0.2);
+  --tribos-shadow-card-hover:
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    0 8px 16px rgba(0, 0, 0, 0.35),
+    0 20px 48px rgba(0, 0, 0, 0.4),
+    0 32px 72px rgba(0, 0, 0, 0.25);
+  --tribos-shadow-panel:
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    4px 0 32px rgba(0, 0, 0, 0.3);
+  --tribos-shadow-inset:
+    inset 0 2px 6px rgba(0, 0, 0, 0.4),
+    inset 0 0 20px rgba(0, 0, 0, 0.2);
 
-  /* Shadows */
-  --tribos-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --tribos-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --tribos-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3);
-  --tribos-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6), 0 4px 8px rgba(0, 0, 0, 0.4);
-  --tribos-shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 2px 8px rgba(0, 0, 0, 0.4);
-  --tribos-shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 4px 16px rgba(0, 0, 0, 0.5);
-  --tribos-shadow-focus: 0 0 0 2px rgba(50, 205, 50, 0.3);
+  /* ===== GREEN (Primary) ===== */
+  --tribos-green-500: #4ade80;
+  --tribos-green-400: #6ee7a0;
+  --tribos-green-600: #22c55e;
+  --tribos-green-bright: #86efac;
+  --tribos-green-surface: rgba(74, 222, 128, 0.07);
+  --tribos-green-surface-strong: rgba(74, 222, 128, 0.12);
+  --tribos-green-border: rgba(74, 222, 128, 0.2);
+  --tribos-green-border-strong: rgba(74, 222, 128, 0.35);
+  --tribos-green-glow:
+    0 0 24px rgba(74, 222, 128, 0.12),
+    0 0 80px rgba(74, 222, 128, 0.04);
+
+  /* ===== AMBER (Events/Community) ===== */
+  --tribos-amber-500: #f5a623;
+  --tribos-amber-400: #fbbf47;
+  --tribos-amber-surface: rgba(245, 166, 35, 0.08);
+  --tribos-amber-border: rgba(245, 166, 35, 0.2);
+
+  /* ===== BLUE (Info/Links) ===== */
+  --tribos-blue-500: #60a5fa;
+  --tribos-blue-400: #93c5fd;
+  --tribos-blue-surface: rgba(96, 165, 250, 0.08);
+  --tribos-blue-border: rgba(96, 165, 250, 0.18);
+
+  /* ===== PURPLE (Virtual/Indoor) ===== */
+  --tribos-purple-500: #a78bfa;
+  --tribos-purple-surface: rgba(167, 139, 250, 0.08);
+  --tribos-purple-border: rgba(167, 139, 250, 0.18);
+
+  /* ===== RED (Destructive) ===== */
+  --tribos-red-500: #f87171;
+  --tribos-red-surface: rgba(248, 113, 113, 0.08);
+
+  /* ===== TEXT ===== */
+  --tribos-text-100: #f4f5f7;
+  --tribos-text-200: #d0d5dc;
+  --tribos-text-300: #a0a8b4;
+  --tribos-text-400: #6d7888;
+  --tribos-text-500: #4a5363;
+  --tribos-text-600: #2e343e;
+
+  /* ===== BACKWARD-COMPATIBLE ALIASES ===== */
+  /* Map old variable names to new system so existing components don't break */
+  --tribos-bg-primary: var(--tribos-void);
+  --tribos-bg-secondary: var(--tribos-card);
+  --tribos-bg-tertiary: var(--tribos-panel);
+  --tribos-bg-elevated: var(--tribos-elevated);
+  --tribos-border: var(--tribos-border-default);
+  --tribos-border-light: var(--tribos-border-hover);
+  --tribos-border-focus: rgba(74, 222, 128, 0.5);
+  --tribos-text-primary: var(--tribos-text-100);
+  --tribos-text-secondary: var(--tribos-text-300);
+  --tribos-text-muted: var(--tribos-text-400);
+  --tribos-lime: var(--tribos-green-500);
+  --tribos-lime-light: var(--tribos-green-400);
+  --tribos-lime-dark: var(--tribos-green-600);
+  --tribos-success: var(--tribos-green-500);
+  --tribos-warning: var(--tribos-amber-500);
+  --tribos-error: var(--tribos-red-500);
+  --tribos-info: var(--tribos-blue-500);
+  --tribos-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --tribos-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.25);
+  --tribos-shadow-md: var(--tribos-shadow-card);
+  --tribos-shadow-lg: var(--tribos-shadow-card-hover);
+  --tribos-shadow-focus: 0 0 0 2px rgba(74, 222, 128, 0.3);
 
   /* Scrollbar */
   --tribos-scrollbar-thumb: rgba(255, 255, 255, 0.15);
   --tribos-scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
 
   /* Selection */
-  --tribos-selection-bg: rgba(50, 205, 50, 0.25);
+  --tribos-selection-bg: rgba(74, 222, 128, 0.25);
   --tribos-selection-color: #ffffff;
 
   /* Overlay */
@@ -125,13 +201,19 @@ body {
   padding: 0;
   background-color: var(--tribos-bg-primary);
   color: var(--tribos-text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
   letter-spacing: -0.01em;
   transition: background-color 200ms ease, color 200ms ease;
+}
+
+/* Force void background on dark theme body */
+:root[data-mantine-color-scheme='dark'] body {
+  background-color: var(--tribos-void) !important;
+  color: var(--tribos-text-100);
 }
 
 /* Smooth transitions globally */
@@ -165,6 +247,102 @@ body {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ===== Mantine Body & AppShell Overrides ===== */
+
+.mantine-AppShell-root,
+[data-mantine-color-scheme="dark"] {
+  --mantine-color-body: var(--tribos-void);
+}
+
+.mantine-Paper-root {
+  --paper-bg: var(--tribos-card);
+}
+
+.mantine-Modal-content,
+.mantine-Drawer-content,
+.mantine-Menu-dropdown,
+.mantine-Popover-dropdown {
+  background: var(--tribos-elevated) !important;
+  border: 1px solid var(--tribos-border-default) !important;
+  box-shadow: var(--tribos-shadow-card-hover) !important;
+}
+
+/* ===== Depth Card Classes ===== */
+
+.tribos-depth-card {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tribos-depth-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.08) 70%,
+    transparent
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+.tribos-depth-card:hover {
+  box-shadow: var(--tribos-shadow-card-hover) !important;
+  border-color: var(--tribos-border-hover) !important;
+  transform: translateY(-2px);
+}
+
+.tribos-depth-card.no-hover:hover {
+  transform: none;
+  box-shadow: var(--tribos-shadow-card) !important;
+  border-color: var(--tribos-border-default) !important;
+}
+
+/* ===== Accent Card Classes ===== */
+
+.tribos-accent-card {
+  position: relative;
+}
+
+.tribos-accent-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24px;
+  right: 24px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(74, 222, 128, 0.15) 30%,
+    rgba(74, 222, 128, 0.25) 50%,
+    rgba(74, 222, 128, 0.15) 70%,
+    transparent
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Green radial wash for accent cards */
+.tribos-accent-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 15% 50%,
+    rgba(74, 222, 128, 0.07),
+    transparent 65%
+  );
+  pointer-events: none;
 }
 
 /* ===== Mapbox Overrides ===== */
@@ -256,9 +434,9 @@ body {
 .mantine-Select-input:focus,
 .mantine-Textarea-input:focus,
 .mantine-NumberInput-input:focus {
-  border-color: var(--tribos-lime) !important;
+  border-color: var(--tribos-green-border) !important;
   outline: none;
-  box-shadow: var(--tribos-shadow-focus) !important;
+  box-shadow: var(--tribos-shadow-inset), 0 0 0 3px rgba(74, 222, 128, 0.06) !important;
 }
 
 /* Card/Paper hover effects */
@@ -300,11 +478,13 @@ button {
 
 /* Dark theme specific */
 :root[data-mantine-color-scheme='dark'] {
-  --mantine-color-body: #0a0a0a !important;
-  --mantine-color-dark-7: #0a0a0a !important;
-  --mantine-color-dark-6: #141414 !important;
-  --mantine-color-dark-5: #1c1c1c !important;
-  --mantine-color-dark-4: #242424 !important;
+  --mantine-color-body: var(--tribos-void) !important;
+  --mantine-color-dark-9: #000000 !important;
+  --mantine-color-dark-8: #12161b !important;
+  --mantine-color-dark-7: #181d24 !important;
+  --mantine-color-dark-6: #1e242d !important;
+  --mantine-color-dark-5: #2a323e !important;
+  --mantine-color-dark-4: #4a5363 !important;
 }
 
 /* Light theme specific */
@@ -317,13 +497,7 @@ button {
   --mantine-color-dimmed: #5c5c5c !important;
 }
 
-/* Modal/Drawer backgrounds */
-.mantine-Modal-content,
-.mantine-Drawer-content {
-  background-color: var(--tribos-bg-secondary) !important;
-  border: 1px solid var(--tribos-border);
-}
-
+/* Modal/Drawer overlays */
 .mantine-Modal-overlay,
 .mantine-Drawer-overlay {
   background-color: var(--tribos-overlay) !important;
