@@ -144,8 +144,8 @@ describe('buildActivityData', () => {
 
   it('calculates work (kJ) from power and duration', () => {
     const result = buildActivityData('user-1', 'act-1', baseInfo);
-    // Work = avgPower * duration / 1000 = 200W * 3600s / 1000 = 720 kJ
-    expect(result.kilojoules).toBe(720);
+    // Work = avgPower * movingDuration / 1000 = 200W * 3500s / 1000 = 700 kJ
+    expect(result.kilojoules).toBe(700);
   });
 
   it('handles alternative field names (API vs PUSH vs FIT)', () => {

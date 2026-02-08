@@ -45,6 +45,10 @@ import { FuelCard } from './fueling';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
+// FIT protocol uses 0xFFFF (65535) for "no data" - must filter before display
+const MAX_VALID_POWER_WATTS = 2500;
+const MAX_VALID_HR_BPM = 250;
+
 /**
  * Decode a Google-encoded polyline string to coordinates
  */
@@ -191,20 +195,33 @@ const RideAnalysisModal = ({
     const elevation = ride.total_elevation_gain || ride.elevation_gain_m || 0;
     const duration = ride.moving_time || ride.duration_seconds || ride.elapsed_time || 0;
     const avgPower = ride.average_watts || 0;
-    const maxPower = ride.max_watts || 0;
-    const avgHR = ride.average_heartrate || 0;
-    const maxHR = ride.max_heartrate || 0;
+    const rawMaxPower = ride.max_watts || 0;
+    const rawAvgHR = ride.average_heartrate || 0;
+    const rawMaxHR = ride.max_heartrate || 0;
     const avgCadence = ride.average_cadence || 0;
-    const kilojoules = ride.kilojoules || 0;
+    const rawKilojoules = ride.kilojoules || 0;
+
+    // Sanitize FIT sentinel values (0xFFFF = 65535 means "no data")
+    const maxPower = rawMaxPower > 0 && rawMaxPower < MAX_VALID_POWER_WATTS ? rawMaxPower : 0;
+    const maxPowerCorrupted = rawMaxPower >= MAX_VALID_POWER_WATTS;
+    const avgHR = rawAvgHR > 0 && rawAvgHR < MAX_VALID_HR_BPM ? rawAvgHR : 0;
+    const maxHR = rawMaxHR > 0 && rawMaxHR < MAX_VALID_HR_BPM ? rawMaxHR : 0;
+
+    // Sanitize kilojoules: if stored value looks like metabolic energy (> 2x mechanical work), recalculate
+    const mechanicalWork = avgPower > 0 && duration > 0 ? Math.round(avgPower * duration / 1000) : 0;
+    const kilojoules = rawKilojoules > 0 && mechanicalWork > 0 && rawKilojoules > mechanicalWork * 2
+      ? mechanicalWork
+      : rawKilojoules;
 
     // Power metrics - prefer stored values from FIT parser (calculated from actual power stream)
+    // BUT if max_power was a sentinel, stored NP/IF/TSS are also corrupted (calculated from unfiltered stream)
     // Fall back to client-side estimation from avg/max power
     let np = null, intensityFactor = null, vi = null, powerTSS = null, ifZone = null;
     if (avgPower > 0) {
-      np = ride.normalized_power || estimateNormalizedPower(avgPower, maxPower);
-      intensityFactor = ride.intensity_factor || calculateIF(np, ftp);
+      np = (!maxPowerCorrupted && ride.normalized_power) || estimateNormalizedPower(avgPower, maxPower);
+      intensityFactor = (!maxPowerCorrupted && ride.intensity_factor) || calculateIF(np, ftp);
       vi = calculateVI(np, avgPower);
-      powerTSS = ride.tss || calculateTSSFromPower(duration, np, ftp);
+      powerTSS = (!maxPowerCorrupted && ride.tss) || calculateTSSFromPower(duration, np, ftp);
       ifZone = getIFZone(intensityFactor);
     }
 
