@@ -23,6 +23,7 @@ import {
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../contexts/AuthContext';
+import { depth } from '../../theme';
 
 // Generate coaching message — now includes workout recommendation for consistency
 function getCoachingMessage(trainingContext, workoutRecommendation) {
@@ -160,11 +161,14 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
   return (
     <Card
       padding="lg"
-      radius="md"
+      radius="xl"
       h="100%"
+      className="tribos-depth-card no-hover"
       style={{
-        background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15), transparent)',
-        border: '1px solid rgba(34, 197, 94, 0.2)',
+        background: `linear-gradient(135deg, rgba(34, 197, 94, 0.15), transparent), ${depth.card.background}`,
+        border: depth.card.border,
+        borderTop: depth.card.borderTop,
+        boxShadow: depth.card.boxShadow,
       }}
     >
       <Stack gap="md" h="100%" justify="space-between">
@@ -207,7 +211,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
           {/* Response Area */}
           <Collapse in={expanded && (response || error)}>
             {error ? (
-              <Paper p="sm" mt="sm" style={{ backgroundColor: 'rgba(255, 68, 68, 0.1)' }}>
+              <Paper p="sm" mt="sm" style={{ backgroundColor: 'var(--tribos-red-surface)', border: '1px solid var(--tribos-border-subtle)' }}>
                 <Group justify="space-between">
                   <Text size="sm" c="red">{error}</Text>
                   <ActionIcon
@@ -224,7 +228,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                 </Group>
               </Paper>
             ) : response ? (
-              <Paper p="sm" mt="sm" style={{ backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
+              <Paper p="sm" mt="sm" style={{ background: depth.recessed.background, border: depth.recessed.border, boxShadow: depth.recessed.boxShadow }}>
                 <Text size="sm" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                   {response}
                 </Text>
@@ -262,10 +266,11 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
             style={{ flex: 1 }}
             styles={{
               input: {
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                borderColor: 'rgba(255, 255, 255, 0.1)',
+                backgroundColor: 'var(--tribos-input)',
+                borderColor: 'var(--tribos-border-subtle)',
+                boxShadow: 'var(--tribos-shadow-inset)',
                 '&:focus': {
-                  borderColor: 'var(--tribos-lime)',
+                  borderColor: 'var(--tribos-green-border)',
                 },
               },
             }}
