@@ -312,7 +312,7 @@ export const theme = createTheme({
     },
 
     Card: {
-      defaultProps: { radius: 'xl', padding: 0 },
+      defaultProps: { radius: 'xl', padding: 'lg' },
       styles: () => ({
         root: {
           background: depth.card.background,
