@@ -18,6 +18,9 @@ import {
 } from '@tabler/icons-react';
 import { tokens } from '../theme';
 
+// FIT protocol uses 0xFFFF (65535) for "no data" - must filter before calculations
+const MAX_VALID_POWER_WATTS = 2500;
+
 /**
  * Calculate Normalized Power (NP) estimate from average power
  * Real NP requires power stream data with 30-second rolling averages
@@ -110,15 +113,20 @@ export function ActivityMetricsBadges({ activity, ftp }) {
     if (!activity) return null;
 
     const avgPower = activity.average_watts;
-    const maxPower = activity.max_watts;
+    const rawMaxPower = activity.max_watts;
     const duration = activity.moving_time || activity.elapsed_time;
 
     if (!avgPower) return null;
 
-    const np = estimateNormalizedPower(avgPower, maxPower);
-    const intensityFactor = calculateIF(np, ftp);
+    // Sanitize FIT sentinel values (0xFFFF = 65535)
+    const maxPower = rawMaxPower > 0 && rawMaxPower < MAX_VALID_POWER_WATTS ? rawMaxPower : 0;
+    const maxPowerCorrupted = rawMaxPower >= MAX_VALID_POWER_WATTS;
+
+    // If max_power was a sentinel, stored NP/metrics are corrupted too
+    const np = (!maxPowerCorrupted && activity.normalized_power) || estimateNormalizedPower(avgPower, maxPower);
+    const intensityFactor = (!maxPowerCorrupted && activity.intensity_factor) || calculateIF(np, ftp);
     const vi = calculateVI(np, avgPower);
-    const tss = calculateTSSFromPower(duration, np, ftp);
+    const tss = (!maxPowerCorrupted && activity.tss) || calculateTSSFromPower(duration, np, ftp);
     const ifZone = getIFZone(intensityFactor);
 
     return {
@@ -209,17 +217,23 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
     if (!activity) return null;
 
     const avgPower = activity.average_watts;
-    const maxPower = activity.max_watts;
+    const rawMaxPower = activity.max_watts;
     const duration = activity.moving_time || activity.elapsed_time;
     const avgHr = activity.average_heartrate;
     const maxHr = activity.max_heartrate;
 
     if (!avgPower && !avgHr) return null;
 
-    const np = avgPower ? estimateNormalizedPower(avgPower, maxPower) : null;
-    const intensityFactor = calculateIF(np, ftp);
+    // Sanitize FIT sentinel values (0xFFFF = 65535)
+    const maxPower = rawMaxPower > 0 && rawMaxPower < MAX_VALID_POWER_WATTS ? rawMaxPower : 0;
+    const maxPowerCorrupted = rawMaxPower >= MAX_VALID_POWER_WATTS;
+
+    const np = avgPower
+      ? ((!maxPowerCorrupted && activity.normalized_power) || estimateNormalizedPower(avgPower, maxPower))
+      : null;
+    const intensityFactor = (!maxPowerCorrupted && activity.intensity_factor) || calculateIF(np, ftp);
     const vi = calculateVI(np, avgPower);
-    const tss = calculateTSSFromPower(duration, np, ftp);
+    const tss = (!maxPowerCorrupted && activity.tss) || calculateTSSFromPower(duration, np, ftp);
     const ifZone = getIFZone(intensityFactor);
 
     // W/kg calculations

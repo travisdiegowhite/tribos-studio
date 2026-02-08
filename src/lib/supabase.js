@@ -45,3 +45,8 @@ export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-key'
 );
+
+// Expose for console debugging (anon key only, RLS-protected)
+if (typeof window !== 'undefined') {
+  window.__supabase = supabase;
+}
