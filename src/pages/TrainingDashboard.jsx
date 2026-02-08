@@ -63,7 +63,7 @@ import {
   IconCalendarEvent,
   IconTrophy,
 } from '@tabler/icons-react';
-import { tokens } from '../theme';
+import { tokens, depth } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parsePlanStartDate } from '../utils/dateUtils';
@@ -815,13 +815,15 @@ function TrainingDashboard() {
           <Tabs value={activeTab} onChange={setActiveTab} color="lime" variant="pills">
             <Paper
               withBorder
-              radius="md"
+              radius="xl"
               p="xs"
               style={{
                 position: 'sticky',
                 top: 0,
                 zIndex: 100,
-                backgroundColor: 'var(--mantine-color-dark-7)',
+                background: depth.panel.background,
+                boxShadow: depth.panel.boxShadow,
+                border: '1px solid var(--tribos-border-default)',
               }}
             >
               <Tabs.List grow={!isMobile} justify={isMobile ? 'center' : undefined}>
@@ -1194,10 +1196,13 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
   return (
     <Paper
       p="lg"
-      radius="md"
+      radius="xl"
+      className="tribos-depth-card no-hover"
       style={{
-        background: `linear-gradient(135deg, ${formStatus.bg}, transparent)`,
-        border: `1px solid ${formStatus.bg}`,
+        background: `linear-gradient(135deg, ${formStatus.bg}, transparent), ${depth.card.background}`,
+        border: depth.card.border,
+        borderTop: depth.card.borderTop,
+        boxShadow: depth.card.boxShadow,
       }}
     >
       <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
@@ -1376,15 +1381,15 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
           </Box>
           <Group gap="md" wrap="wrap">
             <SimpleGrid cols={3} spacing="xs">
-              <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)', minWidth: 60 }}>
+              <Paper p="xs" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)', minWidth: 60 }}>
                 <Text size="xs" c="dimmed">HRV</Text>
                 <Text fw={600}>{todayHealthMetrics?.hrv_score ? `${todayHealthMetrics.hrv_score}ms` : '--'}</Text>
               </Paper>
-              <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)', minWidth: 60 }}>
+              <Paper p="xs" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)', minWidth: 60 }}>
                 <Text size="xs" c="dimmed">Sleep</Text>
                 <Text fw={600}>{todayHealthMetrics?.sleep_hours ? `${todayHealthMetrics.sleep_hours}h` : '--'}</Text>
               </Paper>
-              <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)', minWidth: 60 }}>
+              <Paper p="xs" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)', minWidth: 60 }}>
                 <Text size="xs" c="dimmed">Readiness</Text>
                 <Text fw={600} c={todayHealthMetrics?.readiness_score >= 60 ? 'green' : todayHealthMetrics?.readiness_score >= 40 ? 'yellow' : 'red'}>
                   {todayHealthMetrics?.readiness_score ? `${todayHealthMetrics.readiness_score}%` : '--'}
@@ -1472,17 +1477,17 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
       {/* Progress Cards */}
       <Card withBorder p="md">
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-          <Paper p="md" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+          <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
             <IconTrendingUp size={24} color="#10b981" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="teal">+{Math.round(trainingMetrics.ctl * 0.12)}%</Text>
             <Text size="sm" c="dimmed">Fitness vs 90 days ago</Text>
           </Paper>
-          <Paper p="md" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+          <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
             <IconRoute size={24} color="#3b82f6" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="blue">{activities.length}</Text>
             <Text size="sm" c="dimmed">Rides in 90 days</Text>
           </Paper>
-          <Paper p="md" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+          <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
             <IconAward size={24} color="#f59e0b" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="yellow">
               {speedProfile ? `${(speedProfile.average_speed * (isImperial ? 0.621371 : 1)).toFixed(1)}` : '--'}
@@ -1722,15 +1727,15 @@ function BodyCheckInCard({ todayHealthMetrics, onOpenHealthCheckIn }) {
         </Box>
         <Box>
           <SimpleGrid cols={3} spacing="xs" mb="sm">
-            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+            <Paper p="xs" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
               <Text size="xs" c="dimmed">HRV</Text>
               <Text fw={600} size="sm">{todayHealthMetrics?.hrv_score ? `${todayHealthMetrics.hrv_score}ms` : '--'}</Text>
             </Paper>
-            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+            <Paper p="xs" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
               <Text size="xs" c="dimmed">Sleep</Text>
               <Text fw={600} size="sm">{todayHealthMetrics?.sleep_hours ? `${todayHealthMetrics.sleep_hours}h` : '--'}</Text>
             </Paper>
-            <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+            <Paper p="xs" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
               <Text size="xs" c="dimmed">Ready</Text>
               <Text fw={600} size="sm" c={todayHealthMetrics?.readiness_score >= 60 ? 'green' : todayHealthMetrics?.readiness_score >= 40 ? 'yellow' : 'red'}>
                 {todayHealthMetrics?.readiness_score ? `${todayHealthMetrics.readiness_score}%` : '--'}
@@ -1933,7 +1938,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
 
         {/* Coach Notes */}
         {workout.coachNotes && (
-          <Paper p="sm" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+          <Paper p="sm" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
             <Text fw={500} size="sm" mb="xs" c="lime">Coach Notes</Text>
             <Text size="sm" c="dimmed">{workout.coachNotes}</Text>
           </Paper>

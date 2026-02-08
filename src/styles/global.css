@@ -504,14 +504,8 @@ button {
   backdrop-filter: blur(4px);
 }
 
-/* Paper default */
-.mantine-Paper-root {
-  background-color: var(--tribos-bg-secondary);
-}
-
-/* Card backgrounds - ensure theme switching */
+/* Card text color */
 .mantine-Card-root {
-  background-color: var(--tribos-bg-secondary) !important;
   color: var(--tribos-text-primary);
 }
 
