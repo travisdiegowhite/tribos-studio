@@ -267,13 +267,16 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
 
       const workoutsToInsert = planData.workouts.map((w) => ({
         plan_id: newPlan.id,
+        user_id: user.id,
         week_number: w.week_number,
         day_of_week: w.day_of_week,
         scheduled_date: w.scheduled_date,
         workout_type: w.workout_type || 'rest',
         workout_id: w.workout_id || null,
+        name: w.name || w.workout_id || 'Workout',
         target_tss: w.target_tss || null,
         target_duration: w.duration_minutes || null,
+        duration_minutes: w.duration_minutes || 0,
         completed: false,
       }));
 

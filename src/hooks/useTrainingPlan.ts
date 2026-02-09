@@ -236,7 +236,7 @@ export function useTrainingPlan({
         }
 
         // Create new plan
-        const planInsert: TrainingPlanInsert = {
+        const planInsert = {
           user_id: userId,
           template_id: templateId,
           name: template.name,
@@ -245,12 +245,11 @@ export function useTrainingPlan({
           goal: template.goal,
           fitness_level: template.fitnessLevel,
           status: 'active',
-          started_at: startDate.toISOString(),
+          start_date: startDate.toISOString(),
           current_week: 1,
           workouts_completed: 0,
           workouts_total: totalWorkouts,
           compliance_percentage: 0,
-          auto_adjust_enabled: false,
         };
 
         const { data: newPlan, error: planError } = await supabase
@@ -281,15 +280,17 @@ export function useTrainingPlan({
 
             workoutsToInsert.push({
               plan_id: newPlan.id,
+              user_id: userId,
               week_number: weekNum,
               day_of_week: dayIndex,
               scheduled_date: scheduledDate.toISOString().split('T')[0],
               workout_type: workout?.category || (dayPlan.workout ? null : 'rest'),
               workout_id: dayPlan.workout || null,
+              name: workout?.name || dayPlan.workout || 'Workout',
               target_tss: workout?.targetTSS || null,
               target_duration: workout?.duration || null,
+              duration_minutes: workout?.duration || 0,
               completed: false,
-              notes: dayPlan.notes || null,
             });
           }
         }
@@ -407,7 +408,7 @@ export function useTrainingPlan({
         }
 
         // Create new plan
-        const planInsert: TrainingPlanInsert = {
+        const planInsert = {
           user_id: userId,
           template_id: templateId,
           name: template.name,
@@ -416,12 +417,11 @@ export function useTrainingPlan({
           goal: template.goal,
           fitness_level: template.fitnessLevel,
           status: 'active',
-          started_at: startDate.toISOString(),
+          start_date: startDate.toISOString(),
           current_week: 1,
           workouts_completed: 0,
           workouts_total: totalWorkouts,
           compliance_percentage: 0,
-          auto_adjust_enabled: false,
         };
 
         const { data: newPlan, error: planError } = await supabase
@@ -442,17 +442,17 @@ export function useTrainingPlan({
 
           workoutsToInsert.push({
             plan_id: newPlan.id,
+            user_id: userId,
             week_number: w.weekNumber,
             day_of_week: newDateObj.getDay(),
             scheduled_date: newDate,
             workout_type: w.workoutType,
             workout_id: w.workoutId,
+            name: w.workoutId || 'Workout',
             target_tss: w.targetTSS,
             target_duration: w.targetDuration,
+            duration_minutes: w.targetDuration || 0,
             completed: false,
-            notes: redistributionMap.has(w.originalDate)
-              ? `Moved from ${w.originalDate} (day was blocked)`
-              : null,
           });
         }
 
