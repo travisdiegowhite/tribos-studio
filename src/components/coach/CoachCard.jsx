@@ -293,6 +293,12 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
       });
 
       setTrainingPlanPreview(null);
+
+      // Dispatch event so dashboard reloads plan + calendar without page refresh
+      window.dispatchEvent(new CustomEvent('training-plan-activated', {
+        detail: { planId: newPlan.id },
+      }));
+
       if (onAddWorkout) {
         onAddWorkout({ _planActivated: true, planId: newPlan.id });
       }
