@@ -494,14 +494,17 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
           for (const workout of workouts) {
             if (workout.id.includes('-')) {
               // New workout (has generated ID)
+              const { data: { user } } = await supabase.auth.getUser();
               await supabase.from('planned_workouts').insert({
                 plan_id: state.activePlanId,
+                user_id: user?.id,
                 scheduled_date: workout.scheduledDate,
                 workout_id: workout.workoutId,
                 workout_type: workout.workoutType,
+                name: workout.workoutId || 'Workout',
                 target_tss: workout.targetTSS,
                 target_duration: workout.targetDuration,
-                notes: workout.notes,
+                duration_minutes: workout.targetDuration || 0,
                 completed: workout.completed,
                 week_number: 1, // TODO: Calculate properly
                 day_of_week: new Date(workout.scheduledDate).getDay(),
