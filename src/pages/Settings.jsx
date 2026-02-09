@@ -42,6 +42,8 @@ import { formatSpeed } from '../utils/units';
 import PageHeader from '../components/PageHeader.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import IntegrationAlert from '../components/IntegrationAlert.jsx';
+import { googleCalendarService } from '../utils/googleCalendarService';
+import { IconBrandGoogle } from '@tabler/icons-react';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -71,6 +73,7 @@ function Settings() {
   const [garminBackfillingHistory, setGarminBackfillingHistory] = useState(false);
   const [garminBackfillStatus, setGarminBackfillStatus] = useState(null);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
+  const [googleCalendarStatus, setGoogleCalendarStatus] = useState({ connected: false, loading: true, email: null });
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showStravaDisconnectModal, setShowStravaDisconnectModal] = useState(false);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
@@ -192,6 +195,42 @@ function Settings() {
       loadWahooStatus();
     }
   }, [user]);
+
+  // Load Google Calendar connection status
+  useEffect(() => {
+    const loadGoogleCalendarStatus = async () => {
+      if (!googleCalendarService.isConfigured()) {
+        setGoogleCalendarStatus({ connected: false, loading: false, email: null });
+        return;
+      }
+      try {
+        const status = await googleCalendarService.getConnectionStatus();
+        setGoogleCalendarStatus({ connected: status.connected, loading: false, email: status.email || null });
+      } catch (error) {
+        console.error('Error loading Google Calendar status:', error);
+        setGoogleCalendarStatus({ connected: false, loading: false, email: null });
+      }
+    };
+
+    if (user) {
+      loadGoogleCalendarStatus();
+    }
+  }, [user]);
+
+  // Handle Google Calendar callback success
+  useEffect(() => {
+    if (searchParams.get('connected') === 'google-calendar') {
+      setGoogleCalendarStatus({ connected: true, loading: false, email: null });
+      notifications.show({
+        title: 'Google Calendar Connected',
+        message: 'Your Google Calendar is now linked. Busy times can be imported in Training Availability settings.',
+        color: 'lime',
+      });
+      searchParams.delete('connected');
+      searchParams.delete('tab');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Handle reconnect query parameter (from IntegrationAlert)
   useEffect(() => {
@@ -992,6 +1031,47 @@ function Settings() {
     }
   };
 
+  const connectGoogleCalendar = () => {
+    try {
+      if (!googleCalendarService.isConfigured()) {
+        notifications.show({
+          title: 'Not Configured',
+          message: 'Google Calendar integration requires a Google Client ID to be configured.',
+          color: 'yellow',
+        });
+        return;
+      }
+      const authUrl = googleCalendarService.getAuthorizationUrl();
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Error connecting to Google Calendar:', error);
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'Failed to connect to Google Calendar',
+        color: 'red',
+      });
+    }
+  };
+
+  const disconnectGoogleCalendar = async () => {
+    try {
+      await googleCalendarService.disconnect();
+      setGoogleCalendarStatus({ connected: false, loading: false, email: null });
+      notifications.show({
+        title: 'Disconnected',
+        message: 'Google Calendar has been disconnected',
+        color: 'green',
+      });
+    } catch (error) {
+      console.error('Error disconnecting Google Calendar:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to disconnect Google Calendar',
+        color: 'red',
+      });
+    }
+  };
+
   return (
     <AppShell>
       <ImportWizard opened={showImportWizard} onClose={() => setShowImportWizard(false)} />
@@ -1462,6 +1542,74 @@ function Settings() {
                 onDisconnect={disconnectWahoo}
                 unitsPreference={unitsPreference}
               />
+
+              <Divider />
+
+              {/* Google Calendar */}
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Group>
+                    <Text size="xl">📅</Text>
+                    <Box>
+                      <Text style={{ color: 'var(--tribos-text-primary)' }}>Google Calendar</Text>
+                      {googleCalendarStatus.connected && googleCalendarStatus.email && (
+                        <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                          Connected as {googleCalendarStatus.email}
+                        </Text>
+                      )}
+                    </Box>
+                  </Group>
+                  <Group>
+                    {googleCalendarStatus.loading ? (
+                      <Loader size="sm" />
+                    ) : googleCalendarStatus.connected ? (
+                      <>
+                        <Badge color="green" variant="light">
+                          Connected
+                        </Badge>
+                        <Button variant="subtle" color="red" size="sm" onClick={disconnectGoogleCalendar}>
+                          Disconnect
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        color="lime"
+                        size="sm"
+                        onClick={connectGoogleCalendar}
+                        leftSection={<IconBrandGoogle size={16} />}
+                      >
+                        Connect
+                      </Button>
+                    )}
+                  </Group>
+                </Group>
+                {googleCalendarStatus.connected && (
+                  <Box
+                    style={{
+                      backgroundColor: 'var(--tribos-bg-tertiary)',
+                      padding: tokens.spacing.sm,
+                      borderRadius: tokens.radius.sm,
+                      marginLeft: '2.5rem'
+                    }}
+                  >
+                    <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                      Schedule-Aware Training
+                    </Text>
+                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                      Your calendar busy times can be imported as blocked days in the Training Planner's
+                      Availability settings. Open Training Planner → Availability to import.
+                    </Text>
+                  </Box>
+                )}
+                {!googleCalendarStatus.loading && !googleCalendarStatus.connected && (
+                  <Box style={{ marginLeft: '2.5rem' }}>
+                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                      Connect Google Calendar to automatically detect busy days for schedule-aware training plans.
+                    </Text>
+                  </Box>
+                )}
+              </Stack>
 
               {/* Activity Maintenance - Merged into Connected Services */}
               <Divider label="Activity Maintenance" labelPosition="center" />

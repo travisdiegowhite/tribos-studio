@@ -30,8 +30,12 @@ import {
   IconAlertCircle,
   IconRefresh,
   IconInfoCircle,
+  IconBrandGoogle,
+  IconCalendarEvent,
 } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { useUserAvailability } from '../../hooks/useUserAvailability';
+import { googleCalendarService } from '../../utils/googleCalendarService';
 import type { AvailabilityStatus, SetDayAvailabilityInput } from '../../types/training';
 
 interface AvailabilitySettingsProps {
@@ -55,6 +59,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
     loading,
     error,
     setDayAvailability,
+    setDateOverride,
     setMultipleDayAvailabilities,
     updatePreferences,
     loadAvailability,
@@ -64,6 +69,8 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [editNotes, setEditNotes] = useState('');
+  const [calendarConnected, setCalendarConnected] = useState<boolean | null>(null);
+  const [importingCalendar, setImportingCalendar] = useState(false);
 
   // Local state for preferences form
   const [localPrefs, setLocalPrefs] = useState({
@@ -129,6 +136,74 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
     setEditNotes('');
   };
 
+  // Check Google Calendar connection on mount
+  useEffect(() => {
+    if (googleCalendarService.isConfigured()) {
+      googleCalendarService.isConnected().then(setCalendarConnected);
+    } else {
+      setCalendarConnected(false);
+    }
+  }, []);
+
+  // Import busy times from Google Calendar as date overrides
+  const handleImportCalendarBusyTimes = async () => {
+    setImportingCalendar(true);
+    try {
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + 14); // Next 2 weeks
+
+      const busyTimes = await googleCalendarService.getBusyTimes(startDate, endDate);
+
+      // Group busy blocks by date and find which full days are busy
+      const busyByDate: Record<string, number> = {};
+      for (const block of busyTimes) {
+        const blockStart = new Date(block.start);
+        const blockEnd = new Date(block.end);
+        const durationHours = (blockEnd.getTime() - blockStart.getTime()) / (1000 * 60 * 60);
+        const dateKey = blockStart.toISOString().split('T')[0];
+        busyByDate[dateKey] = (busyByDate[dateKey] || 0) + durationHours;
+      }
+
+      // Create date overrides for days with 6+ busy hours
+      let overridesCreated = 0;
+      for (const [dateStr, busyHours] of Object.entries(busyByDate)) {
+        if (busyHours >= 6) {
+          await setDateOverride({
+            date: dateStr,
+            status: 'blocked' as AvailabilityStatus,
+            notes: `Auto-imported: ${Math.round(busyHours)}h of calendar events`,
+          });
+          overridesCreated++;
+        }
+      }
+
+      if (overridesCreated > 0) {
+        notifications.show({
+          title: 'Calendar Imported',
+          message: `${overridesCreated} busy day${overridesCreated > 1 ? 's' : ''} blocked for the next 2 weeks`,
+          color: 'lime',
+        });
+        onAvailabilityChange?.();
+      } else {
+        notifications.show({
+          title: 'No Busy Days Found',
+          message: 'Your calendar looks clear for the next 2 weeks — no overrides needed',
+          color: 'blue',
+        });
+      }
+    } catch (err) {
+      console.error('Calendar import error:', err);
+      notifications.show({
+        title: 'Import Failed',
+        message: 'Could not fetch busy times from Google Calendar. Check your connection in Settings.',
+        color: 'red',
+      });
+    } finally {
+      setImportingCalendar(false);
+    }
+  };
+
   const blockedCount = weeklyAvailability.filter((d) => d.status === 'blocked').length;
   const preferredCount = weeklyAvailability.filter((d) => d.status === 'preferred').length;
 
@@ -162,6 +237,33 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
         <Alert color="green" icon={<IconCheck />}>
           Settings saved successfully!
         </Alert>
+      )}
+
+      {/* Google Calendar Import */}
+      {calendarConnected && (
+        <Paper p="md" radius="md" withBorder style={{ borderColor: 'var(--mantine-color-dark-4)' }}>
+          <Group justify="space-between" wrap="nowrap">
+            <Group gap="sm" wrap="nowrap">
+              <IconCalendarEvent size={20} color="var(--mantine-color-lime-5)" />
+              <Box>
+                <Text size="sm" fw={500}>Google Calendar</Text>
+                <Text size="xs" c="dimmed">
+                  Import busy days from your calendar as blocked date overrides
+                </Text>
+              </Box>
+            </Group>
+            <Button
+              size="xs"
+              variant="light"
+              color="lime"
+              loading={importingCalendar}
+              onClick={handleImportCalendarBusyTimes}
+              leftSection={<IconBrandGoogle size={14} />}
+            >
+              Import Busy Days
+            </Button>
+          </Group>
+        </Paper>
       )}
 
       {/* Weekly Availability Grid */}
