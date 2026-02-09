@@ -292,7 +292,6 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
           workouts_completed: 0,
           workouts_total: actualWorkouts.length,
           compliance_percentage: 0,
-          auto_adjust_enabled: false,
           notes: planData.notes || `AI Coach plan: ${planData.methodology} methodology`,
         })
         .select()
