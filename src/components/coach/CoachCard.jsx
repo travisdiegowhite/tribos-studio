@@ -259,7 +259,6 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
           workouts_completed: 0,
           workouts_total: actualWorkouts.length,
           compliance_percentage: 0,
-          notes: planData.notes || `AI Coach plan: ${planData.methodology} methodology`,
         })
         .select()
         .single();
@@ -276,7 +275,6 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
         target_tss: w.target_tss || null,
         target_duration: w.duration_minutes || null,
         completed: false,
-        notes: null,
       }));
 
       const { error: workoutsError } = await supabase
