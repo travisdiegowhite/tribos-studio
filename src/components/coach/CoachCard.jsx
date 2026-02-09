@@ -155,6 +155,18 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
           userId: user?.id,
           maxTokens: 1024,
           quickMode: true,
+          userAvailability: weeklyAvailability.length > 0 ? {
+            weeklyAvailability: weeklyAvailability.map((d) => ({
+              dayOfWeek: d.dayOfWeek,
+              dayName: d.dayName,
+              status: d.status,
+              maxDurationMinutes: d.maxDurationMinutes,
+            })),
+            preferences: availabilityPreferences ? {
+              maxWorkoutsPerWeek: availabilityPreferences.maxWorkoutsPerWeek,
+              preferWeekendLongRides: availabilityPreferences.preferWeekendLongRides,
+            } : null,
+          } : null,
         }),
       });
 

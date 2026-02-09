@@ -237,7 +237,19 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
           trainingContext: trainingContext,
           userId: user?.id,
-          maxTokens: 2048
+          maxTokens: 2048,
+          userAvailability: weeklyAvailability.length > 0 ? {
+            weeklyAvailability: weeklyAvailability.map((d) => ({
+              dayOfWeek: d.dayOfWeek,
+              dayName: d.dayName,
+              status: d.status,
+              maxDurationMinutes: d.maxDurationMinutes,
+            })),
+            preferences: availabilityPreferences ? {
+              maxWorkoutsPerWeek: availabilityPreferences.maxWorkoutsPerWeek,
+              preferWeekendLongRides: availabilityPreferences.preferWeekendLongRides,
+            } : null,
+          } : null,
         })
       });
 
