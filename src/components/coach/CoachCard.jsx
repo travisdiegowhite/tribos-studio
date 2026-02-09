@@ -23,7 +23,9 @@ import {
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import { depth } from '../../theme';
+import TrainingPlanPreview from './TrainingPlanPreview';
 
 // Generate coaching message — now includes workout recommendation for consistency
 function getCoachingMessage(trainingContext, workoutRecommendation) {
@@ -64,15 +66,50 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
   const [responseActions, setResponseActions] = useState([]);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState([]);
+  const [trainingPlanPreview, setTrainingPlanPreview] = useState(null);
 
   // Get coaching message based on current form
   const coachingMessage = getCoachingMessage(trainingContext, workoutRecommendation);
 
-  // Reset response when component unmounts or context changes significantly
+  // Load conversation history from DB on mount
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const loadHistory = async () => {
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('coach_conversations')
+          .select('role, message, timestamp')
+          .eq('user_id', user.id)
+          .in('role', ['user', 'coach'])
+          .order('timestamp', { ascending: false })
+          .limit(20);
+
+        if (fetchError) throw fetchError;
+
+        const history = (data || [])
+          .reverse()
+          .map((msg) => ({
+            role: msg.role === 'coach' ? 'assistant' : 'user',
+            content: msg.message,
+          }));
+
+        setConversationHistory(history);
+      } catch (err) {
+        console.error('Error loading conversation history:', err);
+      }
+    };
+
+    loadHistory();
+  }, [user?.id]);
+
+  // Reset response when context changes significantly
   useEffect(() => {
     setResponse(null);
     setResponseActions([]);
     setError(null);
+    setTrainingPlanPreview(null);
   }, [trainingContext]);
 
   const handleSubmit = async () => {
@@ -103,7 +140,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
         credentials: 'include',
         body: JSON.stringify({
           message: query.trim(),
-          conversationHistory: [],
+          conversationHistory: conversationHistory,
           trainingContext: trainingContext,
           userLocalDate: userLocalDate,
           userId: user?.id,
@@ -120,6 +157,11 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
       const data = await res.json();
       setResponse(data.message);
 
+      // Handle training plan preview from AI
+      if (data.trainingPlanPreview && !data.trainingPlanPreview.error) {
+        setTrainingPlanPreview(data.trainingPlanPreview);
+      }
+
       // Map workout recommendations to actions
       if (data.workoutRecommendations?.length > 0) {
         setResponseActions(data.workoutRecommendations.map((rec, idx) => ({
@@ -129,6 +171,42 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
         })));
       } else {
         setResponseActions([]);
+      }
+
+      // Update in-session conversation history
+      setConversationHistory((prev) => [
+        ...prev,
+        { role: 'user', content: query.trim() },
+        { role: 'assistant', content: data.message },
+      ]);
+
+      // Save to DB for persistence across sessions
+      try {
+        await supabase.from('coach_conversations').insert([
+          {
+            user_id: user.id,
+            role: 'user',
+            message: query.trim(),
+            message_type: 'chat',
+            context_snapshot: { coach_type: 'training' },
+            coach_type: 'strategist',
+            timestamp: new Date().toISOString(),
+          },
+          {
+            user_id: user.id,
+            role: 'coach',
+            message: data.message,
+            message_type: 'chat',
+            context_snapshot: {
+              coach_type: 'training',
+              ...(data.workoutRecommendations && { workoutRecommendations: data.workoutRecommendations }),
+            },
+            coach_type: 'strategist',
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      } catch (dbErr) {
+        console.error('Could not persist messages:', dbErr);
       }
 
       setQuery('');
@@ -147,6 +225,83 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
         title: 'Workout Added',
         message: `${workout.name || workout.workout_id} added to your calendar`,
         color: 'lime',
+      });
+    }
+  };
+
+  const handleActivatePlan = async (planData) => {
+    if (!user?.id) return;
+
+    try {
+      // Mark existing active plans as completed
+      await supabase
+        .from('training_plans')
+        .update({ status: 'completed', ended_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+
+      const actualWorkouts = planData.workouts.filter(
+        (w) => w.workout_type !== 'rest' && w.workout_id
+      );
+
+      const { data: newPlan, error: planError } = await supabase
+        .from('training_plans')
+        .insert({
+          user_id: user.id,
+          template_id: `ai_coach_${planData.methodology}`,
+          name: planData.name,
+          duration_weeks: planData.duration_weeks,
+          methodology: planData.methodology,
+          goal: planData.goal,
+          status: 'active',
+          started_at: planData.start_date,
+          current_week: 1,
+          workouts_completed: 0,
+          workouts_total: actualWorkouts.length,
+          compliance_percentage: 0,
+          auto_adjust_enabled: false,
+          notes: planData.notes || `AI Coach plan: ${planData.methodology} methodology`,
+        })
+        .select()
+        .single();
+
+      if (planError) throw planError;
+
+      const workoutsToInsert = planData.workouts.map((w) => ({
+        plan_id: newPlan.id,
+        week_number: w.week_number,
+        day_of_week: w.day_of_week,
+        scheduled_date: w.scheduled_date,
+        workout_type: w.workout_type || 'rest',
+        workout_id: w.workout_id || null,
+        target_tss: w.target_tss || null,
+        target_duration: w.duration_minutes || null,
+        completed: false,
+        notes: null,
+      }));
+
+      const { error: workoutsError } = await supabase
+        .from('planned_workouts')
+        .insert(workoutsToInsert);
+
+      if (workoutsError) throw workoutsError;
+
+      notifications.show({
+        title: 'Training Plan Activated',
+        message: `${planData.name} — ${actualWorkouts.length} workouts added to your calendar`,
+        color: 'lime',
+      });
+
+      setTrainingPlanPreview(null);
+      if (onAddWorkout) {
+        onAddWorkout({ _planActivated: true, planId: newPlan.id });
+      }
+    } catch (err) {
+      console.error('Error activating plan:', err);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to activate training plan. Please try again.',
+        color: 'red',
       });
     }
   };
@@ -247,6 +402,16 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                       </Button>
                     ))}
                   </Group>
+                )}
+                {trainingPlanPreview && (
+                  <Box mt="sm">
+                    <TrainingPlanPreview
+                      plan={trainingPlanPreview}
+                      onActivate={handleActivatePlan}
+                      onDismiss={() => setTrainingPlanPreview(null)}
+                      compact
+                    />
+                  </Box>
                 )}
               </Paper>
             ) : null}

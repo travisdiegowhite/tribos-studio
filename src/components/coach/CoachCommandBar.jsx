@@ -30,6 +30,7 @@ import { sharedTokens } from '../../theme';
 import CoachQuickActions from './CoachQuickActions';
 import CoachRecentQuestions from './CoachRecentQuestions';
 import CoachResponseArea from './CoachResponseArea';
+import TrainingPlanPreview from './TrainingPlanPreview';
 
 // Get the API base URL
 const getApiBaseUrl = () => '';
@@ -48,6 +49,37 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
   const [error, setError] = useState(null);
   const [recentQuestions, setRecentQuestions] = useState([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState([]);
+  const [trainingPlanPreview, setTrainingPlanPreview] = useState(null);
+
+  // Load conversation history for AI memory
+  const loadConversationHistory = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('coach_conversations')
+        .select('role, message, timestamp')
+        .eq('user_id', user.id)
+        .in('role', ['user', 'coach'])
+        .order('timestamp', { ascending: false })
+        .limit(20);
+
+      if (fetchError) throw fetchError;
+
+      // Reverse to chronological order and map to API format
+      const history = (data || [])
+        .reverse()
+        .map((msg) => ({
+          role: msg.role === 'coach' ? 'assistant' : 'user',
+          content: msg.message,
+        }));
+
+      setConversationHistory(history);
+    } catch (err) {
+      console.error('Error loading conversation history:', err);
+    }
+  }, [user?.id]);
 
   // Load recent questions
   const loadRecentQuestions = useCallback(async () => {
@@ -103,16 +135,18 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         inputRef.current?.focus();
       }, 100);
 
-      // Load recent questions
+      // Load recent questions and conversation history
       loadRecentQuestions();
+      loadConversationHistory();
     } else {
       // Reset state when closing
       setQuery('');
       setResponse(null);
       setSuggestedActions([]);
       setError(null);
+      setTrainingPlanPreview(null);
     }
-  }, [isOpen, prefillQuery, clearPrefill, loadRecentQuestions]);
+  }, [isOpen, prefillQuery, clearPrefill, loadRecentQuestions, loadConversationHistory]);
 
   // Submit query
   const handleSubmit = async () => {
@@ -122,6 +156,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
     setError(null);
     setResponse(null);
     setSuggestedActions([]);
+    setTrainingPlanPreview(null);
 
     try {
       // Get user's local date
@@ -145,12 +180,12 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         credentials: 'include',
         body: JSON.stringify({
           message: query.trim(),
-          conversationHistory: [],
+          conversationHistory: conversationHistory,
           trainingContext: trainingContext,
           userLocalDate: userLocalDate,
           userId: user?.id,
-          maxTokens: 1024, // Shorter responses for command bar
-          quickMode: true, // Signal to API for concise responses
+          maxTokens: 1024,
+          quickMode: true,
         }),
       });
 
@@ -162,6 +197,11 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
       const data = await res.json();
 
       setResponse(data.message);
+
+      // Handle training plan preview from AI
+      if (data.trainingPlanPreview && !data.trainingPlanPreview.error) {
+        setTrainingPlanPreview(data.trainingPlanPreview);
+      }
 
       // Map workout recommendations to suggested actions if present
       if (data.workoutRecommendations?.length > 0) {
@@ -177,7 +217,14 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         setSuggestedActions(data.suggestedActions);
       }
 
-      // Save to conversation history
+      // Update in-session conversation history
+      setConversationHistory((prev) => [
+        ...prev,
+        { role: 'user', content: query.trim() },
+        { role: 'assistant', content: data.message },
+      ]);
+
+      // Save to conversation history in DB
       await saveMessage('user', query.trim());
       await saveMessage('assistant', data.message, data.workoutRecommendations);
     } catch (err) {
@@ -212,6 +259,87 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
     }
   };
 
+  // Handle plan activation from AI preview
+  const handleActivatePlan = useCallback(async (planData) => {
+    if (!user?.id) return;
+
+    try {
+      // Mark existing active plans as completed
+      await supabase
+        .from('training_plans')
+        .update({ status: 'completed', ended_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+
+      // Count actual workouts (non-rest days)
+      const actualWorkouts = planData.workouts.filter(
+        (w) => w.workout_type !== 'rest' && w.workout_id
+      );
+
+      // Insert training plan
+      const { data: newPlan, error: planError } = await supabase
+        .from('training_plans')
+        .insert({
+          user_id: user.id,
+          template_id: `ai_coach_${planData.methodology}`,
+          name: planData.name,
+          duration_weeks: planData.duration_weeks,
+          methodology: planData.methodology,
+          goal: planData.goal,
+          status: 'active',
+          started_at: planData.start_date,
+          current_week: 1,
+          workouts_completed: 0,
+          workouts_total: actualWorkouts.length,
+          compliance_percentage: 0,
+          auto_adjust_enabled: false,
+          notes: planData.notes || `AI Coach plan: ${planData.methodology} methodology`,
+        })
+        .select()
+        .single();
+
+      if (planError) throw planError;
+
+      // Insert all planned workouts
+      const workoutsToInsert = planData.workouts.map((w) => ({
+        plan_id: newPlan.id,
+        week_number: w.week_number,
+        day_of_week: w.day_of_week,
+        scheduled_date: w.scheduled_date,
+        workout_type: w.workout_type || 'rest',
+        workout_id: w.workout_id || null,
+        target_tss: w.target_tss || null,
+        target_duration: w.duration_minutes || null,
+        completed: false,
+        notes: null,
+      }));
+
+      const { error: workoutsError } = await supabase
+        .from('planned_workouts')
+        .insert(workoutsToInsert);
+
+      if (workoutsError) throw workoutsError;
+
+      notifications.show({
+        title: 'Training Plan Activated',
+        message: `${planData.name} — ${actualWorkouts.length} workouts added to your calendar`,
+        color: 'lime',
+      });
+
+      setTrainingPlanPreview(null);
+
+      // Trigger calendar refresh
+      onAddWorkout?.({ _planActivated: true, planId: newPlan.id });
+    } catch (err) {
+      console.error('Error activating plan:', err);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to activate training plan. Please try again.',
+        color: 'red',
+      });
+    }
+  }, [user?.id, onAddWorkout]);
+
   // Handle action button clicks
   const handleActionClick = (action) => {
     if (action.actionType === 'add_to_calendar' && action.payload) {
@@ -222,7 +350,6 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         color: 'lime',
       });
     }
-    // Handle other action types as needed
   };
 
   // Handle keyboard
@@ -371,6 +498,15 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                   onRetry={handleSubmit}
                   onActionClick={handleActionClick}
                 />
+
+                {/* Training Plan Preview */}
+                {trainingPlanPreview && (
+                  <TrainingPlanPreview
+                    plan={trainingPlanPreview}
+                    onActivate={handleActivatePlan}
+                    onDismiss={() => setTrainingPlanPreview(null)}
+                  />
+                )}
 
                 {/* Quick Actions - only show when no response */}
                 {showSuggestions && (
