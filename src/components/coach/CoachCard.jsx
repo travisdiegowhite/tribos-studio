@@ -26,6 +26,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { depth } from '../../theme';
 import TrainingPlanPreview from './TrainingPlanPreview';
+import { useUserAvailability } from '../../hooks/useUserAvailability';
+import { redistributeWorkouts } from '../../utils/trainingPlans';
 
 // Generate coaching message — now includes workout recommendation for consistency
 function getCoachingMessage(trainingContext, workoutRecommendation) {
@@ -59,6 +61,13 @@ function getCoachingMessage(trainingContext, workoutRecommendation) {
 function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
   const { user } = useAuth();
   const inputRef = useRef(null);
+
+  // Load user availability for schedule-aware plan activation
+  const {
+    weeklyAvailability,
+    dateOverrides,
+    preferences: availabilityPreferences,
+  } = useUserAvailability({ userId: user?.id ?? null, autoLoad: true });
 
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -265,7 +274,8 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
 
       if (planError) throw planError;
 
-      const workoutsToInsert = planData.workouts.map((w) => ({
+      // Build initial workouts list
+      let workoutsToInsert = planData.workouts.map((w) => ({
         plan_id: newPlan.id,
         user_id: user.id,
         week_number: w.week_number,
@@ -280,15 +290,72 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
         completed: false,
       }));
 
+      // Apply schedule-aware redistribution if user has availability set
+      const hasBlockedDays = weeklyAvailability.some((d) => d.status === 'blocked');
+      let redistributionCount = 0;
+
+      if (hasBlockedDays) {
+        const workoutsForRedistribution = workoutsToInsert
+          .filter((w) => w.workout_id && w.workout_type !== 'rest')
+          .map((w) => ({
+            originalDate: w.scheduled_date,
+            dayOfWeek: w.day_of_week,
+            weekNumber: w.week_number,
+            workoutId: w.workout_id,
+            workoutType: w.workout_type,
+            targetTSS: w.target_tss,
+            targetDuration: w.target_duration,
+          }));
+
+        const redistributions = redistributeWorkouts(
+          workoutsForRedistribution,
+          weeklyAvailability,
+          dateOverrides,
+          {
+            maxWorkoutsPerWeek: availabilityPreferences?.maxWorkoutsPerWeek ?? null,
+            preferWeekendLongRides: availabilityPreferences?.preferWeekendLongRides ?? true,
+          }
+        );
+
+        // Apply redistributions to workouts
+        const movedDates = new Map();
+        for (const r of redistributions) {
+          if (r.originalDate !== r.newDate) {
+            movedDates.set(r.originalDate + '|' + r.workoutId, r.newDate);
+            redistributionCount++;
+          }
+        }
+
+        if (movedDates.size > 0) {
+          workoutsToInsert = workoutsToInsert.map((w) => {
+            const key = w.scheduled_date + '|' + w.workout_id;
+            const newDate = movedDates.get(key);
+            if (newDate) {
+              const newDateObj = new Date(newDate + 'T12:00:00');
+              return {
+                ...w,
+                scheduled_date: newDate,
+                day_of_week: newDateObj.getDay(),
+              };
+            }
+            return w;
+          });
+        }
+      }
+
       const { error: workoutsError } = await supabase
         .from('planned_workouts')
         .insert(workoutsToInsert);
 
       if (workoutsError) throw workoutsError;
 
+      const scheduleNote = redistributionCount > 0
+        ? ` (${redistributionCount} workout${redistributionCount > 1 ? 's' : ''} moved to fit your schedule)`
+        : '';
+
       notifications.show({
         title: 'Training Plan Activated',
-        message: `${planData.name} — ${actualWorkouts.length} workouts added to your calendar`,
+        message: `${planData.name} — ${actualWorkouts.length} workouts added to your calendar${scheduleNote}`,
         color: 'lime',
       });
 

@@ -23,6 +23,8 @@ import { tokens } from '../theme';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
+import { useUserAvailability } from '../hooks/useUserAvailability';
+import { redistributeWorkouts } from '../utils/trainingPlans';
 
 // Get the API base URL
 const getApiBaseUrl = () => {
@@ -97,6 +99,14 @@ const resolveScheduledDate = (dateStr) => {
 
 function AICoach({ trainingContext, onAddWorkout, activePlan }) {
   const { user } = useAuth();
+
+  // Load user availability for schedule-aware plan activation
+  const {
+    weeklyAvailability,
+    dateOverrides,
+    preferences: availabilityPreferences,
+  } = useUserAvailability({ userId: user?.id ?? null, autoLoad: true });
+
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -533,7 +543,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       console.log(`✅ Plan created: ${newPlan.id}`);
 
       // Prepare all workouts for batch insert
-      const workoutsToInsert = planPreview.workouts
+      let workoutsToInsert = planPreview.workouts
         .filter(w => w.workout_type !== 'rest') // Don't insert rest days
         .map(w => ({
           plan_id: newPlan.id,
@@ -550,6 +560,59 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           notes: `AI Coach: ${planPreview.methodology} training - ${w.phase} phase`,
           completed: false
         }));
+
+      // Apply schedule-aware redistribution if user has blocked days
+      const hasBlockedDays = weeklyAvailability.some((d) => d.status === 'blocked');
+      let redistributionCount = 0;
+
+      if (hasBlockedDays) {
+        const workoutsForRedistribution = workoutsToInsert.map((w) => ({
+          originalDate: w.scheduled_date,
+          dayOfWeek: w.day_of_week,
+          weekNumber: w.week_number,
+          workoutId: w.workout_id,
+          workoutType: w.workout_type,
+          targetTSS: w.target_tss,
+          targetDuration: w.target_duration,
+        }));
+
+        const redistributions = redistributeWorkouts(
+          workoutsForRedistribution,
+          weeklyAvailability,
+          dateOverrides,
+          {
+            maxWorkoutsPerWeek: availabilityPreferences?.maxWorkoutsPerWeek ?? null,
+            preferWeekendLongRides: availabilityPreferences?.preferWeekendLongRides ?? true,
+          }
+        );
+
+        // Apply redistributions to workouts
+        const movedDates = new Map();
+        for (const r of redistributions) {
+          if (r.originalDate !== r.newDate) {
+            movedDates.set(r.originalDate + '|' + r.workoutId, r.newDate);
+            redistributionCount++;
+          }
+        }
+
+        if (movedDates.size > 0) {
+          workoutsToInsert = workoutsToInsert.map((w) => {
+            const key = w.scheduled_date + '|' + w.workout_id;
+            const newDate = movedDates.get(key);
+            if (newDate) {
+              const newDateObj = new Date(newDate + 'T12:00:00');
+              return {
+                ...w,
+                scheduled_date: newDate,
+                day_of_week: newDateObj.getDay(),
+              };
+            }
+            return w;
+          });
+
+          console.log(`📅 Redistributed ${redistributionCount} workouts to fit user schedule`);
+        }
+      }
 
       console.log(`📝 Inserting ${workoutsToInsert.length} workouts...`);
 
@@ -586,11 +649,15 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         console.log(`✅ All ${workoutsToInsert.length} workouts created successfully`);
       }
 
+      const scheduleNote = redistributionCount > 0
+        ? ` — ${redistributionCount} workout${redistributionCount > 1 ? 's' : ''} adjusted to fit your schedule`
+        : '';
+
       // Update notification to success
       notifications.update({
         id: notificationId,
         title: 'Training Plan Activated!',
-        message: `${planPreview.name} is now active with ${workoutsToInsert.length} workouts scheduled through ${planPreview.end_date}`,
+        message: `${planPreview.name} is now active with ${workoutsToInsert.length} workouts scheduled through ${planPreview.end_date}${scheduleNote}`,
         color: 'lime',
         icon: <IconCalendarPlus size={18} />,
         loading: false,
