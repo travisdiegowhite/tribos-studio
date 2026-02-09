@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tribos.studio - Site Architecture</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #d2a8ff;
+      --accent4: #f78166;
+      --accent5: #79c0ff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      margin-bottom: 2rem;
+    }
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem 2rem;
+      margin-bottom: 3rem;
+    }
+    .toc h2 { font-size: 1.2rem; margin-bottom: 1rem; color: var(--accent); }
+    .toc a {
+      color: var(--accent5);
+      text-decoration: none;
+      display: block;
+      padding: 0.25rem 0;
+    }
+    .toc a:hover { text-decoration: underline; }
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+    .section h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .section h2 .num {
+      background: var(--accent);
+      color: var(--bg);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .section p.desc {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+    .mermaid {
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+    .note {
+      background: rgba(88, 166, 255, 0.1);
+      border-left: 3px solid var(--accent);
+      padding: 0.75rem 1rem;
+      margin-top: 1rem;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+    @media (max-width: 768px) {
+      .container { padding: 1rem; }
+      h1 { font-size: 1.8rem; }
+      .section { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>tribos.studio Architecture</h1>
+    <p class="subtitle">Complete site architecture flowcharts showing components, data flow, and dependencies</p>
+
+    <div class="toc">
+      <h2>Table of Contents</h2>
+      <a href="#high-level">1. High-Level System Architecture</a>
+      <a href="#provider">2. Provider & Context Hierarchy</a>
+      <a href="#routing">3. Page Routing & Navigation</a>
+      <a href="#dashboard">4. Dashboard Page Dependencies</a>
+      <a href="#routebuilder">5. Route Builder Architecture</a>
+      <a href="#training">6. Training System Architecture</a>
+      <a href="#planner">7. Training Planner Dependencies</a>
+      <a href="#community">8. Community (The Cafe) Architecture</a>
+      <a href="#coach">9. AI Coach System</a>
+      <a href="#integrations">10. External Integrations & OAuth</a>
+      <a href="#data">11. Data Flow & State Management</a>
+      <a href="#api">12. API Routes & Backend</a>
+    </div>
+
+    <!-- 1. HIGH-LEVEL SYSTEM ARCHITECTURE -->
+    <div class="section" id="high-level">
+      <h2><span class="num">1</span> High-Level System Architecture</h2>
+      <p class="desc">The complete system: React SPA on Vite, with Vercel serverless backend, Supabase database, and multiple external service integrations.</p>
+      <div class="mermaid">
+graph TB
+  subgraph CLIENT["Frontend (React 19 + Vite)"]
+    direction TB
+    APP["App.jsx<br/>Router & Providers"]
+    PAGES["Pages (11 routes)"]
+    COMPS["Components (140+)"]
+    STORES["Zustand Stores<br/>routeBuilder | trainingPlanner"]
+    CONTEXTS["React Contexts<br/>Auth | Preferences | Coach"]
+    HOOKS["Custom Hooks (12+)"]
+    UTILS["Utilities & Services (80+)"]
+
+    APP --> PAGES
+    APP --> CONTEXTS
+    PAGES --> COMPS
+    COMPS --> HOOKS
+    HOOKS --> STORES
+    HOOKS --> UTILS
+    COMPS --> UTILS
+  end
+
+  subgraph BACKEND["Backend (Vercel Serverless)"]
+    API["API Routes (25+)<br/>/api/*.js"]
+    CRON["Cron Jobs<br/>Garmin token refresh<br/>Webhook processing"]
+    CF["Cloudflare Worker<br/>Garmin webhook"]
+  end
+
+  subgraph DATABASE["Database (Supabase)"]
+    PG["PostgreSQL<br/>+ Row-Level Security"]
+    AUTH_SVC["Auth Service<br/>Email, Google OAuth"]
+    REALTIME["Realtime<br/>Subscriptions"]
+  end
+
+  subgraph EXTERNAL["External Services"]
+    STRAVA["Strava API"]
+    GARMIN["Garmin Connect"]
+    WAHOO["Wahoo Fitness"]
+    GCAL["Google Calendar"]
+    CLAUDE["Claude AI<br/>(Anthropic)"]
+    MAPBOX["Mapbox<br/>Maps & Geocoding"]
+    ROUTING["Routing Engines<br/>GraphHopper | BRouter<br/>Stadia/Valhalla"]
+    WEATHER["OpenWeatherMap"]
+  end
+
+  subgraph MONITORING["Monitoring & Analytics"]
+    SENTRY["Sentry<br/>Error Tracking"]
+    POSTHOG["PostHog<br/>Product Analytics"]
+    VANL["Vercel Analytics"]
+  end
+
+  CLIENT -->|"fetch /api/*"| BACKEND
+  CLIENT -->|"Direct queries<br/>(RLS enforced)"| DATABASE
+  BACKEND --> DATABASE
+  BACKEND --> EXTERNAL
+  CLIENT --> MONITORING
+  CRON --> DATABASE
+  CF --> DATABASE
+  STRAVA -->|"Webhooks"| API
+  GARMIN -->|"Webhooks"| CF
+  WAHOO -->|"Webhooks"| API
+
+  classDef client fill:#1a365d,stroke:#58a6ff,color:#e6edf3
+  classDef backend fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef db fill:#3a1a3a,stroke:#d2a8ff,color:#e6edf3
+  classDef external fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+  classDef monitoring fill:#1a2a3a,stroke:#79c0ff,color:#e6edf3
+
+  class CLIENT client
+  class BACKEND backend
+  class DATABASE db
+  class EXTERNAL external
+  class MONITORING monitoring
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#58a6ff"></div>Frontend (Client)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div>Backend (Serverless)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#d2a8ff"></div>Database</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f78166"></div>External Services</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#79c0ff"></div>Monitoring</div>
+      </div>
+    </div>
+
+    <!-- 2. PROVIDER & CONTEXT HIERARCHY -->
+    <div class="section" id="provider">
+      <h2><span class="num">2</span> Provider & Context Hierarchy</h2>
+      <p class="desc">How providers wrap the app from main.jsx down to individual pages. Each layer adds functionality that all children can access.</p>
+      <div class="mermaid">
+graph TD
+  MAIN["main.jsx<br/>Entry Point"] --> SENTRY_INIT["Sentry.init()"]
+  MAIN --> POSTHOG_INIT["PostHog.init()"]
+  MAIN --> PWA["PWA Registration<br/>(auto-update every 5min)"]
+  MAIN --> STRICT["React.StrictMode"]
+
+  STRICT --> COLOR["ColorSchemeScript<br/>Dark mode default"]
+  COLOR --> MANTINE["MantineProvider<br/>Theme config, dark scheme"]
+  MANTINE --> DATES["DatesProvider<br/>firstDayOfWeek: Sunday"]
+  DATES --> ERR["ErrorBoundary<br/>Catches render errors"]
+  ERR --> AUTH_P["AuthProvider<br/>User session & methods"]
+  AUTH_P --> PREFS["UserPreferencesProvider<br/>Timezone & units"]
+  PREFS --> COACH_P["CoachCommandBarProvider<br/>Cmd+K state"]
+  COACH_P --> ROUTER["BrowserRouter<br/>React Router v7"]
+
+  ROUTER --> TRACKER["PageTracker<br/>Analytics on route change"]
+  ROUTER --> ROUTES["AppRoutes<br/>Route definitions"]
+  ROUTER --> CMD["CoachCommandBar<br/>Global Cmd+K overlay"]
+
+  ROUTES --> PUB["Public Routes<br/>/ | /auth | /privacy | /terms"]
+  ROUTES --> PROT["Protected Routes<br/>ProtectedRoute wrapper"]
+  PROT --> SHELL["AppShell<br/>Layout + Navbar"]
+  SHELL --> DASH["Dashboard"]
+  SHELL --> RB["RouteBuilder"]
+  SHELL --> TD["TrainingDashboard"]
+  SHELL --> PP["PlannerPage"]
+  SHELL --> COMM["CommunityPage"]
+  SHELL --> SETT["Settings"]
+  SHELL --> ADMIN["Admin"]
+
+  classDef init fill:#2d1b4e,stroke:#d2a8ff,color:#e6edf3
+  classDef provider fill:#1a365d,stroke:#58a6ff,color:#e6edf3
+  classDef router fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef page fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+
+  class MAIN,SENTRY_INIT,POSTHOG_INIT,PWA init
+  class STRICT,COLOR,MANTINE,DATES,ERR,AUTH_P,PREFS,COACH_P provider
+  class ROUTER,TRACKER,ROUTES,CMD,PUB,PROT,SHELL router
+  class DASH,RB,TD,PP,COMM,SETT,ADMIN page
+      </div>
+      <div class="note">Every protected page has access to: Auth state, User preferences (units/timezone), Coach command bar, Mantine theme, and Error boundary protection.</div>
+    </div>
+
+    <!-- 3. PAGE ROUTING & NAVIGATION -->
+    <div class="section" id="routing">
+      <h2><span class="num">3</span> Page Routing & Navigation</h2>
+      <p class="desc">All routes in the app, showing public vs protected access and navigation relationships.</p>
+      <div class="mermaid">
+graph LR
+  subgraph PUBLIC["Public (No Auth)"]
+    LAND["/ <br/>Landing Page"]
+    AUTH_PAGE["/auth<br/>Sign Up / Login"]
+    PRIVACY["/privacy<br/>Privacy Policy"]
+    TERMS["/terms<br/>Terms of Service"]
+  end
+
+  subgraph OAUTH["OAuth Callbacks"]
+    AC["/auth/callback<br/>Email Confirm"]
+    SC["/oauth/strava/callback"]
+    GC["/oauth/garmin/callback"]
+    GOC["/oauth/google/callback"]
+    WC["/wahoo/callback"]
+  end
+
+  subgraph PROTECTED["Protected (Auth Required)"]
+    DASH["/dashboard<br/>Home & Activity Feed"]
+    RB_NEW["/routes/new<br/>Route Builder"]
+    RB_EDIT["/routes/:id<br/>Edit Route"]
+    TRAIN["/training<br/>Training Analysis"]
+    PLAN["/planner<br/>Training Planner"]
+    CAFE["/community<br/>The Cafe"]
+    SET["/settings<br/>Settings & Integrations"]
+    ADM["/admin<br/>Admin Dashboard"]
+  end
+
+  NOT_FOUND["/*<br/>404 Not Found"]
+
+  LAND -->|"Get Started"| AUTH_PAGE
+  AUTH_PAGE -->|"Login Success"| DASH
+  DASH -->|"Navbar"| RB_NEW
+  DASH -->|"Navbar"| TRAIN
+  DASH -->|"Navbar"| CAFE
+  DASH -->|"Navbar"| SET
+  RB_NEW -->|"Save route"| RB_EDIT
+  TRAIN -->|"Open planner"| PLAN
+  SET -->|"Connect Strava"| SC
+  SET -->|"Connect Garmin"| GC
+  SET -->|"Connect Wahoo"| WC
+  SET -->|"Connect Calendar"| GOC
+
+  classDef pub fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef oauth fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+  classDef prot fill:#1a365d,stroke:#58a6ff,color:#e6edf3
+  classDef notfound fill:#3a1a1a,stroke:#f85149,color:#e6edf3
+
+  class LAND,AUTH_PAGE,PRIVACY,TERMS pub
+  class AC,SC,GC,GOC,WC oauth
+  class DASH,RB_NEW,RB_EDIT,TRAIN,PLAN,CAFE,SET,ADM prot
+  class NOT_FOUND notfound
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div>Public pages</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f78166"></div>OAuth callbacks</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#58a6ff"></div>Protected pages</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div>404 fallback</div>
+      </div>
+    </div>
+
+    <!-- 4. DASHBOARD PAGE -->
+    <div class="section" id="dashboard">
+      <h2><span class="num">4</span> Dashboard Page Dependencies</h2>
+      <p class="desc">What the Dashboard page uses: hooks for data, components for display, and services for fetching.</p>
+      <div class="mermaid">
+graph TB
+  DASH["Dashboard.jsx"]
+
+  subgraph HOOKS_USED["Hooks"]
+    UA["useAuth()<br/>User session"]
+    UC["useCommunity()<br/>Cafe data"]
+  end
+
+  subgraph DATA_SOURCES["Data Sources"]
+    SB_ACT["Supabase: activities"]
+    SB_PLANS["Supabase: training_plans"]
+    SB_PROFILE["Supabase: user_profiles"]
+  end
+
+  subgraph COMPONENTS_USED["Components"]
+    AM["ActivityMetrics<br/>Stats overview"]
+    RRM["RecentRidesMap<br/>Map of rides"]
+    TC["TrainingCalendar<br/>Calendar view"]
+    WS["WeekSummary<br/>Weekly stats"]
+    TP["TrainingProgress<br/>Plan progress"]
+    OM["OnboardingModal<br/>New user flow"]
+    WNM["WhatsNewModal<br/>Release notes"]
+    IW["ImportWizard<br/>Activity import"]
+    RRA["RampRateAlert<br/>Overtraining warning"]
+    BFW["BetaFeedbackWidget"]
+  end
+
+  subgraph CHILD_DEPS["Component Dependencies"]
+    AM --> UNITS["units.jsx<br/>km/mi conversion"]
+    RRM --> MAPBOX_GL["react-map-gl<br/>Mapbox"]
+    TC --> MANTINE_D["Mantine Dates"]
+    WS --> RECHARTS["Recharts"]
+    IW --> STRAVA_SVC["stravaService.js"]
+    IW --> FIT_PARSE["fitParser.js"]
+    IW --> GPX_PARSE["gpxParser.js"]
+  end
+
+  DASH --> HOOKS_USED
+  DASH --> DATA_SOURCES
+  DASH --> COMPONENTS_USED
+
+  classDef page fill:#1a365d,stroke:#58a6ff,color:#e6edf3
+  classDef hook fill:#2d1b4e,stroke:#d2a8ff,color:#e6edf3
+  classDef data fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef comp fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+  classDef dep fill:#1a2a3a,stroke:#79c0ff,color:#e6edf3
+
+  class DASH page
+  class UA,UC hook
+  class SB_ACT,SB_PLANS,SB_PROFILE data
+  class AM,RRM,TC,WS,TP,OM,WNM,IW,RRA,BFW comp
+  class UNITS,MAPBOX_GL,MANTINE_D,RECHARTS,STRAVA_SVC,FIT_PARSE,GPX_PARSE dep
+      </div>
+    </div>
+
+    <!-- 5. ROUTE BUILDER ARCHITECTURE -->
+    <div class="section" id="routebuilder">
+      <h2><span class="num">5</span> Route Builder Architecture</h2>
+      <p class="desc">The most complex page: interactive map editing with multiple routing engines, AI generation, and rich analysis tools.</p>
+      <div class="mermaid">
+graph TB
+  RB["RouteBuilder.jsx"]
+
+  subgraph STATE["State Management"]
+    ZS["routeBuilderStore<br/>(Zustand + localStorage)<br/>geometry, waypoints, stats,<br/>viewport, mode, AI suggestions"]
+  end
+
+  subgraph MAP_LAYER["Map & Interaction"]
+    MAP["react-map-gl<br/>Mapbox GL"]
+    MC["MapControls"]
+    MTO["MapTutorialOverlay"]
+    BIL["BikeInfrastructureLayer"]
+    ARL["AlternativeRouteLayers"]
+    RPOI["RoutePOILayer"]
+    IC["IntervalCues<br/>Workout markers on route"]
+  end
+
+  subgraph PANELS["Side Panels & UI"]
+    MS["ModeSelector<br/>AI | Manual | Edit"]
+    WL["WaypointList<br/>Ordered waypoints"]
+    RSP["RouteStatsPanel<br/>Distance, elevation, time"]
+    EP["ElevationProfile<br/>Elevation chart"]
+    PP["POIPanel<br/>Points of interest"]
+    SAP["SegmentAlternativesPanel<br/>Route segment options"]
+    AIEP["AIEditPanel<br/>AI route editing"]
+    WW["WeatherWidget<br/>Forecast for route"]
+    TPC["TirePressureCalculator"]
+    FC["FuelCard<br/>Nutrition estimate"]
+    REM["RouteExportMenu<br/>GPX, FIT export"]
+    SRD["SavedRoutesDrawer<br/>Saved routes list"]
+  end
+
+  subgraph ROUTING_ENGINES["Routing Engines"]
+    SCR["smartCyclingRouter.js<br/>Orchestrator"]
+    GH["graphHopper.js"]
+    BR["brouter.js"]
+    SM["stadiaMapsRouter.js<br/>Valhalla"]
+    SCR --> GH
+    SCR --> BR
+    SCR --> SM
+  end
+
+  subgraph AI_ROUTE["AI Route Generation"]
+    AIRG["aiRouteGenerator.js<br/>Claude-powered generation"]
+    AIRE["aiRouteEditService.js<br/>AI route editing"]
+    IRB["iterativeRouteBuilder.js<br/>Step-by-step building"]
+    CRS["claudeRouteService.js<br/>Claude API client"]
+    AIRG --> CRS
+    AIRE --> CRS
+    IRB --> CRS
+  end
+
+  subgraph ANALYSIS["Route Analysis"]
+    ELEV["elevation.js<br/>Elevation data"]
+    GRAD["routeGradient.js<br/>Gradient coloring"]
+    SURF["surfaceOverlay.js<br/>Road surface types"]
+    RPOIS["routePOIService.js<br/>Find POIs"]
+    SCORE["routeScoring.js<br/>Preference scoring"]
+    OPT["routeOptimizer.js<br/>Route optimization"]
+    PETA["personalizedETA.js<br/>Fitness-aware ETA"]
+    DIR["directions.js<br/>Turn-by-turn"]
+  end
+
+  subgraph HOOKS_RB["Hooks"]
+    URM["useRouteManipulation<br/>Snap-to-road, editing"]
+    URO["useRouteOperations<br/>Save, load, delete"]
+  end
+
+  RB --> STATE
+  RB --> MAP_LAYER
+  RB --> PANELS
+  RB --> HOOKS_RB
+  URM --> ROUTING_ENGINES
+  URM --> AI_ROUTE
+  PANELS --> ANALYSIS
+  MAP_LAYER --> STATE
+  EP --> ELEV
+  RPOI --> RPOIS
+  SAP --> SCR
+  AIEP --> AIRE
+  MS --> AIRG
+  RSP --> SCORE
+  WW -->|"/api/weather"| WEATHER_API["OpenWeatherMap"]
+
+  classDef page fill:#1a365d,stroke:#58a6ff,color:#e6edf3
+  classDef state fill:#2d1b4e,stroke:#d2a8ff,color:#e6edf3
+  classDef map fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef panel fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+  classDef engine fill:#3a1a1a,stroke:#f85149,color:#e6edf3
+  classDef ai fill:#1a2a3a,stroke:#79c0ff,color:#e6edf3
+  classDef analysis fill:#2a3a1a,stroke:#a3be8c,color:#e6edf3
+
+  class RB page
+  class ZS state
+  class MAP,MC,MTO,BIL,ARL,RPOI,IC map
+  class MS,WL,RSP,EP,PP,SAP,AIEP,WW,TPC,FC,REM,SRD panel
+  class SCR,GH,BR,SM engine
+  class AIRG,AIRE,IRB,CRS ai
+  class ELEV,GRAD,SURF,RPOIS,SCORE,OPT,PETA,DIR analysis
+      </div>
+      <div class="note">The Route Builder uses 3 routing engines (GraphHopper, BRouter, Stadia/Valhalla) orchestrated by smartCyclingRouter.js, plus AI-powered route generation via Claude. State is persisted to localStorage so in-progress routes survive page refreshes.</div>
+    </div>
+
+    <!-- 6. TRAINING SYSTEM -->
+    <div class="section" id="training">
+      <h2><span class="num">6</span> Training System Architecture</h2>
+      <p class="desc">The training analysis dashboard: power metrics, zone analysis, benchmarking, and training load tracking.</p>
+      <div class="mermaid">
+graph TB
+  TD["TrainingDashboard.jsx"]
+
+  subgraph HOOKS_T["Hooks & Data"]
+    UTP["useTrainingPlan<br/>Plan CRUD, progress"]
+    UA["useAuth()"]
+    SB["Supabase queries<br/>activities, plans, profiles"]
+  end
+
+  subgraph METRICS["Performance Metrics"]
+    PDC["PowerDurationCurve<br/>Power over time"]
+    CPM["CriticalPowerModel<br/>CP & W' estimation"]
+    AD["AerobicDecoupling<br/>Drift analysis"]
+    AB["AthleteBenchmarking<br/>Compare to peers"]
+    PR["PersonalRecordsCard<br/>PR tracking"]
+    ZDC["ZoneDistributionChart<br/>Power zones"]
+    HTC["HealthTrendsChart<br/>Health metrics"]
+    TLC["TrainingLoadChart<br/>TSS, CTL, ATL, TSB"]
+  end
+
+  subgraph PLANS["Training Plans"]
+    APC["ActivePlanCard<br/>Current plan status"]
+    PC["PlanCard<br/>Plan overview"]
+    PF["PlanFilters<br/>Filter & sort"]
+    PCM["PlanCustomizationModal<br/>Customize plan"]
+    SWM["SupplementWorkoutModal<br/>Extra workouts"]
+    ALM["ActivityLinkingModal<br/>Link rides to plan"]
+    TPB["TrainingPlanBrowser<br/>Browse all plans"]
+  end
+
+  subgraph ACTIVITY["Activity Components"]
+    RHT["RideHistoryTable<br/>Past rides"]
+    RAM["RideAnalysisModal<br/>Deep ride analysis"]
+    ID["IntervalDetection<br/>Find intervals in rides"]
+    RRA["RampRateAlert<br/>Overtraining alert"]
+    HCM["HealthCheckInModal"]
+  end
+
+  subgraph SERVICES_T["Services & Utils"]
+    FTP["ftp.js<br/>FTP calculations"]
+    RA["rideAnalysis.js<br/>Ride statistics"]
+    WR["workoutRecommendation.js<br/>Workout engine"]
+    TT["trainingTemplates.ts<br/>Plan templates"]
+    ADT["adaptationDetection.ts<br/>Detect stale plans"]
+    AT["adaptationTrigger.ts<br/>Trigger adaptations"]
+    FUEL["fueling.ts<br/>Nutrition calcs"]
+  end
+
+  subgraph DATA_T["Static Data"]
+    WL["workoutLibrary.ts<br/>100+ workouts"]
+    TPT["trainingPlanTemplates.ts<br/>50+ plan templates"]
+  end
+
+  TD --> HOOKS_T
+  TD --> METRICS
+  TD --> PLANS
+  TD --> ACTIVITY
+  PLANS --> SERVICES_T
+  METRICS --> SERVICES_T
+  SERVICES_T --> DATA_T
+
+  classDef page fill:#1a365d,stroke:#58a6ff,color:#e6edf3
+  classDef hook fill:#2d1b4e,stroke:#d2a8ff,color:#e6edf3
+  classDef metric fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef plan fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+  classDef activity fill:#1a2a3a,stroke:#79c0ff,color:#e6edf3
+  classDef service fill:#2a3a1a,stroke:#a3be8c,color:#e6edf3
+
+  class TD page
+  class UTP,UA,SB hook
+  class PDC,CPM,AD,AB,PR,ZDC,HTC,TLC metric
+  class APC,PC,PF,PCM,SWM,ALM,TPB plan
+  class RHT,RAM,ID,RRA,HCM activity
+  class FTP,RA,WR,TT,ADT,AT,FUEL service
+      </div>
+    </div>
+
+    <!-- 7. PLANNER DEPENDENCIES -->
+    <div class="section" id="planner">
+      <h2><span class="num">7</span> Training Planner Dependencies</h2>
+      <p class="desc">The drag-and-drop training planner: workout scheduling, adaptation insights, and goal-based planning.</p>
+      <div class="mermaid">
+graph TB
+  PP["PlannerPage.tsx"]
+
+  subgraph STATE_P["State"]
+    TPS["trainingPlannerStore<br/>(Zustand + Devtools)<br/>activePlanId, workouts,<br/>goals, aiHints, drag state"]
+  end
+
+  subgraph COMP_P["Planner Components"]
+    TP["TrainingPlanner.tsx<br/>Main drag-drop interface"]
+    TWC["TwoWeekCalendar.tsx<br/>2-week view"]
+    CDC["CalendarDayCell.tsx<br/>Day cell with workouts"]
+    WC["WorkoutCard.tsx<br/>Draggable workout"]
+    WDM["WorkoutDetailModal.tsx<br/>Workout editor"]
+    WLS["WorkoutLibrarySidebar.tsx<br/>Searchable library"]
+    PV["PeriodizationView.tsx<br/>Phase visualization"]
+    AIP["AdaptationInsightsPanel.tsx<br/>AI suggestions"]
+    AFM["AdaptationFeedbackModal.tsx"]
+    GI["GoalInput.tsx<br/>Goal setting"]
+  end
+
+  subgraph HOOKS_P["Hooks"]
+    UTP["useTrainingPlan<br/>Plan logic"]
+    UWA["useWorkoutAdaptations<br/>Detect needed changes"]
+    UUA["useUserAvailability<br/>Weekly schedule"]
+    UCT["useCrossTraining<br/>Cross-training recs"]
+  end
+
+  subgraph UTILS_P["Utilities"]
+    TPU["trainingPlans.ts<br/>Plan generation &<br/>redistribution (1223 lines)"]
+    WRM["workoutRouteMatch.ts<br/>Route-workout matching"]
+    ADD["adaptationDetection.ts<br/>Adaptation triggers"]
+    ATT["adaptationTrigger.ts<br/>Execute adaptations"]
+    WE["workoutExport.ts<br/>Export workouts"]
+  end
+
+  subgraph DATA_P["Data"]
+    WLB["workoutLibrary.ts<br/>100+ workouts"]
+    TPLT["trainingPlanTemplates.ts<br/>50+ templates"]
+  end
+
+  PP --> STATE_P
+  PP --> TP
+  TP --> TWC
+  TWC --> CDC
+  CDC --> WC
+  TP --> WLS
+  TP --> PV
+  TP --> AIP
+  WC -->|"click"| WDM
+  WLS --> WLB
+  PP --> HOOKS_P
+  UTP --> UTILS_P
+  UTILS_P --> DATA_P
+  UWA --> ADD
+  AIP --> ATT
+
+  classDef page fill:#1a365d,stroke:#58a6ff,color:#e6edf3
+  classDef state fill:#2d1b4e,stroke:#d2a8ff,color:#e6edf3
+  classDef comp fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+  classDef hook fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef util fill:#1a2a3a,stroke:#79c0ff,color:#e6edf3
+  classDef data fill:#2a3a1a,stroke:#a3be8c,color:#e6edf3
+
+  class PP page
+  class TPS state
+  class TP,TWC,CDC,WC,WDM,WLS,PV,AIP,AFM,GI comp
+  class UTP,UWA,UUA,UCT hook
+  class TPU,WRM,ADD,ATT,WE util
+  class WLB,TPLT data
+      </div>
+    </div>
+
+    <!-- 8. COMMUNITY -->
+    <div class="section" id="community">
+      <h2><span class="num">8</span> Community (The Cafe) Architecture</h2>
+      <p class="desc">Group discussions, weekly check-ins, and community engagement features.</p>
+      <div class="mermaid">
+graph TB
+  CP["CommunityPage.jsx"]
+
+  subgraph HOOKS_C["Hooks"]
+    UCM["useCommunity<br/>Cafe memberships,<br/>check-ins"]
+    UD["useDiscussions<br/>Discussion CRUD"]
+    UA["useAuth()"]
+  end
+
+  subgraph COMPONENTS_C["Components"]
+    DL["DiscussionList<br/>List of threads"]
+    DT["DiscussionThread<br/>Single thread view"]
+    CSM["CafeSettingsModal<br/>Configure cafe"]
+    CSW["CafeSummaryWidget<br/>Stats overview"]
+    WCI["WeeklyCheckInWidget<br/>Weekly form"]
+    CTL["ConversationThreadList<br/>Threaded replies"]
+    TLB["ThreadLinkBadge<br/>Cross-references"]
+  end
+
+  subgraph DATABASE_C["Database Tables"]
+    CAFES["cafes<br/>Cafe definitions"]
+    MEMBERS["cafe_members<br/>Memberships"]
+    DISC["discussions<br/>Thread content"]
+    CHECKINS["weekly_checkins<br/>Check-in data"]
+  end
+
+  subgraph API_C["API Routes"]
+    GTT["/api/generate-thread-title<br/>AI title generation"]
+    RW["/api/review-week<br/>Weekly review"]
+    AC["/api/accountability-coach<br/>Coach check-in"]
+  end
+
+  CP --> HOOKS_C
+  CP --> COMPONENTS_C
+  UCM --> DATABASE_C
+  UD --> DATABASE_C
+  DT --> CTL
+  DL -->|"Select"| DT
+  WCI -->|"Submit"| CHECKINS
+  CSW --> CAFES
+  DT --> GTT
+  WCI --> RW
+  WCI --> AC
+
+  classDef page fill:#1a365d,stroke:#58a6ff,color:#e6edf3
+  classDef hook fill:#2d1b4e,stroke:#d2a8ff,color:#e6edf3
+  classDef comp fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+  classDef db fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef api fill:#1a2a3a,stroke:#79c0ff,color:#e6edf3
+
+  class CP page
+  class UCM,UD,UA hook
+  class DL,DT,CSM,CSW,WCI,CTL,TLB comp
+  class CAFES,MEMBERS,DISC,CHECKINS db
+  class GTT,RW,AC api
+      </div>
+    </div>
+
+    <!-- 9. AI COACH -->
+    <div class="section" id="coach">
+      <h2><span class="num">9</span> AI Coach System</h2>
+      <p class="desc">The Cmd+K command bar: natural language queries to an AI coach that has context about the user's training, routes, and fitness.</p>
+      <div class="mermaid">
+graph TB
+  subgraph TRIGGER["Activation"]
+    CMDK["Cmd+K / Ctrl+K<br/>Keyboard shortcut"]
+    BTN["CoachCommandBarTrigger<br/>Button in UI"]
+  end
+
+  subgraph CONTEXT_C["Context Provider"]
+    CBC["CoachCommandBarContext<br/>Open/close state,<br/>recent queries"]
+  end
+
+  subgraph COMMAND_BAR["Command Bar UI"]
+    CCB["CoachCommandBar<br/>Main overlay"]
+    CRA["CoachResponseArea<br/>Display responses"]
+    CQA["CoachQuickActions<br/>Suggested prompts"]
+    CRQ["CoachRecentQuestions<br/>Query history"]
+    TPP["TrainingPlanPreview<br/>Plan in response"]
+    CC["CoachCard<br/>Status display"]
+  end
+
+  subgraph BACKEND_C["Backend Processing"]
+    API_COACH["/api/coach.js<br/>AI endpoint"]
+    CLAUDE_API["Claude API<br/>(Anthropic)"]
+    EC["enhancedContext.js<br/>Build user context"]
+    NLP["naturalLanguagePrompt.js<br/>Prompt engineering"]
+  end
+
+  subgraph USER_CONTEXT["User Context Gathered"]
+    FIT["Fitness data<br/>FTP, CTL, ATL, TSB"]
+    ACTS["Recent activities"]
+    PLANS_C["Active training plan"]
+    GOALS["Race goals"]
+    ROUTES_C["Saved routes"]
+    AVAIL["Availability schedule"]
+  end
+
+  TRIGGER --> CONTEXT_C
+  CONTEXT_C --> COMMAND_BAR
+  CCB -->|"User query"| API_COACH
+  API_COACH --> EC
+  EC --> USER_CONTEXT
+  EC --> NLP
+  NLP --> CLAUDE_API
+  CLAUDE_API -->|"Response"| CRA
+  CRA --> TPP
+
+  classDef trigger fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+  classDef ctx fill:#2d1b4e,stroke:#d2a8ff,color:#e6edf3
+  classDef ui fill:#1a365d,stroke:#58a6ff,color:#e6edf3
+  classDef backend fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef data fill:#1a2a3a,stroke:#79c0ff,color:#e6edf3
+
+  class CMDK,BTN trigger
+  class CBC ctx
+  class CCB,CRA,CQA,CRQ,TPP,CC ui
+  class API_COACH,CLAUDE_API,EC,NLP backend
+  class FIT,ACTS,PLANS_C,GOALS,ROUTES_C,AVAIL data
+      </div>
+      <div class="note">The AI Coach gathers comprehensive context about the user (fitness, activities, plan, goals, routes, availability) before each query, so Claude can give personalized, context-aware coaching advice.</div>
+    </div>
+
+    <!-- 10. EXTERNAL INTEGRATIONS -->
+    <div class="section" id="integrations">
+      <h2><span class="num">10</span> External Integrations & OAuth</h2>
+      <p class="desc">How each external service connects: OAuth flows, webhook receivers, and data sync pipelines.</p>
+      <div class="mermaid">
+graph TB
+  subgraph STRAVA_FLOW["Strava Integration"]
+    S_BTN["ConnectWithStravaButton"]
+    S_AUTH["/api/strava-auth<br/>Token exchange"]
+    S_CB["/oauth/strava/callback"]
+    S_ACT["/api/strava-activities<br/>Fetch activities"]
+    S_WH["/api/strava-webhook<br/>Receive events"]
+    S_SVC["stravaService.js<br/>Client logic"]
+
+    S_BTN -->|"OAuth redirect"| STRAVA_API["Strava API"]
+    STRAVA_API -->|"Code"| S_CB
+    S_CB --> S_AUTH
+    S_AUTH -->|"Token"| DB_TOK["Supabase:<br/>tokens"]
+    S_ACT -->|"Fetch"| STRAVA_API
+    STRAVA_API -->|"Push events"| S_WH
+    S_WH -->|"New activity"| S_ACT
+  end
+
+  subgraph GARMIN_FLOW["Garmin Integration"]
+    G_AUTH["/api/garmin-auth<br/>OAuth 1.0a"]
+    G_CB["/oauth/garmin/callback"]
+    G_ACT["/api/garmin-activities<br/>Fetch activities"]
+    G_WH["Cloudflare Worker<br/>garmin-webhook"]
+    G_PROC["/api/garmin-webhook-process<br/>Cron: every 1 min"]
+    G_MAINT["/api/garmin-token-maintenance<br/>Cron: every 6 hrs"]
+
+    GARMIN_API["Garmin Connect"] -->|"Push"| G_WH
+    G_WH -->|"Queue"| DB_Q["Supabase:<br/>webhook_queue"]
+    G_PROC -->|"Process queue"| G_ACT
+    G_ACT -->|"Fetch"| GARMIN_API
+    G_MAINT -->|"Refresh tokens"| GARMIN_API
+  end
+
+  subgraph WAHOO_FLOW["Wahoo Integration"]
+    W_AUTH["/api/wahoo-auth"]
+    W_CB["/wahoo/callback"]
+    W_WH["/api/wahoo-webhook<br/>Receive events"]
+    W_SVC["wahooService.js"]
+
+    WAHOO_API["Wahoo Fitness"] -->|"Push"| W_WH
+    W_WH -->|"Process"| DB_ACT["Supabase:<br/>activities"]
+  end
+
+  subgraph GCAL_FLOW["Google Calendar"]
+    GC_AUTH["/api/google-calendar-auth"]
+    GC_CB["/oauth/google/callback"]
+    GC_SVC["googleCalendarService.js<br/>Sync workouts to calendar"]
+
+    GC_SVC -->|"Create events"| GCAL_API["Google Calendar API"]
+  end
+
+  subgraph AI_FLOW["AI Services"]
+    CLAUDE["Claude API<br/>(Anthropic)"]
+    COACH_API["/api/coach.js"]
+    ROUTE_API["/api/cloud-routes.js"]
+    REVIEW_API["/api/review-week.js"]
+    FUEL_API["/api/fuel-plan.js"]
+
+    COACH_API --> CLAUDE
+    ROUTE_API --> CLAUDE
+    REVIEW_API --> CLAUDE
+    FUEL_API --> CLAUDE
+  end
+
+  subgraph MAP_FLOW["Map & Routing"]
+    MAPBOX_API["Mapbox API"]
+    GH_API["GraphHopper"]
+    BR_API["BRouter"]
+    STADIA_API["Stadia Maps<br/>Valhalla"]
+    OWM_API["OpenWeatherMap"]
+  end
+
+  classDef strava fill:#1a2a1a,stroke:#fc4c02,color:#e6edf3
+  classDef garmin fill:#1a1a2a,stroke:#007dba,color:#e6edf3
+  classDef wahoo fill:#2a1a2a,stroke:#1a9fd0,color:#e6edf3
+  classDef gcal fill:#1a2a3a,stroke:#4285f4,color:#e6edf3
+  classDef ai fill:#2d1b4e,stroke:#d2a8ff,color:#e6edf3
+  classDef map fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+
+  class STRAVA_FLOW strava
+  class GARMIN_FLOW garmin
+  class WAHOO_FLOW wahoo
+  class GCAL_FLOW gcal
+  class AI_FLOW ai
+  class MAP_FLOW map
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#fc4c02"></div>Strava</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#007dba"></div>Garmin</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#1a9fd0"></div>Wahoo</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#4285f4"></div>Google Calendar</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#d2a8ff"></div>Claude AI</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f78166"></div>Maps & Routing</div>
+      </div>
+      <div class="note">Garmin uses a unique architecture: webhooks are received by a Cloudflare Worker (for reliability), queued in the database, then processed by a Vercel cron job every minute. Tokens are refreshed every 6 hours by a separate cron.</div>
+    </div>
+
+    <!-- 11. DATA FLOW & STATE -->
+    <div class="section" id="data">
+      <h2><span class="num">11</span> Data Flow & State Management</h2>
+      <p class="desc">How data flows through the application: from external sources through the backend to stores and UI components.</p>
+      <div class="mermaid">
+graph LR
+  subgraph EXTERNAL_DATA["External Sources"]
+    STRAVA_D["Strava<br/>Activities"]
+    GARMIN_D["Garmin<br/>Activities"]
+    WAHOO_D["Wahoo<br/>Activities"]
+    USER_INPUT["User Input<br/>Forms & interactions"]
+  end
+
+  subgraph BACKEND_DATA["Backend Layer"]
+    API_R["/api/* routes<br/>Validate & process"]
+    SUPABASE["Supabase<br/>PostgreSQL + RLS"]
+  end
+
+  subgraph CLIENT_STATE["Client State Layer"]
+    direction TB
+    AUTH_CTX["AuthContext<br/>user, session,<br/>signIn, signOut"]
+    PREF_CTX["PreferencesContext<br/>timezone, units"]
+    RB_STORE["routeBuilderStore<br/>(Zustand + localStorage)<br/>Route geometry, waypoints"]
+    TP_STORE["trainingPlannerStore<br/>(Zustand + Devtools)<br/>Plan, workouts, goals"]
+    LOCAL["Component State<br/>(useState, useReducer)"]
+  end
+
+  subgraph HOOKS_DATA["Custom Hooks"]
+    H1["useTrainingPlan"]
+    H2["useCommunity"]
+    H3["useDiscussions"]
+    H4["useRouteOperations"]
+    H5["useRouteManipulation"]
+    H6["useUserAvailability"]
+  end
+
+  subgraph UI_LAYER["UI Components"]
+    PAGES_D["Pages<br/>Dashboard, RouteBuilder,<br/>Training, Planner, Cafe"]
+    CHARTS["Charts<br/>Recharts, Mantine"]
+    MAPS["Maps<br/>Mapbox GL"]
+    FORMS["Forms<br/>Mantine Forms"]
+  end
+
+  EXTERNAL_DATA -->|"Webhooks &<br/>API sync"| BACKEND_DATA
+  USER_INPUT --> CLIENT_STATE
+  USER_INPUT --> BACKEND_DATA
+  BACKEND_DATA <-->|"Direct queries<br/>(RLS enforced)"| HOOKS_DATA
+  CLIENT_STATE --> HOOKS_DATA
+  HOOKS_DATA --> UI_LAYER
+  RB_STORE -->|"Persists to<br/>localStorage"| RB_STORE
+  TP_STORE --> UI_LAYER
+
+  classDef ext fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+  classDef back fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef state fill:#2d1b4e,stroke:#d2a8ff,color:#e6edf3
+  classDef hook fill:#1a365d,stroke:#58a6ff,color:#e6edf3
+  classDef ui fill:#1a2a3a,stroke:#79c0ff,color:#e6edf3
+
+  class STRAVA_D,GARMIN_D,WAHOO_D,USER_INPUT ext
+  class API_R,SUPABASE back
+  class AUTH_CTX,PREF_CTX,RB_STORE,TP_STORE,LOCAL state
+  class H1,H2,H3,H4,H5,H6 hook
+  class PAGES_D,CHARTS,MAPS,FORMS ui
+      </div>
+    </div>
+
+    <!-- 12. API ROUTES -->
+    <div class="section" id="api">
+      <h2><span class="num">12</span> API Routes & Backend</h2>
+      <p class="desc">All 25+ Vercel serverless functions organized by domain, plus cron jobs and the Cloudflare worker.</p>
+      <div class="mermaid">
+graph TB
+  subgraph AUTH_API["Authentication"]
+    SA["/api/strava-auth"]
+    GA["/api/garmin-auth"]
+    WA["/api/wahoo-auth"]
+    GCA["/api/google-calendar-auth"]
+  end
+
+  subgraph ACTIVITY_API["Activity Management"]
+    ACT["/api/activities<br/>CRUD for activities"]
+    UA["/api/user-activity<br/>Per-user endpoints"]
+    SACT["/api/strava-activities<br/>Strava sync"]
+    GACT["/api/garmin-activities<br/>Garmin sync"]
+    ACL["/api/activity-cleanup<br/>Data cleanup"]
+  end
+
+  subgraph WEBHOOK_API["Webhooks"]
+    SWH["/api/strava-webhook<br/>Strava events"]
+    GWH["Cloudflare Worker<br/>Garmin events"]
+    WWH["/api/wahoo-webhook<br/>Wahoo events"]
+    RWH["/api/resend-webhook<br/>Email events"]
+  end
+
+  subgraph ROUTE_API["Routes"]
+    RTS["/api/routes<br/>Route CRUD"]
+    CRT["/api/cloud-routes<br/>AI route generation"]
+    RSG["/api/road-segments<br/>Road preferences"]
+    RANL["/api/route-analysis<br/>Route analysis"]
+    ELEV["/api/elevation<br/>Elevation data"]
+  end
+
+  subgraph AI_API["AI & Coach"]
+    COACH["/api/coach<br/>AI coaching"]
+    PTP["/api/parse-training-plan<br/>Plan parsing"]
+    RW["/api/review-week<br/>Weekly review"]
+    ACCH["/api/accountability-coach<br/>Check-ins"]
+    FP["/api/fuel-plan<br/>Nutrition"]
+  end
+
+  subgraph ADMIN_API["Admin & Misc"]
+    ADM["/api/admin<br/>Admin operations"]
+    EMAIL["/api/email<br/>Send emails"]
+    FS["/api/fitness-snapshots"]
+    FPR["/api/fitness-profiles"]
+    GTT["/api/generate-thread-title"]
+    BF["/api/submit-beta-feedback"]
+    WTH["/api/weather<br/>Weather data"]
+  end
+
+  subgraph CRON["Cron Jobs (vercel.json)"]
+    C1["/api/garmin-token-maintenance<br/>Every 6 hours"]
+    C2["/api/garmin-webhook-process<br/>Every 1 minute"]
+  end
+
+  subgraph SHARED["Shared Utilities"]
+    CORS["api/utils/cors.js"]
+    AUTH_U["api/utils/auth.js"]
+  end
+
+  AUTH_API --> SHARED
+  ACTIVITY_API --> SHARED
+  ROUTE_API --> SHARED
+  AI_API --> SHARED
+  ADMIN_API --> SHARED
+
+  classDef auth fill:#1a365d,stroke:#58a6ff,color:#e6edf3
+  classDef activity fill:#1a3a2a,stroke:#3fb950,color:#e6edf3
+  classDef webhook fill:#3a1a1a,stroke:#f85149,color:#e6edf3
+  classDef route fill:#3a2a1a,stroke:#f78166,color:#e6edf3
+  classDef ai fill:#2d1b4e,stroke:#d2a8ff,color:#e6edf3
+  classDef admin fill:#1a2a3a,stroke:#79c0ff,color:#e6edf3
+  classDef cron fill:#2a3a1a,stroke:#a3be8c,color:#e6edf3
+
+  class SA,GA,WA,GCA auth
+  class ACT,UA,SACT,GACT,ACL activity
+  class SWH,GWH,WWH,RWH webhook
+  class RTS,CRT,RSG,RANL,ELEV route
+  class COACH,PTP,RW,ACCH,FP ai
+  class ADM,EMAIL,FS,FPR,GTT,BF,WTH admin
+  class C1,C2 cron
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        primaryColor: '#1a365d',
+        primaryTextColor: '#e6edf3',
+        primaryBorderColor: '#58a6ff',
+        lineColor: '#58a6ff',
+        secondaryColor: '#1a3a2a',
+        tertiaryColor: '#2d1b4e',
+        background: '#0d1117',
+        mainBkg: '#161b22',
+        nodeBorder: '#30363d',
+        clusterBkg: '#161b22',
+        clusterBorder: '#30363d',
+        titleColor: '#e6edf3',
+        edgeLabelBackground: '#161b22',
+        fontSize: '14px'
+      },
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis',
+        padding: 15,
+        nodeSpacing: 30,
+        rankSpacing: 40
+      },
+      securityLevel: 'loose'
+    });
+  </script>
+</body>
+</html>
