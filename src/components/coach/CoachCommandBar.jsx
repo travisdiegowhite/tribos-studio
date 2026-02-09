@@ -287,7 +287,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
           methodology: planData.methodology,
           goal: planData.goal,
           status: 'active',
-          started_at: planData.start_date,
+          start_date: planData.start_date,
           current_week: 1,
           workouts_completed: 0,
           workouts_total: actualWorkouts.length,
