@@ -328,7 +328,11 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
 
       setTrainingPlanPreview(null);
 
-      // Trigger calendar refresh
+      // Dispatch event so dashboard reloads plan + calendar without page refresh
+      window.dispatchEvent(new CustomEvent('training-plan-activated', {
+        detail: { planId: newPlan.id },
+      }));
+
       onAddWorkout?.({ _planActivated: true, planId: newPlan.id });
     } catch (err) {
       console.error('Error activating plan:', err);

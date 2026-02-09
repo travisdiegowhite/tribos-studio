@@ -361,6 +361,39 @@ function TrainingDashboard() {
     loadData();
   }, [user]);
 
+  // Listen for plan activation events from coach UIs
+  useEffect(() => {
+    const handlePlanActivated = async () => {
+      if (!user?.id) return;
+      try {
+        const { data: planData } = await supabase
+          .from('training_plans')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (planData) {
+          setActivePlan(planData);
+          const { data: workoutsData } = await supabase
+            .from('planned_workouts')
+            .select('*')
+            .eq('plan_id', planData.id)
+            .order('scheduled_date', { ascending: true });
+          if (workoutsData) setPlannedWorkouts(workoutsData);
+        }
+        setCalendarRefreshKey((prev) => prev + 1);
+      } catch (err) {
+        console.error('Error refreshing after plan activation:', err);
+      }
+    };
+
+    window.addEventListener('training-plan-activated', handlePlanActivated);
+    return () => window.removeEventListener('training-plan-activated', handlePlanActivated);
+  }, [user]);
+
   // Automatic Garmin sync - recover failed events and backfill GPS on load
   useEffect(() => {
     const runGarminAutoSync = async () => {
