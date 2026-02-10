@@ -50,6 +50,7 @@ import RaceGoalsPanel from '../RaceGoalsPanel';
 import { supabase } from '../../lib/supabase';
 import { useTrainingPlannerStore } from '../../stores/trainingPlannerStore';
 import { useUserAvailability } from '../../hooks/useUserAvailability';
+import { useTrainingPlan } from '../../hooks/useTrainingPlan';
 import { useWorkoutAdaptations } from '../../hooks/useWorkoutAdaptations';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import { calculateTSS, estimateTSS } from '../../utils/trainingPlans';
@@ -194,10 +195,20 @@ export function TrainingPlanner({
   const {
     weeklyAvailability,
     dateOverrides,
+    preferences: availabilityPreferences,
     getAvailabilityForDate,
     setDateOverride,
     loading: availabilityLoading,
   } = useUserAvailability({ userId, autoLoad: true });
+
+  // Training plan hook for reshuffle capability
+  const {
+    reshufflePlan,
+    loading: reshuffleLoading,
+  } = useTrainingPlan({ userId, autoLoad: false });
+
+  // Reshuffle confirmation state
+  const [reshufflePromptOpen, setReshufflePromptOpen] = useState(false);
 
   // Convert activities array to record keyed by date (using local timezone)
   const activitiesByDate = useMemo(() => {
@@ -809,7 +820,10 @@ export function TrainingPlanner({
         <AvailabilitySettings
           userId={userId}
           onAvailabilityChange={() => {
-            // Availability changed - could trigger reshuffle prompt here
+            // If there's an active plan, prompt to reshuffle workouts
+            if (activePlanId) {
+              setReshufflePromptOpen(true);
+            }
           }}
         />
       </Drawer>
@@ -1149,6 +1163,97 @@ export function TrainingPlanner({
         }}
         onSubmit={handleAdaptationFeedback}
       />
+
+      {/* Reshuffle Prompt - appears when availability changes with an active plan */}
+      {reshufflePromptOpen && activePlanId && (
+        <Box
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1000,
+            maxWidth: 420,
+            width: '90%',
+          }}
+        >
+          <Paper
+            p="md"
+            radius="md"
+            shadow="lg"
+            style={{
+              backgroundColor: 'var(--mantine-color-dark-6)',
+              border: '1px solid var(--mantine-color-lime-7)',
+            }}
+          >
+            <Stack gap="xs">
+              <Group gap="xs" wrap="nowrap">
+                <IconCalendarOff size={18} color="var(--mantine-color-lime-5)" />
+                <Text size="sm" fw={500}>
+                  Your availability changed
+                </Text>
+              </Group>
+              <Text size="xs" c="dimmed">
+                Would you like to reshuffle your active plan to fit your updated schedule?
+                Workouts on blocked days will be moved to available days.
+              </Text>
+              <Group gap="xs" justify="flex-end">
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  color="gray"
+                  onClick={() => setReshufflePromptOpen(false)}
+                >
+                  Not now
+                </Button>
+                <Button
+                  variant="filled"
+                  size="xs"
+                  color="lime"
+                  loading={reshuffleLoading}
+                  onClick={async () => {
+                    const result = await reshufflePlan({
+                      weeklyAvailability,
+                      dateOverrides,
+                      preferences: {
+                        maxWorkoutsPerWeek: availabilityPreferences?.maxWorkoutsPerWeek ?? null,
+                        preferWeekendLongRides: availabilityPreferences?.preferWeekendLongRides ?? true,
+                      },
+                    });
+
+                    setReshufflePromptOpen(false);
+
+                    if (result.success && result.redistributions.length > 0) {
+                      notifications.show({
+                        title: 'Plan Updated',
+                        message: `${result.redistributions.length} workout${result.redistributions.length > 1 ? 's' : ''} moved to fit your schedule`,
+                        color: 'lime',
+                      });
+                      // Refresh the planner store to reflect changes
+                      store.syncWithDatabase();
+                      onPlanUpdated?.();
+                    } else if (result.success) {
+                      notifications.show({
+                        title: 'No Changes Needed',
+                        message: 'All your workouts already fit your schedule',
+                        color: 'blue',
+                      });
+                    } else {
+                      notifications.show({
+                        title: 'Reshuffle Failed',
+                        message: 'Could not update your plan. Please try again.',
+                        color: 'red',
+                      });
+                    }
+                  }}
+                >
+                  Reshuffle Plan
+                </Button>
+              </Group>
+            </Stack>
+          </Paper>
+        </Box>
+      )}
     </Box>
   );
 }

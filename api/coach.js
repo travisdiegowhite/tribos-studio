@@ -220,7 +220,8 @@ export default async function handler(req, res) {
       userLocalDate = null,
       userId = null,
       maxTokens = 1024,
-      quickMode = false
+      quickMode = false,
+      userAvailability = null,
     } = req.body;
 
     if (!message || typeof message !== 'string') {
@@ -327,6 +328,39 @@ ${COACHING_KNOWLEDGE}`;
 IMPORTANT: You have DIRECT ACCESS to all information below. This includes their race goals, event dates, distances, and performance targets. Reference this data directly in your responses.
 
 ${trainingContext}`;
+    }
+
+    // Add schedule availability context if provided
+    if (userAvailability?.weeklyAvailability) {
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const availLines = userAvailability.weeklyAvailability.map((d) => {
+        let line = `  ${days[d.dayOfWeek]}: ${d.status.toUpperCase()}`;
+        if (d.maxDurationMinutes) line += ` (max ${d.maxDurationMinutes} min)`;
+        return line;
+      });
+
+      const blockedDays = userAvailability.weeklyAvailability
+        .filter((d) => d.status === 'blocked')
+        .map((d) => days[d.dayOfWeek]);
+
+      const preferredDays = userAvailability.weeklyAvailability
+        .filter((d) => d.status === 'preferred')
+        .map((d) => days[d.dayOfWeek]);
+
+      systemPrompt += `\n\n=== ATHLETE'S TRAINING SCHEDULE / AVAILABILITY ===
+The athlete has configured which days they can and cannot train:
+
+${availLines.join('\n')}
+${blockedDays.length > 0 ? `\nBLOCKED DAYS (cannot train): ${blockedDays.join(', ')}` : ''}
+${preferredDays.length > 0 ? `\nPREFERRED DAYS (prioritize key workouts here): ${preferredDays.join(', ')}` : ''}
+${userAvailability.preferences?.maxWorkoutsPerWeek ? `\nMax workouts per week: ${userAvailability.preferences.maxWorkoutsPerWeek}` : ''}
+${userAvailability.preferences?.preferWeekendLongRides ? `\nPrefers long rides on weekends: Yes` : ''}
+
+IMPORTANT: When creating training plans or recommending workouts:
+- NEVER schedule workouts on blocked days
+- Place key workouts (intervals, long rides) on preferred days when possible
+- Respect the athlete's weekly workout limits
+- The create_training_plan tool will automatically adjust the schedule, but you should acknowledge the athlete's availability in your response`;
     }
 
     systemPrompt += `\n\n=== INSTRUCTIONS ===
@@ -461,8 +495,16 @@ The athlete is using the quick command bar. Provide CONCISE responses:
     if (planCreationTool) {
       console.log(`🤖 Generating training plan:`, planCreationTool.input);
       try {
-        trainingPlanPreview = generateTrainingPlan(planCreationTool.input);
+        // Pass user availability so plan generator can avoid blocked days
+        const planInput = {
+          ...planCreationTool.input,
+          userAvailability: userAvailability || null,
+        };
+        trainingPlanPreview = generateTrainingPlan(planInput);
         console.log(`✅ Plan generated: ${trainingPlanPreview.summary.total_workouts} workouts over ${trainingPlanPreview.duration_weeks} weeks`);
+        if (trainingPlanPreview.redistributedCount > 0) {
+          console.log(`📅 ${trainingPlanPreview.redistributedCount} workouts redistributed to fit schedule`);
+        }
       } catch (error) {
         console.error('Plan generation error:', error);
         trainingPlanPreview = {

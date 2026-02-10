@@ -347,6 +347,121 @@ function getPhase(weekNum, totalWeeks, hasTargetEvent) {
   return 'taper';                              // Taper phase (last 15%)
 }
 
+// Redistribute workouts away from blocked days within each week.
+// Swaps workout content between slots so dates/day_of_week stay consistent.
+function redistributeForAvailability(workouts, availability) {
+  if (!availability?.weeklyAvailability) return { workouts, redistributedCount: 0 };
+
+  // Build a lookup: dayOfWeek -> status
+  const dayStatus = {};
+  for (const d of availability.weeklyAvailability) {
+    dayStatus[d.dayOfWeek] = d.status;
+  }
+
+  const blockedDays = new Set(
+    Object.entries(dayStatus)
+      .filter(([, status]) => status === 'blocked')
+      .map(([day]) => Number(day))
+  );
+
+  if (blockedDays.size === 0) return { workouts, redistributedCount: 0 };
+
+  const preferredDays = new Set(
+    Object.entries(dayStatus)
+      .filter(([, status]) => status === 'preferred')
+      .map(([day]) => Number(day))
+  );
+
+  const preferWeekendLong = availability.preferences?.preferWeekendLongRides ?? true;
+
+  // Group workouts by week number
+  const weekMap = new Map();
+  for (const w of workouts) {
+    if (!weekMap.has(w.week_number)) weekMap.set(w.week_number, []);
+    weekMap.get(w.week_number).push(w);
+  }
+
+  let redistributedCount = 0;
+
+  for (const [, weekWorkouts] of weekMap) {
+    // Find real workouts on blocked days
+    const onBlockedDays = weekWorkouts.filter(
+      (w) => blockedDays.has(w.day_of_week) && w.workout_id && w.workout_type !== 'rest'
+    );
+
+    for (const blocked of onBlockedDays) {
+      // Score candidate days to swap with
+      let bestTarget = null;
+      let bestScore = -Infinity;
+
+      for (const candidate of weekWorkouts) {
+        if (candidate === blocked) continue;
+        if (blockedDays.has(candidate.day_of_week)) continue;
+
+        // Only swap with rest days or lighter workouts
+        const candidateHasWorkout = candidate.workout_id && candidate.workout_type !== 'rest';
+
+        let score = 50;
+
+        // Strongly prefer swapping into empty/rest slots
+        if (!candidateHasWorkout) score += 25;
+        else score -= 20; // Avoid doubling up
+
+        // Bonus for preferred days
+        if (preferredDays.has(candidate.day_of_week)) score += 15;
+
+        // Weekend bonus for long rides
+        if (preferWeekendLong && (candidate.day_of_week === 0 || candidate.day_of_week === 6)) {
+          const isLong = blocked.duration_minutes >= 120 || blocked.workout_type === 'endurance';
+          if (isLong) score += 10;
+        }
+
+        // Proximity bonus
+        const dist = Math.min(
+          Math.abs(candidate.day_of_week - blocked.day_of_week),
+          7 - Math.abs(candidate.day_of_week - blocked.day_of_week)
+        );
+        score -= dist * 3;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestTarget = candidate;
+        }
+      }
+
+      if (bestTarget) {
+        // Swap the workout content between the two slots, keeping dates fixed
+        const savedWorkout = {
+          workout_type: blocked.workout_type,
+          workout_id: blocked.workout_id,
+          name: blocked.name,
+          duration_minutes: blocked.duration_minutes,
+          target_tss: blocked.target_tss,
+          phase: blocked.phase,
+        };
+
+        blocked.workout_type = bestTarget.workout_type;
+        blocked.workout_id = bestTarget.workout_id;
+        blocked.name = bestTarget.name;
+        blocked.duration_minutes = bestTarget.duration_minutes;
+        blocked.target_tss = bestTarget.target_tss;
+        blocked.phase = bestTarget.phase;
+
+        bestTarget.workout_type = savedWorkout.workout_type;
+        bestTarget.workout_id = savedWorkout.workout_id;
+        bestTarget.name = savedWorkout.name;
+        bestTarget.duration_minutes = savedWorkout.duration_minutes;
+        bestTarget.target_tss = savedWorkout.target_tss;
+        bestTarget.phase = savedWorkout.phase;
+
+        redistributedCount++;
+      }
+    }
+  }
+
+  return { workouts, redistributedCount };
+}
+
 // Generate a complete training plan
 export function generateTrainingPlan(params) {
   const {
@@ -359,6 +474,7 @@ export function generateTrainingPlan(params) {
     weekly_hours,
     include_rest_weeks = true,
     notes = '',
+    userAvailability = null,
   } = params;
 
   const startDate = resolveStartDate(start_date);
@@ -437,6 +553,9 @@ export function generateTrainingPlan(params) {
     });
   }
 
+  // Apply schedule-aware redistribution if availability data provided
+  const { redistributedCount } = redistributeForAvailability(workouts, userAvailability);
+
   // Calculate end date
   const endDate = addDays(startDate, duration_weeks * 7 - 1);
 
@@ -482,6 +601,9 @@ export function generateTrainingPlan(params) {
 
     // All workouts
     workouts,
+
+    // Schedule adjustment info
+    redistributedCount,
   };
 }
 
