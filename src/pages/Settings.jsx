@@ -1560,55 +1560,16 @@ function Settings() {
                     </Box>
                   </Group>
                   <Group>
-                    {googleCalendarStatus.loading ? (
-                      <Loader size="sm" />
-                    ) : googleCalendarStatus.connected ? (
-                      <>
-                        <Badge color="green" variant="light">
-                          Connected
-                        </Badge>
-                        <Button variant="subtle" color="red" size="sm" onClick={disconnectGoogleCalendar}>
-                          Disconnect
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        color="lime"
-                        size="sm"
-                        onClick={connectGoogleCalendar}
-                        leftSection={<IconBrandGoogle size={16} />}
-                      >
-                        Connect
-                      </Button>
-                    )}
+                    <Badge color="yellow" variant="light">
+                      Coming Soon
+                    </Badge>
                   </Group>
                 </Group>
-                {googleCalendarStatus.connected && (
-                  <Box
-                    style={{
-                      backgroundColor: 'var(--tribos-bg-tertiary)',
-                      padding: tokens.spacing.sm,
-                      borderRadius: tokens.radius.sm,
-                      marginLeft: '2.5rem'
-                    }}
-                  >
-                    <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
-                      Schedule-Aware Training
-                    </Text>
-                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
-                      Your calendar busy times can be imported as blocked days in the Training Planner's
-                      Availability settings. Open Training Planner → Availability to import.
-                    </Text>
-                  </Box>
-                )}
-                {!googleCalendarStatus.loading && !googleCalendarStatus.connected && (
-                  <Box style={{ marginLeft: '2.5rem' }}>
-                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
-                      Connect Google Calendar to automatically detect busy days for schedule-aware training plans.
-                    </Text>
-                  </Box>
-                )}
+                <Box style={{ marginLeft: '2.5rem' }}>
+                  <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                    Google Calendar integration is coming soon. Connect your calendar to automatically detect busy days for schedule-aware training plans.
+                  </Text>
+                </Box>
               </Stack>
 
               {/* Activity Maintenance - Merged into Connected Services */}
