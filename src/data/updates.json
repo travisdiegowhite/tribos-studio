@@ -51,6 +51,78 @@
   ],
   "updates": [
     {
+      "id": "route-builder-manual-mode",
+      "date": "2026-02",
+      "type": "new",
+      "title": "Route Builder - Manual Mode",
+      "description": "Take full control of your routes. Click to place waypoints, drag to adjust, and build exactly the ride you want with real-time elevation and surface info.",
+      "details": [
+        "Draggable waypoints with snap-to-roads or freehand drawing",
+        "Gradient-colored route line showing slope and surface type overlay",
+        "Elevation profile with click-drag selection and section metrics"
+      ]
+    },
+    {
+      "id": "ai-route-editing",
+      "date": "2026-02",
+      "type": "new",
+      "title": "AI-Assisted Route Editing",
+      "description": "Edit your routes with natural language. Tell the AI what you want — add a hill, avoid a road, extend the loop — and watch it adjust your route in real time.",
+      "details": [
+        "Natural language commands to reshape your route",
+        "Smart POIs along your route — water, food, bike shops, viewpoints",
+        "Compare 2-3 segment alternatives between any two waypoints"
+      ]
+    },
+    {
+      "id": "training-plan-calendar",
+      "date": "2026-02",
+      "type": "new",
+      "title": "Training Plans on Your Calendar",
+      "description": "Your AI coach can now build structured training plans and place them directly onto your calendar. Plans adapt to your schedule and the coach remembers your history across sessions.",
+      "details": [
+        "AI-generated plans dropped straight onto your training calendar",
+        "Coach memory across sessions for smarter recommendations",
+        "Schedule-aware planning that respects your availability"
+      ]
+    },
+    {
+      "id": "coach-redesign",
+      "date": "2026-02",
+      "type": "improvement",
+      "title": "AI Coach Experience Redesign",
+      "description": "A faster, more integrated coaching experience. Access your coach from a spotlight-style command bar and get proactive suggestions right on your dashboard.",
+      "details": [
+        "Spotlight-style command bar for quick coach access",
+        "Inline CoachCard with proactive training suggestions",
+        "Unified workout recommendations across all surfaces"
+      ]
+    },
+    {
+      "id": "garmin-reliability",
+      "date": "2026-02",
+      "type": "improvement",
+      "title": "Garmin Sync Reliability",
+      "description": "Major reliability overhaul for Garmin data syncing. Your rides now process more consistently, and you'll get a heads-up if your connection ever needs attention.",
+      "details": [
+        "Fixed webhook processing for more reliable activity imports",
+        "Proactive alerts when your Garmin connection needs attention",
+        "Improved token refresh and rate limiting"
+      ]
+    },
+    {
+      "id": "ride-data-accuracy",
+      "date": "2026-02",
+      "type": "improvement",
+      "title": "Ride Data Accuracy Fixes",
+      "description": "Cleaned up ride summary calculations so your numbers are accurate. Bad sensor values are now filtered out and Work (kJ) is calculated correctly.",
+      "details": [
+        "FIT file sentinel values filtered from summaries",
+        "Corrected Work (kJ) calculation",
+        "Force-reprocess mode for fixing historical rides"
+      ]
+    },
+    {
       "id": "the-cafe",
       "date": "2025-01",
       "type": "new",
@@ -77,8 +149,8 @@
   ],
   "comingSoon": [
     {
-      "title": "More integrations",
-      "description": "Expanding connections to your favorite platforms"
+      "title": "Google Calendar sync",
+      "description": "Import your busy times so training plans work around your life"
     },
     {
       "title": "Enhanced analytics",
