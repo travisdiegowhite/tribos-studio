@@ -10,16 +10,16 @@ import {
   Box,
   ThemeIcon,
   Loader,
-  Collapse,
   Paper,
+  ScrollArea,
 } from '@mantine/core';
 import {
   IconSparkles,
   IconSend,
   IconCalendarPlus,
-  IconChevronDown,
-  IconChevronUp,
   IconRefresh,
+  IconRobot,
+  IconUser,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../contexts/AuthContext';
@@ -61,6 +61,7 @@ function getCoachingMessage(trainingContext, workoutRecommendation) {
 function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
   const { user } = useAuth();
   const inputRef = useRef(null);
+  const scrollRef = useRef(null);
 
   // Load user availability for schedule-aware plan activation
   const {
@@ -71,25 +72,39 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
 
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [response, setResponse] = useState(null);
-  const [responseActions, setResponseActions] = useState([]);
   const [error, setError] = useState(null);
-  const [expanded, setExpanded] = useState(false);
+  // Chat messages displayed in the mini-chat: { role, content, timestamp, workoutRecommendations? }
+  const [chatMessages, setChatMessages] = useState([]);
+  // Full conversation history sent to API (includes older messages not displayed)
   const [conversationHistory, setConversationHistory] = useState([]);
   const [trainingPlanPreview, setTrainingPlanPreview] = useState(null);
+  const [loadingHistory, setLoadingHistory] = useState(true);
 
   // Get coaching message based on current form
   const coachingMessage = getCoachingMessage(trainingContext, workoutRecommendation);
 
+  // Scroll to bottom of chat when new messages arrive
+  useEffect(() => {
+    if (scrollRef.current) {
+      // Small delay to ensure DOM has updated
+      setTimeout(() => {
+        scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+      }, 50);
+    }
+  }, [chatMessages, isLoading]);
+
   // Load conversation history from DB on mount
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setLoadingHistory(false);
+      return;
+    }
 
     const loadHistory = async () => {
       try {
         const { data, error: fetchError } = await supabase
           .from('coach_conversations')
-          .select('role, message, timestamp')
+          .select('role, message, timestamp, context_snapshot')
           .eq('user_id', user.id)
           .in('role', ['user', 'coach'])
           .order('timestamp', { ascending: false })
@@ -97,36 +112,44 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
 
         if (fetchError) throw fetchError;
 
-        const history = (data || [])
-          .reverse()
-          .map((msg) => ({
-            role: msg.role === 'coach' ? 'assistant' : 'user',
-            content: msg.message,
-          }));
+        const allMessages = (data || []).reverse();
 
+        // Full history for API context
+        const history = allMessages.map((msg) => ({
+          role: msg.role === 'coach' ? 'assistant' : 'user',
+          content: msg.message,
+        }));
         setConversationHistory(history);
+
+        // Last 10 messages for display in mini-chat
+        const displayMessages = allMessages.slice(-10).map((msg) => ({
+          role: msg.role === 'coach' ? 'assistant' : 'user',
+          content: msg.message,
+          timestamp: msg.timestamp,
+          workoutRecommendations: msg.context_snapshot?.workoutRecommendations || null,
+        }));
+        setChatMessages(displayMessages);
       } catch (err) {
         console.error('Error loading conversation history:', err);
+      } finally {
+        setLoadingHistory(false);
       }
     };
 
     loadHistory();
   }, [user?.id]);
 
-  // Reset response when context changes significantly
-  useEffect(() => {
-    setResponse(null);
-    setResponseActions([]);
-    setError(null);
-    setTrainingPlanPreview(null);
-  }, [trainingContext]);
-
   const handleSubmit = async () => {
     if (!query.trim() || isLoading) return;
 
+    const userMessage = query.trim();
     setIsLoading(true);
     setError(null);
-    setExpanded(true);
+
+    // Immediately show user message in chat
+    const userMsg = { role: 'user', content: userMessage, timestamp: new Date().toISOString() };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setQuery('');
 
     try {
       const now = new Date();
@@ -148,7 +171,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          message: query.trim(),
+          message: userMessage,
           conversationHistory: conversationHistory,
           trainingContext: trainingContext,
           userLocalDate: userLocalDate,
@@ -176,28 +199,25 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
       }
 
       const data = await res.json();
-      setResponse(data.message);
 
       // Handle training plan preview from AI
       if (data.trainingPlanPreview && !data.trainingPlanPreview.error) {
         setTrainingPlanPreview(data.trainingPlanPreview);
       }
 
-      // Map workout recommendations to actions
-      if (data.workoutRecommendations?.length > 0) {
-        setResponseActions(data.workoutRecommendations.map((rec, idx) => ({
-          id: `workout-${idx}`,
-          label: rec.name || rec.workout_id,
-          workout: rec,
-        })));
-      } else {
-        setResponseActions([]);
-      }
+      // Add coach response to chat
+      const coachMsg = {
+        role: 'assistant',
+        content: data.message,
+        timestamp: new Date().toISOString(),
+        workoutRecommendations: data.workoutRecommendations || null,
+      };
+      setChatMessages((prev) => [...prev, coachMsg]);
 
-      // Update in-session conversation history
+      // Update full conversation history for API
       setConversationHistory((prev) => [
         ...prev,
-        { role: 'user', content: query.trim() },
+        { role: 'user', content: userMessage },
         { role: 'assistant', content: data.message },
       ]);
 
@@ -207,7 +227,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
           {
             user_id: user.id,
             role: 'user',
-            message: query.trim(),
+            message: userMessage,
             message_type: 'chat',
             context_snapshot: { coach_type: 'training' },
             coach_type: 'strategist',
@@ -229,11 +249,11 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
       } catch (dbErr) {
         console.error('Could not persist messages:', dbErr);
       }
-
-      setQuery('');
     } catch (err) {
       console.error('Coach error:', err);
       setError(err.message || 'Failed to get response');
+      // Remove the optimistic user message on error
+      setChatMessages((prev) => prev.filter((m) => m !== userMsg));
     } finally {
       setIsLoading(false);
     }
@@ -398,6 +418,8 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
     }
   };
 
+  const hasMessages = chatMessages.length > 0;
+
   return (
     <Card
       padding="lg"
@@ -413,94 +435,143 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
     >
       <Stack gap="md" h="100%" justify="space-between">
         {/* Header */}
-        <Box>
-          <Group justify="space-between" mb="md">
-            <Group gap="xs">
-              <ThemeIcon size="lg" color="lime" variant="light" radius="md">
-                <IconSparkles size={18} />
-              </ThemeIcon>
-              <Text fw={600}>AI Coach</Text>
-            </Group>
-            {(response || error) && (
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                size="sm"
-                onClick={() => setExpanded(!expanded)}
-              >
-                {expanded ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
-              </ActionIcon>
-            )}
+        <Group justify="space-between">
+          <Group gap="xs">
+            <ThemeIcon size="lg" color="lime" variant="light" radius="md">
+              <IconSparkles size={18} />
+            </ThemeIcon>
+            <Text fw={600}>AI Coach</Text>
           </Group>
+        </Group>
 
-          {/* Coaching Message - show when no response */}
-          {!response && !isLoading && !error && (
+        {/* Chat area */}
+        <Box style={{ flex: 1, minHeight: 0 }}>
+          {/* Empty state — coaching message when no history */}
+          {!hasMessages && !isLoading && !loadingHistory && (
             <Text size="sm" style={{ color: 'var(--tribos-text-primary)', lineHeight: 1.6 }}>
               {coachingMessage}
             </Text>
           )}
 
-          {/* Loading State */}
-          {isLoading && (
+          {/* Loading history spinner */}
+          {loadingHistory && (
+            <Group gap="xs" justify="center" py="md">
+              <Loader size="xs" color="lime" />
+              <Text size="xs" c="dimmed">Loading history...</Text>
+            </Group>
+          )}
+
+          {/* Message history */}
+          {hasMessages && (
+            <ScrollArea
+              h={280}
+              viewportRef={scrollRef}
+              type="auto"
+              offsetScrollbars
+              scrollbarSize={4}
+            >
+              <Stack gap={8} pb={4}>
+                {chatMessages.map((msg, idx) => (
+                  <Box key={idx}>
+                    <Group gap={6} align="flex-start" wrap="nowrap">
+                      <ThemeIcon
+                        size="xs"
+                        variant="light"
+                        color={msg.role === 'user' ? 'blue' : 'lime'}
+                        radius="xl"
+                        mt={3}
+                        style={{ flexShrink: 0 }}
+                      >
+                        {msg.role === 'user' ? <IconUser size={10} /> : <IconRobot size={10} />}
+                      </ThemeIcon>
+                      <Box style={{ flex: 1, minWidth: 0 }}>
+                        <Text
+                          size="xs"
+                          style={{
+                            whiteSpace: 'pre-wrap',
+                            lineHeight: 1.5,
+                            color: msg.role === 'user' ? 'var(--tribos-text-secondary)' : 'var(--tribos-text-primary)',
+                          }}
+                        >
+                          {msg.content}
+                        </Text>
+                        {/* Workout action buttons on coach messages */}
+                        {msg.workoutRecommendations?.length > 0 && (
+                          <Group gap={4} mt={4}>
+                            {msg.workoutRecommendations.map((rec, rIdx) => (
+                              <Button
+                                key={rIdx}
+                                size="compact-xs"
+                                variant="light"
+                                color="lime"
+                                leftSection={<IconCalendarPlus size={12} />}
+                                onClick={() => handleAddWorkout(rec)}
+                              >
+                                Add {rec.name || rec.workout_id}
+                              </Button>
+                            ))}
+                          </Group>
+                        )}
+                      </Box>
+                    </Group>
+                  </Box>
+                ))}
+
+                {/* Loading indicator */}
+                {isLoading && (
+                  <Group gap={6} align="center">
+                    <ThemeIcon size="xs" variant="light" color="lime" radius="xl">
+                      <IconRobot size={10} />
+                    </ThemeIcon>
+                    <Group gap={4}>
+                      <Loader size="xs" color="lime" />
+                      <Text size="xs" c="dimmed">Thinking...</Text>
+                    </Group>
+                  </Group>
+                )}
+              </Stack>
+            </ScrollArea>
+          )}
+
+          {/* Loading state when no messages yet */}
+          {!hasMessages && isLoading && (
             <Group gap="xs">
               <Loader size="sm" color="lime" />
               <Text size="sm" c="dimmed">Thinking...</Text>
             </Group>
           )}
 
-          {/* Response Area */}
-          <Collapse in={expanded && (response || error)}>
-            {error ? (
-              <Paper p="sm" mt="sm" style={{ backgroundColor: 'var(--tribos-red-surface)', border: '1px solid var(--tribos-border-subtle)' }}>
-                <Group justify="space-between">
-                  <Text size="sm" c="red">{error}</Text>
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    color="red"
-                    onClick={() => {
-                      setError(null);
-                      handleSubmit();
-                    }}
-                  >
-                    <IconRefresh size={14} />
-                  </ActionIcon>
-                </Group>
-              </Paper>
-            ) : response ? (
-              <Paper p="sm" mt="sm" style={{ background: depth.recessed.background, border: depth.recessed.border, boxShadow: depth.recessed.boxShadow }}>
-                <Text size="sm" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                  {response}
-                </Text>
-                {responseActions.length > 0 && (
-                  <Group gap="xs" mt="sm">
-                    {responseActions.map((action) => (
-                      <Button
-                        key={action.id}
-                        size="xs"
-                        variant="light"
-                        color="lime"
-                        leftSection={<IconCalendarPlus size={14} />}
-                        onClick={() => handleAddWorkout(action.workout)}
-                      >
-                        Add {action.label}
-                      </Button>
-                    ))}
-                  </Group>
-                )}
-                {trainingPlanPreview && (
-                  <Box mt="sm">
-                    <TrainingPlanPreview
-                      plan={trainingPlanPreview}
-                      onActivate={handleActivatePlan}
-                      onDismiss={() => setTrainingPlanPreview(null)}
-                      compact
-                    />
-                  </Box>
-                )}
-              </Paper>
-            ) : null}
-          </Collapse>
+          {/* Error display */}
+          {error && (
+            <Paper p="xs" mt="xs" style={{ backgroundColor: 'var(--tribos-red-surface)', border: '1px solid var(--tribos-border-subtle)' }}>
+              <Group justify="space-between">
+                <Text size="xs" c="red">{error}</Text>
+                <ActionIcon
+                  size="xs"
+                  variant="subtle"
+                  color="red"
+                  onClick={() => {
+                    setError(null);
+                    handleSubmit();
+                  }}
+                >
+                  <IconRefresh size={12} />
+                </ActionIcon>
+              </Group>
+            </Paper>
+          )}
+
+          {/* Training plan preview */}
+          {trainingPlanPreview && (
+            <Box mt="xs">
+              <TrainingPlanPreview
+                plan={trainingPlanPreview}
+                onActivate={handleActivatePlan}
+                onDismiss={() => setTrainingPlanPreview(null)}
+                compact
+              />
+            </Box>
+          )}
         </Box>
 
         {/* Input - at bottom */}

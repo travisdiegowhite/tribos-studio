@@ -4,6 +4,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
+import { refreshAccessToken as sharedRefreshAccessToken, getAccessTokenForUser as sharedGetAccessTokenForUser } from './utils/calendarHelper.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -250,48 +251,19 @@ async function disconnect(req, res, userId) {
   }
 }
 
-/**
- * Refresh access token using refresh token
- */
+// Token management uses shared utilities from calendarHelper.js
+// Local wrappers maintain the same error behavior for the HTTP handler
+
 async function refreshAccessToken(refreshToken) {
-  const response = await fetch(`${GOOGLE_OAUTH_BASE}/token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token'
-    })
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Token refresh failed: ${error}`);
-  }
-
-  const tokenData = await response.json();
-  return tokenData.access_token;
+  return sharedRefreshAccessToken(refreshToken);
 }
 
-/**
- * Get access token for a user (refreshes if needed)
- */
 async function getAccessTokenForUser(userId) {
-  const { data: settings, error } = await supabase
-    .from('user_coach_settings')
-    .select('google_refresh_token, google_calendar_connected')
-    .eq('user_id', userId)
-    .single();
-
-  if (error || !settings?.google_calendar_connected || !settings?.google_refresh_token) {
+  const token = await sharedGetAccessTokenForUser(userId);
+  if (!token) {
     throw new Error('Google Calendar not connected');
   }
-
-  // Refresh the access token
-  return await refreshAccessToken(settings.google_refresh_token);
+  return token;
 }
 
 /**
