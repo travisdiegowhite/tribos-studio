@@ -939,7 +939,7 @@ function TrainingDashboard() {
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, md: 5 }}>
                       <CoachCard
-                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation)}
+                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts)}
                         workoutRecommendation={recommendation}
                         onAddWorkout={async (workout) => {
                           notifications.show({
@@ -2199,7 +2199,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
 }
 
 // Build training context for AI Coach
-function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null, raceGoals = [], crossTrainingActivities = [], workoutRecommendation = null) {
+function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null, raceGoals = [], crossTrainingActivities = [], workoutRecommendation = null, plannedWorkouts = []) {
   const context = [];
   const distanceUnit = isImperial ? 'mi' : 'km';
 
@@ -2385,6 +2385,79 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     context.push(`- Consider the current training phase when making recommendations`);
     if (raceGoals && raceGoals.length > 0) {
       context.push(`- PRIORITIZE upcoming race goals when planning workouts and recovery`);
+    }
+  }
+
+  // Add planned workout schedule from the training calendar
+  if (plannedWorkouts && plannedWorkouts.length > 0) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    // Calculate this week's Monday
+    const dayOfWeek = today.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const thisMonday = new Date(today);
+    thisMonday.setDate(thisMonday.getDate() + mondayOffset);
+
+    // Next Sunday end of this week
+    const thisSunday = new Date(thisMonday);
+    thisSunday.setDate(thisSunday.getDate() + 6);
+
+    // Next week's Sunday
+    const nextSunday = new Date(thisSunday);
+    nextSunday.setDate(nextSunday.getDate() + 7);
+
+    // Filter workouts for this week and next week
+    const thisWeekWorkouts = plannedWorkouts.filter(w => {
+      const d = new Date(w.scheduled_date + 'T12:00:00');
+      return d >= thisMonday && d <= thisSunday;
+    });
+
+    const nextWeekWorkouts = plannedWorkouts.filter(w => {
+      const d = new Date(w.scheduled_date + 'T12:00:00');
+      return d > thisSunday && d <= nextSunday;
+    });
+
+    if (thisWeekWorkouts.length > 0 || nextWeekWorkouts.length > 0) {
+      context.push(`\n--- TRAINING CALENDAR (PLANNED WORKOUTS) ---`);
+      context.push(`IMPORTANT: These are the workouts currently scheduled on the athlete's training calendar. Reference this when discussing their schedule, suggesting changes, or advising on load management.`);
+
+      const formatWorkoutLine = (w) => {
+        const wDate = new Date(w.scheduled_date + 'T12:00:00');
+        const dayLabel = dayNames[wDate.getDay()];
+        const dateLabel = wDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const isToday = wDate.getTime() === today.getTime();
+        const todayTag = isToday ? ' ** TODAY **' : '';
+        const status = w.completed ? 'DONE' : w.skipped_reason ? 'SKIPPED' : 'planned';
+        const typeParts = [];
+        if (w.name) typeParts.push(w.name);
+        else if (w.workout_type) typeParts.push(w.workout_type);
+        if (w.duration_minutes || w.target_duration) typeParts.push(`${w.duration_minutes || w.target_duration} min`);
+        if (w.target_tss) typeParts.push(`~${w.target_tss} TSS`);
+        return `  ${dayLabel} ${dateLabel}${todayTag}: [${status}] ${typeParts.join(', ')}`;
+      };
+
+      if (thisWeekWorkouts.length > 0) {
+        context.push(`\nThis Week:`);
+        // Sort by date
+        thisWeekWorkouts
+          .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date))
+          .forEach(w => context.push(formatWorkoutLine(w)));
+
+        // Summary: how many done vs remaining
+        const completed = thisWeekWorkouts.filter(w => w.completed).length;
+        const remaining = thisWeekWorkouts.filter(w => !w.completed && !w.skipped_reason && w.workout_type !== 'rest').length;
+        const totalTSS = thisWeekWorkouts.reduce((sum, w) => sum + (w.target_tss || 0), 0);
+        context.push(`  Summary: ${completed} completed, ${remaining} remaining, ~${totalTSS} total planned TSS`);
+      }
+
+      if (nextWeekWorkouts.length > 0) {
+        context.push(`\nNext Week:`);
+        nextWeekWorkouts
+          .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date))
+          .forEach(w => context.push(formatWorkoutLine(w)));
+      }
     }
   }
 

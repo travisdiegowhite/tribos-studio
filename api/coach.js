@@ -9,6 +9,7 @@ import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { generateTrainingPlan } from './utils/planGenerator.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
+import { fetchCalendarContext } from './utils/calendarHelper.js';
 
 // Initialize Supabase for auth validation
 const supabase = createClient(
@@ -277,6 +278,20 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Fetch Google Calendar context (busy times + available windows) if user is connected
+    let calendarContext = null;
+    if (userId) {
+      try {
+        calendarContext = await fetchCalendarContext(userId);
+        if (calendarContext) {
+          console.log('📅 Calendar context loaded for coach');
+        }
+      } catch (err) {
+        // Non-blocking — coach works without calendar
+        console.error('Calendar context fetch failed (non-blocking):', err.message);
+      }
+    }
+
     // Build system message with date context FIRST
     // Use user's local date if provided, otherwise fall back to server date
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -363,6 +378,20 @@ IMPORTANT: When creating training plans or recommending workouts:
 - The create_training_plan tool will automatically adjust the schedule, but you should acknowledge the athlete's availability in your response`;
     }
 
+    // Add real-time calendar context if Google Calendar is connected
+    if (calendarContext) {
+      systemPrompt += `\n\n=== ATHLETE'S REAL-TIME CALENDAR (FROM GOOGLE CALENDAR) ===
+You have LIVE access to the athlete's personal calendar. Below are their actual events, work hours, and available riding windows for the next few days.
+
+${calendarContext}
+IMPORTANT: Use this real-time calendar data when recommending workouts or discussing scheduling:
+- Suggest specific time windows that are actually free (e.g., "You have a 2-hour window before work at 6am")
+- Acknowledge their busy schedule when relevant
+- When recommending a workout, match its duration to an available window
+- If they ask "when can I ride?", reference their actual free time above
+- Do NOT suggest workout times that conflict with their calendar events or work hours`;
+    }
+
     systemPrompt += `\n\n=== INSTRUCTIONS ===
 Use the current date context and athlete data above to provide personalized, time-appropriate coaching advice.
 When races are listed above, use their exact names, dates, and details in your response - you have full visibility into their calendar.`;
@@ -378,11 +407,39 @@ The athlete is using the quick command bar. Provide CONCISE responses:
 - Prioritize immediate, practical guidance over detailed explanations`;
     }
 
-    // Limit conversation history to last 10 messages to prevent stale context from dominating
-    // Also filter out any messages with empty content (Claude API requires non-empty content)
-    const recentHistory = conversationHistory
-      .filter(msg => msg.content && typeof msg.content === 'string' && msg.content.trim().length > 0)
-      .slice(-10);
+    // Filter out any messages with empty content (Claude API requires non-empty content)
+    const validHistory = conversationHistory
+      .filter(msg => msg.content && typeof msg.content === 'string' && msg.content.trim().length > 0);
+
+    // Build conversation summary for older messages beyond the 10-message window
+    const RECENT_WINDOW = 10;
+    let conversationSummary = null;
+
+    if (validHistory.length > RECENT_WINDOW) {
+      const olderMessages = validHistory.slice(0, -RECENT_WINDOW);
+      // Extract the user's questions/topics from older messages to give the coach context
+      const olderUserTopics = olderMessages
+        .filter(msg => msg.role === 'user')
+        .map(msg => {
+          // Truncate long messages to just the first sentence/question
+          const text = msg.content.trim();
+          const firstSentence = text.split(/[.!?\n]/)[0].trim();
+          return firstSentence.length > 100 ? firstSentence.substring(0, 100) + '...' : firstSentence;
+        });
+
+      if (olderUserTopics.length > 0) {
+        conversationSummary = `Earlier in this conversation, the athlete discussed: ${olderUserTopics.join('; ')}`;
+      }
+    }
+
+    const recentHistory = validHistory.slice(-RECENT_WINDOW);
+
+    // If we have a summary of older messages, add it to the system prompt
+    if (conversationSummary) {
+      systemPrompt += `\n\n=== EARLIER CONVERSATION CONTEXT ===
+${conversationSummary}
+(The full recent messages follow below. Use this summary for continuity with earlier discussion topics.)`;
+    }
 
     // Build conversation messages - prepend date reminder to user's message
     const userMessageWithDate = `[Today is ${dateStr}]\n\n${message}`;
