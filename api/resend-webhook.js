@@ -6,11 +6,32 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { setupCors } from './utils/cors.js';
 
+// Disable Vercel's automatic body parsing so we can access the raw body
+// for accurate Svix signature verification
+export const config = {
+  api: {
+    bodyParser: false
+  }
+};
+
 // Initialize Supabase with service key for database operations
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
+
+/**
+ * Read the raw request body from the stream.
+ * Required for accurate webhook signature verification.
+ */
+function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
 
 /**
  * Verify webhook signature from Resend (using Svix)
@@ -83,16 +104,17 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Get raw body for signature verification
-  const rawBody = JSON.stringify(req.body);
+  // Read the raw body for accurate signature verification
+  const rawBody = await getRawBody(req);
 
-  // Verify webhook signature
+  // Verify webhook signature using the exact raw bytes
   if (!verifyWebhookSignature(rawBody, req.headers)) {
     return res.status(401).json({ error: 'Invalid webhook signature' });
   }
 
   try {
-    const event = req.body;
+    // Parse the raw body into a JSON object for processing
+    const event = JSON.parse(rawBody);
     const eventType = event.type;
     const data = event.data;
 
@@ -174,24 +196,37 @@ export default async function handler(req, res) {
     }
 
     // Update recipient record
-    await supabase
+    const { error: updateError } = await supabase
       .from('email_recipients')
       .update(updates)
       .eq('id', recipient.id);
 
+    if (updateError) {
+      console.error(`Failed to update recipient ${recipient.id}:`, updateError);
+      return res.status(200).json({ received: true, error: 'Failed to update recipient' });
+    }
+
     // Increment counters for opens/clicks
     if (eventInfo.counter) {
-      await supabase.rpc('increment_recipient_counter', {
+      const { error: rpcError } = await supabase.rpc('increment_recipient_counter', {
         p_resend_id: emailId,
         p_counter: eventInfo.counter
       });
+
+      if (rpcError) {
+        console.error(`Failed to increment ${eventInfo.counter} for ${emailId}:`, rpcError);
+      }
     }
 
     // Update campaign stats
     if (recipient.campaign_id) {
-      await supabase.rpc('update_campaign_stats', {
+      const { error: statsError } = await supabase.rpc('update_campaign_stats', {
         p_campaign_id: recipient.campaign_id
       });
+
+      if (statsError) {
+        console.error(`Failed to update campaign stats for ${recipient.campaign_id}:`, statsError);
+      }
     }
 
     console.log(`Updated recipient ${recipient.id} with event ${eventType}`);

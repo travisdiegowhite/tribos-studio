@@ -1312,9 +1312,20 @@ export default function EmailCampaigns() {
                   <Text fw={600} size="lg">{selectedCampaign.name}</Text>
                   <Text size="sm" c="dimmed">{selectedCampaign.subject}</Text>
                 </div>
-                <Badge size="lg" color={getStatusColor(selectedCampaign.status)}>
-                  {selectedCampaign.status}
-                </Badge>
+                <Group>
+                  <Tooltip label="Refresh tracking data">
+                    <ActionIcon
+                      variant="light"
+                      onClick={() => handleViewDetails(selectedCampaign)}
+                      loading={detailsLoading}
+                    >
+                      <IconRefresh size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Badge size="lg" color={getStatusColor(selectedCampaign.status)}>
+                    {selectedCampaign.status}
+                  </Badge>
+                </Group>
               </Group>
 
               <SimpleGrid cols={4}>
