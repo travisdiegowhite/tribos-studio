@@ -361,7 +361,7 @@ const RideAnalysisModal = ({
                       id="route-line"
                       type="line"
                       paint={{
-                        'line-color': 'var(--tribos-lime)',
+                        'line-color': '#4ade80',
                         'line-width': 3,
                         'line-opacity': 0.9,
                       }}
