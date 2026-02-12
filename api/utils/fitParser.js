@@ -455,6 +455,54 @@ function perpendicularDistance(point, lineStart, lineEnd) {
 }
 
 /**
+ * Build parallel metric arrays from simplified track points
+ * Used for colored route rendering on the map (by speed, power, elevation, HR)
+ * Returns null if fewer than 2 points
+ */
+function buildActivityStreams(simplifiedPoints) {
+  if (!simplifiedPoints || simplifiedPoints.length < 2) return null;
+
+  const coords = [];
+  const elevation = [];
+  const power = [];
+  const speed = [];
+  const heartRate = [];
+  const cadence = [];
+
+  let hasElevation = false;
+  let hasPower = false;
+  let hasSpeed = false;
+  let hasHeartRate = false;
+
+  for (const pt of simplifiedPoints) {
+    if (pt.latitude == null || pt.longitude == null) continue;
+
+    coords.push([pt.longitude, pt.latitude]);
+    elevation.push(pt.elevation ?? null);
+    power.push(pt.power ?? null);
+    speed.push(pt.speed ?? null);
+    heartRate.push(pt.heartRate ?? null);
+    cadence.push(pt.cadence ?? null);
+
+    if (pt.elevation != null) hasElevation = true;
+    if (pt.power != null) hasPower = true;
+    if (pt.speed != null) hasSpeed = true;
+    if (pt.heartRate != null) hasHeartRate = true;
+  }
+
+  if (coords.length < 2) return null;
+
+  // Only include streams that have data
+  const streams = { coords };
+  if (hasElevation) streams.elevation = elevation;
+  if (hasPower) streams.power = power;
+  if (hasSpeed) streams.speed = speed;
+  if (hasHeartRate) streams.heartRate = heartRate;
+
+  return streams;
+}
+
+/**
  * Download and parse a FIT file from URL, returning encoded polyline
  * @param {string} url - URL to download FIT file from
  * @param {string} accessToken - Bearer token for authentication
@@ -521,8 +569,13 @@ export async function downloadAndParseFitFile(url, accessToken) {
     // Encode as polyline
     const polyline = encodePolyline(simplified);
 
+    // Build per-point metric streams from the simplified track
+    // These parallel arrays enable colored route rendering by speed/power/elevation/HR
+    const activityStreams = buildActivityStreams(simplified);
+
     return {
       polyline,
+      activityStreams,
       summary: parsed.summary,
       powerMetrics: parsed.powerMetrics,
       pointCount: parsed.trackPoints.length,
