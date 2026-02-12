@@ -1163,6 +1163,7 @@ function TrainingDashboard() {
         }}
         ride={selectedRide}
         ftp={ftp}
+        weight={userWeight}
         formatDistance={formatDist}
         formatElevation={formatElev}
         formatSpeed={formatSpd}

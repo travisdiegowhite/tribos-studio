@@ -29,6 +29,7 @@ import {
   IconChartBar,
   IconBrandStrava,
   IconDeviceWatch,
+  IconGauge,
 } from '@tabler/icons-react';
 import Map, { Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -42,6 +43,7 @@ import {
 } from './ActivityMetrics.jsx';
 import { ViewOnStravaLink, PoweredByStrava, StravaLogo } from './StravaBranding';
 import { FuelCard } from './fueling';
+import ActivityPowerCurve from './ActivityPowerCurve';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -145,6 +147,7 @@ const RideAnalysisModal = ({
   onClose,
   ride,
   ftp,
+  weight,
   formatDistance,
   formatElevation,
   formatSpeed,
@@ -233,6 +236,13 @@ const RideAnalysisModal = ({
     // Speed
     const avgSpeed = duration > 0 ? (distance / (duration / 3600)) : 0;
 
+    // Power data source indicators
+    const deviceWatts = ride.device_watts === true;
+    const hasRealNP = !maxPowerCorrupted && !!ride.normalized_power;
+    const powerCurveSummary = ride.power_curve_summary;
+    const hasPowerCurve = powerCurveSummary && typeof powerCurveSummary === 'object'
+      && Object.keys(powerCurveSummary).length > 0;
+
     return {
       distance,
       elevation,
@@ -250,6 +260,10 @@ const RideAnalysisModal = ({
       ifZone,
       estimatedTSS,
       avgSpeed,
+      deviceWatts,
+      hasRealNP,
+      powerCurveSummary,
+      hasPowerCurve,
     };
   }, [ride, ftp]);
 
@@ -431,13 +445,32 @@ const RideAnalysisModal = ({
         {/* Power Analysis Section */}
         {hasPowerData && (
           <>
-            <Divider label="Power Analysis" labelPosition="center" />
+            <Divider
+              label={
+                <Group gap="xs">
+                  <Text size="sm">Power Analysis</Text>
+                  {metrics.deviceWatts && (
+                    <Badge size="xs" color="lime" variant="light" leftSection={<IconGauge size={10} />}>
+                      Power Meter
+                    </Badge>
+                  )}
+                </Group>
+              }
+              labelPosition="center"
+            />
             <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
               <Paper p="sm" withBorder>
                 <Group justify="space-between">
                   <Box>
                     <Text size="xs" c="dimmed">Avg Power</Text>
-                    <Text fw={600}>{Math.round(metrics.avgPower)}W</Text>
+                    <Group gap={4} align="baseline">
+                      <Text fw={600}>{Math.round(metrics.avgPower)}W</Text>
+                      {weight > 0 && (
+                        <Text size="xs" c="dimmed">
+                          {(metrics.avgPower / weight).toFixed(1)} W/kg
+                        </Text>
+                      )}
+                    </Group>
                   </Box>
                   <IconBolt size={20} style={{ color: 'var(--tribos-lime)' }} />
                 </Group>
@@ -445,10 +478,25 @@ const RideAnalysisModal = ({
 
               {metrics.np && (
                 <Paper p="sm" withBorder>
-                  <Tooltip label="Normalized Power - accounts for variability">
+                  <Tooltip label={metrics.hasRealNP
+                    ? 'Normalized Power — calculated from power meter stream'
+                    : 'Normalized Power — estimated from avg/max power'
+                  }>
                     <Box>
-                      <Text size="xs" c="dimmed">NP</Text>
-                      <Text fw={600}>{metrics.np}W</Text>
+                      <Group gap={4} align="center">
+                        <Text size="xs" c="dimmed">NP</Text>
+                        {!metrics.hasRealNP && (
+                          <Badge size="xs" variant="light" color="gray">est.</Badge>
+                        )}
+                      </Group>
+                      <Group gap={4} align="baseline">
+                        <Text fw={600}>{metrics.np}W</Text>
+                        {weight > 0 && (
+                          <Text size="xs" c="dimmed">
+                            {(metrics.np / weight).toFixed(1)} W/kg
+                          </Text>
+                        )}
+                      </Group>
                     </Box>
                   </Tooltip>
                 </Paper>
@@ -456,7 +504,7 @@ const RideAnalysisModal = ({
 
               {metrics.intensityFactor && ftp && (
                 <Paper p="sm" withBorder>
-                  <Tooltip label={`Intensity Factor - ${metrics.ifZone?.name || ''}`}>
+                  <Tooltip label={`Intensity Factor — ${metrics.ifZone?.name || ''}`}>
                     <Box>
                       <Text size="xs" c="dimmed">IF</Text>
                       <Group gap="xs">
@@ -474,7 +522,7 @@ const RideAnalysisModal = ({
 
               {metrics.vi && (
                 <Paper p="sm" withBorder>
-                  <Tooltip label="Variability Index - NP / Avg Power">
+                  <Tooltip label="Variability Index — NP / Avg Power">
                     <Box>
                       <Text size="xs" c="dimmed">VI</Text>
                       <Text fw={600}>{metrics.vi}</Text>
@@ -485,7 +533,7 @@ const RideAnalysisModal = ({
 
               {metrics.kilojoules > 0 && (
                 <Paper p="sm" withBorder>
-                  <Tooltip label="Total work output">
+                  <Tooltip label="Total mechanical work output">
                     <Box>
                       <Text size="xs" c="dimmed">Work</Text>
                       <Text fw={600}>{Math.round(metrics.kilojoules)} kJ</Text>
@@ -498,11 +546,27 @@ const RideAnalysisModal = ({
                 <Paper p="sm" withBorder>
                   <Box>
                     <Text size="xs" c="dimmed">Max Power</Text>
-                    <Text fw={600}>{Math.round(metrics.maxPower)}W</Text>
+                    <Group gap={4} align="baseline">
+                      <Text fw={600}>{Math.round(metrics.maxPower)}W</Text>
+                      {weight > 0 && (
+                        <Text size="xs" c="dimmed">
+                          {(metrics.maxPower / weight).toFixed(1)} W/kg
+                        </Text>
+                      )}
+                    </Group>
                   </Box>
                 </Paper>
               )}
             </SimpleGrid>
+
+            {/* Per-Activity Power Curve (MMP) — only shown when FIT file data is available */}
+            {metrics.hasPowerCurve && (
+              <ActivityPowerCurve
+                powerCurveSummary={metrics.powerCurveSummary}
+                ftp={ftp}
+                weight={weight}
+              />
+            )}
           </>
         )}
 
