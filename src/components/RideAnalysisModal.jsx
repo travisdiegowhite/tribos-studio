@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   Modal,
   Text,
@@ -10,8 +10,6 @@ import {
   SimpleGrid,
   ThemeIcon,
   Divider,
-  Skeleton,
-  Alert,
   Button,
   Tooltip,
 } from '@mantine/core';
@@ -22,18 +20,12 @@ import {
   IconBolt,
   IconHeart,
   IconFlame,
-  IconActivity,
-  IconMap,
   IconMapOff,
   IconRefresh,
-  IconChartBar,
   IconBrandStrava,
   IconDeviceWatch,
   IconGauge,
 } from '@tabler/icons-react';
-import Map, { Source, Layer } from 'react-map-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import { tokens } from '../theme';
 import {
   estimateNormalizedPower,
   calculateIF,
@@ -44,8 +36,7 @@ import {
 import { ViewOnStravaLink, PoweredByStrava, StravaLogo } from './StravaBranding';
 import { FuelCard } from './fueling';
 import ActivityPowerCurve from './ActivityPowerCurve';
-
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+import ColoredRouteMap from './ColoredRouteMap';
 
 // FIT protocol uses 0xFFFF (65535) for "no data" - must filter before display
 const MAX_VALID_POWER_WATTS = 2500;
@@ -154,8 +145,6 @@ const RideAnalysisModal = ({
   onBackfillGps,
   isBackfilling = false,
 }) => {
-  const [mapLoaded, setMapLoaded] = useState(false);
-
   // Extract polyline from various possible locations
   const polyline = useMemo(() => {
     if (!ride) return null;
@@ -337,40 +326,15 @@ const RideAnalysisModal = ({
     >
       <Stack gap="md">
         {/* Route Map */}
-        <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
-          {hasGpsData && MAPBOX_TOKEN ? (
-            <Box style={{ height: 300, position: 'relative' }}>
-              {!mapLoaded && (
-                <Skeleton height={300} />
-              )}
-              <Map
-                initialViewState={{
-                  bounds: bounds,
-                  fitBoundsOptions: { padding: 40 },
-                }}
-                style={{ width: '100%', height: '100%' }}
-                mapStyle="mapbox://styles/mapbox/dark-v11"
-                mapboxAccessToken={MAPBOX_TOKEN}
-                onLoad={() => setMapLoaded(true)}
-                interactive={true}
-                scrollZoom={false}
-              >
-                {routeGeoJSON && (
-                  <Source id="route" type="geojson" data={routeGeoJSON}>
-                    <Layer
-                      id="route-line"
-                      type="line"
-                      paint={{
-                        'line-color': '#4ade80',
-                        'line-width': 3,
-                        'line-opacity': 0.9,
-                      }}
-                    />
-                  </Source>
-                )}
-              </Map>
-            </Box>
-          ) : (
+        {hasGpsData ? (
+          <ColoredRouteMap
+            activityStreams={ride.activity_streams}
+            routeCoords={routeCoords}
+            routeGeoJSON={routeGeoJSON}
+            bounds={bounds}
+          />
+        ) : (
+          <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
             <Box
               p="xl"
               ta="center"
@@ -394,8 +358,8 @@ const RideAnalysisModal = ({
                 </Button>
               )}
             </Box>
-          )}
-        </Paper>
+          </Paper>
+        )}
 
         {/* Key Metrics */}
         <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">

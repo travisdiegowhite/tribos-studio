@@ -255,6 +255,10 @@ async function handleExistingActivity(event, existing, integration) {
     updates.push(`GPS: ${fitResult.simplifiedCount} points`);
   }
 
+  if (fitResult.activityStreams) {
+    activityUpdate.activity_streams = fitResult.activityStreams;
+  }
+
   if (fitResult.powerMetrics) {
     const pm = fitResult.powerMetrics;
     if (needsAvgPower && pm.avgPower) {
@@ -437,6 +441,7 @@ async function handleDuplicateActivity(event, integration, activityData, activit
           if (fitResult.powerMetrics || fitResult.polyline) {
             const fitUpdate = { updated_at: new Date().toISOString() };
             if (fitResult.polyline) fitUpdate.map_summary_polyline = fitResult.polyline;
+            if (fitResult.activityStreams) fitUpdate.activity_streams = fitResult.activityStreams;
             if (fitResult.powerMetrics?.avgPower) fitUpdate.average_watts = fitResult.powerMetrics.avgPower;
             if (fitResult.powerMetrics?.normalizedPower) fitUpdate.normalized_power = fitResult.powerMetrics.normalizedPower;
             if (fitResult.powerMetrics?.maxPower) fitUpdate.max_watts = fitResult.powerMetrics.maxPower;
@@ -487,6 +492,10 @@ async function processFitFile(activityId, fitFileUrl, accessToken) {
 
     if (fitResult.polyline) {
       activityUpdate.map_summary_polyline = fitResult.polyline;
+    }
+
+    if (fitResult.activityStreams) {
+      activityUpdate.activity_streams = fitResult.activityStreams;
     }
 
     if (fitResult.powerMetrics) {

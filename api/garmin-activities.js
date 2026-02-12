@@ -943,13 +943,17 @@ async function backfillGpsData(req, res, userId) {
           continue;
         }
 
-        // Update activity with GPS polyline
+        // Update activity with GPS polyline and metric streams
+        const gpsUpdate = {
+          map_summary_polyline: fitResult.polyline,
+          updated_at: new Date().toISOString()
+        };
+        if (fitResult.activityStreams) {
+          gpsUpdate.activity_streams = fitResult.activityStreams;
+        }
         const { error: updateError } = await supabase
           .from('activities')
-          .update({
-            map_summary_polyline: fitResult.polyline,
-            updated_at: new Date().toISOString()
-          })
+          .update(gpsUpdate)
           .eq('id', activity.id);
 
         if (updateError) {
@@ -1314,6 +1318,7 @@ async function backfillPowerData(req, res, userId) {
         if (pm.intensityFactor) updateData.intensity_factor = pm.intensityFactor;
         if (pm.powerCurveSummary) updateData.power_curve_summary = pm.powerCurveSummary;
         if (pm.workKj) updateData.kilojoules = pm.workKj;
+        if (fitResult.activityStreams) updateData.activity_streams = fitResult.activityStreams;
 
         // Update activity with power data
         const { error: updateError } = await supabase
