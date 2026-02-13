@@ -134,6 +134,7 @@ function RouteBuilder() {
   const [calendarContext, setCalendarContext] = useState(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const mapRef = useRef();
+  const viewportRef = useRef(viewport); // Track latest viewport without triggering re-renders
   const isEditing = !!routeId;
 
   // AI Route Generation transient state
@@ -541,12 +542,10 @@ function RouteBuilder() {
       (position) => {
         const { latitude, longitude } = position.coords;
         setUserLocation({ latitude, longitude });
-        setViewport(v => ({
-          ...v,
-          latitude,
-          longitude,
-          zoom: 13
-        }));
+        if (mapRef.current) {
+          mapRef.current.flyTo({ center: [longitude, latitude], zoom: 13 });
+        }
+        setViewport(v => ({ ...v, latitude, longitude, zoom: 13 }));
         setIsLocating(false);
         console.log('📍 Geolocated to:', latitude, longitude);
       },
@@ -653,12 +652,10 @@ function RouteBuilder() {
 
           // Center map on route start
           if (route.start_latitude && route.start_longitude) {
-            setViewport(v => ({
-              ...v,
-              latitude: route.start_latitude,
-              longitude: route.start_longitude,
-              zoom: 13
-            }));
+            if (mapRef.current) {
+              mapRef.current.flyTo({ center: [route.start_longitude, route.start_latitude], zoom: 13 });
+            }
+            setViewport(v => ({ ...v, latitude: route.start_latitude, longitude: route.start_longitude, zoom: 13 }));
           }
         }
       } catch (error) {
@@ -1539,7 +1536,7 @@ function RouteBuilder() {
         }
 
         routes = await generateIterativeRouteVariations({
-          startLocation: [viewport.longitude, viewport.latitude],
+          startLocation: [viewportRef.current.longitude, viewportRef.current.latitude],
           targetDistanceKm,
           routeType: routeType === 'out_back' ? 'out_and_back' : routeType,
           options: {
@@ -1561,7 +1558,7 @@ function RouteBuilder() {
         // 2. Converts suggestions to full GPS routes
         // 3. Falls back to past ride patterns and Mapbox if needed
         routes = await generateAIRoutes({
-          startLocation: [viewport.longitude, viewport.latitude], // [lng, lat] format
+          startLocation: [viewportRef.current.longitude, viewportRef.current.latitude], // [lng, lat] format
           timeAvailable,
           trainingGoal,
           routeType,
@@ -1620,7 +1617,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [viewport, timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm, accessToken]);
+  }, [timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm, accessToken]); // viewport read from viewportRef
 
   // Get user's speed for the current route profile
   const getUserSpeedForProfile = useCallback((profile) => {
@@ -1714,7 +1711,7 @@ function RouteBuilder() {
       const prompt = buildNaturalLanguagePrompt(
         naturalLanguageInput,
         weatherData,
-        [viewport.longitude, viewport.latitude],
+        [viewportRef.current.longitude, viewportRef.current.latitude],
         null, // userAddress - could add reverse geocoding later
         { todaysWorkout, upcomingWorkouts } // Calendar context for NL understanding
       );
@@ -1780,7 +1777,7 @@ function RouteBuilder() {
         console.log('📍 Using geolocated position as start:', startLocation);
       } else {
         // Fall back to viewport center with a warning
-        startLocation = [viewport.longitude, viewport.latitude];
+        startLocation = [viewportRef.current.longitude, viewportRef.current.latitude];
         startLocationSource = 'viewport';
         console.warn('⚠️ No geolocation available, using viewport center as start:', startLocation);
         notifications.show({
@@ -2094,7 +2091,7 @@ function RouteBuilder() {
     } finally {
       setGeneratingAI(false);
     }
-  }, [naturalLanguageInput, viewport, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext, accessToken]);
+  }, [naturalLanguageInput, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext, accessToken]); // viewport read from viewportRef
 
   // Search for address using Mapbox Geocoding API
   const handleAddressSearch = useCallback(async (query) => {
@@ -2128,12 +2125,10 @@ function RouteBuilder() {
   // Handle selecting a search result
   const handleSelectSearchResult = useCallback((result) => {
     const [lng, lat] = result.center;
-    setViewport(v => ({
-      ...v,
-      latitude: lat,
-      longitude: lng,
-      zoom: 14
-    }));
+    if (mapRef.current) {
+      mapRef.current.flyTo({ center: [lng, lat], zoom: 14 });
+    }
+    setViewport(v => ({ ...v, latitude: lat, longitude: lng, zoom: 14 }));
     setSearchQuery('');
     setSearchResults([]);
   }, []);
@@ -2154,12 +2149,10 @@ function RouteBuilder() {
       (position) => {
         const { latitude, longitude } = position.coords;
         setUserLocation({ latitude, longitude });
-        setViewport(v => ({
-          ...v,
-          latitude,
-          longitude,
-          zoom: 14
-        }));
+        if (mapRef.current) {
+          mapRef.current.flyTo({ center: [longitude, latitude], zoom: 14 });
+        }
+        setViewport(v => ({ ...v, latitude, longitude, zoom: 14 }));
         setIsLocating(false);
         notifications.show({
           title: 'Location Found',
@@ -2857,8 +2850,9 @@ function RouteBuilder() {
             {MAPBOX_TOKEN ? (
               <Map
                 ref={mapRef}
-                {...viewport}
-                onMove={evt => setViewport(evt.viewState)}
+                initialViewState={viewport}
+                onMove={evt => { viewportRef.current = evt.viewState; }}
+                onMoveEnd={evt => setViewport(evt.viewState)}
                 onMouseMove={handleMapMouseMove}
                 onMouseLeave={handleMapMouseLeave}
                 onClick={handleMapClick}
@@ -4551,8 +4545,9 @@ function RouteBuilder() {
           {MAPBOX_TOKEN ? (
             <Map
               ref={mapRef}
-              {...viewport}
-              onMove={evt => setViewport(evt.viewState)}
+              initialViewState={viewport}
+              onMove={evt => { viewportRef.current = evt.viewState; }}
+              onMoveEnd={evt => setViewport(evt.viewState)}
               onMouseMove={handleMapMouseMove}
               onMouseLeave={handleMapMouseLeave}
               onClick={handleMapClick}
