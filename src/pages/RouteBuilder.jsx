@@ -165,9 +165,9 @@ function RouteBuilder() {
   // Units preference state
   const [unitsPreference, setUnitsPreference] = useState('imperial');
   const isImperial = unitsPreference === 'imperial';
-  const formatDist = (km) => formatDistance(km, isImperial);
-  const formatElev = (m) => formatElevation(m, isImperial);
-  const formatSpd = (kmh) => formatSpeed(kmh, isImperial);
+  const formatDist = useCallback((km) => formatDistance(km, isImperial), [isImperial]);
+  const formatElev = useCallback((m) => formatElevation(m, isImperial), [isImperial]);
+  const formatSpd = useCallback((kmh) => formatSpeed(kmh, isImperial), [isImperial]);
 
   // Route editing state
   const [editMode, setEditMode] = useState(false);
@@ -2187,8 +2187,8 @@ function RouteBuilder() {
   }
 
   // Render route stats for the bottom sheet peek content
-  const safeStats = routeStats || { distance: 0, elevation: 0, duration: 0 };
-  const renderPeekContent = () => (
+  const safeStats = useMemo(() => routeStats || { distance: 0, elevation: 0, duration: 0 }, [routeStats]);
+  const peekContentElement = useMemo(() => (
     <Group justify="space-between" style={{ width: '100%' }}>
       <Box>
         <Text size="xs" c="dimmed">Distance</Text>
@@ -2214,10 +2214,13 @@ function RouteBuilder() {
         Save
       </Button>
     </Group>
-  );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [safeStats, routeGeometry, isSaving, formatDist, formatElev, handleSaveRoute]);
 
-  // Render the sidebar/bottom sheet controls
-  const renderControls = () => (
+  // Memoize controls to prevent dropdown strobe: the BottomSheet content tree stays stable
+  // across unrelated re-renders (viewport, search, infrastructure), so Select internal
+  // state (dropdown open/closed) is preserved.
+  const controlsElement = useMemo(() => (
     <Stack gap="md">
       {/* My Routes button (mobile) */}
       <Button
@@ -2838,7 +2841,26 @@ function RouteBuilder() {
       </>
       )}
     </Stack>
-  );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [
+    // State values that affect the rendered output
+    builderMode, routeName, naturalLanguageInput, generatingAI,
+    calendarContext, useIterativeBuilder, routeProfile, trainingGoal,
+    timeAvailable, routeType, selectedWorkout, showWorkoutOverlay,
+    workoutOptions, aiSuggestions, convertingRoute, userLocation,
+    routeGeometry, isSaving, savedRouteId, waypoints, editMode,
+    selectedSegment, isRemovingSegment, altMode, altSegmentIdx,
+    altData, altLoading, altHovered, altWaypoints, currentSegmentStats,
+    aiEditMode, aiEditLoading, aiEditResult, routeStats, speedProfile,
+    routingSource, routeDataForExport, personalizedETA, isMobile,
+    isImperial,
+    // Stable callbacks (useCallback/Zustand): handleSaveRoute, handleGenerateAIRoutes,
+    // handleNaturalLanguageGenerate, handleSelectAISuggestion, handleImportGPX,
+    // handleRemoveSegment, handleSelectAltSegment, handleApplyAlternative,
+    // handleAIEditSubmit, handleAIEditAccept, handleAIEditReject,
+    // handleClearSession, exitAltMode, clearRoute, formatDist, formatElev, formatSpd,
+    // getUserSpeedForProfile, and all setState/Zustand setters are stable references.
+  ]);
 
   // Mobile layout
   if (isMobile) {
@@ -3372,11 +3394,11 @@ function RouteBuilder() {
 
           {/* Bottom Sheet with controls */}
           <BottomSheet
-            peekContent={renderPeekContent()}
+            peekContent={peekContentElement}
             peekHeight={100}
             expandedHeight="75vh"
           >
-            {renderControls()}
+            {controlsElement}
           </BottomSheet>
         </Box>
 

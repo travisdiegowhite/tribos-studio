@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, memo } from 'react';
 import { Box, Paper, Text } from '@mantine/core';
 import { IconChevronUp, IconChevronDown } from '@tabler/icons-react';
 import { tokens } from '../theme';
@@ -176,4 +176,4 @@ function BottomSheet({
   );
 }
 
-export default BottomSheet;
+export default memo(BottomSheet);
