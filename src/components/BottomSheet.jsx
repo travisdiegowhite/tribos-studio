@@ -34,6 +34,7 @@ function BottomSheet({
   // Handle touch move
   const handleTouchMove = (e) => {
     if (!isDragging) return;
+    e.preventDefault(); // Prevent browser scroll while dragging the sheet
     const currentY = e.touches[0].clientY;
     const diff = currentY - dragStart;
     setCurrentTranslate(diff);

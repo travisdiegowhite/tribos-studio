@@ -340,13 +340,31 @@ function RouteBuilder() {
       // Generate cues from workout structure
       const cues = generateCuesFromWorkoutStructure(route, selectedWorkout);
       if (cues && cues.length > 0) {
-        setIntervalCues(cues);
         return createColoredRouteSegments(routeGeometry.coordinates, cues);
       }
     } catch (error) {
       console.error('Error generating colored segments:', error);
     }
     return null;
+  }, [routeGeometry, selectedWorkout, routeStats.distance, showWorkoutOverlay]);
+
+  // Sync interval cues as a side effect (separate from memoized computation to avoid render loops)
+  useEffect(() => {
+    if (!routeGeometry?.coordinates || !selectedWorkout || !showWorkoutOverlay) {
+      return;
+    }
+    try {
+      const route = {
+        coordinates: routeGeometry.coordinates,
+        distance: routeStats.distance
+      };
+      const cues = generateCuesFromWorkoutStructure(route, selectedWorkout);
+      if (cues && cues.length > 0) {
+        setIntervalCues(cues);
+      }
+    } catch (error) {
+      // Already logged in useMemo above
+    }
   }, [routeGeometry, selectedWorkout, routeStats.distance, showWorkoutOverlay]);
 
   // Memoize route GeoJSON to prevent re-creating on every map move/render
@@ -2165,7 +2183,7 @@ function RouteBuilder() {
   if (loadingRoute) {
     return (
       <AppShell fullWidth>
-        <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 60px)' }}>
+        <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100dvh - 60px)', minHeight: 'calc(100vh - 60px)' }}>
           <Stack align="center" gap="md">
             <Loader color="lime" size="lg" />
             <Text style={{ color: 'var(--tribos-text-secondary)' }}>Loading route...</Text>
@@ -2454,6 +2472,7 @@ function RouteBuilder() {
               { value: 'out_back', label: 'Out & Back' },
               { value: 'point_to_point', label: 'Point to Point' }
             ]}
+            comboboxProps={{ withinPortal: true }}
           />
         </Box>
       </Group>
@@ -2484,6 +2503,7 @@ function RouteBuilder() {
           size="sm"
           variant="filled"
           data={workoutOptions}
+          comboboxProps={{ withinPortal: true }}
         />
         {/* Show color overlay toggle when workout is selected */}
         {selectedWorkout && (
@@ -2831,7 +2851,7 @@ function RouteBuilder() {
   if (isMobile) {
     return (
       <AppShell fullWidth hideNav>
-        <Box style={{ height: 'calc(100vh - 60px)', position: 'relative' }}>
+        <Box style={{ height: 'calc(100dvh - 60px)', minHeight: 'calc(100vh - 60px)', position: 'relative' }}>
           {/* Full-screen map */}
           <Box style={{ width: '100%', height: '100%' }}>
             {MAPBOX_TOKEN ? (
@@ -3041,6 +3061,11 @@ function RouteBuilder() {
                   zIndex: 10,
                   display: 'flex',
                   gap: 8,
+                  overflowX: 'auto',
+                  flexWrap: 'nowrap',
+                  WebkitOverflowScrolling: 'touch',
+                  msOverflowStyle: 'none',
+                  scrollbarWidth: 'none',
                 }}
               >
                 <TextInput
@@ -3054,11 +3079,11 @@ function RouteBuilder() {
                   rightSection={searchQuery ? (
                     <IconX size={16} style={{ cursor: 'pointer' }} onClick={() => { setSearchQuery(''); setSearchResults([]); }} />
                   ) : null}
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minWidth: 120 }}
                   styles={{ input: { backgroundColor: 'var(--tribos-bg-secondary)' } }}
                 />
                 <Tooltip label="My Location">
-                  <Button variant="filled" color="lime" size="md" onClick={handleGeolocate} loading={isLocating} style={{ padding: '0 12px' }}>
+                  <Button variant="filled" color="lime" size="md" onClick={handleGeolocate} loading={isLocating} style={{ padding: '0 12px', flexShrink: 0 }}>
                     <IconCurrentLocation size={20} />
                   </Button>
                 </Tooltip>
@@ -3072,6 +3097,7 @@ function RouteBuilder() {
                     disabled={mapStyleId === 'cyclosm'}
                     style={{
                       padding: '0 12px',
+                      flexShrink: 0,
                       backgroundColor: showBikeInfrastructure ? 'var(--tribos-lime)' : 'var(--tribos-bg-secondary)',
                       border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                     }}
@@ -3089,6 +3115,7 @@ function RouteBuilder() {
                       loading={poiLoading}
                       style={{
                         padding: '0 12px',
+                        flexShrink: 0,
                         backgroundColor: showPOIs ? '#3b82f6' : 'var(--tribos-bg-secondary)',
                         border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                       }}
@@ -3105,6 +3132,7 @@ function RouteBuilder() {
                       size="md"
                       style={{
                         padding: '0 12px',
+                        flexShrink: 0,
                         backgroundColor: 'var(--tribos-bg-secondary)',
                         border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                       }}
@@ -3140,6 +3168,7 @@ function RouteBuilder() {
                     onClick={() => setRoadPreferencesOpen(true)}
                     style={{
                       padding: '0 12px',
+                      flexShrink: 0,
                       backgroundColor: 'var(--tribos-bg-secondary)',
                       border: '1px solid var(--tribos-border)',
                     }}
@@ -3159,6 +3188,7 @@ function RouteBuilder() {
                       }}
                       style={{
                         padding: '0 12px',
+                        flexShrink: 0,
                         backgroundColor: editMode ? '#ef4444' : 'var(--tribos-bg-secondary)',
                         border: `1px solid ${editMode ? '#ef4444' : 'var(--tribos-bg-tertiary)'}`,
                       }}
@@ -3176,6 +3206,7 @@ function RouteBuilder() {
                       onClick={() => altMode ? exitAltMode() : setAltMode(true)}
                       style={{
                         padding: '0 12px',
+                        flexShrink: 0,
                         backgroundColor: altMode ? '#8b5cf6' : 'var(--tribos-bg-secondary)',
                         border: `1px solid ${altMode ? '#8b5cf6' : 'var(--tribos-bg-tertiary)'}`,
                       }}
@@ -3196,6 +3227,7 @@ function RouteBuilder() {
                       }}
                       style={{
                         padding: '0 12px',
+                        flexShrink: 0,
                         backgroundColor: aiEditMode ? '#84cc16' : 'var(--tribos-bg-secondary)',
                         border: `1px solid ${aiEditMode ? '#84cc16' : 'var(--tribos-bg-tertiary)'}`,
                       }}
@@ -3216,7 +3248,7 @@ function RouteBuilder() {
                   top: 70,
                   left: 16,
                   right: 16,
-                  zIndex: 10,
+                  zIndex: 201,
                   maxHeight: 200,
                   overflowY: 'auto',
                   backgroundColor: 'var(--tribos-bg-secondary)',
@@ -3675,6 +3707,7 @@ function RouteBuilder() {
                           { value: 'out_back', label: 'Out & Back' },
                           { value: 'point_to_point', label: 'Point to Point' }
                         ]}
+                        comboboxProps={{ withinPortal: true }}
                       />
                     </Box>
                   </Group>
@@ -3703,6 +3736,7 @@ function RouteBuilder() {
                       size="sm"
                       variant="filled"
                       data={workoutOptions}
+                      comboboxProps={{ withinPortal: true }}
                     />
                     {selectedWorkout && (
                       <Group justify="space-between" mt="xs">
@@ -4005,6 +4039,7 @@ function RouteBuilder() {
                       { value: 'gravel', label: 'Gravel' },
                       { value: 'mountain', label: 'Mountain' },
                     ]}
+                    comboboxProps={{ withinPortal: true }}
                   />
                 )}
 
