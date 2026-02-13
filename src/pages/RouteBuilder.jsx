@@ -2468,7 +2468,7 @@ function RouteBuilder() {
               { value: 'out_back', label: 'Out & Back' },
               { value: 'point_to_point', label: 'Point to Point' }
             ]}
-            comboboxProps={{ withinPortal: true }}
+            comboboxProps={{ withinPortal: true, hideDetached: false }}
           />
         </Box>
       </Group>
@@ -2499,7 +2499,7 @@ function RouteBuilder() {
           size="sm"
           variant="filled"
           data={workoutOptions}
-          comboboxProps={{ withinPortal: true }}
+          comboboxProps={{ withinPortal: true, hideDetached: false }}
         />
         {/* Show color overlay toggle when workout is selected */}
         {selectedWorkout && (
@@ -3723,7 +3723,7 @@ function RouteBuilder() {
                           { value: 'out_back', label: 'Out & Back' },
                           { value: 'point_to_point', label: 'Point to Point' }
                         ]}
-                        comboboxProps={{ withinPortal: true }}
+                        comboboxProps={{ withinPortal: true, hideDetached: false }}
                       />
                     </Box>
                   </Group>
@@ -3752,7 +3752,7 @@ function RouteBuilder() {
                       size="sm"
                       variant="filled"
                       data={workoutOptions}
-                      comboboxProps={{ withinPortal: true }}
+                      comboboxProps={{ withinPortal: true, hideDetached: false }}
                     />
                     {selectedWorkout && (
                       <Group justify="space-between" mt="xs">
@@ -4055,7 +4055,7 @@ function RouteBuilder() {
                       { value: 'gravel', label: 'Gravel' },
                       { value: 'mountain', label: 'Mountain' },
                     ]}
-                    comboboxProps={{ withinPortal: true }}
+                    comboboxProps={{ withinPortal: true, hideDetached: false }}
                   />
                 )}
 
