@@ -3118,7 +3118,7 @@ function RouteBuilder() {
                       border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconBike size={20} color={showBikeInfrastructure ? '#000' : '#fff'} />
+                    <IconBike size={20} color={showBikeInfrastructure ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
                 {routeGeometry && (
@@ -3136,7 +3136,7 @@ function RouteBuilder() {
                         border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
-                      <IconMapPin size={20} color={showPOIs ? '#fff' : '#fff'} />
+                      <IconMapPin size={20} color={showPOIs ? '#fff' : 'var(--tribos-text-100)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -3151,6 +3151,7 @@ function RouteBuilder() {
                         flexShrink: 0,
                         backgroundColor: 'var(--tribos-bg-secondary)',
                         border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+                        color: 'var(--tribos-text-100)',
                       }}
                     >
                       <IconMap size={20} />
@@ -3209,7 +3210,7 @@ function RouteBuilder() {
                         border: `1px solid ${editMode ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
-                      <IconScissors size={20} color={editMode ? '#fff' : '#fff'} />
+                      <IconScissors size={20} color={editMode ? '#fff' : 'var(--tribos-text-100)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -3227,7 +3228,7 @@ function RouteBuilder() {
                         border: `1px solid ${altMode ? '#6B7F94' : 'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
-                      <IconArrowsExchange size={20} color="#fff" />
+                      <IconArrowsExchange size={20} color={altMode ? '#fff' : 'var(--tribos-text-100)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -3244,11 +3245,11 @@ function RouteBuilder() {
                       style={{
                         padding: '0 12px',
                         flexShrink: 0,
-                        backgroundColor: aiEditMode ? '#84cc16' : 'var(--tribos-bg-secondary)',
-                        border: `1px solid ${aiEditMode ? '#84cc16' : 'var(--tribos-bg-tertiary)'}`,
+                        backgroundColor: aiEditMode ? '#9E5A3C' : 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${aiEditMode ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
-                      <IconWand size={20} color={aiEditMode ? '#000' : '#fff'} />
+                      <IconWand size={20} color={aiEditMode ? '#fff' : 'var(--tribos-text-100)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -4379,7 +4380,7 @@ function RouteBuilder() {
                     border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                   }}
                 >
-                  <IconBike size={20} color={showBikeInfrastructure ? '#000' : '#fff'} />
+                  <IconBike size={20} color={showBikeInfrastructure ? '#fff' : 'var(--tribos-text-100)'} />
                 </Button>
               </Tooltip>
               {routeGeometry && (
@@ -4396,7 +4397,7 @@ function RouteBuilder() {
                       border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconMapPin size={20} color="#fff" />
+                    <IconMapPin size={20} color={showPOIs ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4411,6 +4412,7 @@ function RouteBuilder() {
                         padding: '0 12px',
                         backgroundColor: 'var(--tribos-bg-secondary)',
                         border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+                        color: 'var(--tribos-text-100)',
                       }}
                     >
                       <IconMap size={20} />
@@ -4468,7 +4470,7 @@ function RouteBuilder() {
                       border: `1px solid ${editMode ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconScissors size={20} color="#fff" />
+                    <IconScissors size={20} color={editMode ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4485,7 +4487,7 @@ function RouteBuilder() {
                       border: `1px solid ${altMode ? '#6B7F94' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconArrowsExchange size={20} color="#fff" />
+                    <IconArrowsExchange size={20} color={altMode ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4501,11 +4503,11 @@ function RouteBuilder() {
                     }}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: aiEditMode ? '#84cc16' : 'var(--tribos-bg-secondary)',
-                      border: `1px solid ${aiEditMode ? '#84cc16' : 'var(--tribos-bg-tertiary)'}`,
+                      backgroundColor: aiEditMode ? '#9E5A3C' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${aiEditMode ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconWand size={20} color={aiEditMode ? '#000' : '#fff'} />
+                    <IconWand size={20} color={aiEditMode ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4518,11 +4520,11 @@ function RouteBuilder() {
                     onClick={() => { setShowWorkoutOverlay(!showWorkoutOverlay); if (!showWorkoutOverlay) { setShowGradient(false); setShowSurface(false); } }}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: showWorkoutOverlay ? '#84cc16' : 'var(--tribos-bg-secondary)',
-                      border: `1px solid ${showWorkoutOverlay ? '#84cc16' : 'var(--tribos-bg-tertiary)'}`,
+                      backgroundColor: showWorkoutOverlay ? '#9E5A3C' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${showWorkoutOverlay ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconHeartRateMonitor size={20} color="#fff" />
+                    <IconHeartRateMonitor size={20} color={showWorkoutOverlay ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4539,7 +4541,7 @@ function RouteBuilder() {
                       border: `1px solid ${showGradient ? '#6B8C72' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconMountain size={20} color="#fff" />
+                    <IconMountain size={20} color={showGradient ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4557,7 +4559,7 @@ function RouteBuilder() {
                       border: `1px solid ${showSurface ? '#D97706' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconRoad size={20} color="#fff" />
+                    <IconRoad size={20} color={showSurface ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}

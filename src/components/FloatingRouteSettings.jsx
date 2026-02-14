@@ -763,11 +763,12 @@ export function RouteSettingsButton({ onClick, speedProfile, isImperial = true }
         style={{
           backgroundColor: 'var(--tribos-bg-secondary)',
           border: `1px solid ${'var(--tribos-border)'}`,
+          color: 'var(--tribos-text-100)',
         }}
       >
         <Group gap={4}>
-          <Text size="sm" fw={600}>{displaySpeed}</Text>
-          <Text size="xs" c="dimmed">{unit}</Text>
+          <Text size="sm" fw={600} c="var(--tribos-text-100)">{displaySpeed}</Text>
+          <Text size="xs" c="var(--tribos-text-300)">{unit}</Text>
         </Group>
       </Button>
     </Tooltip>
