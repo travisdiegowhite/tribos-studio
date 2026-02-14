@@ -335,7 +335,7 @@ function WeeklyCheckInWidget({
                             key={factor.value}
                             size="md"
                             variant={energyFactors.includes(factor.value) ? 'filled' : 'outline'}
-                            color={energyFactors.includes(factor.value) ? 'lime' : 'gray'}
+                            color={energyFactors.includes(factor.value) ? 'terracotta' : 'gray'}
                             style={{ cursor: 'pointer' }}
                             onClick={() => {
                               setEnergyFactors(prev =>
@@ -551,7 +551,7 @@ function WeeklyCheckInWidget({
                         key={factor.value}
                         size="md"
                         variant={energyFactors.includes(factor.value) ? 'filled' : 'outline'}
-                        color={energyFactors.includes(factor.value) ? 'lime' : 'gray'}
+                        color={energyFactors.includes(factor.value) ? 'terracotta' : 'gray'}
                         style={{ cursor: 'pointer' }}
                         onClick={() => {
                           setEnergyFactors(prev =>

@@ -336,7 +336,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
         {/* Heart Rate Metrics */}
         {metrics.avgHr && (
           <MetricCard
-            icon={<IconHeart size={16} color="#ef4444" />}
+            icon={<IconHeart size={16} color="#C4785C" />}
             label="Avg HR"
             value={`${Math.round(metrics.avgHr)} bpm`}
             subValue={metrics.maxHr ? `Max: ${Math.round(metrics.maxHr)}` : null}

@@ -335,7 +335,7 @@ export function AdaptationInsightsPanel({
                             </Box>
                           </Group>
                           {adaptation.userFeedback.reason && (
-                            <Badge size="xs" variant="dot" color="green">
+                            <Badge size="xs" variant="dot" color="sage">
                               Feedback
                             </Badge>
                           )}
@@ -394,7 +394,7 @@ export function AdaptationInsightsPanel({
                           <Tooltip label="Apply suggestion">
                             <ActionIcon
                               size="sm"
-                              color="green"
+                              color="sage"
                               variant="subtle"
                               onClick={() => onApplyInsight(insight.id)}
                             >

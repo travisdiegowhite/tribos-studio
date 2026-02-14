@@ -139,7 +139,7 @@ function CoachResponseArea({
                   key={action.id || index}
                   size="xs"
                   variant={action.primary ? 'filled' : 'light'}
-                  color="lime"
+                  color="terracotta"
                   leftSection={<ActionIcon size={14} />}
                   onClick={() => onActionClick?.(action)}
                   styles={{

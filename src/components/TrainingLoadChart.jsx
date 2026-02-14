@@ -144,8 +144,8 @@ const TrainingLoadChart = ({ data }) => {
           <Area
             type="monotone"
             dataKey="tss"
-            stroke="#60a5fa"
-            fill="#60a5fa"
+            stroke="#7BA9A0"
+            fill="#7BA9A0"
             fillOpacity={0.3}
             name="Daily TSS"
           />
@@ -176,7 +176,7 @@ const TrainingLoadChart = ({ data }) => {
           <Line
             type="monotone"
             dataKey="ctl"
-            stroke="#3b82f6"
+            stroke="#7BA9A0"
             strokeWidth={2}
             dot={false}
             name="CTL (Fitness)"
@@ -186,7 +186,7 @@ const TrainingLoadChart = ({ data }) => {
           <Line
             type="monotone"
             dataKey="atl"
-            stroke="#f59e0b"
+            stroke="#D4A843"
             strokeWidth={2}
             dot={false}
             name="ATL (Fatigue)"
@@ -196,7 +196,7 @@ const TrainingLoadChart = ({ data }) => {
           <Line
             type="monotone"
             dataKey="tsb"
-            stroke="#22c55e"
+            stroke="#A8BFA8"
             strokeWidth={2}
             dot={false}
             name="TSB (Form)"

@@ -55,11 +55,11 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 // Segment type colors for map
 const SEGMENT_COLORS = {
-  flat: '#3b82f6',      // Blue
-  climb: '#ef4444',     // Red
-  descent: '#22c55e',   // Green
-  rolling: '#f59e0b',   // Amber
-  interval: '#a855f7',  // Purple
+  flat: '#7BA9A0',      // Teal
+  climb: '#C4785C',     // Terracotta
+  descent: '#A8BFA8',   // Sage
+  rolling: '#D4A843',   // Gold
+  interval: '#C4A0B9',  // Mauve
 };
 
 // Decode polyline to coordinates
@@ -325,7 +325,7 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
             {coords.length > 0 && (
               <Marker longitude={coords[0][0]} latitude={coords[0][1]} anchor="bottom">
                 <div style={{
-                  backgroundColor: '#22c55e',
+                  backgroundColor: '#A8BFA8',
                   color: 'white',
                   width: 28,
                   height: 28,
@@ -347,7 +347,7 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
             {coords.length > 1 && (
               <Marker longitude={coords[coords.length - 1][0]} latitude={coords[coords.length - 1][1]} anchor="bottom">
                 <div style={{
-                  backgroundColor: '#ef4444',
+                  backgroundColor: '#C4785C',
                   color: 'white',
                   width: 28,
                   height: 28,
@@ -723,7 +723,7 @@ export default function RouteAnalysisPanel({
       {/* Header */}
       <Group justify="space-between" wrap="wrap">
         <Group gap="xs">
-          <ThemeIcon size="lg" radius="md" color="lime">
+          <ThemeIcon size="lg" radius="md" color="terracotta">
             <IconRoute size={20} />
           </ThemeIcon>
           <Box>
@@ -980,7 +980,7 @@ export default function RouteAnalysisPanel({
                     {/* Best For */}
                     <Group gap={4}>
                       {(analysis.best_for || []).map(cat => (
-                        <Badge key={cat} size="xs" variant="dot" color="lime">
+                        <Badge key={cat} size="xs" variant="dot" color="terracotta">
                           {CATEGORY_NAMES[cat] || cat}
                         </Badge>
                       ))}

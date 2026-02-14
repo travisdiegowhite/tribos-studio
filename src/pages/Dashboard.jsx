@@ -215,7 +215,7 @@ function Dashboard() {
         notifications.show({
           title: 'Not Connected',
           message: 'Connect Strava in Settings to sync',
-          color: 'yellow',
+          color: 'gold',
         });
       }
     } catch (err) {

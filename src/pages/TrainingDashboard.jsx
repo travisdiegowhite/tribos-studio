@@ -766,7 +766,7 @@ function TrainingDashboard() {
               <>
                 <Button
                   variant="filled"
-                  color="lime"
+                  color="terracotta"
                   size="xs"
                   leftSection={<IconCalendarEvent size={14} />}
                   onClick={() => navigate('/planner')}
@@ -833,7 +833,7 @@ function TrainingDashboard() {
                 </Button>
                 <Button
                   variant="light"
-                  color="lime"
+                  color="terracotta"
                   size="xs"
                   leftSection={<IconSettings size={14} />}
                   onClick={() => navigate('/settings')}
@@ -845,7 +845,7 @@ function TrainingDashboard() {
           />
 
           {/* Main Tabs - Pill Style for clear visual distinction */}
-          <Tabs value={activeTab} onChange={setActiveTab} color="lime" variant="pills">
+          <Tabs value={activeTab} onChange={setActiveTab} color="terracotta" variant="pills">
             <Paper
               withBorder
               radius="xl"
@@ -961,7 +961,7 @@ function TrainingDashboard() {
                       onClick={() => setTrainNowExpanded(!trainNowExpanded)}
                     >
                       <Group gap="xs">
-                        <ThemeIcon size="sm" color="lime" variant="light">
+                        <ThemeIcon size="sm" color="terracotta" variant="light">
                           <IconTarget size={14} />
                         </ThemeIcon>
                         <Text fw={600} size="sm">TrainNow Recommendations</Text>
@@ -1260,7 +1260,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
               <Group gap="sm" wrap="wrap">
                 <Button
                   variant="light"
-                  color="lime"
+                  color="terracotta"
                   rightSection={<IconChevronRight size={16} />}
                   onClick={() => onViewWorkout(suggestedWorkout)}
                 >
@@ -1406,7 +1406,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
               </ThemeIcon>
               <Text fw={600}>Body Check-in</Text>
               {hasCheckedIn && (
-                <Badge color="green" variant="light" size="xs">Done</Badge>
+                <Badge color="sage" variant="light" size="xs">Done</Badge>
               )}
             </Group>
             <Text size="sm" c="dimmed">
@@ -1752,7 +1752,7 @@ function BodyCheckInCard({ todayHealthMetrics, onOpenHealthCheckIn }) {
             </ThemeIcon>
             <Text fw={600}>Body Check-in</Text>
             {hasCheckedIn && (
-              <Badge color="green" variant="light" size="xs">Done</Badge>
+              <Badge color="sage" variant="light" size="xs">Done</Badge>
             )}
           </Group>
           <Text size="sm" c="dimmed">
@@ -2177,7 +2177,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
             </Box>
             <Button
               variant="light"
-              color="lime"
+              color="terracotta"
               leftSection={<IconRoute size={16} />}
               onClick={() => {
                 onClose();
@@ -2191,7 +2191,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
         </Paper>
 
         {/* Close Button */}
-        <Button variant="light" color="lime" fullWidth onClick={onClose}>
+        <Button variant="light" color="terracotta" fullWidth onClick={onClose}>
           Close
         </Button>
       </Stack>

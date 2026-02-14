@@ -157,7 +157,7 @@ export default function CafeSettingsModal({
         notifications.show({
           title: 'Settings saved',
           message: 'Cafe settings have been updated',
-          color: 'green',
+          color: 'sage',
           icon: <IconCheck size={16} />,
         });
         onClose();
@@ -256,7 +256,7 @@ export default function CafeSettingsModal({
         notifications.show({
           title: 'Role updated',
           message: `Member has been ${newRole === 'admin' ? 'promoted to admin' : 'changed to member'}`,
-          color: 'green',
+          color: 'sage',
         });
         loadMembers(); // Reload members list
       }
@@ -393,7 +393,7 @@ export default function CafeSettingsModal({
                 description="Allow this cafe to appear in search results"
                 checked={formData.is_public}
                 onChange={(e) => setFormData({ ...formData, is_public: e.currentTarget.checked })}
-                color="lime"
+                color="terracotta"
               />
 
               <Switch
@@ -401,7 +401,7 @@ export default function CafeSettingsModal({
                 description="Allow new members to join without an invite"
                 checked={formData.is_open}
                 onChange={(e) => setFormData({ ...formData, is_open: e.currentTarget.checked })}
-                color="lime"
+                color="terracotta"
               />
 
               <Group justify="flex-end" mt="md">
@@ -531,7 +531,7 @@ export default function CafeSettingsModal({
               radius="md"
               style={{
                 backgroundColor: 'var(--tribos-bg-tertiary)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
+                border: '1px solid rgba(196, 120, 92, 0.3)',
               }}
             >
               <Stack gap="sm">
@@ -589,12 +589,12 @@ export default function CafeSettingsModal({
                 radius="md"
                 style={{
                   backgroundColor: 'var(--tribos-bg-tertiary)',
-                  border: '1px solid rgba(239, 68, 68, 0.5)',
+                  border: '1px solid rgba(196, 120, 92, 0.5)',
                 }}
               >
                 <Stack gap="sm">
                   <Group>
-                    <IconTrash size={20} color="#ef4444" />
+                    <IconTrash size={20} color="#C4785C" />
                     <Text fw={500} c="red">
                       Delete Cafe
                     </Text>

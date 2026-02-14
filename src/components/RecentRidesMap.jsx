@@ -78,10 +78,10 @@ function getActivityColor(activity, index) {
   // Note: Must use hex colors, not CSS variables, as Mapbox GL doesn't support CSS variables
   const colors = [
     '#32CD32', // Tribos lime - most recent
-    '#60a5fa', // Blue
-    '#f59e0b', // Amber
-    '#a855f7', // Purple
-    '#ec4899', // Pink
+    '#7BA9A0', // Teal
+    '#D4A843', // Gold
+    '#C4A0B9', // Mauve
+    '#9E7E90', // Dusty rose
   ];
 
   return colors[index % colors.length];

@@ -203,7 +203,7 @@ export function CalendarDayCell({
 
   // Get border color based on state
   const getBorderStyle = () => {
-    if (isDropTarget) return '2px dashed var(--mantine-color-lime-4)';
+    if (isDropTarget) return '2px dashed var(--mantine-color-terracotta-4)';
     if (isToday) return '2px solid var(--mantine-color-lime-6)';
     if (isBlocked) return '1px solid var(--mantine-color-red-7)';
     if (isPreferred) return '1px solid var(--mantine-color-yellow-7)';

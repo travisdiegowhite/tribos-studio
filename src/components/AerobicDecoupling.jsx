@@ -282,7 +282,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconHeart size={20} color="#ef4444" />
+          <IconHeart size={20} color="#C4785C" />
           <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Aerobic Efficiency (Pw:Hr)
           </Text>
@@ -296,7 +296,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
         <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs" mb={2}>
-            <IconHeart size={14} color="#ef4444" />
+            <IconHeart size={14} color="#C4785C" />
             <Text size="xs" c="dimmed">Avg EF</Text>
           </Group>
           <Text size="lg" fw={700}>{analysis.avgEF}</Text>
@@ -368,9 +368,9 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
             <Line
               type="monotone"
               dataKey="ef"
-              stroke="#ef4444"
+              stroke="#C4785C"
               strokeWidth={2}
-              dot={{ fill: '#ef4444', r: 3 }}
+              dot={{ fill: '#C4785C', r: 3 }}
             />
           </LineChart>
         </ResponsiveContainer>

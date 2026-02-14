@@ -224,7 +224,7 @@ function Settings() {
       notifications.show({
         title: 'Google Calendar Connected',
         message: 'Your Google Calendar is now linked. Busy times can be imported in Training Availability settings.',
-        color: 'lime',
+        color: 'terracotta',
       });
       searchParams.delete('connected');
       searchParams.delete('tab');
@@ -278,7 +278,7 @@ function Settings() {
         notifications.show({
           title: 'Success',
           message: 'Profile updated successfully',
-          color: 'green',
+          color: 'sage',
         });
       }
     } catch (error) {
@@ -325,7 +325,7 @@ function Settings() {
       notifications.show({
         title: 'Disconnected',
         message: 'Strava has been disconnected and all Strava-synced activities have been removed',
-        color: 'green',
+        color: 'sage',
       });
     } catch (error) {
       console.error('Error disconnecting Strava:', error);
@@ -366,7 +366,7 @@ function Settings() {
         id: 'strava-sync',
         title: 'Sync Complete!',
         message: `Synced ${result.totalSynced} activities. Speed profile ${profile ? 'updated' : 'needs more data'}.`,
-        color: 'lime',
+        color: 'terracotta',
         loading: false,
         autoClose: 5000
       });
@@ -457,7 +457,7 @@ function Settings() {
             id: 'strava-full-sync',
             title: 'Rate Limited',
             message: `Synced ${totalFetched} activities. Strava rate limit reached - try again in a few minutes.`,
-            color: 'yellow',
+            color: 'gold',
             loading: false,
             autoClose: 8000
           });
@@ -474,7 +474,7 @@ function Settings() {
         id: 'strava-full-sync',
         title: 'Full Sync Complete!',
         message: `Imported ${totalFetched} activities (${totalStored} new/updated). ${totalPages} pages processed.`,
-        color: 'lime',
+        color: 'terracotta',
         loading: false,
         autoClose: 8000
       });
@@ -524,7 +524,7 @@ function Settings() {
         notifications.show({
           title: 'No Duplicates Found',
           message: 'Your activity library is clean!',
-          color: 'lime'
+          color: 'terracotta'
         });
       }
     } catch (error) {
@@ -579,7 +579,7 @@ function Settings() {
         id: 'cleanup-duplicates',
         title: 'Cleanup Complete!',
         message: `Merged ${result.groupsMerged} duplicate groups. Removed ${result.activitiesDeleted} duplicate activities.`,
-        color: 'lime',
+        color: 'terracotta',
         loading: false,
         autoClose: 8000
       });
@@ -604,7 +604,7 @@ function Settings() {
         notifications.show({
           title: 'Not Configured',
           message: 'Garmin integration is not yet configured. Contact support.',
-          color: 'yellow',
+          color: 'gold',
         });
         return;
       }
@@ -628,7 +628,7 @@ function Settings() {
       notifications.show({
         title: 'Disconnected',
         message: 'Garmin has been disconnected',
-        color: 'green',
+        color: 'sage',
       });
     } catch (error) {
       console.error('Error disconnecting Garmin:', error);
@@ -673,7 +673,7 @@ function Settings() {
           id: 'garmin-repair',
           title: 'Connection Repaired!',
           message: 'Token refreshed and User ID fetched successfully.',
-          color: 'lime',
+          color: 'terracotta',
           loading: false,
           autoClose: 5000
         });
@@ -730,7 +730,7 @@ function Settings() {
           id: 'garmin-recover',
           title: reprocessed > 0 ? 'Recovery Complete!' : 'Up to Date',
           message,
-          color: reprocessed > 0 ? 'lime' : 'cyan',
+          color: reprocessed > 0 ? 'terracotta' : 'teal',
           loading: false,
           autoClose: 5000
         });
@@ -825,7 +825,7 @@ function Settings() {
           id: 'garmin-sync',
           title: storedCount > 0 ? 'Sync Complete!' : 'Up to Date',
           message,
-          color: storedCount > 0 ? 'lime' : 'cyan',
+          color: storedCount > 0 ? 'terracotta' : 'teal',
           loading: false,
           autoClose: 5000
         });
@@ -890,7 +890,7 @@ function Settings() {
           id: 'garmin-gps',
           title: stats.success > 0 ? 'GPS Backfill Complete!' : 'GPS Backfill',
           message,
-          color: stats.success > 0 ? 'lime' : stats.triggeredBackfill > 0 ? 'cyan' : 'yellow',
+          color: stats.success > 0 ? 'terracotta' : stats.triggeredBackfill > 0 ? 'teal' : 'gold',
           loading: false,
           autoClose: 8000
         });
@@ -944,7 +944,7 @@ function Settings() {
           id: 'garmin-history',
           title: 'Historical Backfill Started',
           message,
-          color: 'lime',
+          color: 'terracotta',
           loading: false,
           autoClose: 10000
         });
@@ -1019,7 +1019,7 @@ function Settings() {
       notifications.show({
         title: 'Disconnected',
         message: 'Wahoo has been disconnected',
-        color: 'green',
+        color: 'sage',
       });
     } catch (error) {
       console.error('Error disconnecting Wahoo:', error);
@@ -1060,7 +1060,7 @@ function Settings() {
       notifications.show({
         title: 'Disconnected',
         message: 'Google Calendar has been disconnected',
-        color: 'green',
+        color: 'sage',
       });
     } catch (error) {
       console.error('Error disconnecting Google Calendar:', error);
@@ -1083,7 +1083,7 @@ function Settings() {
             notifications.show({
               title: 'Import Complete',
               message: `Successfully imported ${results.success.length} activities`,
-              color: 'green',
+              color: 'sage',
             });
           }
         }}
@@ -1217,7 +1217,7 @@ function Settings() {
               </Button>
             ) : (
               <Button
-                color="green"
+                color="sage"
                 onClick={() => {
                   setShowGarminReconnectModal(false);
                   connectGarmin();
@@ -1308,7 +1308,7 @@ function Settings() {
                 </Text>
               )}
 
-              <Button color="lime" onClick={handleSaveProfile} loading={loading}>
+              <Button color="terracotta" onClick={handleSaveProfile} loading={loading}>
                 Save Changes
               </Button>
             </Stack>
@@ -1425,7 +1425,7 @@ function Settings() {
                 </Box>
               )}
 
-              <Button color="lime" onClick={handleSaveProfile} loading={loading}>
+              <Button color="terracotta" onClick={handleSaveProfile} loading={loading}>
                 Save Training Settings
               </Button>
             </Stack>
@@ -1450,7 +1450,7 @@ function Settings() {
               <Alert
                 icon={<IconInfoCircle size={18} />}
                 title="About Strava Integration"
-                color="blue"
+                color="teal"
                 variant="light"
               >
                 <Stack gap="xs">
@@ -1462,13 +1462,13 @@ function Settings() {
                     Recommended: Export your data from Strava and use bulk import instead:
                   </Text>
                   <List size="sm" spacing="xs">
-                    <List.Item icon={<ThemeIcon color="green" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="sage" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
                       Your data stays even if you disconnect Strava later
                     </List.Item>
-                    <List.Item icon={<ThemeIcon color="green" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="sage" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
                       Full historical data with GPS tracks and power data
                     </List.Item>
-                    <List.Item icon={<ThemeIcon color="green" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="sage" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
                       Not subject to Strava's API restrictions
                     </List.Item>
                   </List>
@@ -1477,7 +1477,7 @@ function Settings() {
                   </Text>
                   <Button
                     variant="light"
-                    color="lime"
+                    color="terracotta"
                     size="sm"
                     leftSection={<IconUpload size={16} />}
                     onClick={() => setShowBulkUploadModal(true)}
@@ -1560,7 +1560,7 @@ function Settings() {
                     </Box>
                   </Group>
                   <Group>
-                    <Badge color="yellow" variant="light">
+                    <Badge color="gold" variant="light">
                       Coming Soon
                     </Badge>
                   </Group>
@@ -1598,7 +1598,7 @@ function Settings() {
                     </Box>
                     <Button
                       size="sm"
-                      color="lime"
+                      color="terracotta"
                       variant="light"
                       onClick={syncFullStravaHistory}
                       loading={fullHistorySyncing}
@@ -1633,7 +1633,7 @@ function Settings() {
                     </Box>
                     <Button
                       size="sm"
-                      color="blue"
+                      color="teal"
                       variant="light"
                       onClick={findDuplicateActivities}
                       loading={findingDuplicates}
@@ -1693,7 +1693,7 @@ function Settings() {
                 <Group gap="xs">
                   <Button
                     variant={colorScheme === 'dark' ? 'filled' : 'light'}
-                    color={colorScheme === 'dark' ? 'lime' : 'gray'}
+                    color={colorScheme === 'dark' ? 'terracotta' : 'gray'}
                     size="sm"
                     leftSection={<IconMoon size={16} />}
                     onClick={() => setColorScheme('dark')}
@@ -1702,7 +1702,7 @@ function Settings() {
                   </Button>
                   <Button
                     variant={colorScheme === 'light' ? 'filled' : 'light'}
-                    color={colorScheme === 'light' ? 'lime' : 'gray'}
+                    color={colorScheme === 'light' ? 'terracotta' : 'gray'}
                     size="sm"
                     leftSection={<IconSun size={16} />}
                     onClick={() => setColorScheme('light')}
@@ -1789,7 +1789,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
         <Group>
           {connected ? (
             <>
-              <Badge color="green" variant="light">
+              <Badge color="sage" variant="light">
                 Connected
               </Badge>
               <Button variant="subtle" color="red" size="sm" onClick={onDisconnect}>
@@ -1799,7 +1799,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
           ) : isStrava ? (
             <ConnectWithStravaButton onClick={onConnect} />
           ) : (
-            <Button variant="outline" color="lime" size="sm" onClick={onConnect}>
+            <Button variant="outline" color="terracotta" size="sm" onClick={onConnect}>
               Connect
             </Button>
           )}
@@ -1836,7 +1836,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
             </Box>
             <Button
               size="xs"
-              color="lime"
+              color="terracotta"
               variant="light"
               onClick={onSync}
               loading={syncing}

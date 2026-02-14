@@ -265,7 +265,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
       notifications.show({
         title: 'Workout Added',
         message: `${workout.name || workout.workout_id} added to your calendar`,
-        color: 'lime',
+        color: 'sage',
       });
     }
   };
@@ -388,7 +388,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
       notifications.show({
         title: 'Training Plan Activated',
         message: `${planData.name} — ${actualWorkouts.length} workouts added to your calendar${scheduleNote}`,
-        color: 'lime',
+        color: 'sage',
       });
 
       setTrainingPlanPreview(null);
@@ -427,7 +427,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
       h="100%"
       className="tribos-depth-card no-hover"
       style={{
-        background: `linear-gradient(135deg, rgba(34, 197, 94, 0.15), transparent), ${depth.card.background}`,
+        background: `linear-gradient(135deg, rgba(196, 120, 92, 0.15), transparent), ${depth.card.background}`,
         border: depth.card.border,
         borderTop: depth.card.borderTop,
         boxShadow: depth.card.boxShadow,
@@ -437,7 +437,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
         {/* Header */}
         <Group justify="space-between">
           <Group gap="xs">
-            <ThemeIcon size="lg" color="lime" variant="light" radius="md">
+            <ThemeIcon size="lg" color="terracotta" variant="light" radius="md">
               <IconSparkles size={18} />
             </ThemeIcon>
             <Text fw={600}>AI Coach</Text>
@@ -456,7 +456,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
           {/* Loading history spinner */}
           {loadingHistory && (
             <Group gap="xs" justify="center" py="md">
-              <Loader size="xs" color="lime" />
+              <Loader size="xs" color="terracotta" />
               <Text size="xs" c="dimmed">Loading history...</Text>
             </Group>
           )}
@@ -477,7 +477,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                       <ThemeIcon
                         size="xs"
                         variant="light"
-                        color={msg.role === 'user' ? 'blue' : 'lime'}
+                        color={msg.role === 'user' ? 'teal' : 'terracotta'}
                         radius="xl"
                         mt={3}
                         style={{ flexShrink: 0 }}
@@ -503,7 +503,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                                 key={rIdx}
                                 size="compact-xs"
                                 variant="light"
-                                color="lime"
+                                color="terracotta"
                                 leftSection={<IconCalendarPlus size={12} />}
                                 onClick={() => handleAddWorkout(rec)}
                               >
@@ -520,11 +520,11 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                 {/* Loading indicator */}
                 {isLoading && (
                   <Group gap={6} align="center">
-                    <ThemeIcon size="xs" variant="light" color="lime" radius="xl">
+                    <ThemeIcon size="xs" variant="light" color="terracotta" radius="xl">
                       <IconRobot size={10} />
                     </ThemeIcon>
                     <Group gap={4}>
-                      <Loader size="xs" color="lime" />
+                      <Loader size="xs" color="terracotta" />
                       <Text size="xs" c="dimmed">Thinking...</Text>
                     </Group>
                   </Group>
@@ -536,7 +536,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
           {/* Loading state when no messages yet */}
           {!hasMessages && isLoading && (
             <Group gap="xs">
-              <Loader size="sm" color="lime" />
+              <Loader size="sm" color="terracotta" />
               <Text size="sm" c="dimmed">Thinking...</Text>
             </Group>
           )}
@@ -598,7 +598,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
           />
           <ActionIcon
             size="lg"
-            color="lime"
+            color="terracotta"
             variant={query.trim() ? 'filled' : 'light'}
             onClick={handleSubmit}
             disabled={!query.trim() || isLoading}

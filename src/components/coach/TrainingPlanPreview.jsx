@@ -84,14 +84,14 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
 
         {/* Methodology badge */}
         <Group gap="xs">
-          <Badge size="sm" variant="light" color="lime">
+          <Badge size="sm" variant="light" color="terracotta">
             {METHODOLOGY_LABELS[plan.methodology] || plan.methodology}
           </Badge>
           <Badge size="sm" variant="light" color="gray">
             {plan.duration_weeks} weeks
           </Badge>
           {plan.goal && (
-            <Badge size="sm" variant="light" color="blue">
+            <Badge size="sm" variant="light" color="teal">
               {plan.goal.replace(/_/g, ' ')}
             </Badge>
           )}
@@ -149,7 +149,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
 
         {/* Activate button */}
         <Button
-          color="lime"
+          color="terracotta"
           size={compact ? 'xs' : 'sm'}
           leftSection={activating ? <Loader size={14} color="dark" /> : <IconTrophy size={16} />}
           onClick={handleActivate}
