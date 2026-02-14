@@ -116,7 +116,7 @@ function Landing() {
       />
       <Box
         style={{
-          background: `radial-gradient(ellipse at top, rgba(196, 120, 92, 0.1) 0%, transparent 50%),
+          background: `radial-gradient(ellipse at top, rgba(158, 90, 60, 0.1) 0%, transparent 50%),
                        linear-gradient(180deg, ${'var(--tribos-bg-primary)'} 0%, ${'var(--tribos-bg-secondary)'} 100%)`,
           minHeight: '100vh',
         }}
@@ -188,7 +188,7 @@ function Landing() {
                   p="md"
                   radius="md"
                   style={{
-                    background: 'rgba(196, 120, 92, 0.05)',
+                    background: 'rgba(158, 90, 60, 0.05)',
                     border: `1px solid ${'var(--tribos-terracotta-500)'}30`,
                   }}
                 >
@@ -237,7 +237,7 @@ function Landing() {
                 p="lg"
                 radius="lg"
                 style={{
-                  background: `linear-gradient(135deg, ${'var(--tribos-bg-secondary)'} 0%, rgba(196, 120, 92, 0.05) 100%)`,
+                  background: `linear-gradient(135deg, ${'var(--tribos-bg-secondary)'} 0%, rgba(158, 90, 60, 0.05) 100%)`,
                   border: `2px solid ${'var(--tribos-terracotta-500)'}30`,
                 }}
               >
@@ -265,14 +265,14 @@ function Landing() {
                     <Paper p="sm" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
                       <Text size="xs" c="dimmed">Fitness (CTL)</Text>
                       <Group gap="xs" align="baseline">
-                        <Text size="xl" fw={700} style={{ color: '#D4A843' }}>67</Text>
+                        <Text size="xl" fw={700} style={{ color: '#B89040' }}>67</Text>
                         <Text size="xs" c="orange">Building</Text>
                       </Group>
                     </Paper>
                     <Paper p="sm" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
                       <Text size="xs" c="dimmed">Fatigue (ATL)</Text>
                       <Group gap="xs" align="baseline">
-                        <Text size="xl" fw={700} style={{ color: '#C4785C' }}>55</Text>
+                        <Text size="xl" fw={700} style={{ color: '#9E5A3C' }}>55</Text>
                         <Text size="xs" c="red">Moderate</Text>
                       </Group>
                     </Paper>
@@ -310,19 +310,19 @@ function Landing() {
             </Title>
 
             <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
-              <Paper p="md" style={{ backgroundColor: 'rgba(196, 120, 92, 0.1)', border: '1px solid rgba(196, 120, 92, 0.2)', textAlign: 'center' }}>
+              <Paper p="md" style={{ backgroundColor: 'rgba(158, 90, 60, 0.1)', border: '1px solid rgba(158, 90, 60, 0.2)', textAlign: 'center' }}>
                 <Text size="lg" mb="xs">📊</Text>
                 <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
                   "Strava shows me numbers but never tells me what to DO with them"
                 </Text>
               </Paper>
-              <Paper p="md" style={{ backgroundColor: 'rgba(196, 120, 92, 0.1)', border: '1px solid rgba(196, 120, 92, 0.2)', textAlign: 'center' }}>
+              <Paper p="md" style={{ backgroundColor: 'rgba(158, 90, 60, 0.1)', border: '1px solid rgba(158, 90, 60, 0.2)', textAlign: 'center' }}>
                 <Text size="lg" mb="xs">🗺️</Text>
                 <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
                   "Route builders don't know if I'm fresh or cooked"
                 </Text>
               </Paper>
-              <Paper p="md" style={{ backgroundColor: 'rgba(196, 120, 92, 0.1)', border: '1px solid rgba(196, 120, 92, 0.2)', textAlign: 'center' }}>
+              <Paper p="md" style={{ backgroundColor: 'rgba(158, 90, 60, 0.1)', border: '1px solid rgba(158, 90, 60, 0.2)', textAlign: 'center' }}>
                 <Text size="lg" mb="xs">🔀</Text>
                 <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
                   "I'm paying for 5 apps that don't talk to each other"
@@ -376,7 +376,7 @@ function Landing() {
               <Grid.Col span={{ base: 12, md: 6 }}>
                 <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: `1px solid ${'var(--tribos-border)'}` }}>
                   <Text size="xs" c="dimmed" mb="md">FITNESS CHART</Text>
-                  <Box style={{ height: 150, background: 'linear-gradient(90deg, rgba(196, 120, 92, 0.2) 0%, rgba(34, 211, 238, 0.2) 100%)', borderRadius: 8, display: 'flex', alignItems: 'flex-end', padding: 16, gap: 4 }}>
+                  <Box style={{ height: 150, background: 'linear-gradient(90deg, rgba(158, 90, 60, 0.2) 0%, rgba(34, 211, 238, 0.2) 100%)', borderRadius: 8, display: 'flex', alignItems: 'flex-end', padding: 16, gap: 4 }}>
                     {[40, 55, 48, 62, 58, 70, 65, 75, 68, 80, 72, 85].map((h, i) => (
                       <Box key={i} style={{ flex: 1, height: `${h}%`, backgroundColor: i > 8 ? 'var(--tribos-terracotta-500)' : '#22d3ee', borderRadius: 2, opacity: 0.8 }} />
                     ))}
@@ -556,7 +556,7 @@ function Landing() {
               p="xl"
               radius="lg"
               style={{
-                background: `linear-gradient(135deg, rgba(196, 120, 92, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%)`,
+                background: `linear-gradient(135deg, rgba(158, 90, 60, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%)`,
                 border: `2px solid ${'var(--tribos-terracotta-500)'}40`,
                 maxWidth: 500,
                 width: '100%',

@@ -48,14 +48,14 @@ function CoachCommandBarTrigger({
             right: 24,
             zIndex: 100,
             boxShadow:
-              '0 8px 32px rgba(196, 120, 92, 0.35), 0 4px 12px rgba(0,0,0,0.4)',
+              '0 8px 32px rgba(158, 90, 60, 0.35), 0 4px 12px rgba(0,0,0,0.4)',
             transition: 'all 200ms ease',
           }}
           sx={{
             '&:hover': {
               transform: 'translateY(-2px) scale(1.05)',
               boxShadow:
-                '0 12px 40px rgba(196, 120, 92, 0.45), 0 6px 16px rgba(0,0,0,0.5)',
+                '0 12px 40px rgba(158, 90, 60, 0.45), 0 6px 16px rgba(0,0,0,0.5)',
             },
           }}
         >
@@ -93,7 +93,7 @@ function CoachCommandBarTrigger({
           transition: 'all 200ms ease',
           '&:hover': {
             transform: 'translateY(-1px)',
-            boxShadow: '0 4px 16px rgba(196, 120, 92, 0.3)',
+            boxShadow: '0 4px 16px rgba(158, 90, 60, 0.3)',
           },
         },
         section: {

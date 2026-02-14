@@ -7,12 +7,12 @@
 
 // Grade → color mapping following cycling conventions
 const GRADE_COLORS = [
-  { min: -Infinity, max: -8, color: '#6E9B92', label: '< -8%' },   // steep downhill — dark teal
-  { min: -8,        max: -3, color: '#7BA9A0', label: '-8% to -3%' }, // downhill — teal
-  { min: -3,        max: 3,  color: '#D4A843', label: '-3% to 3%' },  // flat — gold
+  { min: -Infinity, max: -8, color: '#507052', label: '< -8%' },   // steep downhill — dark teal
+  { min: -8,        max: -3, color: '#5C7A5E', label: '-8% to -3%' }, // downhill — teal
+  { min: -3,        max: 3,  color: '#B89040', label: '-3% to 3%' },  // flat — gold
   { min: 3,         max: 6,  color: '#B08E3A', label: '3% to 6%' },   // moderate uphill — gold variant
-  { min: 6,         max: 9,  color: '#C4785C', label: '6% to 9%' },   // challenging — terracotta
-  { min: 9,         max: 12, color: '#C4A0B9', label: '9% to 12%' },  // steep — mauve
+  { min: 6,         max: 9,  color: '#9E5A3C', label: '6% to 9%' },   // challenging — terracotta
+  { min: 9,         max: 12, color: '#6B7F94', label: '9% to 12%' },  // steep — mauve
   { min: 12,        max: Infinity, color: '#A87D9A', label: '> 12%' }, // very steep — dark mauve
 ];
 
@@ -25,7 +25,7 @@ function getGradeColor(grade) {
   for (const band of GRADE_COLORS) {
     if (grade >= band.min && grade < band.max) return band.color;
   }
-  return '#D4A843'; // fallback: gold/flat
+  return '#B89040'; // fallback: gold/flat
 }
 
 /**

@@ -231,10 +231,10 @@ export async function getFamiliarSegmentsGeoJSON(bbox, authToken, minRideCount =
  * @returns {string} Hex color code
  */
 export function getSegmentColor(rideCount) {
-  if (rideCount >= 10) return '#A8BFA8'; // Sage - very familiar
-  if (rideCount >= 5) return '#7BA9A0';  // Teal - familiar
-  if (rideCount >= 3) return '#D4A843';  // Gold - known
-  if (rideCount >= 2) return '#C4785C';  // Terracotta - somewhat known
+  if (rideCount >= 10) return '#6B8C72'; // Sage - very familiar
+  if (rideCount >= 5) return '#5C7A5E';  // Teal - familiar
+  if (rideCount >= 3) return '#B89040';  // Gold - known
+  if (rideCount >= 2) return '#9E5A3C';  // Terracotta - somewhat known
   if (rideCount === 1) return '#6b7280'; // Gray - ridden once
   return '#94a3b8';                       // Light gray - unknown
 }

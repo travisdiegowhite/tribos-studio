@@ -414,7 +414,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
               border: '1px solid var(--tribos-border)',
               borderRadius: 20,
               boxShadow:
-                '0 24px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 0 60px rgba(196, 120, 92, 0.08)',
+                '0 24px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 0 60px rgba(158, 90, 60, 0.08)',
               zIndex: 1001,
               display: 'flex',
               flexDirection: 'column',

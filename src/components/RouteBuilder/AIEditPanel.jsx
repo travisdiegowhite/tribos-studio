@@ -192,8 +192,8 @@ export default function AIEditPanel({
           <Paper
             p="xs"
             style={{
-              backgroundColor: 'rgba(196, 120, 92, 0.1)',
-              border: '1px solid rgba(196, 120, 92, 0.3)',
+              backgroundColor: 'rgba(158, 90, 60, 0.1)',
+              border: '1px solid rgba(158, 90, 60, 0.3)',
               borderRadius: tokens.radius.sm,
             }}
           >

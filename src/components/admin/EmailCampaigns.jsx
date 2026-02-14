@@ -85,7 +85,7 @@ const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
           <!-- Header -->
           <tr>
             <td style="padding: 30px 40px; text-align: center; border-bottom: 1px solid #222222;">
-              <p style="margin: 0; color: #C4785C; font-size: 18px; font-weight: 700; letter-spacing: 0.1em;">TRIBOS.STUDIO</p>
+              <p style="margin: 0; color: #9E5A3C; font-size: 18px; font-weight: 700; letter-spacing: 0.1em;">TRIBOS.STUDIO</p>
             </td>
           </tr>
           <!-- Content -->
@@ -98,7 +98,7 @@ const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                 <tr>
                   <td align="center">
-                    <a href="https://www.tribos.studio" style="display: inline-block; padding: 16px 32px; background-color: #C4785C; color: #121212; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Visit Tribos.Studio</a>
+                    <a href="https://www.tribos.studio" style="display: inline-block; padding: 16px 32px; background-color: #9E5A3C; color: #121212; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Visit Tribos.Studio</a>
                   </td>
                 </tr>
               </table>
@@ -111,7 +111,7 @@ const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
           <!-- Footer -->
           <tr>
             <td style="background-color: #121212; padding: 30px 40px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #222222;">
-              <p style="margin: 0 0 10px; font-size: 14px; color: #999999;"><strong style="color: #C4785C;">tribos.studio</strong></p>
+              <p style="margin: 0 0 10px; font-size: 14px; color: #999999;"><strong style="color: #9E5A3C;">tribos.studio</strong></p>
               <p style="margin: 0; font-size: 12px; color: #666666;">Training load analytics & smart route planning for cyclists</p>
             </td>
           </tr>

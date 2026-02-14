@@ -531,7 +531,7 @@ export default function CafeSettingsModal({
               radius="md"
               style={{
                 backgroundColor: 'var(--tribos-bg-tertiary)',
-                border: '1px solid rgba(196, 120, 92, 0.3)',
+                border: '1px solid rgba(158, 90, 60, 0.3)',
               }}
             >
               <Stack gap="sm">
@@ -589,12 +589,12 @@ export default function CafeSettingsModal({
                 radius="md"
                 style={{
                   backgroundColor: 'var(--tribos-bg-tertiary)',
-                  border: '1px solid rgba(196, 120, 92, 0.5)',
+                  border: '1px solid rgba(158, 90, 60, 0.5)',
                 }}
               >
                 <Stack gap="sm">
                   <Group>
-                    <IconTrash size={20} color="#C4785C" />
+                    <IconTrash size={20} color="#9E5A3C" />
                     <Text fw={500} c="red">
                       Delete Cafe
                     </Text>

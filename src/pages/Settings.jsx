@@ -1928,7 +1928,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                   {backfillStatus.progress?.requested > 0 && (
                     <Group gap="xs">
                       <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Waiting:</Text>
-                      <Text size="xs" style={{ color: '#C4785C' }}>
+                      <Text size="xs" style={{ color: '#9E5A3C' }}>
                         {backfillStatus.progress.requested} chunks pending from Garmin
                       </Text>
                     </Group>
@@ -2013,7 +2013,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                   {webhookStatus.troubleshooting?.length > 0 && (
                     <Box style={{ marginTop: 4 }}>
                       {webhookStatus.troubleshooting.map((tip, i) => (
-                        <Text key={i} size="xs" style={{ color: '#C4785C' }}>
+                        <Text key={i} size="xs" style={{ color: '#9E5A3C' }}>
                           {tip}
                         </Text>
                       ))}

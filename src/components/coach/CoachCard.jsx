@@ -427,7 +427,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
       h="100%"
       className="tribos-depth-card no-hover"
       style={{
-        background: `linear-gradient(135deg, rgba(196, 120, 92, 0.15), transparent), ${depth.card.background}`,
+        background: `linear-gradient(135deg, rgba(158, 90, 60, 0.15), transparent), ${depth.card.background}`,
         border: depth.card.border,
         boxShadow: depth.card.boxShadow,
       }}

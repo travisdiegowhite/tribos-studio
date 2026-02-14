@@ -43,7 +43,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
     1: tokens.colors.zone1,
     2: tokens.colors.zone2,
     3: tokens.colors.zone3,
-    3.5: '#D4A843', // Sweet Spot - gold
+    3.5: '#B89040', // Sweet Spot - gold
     4: tokens.colors.zone4,
     5: tokens.colors.zone5,
     6: tokens.colors.zone6,

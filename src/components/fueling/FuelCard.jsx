@@ -438,11 +438,11 @@ export function FuelSummary({
       style={{ cursor: onClick ? 'pointer' : 'default' }}
       onClick={onClick}
     >
-      <IconFlame size={14} color="#C4785C" />
+      <IconFlame size={14} color="#9E5A3C" />
       <Text size="xs" c="dimmed">
         {plan.carbs.totalGramsMin}-{plan.carbs.totalGramsMax}g carbs
       </Text>
-      <IconDroplet size={14} color="#7BA9A0" />
+      <IconDroplet size={14} color="#5C7A5E" />
       <Text size="xs" c="dimmed">
         {plan.hydration.ozPerHour} oz/hr
       </Text>

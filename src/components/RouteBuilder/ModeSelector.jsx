@@ -31,7 +31,7 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
         icon={<IconHandClick size={24} />}
         title="Draw on Map"
         description="Click to place waypoints and build a route manually"
-        accentColor="#7BA9A0"
+        accentColor="#5C7A5E"
         onClick={() => onSelectMode('manual')}
       />
 

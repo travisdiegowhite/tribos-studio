@@ -430,13 +430,13 @@ export function TwoWeekCalendar({
                   done: { color: 'var(--mantine-color-green-5)', symbol: '●', bgColor: 'rgba(168, 191, 168, 0.15)' },
                   planned: { color: 'var(--mantine-color-blue-5)', symbol: '○', bgColor: 'rgba(123, 169, 160, 0.15)' },
                   partial: { color: 'var(--mantine-color-orange-5)', symbol: '◐', bgColor: 'rgba(212, 168, 67, 0.15)' },
-                  missed: { color: 'var(--mantine-color-red-5)', symbol: '✗', bgColor: 'rgba(196, 120, 92, 0.15)' },
+                  missed: { color: 'var(--mantine-color-red-5)', symbol: '✗', bgColor: 'rgba(158, 90, 60, 0.15)' },
                   empty: { color: 'var(--mantine-color-dark-3)', symbol: '·', bgColor: 'transparent' },
                 };
 
                 // Override background for blocked/preferred days
                 const bgColor = isBlocked
-                  ? 'rgba(196, 120, 92, 0.15)'
+                  ? 'rgba(158, 90, 60, 0.15)'
                   : isPreferred
                   ? 'rgba(250, 204, 21, 0.15)'
                   : statusConfig[status].bgColor;
@@ -454,7 +454,7 @@ export function TwoWeekCalendar({
                       backgroundColor: isSelected
                         ? 'var(--mantine-color-terracotta-9)'
                         : canDrop
-                        ? 'rgba(196, 120, 92, 0.2)'
+                        ? 'rgba(158, 90, 60, 0.2)'
                         : bgColor,
                       border: day.isToday
                         ? '2px solid var(--mantine-color-terracotta-5)'
@@ -607,7 +607,7 @@ export function TwoWeekCalendar({
                     border: '2px dashed var(--mantine-color-dark-4)',
                     borderRadius: 8,
                     textAlign: 'center',
-                    backgroundColor: selectedWorkoutId ? 'rgba(196, 120, 92, 0.1)' : undefined,
+                    backgroundColor: selectedWorkoutId ? 'rgba(158, 90, 60, 0.1)' : undefined,
                     borderColor: selectedWorkoutId ? 'var(--mantine-color-terracotta-5)' : undefined,
                   }}
                   onClick={() => selectedWorkoutId && onDateClick(selectedDay.date)}

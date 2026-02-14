@@ -55,11 +55,11 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 // Segment type colors for map
 const SEGMENT_COLORS = {
-  flat: '#7BA9A0',      // Teal
-  climb: '#C4785C',     // Terracotta
-  descent: '#A8BFA8',   // Sage
-  rolling: '#D4A843',   // Gold
-  interval: '#C4A0B9',  // Mauve
+  flat: '#5C7A5E',      // Teal
+  climb: '#9E5A3C',     // Terracotta
+  descent: '#6B8C72',   // Sage
+  rolling: '#B89040',   // Gold
+  interval: '#6B7F94',  // Mauve
 };
 
 // Decode polyline to coordinates
@@ -325,7 +325,7 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
             {coords.length > 0 && (
               <Marker longitude={coords[0][0]} latitude={coords[0][1]} anchor="bottom">
                 <div style={{
-                  backgroundColor: '#A8BFA8',
+                  backgroundColor: '#6B8C72',
                   color: 'white',
                   width: 28,
                   height: 28,
@@ -347,7 +347,7 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
             {coords.length > 1 && (
               <Marker longitude={coords[coords.length - 1][0]} latitude={coords[coords.length - 1][1]} anchor="bottom">
                 <div style={{
-                  backgroundColor: '#C4785C',
+                  backgroundColor: '#9E5A3C',
                   color: 'white',
                   width: 28,
                   height: 28,

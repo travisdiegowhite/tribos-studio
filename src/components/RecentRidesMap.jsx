@@ -77,11 +77,11 @@ function getActivityColor(activity, index) {
   // Color palette for rides - recent rides are brighter
   // Note: Must use hex colors, not CSS variables, as Mapbox GL doesn't support CSS variables
   const colors = [
-    '#C4785C', // Terracotta - most recent
-    '#7BA9A0', // Teal
-    '#D4A843', // Gold
-    '#C4A0B9', // Mauve
-    '#9E7E90', // Dusty rose
+    '#9E5A3C', // Terracotta - most recent
+    '#5C7A5E', // Teal
+    '#B89040', // Gold
+    '#6B7F94', // Mauve
+    '#8B6B5A', // Dusty rose
   ];
 
   return colors[index % colors.length];

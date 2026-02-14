@@ -2669,7 +2669,7 @@ function RouteBuilder() {
 
         {/* Selected Segment Actions */}
         {editMode && selectedSegment && (
-          <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(196, 120, 92, 0.1)', borderColor: '#C4785C' }}>
+          <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(158, 90, 60, 0.1)', borderColor: '#9E5A3C' }}>
             <Stack gap="xs">
               <Text size="sm" fw={500} c="red">Segment Selected</Text>
               <Text size="xs" c="dimmed">
@@ -2958,7 +2958,7 @@ function RouteBuilder() {
                       id="route-line"
                       type="line"
                       paint={{
-                        'line-color': editMode ? '#666666' : '#C4785C',
+                        'line-color': editMode ? '#666666' : '#9E5A3C',
                         'line-width': 4,
                         'line-opacity': editMode ? 0.6 : 0.8,
                         ...(!snapToRoads && { 'line-dasharray': [2, 1] }),
@@ -2974,7 +2974,7 @@ function RouteBuilder() {
                       id="segment-highlight-line"
                       type="line"
                       paint={{
-                        'line-color': '#C4785C',
+                        'line-color': '#9E5A3C',
                         'line-width': 6,
                         'line-opacity': 0.9
                       }}
@@ -2988,10 +2988,10 @@ function RouteBuilder() {
                     <div style={{
                       width: 16,
                       height: 16,
-                      backgroundColor: '#7BA9A0',
+                      backgroundColor: '#5C7A5E',
                       borderRadius: '50%',
                       border: '3px solid white',
-                      boxShadow: '0 0 0 2px #7BA9A0',
+                      boxShadow: '0 0 0 2px #5C7A5E',
                     }} />
                   </Marker>
                 )}
@@ -3012,7 +3012,7 @@ function RouteBuilder() {
                     }}
                   >
                     <div style={{
-                      backgroundColor: index === 0 ? '#A8BFA8' : index === waypoints.length - 1 ? '#C4785C' : '#7BA9A0',
+                      backgroundColor: index === 0 ? '#6B8C72' : index === waypoints.length - 1 ? '#9E5A3C' : '#5C7A5E',
                       color: 'white',
                       width: 28,
                       height: 28,
@@ -3041,10 +3041,10 @@ function RouteBuilder() {
                     <div style={{
                       width: 14,
                       height: 14,
-                      backgroundColor: '#C4785C',
+                      backgroundColor: '#9E5A3C',
                       borderRadius: '50%',
                       border: '2px solid white',
-                      boxShadow: '0 0 0 2px #C4785C, 0 2px 12px rgba(196, 120, 92, 0.6)',
+                      boxShadow: '0 0 0 2px #9E5A3C, 0 2px 12px rgba(158, 90, 60, 0.6)',
                     }} />
                   </Marker>
                 )}
@@ -3132,7 +3132,7 @@ function RouteBuilder() {
                       style={{
                         padding: '0 12px',
                         flexShrink: 0,
-                        backgroundColor: showPOIs ? '#7BA9A0' : 'var(--tribos-bg-secondary)',
+                        backgroundColor: showPOIs ? '#5C7A5E' : 'var(--tribos-bg-secondary)',
                         border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
@@ -3205,8 +3205,8 @@ function RouteBuilder() {
                       style={{
                         padding: '0 12px',
                         flexShrink: 0,
-                        backgroundColor: editMode ? '#C4785C' : 'var(--tribos-bg-secondary)',
-                        border: `1px solid ${editMode ? '#C4785C' : 'var(--tribos-bg-tertiary)'}`,
+                        backgroundColor: editMode ? '#9E5A3C' : 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${editMode ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
                       <IconScissors size={20} color={editMode ? '#fff' : '#fff'} />
@@ -3223,8 +3223,8 @@ function RouteBuilder() {
                       style={{
                         padding: '0 12px',
                         flexShrink: 0,
-                        backgroundColor: altMode ? '#C4A0B9' : 'var(--tribos-bg-secondary)',
-                        border: `1px solid ${altMode ? '#C4A0B9' : 'var(--tribos-bg-tertiary)'}`,
+                        backgroundColor: altMode ? '#6B7F94' : 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${altMode ? '#6B7F94' : 'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
                       <IconArrowsExchange size={20} color="#fff" />
@@ -3313,8 +3313,8 @@ function RouteBuilder() {
                   left: 16,
                   right: 16,
                   zIndex: 10,
-                  backgroundColor: selectedSegment ? 'rgba(196, 120, 92, 0.95)' : 'var(--tribos-bg-secondary)',
-                  border: `1px solid ${selectedSegment ? '#C4785C' : 'var(--tribos-bg-tertiary)'}`,
+                  backgroundColor: selectedSegment ? 'rgba(158, 90, 60, 0.95)' : 'var(--tribos-bg-secondary)',
+                  border: `1px solid ${selectedSegment ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                 }}
               >
                 {selectedSegment ? (
@@ -3955,13 +3955,13 @@ function RouteBuilder() {
                 <Box
                   style={{
                     padding: tokens.spacing.md,
-                    backgroundColor: '#7BA9A008',
-                    border: '1px solid #7BA9A025',
+                    backgroundColor: '#5C7A5E08',
+                    border: '1px solid #5C7A5E25',
                     borderRadius: tokens.radius.md,
                   }}
                 >
                   <Group gap="xs" mb="xs">
-                    <IconHandClick size={18} style={{ color: '#7BA9A0' }} />
+                    <IconHandClick size={18} style={{ color: '#5C7A5E' }} />
                     <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
                       Manual Route Builder
                     </Text>
@@ -4190,7 +4190,7 @@ function RouteBuilder() {
 
               {/* Selected Segment Actions (desktop sidebar) */}
               {editMode && selectedSegment && (
-                <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(196, 120, 92, 0.1)', borderColor: '#C4785C' }}>
+                <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(158, 90, 60, 0.1)', borderColor: '#9E5A3C' }}>
                   <Stack gap="xs">
                     <Text size="sm" fw={500} c="red">Segment Selected</Text>
                     <Text size="xs" c="dimmed">
@@ -4392,7 +4392,7 @@ function RouteBuilder() {
                     loading={poiLoading}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: showPOIs ? '#7BA9A0' : 'var(--tribos-bg-secondary)',
+                      backgroundColor: showPOIs ? '#5C7A5E' : 'var(--tribos-bg-secondary)',
                       border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
@@ -4464,8 +4464,8 @@ function RouteBuilder() {
                     }}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: editMode ? '#C4785C' : 'var(--tribos-bg-secondary)',
-                      border: `1px solid ${editMode ? '#C4785C' : 'var(--tribos-bg-tertiary)'}`,
+                      backgroundColor: editMode ? '#9E5A3C' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${editMode ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
                     <IconScissors size={20} color="#fff" />
@@ -4481,8 +4481,8 @@ function RouteBuilder() {
                     onClick={() => altMode ? exitAltMode() : setAltMode(true)}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: altMode ? '#C4A0B9' : 'var(--tribos-bg-secondary)',
-                      border: `1px solid ${altMode ? '#C4A0B9' : 'var(--tribos-bg-tertiary)'}`,
+                      backgroundColor: altMode ? '#6B7F94' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${altMode ? '#6B7F94' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
                     <IconArrowsExchange size={20} color="#fff" />
@@ -4535,8 +4535,8 @@ function RouteBuilder() {
                     onClick={() => { setShowGradient(!showGradient); if (!showGradient) { setShowSurface(false); setShowWorkoutOverlay(false); } }}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: showGradient ? '#A8BFA8' : 'var(--tribos-bg-secondary)',
-                      border: `1px solid ${showGradient ? '#A8BFA8' : 'var(--tribos-bg-tertiary)'}`,
+                      backgroundColor: showGradient ? '#6B8C72' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${showGradient ? '#6B8C72' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
                     <IconMountain size={20} color="#fff" />
@@ -4650,7 +4650,7 @@ function RouteBuilder() {
                     id="route-line"
                     type="line"
                     paint={{
-                      'line-color': editMode ? '#666666' : '#C4785C',
+                      'line-color': editMode ? '#666666' : '#9E5A3C',
                       'line-width': 4,
                       'line-opacity': editMode ? 0.6 : 0.8,
                       ...(!snapToRoads && { 'line-dasharray': [2, 1] }),
@@ -4666,7 +4666,7 @@ function RouteBuilder() {
                     id="segment-highlight-line"
                     type="line"
                     paint={{
-                      'line-color': '#C4785C',
+                      'line-color': '#9E5A3C',
                       'line-width': 6,
                       'line-opacity': 0.9
                     }}
@@ -4684,10 +4684,10 @@ function RouteBuilder() {
                   <div style={{
                     width: 16,
                     height: 16,
-                    backgroundColor: '#7BA9A0',
+                    backgroundColor: '#5C7A5E',
                     borderRadius: '50%',
                     border: '3px solid white',
-                    boxShadow: '0 0 0 2px #7BA9A0, 0 2px 8px rgba(123, 169, 160, 0.5)',
+                    boxShadow: '0 0 0 2px #5C7A5E, 0 2px 8px rgba(123, 169, 160, 0.5)',
                   }} />
                 </Marker>
               )}
@@ -4708,7 +4708,7 @@ function RouteBuilder() {
                   }}
                 >
                   <div style={{
-                    backgroundColor: index === 0 ? '#A8BFA8' : index === waypoints.length - 1 ? '#C4785C' : '#7BA9A0',
+                    backgroundColor: index === 0 ? '#6B8C72' : index === waypoints.length - 1 ? '#9E5A3C' : '#5C7A5E',
                     color: 'white',
                     width: 32,
                     height: 32,
@@ -4737,10 +4737,10 @@ function RouteBuilder() {
                   <div style={{
                     width: 16,
                     height: 16,
-                    backgroundColor: '#C4785C',
+                    backgroundColor: '#9E5A3C',
                     borderRadius: '50%',
                     border: '3px solid white',
-                    boxShadow: '0 0 0 2px #C4785C, 0 2px 12px rgba(196, 120, 92, 0.6)',
+                    boxShadow: '0 0 0 2px #9E5A3C, 0 2px 12px rgba(158, 90, 60, 0.6)',
                     animation: 'pulse 1.5s ease-in-out infinite',
                   }} />
                 </Marker>
@@ -4856,8 +4856,8 @@ function RouteBuilder() {
                 transform: 'translateX(-50%)',
                 zIndex: 10,
                 minWidth: 320,
-                backgroundColor: selectedSegment ? 'rgba(196, 120, 92, 0.95)' : 'var(--tribos-bg-secondary)',
-                border: `1px solid ${selectedSegment ? '#C4785C' : 'var(--tribos-bg-tertiary)'}`,
+                backgroundColor: selectedSegment ? 'rgba(158, 90, 60, 0.95)' : 'var(--tribos-bg-secondary)',
+                border: `1px solid ${selectedSegment ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
               }}
             >
               {selectedSegment ? (

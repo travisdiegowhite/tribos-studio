@@ -1,5 +1,5 @@
 /* Global Styles for tribos.studio */
-/* Warm cartographic brand — light (cream/ink) default, dark (warm-black) alternate */
+/* "Department of Cycling Intelligence" — cool bone/ink light, green-black dark */
 
 * {
   box-sizing: border-box;
@@ -7,24 +7,24 @@
 
 /* ===== CSS Variables for Theme Switching ===== */
 
-/* Light theme (default) — cream/ink system */
+/* Light theme (default) — parchment-to-bone system */
 :root,
 :root[data-mantine-color-scheme='light'] {
-  /* ===== SURFACES (warm cream elevation) ===== */
-  --tribos-void: #F5F0E8;
-  --tribos-nav: #FAF7F2;
-  --tribos-panel: #F5F0E8;
-  --tribos-card: #FAF7F2;
-  --tribos-card-top: #FAF7F2;
-  --tribos-card-bottom: #FAF7F2;
-  --tribos-card-hover: #FFFFFF;
-  --tribos-elevated: #FFFFFF;
-  --tribos-input: #F5F0E8;
+  /* ===== SURFACES (cool gray-green bone) ===== */
+  --tribos-void: #EDEDE8;
+  --tribos-nav: #F5F5F1;
+  --tribos-panel: #E0E0D9;
+  --tribos-card: #F5F5F1;
+  --tribos-card-top: #F5F5F1;
+  --tribos-card-bottom: #F5F5F1;
+  --tribos-card-hover: #FBFBF9;
+  --tribos-elevated: #FBFBF9;
+  --tribos-input: #EDEDE8;
 
   /* ===== BORDERS ===== */
-  --tribos-border-subtle: #E0D8CE;
-  --tribos-border-default: #D4CCC0;
-  --tribos-border-hover: #B5ADA3;
+  --tribos-border-subtle: #E0E0D9;
+  --tribos-border-default: #C8C8BE;
+  --tribos-border-hover: #24261F;
 
   /* ===== SHADOWS ===== */
   --tribos-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -37,50 +37,50 @@
   --tribos-shadow-panel: none;
   --tribos-shadow-inset: none;
 
-  /* ===== TERRACOTTA (Primary) ===== */
-  --tribos-terracotta-500: #C4785C;
-  --tribos-terracotta-400: #D4917A;
-  --tribos-terracotta-600: #A0614A;
-  --tribos-terracotta-surface: rgba(196, 120, 92, 0.08);
-  --tribos-terracotta-surface-strong: rgba(196, 120, 92, 0.14);
-  --tribos-terracotta-border: rgba(196, 120, 92, 0.25);
-  --tribos-terracotta-border-strong: rgba(196, 120, 92, 0.4);
+  /* ===== TERRACOTTA (Primary accent — sienna) ===== */
+  --tribos-terracotta-500: #9E5A3C;
+  --tribos-terracotta-400: #BD7C58;
+  --tribos-terracotta-600: #864D33;
+  --tribos-terracotta-surface: rgba(158, 90, 60, 0.08);
+  --tribos-terracotta-surface-strong: rgba(158, 90, 60, 0.14);
+  --tribos-terracotta-border: rgba(158, 90, 60, 0.25);
+  --tribos-terracotta-border-strong: rgba(158, 90, 60, 0.4);
 
-  /* ===== MAUVE ===== */
-  --tribos-mauve-500: #C4A0B9;
-  --tribos-mauve-surface: rgba(196, 160, 185, 0.1);
-  --tribos-mauve-border: rgba(196, 160, 185, 0.25);
+  /* ===== MAUVE (now slate — informational, Z5) ===== */
+  --tribos-mauve-500: #6B7F94;
+  --tribos-mauve-surface: rgba(107, 127, 148, 0.1);
+  --tribos-mauve-border: rgba(107, 127, 148, 0.25);
 
-  /* ===== TEAL ===== */
-  --tribos-teal-500: #7BA9A0;
-  --tribos-teal-surface: rgba(123, 169, 160, 0.1);
-  --tribos-teal-border: rgba(123, 169, 160, 0.25);
+  /* ===== TEAL (now moss — Z2 endurance) ===== */
+  --tribos-teal-500: #5C7A5E;
+  --tribos-teal-surface: rgba(92, 122, 94, 0.1);
+  --tribos-teal-border: rgba(92, 122, 94, 0.25);
 
-  /* ===== SAGE ===== */
-  --tribos-sage-500: #A8BFA8;
-  --tribos-sage-surface: rgba(168, 191, 168, 0.1);
-  --tribos-sage-border: rgba(168, 191, 168, 0.25);
+  /* ===== SAGE (now forest — Z1 recovery) ===== */
+  --tribos-sage-500: #6B8C72;
+  --tribos-sage-surface: rgba(107, 140, 114, 0.1);
+  --tribos-sage-border: rgba(107, 140, 114, 0.25);
 
-  /* ===== GOLD ===== */
-  --tribos-gold-500: #D4A843;
-  --tribos-gold-surface: rgba(212, 168, 67, 0.1);
-  --tribos-gold-border: rgba(212, 168, 67, 0.25);
+  /* ===== GOLD (now ochre — Z3 tempo) ===== */
+  --tribos-gold-500: #B89040;
+  --tribos-gold-surface: rgba(184, 144, 64, 0.1);
+  --tribos-gold-border: rgba(184, 144, 64, 0.25);
 
-  /* ===== SKY ===== */
-  --tribos-sky-500: #B8CDD9;
-  --tribos-sky-surface: rgba(184, 205, 217, 0.15);
-  --tribos-sky-border: rgba(184, 205, 217, 0.3);
+  /* ===== SKY (now iron — warm brown accent) ===== */
+  --tribos-sky-500: #8B6B5A;
+  --tribos-sky-surface: rgba(139, 107, 90, 0.12);
+  --tribos-sky-border: rgba(139, 107, 90, 0.25);
 
-  /* ===== DUSTY ROSE ===== */
-  --tribos-dustyrose-500: #9E7E90;
+  /* ===== DUSTY ROSE (now iron variant) ===== */
+  --tribos-dustyrose-500: #8B6B5A;
 
-  /* ===== TEXT ===== */
-  --tribos-text-100: #2C2826;
-  --tribos-text-200: #4A4440;
-  --tribos-text-300: #6B6460;
-  --tribos-text-400: #9E9590;
-  --tribos-text-500: #B5ADA3;
-  --tribos-text-600: #D4CCC0;
+  /* ===== TEXT (green-black ink) ===== */
+  --tribos-text-100: #24261F;
+  --tribos-text-200: #44463C;
+  --tribos-text-300: #74766A;
+  --tribos-text-400: #9A9C90;
+  --tribos-text-500: #C8C8BE;
+  --tribos-text-600: #E0E0D9;
 
   /* ===== BACKWARD-COMPATIBLE ALIASES ===== */
   --tribos-bg-primary: var(--tribos-void);
@@ -89,12 +89,12 @@
   --tribos-bg-elevated: var(--tribos-elevated);
   --tribos-border: var(--tribos-border-default);
   --tribos-border-light: var(--tribos-border-hover);
-  --tribos-border-focus: rgba(196, 120, 92, 0.5);
+  --tribos-border-focus: rgba(158, 90, 60, 0.5);
   --tribos-text-primary: var(--tribos-text-100);
   --tribos-text-secondary: var(--tribos-text-300);
   --tribos-text-muted: var(--tribos-text-400);
 
-  /* Legacy green aliases → now terracotta */
+  /* Legacy green aliases → now terracotta/sienna */
   --tribos-lime: var(--tribos-terracotta-500);
   --tribos-lime-light: var(--tribos-terracotta-400);
   --tribos-lime-dark: var(--tribos-terracotta-600);
@@ -108,21 +108,21 @@
   --tribos-green-border-strong: var(--tribos-terracotta-border-strong);
   --tribos-green-glow: none;
 
-  /* Legacy semantic aliases */
+  /* Semantic aliases */
   --tribos-success: var(--tribos-sage-500);
   --tribos-warning: var(--tribos-gold-500);
   --tribos-error: var(--tribos-terracotta-500);
-  --tribos-info: var(--tribos-teal-500);
+  --tribos-info: var(--tribos-mauve-500);
 
   /* Legacy color aliases */
   --tribos-amber-500: var(--tribos-gold-500);
-  --tribos-amber-400: #E4C27E;
+  --tribos-amber-400: #CCA450;
   --tribos-amber-surface: var(--tribos-gold-surface);
   --tribos-amber-border: var(--tribos-gold-border);
-  --tribos-blue-500: var(--tribos-teal-500);
-  --tribos-blue-400: #9EC7BD;
-  --tribos-blue-surface: var(--tribos-teal-surface);
-  --tribos-blue-border: var(--tribos-teal-border);
+  --tribos-blue-500: var(--tribos-mauve-500);
+  --tribos-blue-400: #8497AA;
+  --tribos-blue-surface: var(--tribos-mauve-surface);
+  --tribos-blue-border: var(--tribos-mauve-border);
   --tribos-purple-500: var(--tribos-mauve-500);
   --tribos-purple-surface: var(--tribos-mauve-surface);
   --tribos-purple-border: var(--tribos-mauve-border);
@@ -132,42 +132,40 @@
   --tribos-shadow-sm: var(--tribos-shadow-card);
   --tribos-shadow-md: var(--tribos-shadow-card);
   --tribos-shadow-lg: var(--tribos-shadow-card-hover);
-  --tribos-shadow-focus: 0 0 0 2px rgba(196, 120, 92, 0.25);
+  --tribos-shadow-focus: 0 0 0 2px rgba(158, 90, 60, 0.25);
 
   /* Scrollbar */
   --tribos-scrollbar-thumb: rgba(0, 0, 0, 0.12);
   --tribos-scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
 
   /* Selection */
-  --tribos-selection-bg: rgba(196, 120, 92, 0.2);
-  --tribos-selection-color: #2C2826;
+  --tribos-selection-bg: rgba(158, 90, 60, 0.2);
+  --tribos-selection-color: #24261F;
 
   /* Overlay */
   --tribos-overlay: rgba(0, 0, 0, 0.4);
-
-  /* Removed: edge lighting, inner glow (not used in new design) */
 
   /* Mobile viewport height fix */
   --vh: 1vh;
 }
 
-/* Dark theme — warm-black system */
+/* Dark theme — cool green-black system */
 :root[data-mantine-color-scheme='dark'] {
   /* Surfaces */
-  --tribos-void: #111010;
-  --tribos-nav: #141312;
-  --tribos-panel: #141312;
-  --tribos-card: #1A1917;
-  --tribos-card-top: #1A1917;
-  --tribos-card-bottom: #1A1917;
-  --tribos-card-hover: #1E1D1B;
-  --tribos-elevated: #232220;
-  --tribos-input: #141312;
+  --tribos-void: #111210;
+  --tribos-nav: #191A17;
+  --tribos-panel: #131410;
+  --tribos-card: #191A17;
+  --tribos-card-top: #191A17;
+  --tribos-card-bottom: #191A17;
+  --tribos-card-hover: #1D1E1B;
+  --tribos-elevated: #222320;
+  --tribos-input: #131410;
 
   /* Borders */
-  --tribos-border-subtle: #2E2C28;
-  --tribos-border-default: #3A3835;
-  --tribos-border-hover: #4A4542;
+  --tribos-border-subtle: #232420;
+  --tribos-border-default: #2C2D28;
+  --tribos-border-hover: #E5E5DF;
 
   /* Shadows */
   --tribos-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
@@ -182,54 +180,54 @@
   --tribos-shadow-sm: var(--tribos-shadow-card);
   --tribos-shadow-md: var(--tribos-shadow-card);
   --tribos-shadow-lg: var(--tribos-shadow-card-hover);
-  --tribos-shadow-focus: 0 0 0 2px rgba(196, 120, 92, 0.3);
+  --tribos-shadow-focus: 0 0 0 2px rgba(158, 90, 60, 0.3);
 
-  /* Terracotta (Primary) */
-  --tribos-terracotta-500: #C4785C;
-  --tribos-terracotta-400: #D4917A;
-  --tribos-terracotta-600: #A0614A;
-  --tribos-terracotta-surface: rgba(196, 120, 92, 0.1);
-  --tribos-terracotta-surface-strong: rgba(196, 120, 92, 0.18);
-  --tribos-terracotta-border: rgba(196, 120, 92, 0.3);
-  --tribos-terracotta-border-strong: rgba(196, 120, 92, 0.45);
+  /* Terracotta (Primary — sienna) */
+  --tribos-terracotta-500: #9E5A3C;
+  --tribos-terracotta-400: #BD7C58;
+  --tribos-terracotta-600: #864D33;
+  --tribos-terracotta-surface: rgba(158, 90, 60, 0.1);
+  --tribos-terracotta-surface-strong: rgba(158, 90, 60, 0.18);
+  --tribos-terracotta-border: rgba(158, 90, 60, 0.3);
+  --tribos-terracotta-border-strong: rgba(158, 90, 60, 0.45);
 
-  /* Mauve */
-  --tribos-mauve-500: #B08DA5;
-  --tribos-mauve-surface: rgba(176, 141, 165, 0.1);
-  --tribos-mauve-border: rgba(176, 141, 165, 0.25);
+  /* Mauve (now slate) */
+  --tribos-mauve-500: #6B7F94;
+  --tribos-mauve-surface: rgba(107, 127, 148, 0.1);
+  --tribos-mauve-border: rgba(107, 127, 148, 0.25);
 
-  /* Teal */
-  --tribos-teal-500: #6E9B92;
-  --tribos-teal-surface: rgba(110, 155, 146, 0.1);
-  --tribos-teal-border: rgba(110, 155, 146, 0.25);
+  /* Teal (now moss) */
+  --tribos-teal-500: #507052;
+  --tribos-teal-surface: rgba(80, 112, 82, 0.1);
+  --tribos-teal-border: rgba(80, 112, 82, 0.25);
 
-  /* Sage */
-  --tribos-sage-500: #8BA88B;
-  --tribos-sage-surface: rgba(139, 168, 139, 0.1);
-  --tribos-sage-border: rgba(139, 168, 139, 0.25);
+  /* Sage (now forest) */
+  --tribos-sage-500: #5E8068;
+  --tribos-sage-surface: rgba(94, 128, 104, 0.1);
+  --tribos-sage-border: rgba(94, 128, 104, 0.25);
 
-  /* Gold */
-  --tribos-gold-500: #D4A843;
-  --tribos-gold-surface: rgba(212, 168, 67, 0.1);
-  --tribos-gold-border: rgba(212, 168, 67, 0.25);
+  /* Gold (now ochre) */
+  --tribos-gold-500: #B89040;
+  --tribos-gold-surface: rgba(184, 144, 64, 0.1);
+  --tribos-gold-border: rgba(184, 144, 64, 0.25);
 
-  /* Sky */
-  --tribos-sky-500: #5C7A8A;
-  --tribos-sky-surface: rgba(92, 122, 138, 0.12);
-  --tribos-sky-border: rgba(92, 122, 138, 0.25);
+  /* Sky (now iron) */
+  --tribos-sky-500: #7A5E4E;
+  --tribos-sky-surface: rgba(122, 94, 78, 0.12);
+  --tribos-sky-border: rgba(122, 94, 78, 0.25);
 
-  /* Dusty Rose */
-  --tribos-dustyrose-500: #9E7E90;
+  /* Dusty Rose (now iron variant) */
+  --tribos-dustyrose-500: #7A5E4E;
 
   /* Text */
-  --tribos-text-100: #E8E2D8;
-  --tribos-text-200: #A09888;
-  --tribos-text-300: #6B6360;
-  --tribos-text-400: #4A4542;
-  --tribos-text-500: #3A3835;
-  --tribos-text-600: #2E2C28;
+  --tribos-text-100: #E5E5DF;
+  --tribos-text-200: #959588;
+  --tribos-text-300: #636358;
+  --tribos-text-400: #444439;
+  --tribos-text-500: #2C2D28;
+  --tribos-text-600: #232420;
 
-  /* Legacy green aliases → terracotta */
+  /* Legacy green aliases → terracotta/sienna */
   --tribos-lime: var(--tribos-terracotta-500);
   --tribos-lime-light: var(--tribos-terracotta-400);
   --tribos-lime-dark: var(--tribos-terracotta-600);
@@ -243,21 +241,21 @@
   --tribos-green-border-strong: var(--tribos-terracotta-border-strong);
   --tribos-green-glow: none;
 
-  /* Legacy semantic */
+  /* Semantic */
   --tribos-success: var(--tribos-sage-500);
   --tribos-warning: var(--tribos-gold-500);
   --tribos-error: var(--tribos-terracotta-500);
-  --tribos-info: var(--tribos-teal-500);
+  --tribos-info: var(--tribos-mauve-500);
 
   /* Legacy color aliases */
   --tribos-amber-500: var(--tribos-gold-500);
-  --tribos-amber-400: #E4C27E;
+  --tribos-amber-400: #CCA450;
   --tribos-amber-surface: var(--tribos-gold-surface);
   --tribos-amber-border: var(--tribos-gold-border);
-  --tribos-blue-500: var(--tribos-teal-500);
-  --tribos-blue-400: #9EC7BD;
-  --tribos-blue-surface: var(--tribos-teal-surface);
-  --tribos-blue-border: var(--tribos-teal-border);
+  --tribos-blue-500: var(--tribos-mauve-500);
+  --tribos-blue-400: #8497AA;
+  --tribos-blue-surface: var(--tribos-mauve-surface);
+  --tribos-blue-border: var(--tribos-mauve-border);
   --tribos-purple-500: var(--tribos-mauve-500);
   --tribos-purple-surface: var(--tribos-mauve-surface);
   --tribos-purple-border: var(--tribos-mauve-border);
@@ -271,7 +269,7 @@
   --tribos-bg-elevated: var(--tribos-elevated);
   --tribos-border: var(--tribos-border-default);
   --tribos-border-light: var(--tribos-border-hover);
-  --tribos-border-focus: rgba(196, 120, 92, 0.5);
+  --tribos-border-focus: rgba(158, 90, 60, 0.5);
   --tribos-text-primary: var(--tribos-text-100);
   --tribos-text-secondary: var(--tribos-text-200);
   --tribos-text-muted: var(--tribos-text-300);
@@ -281,8 +279,8 @@
   --tribos-scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
 
   /* Selection */
-  --tribos-selection-bg: rgba(196, 120, 92, 0.25);
-  --tribos-selection-color: #E8E2D8;
+  --tribos-selection-bg: rgba(158, 90, 60, 0.25);
+  --tribos-selection-color: #E5E5DF;
 
   /* Overlay */
   --tribos-overlay: rgba(0, 0, 0, 0.6);
@@ -345,7 +343,7 @@ body {
   width: 32px;
   height: 32px;
   border: 2px solid var(--tribos-border);
-  border-top-color: var(--tribos-terracotta-500);
+  border-top-color: #9E5A3C;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -428,7 +426,7 @@ body {
 
 /* Mapbox controls for light theme */
 :root[data-mantine-color-scheme='light'] .mapboxgl-ctrl-attrib {
-  background-color: rgba(250, 247, 242, 0.9) !important;
+  background-color: rgba(245, 245, 241, 0.9) !important;
 }
 
 :root[data-mantine-color-scheme='light'] .mapboxgl-ctrl-group {
@@ -497,7 +495,7 @@ body {
 .mantine-NumberInput-input:focus {
   border-color: var(--tribos-terracotta-border) !important;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(196, 120, 92, 0.1) !important;
+  box-shadow: 0 0 0 2px rgba(158, 90, 60, 0.1) !important;
 }
 
 /* Card/Paper hover effects */
@@ -540,22 +538,22 @@ button {
 /* Dark theme specific */
 :root[data-mantine-color-scheme='dark'] {
   --mantine-color-body: var(--tribos-void) !important;
-  --mantine-color-dark-9: #111010 !important;
-  --mantine-color-dark-8: #141312 !important;
-  --mantine-color-dark-7: #1A1917 !important;
-  --mantine-color-dark-6: #1E1D1B !important;
-  --mantine-color-dark-5: #232220 !important;
-  --mantine-color-dark-4: #3A3835 !important;
+  --mantine-color-dark-9: #111210 !important;
+  --mantine-color-dark-8: #131410 !important;
+  --mantine-color-dark-7: #191A17 !important;
+  --mantine-color-dark-6: #1D1E1B !important;
+  --mantine-color-dark-5: #222320 !important;
+  --mantine-color-dark-4: #2C2D28 !important;
 }
 
 /* Light theme specific */
 :root[data-mantine-color-scheme='light'] {
-  --mantine-color-body: #F5F0E8 !important;
-  --mantine-color-gray-0: #FAF7F2 !important;
-  --mantine-color-gray-1: #F5F0E8 !important;
-  --mantine-color-gray-2: #E8DDD3 !important;
-  --mantine-color-text: #2C2826 !important;
-  --mantine-color-dimmed: #9E9590 !important;
+  --mantine-color-body: #EDEDE8 !important;
+  --mantine-color-gray-0: #FBFBF9 !important;
+  --mantine-color-gray-1: #F5F5F1 !important;
+  --mantine-color-gray-2: #EDEDE8 !important;
+  --mantine-color-text: #24261F !important;
+  --mantine-color-dimmed: #74766A !important;
 }
 
 /* Modal/Drawer overlays */

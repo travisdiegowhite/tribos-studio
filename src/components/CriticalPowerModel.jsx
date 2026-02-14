@@ -402,9 +402,9 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
               <Line
                 type="monotone"
                 dataKey="power"
-                stroke="#C4785C"
+                stroke="#9E5A3C"
                 strokeWidth={2}
-                dot={{ fill: '#C4785C', r: 3 }}
+                dot={{ fill: '#9E5A3C', r: 3 }}
               />
             </LineChart>
           </ResponsiveContainer>

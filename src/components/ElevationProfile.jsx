@@ -467,7 +467,7 @@ const ElevationProfile = ({
                   width={selectionSvg.x2 - selectionSvg.x1}
                   height={chartConfig.chartHeight - 2 * chartConfig.padding}
                   fill="rgba(123, 169, 160, 0.15)"
-                  stroke="#7BA9A0"
+                  stroke="#5C7A5E"
                   strokeWidth="1"
                   strokeDasharray="4,2"
                 />
@@ -554,7 +554,7 @@ const ElevationProfile = ({
                     y1={chartConfig.padding}
                     x2={externalHighlight.x}
                     y2={chartConfig.chartHeight - chartConfig.padding}
-                    stroke="#7BA9A0"
+                    stroke="#5C7A5E"
                     strokeWidth="1"
                     strokeDasharray="4,2"
                     opacity="0.7"
@@ -563,7 +563,7 @@ const ElevationProfile = ({
                     cx={externalHighlight.x}
                     cy={chartConfig.chartHeight - chartConfig.padding - ((externalHighlight.elevation - chartConfig.chartMin) / chartConfig.chartRange) * (chartConfig.chartHeight - 2 * chartConfig.padding)}
                     r="5"
-                    fill="#7BA9A0"
+                    fill="#5C7A5E"
                     stroke="#fff"
                     strokeWidth="2"
                   />

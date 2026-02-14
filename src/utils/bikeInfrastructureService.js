@@ -45,11 +45,11 @@ export const INFRASTRUCTURE_TYPES = {
  * Color scheme for infrastructure types (cyan/teal gradient - avoids green used for routes)
  */
 export const INFRASTRUCTURE_COLORS = {
-  [INFRASTRUCTURE_TYPES.PROTECTED_CYCLEWAY]: '#7BA9A0', // Teal - safest
-  [INFRASTRUCTURE_TYPES.BIKE_LANE]: '#A8BFA8',          // Sage
-  [INFRASTRUCTURE_TYPES.SHARED_PATH]: '#6E9B92',        // Teal variant
-  [INFRASTRUCTURE_TYPES.BIKE_FRIENDLY]: '#D4A843',      // Gold - caution
-  [INFRASTRUCTURE_TYPES.SHARED_LANE]: '#9E9590',        // Text muted - warning
+  [INFRASTRUCTURE_TYPES.PROTECTED_CYCLEWAY]: '#5C7A5E', // Teal - safest
+  [INFRASTRUCTURE_TYPES.BIKE_LANE]: '#6B8C72',          // Sage
+  [INFRASTRUCTURE_TYPES.SHARED_PATH]: '#507052',        // Teal variant
+  [INFRASTRUCTURE_TYPES.BIKE_FRIENDLY]: '#B89040',      // Gold - caution
+  [INFRASTRUCTURE_TYPES.SHARED_LANE]: '#9A9C90',        // Text muted - warning
 };
 
 /**
