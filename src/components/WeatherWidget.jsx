@@ -27,7 +27,7 @@ function WindArrow({ degrees, size = 24 }) {
     >
       <path
         d="M12 2L8 10h3v10h2V10h3L12 2z"
-        fill={'var(--tribos-lime)'}
+        fill={'var(--tribos-terracotta-500)'}
       />
     </svg>
   );
@@ -205,7 +205,7 @@ const WeatherWidget = ({
     return (
       <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
         <Group gap="xs" justify="center">
-          <Loader size="xs" color="lime" />
+          <Loader size="xs" color="terracotta" />
           <Text size="xs" c="dimmed">Loading weather...</Text>
         </Group>
       </Paper>

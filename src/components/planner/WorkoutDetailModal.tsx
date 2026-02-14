@@ -394,8 +394,8 @@ export function WorkoutDetailModal({ workout, opened, onClose }: WorkoutDetailMo
 
           {intervalSummary && intervalSummary !== 'Steady effort' && (
             <Group gap="xs" mt="xs">
-              <IconRepeat size={14} color="var(--mantine-color-lime-5)" />
-              <Text size="sm" c="lime" fw={500}>
+              <IconRepeat size={14} color="var(--mantine-color-terracotta-5)" />
+              <Text size="sm" c="terracotta" fw={500}>
                 {intervalSummary}
               </Text>
             </Group>

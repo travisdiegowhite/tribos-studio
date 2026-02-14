@@ -46,7 +46,7 @@ function RouteStatsPanel({
       icon: <IconRuler size={20} />,
       label: 'Distance',
       value: formatDist(stats.distance),
-      color: 'var(--tribos-lime)',
+      color: 'var(--tribos-terracotta-500)',
     },
     {
       icon: <IconMountain size={20} />,
@@ -60,7 +60,7 @@ function RouteStatsPanel({
       value: hasETA
         ? personalizedETA.formattedTime
         : (rawDuration || '--:--'),
-      color: hasETA ? 'var(--tribos-lime)' : tokens.colors.zone1,
+      color: hasETA ? 'var(--tribos-terracotta-500)' : tokens.colors.zone1,
       tooltip: hasETA
         ? buildETATooltip(personalizedETA, rawDuration)
         : null,
@@ -185,7 +185,7 @@ function ETABreakdownBar({ breakdown, isPersonalized }) {
     factors.push({ label: `Goal -${pct}%`, color: tokens.colors.zone1 });
   } else if (breakdown.goalModifier > 1.02) {
     const pct = Math.round((breakdown.goalModifier - 1) * 100);
-    factors.push({ label: `Goal +${pct}%`, color: 'var(--tribos-lime)' });
+    factors.push({ label: `Goal +${pct}%`, color: 'var(--tribos-terracotta-500)' });
   }
 
   return (
@@ -202,7 +202,7 @@ function ETABreakdownBar({ breakdown, isPersonalized }) {
       <Badge
         size="xs"
         variant="light"
-        color={isPersonalized ? 'lime' : 'gray'}
+        color={isPersonalized ? 'terracotta' : 'gray'}
         leftSection={isPersonalized ? <IconUser size={10} /> : <IconTrendingUp size={10} />}
       >
         {isPersonalized ? 'Strava-tuned' : 'Default speed'}

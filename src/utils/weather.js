@@ -490,7 +490,7 @@ export function getWeatherSeverity(weather, preferences = null, useImperial = tr
   // Good conditions (within user's comfort zone but not ideal)
   return {
     level: 'good',
-    color: 'lime',
+    color: 'terracotta',
     message: 'Good conditions for you',
     issues: [],
     effectiveTemp: prefs.useWindChill ? effectiveTemp : null,

@@ -165,7 +165,7 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
             <Badge
               size="lg"
               variant="light"
-              color="lime"
+              color="terracotta"
               style={{ cursor: 'pointer' }}
               onClick={onOpenCheckIn}
             >

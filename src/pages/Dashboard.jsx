@@ -552,12 +552,12 @@ function TodayFocusCard({ workout, plan, loading }) {
     <Card
       style={{
         background: `linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)`,
-        border: `1px solid var(--tribos-lime)30`,
+        border: `1px solid var(--tribos-terracotta-500)30`,
       }}
     >
       <Group justify="space-between" align="center">
         <Box>
-          <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--tribos-lime)' }} mb={4}>
+          <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--tribos-terracotta-500)' }} mb={4}>
             Today's Focus
           </Text>
           <Text fw={600} size="lg" style={{ color: 'var(--tribos-text-primary)' }}>
@@ -693,7 +693,7 @@ function FitnessMetrics({ activities, loading }) {
           <Text fw={600} size="lg" style={{ color: 'var(--tribos-text-primary)' }}>
             {ctl}
           </Text>
-          {ctl > 0 && <IconTrendingUp size={14} color="var(--tribos-lime)" />}
+          {ctl > 0 && <IconTrendingUp size={14} color="var(--tribos-terracotta-500)" />}
         </Group>
       </Box>
       <Box>

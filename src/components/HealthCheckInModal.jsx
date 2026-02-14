@@ -56,13 +56,13 @@ const EMOJI_SCALE = {
   1: { emoji: '1', label: 'Very Low', color: 'red' },
   2: { emoji: '2', label: 'Low', color: 'orange' },
   3: { emoji: '3', label: 'Moderate', color: 'yellow' },
-  4: { emoji: '4', label: 'Good', color: 'lime' },
+  4: { emoji: '4', label: 'Good', color: 'terracotta' },
   5: { emoji: '5', label: 'Excellent', color: 'green' },
 };
 
 const SORENESS_SCALE = {
   1: { label: 'None', color: 'green' },
-  2: { label: 'Mild', color: 'lime' },
+  2: { label: 'Mild', color: 'terracotta' },
   3: { label: 'Moderate', color: 'yellow' },
   4: { label: 'Significant', color: 'orange' },
   5: { label: 'Severe', color: 'red' },
@@ -482,7 +482,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
           {renderScaleSelector('energy_level', 'Energy Level', <IconBolt size={14} />)}
           {renderScaleSelector('stress_level', 'Stress Level', <IconBrain size={14} />, {
             1: { label: 'Very Low', color: 'green' },
-            2: { label: 'Low', color: 'lime' },
+            2: { label: 'Low', color: 'terracotta' },
             3: { label: 'Moderate', color: 'yellow' },
             4: { label: 'High', color: 'orange' },
             5: { label: 'Very High', color: 'red' },
@@ -580,7 +580,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
                 {/* Pre-workout fuel */}
                 <Box>
                   <Group gap="xs" mb={6}>
-                    <ThemeIcon size="sm" variant="light" color="lime">
+                    <ThemeIcon size="sm" variant="light" color="terracotta">
                       <IconFlame size={14} />
                     </ThemeIcon>
                     <Text size="sm" fw={500}>Pre-workout fueling?</Text>
@@ -817,7 +817,7 @@ function ReadinessPreview({ formData }) {
 
   const getColor = (r) => {
     if (r >= 80) return 'green';
-    if (r >= 60) return 'lime';
+    if (r >= 60) return 'terracotta';
     if (r >= 40) return 'yellow';
     if (r >= 20) return 'orange';
     return 'red';

@@ -77,7 +77,7 @@ function getActivityColor(activity, index) {
   // Color palette for rides - recent rides are brighter
   // Note: Must use hex colors, not CSS variables, as Mapbox GL doesn't support CSS variables
   const colors = [
-    '#32CD32', // Tribos lime - most recent
+    '#C4785C', // Terracotta - most recent
     '#7BA9A0', // Teal
     '#D4A843', // Gold
     '#C4A0B9', // Mauve
@@ -297,7 +297,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
             <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
               Recent Rides
             </Text>
-            <Badge variant="light" color="lime" size="sm">
+            <Badge variant="light" color="terracotta" size="sm">
               {allRidesWithRoutes.length} ride{allRidesWithRoutes.length !== 1 ? 's' : ''}
             </Badge>
           </Group>

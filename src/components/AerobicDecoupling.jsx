@@ -91,7 +91,7 @@ export function interpretDecoupling(decoupling) {
   } else if (decoupling < 5) {
     return {
       status: 'good',
-      color: 'lime',
+      color: 'terracotta',
       icon: IconCheck,
       message: 'Good aerobic fitness',
       description: 'Low decoupling shows solid aerobic conditioning.',
@@ -361,7 +361,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
             {/* Average EF reference line */}
             <ReferenceLine
               y={analysis.avgEF}
-              stroke={'var(--tribos-lime)'}
+              stroke={'var(--tribos-terracotta-500)'}
               strokeDasharray="5 5"
             />
 
@@ -401,7 +401,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
           <Box style={{ position: 'relative', height: 8 }}>
             <Progress.Root size="lg" radius="xl">
               <Progress.Section value={15} color="green" />
-              <Progress.Section value={10} color="lime" />
+              <Progress.Section value={10} color="terracotta" />
               <Progress.Section value={25} color="yellow" />
               <Progress.Section value={25} color="orange" />
               <Progress.Section value={25} color="red" />

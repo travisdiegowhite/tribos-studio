@@ -257,7 +257,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconChartPie size={20} color={'var(--tribos-lime)'} />
+          <IconChartPie size={20} color={'var(--tribos-terracotta-500)'} />
           <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Training Zone Distribution
           </Text>

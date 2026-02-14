@@ -546,7 +546,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       notifications.show({
         title: 'Workout Saved',
         message: 'Your workout has been updated',
-        color: 'lime',
+        color: 'terracotta',
       });
 
       setEditModalOpen(false);
@@ -750,7 +750,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         notifications.show({
           title: 'Workouts Swapped',
           message: 'Workouts have been swapped between days',
-          color: 'lime',
+          color: 'terracotta',
         });
       };
 
@@ -807,7 +807,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             notifications.show({
               title: 'Workout Moved',
               message: `Moved to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
-              color: 'lime',
+              color: 'terracotta',
             });
           } else {
             // Perform the swap
@@ -822,7 +822,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         notifications.show({
           title: 'Workout Moved',
           message: `Moved to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
-          color: 'lime',
+          color: 'terracotta',
         });
       }
 
@@ -899,7 +899,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             </Group>
             <Group gap="lg">
               <Box ta="center">
-                <Text size="xl" fw={700} c="lime">{currentWeek}</Text>
+                <Text size="xl" fw={700} c="terracotta">{currentWeek}</Text>
                 <Text size="xs" c="dimmed">of {activePlan.duration_weeks} weeks</Text>
               </Box>
               <Box ta="center">
@@ -914,7 +914,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           {/* Overall Progress */}
           <Progress
             value={(currentWeek / activePlan.duration_weeks) * 100}
-            color="lime"
+            color="terracotta"
             size="sm"
             radius="xl"
             mt="md"
@@ -1059,8 +1059,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 });
 
                 // Determine border color based on workout completion and race goals
-                let borderColor = isToday ? 'var(--tribos-lime)' : 'var(--tribos-bg-tertiary)';
-                let backgroundColor = isToday ? `${'var(--tribos-lime)'}15` : isPast ? 'var(--tribos-bg-secondary)' : 'var(--tribos-bg-tertiary)';
+                let borderColor = isToday ? 'var(--tribos-terracotta-500)' : 'var(--tribos-bg-tertiary)';
+                let backgroundColor = isToday ? `${'var(--tribos-terracotta-500)'}15` : isPast ? 'var(--tribos-bg-secondary)' : 'var(--tribos-bg-tertiary)';
 
                 // Race day gets special styling
                 if (raceGoal) {
@@ -1100,7 +1100,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     style={{
                       minHeight: 110,
                       backgroundColor: isDropTarget ? 'rgba(132, 216, 99, 0.3)' : backgroundColor,
-                      border: isDropTarget ? `2px dashed ${'var(--tribos-lime)'}` : `2px solid ${borderColor}`,
+                      border: isDropTarget ? `2px dashed ${'var(--tribos-terracotta-500)'}` : `2px solid ${borderColor}`,
                       opacity: isPast && !workout?.completed && !dayRides.length ? 0.7 : 1,
                       cursor: hasDraggableWorkout ? 'grab' : (activePlan ? 'pointer' : 'default'),
                       transition: 'background-color 0.2s, border 0.2s',
@@ -1179,7 +1179,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               <ActionIcon
                                 size="xs"
                                 variant="light"
-                                color="lime"
+                                color="terracotta"
                                 mt={4}
                                 onClick={(e) => handleCreateRoute(e, workout, date)}
                               >
@@ -1382,7 +1382,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Missed</Text>
                   </Group>
                   <Group gap={4}>
-                    <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: `${'var(--tribos-lime)'}15`, border: `2px solid ${'var(--tribos-lime)'}` }} />
+                    <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: `${'var(--tribos-terracotta-500)'}15`, border: `2px solid ${'var(--tribos-terracotta-500)'}` }} />
                     <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Today</Text>
                   </Group>
                   <Text size="xs" c="dimmed" ml="auto">Drag workouts to move • Click to edit</Text>
@@ -1400,7 +1400,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         aria-label={selectedWorkout ? 'Edit workout' : 'Add workout'}
         title={
           <Group gap="sm">
-            <ThemeIcon size="lg" color="lime" variant="light">
+            <ThemeIcon size="lg" color="terracotta" variant="light">
               <IconCalendarEvent size={18} />
             </ThemeIcon>
             <Text fw={600}>
@@ -1480,7 +1480,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 Cancel
               </Button>
               <Button
-                color="lime"
+                color="terracotta"
                 leftSection={<IconCheck size={16} />}
                 onClick={saveWorkout}
                 loading={saving}

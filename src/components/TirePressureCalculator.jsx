@@ -239,7 +239,7 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
         {/* Header */}
         <Group justify="space-between">
           <Group gap="xs">
-            <IconWheel size={18} style={{ color: 'var(--tribos-lime)' }} />
+            <IconWheel size={18} style={{ color: 'var(--tribos-terracotta-500)' }} />
             <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
               Tire Pressure
             </Text>
@@ -302,11 +302,11 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
               thickness={6}
               roundCaps
               sections={[
-                { value: rearNormalized, color: 'var(--tribos-lime)' },
+                { value: rearNormalized, color: 'var(--tribos-terracotta-500)' },
               ]}
               label={
                 <Box ta="center">
-                  <Text size="lg" fw={700} style={{ color: 'var(--tribos-lime)' }}>
+                  <Text size="lg" fw={700} style={{ color: 'var(--tribos-terracotta-500)' }}>
                     {pressure.rear}
                   </Text>
                 </Box>
@@ -407,7 +407,7 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
                 <Switch
                   checked={tubeless}
                   onChange={(e) => setTubeless(e.currentTarget.checked)}
-                  color="lime"
+                  color="terracotta"
                 />
               </Group>
 

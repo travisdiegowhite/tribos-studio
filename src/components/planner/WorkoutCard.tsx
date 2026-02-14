@@ -33,7 +33,7 @@ const CATEGORY_COLORS: Record<WorkoutCategory | string, string> = {
   racing: 'violet',
   strength: 'indigo',
   core: 'cyan',
-  flexibility: 'lime',
+  flexibility: 'terracotta',
   rest: 'gray',
 };
 

@@ -1122,7 +1122,7 @@ function Settings() {
             }}
           >
             <Group gap="sm" mb="xs">
-              <IconUpload size={18} color={'var(--tribos-lime)'} />
+              <IconUpload size={18} color={'var(--tribos-terracotta-500)'} />
               <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                 Want to keep your data?
               </Text>
@@ -1131,7 +1131,7 @@ function Settings() {
               Before disconnecting, export your data from Strava and import it using the{' '}
               <Text
                 component="span"
-                style={{ color: 'var(--tribos-lime)', cursor: 'pointer' }}
+                style={{ color: 'var(--tribos-terracotta-500)', cursor: 'pointer' }}
                 onClick={() => {
                   setShowStravaDisconnectModal(false);
                   setShowBulkUploadModal(true);
@@ -1363,7 +1363,7 @@ function Settings() {
                   }}
                 >
                   <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                    Your W/kg: <Text component="span" fw={700} style={{ color: 'var(--tribos-lime)' }}>
+                    Your W/kg: <Text component="span" fw={700} style={{ color: 'var(--tribos-terracotta-500)' }}>
                       {(ftp / weightKg).toFixed(2)} W/kg
                     </Text>
                   </Text>
@@ -1921,7 +1921,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 <Stack gap={4}>
                   <Group gap="xs">
                     <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Progress:</Text>
-                    <Text size="xs" style={{ color: backfillStatus.progress?.percentComplete === 100 ? 'var(--tribos-lime)' : 'var(--tribos-text-primary)' }}>
+                    <Text size="xs" style={{ color: backfillStatus.progress?.percentComplete === 100 ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-primary)' }}>
                       {backfillStatus.progress?.percentComplete || 0}% ({backfillStatus.progress?.received + backfillStatus.progress?.alreadyProcessed || 0}/{backfillStatus.progress?.total || 0} chunks)
                     </Text>
                   </Group>
@@ -1936,7 +1936,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                   {backfillStatus.progress?.activitiesReceived > 0 && (
                     <Group gap="xs">
                       <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Activities:</Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-lime)' }}>
+                      <Text size="xs" style={{ color: 'var(--tribos-terracotta-500)' }}>
                         {backfillStatus.progress.activitiesReceived} received
                       </Text>
                     </Group>
@@ -1994,13 +1994,13 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 <Stack gap={4}>
                   <Group gap="xs">
                     <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Garmin User ID:</Text>
-                    <Text size="xs" style={{ color: webhookStatus.integration?.hasGarminUserId ? 'var(--tribos-lime)' : 'red' }}>
+                    <Text size="xs" style={{ color: webhookStatus.integration?.hasGarminUserId ? 'var(--tribos-terracotta-500)' : 'red' }}>
                       {webhookStatus.integration?.hasGarminUserId ? '✓ Set' : '✗ Missing'}
                     </Text>
                   </Group>
                   <Group gap="xs">
                     <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Token Valid:</Text>
-                    <Text size="xs" style={{ color: webhookStatus.integration?.tokenValid ? 'var(--tribos-lime)' : 'red' }}>
+                    <Text size="xs" style={{ color: webhookStatus.integration?.tokenValid ? 'var(--tribos-terracotta-500)' : 'red' }}>
                       {webhookStatus.integration?.tokenValid ? '✓ Yes' : '✗ Expired'}
                     </Text>
                   </Group>
@@ -2102,7 +2102,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                   <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginBottom: 4 }}>
                     Diagnosis Results:
                   </Text>
-                  <Text size="xs" style={{ color: 'var(--tribos-lime)' }}>
+                  <Text size="xs" style={{ color: 'var(--tribos-terracotta-500)' }}>
                     Activities in DB: {diagnosis.activities?.count || 0}
                   </Text>
                   <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
@@ -2126,7 +2126,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                         Recent Events:
                       </Text>
                       {diagnosis.webhookEvents.analysis.slice(0, 5).map((event, i) => (
-                        <Box key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${event.error ? 'red' : 'var(--tribos-lime)'}` }}>
+                        <Box key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${event.error ? 'red' : 'var(--tribos-terracotta-500)'}` }}>
                           <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
                             {event.activityName || event.activity_id || 'Unknown'} - {event.activityType || 'N/A'}
                           </Text>

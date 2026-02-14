@@ -236,7 +236,7 @@ function DiscussionThread({
                     color: 'var(--tribos-text-muted)',
                   },
                   '&:focus': {
-                    borderColor: 'var(--tribos-lime)',
+                    borderColor: 'var(--tribos-terracotta-500)',
                   },
                 },
               }}
@@ -248,7 +248,7 @@ function DiscussionThread({
                 loading={submitting}
                 disabled={!replyText.trim()}
                 style={{
-                  backgroundColor: 'var(--tribos-lime)',
+                  backgroundColor: 'var(--tribos-terracotta-500)',
                   color: 'var(--tribos-bg-primary)',
                 }}
               >
@@ -293,7 +293,7 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
       radius="md"
       style={{
         backgroundColor: 'var(--tribos-bg-secondary)',
-        border: `1px solid ${isOwn ? 'var(--tribos-lime)' + '30' : 'var(--tribos-bg-tertiary)'}`,
+        border: `1px solid ${isOwn ? 'var(--tribos-terracotta-500)' + '30' : 'var(--tribos-bg-tertiary)'}`,
       }}
     >
       <Stack gap="xs">

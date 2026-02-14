@@ -259,7 +259,7 @@ const RaceGoalModal = ({
         notifications.show({
           title: 'Race Goal Updated',
           message: `${form.name} has been updated`,
-          color: 'lime',
+          color: 'terracotta',
         });
       } else {
         // Create new
@@ -272,7 +272,7 @@ const RaceGoalModal = ({
         notifications.show({
           title: 'Race Goal Added',
           message: `${form.name} has been added to your calendar`,
-          color: 'lime',
+          color: 'terracotta',
           icon: <IconTrophy size={18} />,
         });
       }
@@ -373,11 +373,11 @@ const RaceGoalModal = ({
         {daysUntil !== null && daysUntil >= 0 && (
           <Paper p="sm" withBorder style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
             <Group justify="center" gap="md">
-              <ThemeIcon size="lg" color={daysUntil < 14 ? 'red' : daysUntil < 30 ? 'orange' : 'lime'} variant="light">
+              <ThemeIcon size="lg" color={daysUntil < 14 ? 'red' : daysUntil < 30 ? 'orange' : 'terracotta'} variant="light">
                 <IconCalendarEvent size={18} />
               </ThemeIcon>
               <Box ta="center">
-                <Text size="xl" fw={700} c={daysUntil < 14 ? 'red' : daysUntil < 30 ? 'orange' : 'lime'}>
+                <Text size="xl" fw={700} c={daysUntil < 14 ? 'red' : daysUntil < 30 ? 'orange' : 'terracotta'}>
                   {daysUntil}
                 </Text>
                 <Text size="xs" c="dimmed">days until race</Text>
@@ -510,7 +510,7 @@ const RaceGoalModal = ({
                   size="xs"
                   rightSection={fuelPlanOpen ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
                   onClick={toggleFuelPlan}
-                  style={{ color: 'var(--tribos-lime)' }}
+                  style={{ color: 'var(--tribos-terracotta-500)' }}
                 >
                   Race Day Fuel Plan
                 </Button>
@@ -551,7 +551,7 @@ const RaceGoalModal = ({
               Cancel
             </Button>
             <Button
-              color="lime"
+              color="terracotta"
               leftSection={<IconCheck size={16} />}
               onClick={handleSave}
               loading={saving}

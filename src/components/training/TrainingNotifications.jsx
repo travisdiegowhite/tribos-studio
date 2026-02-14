@@ -224,7 +224,7 @@ function analyzeTrainingProgress({
         priority: 4,
         title: 'Great Comeback!',
         message: 'You bounced back strong last week. Keep it up!',
-        color: 'lime',
+        color: 'terracotta',
         icon: IconMoodHappy,
         celebrate: true,
       });

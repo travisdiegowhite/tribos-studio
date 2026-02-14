@@ -182,7 +182,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
         notifications.show({
           title: 'Calendar Imported',
           message: `${overridesCreated} busy day${overridesCreated > 1 ? 's' : ''} blocked for the next 2 weeks`,
-          color: 'lime',
+          color: 'terracotta',
         });
         onAvailabilityChange?.();
       } else {
@@ -210,7 +210,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
   if (loading) {
     return (
       <Box p="xl" style={{ textAlign: 'center' }}>
-        <Loader size="lg" color="lime" />
+        <Loader size="lg" color="terracotta" />
         <Text mt="md" c="dimmed">Loading availability settings...</Text>
       </Box>
     );
@@ -244,7 +244,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
         <Paper p="md" radius="md" withBorder style={{ borderColor: 'var(--mantine-color-dark-4)' }}>
           <Group justify="space-between" wrap="nowrap">
             <Group gap="sm" wrap="nowrap">
-              <IconCalendarEvent size={20} color="var(--mantine-color-lime-5)" />
+              <IconCalendarEvent size={20} color="var(--mantine-color-terracotta-5)" />
               <Box>
                 <Text size="sm" fw={500}>Google Calendar</Text>
                 <Text size="xs" c="dimmed">
@@ -255,7 +255,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
             <Button
               size="xs"
               variant="light"
-              color="lime"
+              color="terracotta"
               loading={importingCalendar}
               onClick={handleImportCalendarBusyTimes}
               leftSection={<IconBrandGoogle size={14} />}
@@ -394,7 +394,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
           <Button
             onClick={handleSavePreferences}
             loading={isSaving}
-            color="lime"
+            color="terracotta"
             leftSection={<IconCheck size={16} />}
           >
             Save Preferences
@@ -438,7 +438,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
               Cancel
             </Button>
             <Button
-              color="lime"
+              color="terracotta"
               onClick={() => editingDay !== null && handleSaveNotes(editingDay)}
               loading={isSaving}
             >

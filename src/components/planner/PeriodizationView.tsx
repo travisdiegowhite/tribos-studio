@@ -260,9 +260,9 @@ export function PeriodizationView({
                   ? 'rgba(163, 230, 53, 0.15)'
                   : 'var(--mantine-color-dark-6)',
                 border: week.isCurrentWeek
-                  ? '2px solid var(--mantine-color-lime-6)'
+                  ? '2px solid var(--mantine-color-terracotta-6)'
                   : week.isFocused
-                  ? '2px solid var(--mantine-color-lime-4)'
+                  ? '2px solid var(--mantine-color-terracotta-4)'
                   : '1px solid var(--mantine-color-dark-4)',
                 transition: 'all 0.15s ease',
               }}
@@ -279,7 +279,7 @@ export function PeriodizationView({
             >
               {/* Week number and phase */}
               <Group justify="space-between" gap={2} mb={4}>
-                <Text size="xs" fw={week.isCurrentWeek ? 700 : 500} c={week.isCurrentWeek ? 'lime' : undefined}>
+                <Text size="xs" fw={week.isCurrentWeek ? 700 : 500} c={week.isCurrentWeek ? 'terracotta' : undefined}>
                   W{week.weekNumber}
                 </Text>
                 <Box
@@ -317,7 +317,7 @@ export function PeriodizationView({
                   <Box
                     style={{
                       height: `${Math.max(2, (week.actualTSS / maxTSS) * 40)}px`,
-                      backgroundColor: 'var(--mantine-color-lime-6)',
+                      backgroundColor: 'var(--mantine-color-terracotta-6)',
                       borderRadius: 2,
                       marginTop: 2,
                     }}
@@ -354,7 +354,7 @@ export function PeriodizationView({
             style={{
               width: 12,
               height: 12,
-              backgroundColor: 'var(--mantine-color-lime-6)',
+              backgroundColor: 'var(--mantine-color-terracotta-6)',
               borderRadius: 2,
             }}
           />

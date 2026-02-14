@@ -259,7 +259,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
       onClose={onClose}
       title={
         <Group gap="xs">
-          <IconFolderOpen size={20} style={{ color: 'var(--tribos-lime)' }} />
+          <IconFolderOpen size={20} style={{ color: 'var(--tribos-terracotta-500)' }} />
           <Text fw={600}>My Routes</Text>
           {!loading && (
             <Badge size="sm" variant="light" color="gray">
@@ -340,7 +340,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
               </Text>
               <Button
                 variant="light"
-                color="lime"
+                color="terracotta"
                 size="xs"
                 onClick={() => { setSearchQuery(''); setFilterType('all'); }}
               >
@@ -390,7 +390,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
 
                       {/* Stats row */}
                       <Group gap="md">
-                        <Text size="xs" fw={500} style={{ color: 'var(--tribos-lime)' }}>
+                        <Text size="xs" fw={500} style={{ color: 'var(--tribos-terracotta-500)' }}>
                           {route.distance_km ? formatDist(route.distance_km) : '--'}
                         </Text>
                         <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>

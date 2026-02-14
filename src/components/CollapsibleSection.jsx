@@ -47,7 +47,7 @@ function CollapsibleSection({
       >
         <Group gap="xs">
           {icon && (
-            <Box style={{ color: accentColor || 'var(--tribos-lime)' }}>
+            <Box style={{ color: accentColor || 'var(--tribos-terracotta-500)' }}>
               {icon}
             </Box>
           )}
@@ -57,7 +57,7 @@ function CollapsibleSection({
           {badge && (
             <Box
               style={{
-                backgroundColor: 'var(--tribos-lime)',
+                backgroundColor: 'var(--tribos-terracotta-500)',
                 color: 'var(--tribos-bg-primary)',
                 padding: '2px 8px',
                 borderRadius: tokens.radius.full,

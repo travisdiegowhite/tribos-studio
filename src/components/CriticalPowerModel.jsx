@@ -457,7 +457,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
 export function WPrimeBalanceGauge({ wBalancePercent, wPrimeKJ }) {
   const getColor = (pct) => {
     if (pct > 75) return 'green';
-    if (pct > 50) return 'lime';
+    if (pct > 50) return 'terracotta';
     if (pct > 25) return 'yellow';
     if (pct > 10) return 'orange';
     return 'red';

@@ -22,7 +22,7 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
         icon={<IconRobot size={24} />}
         title="Describe a Route"
         description="Tell the AI what you want and get route suggestions"
-        accentColor="var(--tribos-lime)"
+        accentColor="var(--tribos-terracotta-500)"
         onClick={() => onSelectMode('ai')}
       />
 

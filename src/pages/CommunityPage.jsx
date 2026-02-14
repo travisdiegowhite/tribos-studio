@@ -331,7 +331,7 @@ function CommunityPage() {
               <Group justify="space-between" align="flex-start">
                 <Box>
                   <Group gap="sm" mb="xs">
-                    <IconCoffee size={24} color={'var(--tribos-lime)'} />
+                    <IconCoffee size={24} color={'var(--tribos-terracotta-500)'} />
                     <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
                       {cafe.name}
                     </Title>
@@ -464,7 +464,7 @@ function CommunityPage() {
                       leftSection={<IconPlus size={16} />}
                       onClick={openNewDiscussionModal}
                       style={{
-                        backgroundColor: 'var(--tribos-lime)',
+                        backgroundColor: 'var(--tribos-terracotta-500)',
                         color: 'var(--tribos-bg-primary)',
                       }}
                     >
@@ -603,7 +603,7 @@ function CommunityPage() {
                       size="xs"
                       onClick={() => handleJoinCafe(cafe.cafe_id, cafe.cafe_name)}
                       style={{
-                        backgroundColor: 'var(--tribos-lime)',
+                        backgroundColor: 'var(--tribos-terracotta-500)',
                         color: 'var(--tribos-bg-primary)',
                       }}
                     >
@@ -695,7 +695,7 @@ function CommunityPage() {
             <Button
               onClick={handleCreateCafe}
               style={{
-                backgroundColor: 'var(--tribos-lime)',
+                backgroundColor: 'var(--tribos-terracotta-500)',
                 color: 'var(--tribos-bg-primary)',
               }}
             >
@@ -772,7 +772,7 @@ function CommunityPage() {
             <Button
               onClick={handleCreateDiscussion}
               style={{
-                backgroundColor: 'var(--tribos-lime)',
+                backgroundColor: 'var(--tribos-terracotta-500)',
                 color: 'var(--tribos-bg-primary)',
               }}
             >
@@ -854,7 +854,7 @@ function NoCafeView({ onFind, onCreate }) {
             size="md"
             onClick={onFind}
             style={{
-              backgroundColor: 'var(--tribos-lime)',
+              backgroundColor: 'var(--tribos-terracotta-500)',
               color: 'var(--tribos-bg-primary)',
             }}
             leftSection={<IconSearch size={18} />}
@@ -879,7 +879,7 @@ function NoCafeView({ onFind, onCreate }) {
 function FeatureItem({ icon: Icon, title, description }) {
   return (
     <Box ta="left">
-      <Icon size={20} color={'var(--tribos-lime)'} style={{ marginBottom: 4 }} />
+      <Icon size={20} color={'var(--tribos-terracotta-500)'} style={{ marginBottom: 4 }} />
       <Text size="sm" fw={500}>{title}</Text>
       <Text size="xs" c="dimmed">{description}</Text>
     </Box>
@@ -899,7 +899,7 @@ function CheckInCard({ checkIn, isOwn, onEncourage, compact = false }) {
       radius="md"
       style={{
         backgroundColor: 'var(--tribos-bg-secondary)',
-        border: `1px solid ${isOwn ? 'var(--tribos-lime)' + '40' : 'var(--tribos-bg-tertiary)'}`,
+        border: `1px solid ${isOwn ? 'var(--tribos-terracotta-500)' + '40' : 'var(--tribos-bg-tertiary)'}`,
       }}
     >
       <Stack gap="xs">

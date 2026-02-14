@@ -412,7 +412,7 @@ export default function CafeSettingsModal({
                   onClick={handleSave}
                   loading={saving}
                   style={{
-                    backgroundColor: 'var(--tribos-lime)',
+                    backgroundColor: 'var(--tribos-terracotta-500)',
                     color: 'var(--tribos-bg-primary)',
                   }}
                 >

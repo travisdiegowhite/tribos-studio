@@ -118,7 +118,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         message: newStatus === 'paused'
           ? 'Your training plan has been paused. Resume when ready.'
           : 'Your training plan is now active again!',
-        color: newStatus === 'paused' ? 'yellow' : 'lime',
+        color: newStatus === 'paused' ? 'yellow' : 'terracotta',
       });
 
       if (onPlanActivated) {
@@ -390,7 +390,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       notifications.show({
         title: 'Workouts Generated',
         message: `Created ${workouts.length} workouts for your plan`,
-        color: 'lime',
+        color: 'terracotta',
         icon: <IconCheck size={16} />,
       });
 
@@ -434,7 +434,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       notifications.show({
         title: 'Plan Completed',
         message: 'Great work! Your training plan has been marked as complete.',
-        color: 'lime',
+        color: 'terracotta',
         icon: <IconCheck size={16} />,
       });
 
@@ -858,7 +858,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       notifications.show({
         title: 'Plan Activated',
         message: `${plan.name} starts ${formattedDate}!`,
-        color: 'lime',
+        color: 'terracotta',
         icon: <IconCheck size={16} />,
       });
 
@@ -955,7 +955,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
         <Button
           variant="light"
-          color="lime"
+          color="terracotta"
           size="xs"
           fullWidth
           rightSection={<IconChevronRight size={14} />}
@@ -1084,7 +1084,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
           {/* Activate Button */}
           <Button
-            color="lime"
+            color="terracotta"
             size="md"
             fullWidth
             leftSection={<IconPlayerPlay size={18} />}
@@ -1224,10 +1224,10 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
       {/* Active Plan Card with Management */}
       {activePlan && (
-        <Card withBorder mb="md" p="md" style={{ borderColor: 'var(--tribos-lime)', borderWidth: 2 }}>
+        <Card withBorder mb="md" p="md" style={{ borderColor: 'var(--tribos-terracotta-500)', borderWidth: 2 }}>
           <Group justify="space-between" mb="sm">
             <Group gap="sm">
-              <ThemeIcon size="lg" color="lime" variant="light">
+              <ThemeIcon size="lg" color="terracotta" variant="light">
                 <IconPlayerPlay size={18} />
               </ThemeIcon>
               <Box>
@@ -1240,7 +1240,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
             <Group gap="xs">
               <Badge
-                color={activePlan.status === 'paused' ? 'yellow' : 'lime'}
+                color={activePlan.status === 'paused' ? 'yellow' : 'terracotta'}
                 variant="filled"
               >
                 {activePlan.status === 'paused' ? 'Paused' : 'Active'}
@@ -1299,7 +1299,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   <Text size="xs" c="dimmed">Week {week} of {activePlan.duration_weeks}</Text>
                   <Text size="xs" c="dimmed">{daysRemaining} days remaining</Text>
                 </Group>
-                <Progress value={progress} color="lime" size="sm" radius="xl" />
+                <Progress value={progress} color="terracotta" size="sm" radius="xl" />
                 {activePlan.compliance_percentage > 0 && (
                   <Text size="xs" c="dimmed" mt={4}>
                     Compliance: {Math.round(activePlan.compliance_percentage)}% ({activePlan.workouts_completed}/{activePlan.workouts_total} workouts)
@@ -1343,7 +1343,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         }}
         title={
           <Group gap="sm">
-            <ThemeIcon size="lg" color="lime" variant="light">
+            <ThemeIcon size="lg" color="terracotta" variant="light">
               <IconCalendar size={18} />
             </ThemeIcon>
             <Box>
@@ -1380,7 +1380,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
           {/* Date Summary */}
           {selectedStartDate && planToActivate && (
-            <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${'var(--tribos-lime)'}10` }}>
+            <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${'var(--tribos-terracotta-500)'}10` }}>
               <SimpleGrid cols={{ base: 1, xs: 2 }}>
                 <Box>
                   <Text size="xs" c="dimmed" tt="uppercase">Starts</Text>
@@ -1428,7 +1428,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               Cancel
             </Button>
             <Button
-              color="lime"
+              color="terracotta"
               size="md"
               leftSection={<IconPlayerPlay size={18} />}
               onClick={() => handleActivatePlan(planToActivate, selectedStartDate)}

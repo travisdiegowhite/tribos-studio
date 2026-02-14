@@ -56,7 +56,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
       p={compact ? 'sm' : 'md'}
       style={{
         backgroundColor: 'var(--tribos-bg-tertiary)',
-        border: '1px solid var(--tribos-green-border, rgba(196, 120, 92, 0.3))',
+        border: '1px solid var(--tribos-terracotta-border)',
         borderRadius: 12,
       }}
     >
@@ -64,7 +64,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
         {/* Header */}
         <Group justify="space-between" wrap="nowrap">
           <Group gap="xs" wrap="nowrap">
-            <IconChartLine size={16} style={{ color: 'var(--tribos-lime)' }} />
+            <IconChartLine size={16} style={{ color: 'var(--tribos-terracotta-500)' }} />
             <Text size={compact ? 'sm' : 'md'} fw={600} lineClamp={1}>
               {plan.name}
             </Text>

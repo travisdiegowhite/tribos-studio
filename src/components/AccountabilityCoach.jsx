@@ -547,7 +547,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
         }}
       >
         <Stack align="center" gap="sm">
-          <Loader size="md" color="lime" />
+          <Loader size="md" color="terracotta" />
           <Text size="sm" c="dimmed">Loading coach...</Text>
         </Stack>
       </Card>
@@ -566,7 +566,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
       {/* Header */}
       <Group justify="space-between" mb="md">
         <Group gap="sm">
-          <ThemeIcon size="lg" color="lime" variant="light">
+          <ThemeIcon size="lg" color="terracotta" variant="light">
             <IconRobot size={20} />
           </ThemeIcon>
           <div>
@@ -618,12 +618,12 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
           mb="md"
           style={{
             backgroundColor: 'var(--tribos-bg-tertiary)',
-            border: `1px solid ${'var(--tribos-lime)'}33`
+            border: `1px solid ${'var(--tribos-terracotta-500)'}33`
           }}
         >
           <Group justify="space-between">
             <Group gap="sm">
-              <IconBike size={18} style={{ color: 'var(--tribos-lime)' }} />
+              <IconBike size={18} style={{ color: 'var(--tribos-terracotta-500)' }} />
               <div>
                 <Text size="sm" fw={500}>
                   Today: {todaysWorkout.workout_type} ({todaysWorkout.target_duration_mins} min)
@@ -694,7 +694,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                     width: 32,
                     height: 32,
                     borderRadius: '50%',
-                    backgroundColor: msg.role === 'user' ? 'var(--tribos-bg-tertiary)' : 'var(--tribos-lime)',
+                    backgroundColor: msg.role === 'user' ? 'var(--tribos-bg-tertiary)' : 'var(--tribos-terracotta-500)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -739,7 +739,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                   width: 32,
                   height: 32,
                   borderRadius: '50%',
-                  backgroundColor: 'var(--tribos-lime)',
+                  backgroundColor: 'var(--tribos-terracotta-500)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -748,7 +748,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                 <IconRobot size={18} style={{ color: 'var(--tribos-bg-primary)' }} />
               </Box>
               <Box style={{ padding: '8px 0' }}>
-                <Loader size="sm" color="lime" type="dots" />
+                <Loader size="sm" color="terracotta" type="dots" />
               </Box>
             </Group>
           )}
@@ -769,7 +769,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
               backgroundColor: 'var(--tribos-bg-tertiary)',
               borderColor: 'var(--tribos-bg-tertiary)',
               '&:focus': {
-                borderColor: 'var(--tribos-lime)'
+                borderColor: 'var(--tribos-terracotta-500)'
               }
             }
           }}
@@ -777,7 +777,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
         <ActionIcon
           size="lg"
           variant="filled"
-          color="lime"
+          color="terracotta"
           onClick={() => sendMessage()}
           disabled={!inputMessage.trim() || isLoading}
         >

@@ -333,7 +333,7 @@ function MyRoutes() {
             subtitle={`${filteredRoutes.length} of ${routes.length} route${routes.length !== 1 ? 's' : ''}`}
             actions={
               <Button
-                color="lime"
+                color="terracotta"
                 leftSection={<IconPlus size={18} />}
                 onClick={() => navigate('/routes/new')}
               >
@@ -389,7 +389,7 @@ function MyRoutes() {
                   Create your first route using our AI-powered route builder or by drawing on the map.
                 </Text>
                 <Button
-                  color="lime"
+                  color="terracotta"
                   size="lg"
                   leftSection={<IconPlus size={20} />}
                   onClick={() => navigate('/routes/new')}
@@ -410,7 +410,7 @@ function MyRoutes() {
                 </Text>
                 <Button
                   variant="light"
-                  color="lime"
+                  color="terracotta"
                   onClick={() => { setSearchQuery(''); setFilterType('all'); }}
                 >
                   Clear Filters
@@ -535,7 +535,7 @@ function MyRoutes() {
                         <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                           Distance
                         </Text>
-                        <Text fw={600} style={{ color: 'var(--tribos-lime)' }}>
+                        <Text fw={600} style={{ color: 'var(--tribos-terracotta-500)' }}>
                           {route.distance_km ? formatDist(route.distance_km) : '--'}
                         </Text>
                       </Box>

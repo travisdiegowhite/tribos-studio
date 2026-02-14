@@ -337,7 +337,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
       {riderType && (
         <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs">
-            <IconTrophy size={16} color={'var(--tribos-lime)'} />
+            <IconTrophy size={16} color={'var(--tribos-terracotta-500)'} />
             <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
               <Text span fw={600} c={riderType.color}>{riderType.type}</Text>
               {' - '}{riderType.description}

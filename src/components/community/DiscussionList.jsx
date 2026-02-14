@@ -112,7 +112,7 @@ function DiscussionCard({ discussion, onClick }) {
       }}
       onClick={onClick}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'var(--tribos-lime)' + '60';
+        e.currentTarget.style.borderColor = 'var(--tribos-terracotta-500)' + '60';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = 'var(--tribos-bg-tertiary)';
@@ -122,7 +122,7 @@ function DiscussionCard({ discussion, onClick }) {
         <Box style={{ flex: 1, minWidth: 0 }}>
           <Group gap="xs" mb={4}>
             {discussion.is_pinned && (
-              <IconPin size={14} color={'var(--tribos-lime)'} />
+              <IconPin size={14} color={'var(--tribos-terracotta-500)'} />
             )}
             {discussion.is_locked && (
               <IconLock size={14} color={'var(--tribos-text-muted)'} />

@@ -30,7 +30,7 @@ function TypingIndicator() {
               width: 6,
               height: 6,
               borderRadius: '50%',
-              backgroundColor: 'var(--tribos-lime)',
+              backgroundColor: 'var(--tribos-terracotta-500)',
               animation: 'coachBounce 1.4s ease-in-out infinite',
               animationDelay: `${i * 0.16}s`,
             }}

@@ -125,12 +125,12 @@ function Landing() {
       <Box py="md" px={{ base: 'md', md: 'xl' }}>
         <Group justify="space-between" align="center">
           <Group gap="sm">
-            <IconRoute size={24} color={'var(--tribos-lime)'} />
+            <IconRoute size={24} color={'var(--tribos-terracotta-500)'} />
             <Text
               fw={700}
               size="lg"
               style={{
-                color: 'var(--tribos-lime)',
+                color: 'var(--tribos-terracotta-500)',
                 letterSpacing: '-0.02em',
               }}
             >
@@ -169,7 +169,7 @@ function Landing() {
                   Know Exactly What{' '}
                   <span
                     style={{
-                      background: `linear-gradient(135deg, ${'var(--tribos-lime)'} 0%, #22d3ee 100%)`,
+                      background: `linear-gradient(135deg, ${'var(--tribos-terracotta-500)'} 0%, #22d3ee 100%)`,
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
                     }}
@@ -189,7 +189,7 @@ function Landing() {
                   radius="md"
                   style={{
                     background: 'rgba(196, 120, 92, 0.05)',
-                    border: `1px solid ${'var(--tribos-lime)'}30`,
+                    border: `1px solid ${'var(--tribos-terracotta-500)'}30`,
                   }}
                 >
                   <form onSubmit={(e) => handleBetaSignup(e, email, setSubmitting)}>
@@ -238,11 +238,11 @@ function Landing() {
                 radius="lg"
                 style={{
                   background: `linear-gradient(135deg, ${'var(--tribos-bg-secondary)'} 0%, rgba(196, 120, 92, 0.05) 100%)`,
-                  border: `2px solid ${'var(--tribos-lime)'}30`,
+                  border: `2px solid ${'var(--tribos-terracotta-500)'}30`,
                 }}
               >
                 <Stack gap="md">
-                  <Text size="sm" fw={600} style={{ color: 'var(--tribos-lime)' }}>
+                  <Text size="sm" fw={600} style={{ color: 'var(--tribos-terracotta-500)' }}>
                     TRAINING DASHBOARD PREVIEW
                   </Text>
 
@@ -251,7 +251,7 @@ function Landing() {
                     <Paper p="sm" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
                       <Text size="xs" c="dimmed">Today's Readiness</Text>
                       <Group gap="xs" align="baseline">
-                        <Text size="xl" fw={700} style={{ color: 'var(--tribos-lime)' }}>78</Text>
+                        <Text size="xl" fw={700} style={{ color: 'var(--tribos-terracotta-500)' }}>78</Text>
                         <Text size="xs" c="sage">Good to train</Text>
                       </Group>
                     </Paper>
@@ -279,7 +279,7 @@ function Landing() {
                   </SimpleGrid>
 
                   {/* Recommendation */}
-                  <Paper p="sm" style={{ backgroundColor: 'var(--tribos-lime)' + '20', border: `1px solid ${'var(--tribos-lime)'}50` }}>
+                  <Paper p="sm" style={{ backgroundColor: 'var(--tribos-terracotta-500)' + '20', border: `1px solid ${'var(--tribos-terracotta-500)'}50` }}>
                     <Group gap="sm">
                       <ThemeIcon color="terracotta" variant="light" radius="xl">
                         <IconBolt size={16} />
@@ -330,7 +330,7 @@ function Landing() {
               </Paper>
             </SimpleGrid>
 
-            <Text size="lg" ta="center" style={{ color: 'var(--tribos-lime)' }} fw={600}>
+            <Text size="lg" ta="center" style={{ color: 'var(--tribos-terracotta-500)' }} fw={600}>
               tribos.studio brings it all together.
             </Text>
           </Stack>
@@ -359,15 +359,15 @@ function Landing() {
                   </Text>
                   <Stack gap="xs">
                     <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
                       <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Daily readiness recommendations</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
                       <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>TSS auto-calculated from power or HR</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
                       <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Long-term fitness trend visualization</Text>
                     </Group>
                   </Stack>
@@ -378,7 +378,7 @@ function Landing() {
                   <Text size="xs" c="dimmed" mb="md">FITNESS CHART</Text>
                   <Box style={{ height: 150, background: 'linear-gradient(90deg, rgba(196, 120, 92, 0.2) 0%, rgba(34, 211, 238, 0.2) 100%)', borderRadius: 8, display: 'flex', alignItems: 'flex-end', padding: 16, gap: 4 }}>
                     {[40, 55, 48, 62, 58, 70, 65, 75, 68, 80, 72, 85].map((h, i) => (
-                      <Box key={i} style={{ flex: 1, height: `${h}%`, backgroundColor: i > 8 ? 'var(--tribos-lime)' : '#22d3ee', borderRadius: 2, opacity: 0.8 }} />
+                      <Box key={i} style={{ flex: 1, height: `${h}%`, backgroundColor: i > 8 ? 'var(--tribos-terracotta-500)' : '#22d3ee', borderRadius: 2, opacity: 0.8 }} />
                     ))}
                   </Box>
                   <Group justify="space-between" mt="sm">
@@ -389,7 +389,7 @@ function Landing() {
               </Grid.Col>
             </Grid>
 
-            <Divider style={{ borderColor: `${'var(--tribos-lime)'}20` }} />
+            <Divider style={{ borderColor: `${'var(--tribos-terracotta-500)'}20` }} />
 
             {/* Route Planning */}
             <Grid gutter="xl" align="center">
@@ -397,7 +397,7 @@ function Landing() {
                 <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: `1px solid ${'var(--tribos-border)'}` }}>
                   <Text size="xs" c="dimmed" mb="md">ROUTE BUILDER</Text>
                   <Box style={{ height: 180, background: `linear-gradient(135deg, rgba(168, 191, 168, 0.3) 0%, rgba(123, 169, 160, 0.3) 100%)`, borderRadius: 8, position: 'relative', overflow: 'hidden' }}>
-                    <Box style={{ position: 'absolute', top: '30%', left: '10%', right: '10%', height: 3, background: 'var(--tribos-lime)', borderRadius: 2, transform: 'rotate(5deg)' }} />
+                    <Box style={{ position: 'absolute', top: '30%', left: '10%', right: '10%', height: 3, background: 'var(--tribos-terracotta-500)', borderRadius: 2, transform: 'rotate(5deg)' }} />
                     <Box style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: 4 }}>
                       <Text size="xs" c="white">42.5 km • 650m elev</Text>
                     </Box>
@@ -420,15 +420,15 @@ function Landing() {
                   </Text>
                   <Stack gap="xs">
                     <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
                       <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>AI route generation based on your fitness</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
                       <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Export to Garmin, Wahoo, or GPX</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
                       <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Drag-and-drop route editing</Text>
                     </Group>
                   </Stack>
@@ -436,7 +436,7 @@ function Landing() {
               </Grid.Col>
             </Grid>
 
-            <Divider style={{ borderColor: `${'var(--tribos-lime)'}20` }} />
+            <Divider style={{ borderColor: `${'var(--tribos-terracotta-500)'}20` }} />
 
             {/* Health & Recovery */}
             <Grid gutter="xl" align="center">
@@ -456,15 +456,15 @@ function Landing() {
                   </Text>
                   <Stack gap="xs">
                     <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
                       <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Daily health check-ins</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
                       <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>HRV and resting HR tracking</Text>
                     </Group>
                     <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-lime)'} />
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
                       <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Readiness score calculation</Text>
                     </Group>
                   </Stack>
@@ -528,7 +528,7 @@ function Landing() {
                 <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Wahoo</Text>
                 <Text size="xs" c="dimmed">Sync routes to device</Text>
               </Paper>
-              <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: `2px solid ${'var(--tribos-lime)'}`, textAlign: 'center' }}>
+              <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: `2px solid ${'var(--tribos-terracotta-500)'}`, textAlign: 'center' }}>
                 <ThemeIcon size={50} radius="xl" color="terracotta" variant="light" mx="auto" mb="sm">
                   <IconUpload size={24} />
                 </ThemeIcon>
@@ -557,7 +557,7 @@ function Landing() {
               radius="lg"
               style={{
                 background: `linear-gradient(135deg, rgba(196, 120, 92, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%)`,
-                border: `2px solid ${'var(--tribos-lime)'}40`,
+                border: `2px solid ${'var(--tribos-terracotta-500)'}40`,
                 maxWidth: 500,
                 width: '100%',
               }}
@@ -599,12 +599,12 @@ function Landing() {
       </Box>
 
       {/* Footer */}
-      <Box py={30} px={{ base: 'md', md: 'xl' }} style={{ backgroundColor: 'var(--tribos-bg-primary)', borderTop: `1px solid ${'var(--tribos-lime)'}20` }}>
+      <Box py={30} px={{ base: 'md', md: 'xl' }} style={{ backgroundColor: 'var(--tribos-bg-primary)', borderTop: `1px solid ${'var(--tribos-terracotta-500)'}20` }}>
         <Container size="lg">
           <Stack gap="sm">
             <Center>
               <Group gap="md">
-                <IconRoute size={20} color={'var(--tribos-lime)'} />
+                <IconRoute size={20} color={'var(--tribos-terracotta-500)'} />
                 <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
                   tribos.studio
                 </Text>

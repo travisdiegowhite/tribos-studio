@@ -147,7 +147,7 @@ function Auth() {
           <Text
             size="lg"
             fw={600}
-            style={{ color: 'var(--tribos-lime)', letterSpacing: '0.1em' }}
+            style={{ color: 'var(--tribos-terracotta-500)', letterSpacing: '0.1em' }}
             mb="xs"
           >
             TRIBOS.STUDIO
@@ -264,7 +264,7 @@ function Auth() {
                 setError('');
                 setMessage('');
               }}
-              style={{ color: 'var(--tribos-lime)' }}
+              style={{ color: 'var(--tribos-terracotta-500)' }}
             >
               {isSignUp ? 'Sign in' : 'Sign up'}
             </Anchor>

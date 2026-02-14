@@ -17,13 +17,13 @@ function NotFound() {
       <Container size="sm">
         <Stack align="center" gap="xl">
           <Box style={{ textAlign: 'center' }}>
-            <IconRoute size={64} color={'var(--tribos-lime)'} style={{ marginBottom: 16 }} />
+            <IconRoute size={64} color={'var(--tribos-terracotta-500)'} style={{ marginBottom: 16 }} />
             <Title
               order={1}
               style={{
                 fontSize: '6rem',
                 fontWeight: 800,
-                color: 'var(--tribos-lime)',
+                color: 'var(--tribos-terracotta-500)',
                 lineHeight: 1,
               }}
             >
@@ -67,7 +67,7 @@ function NotFound() {
 
           <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
             Need help?{' '}
-            <a href="mailto:travis@tribos.studio" style={{ color: 'var(--tribos-lime)' }}>
+            <a href="mailto:travis@tribos.studio" style={{ color: 'var(--tribos-terracotta-500)' }}>
               Contact support
             </a>
           </Text>

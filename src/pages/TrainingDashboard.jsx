@@ -584,7 +584,7 @@ function TrainingDashboard() {
     const tsb = trainingMetrics.tsb;
     if (tsb >= 15) return { label: 'FRESH', color: 'teal', icon: IconTrendingUp, bg: 'rgba(168, 191, 168, 0.15)' };
     if (tsb >= 5) return { label: 'READY', color: 'green', icon: IconTrendingUp, bg: 'rgba(168, 191, 168, 0.15)' };
-    if (tsb >= -10) return { label: 'OPTIMAL', color: 'lime', icon: IconActivity, bg: 'rgba(168, 191, 168, 0.15)' };
+    if (tsb >= -10) return { label: 'OPTIMAL', color: 'terracotta', icon: IconActivity, bg: 'rgba(168, 191, 168, 0.15)' };
     if (tsb >= -25) return { label: 'TIRED', color: 'yellow', icon: IconTrendingDown, bg: 'rgba(212, 168, 67, 0.15)' };
     return { label: 'FATIGUED', color: 'red', icon: IconTrendingDown, bg: 'rgba(196, 120, 92, 0.15)' };
   };
@@ -945,7 +945,7 @@ function TrainingDashboard() {
                           notifications.show({
                             title: 'Workout Added',
                             message: `${workout.name || workout.workout_id} scheduled`,
-                            color: 'lime'
+                            color: 'terracotta'
                           });
                           setCalendarRefreshKey(prev => prev + 1);
                         }}
@@ -1973,7 +1973,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
         {/* Coach Notes */}
         {workout.coachNotes && (
           <Paper p="sm" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <Text fw={500} size="sm" mb="xs" c="lime">Coach Notes</Text>
+            <Text fw={500} size="sm" mb="xs" c="terracotta">Coach Notes</Text>
             <Text size="sm" c="dimmed">{workout.coachNotes}</Text>
           </Paper>
         )}

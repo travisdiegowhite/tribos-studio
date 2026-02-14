@@ -337,7 +337,7 @@ const ElevationProfile = ({
         }}
       >
         <Group justify="center" gap="sm" py="md">
-          <Loader size="sm" color="lime" />
+          <Loader size="sm" color="terracotta" />
           <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
             Loading elevation profile...
           </Text>
@@ -376,7 +376,7 @@ const ElevationProfile = ({
             <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
               Elevation Profile
             </Text>
-            {loading && <Loader size={12} color="lime" />}
+            {loading && <Loader size={12} color="terracotta" />}
           </Group>
 
           <Group gap="xs" wrap="wrap">
@@ -447,9 +447,9 @@ const ElevationProfile = ({
               {/* Gradient definition */}
               <defs>
                 <linearGradient id="elevGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" style={{ stopColor: 'var(--tribos-lime)', stopOpacity: 0.6 }} />
-                  <stop offset="50%" style={{ stopColor: 'var(--tribos-lime)', stopOpacity: 0.3 }} />
-                  <stop offset="100%" style={{ stopColor: 'var(--tribos-lime)', stopOpacity: 0.1 }} />
+                  <stop offset="0%" style={{ stopColor: 'var(--tribos-terracotta-500)', stopOpacity: 0.6 }} />
+                  <stop offset="50%" style={{ stopColor: 'var(--tribos-terracotta-500)', stopOpacity: 0.3 }} />
+                  <stop offset="100%" style={{ stopColor: 'var(--tribos-terracotta-500)', stopOpacity: 0.1 }} />
                 </linearGradient>
                 <pattern id="gridPattern" width="40" height="20" patternUnits="userSpaceOnUse">
                   <path d="M 40 0 L 0 0 0 20" fill="none" stroke={'var(--tribos-bg-tertiary)'} strokeWidth="0.5" />
@@ -480,7 +480,7 @@ const ElevationProfile = ({
               <path
                 d={line}
                 fill="none"
-                stroke={'var(--tribos-lime)'}
+                stroke={'var(--tribos-terracotta-500)'}
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"

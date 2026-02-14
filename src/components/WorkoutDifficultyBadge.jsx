@@ -137,7 +137,7 @@ export function calculateWorkoutDifficulty(workout, athleteState) {
     description = 'Should complete easily - good for building consistency';
   } else if (difficultyScore <= 55) {
     level = 'Productive';
-    color = 'lime';
+    color = 'terracotta';
     variant = 'filled';  // Tier 1 - This is the recommended zone
     icon = IconTrendingUp;
     description = 'Challenging but doable - optimal for fitness gains';
@@ -260,7 +260,7 @@ export function WorkoutDifficultyMeter({
         sections={[
           { value: 20, color: 'teal', tooltip: 'Recovery' },
           { value: 20, color: 'green', tooltip: 'Achievable' },
-          { value: 15, color: 'lime', tooltip: 'Productive' },
+          { value: 15, color: 'terracotta', tooltip: 'Productive' },
           { value: 15, color: 'yellow', tooltip: 'Stretch' },
           { value: 15, color: 'orange', tooltip: 'Breakthrough' },
           { value: 15, color: 'red', tooltip: 'Not Recommended' },
@@ -279,7 +279,7 @@ export function DifficultyLegend() {
   const levels = [
     { level: 'Recovery', color: 'gray', variant: 'light', icon: IconZzz, range: '0-20' },
     { level: 'Achievable', color: 'gray', variant: 'light', icon: IconCheck, range: '21-40' },
-    { level: 'Productive', color: 'lime', variant: 'filled', icon: IconTrendingUp, range: '41-55', highlighted: true },
+    { level: 'Productive', color: 'terracotta', variant: 'filled', icon: IconTrendingUp, range: '41-55', highlighted: true },
     { level: 'Stretch', color: 'yellow', variant: 'outline', icon: IconFlame, range: '56-70' },
     { level: 'Breakthrough', color: 'orange', variant: 'outline', icon: IconBolt, range: '71-85' },
     { level: 'Not Recommended', color: 'red', variant: 'outline', icon: IconAlertTriangle, range: '86-100' },
@@ -317,7 +317,7 @@ export function getQuickDifficultyEstimate(targetTSS, athleteCTL, athleteTSB = 0
 
   if (adjustedRatio <= 0.5) return { level: 'Recovery', color: 'gray', variant: 'light' };
   if (adjustedRatio <= 0.8) return { level: 'Achievable', color: 'gray', variant: 'light' };
-  if (adjustedRatio <= 1.0) return { level: 'Productive', color: 'lime', variant: 'filled' };
+  if (adjustedRatio <= 1.0) return { level: 'Productive', color: 'terracotta', variant: 'filled' };
   if (adjustedRatio <= 1.2) return { level: 'Stretch', color: 'yellow', variant: 'outline' };
   if (adjustedRatio <= 1.5) return { level: 'Breakthrough', color: 'orange', variant: 'outline' };
   return { level: 'Not Recommended', color: 'red', variant: 'outline' };

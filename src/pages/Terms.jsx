@@ -24,14 +24,14 @@ function Terms() {
       <Box py="md" px={{ base: 'md', md: 'xl' }} style={{ borderBottom: `1px solid ${'var(--tribos-border)'}` }}>
         <Group justify="space-between" align="center">
           <Group gap="sm">
-            <IconRoute size={24} color={'var(--tribos-lime)'} />
+            <IconRoute size={24} color={'var(--tribos-terracotta-500)'} />
             <Text
               component={Link}
               to="/"
               fw={700}
               size="lg"
               style={{
-                color: 'var(--tribos-lime)',
+                color: 'var(--tribos-terracotta-500)',
                 letterSpacing: '-0.02em',
                 textDecoration: 'none',
               }}
@@ -213,7 +213,7 @@ function Terms() {
               </Title>
               <Text style={{ color: 'var(--tribos-text-secondary)' }}>
                 Your use of the Service is also governed by our{' '}
-                <Anchor component={Link} to="/privacy" style={{ color: 'var(--tribos-lime)' }}>
+                <Anchor component={Link} to="/privacy" style={{ color: 'var(--tribos-terracotta-500)' }}>
                   Privacy Policy
                 </Anchor>.
                 We handle your data responsibly and in compliance with applicable laws.
@@ -237,7 +237,7 @@ function Terms() {
               </Title>
               <Text style={{ color: 'var(--tribos-text-secondary)' }}>
                 For questions about these Terms of Service, contact us at:{' '}
-                <Anchor href="mailto:travis@tribos.studio" style={{ color: 'var(--tribos-lime)' }}>
+                <Anchor href="mailto:travis@tribos.studio" style={{ color: 'var(--tribos-terracotta-500)' }}>
                   travis@tribos.studio
                 </Anchor>
               </Text>

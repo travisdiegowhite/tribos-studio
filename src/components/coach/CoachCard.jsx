@@ -429,7 +429,6 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
       style={{
         background: `linear-gradient(135deg, rgba(196, 120, 92, 0.15), transparent), ${depth.card.background}`,
         border: depth.card.border,
-        borderTop: depth.card.borderTop,
         boxShadow: depth.card.boxShadow,
       }}
     >
@@ -591,7 +590,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                 borderColor: 'var(--tribos-border-subtle)',
                 boxShadow: 'var(--tribos-shadow-inset)',
                 '&:focus': {
-                  borderColor: 'var(--tribos-green-border)',
+                  borderColor: 'var(--tribos-terracotta-border)',
                 },
               },
             }}

@@ -438,7 +438,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                     width: 40,
                     height: 40,
                     borderRadius: 12,
-                    backgroundColor: 'var(--tribos-lime)',
+                    backgroundColor: 'var(--tribos-terracotta-500)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',

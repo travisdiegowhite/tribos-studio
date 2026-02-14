@@ -237,7 +237,7 @@ function getFTPCategory(wkg) {
   if (wkg >= 5.8) return { category: 'World Class', color: 'yellow' };
   if (wkg >= 5.0) return { category: 'Elite', color: 'red' };
   if (wkg >= 4.2) return { category: 'Competitive', color: 'orange' };
-  if (wkg >= 3.5) return { category: 'Trained', color: 'lime' };
+  if (wkg >= 3.5) return { category: 'Trained', color: 'terracotta' };
   if (wkg >= 2.8) return { category: 'Recreational', color: 'blue' };
   return { category: 'Untrained', color: 'gray' };
 }
@@ -341,7 +341,7 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconUsers size={20} color={'var(--tribos-lime)'} />
+          <IconUsers size={20} color={'var(--tribos-terracotta-500)'} />
           <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Athlete Benchmarking
           </Text>
@@ -392,7 +392,7 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
 
         <Paper p="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Text size="xs" c="dimmed" mb="xs">Overall Percentile</Text>
-          <Text size="2rem" fw={700} c="lime">
+          <Text size="2rem" fw={700} c="terracotta">
             Top {100 - analysis.avgPercentile}%
           </Text>
           <Text size="xs" c="dimmed">
@@ -511,7 +511,7 @@ function getPercentileColor(percentile) {
   if (percentile >= 95) return 'yellow';
   if (percentile >= 85) return 'red';
   if (percentile >= 70) return 'orange';
-  if (percentile >= 50) return 'lime';
+  if (percentile >= 50) return 'terracotta';
   if (percentile >= 30) return 'blue';
   return 'gray';
 }

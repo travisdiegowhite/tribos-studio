@@ -108,8 +108,8 @@ function getFormStatus(tsb) {
     return {
       label: 'Ready',
       description: 'Good balance of fitness and freshness',
-      color: 'var(--tribos-lime)',
-      colorName: 'lime',
+      color: 'var(--tribos-terracotta-500)',
+      colorName: 'terracotta',
       advice: 'Solid training day ahead',
       icon: IconTrendingUp,
     };

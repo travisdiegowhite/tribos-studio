@@ -1017,8 +1017,8 @@ export function TrainingPlanner({
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor: 'var(--mantine-color-lime-9)',
-              borderTop: '2px solid var(--mantine-color-lime-5)',
+              backgroundColor: 'var(--mantine-color-terracotta-9)',
+              borderTop: '2px solid var(--mantine-color-terracotta-5)',
               zIndex: 100,
             }}
           >
@@ -1183,12 +1183,12 @@ export function TrainingPlanner({
             shadow="lg"
             style={{
               backgroundColor: 'var(--mantine-color-dark-6)',
-              border: '1px solid var(--mantine-color-lime-7)',
+              border: '1px solid var(--mantine-color-terracotta-7)',
             }}
           >
             <Stack gap="xs">
               <Group gap="xs" wrap="nowrap">
-                <IconCalendarOff size={18} color="var(--mantine-color-lime-5)" />
+                <IconCalendarOff size={18} color="var(--mantine-color-terracotta-5)" />
                 <Text size="sm" fw={500}>
                   Your availability changed
                 </Text>
@@ -1227,7 +1227,7 @@ export function TrainingPlanner({
                       notifications.show({
                         title: 'Plan Updated',
                         message: `${result.redistributions.length} workout${result.redistributions.length > 1 ? 's' : ''} moved to fit your schedule`,
-                        color: 'lime',
+                        color: 'terracotta',
                       });
                       // Refresh the planner store to reflect changes
                       store.syncWithDatabase();

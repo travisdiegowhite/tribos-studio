@@ -103,7 +103,7 @@ export default function AIEditPanel({
         style={{ borderBottom: '1px solid var(--tribos-bg-tertiary)' }}
       >
         <Group gap={6}>
-          <IconWand size={16} color="var(--tribos-lime)" />
+          <IconWand size={16} color="var(--tribos-terracotta-500)" />
           <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             AI Route Edit
           </Text>
@@ -167,7 +167,7 @@ export default function AIEditPanel({
             />
             <ActionIcon
               variant="filled"
-              color="lime"
+              color="terracotta"
               size="lg"
               onClick={handleSubmit}
               disabled={!inputText.trim() || loading}
@@ -180,7 +180,7 @@ export default function AIEditPanel({
         {/* Loading state */}
         {loading && (
           <Group gap="xs" justify="center" py="xs">
-            <Loader size={16} color="lime" />
+            <Loader size={16} color="terracotta" />
             <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
               Finding a better route...
             </Text>
@@ -212,7 +212,7 @@ export default function AIEditPanel({
                 borderRadius: tokens.radius.sm,
               }}
             >
-              <Text size="xs" fw={500} style={{ color: 'var(--tribos-lime)' }} mb={4}>
+              <Text size="xs" fw={500} style={{ color: 'var(--tribos-terracotta-500)' }} mb={4}>
                 {lastResult.message}
               </Text>
 
@@ -241,7 +241,7 @@ export default function AIEditPanel({
             <Group grow>
               <Button
                 variant="filled"
-                color="lime"
+                color="terracotta"
                 size="xs"
                 onClick={onAccept}
                 leftSection={<IconCheck size={14} />}
