@@ -133,7 +133,7 @@ export const darkTokens = {
     textPrimary: '#E5E5DF',
     textSecondary: '#959588',
     textMuted: '#636358',
-    textDim: '#444439',
+    textDim: '#555650',
 
     // Semantic
     success: '#5E8068',
@@ -383,7 +383,7 @@ export const theme = createTheme({
             borderColor: 'var(--tribos-terracotta-border)',
             boxShadow: '0 0 0 2px rgba(158, 90, 60, 0.1)',
           },
-          '&::placeholder': { color: 'var(--tribos-text-500)' },
+          '&::placeholder': { color: 'var(--tribos-text-400)' },
         },
         label: {
           fontFamily: "'DM Mono', monospace",
@@ -391,7 +391,7 @@ export const theme = createTheme({
           fontWeight: 500,
           letterSpacing: '2px',
           textTransform: 'uppercase',
-          color: 'var(--tribos-text-500)',
+          color: 'var(--tribos-text-300)',
         },
       }),
     },
@@ -492,7 +492,7 @@ export const theme = createTheme({
           boxShadow: 'var(--tribos-shadow-xs)',
         },
         label: {
-          color: 'var(--tribos-text-500)',
+          color: 'var(--tribos-text-300)',
           fontFamily: "'DM Mono', monospace",
           fontWeight: 500,
           fontSize: 11,
