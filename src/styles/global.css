@@ -223,9 +223,9 @@
   --tribos-text-100: #E5E5DF;
   --tribos-text-200: #959588;
   --tribos-text-300: #636358;
-  --tribos-text-400: #444439;
-  --tribos-text-500: #2C2D28;
-  --tribos-text-600: #232420;
+  --tribos-text-400: #74766A;
+  --tribos-text-500: #555650;
+  --tribos-text-600: #444439;
 
   /* Legacy green aliases → terracotta/sienna */
   --tribos-lime: var(--tribos-terracotta-500);
@@ -544,6 +544,14 @@ button {
   --mantine-color-dark-6: #1D1E1B !important;
   --mantine-color-dark-5: #222320 !important;
   --mantine-color-dark-4: #2C2D28 !important;
+
+  /* Override gray scale mid-tones so color="gray" variant="subtle/light"
+     renders readable text on dark backgrounds */
+  --mantine-color-gray-4: #74766A !important;
+  --mantine-color-gray-5: #959588 !important;
+  --mantine-color-gray-6: #959588 !important;
+  --mantine-color-text: #E5E5DF !important;
+  --mantine-color-dimmed: #74766A !important;
 }
 
 /* Light theme specific */
