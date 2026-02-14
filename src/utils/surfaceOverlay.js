@@ -7,11 +7,11 @@
 
 // Surface type colors (solid = paved, semi-transparent for visual distinction)
 export const SURFACE_COLORS = {
-  paved:   '#1E40AF', // dark blue
-  gravel:  '#D97706', // orange/brown
-  unpaved: '#92400E', // dark brown
-  mixed:   '#EAB308', // yellow
-  unknown: '#9CA3AF', // gray
+  paved:   '#7BA9A0', // teal
+  gravel:  '#D4A843', // gold
+  unpaved: '#C17C60', // terracotta
+  mixed:   '#B8A0C4', // mauve
+  unknown: '#9E9590', // text muted
 };
 
 export const SURFACE_LABELS = {

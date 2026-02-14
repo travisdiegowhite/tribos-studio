@@ -31,7 +31,7 @@ const PrimaryButton = forwardRef(({
     <Button
       ref={ref}
       variant="filled"
-      color="lime"
+      color="terracotta"
       size={size}
       {...props}
     >

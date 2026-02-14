@@ -1,170 +1,173 @@
 import { createTheme } from '@mantine/core';
 
 // Design tokens for tribos.studio
-// Supports both dark (default) and light (Claude-inspired cream) themes
+// Warm cartographic brand — Anybody / Familjen Grotesk / DM Mono
+// Supports both light (default, cream) and dark (warm-black) themes
 
 // ===== Depth Presets =====
-// Bundled style objects for the five depth techniques:
-// 1. Gradient surface  2. Top edge highlight  3. Inner glow
-// 4. Layered drop shadows  5. Shine line (via CSS class)
+// Flat surfaces with sharp borders — no gradients, no edge lighting
 export const depth = {
   card: {
-    background: 'linear-gradient(180deg, #1e242d 0%, #181d24 40%, #161a22 100%)',
-    border: '1px solid #2a3140',
-    borderTop: '1px solid rgba(255, 255, 255, 0.09)',
-    borderRadius: 16,
-    boxShadow: [
-      'inset 0 1px 0 rgba(255,255,255,0.07)',
-      'inset 0 0 30px rgba(255,255,255,0.01)',
-      '0 1px 1px rgba(0,0,0,0.4)',
-      '0 4px 8px rgba(0,0,0,0.3)',
-      '0 12px 32px rgba(0,0,0,0.35)',
-      '0 24px 56px rgba(0,0,0,0.2)',
-    ].join(', '),
-    boxShadowHover: [
-      'inset 0 1px 0 rgba(255,255,255,0.07)',
-      'inset 0 0 30px rgba(255,255,255,0.01)',
-      '0 2px 4px rgba(0,0,0,0.4)',
-      '0 8px 16px rgba(0,0,0,0.35)',
-      '0 20px 48px rgba(0,0,0,0.4)',
-      '0 32px 72px rgba(0,0,0,0.25)',
-    ].join(', '),
+    background: 'var(--tribos-card)',
+    border: '1.5px solid var(--tribos-border-default)',
+    borderRadius: 0,
+    boxShadow: 'var(--tribos-shadow-card)',
+    boxShadowHover: 'var(--tribos-shadow-card-hover)',
   },
 
   accentCard: {
-    background: 'linear-gradient(180deg, #1e242d 0%, #181d24 50%, #161a22 100%)',
-    border: '1px solid rgba(74, 222, 128, 0.35)',
-    borderTop: '1px solid rgba(74, 222, 128, 0.4)',
-    boxShadow: [
-      'inset 0 1px 0 rgba(74,222,128,0.08)',
-      '0 1px 1px rgba(0,0,0,0.4)',
-      '0 4px 8px rgba(0,0,0,0.3)',
-      '0 12px 32px rgba(0,0,0,0.35)',
-      '0 0 40px rgba(74,222,128,0.06)',
-    ].join(', '),
+    background: 'var(--tribos-card)',
+    border: '1.5px solid var(--tribos-terracotta-border)',
+    borderRadius: 0,
+    boxShadow: 'var(--tribos-shadow-card)',
   },
 
   recessed: {
     background: 'var(--tribos-input)',
-    border: '1px solid var(--tribos-border-subtle)',
-    boxShadow: 'var(--tribos-shadow-inset)',
+    border: '1px solid var(--tribos-border-default)',
+    boxShadow: 'none',
   },
 
   panel: {
-    background: 'linear-gradient(180deg, #14181e 0%, #12161b 100%)',
-    boxShadow: 'var(--tribos-shadow-panel)',
+    background: 'var(--tribos-panel)',
+    boxShadow: 'none',
   },
 };
 
-// Dark theme tokens
-export const darkTokens = {
-  colors: {
-    // Primary: Green (shifted from Electric Lime)
-    electricLime: '#4ade80',
-    electricLimeLight: '#6ee7a0',
-    electricLimeDark: '#22c55e',
-
-    // Backgrounds - wider elevation range
-    bgPrimary: '#000000',    // Void
-    bgSecondary: '#181d24',  // Card
-    bgTertiary: '#12161b',   // Panel
-    bgElevated: '#2a323e',   // Elevated
-
-    // Borders
-    border: '#2a3140',
-    borderLight: '#3a4455',
-    borderFocus: 'rgba(74, 222, 128, 0.5)',
-
-    // Text - high contrast for readability
-    textPrimary: '#f4f5f7',
-    textSecondary: '#a0a8b4',
-    textMuted: '#6d7888',
-
-    // Semantic
-    success: '#4ade80',
-    warning: '#f5a623',
-    error: '#f87171',
-    info: '#60a5fa',
-
-    // Training Zone Colors - FOR CHARTS/VISUALIZATION ONLY
-    zone1: '#3B82F6', // Recovery - Blue
-    zone2: '#22C55E', // Endurance - Green
-    zone3: '#EAB308', // Tempo - Yellow
-    zone4: '#F97316', // Threshold - Orange
-    zone5: '#EF4444', // VO2max - Red
-    zone6: '#A855F7', // Anaerobic - Purple
-    zone7: '#EC4899', // Neuromuscular - Pink
-  },
-
-  // Shadows for elevation - layered depth system
-  shadows: {
-    xs: '0 1px 2px rgba(0, 0, 0, 0.3)',
-    sm: '0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.25)',
-    md: depth.card.boxShadow,
-    lg: depth.card.boxShadowHover,
-    card: depth.card.boxShadow,
-    cardHover: depth.card.boxShadowHover,
-    focus: '0 0 0 2px rgba(74, 222, 128, 0.3)',
-  },
-};
-
-// Light theme tokens - Tribos fresh gray-green
+// Light theme tokens (default — cream/ink)
 export const lightTokens = {
   colors: {
-    // Primary: Adjusted lime for light backgrounds
-    electricLime: '#22A822',
-    electricLimeLight: '#32CD32',
-    electricLimeDark: '#1A8A1A',
+    // Primary accent: Terracotta
+    terracotta: '#C4785C',
+    terracottaLight: '#D4917A',
+    terracottaDark: '#A0614A',
 
-    // Backgrounds - cool gray with subtle green undertone
-    bgPrimary: '#F4F6F5',     // Soft gray-green base
-    bgSecondary: '#FAFBFA',   // Near-white with green hint for cards
-    bgTertiary: '#EAEDEB',    // Muted cool gray
-    bgElevated: '#FFFFFF',    // Pure white for elevated surfaces
+    // Brand accents
+    mauve: '#C4A0B9',
+    teal: '#7BA9A0',
+    sage: '#A8BFA8',
+    gold: '#D4A843',
+    dustyRose: '#9E7E90',
+    skyPale: '#B8CDD9',
 
-    // Borders - subtle warm grays
-    border: 'rgba(0, 0, 0, 0.08)',
-    borderLight: 'rgba(0, 0, 0, 0.12)',
-    borderFocus: 'rgba(34, 168, 34, 0.5)',
+    // Backgrounds — warm cream elevation scale
+    bgPrimary: '#F5F0E8',     // Cream (page background)
+    bgSecondary: '#FAF7F2',   // Warm-white (cards)
+    bgTertiary: '#E8DDD3',    // Pale-earth (recessed)
+    bgElevated: '#FFFFFF',    // Pure white (modals/dropdowns)
 
-    // Text - darker for better contrast
-    textPrimary: '#171a18',
-    textSecondary: '#3d4240',
-    textMuted: '#5f6563',
+    // Borders
+    border: '#D4CCC0',
+    borderLight: '#E0D8CE',
+    borderFocus: 'rgba(196, 120, 92, 0.5)',
 
-    // Semantic - slightly adjusted for light bg
-    success: '#22A822',
-    warning: '#D99700',
-    error: '#DC3030',
-    info: '#0096B4',
+    // Text — ink hierarchy
+    textPrimary: '#2C2826',   // Ink
+    textSecondary: '#6B6460',
+    textMuted: '#9E9590',
 
-    // Training Zone Colors - same for consistency
-    zone1: '#3B82F6',
-    zone2: '#22C55E',
-    zone3: '#EAB308',
-    zone4: '#F97316',
-    zone5: '#EF4444',
-    zone6: '#A855F7',
-    zone7: '#EC4899',
+    // Semantic — mapped to palette
+    success: '#A8BFA8',  // Sage
+    warning: '#D4A843',  // Gold
+    error: '#C4785C',    // Terracotta
+    info: '#7BA9A0',     // Teal
+
+    // Training Zone Colors — 7 zones
+    zone1: '#A8BFA8', // Recovery - Sage
+    zone2: '#7BA9A0', // Endurance - Teal
+    zone3: '#D4A843', // Tempo - Gold
+    zone4: '#C4785C', // Threshold - Terracotta
+    zone5: '#C4A0B9', // VO2max - Mauve
+    zone6: '#9E7E90', // Anaerobic - Dusty Rose
+    zone7: '#B8CDD9', // Neuromuscular - Sky
+
+    // Legacy aliases (backward compat)
+    electricLime: '#C4785C',
+    electricLimeLight: '#D4917A',
+    electricLimeDark: '#A0614A',
   },
 
-  // Shadows for light theme - softer, warmer
   shadows: {
-    xs: '0 1px 2px rgba(0, 0, 0, 0.05)',
-    sm: '0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
-    md: '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',
-    lg: '0 8px 24px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.06)',
-    // Card shadow - subtle lift
+    xs: '0 1px 2px rgba(0, 0, 0, 0.04)',
+    sm: '0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
+    md: '0 2px 6px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04)',
+    lg: '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',
     card: '0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
     cardHover: '0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
-    // Green glow for focus states
-    focus: '0 0 0 2px rgba(34, 168, 34, 0.25)',
+    focus: '0 0 0 2px rgba(196, 120, 92, 0.25)',
   },
 };
 
-// Default export for backward compatibility - uses dark theme
-// Components should use useThemeTokens() hook for theme-aware tokens
-export const tokens = darkTokens;
+// Dark theme tokens (warm-black)
+export const darkTokens = {
+  colors: {
+    // Primary accent: Terracotta (same across themes)
+    terracotta: '#C4785C',
+    terracottaLight: '#D4917A',
+    terracottaDark: '#A0614A',
+
+    // Brand accents — slightly desaturated for dark
+    mauve: '#B08DA5',
+    mauveDim: '#8A6E80',
+    teal: '#6E9B92',
+    tealDim: '#4A7A70',
+    sage: '#8BA88B',
+    gold: '#D4A843',
+    goldDim: '#B08E3A',
+    dustyRose: '#9E7E90',
+    skyMuted: '#5C7A8A',
+
+    // Backgrounds — warm-black elevation scale
+    bgPrimary: '#111010',     // Deep (page background)
+    bgSecondary: '#1A1917',   // Surface (cards)
+    bgTertiary: '#1E1D1B',    // Card bg
+    bgElevated: '#232220',    // Elevated (modals)
+
+    // Borders
+    border: '#3A3835',
+    borderLight: '#2E2C28',
+    borderFocus: 'rgba(196, 120, 92, 0.5)',
+
+    // Text — warm cream hierarchy
+    textPrimary: '#E8E2D8',
+    textSecondary: '#A09888',
+    textMuted: '#6B6360',
+    textDim: '#4A4542',
+
+    // Semantic
+    success: '#8BA88B',
+    warning: '#D4A843',
+    error: '#C4785C',
+    info: '#6E9B92',
+
+    // Training Zone Colors — 7 zones (dark adapted)
+    zone1: '#8BA88B', // Recovery - Sage (desaturated)
+    zone2: '#6E9B92', // Endurance - Teal (desaturated)
+    zone3: '#D4A843', // Tempo - Gold (same)
+    zone4: '#C4785C', // Threshold - Terracotta (same)
+    zone5: '#B08DA5', // VO2max - Mauve (desaturated)
+    zone6: '#9E7E90', // Anaerobic - Dusty Rose (same)
+    zone7: '#5C7A8A', // Neuromuscular - Sky (desaturated)
+
+    // Legacy aliases
+    electricLime: '#C4785C',
+    electricLimeLight: '#D4917A',
+    electricLimeDark: '#A0614A',
+  },
+
+  shadows: {
+    xs: '0 1px 2px rgba(0, 0, 0, 0.2)',
+    sm: '0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15)',
+    md: '0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2)',
+    lg: '0 4px 16px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.2)',
+    card: '0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15)',
+    cardHover: '0 4px 12px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2)',
+    focus: '0 0 0 2px rgba(196, 120, 92, 0.3)',
+  },
+};
+
+// Default export — uses light theme (new default)
+export const tokens = lightTokens;
 
 // Shared tokens (theme-independent)
 export const sharedTokens = {
@@ -178,36 +181,32 @@ export const sharedTokens = {
   },
 
   radius: {
-    sm: '6px',
-    md: '8px',
-    lg: '12px',
-    xl: '16px',
+    sm: '0px',
+    md: '0px',
+    lg: '0px',
+    xl: '0px',
     full: '9999px',
   },
 
-  // Transitions
   transitions: {
     fast: '100ms ease',
     normal: '150ms ease',
     slow: '250ms ease',
   },
 
-  // Centralized breakpoints - use these consistently across all components
-  // Usage: useMediaQuery(`(max-width: ${sharedTokens.breakpoints.sm})`)
   breakpoints: {
-    xs: '480px',   // Small phones
-    sm: '768px',   // Tablets / large phones (primary mobile breakpoint)
-    md: '1024px',  // Small laptops / tablets landscape
-    lg: '1200px',  // Desktops
-    xl: '1400px',  // Large desktops
+    xs: '480px',
+    sm: '768px',
+    md: '1024px',
+    lg: '1200px',
+    xl: '1400px',
   },
 
-  // Mobile-specific spacing (use on mobile for better touch targets)
   mobileSpacing: {
-    touch: '44px',    // Minimum touch target size (iOS standard)
-    gap: '8px',       // Minimum gap between elements on mobile
-    gapLg: '12px',    // Comfortable gap for cards/list items
-    padding: '16px',  // Container padding on mobile
+    touch: '44px',
+    gap: '8px',
+    gapLg: '12px',
+    padding: '16px',
   },
 };
 
@@ -218,147 +217,178 @@ Object.assign(lightTokens, sharedTokens);
 
 // Helper to get tokens based on color scheme
 export function getThemeTokens(colorScheme) {
-  return colorScheme === 'light' ? lightTokens : darkTokens;
+  return colorScheme === 'dark' ? darkTokens : lightTokens;
 }
 
 // Mantine theme configuration
 export const theme = createTheme({
-  primaryColor: 'green',
-  primaryShade: { light: 6, dark: 4 },
+  primaryColor: 'terracotta',
+  primaryShade: { light: 5, dark: 4 },
 
   colors: {
-    green: [
-      '#e6fff0', '#b3ffd6', '#86efac', '#6ee7a0',
-      '#4ade80', '#22c55e', '#16a34a', '#15803d',
-      '#166534', '#14532d',
+    terracotta: [
+      '#FDF5F2', '#F8E4DC', '#F0CABC', '#E5AD98',
+      '#D4917A', '#C4785C', '#A86348', '#8C5038',
+      '#6E3E2B', '#52301F',
+    ],
+    sage: [
+      '#F4F8F4', '#E2ECE2', '#C8D9C8', '#B0C8B0',
+      '#A8BFA8', '#8BA88B', '#6E8E6E', '#577457',
+      '#435A43', '#334433',
+    ],
+    teal: [
+      '#F0F7F5', '#D8ECE7', '#BBD9D2', '#9EC7BD',
+      '#7BA9A0', '#6E9B92', '#5A8578', '#47705F',
+      '#355A49', '#254535',
+    ],
+    mauve: [
+      '#F8F3F6', '#EDDFE8', '#DCC5D5', '#CBB0C3',
+      '#C4A0B9', '#B08DA5', '#96748D', '#7C5D75',
+      '#63485E', '#4C3649',
+    ],
+    gold: [
+      '#FBF6EC', '#F5E8CE', '#EDD5A6', '#E4C27E',
+      '#D4A843', '#B08E3A', '#8E7330', '#6E5926',
+      '#52421D', '#3A2E14',
+    ],
+    sky: [
+      '#F3F7FA', '#DDE9F0', '#C4D8E4', '#B8CDD9',
+      '#9EBCCC', '#5C7A8A', '#4A6573', '#39505D',
+      '#2B3D48', '#1F2C34',
     ],
     dark: [
-      '#f4f5f7',  // 0 — lightest text
-      '#d0d5dc',  // 1
-      '#a0a8b4',  // 2
-      '#6d7888',  // 3
-      '#4a5363',  // 4
-      '#2a323e',  // 5 — elevated
-      '#1e242d',  // 6 — card top
-      '#181d24',  // 7 — card base
-      '#12161b',  // 8 — panel
-      '#000000',  // 9 — void
+      '#E8E2D8',  // 0 — lightest text (warm cream)
+      '#A09888',  // 1 — secondary text
+      '#6B6360',  // 2 — muted text
+      '#4A4542',  // 3 — dim text
+      '#3A3835',  // 4 — borders
+      '#232220',  // 5 — elevated
+      '#1E1D1B',  // 6 — card
+      '#1A1917',  // 7 — surface
+      '#141312',  // 8 — panel
+      '#111010',  // 9 — deep
     ],
-    // Light theme gray scale (warm tones)
     gray: [
-      '#fafaf9',
-      '#f5f5f4',
-      '#e7e5e4',
-      '#d6d3d1',
-      '#a8a29e',
-      '#78716c',
-      '#57534e',
-      '#44403c',
-      '#292524',
-      '#1c1917',
+      '#FAF7F2',  // 0 — warm white
+      '#F5F0E8',  // 1 — cream
+      '#E8DDD3',  // 2 — pale earth
+      '#D4CCC0',  // 3 — borders
+      '#B5ADA3',  // 4
+      '#9E9590',  // 5 — muted text
+      '#6B6460',  // 6 — secondary text
+      '#4A4440',  // 7
+      '#2C2826',  // 8 — ink
+      '#1A1816',  // 9 — deep ink
+    ],
+    green: [
+      '#F4F8F4', '#E2ECE2', '#C8D9C8', '#B0C8B0',
+      '#A8BFA8', '#8BA88B', '#6E8E6E', '#577457',
+      '#435A43', '#334433',
     ],
   },
 
   radius: {
-    xs: '6px',
-    sm: '8px',
-    md: '10px',
-    lg: '14px',
-    xl: '16px',
+    xs: '0px',
+    sm: '0px',
+    md: '0px',
+    lg: '0px',
+    xl: '0px',
   },
 
-  fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-  fontFamilyMonospace: "'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  fontFamily: "'Familjen Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+  fontFamilyMonospace: "'DM Mono', 'SF Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 
   headings: {
-    fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    fontWeight: '700',
+    fontFamily: "'Anybody', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    fontWeight: '800',
     sizes: {
-      h1: { fontSize: '26px', lineHeight: '1.2' },
-      h2: { fontSize: '20px', lineHeight: '1.3' },
-      h3: { fontSize: '16px', lineHeight: '1.4' },
-      h4: { fontSize: '14px', lineHeight: '1.45' },
+      h1: { fontSize: '26px', lineHeight: '1.1' },
+      h2: { fontSize: '20px', lineHeight: '1.2' },
+      h3: { fontSize: '16px', lineHeight: '1.3' },
+      h4: { fontSize: '14px', lineHeight: '1.4' },
     },
   },
 
-  defaultRadius: 'md',
+  defaultRadius: 0,
 
   shadows: {
-    xs: '0 1px 2px rgba(0,0,0,0.3)',
-    sm: '0 1px 3px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.25)',
-    md: depth.card.boxShadow,
-    lg: depth.card.boxShadowHover,
-    xl: '0 2px 4px rgba(0,0,0,0.4), 0 12px 32px rgba(0,0,0,0.45), 0 32px 72px rgba(0,0,0,0.3)',
+    xs: '0 1px 2px rgba(0,0,0,0.04)',
+    sm: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+    md: '0 2px 6px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)',
+    lg: '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',
+    xl: '0 8px 24px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.06)',
   },
 
   other: {
-    // Expose tokens to components via theme.other
     transitions: sharedTokens.transitions,
     depth,
   },
 
   components: {
     Paper: {
-      defaultProps: { radius: 'xl' },
+      defaultProps: { radius: 0 },
       styles: () => ({
         root: {
-          background: depth.card.background,
-          border: depth.card.border,
-          borderTop: depth.card.borderTop,
-          boxShadow: depth.card.boxShadow,
-          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          background: 'var(--tribos-card)',
+          border: '1.5px solid var(--tribos-border-default)',
+          borderRadius: 0,
+          boxShadow: 'var(--tribos-shadow-card)',
+          transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
         },
       }),
     },
 
     Card: {
-      defaultProps: { radius: 'xl', padding: 'lg' },
+      defaultProps: { radius: 0, padding: 'lg' },
       styles: () => ({
         root: {
-          background: depth.card.background,
-          border: depth.card.border,
-          borderTop: depth.card.borderTop,
-          boxShadow: depth.card.boxShadow,
+          background: 'var(--tribos-card)',
+          border: '1.5px solid var(--tribos-border-default)',
+          borderRadius: 0,
+          boxShadow: 'var(--tribos-shadow-card)',
           overflow: 'hidden',
-          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
           '&:hover': {
-            boxShadow: depth.card.boxShadowHover,
+            boxShadow: 'var(--tribos-shadow-card-hover)',
             borderColor: 'var(--tribos-border-hover)',
-            transform: 'translateY(-2px)',
           },
         },
       }),
     },
 
     Button: {
-      defaultProps: { radius: 'md' },
+      defaultProps: { radius: 0 },
       styles: () => ({
         root: {
           fontWeight: 600,
+          fontFamily: "'DM Mono', monospace",
+          fontSize: 11,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
           transition: 'all 0.15s',
         },
       }),
     },
 
     TextInput: {
-      defaultProps: { radius: 'md' },
+      defaultProps: { radius: 0 },
       styles: () => ({
         input: {
           background: 'var(--tribos-input)',
-          border: '1px solid var(--tribos-border-subtle)',
+          border: '1px solid var(--tribos-border-default)',
           color: 'var(--tribos-text-100)',
-          boxShadow: 'var(--tribos-shadow-inset)',
           transition: 'all 0.15s',
           '&:focus': {
-            borderColor: 'var(--tribos-green-border)',
-            boxShadow: 'var(--tribos-shadow-inset), 0 0 0 3px rgba(74,222,128,0.06)',
+            borderColor: 'var(--tribos-terracotta-border)',
+            boxShadow: '0 0 0 2px rgba(196, 120, 92, 0.1)',
           },
           '&::placeholder': { color: 'var(--tribos-text-500)' },
         },
         label: {
+          fontFamily: "'DM Mono', monospace",
           fontSize: 10,
-          fontWeight: 600,
-          letterSpacing: '1px',
+          fontWeight: 500,
+          letterSpacing: '2px',
           textTransform: 'uppercase',
           color: 'var(--tribos-text-500)',
         },
@@ -366,76 +396,81 @@ export const theme = createTheme({
     },
 
     Textarea: {
+      defaultProps: { radius: 0 },
       styles: () => ({
         input: {
           background: 'var(--tribos-input)',
-          border: '1px solid var(--tribos-border-subtle)',
+          border: '1px solid var(--tribos-border-default)',
           color: 'var(--tribos-text-100)',
-          boxShadow: 'var(--tribos-shadow-inset)',
           '&:focus': {
-            borderColor: 'var(--tribos-green-border)',
-            boxShadow: 'var(--tribos-shadow-inset), 0 0 0 3px rgba(74,222,128,0.06)',
+            borderColor: 'var(--tribos-terracotta-border)',
+            boxShadow: '0 0 0 2px rgba(196, 120, 92, 0.1)',
           },
         },
       }),
     },
 
     PasswordInput: {
-      defaultProps: { radius: 'md' },
+      defaultProps: { radius: 0 },
     },
 
     Select: {
-      defaultProps: { radius: 'md' },
+      defaultProps: { radius: 0 },
       styles: () => ({
         input: {
           background: 'var(--tribos-input)',
-          border: '1px solid var(--tribos-border-subtle)',
+          border: '1px solid var(--tribos-border-default)',
           color: 'var(--tribos-text-100)',
-          boxShadow: 'var(--tribos-shadow-inset)',
         },
         dropdown: {
           background: 'var(--tribos-elevated)',
           border: '1px solid var(--tribos-border-default)',
+          borderRadius: 0,
           boxShadow: 'var(--tribos-shadow-card-hover)',
         },
       }),
     },
 
     Badge: {
+      defaultProps: { radius: 0 },
       styles: () => ({
-        root: { fontWeight: 600, fontSize: 11, textTransform: 'none' },
+        root: {
+          fontFamily: "'DM Mono', monospace",
+          fontWeight: 500,
+          fontSize: 10,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
+        },
       }),
     },
 
     Tabs: {
       styles: () => ({
         list: {
-          background: 'linear-gradient(180deg, #14181e, #111519)',
-          border: '1px solid var(--tribos-border-subtle)',
-          borderRadius: 12,
-          padding: 4,
-          boxShadow: 'var(--tribos-shadow-inset)',
-          gap: 2,
+          borderBottom: '1px solid var(--tribos-border-default)',
+          gap: 0,
           '&::before': { display: 'none' },
         },
         tab: {
-          borderRadius: 8,
+          borderRadius: 0,
           color: 'var(--tribos-text-400)',
+          fontFamily: "'DM Mono', monospace",
           fontWeight: 500,
-          fontSize: 13,
-          padding: '8px 18px',
+          fontSize: 11,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
+          padding: '10px 16px',
           border: 'none',
+          borderBottom: '2px solid transparent',
           transition: 'all 0.15s',
           '&:hover': {
-            background: 'rgba(255,255,255,0.03)',
-            color: 'var(--tribos-text-300)',
+            background: 'transparent',
+            color: 'var(--tribos-text-100)',
           },
           '&[data-active]': {
-            background: 'linear-gradient(180deg, var(--tribos-card-top), var(--tribos-card))',
+            background: 'transparent',
             color: 'var(--tribos-text-100)',
-            border: '1px solid var(--tribos-border-default)',
-            borderTop: '1px solid var(--tribos-edge-light-strong)',
-            boxShadow: 'var(--tribos-inner-glow), 0 2px 8px rgba(0,0,0,0.3)',
+            borderBottom: '2px solid var(--tribos-terracotta-500)',
           },
         },
       }),
@@ -445,22 +480,23 @@ export const theme = createTheme({
       styles: () => ({
         root: {
           background: 'var(--tribos-input)',
-          border: '1px solid var(--tribos-border-subtle)',
-          borderRadius: 10,
-          padding: 4,
-          boxShadow: 'var(--tribos-shadow-inset)',
+          border: '1px solid var(--tribos-border-default)',
+          borderRadius: 0,
+          padding: 2,
         },
         indicator: {
-          background: 'linear-gradient(180deg, var(--tribos-card-top), var(--tribos-card))',
+          background: 'var(--tribos-card)',
           border: '1px solid var(--tribos-border-default)',
-          borderTop: '1px solid var(--tribos-edge-light-strong)',
-          borderRadius: 7,
-          boxShadow: 'var(--tribos-inner-glow), 0 2px 6px rgba(0,0,0,0.3)',
+          borderRadius: 0,
+          boxShadow: 'var(--tribos-shadow-xs)',
         },
         label: {
           color: 'var(--tribos-text-500)',
+          fontFamily: "'DM Mono', monospace",
           fontWeight: 500,
-          fontSize: 12,
+          fontSize: 11,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
           '&[data-active]': { color: 'var(--tribos-text-100) !important' },
         },
       }),
@@ -470,14 +506,12 @@ export const theme = createTheme({
       styles: () => ({
         main: { background: 'var(--tribos-void)' },
         navbar: {
-          background: depth.panel.background,
+          background: 'var(--tribos-panel)',
           borderRight: '1px solid var(--tribos-border-default)',
-          boxShadow: depth.panel.boxShadow,
         },
         header: {
           background: 'var(--tribos-nav)',
-          borderBottom: '1px solid var(--tribos-border-subtle)',
-          boxShadow: '0 1px 0 var(--tribos-edge-light)',
+          borderBottom: '1px solid var(--tribos-border-default)',
         },
       }),
     },
@@ -485,23 +519,23 @@ export const theme = createTheme({
     NavLink: {
       styles: () => ({
         root: {
-          borderRadius: 8,
+          borderRadius: 0,
           color: 'var(--tribos-text-400)',
           '&:hover': {
-            background: 'rgba(255,255,255,0.04)',
-            color: 'var(--tribos-text-300)',
+            background: 'var(--tribos-terracotta-surface)',
+            color: 'var(--tribos-text-100)',
           },
           '&[data-active]': {
-            background: 'var(--tribos-green-surface-strong)',
-            color: 'var(--tribos-green-500)',
-            border: '1px solid var(--tribos-green-border)',
-            boxShadow: 'var(--tribos-inner-glow)',
+            background: 'var(--tribos-terracotta-surface)',
+            color: 'var(--tribos-terracotta-500)',
+            borderLeft: '2px solid var(--tribos-terracotta-500)',
           },
         },
       }),
     },
 
     ActionIcon: {
+      defaultProps: { radius: 0 },
       styles: () => ({
         root: {
           transition: 'all 150ms ease',
@@ -510,11 +544,12 @@ export const theme = createTheme({
     },
 
     Modal: {
-      defaultProps: { radius: 'lg', centered: true },
+      defaultProps: { radius: 0, centered: true },
       styles: () => ({
         content: {
           background: 'var(--tribos-elevated)',
           border: '1px solid var(--tribos-border-default)',
+          borderRadius: 0,
           boxShadow: 'var(--tribos-shadow-card-hover)',
         },
         header: {
@@ -524,6 +559,7 @@ export const theme = createTheme({
     },
 
     Drawer: {
+      defaultProps: { radius: 0 },
       styles: () => ({
         content: {
           background: 'var(--tribos-elevated)',
@@ -537,13 +573,15 @@ export const theme = createTheme({
         dropdown: {
           background: 'var(--tribos-elevated)',
           border: '1px solid var(--tribos-border-default)',
+          borderRadius: 0,
           boxShadow: 'var(--tribos-shadow-card-hover)',
         },
         item: {
           color: 'var(--tribos-text-300)',
+          borderRadius: 0,
           transition: 'background-color 100ms ease',
           '&:hover': {
-            background: 'rgba(255,255,255,0.04)',
+            background: 'var(--tribos-terracotta-surface)',
             color: 'var(--tribos-text-100)',
           },
         },
@@ -556,18 +594,21 @@ export const theme = createTheme({
           background: 'var(--tribos-elevated)',
           border: '1px solid var(--tribos-border-default)',
           color: 'var(--tribos-text-200)',
+          borderRadius: 0,
           boxShadow: 'var(--tribos-shadow-card)',
-          fontSize: 12,
+          fontFamily: "'DM Mono', monospace",
+          fontSize: 11,
         },
       }),
     },
 
     Notification: {
-      defaultProps: { radius: 'md' },
+      defaultProps: { radius: 0 },
       styles: () => ({
         root: {
           background: 'var(--tribos-elevated)',
           border: '1px solid var(--tribos-border-default)',
+          borderRadius: 0,
           boxShadow: 'var(--tribos-shadow-card)',
         },
       }),

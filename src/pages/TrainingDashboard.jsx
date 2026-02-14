@@ -582,11 +582,11 @@ function TrainingDashboard() {
   // Get form status styling
   const getFormStatus = () => {
     const tsb = trainingMetrics.tsb;
-    if (tsb >= 15) return { label: 'FRESH', color: 'teal', icon: IconTrendingUp, bg: 'rgba(16, 185, 129, 0.15)' };
-    if (tsb >= 5) return { label: 'READY', color: 'green', icon: IconTrendingUp, bg: 'rgba(34, 197, 94, 0.15)' };
-    if (tsb >= -10) return { label: 'OPTIMAL', color: 'lime', icon: IconActivity, bg: 'rgba(132, 204, 22, 0.15)' };
-    if (tsb >= -25) return { label: 'TIRED', color: 'yellow', icon: IconTrendingDown, bg: 'rgba(234, 179, 8, 0.15)' };
-    return { label: 'FATIGUED', color: 'red', icon: IconTrendingDown, bg: 'rgba(239, 68, 68, 0.15)' };
+    if (tsb >= 15) return { label: 'FRESH', color: 'teal', icon: IconTrendingUp, bg: 'rgba(168, 191, 168, 0.15)' };
+    if (tsb >= 5) return { label: 'READY', color: 'green', icon: IconTrendingUp, bg: 'rgba(168, 191, 168, 0.15)' };
+    if (tsb >= -10) return { label: 'OPTIMAL', color: 'lime', icon: IconActivity, bg: 'rgba(168, 191, 168, 0.15)' };
+    if (tsb >= -25) return { label: 'TIRED', color: 'yellow', icon: IconTrendingDown, bg: 'rgba(212, 168, 67, 0.15)' };
+    return { label: 'FATIGUED', color: 'red', icon: IconTrendingDown, bg: 'rgba(196, 120, 92, 0.15)' };
   };
 
   const formStatus = getFormStatus();
@@ -1512,17 +1512,17 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
       <Card withBorder p="md">
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconTrendingUp size={24} color="#10b981" style={{ marginBottom: 8 }} />
+            <IconTrendingUp size={24} color="#A8BFA8" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="teal">+{Math.round(trainingMetrics.ctl * 0.12)}%</Text>
             <Text size="sm" c="dimmed">Fitness vs 90 days ago</Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconRoute size={24} color="#3b82f6" style={{ marginBottom: 8 }} />
+            <IconRoute size={24} color="#7BA9A0" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="blue">{activities.length}</Text>
             <Text size="sm" c="dimmed">Rides in 90 days</Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconAward size={24} color="#f59e0b" style={{ marginBottom: 8 }} />
+            <IconAward size={24} color="#D4A843" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="yellow">
               {speedProfile ? `${(speedProfile.average_speed * (isImperial ? 0.621371 : 1)).toFixed(1)}` : '--'}
             </Text>
@@ -1628,15 +1628,15 @@ function PowerTab({ ftp, powerZones, navigate, activities, weight }) {
       <Paper
         p="lg"
         style={{
-          background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.15), transparent)',
-          border: '1px solid rgba(234, 179, 8, 0.3)',
+          background: 'linear-gradient(135deg, rgba(212, 168, 67, 0.15), transparent)',
+          border: '1px solid rgba(212, 168, 67, 0.3)',
         }}
       >
         <Group justify="space-between" align="center">
           <Box>
             <Text size="sm" c="dimmed">Current FTP</Text>
             <Group gap="sm" align="baseline">
-              <Text size="3rem" fw={700} style={{ color: '#fbbf24' }}>
+              <Text size="3rem" fw={700} style={{ color: '#D4A843' }}>
                 {ftp}W
               </Text>
               {weight && (

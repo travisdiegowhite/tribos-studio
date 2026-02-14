@@ -16,9 +16,9 @@ import { getStadiaMapsRoute, isStadiaMapsAvailable } from './stadiaMapsRouter';
 
 // ── Colors for alternatives ─────────────────────────────────────────
 export const ALTERNATIVE_COLORS = [
-  '#f59e0b', // amber  — Alt 1
-  '#8b5cf6', // violet — Alt 2
-  '#06b6d4', // cyan   — Alt 3
+  '#D4A843', // gold       — Alt 1
+  '#B8A0C4', // mauve      — Alt 2
+  '#7BA9A0', // teal       — Alt 3
 ];
 
 // Label presets per strategy
