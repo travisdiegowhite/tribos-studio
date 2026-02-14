@@ -6,12 +6,12 @@ import { supabase } from '../../lib/supabase';
 // Coach type configurations
 const COACH_CONFIGS = {
   strategist: {
-    color: 'blue',
+    color: 'teal',
     icon: IconChartLine,
     name: 'Training Strategist',
   },
   pulse: {
-    color: 'orange',
+    color: 'terracotta',
     icon: IconActivity,
     name: 'Pulse',
   },

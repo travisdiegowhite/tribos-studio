@@ -207,7 +207,7 @@ export default function PlanTemplateManager() {
         notifications.show({
           title: 'Success',
           message: selectedTemplate ? 'Template updated' : 'Template created',
-          color: 'green',
+          color: 'sage',
           icon: <IconCheck size={18} />,
         });
         setEditModalOpen(false);
@@ -239,7 +239,7 @@ export default function PlanTemplateManager() {
         notifications.show({
           title: 'Deleted',
           message: 'Template has been deactivated',
-          color: 'green',
+          color: 'sage',
           icon: <IconCheck size={18} />,
         });
         setDeleteConfirmOpen(false);
@@ -273,7 +273,7 @@ export default function PlanTemplateManager() {
       notifications.show({
         title: 'Seeding Complete',
         message: `Imported ${successCount} templates from local files`,
-        color: 'green',
+        color: 'sage',
         icon: <IconCheck size={18} />,
       });
       loadTemplates();
@@ -296,7 +296,7 @@ export default function PlanTemplateManager() {
       sweet_spot: 'orange',
       pyramidal: 'violet',
       threshold: 'red',
-      endurance: 'green',
+      endurance: 'sage',
     };
     return colors[methodology] || 'gray';
   };
@@ -422,7 +422,7 @@ export default function PlanTemplateManager() {
                         variant="outline"
                         color={
                           template.fitnessLevel === 'beginner'
-                            ? 'green'
+                            ? 'sage'
                             : template.fitnessLevel === 'advanced'
                             ? 'red'
                             : 'blue'

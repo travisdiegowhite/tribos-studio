@@ -204,7 +204,7 @@ export function CalendarDayCell({
   // Get border color based on state
   const getBorderStyle = () => {
     if (isDropTarget) return '2px dashed var(--mantine-color-terracotta-4)';
-    if (isToday) return '2px solid var(--mantine-color-lime-6)';
+    if (isToday) return '2px solid var(--mantine-color-terracotta-6)';
     if (isBlocked) return '1px solid var(--mantine-color-red-7)';
     if (isPreferred) return '1px solid var(--mantine-color-yellow-7)';
     return '1px solid var(--mantine-color-dark-4)';
@@ -228,7 +228,7 @@ export function CalendarDayCell({
         cursor: 'pointer',
         transition: 'all 0.1s ease',
         position: 'relative',
-        boxShadow: isDropTarget ? '0 0 0 2px var(--mantine-color-lime-5)' : 'none',
+        boxShadow: isDropTarget ? '0 0 0 2px var(--mantine-color-terracotta-5)' : 'none',
       }}
     >
       {/* Date Header */}
@@ -240,7 +240,7 @@ export function CalendarDayCell({
           <Text
             size="sm"
             fw={isToday ? 700 : 500}
-            c={isToday ? 'lime' : undefined}
+            c={isToday ? 'terracotta' : undefined}
           >
             {dayNumber}
           </Text>
@@ -271,7 +271,7 @@ export function CalendarDayCell({
 
         {/* Completion indicator */}
         {plannedWorkout?.completed && (
-          <Badge size="xs" color="green" variant="filled">
+          <Badge size="xs" color="sage" variant="filled">
             <IconCheck size={10} />
           </Badge>
         )}
@@ -443,7 +443,7 @@ export function CalendarDayCell({
                   <Button
                     size="compact-xs"
                     variant="light"
-                    color="lime"
+                    color="terracotta"
                     leftSection={<IconLink size={12} />}
                     mt={4}
                     fullWidth
@@ -460,7 +460,7 @@ export function CalendarDayCell({
 
                 {/* Linked indicator */}
                 {actualActivity.isLinked && (
-                  <Badge size="xs" color="green" variant="dot" mt={4}>
+                  <Badge size="xs" color="sage" variant="dot" mt={4}>
                     Linked
                   </Badge>
                 )}
@@ -473,7 +473,7 @@ export function CalendarDayCell({
             <Box mt={4}>
               <Group gap={4}>
                 <Text size="xs" c="dimmed">Target:</Text>
-                <Text size="xs" c="lime">{plannedWorkout.targetTSS} TSS</Text>
+                <Text size="xs" c="terracotta">{plannedWorkout.targetTSS} TSS</Text>
               </Group>
             </Box>
           )}

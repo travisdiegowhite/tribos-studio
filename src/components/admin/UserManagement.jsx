@@ -250,7 +250,7 @@ export default function UserManagement() {
                   <Text size="sm">{formatDate(user.last_sign_in_at)}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge variant="light" color={user.activity_count > 0 ? 'green' : 'gray'}>
+                  <Badge variant="light" color={user.activity_count > 0 ? 'sage' : 'gray'}>
                     {user.activity_count}
                   </Badge>
                 </Table.Td>
@@ -370,7 +370,7 @@ export default function UserManagement() {
             {cleanupResult && (
               <Alert
                 icon={cleanupResult.success ? <IconCheck size={16} /> : <IconAlertTriangle size={16} />}
-                color={cleanupResult.success ? 'green' : 'red'}
+                color={cleanupResult.success ? 'sage' : 'red'}
                 title={cleanupResult.success ? 'Cleanup Complete' : 'Cleanup Failed'}
               >
                 {cleanupResult.message || cleanupResult.error}

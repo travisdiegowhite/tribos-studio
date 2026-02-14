@@ -186,9 +186,9 @@ function BetaFeedbackWidget() {
             <Box
               p="sm"
               style={{
-                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                backgroundColor: 'rgba(123, 169, 160, 0.1)',
                 borderRadius: '8px',
-                border: '1px solid rgba(59, 130, 246, 0.2)',
+                border: '1px solid rgba(123, 169, 160, 0.2)',
               }}
             >
               <Text size="xs" c="dimmed">

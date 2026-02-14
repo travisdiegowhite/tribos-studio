@@ -48,7 +48,7 @@ function NotFound() {
               component={Link}
               to="/"
               size="lg"
-              color="lime"
+              color="terracotta"
               leftSection={<IconHome size={20} />}
             >
               Back to Home

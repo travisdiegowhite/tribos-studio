@@ -183,7 +183,7 @@ export default function CafeSettingsModal({
         notifications.show({
           title: 'Cafe deleted',
           message: 'The cafe has been permanently deleted',
-          color: 'orange',
+          color: 'gold',
         });
         onClose();
       }
@@ -209,7 +209,7 @@ export default function CafeSettingsModal({
         notifications.show({
           title: 'Left cafe',
           message: 'You have left the cafe',
-          color: 'blue',
+          color: 'teal',
         });
         onClose();
       }
@@ -234,7 +234,7 @@ export default function CafeSettingsModal({
         notifications.show({
           title: 'Member removed',
           message: 'The member has been removed from the cafe',
-          color: 'orange',
+          color: 'gold',
         });
         loadMembers(); // Reload members list
       }
@@ -461,12 +461,12 @@ export default function CafeSettingsModal({
                                 {getMemberDisplayName(member)}
                               </Text>
                               {member.role === 'admin' && (
-                                <Badge size="xs" color="yellow" variant="light" leftSection={<IconCrown size={10} />}>
+                                <Badge size="xs" color="gold" variant="light" leftSection={<IconCrown size={10} />}>
                                   Admin
                                 </Badge>
                               )}
                               {member.user_id === currentUserId && (
-                                <Badge size="xs" color="blue" variant="light">
+                                <Badge size="xs" color="teal" variant="light">
                                   You
                                 </Badge>
                               )}

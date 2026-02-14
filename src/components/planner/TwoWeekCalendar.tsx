@@ -427,16 +427,16 @@ export function TwoWeekCalendar({
 
                 // Status indicator colors and symbols
                 const statusConfig: Record<DayStatus, { color: string; symbol: string; bgColor: string }> = {
-                  done: { color: 'var(--mantine-color-green-5)', symbol: '●', bgColor: 'rgba(34, 197, 94, 0.15)' },
-                  planned: { color: 'var(--mantine-color-blue-5)', symbol: '○', bgColor: 'rgba(59, 130, 246, 0.15)' },
-                  partial: { color: 'var(--mantine-color-orange-5)', symbol: '◐', bgColor: 'rgba(251, 146, 60, 0.15)' },
-                  missed: { color: 'var(--mantine-color-red-5)', symbol: '✗', bgColor: 'rgba(239, 68, 68, 0.15)' },
+                  done: { color: 'var(--mantine-color-green-5)', symbol: '●', bgColor: 'rgba(168, 191, 168, 0.15)' },
+                  planned: { color: 'var(--mantine-color-blue-5)', symbol: '○', bgColor: 'rgba(123, 169, 160, 0.15)' },
+                  partial: { color: 'var(--mantine-color-orange-5)', symbol: '◐', bgColor: 'rgba(212, 168, 67, 0.15)' },
+                  missed: { color: 'var(--mantine-color-red-5)', symbol: '✗', bgColor: 'rgba(196, 120, 92, 0.15)' },
                   empty: { color: 'var(--mantine-color-dark-3)', symbol: '·', bgColor: 'transparent' },
                 };
 
                 // Override background for blocked/preferred days
                 const bgColor = isBlocked
-                  ? 'rgba(250, 82, 82, 0.15)'
+                  ? 'rgba(196, 120, 92, 0.15)'
                   : isPreferred
                   ? 'rgba(250, 204, 21, 0.15)'
                   : statusConfig[status].bgColor;

@@ -48,11 +48,11 @@ import {
 // Intensity colors
 const INTENSITY_COLORS = {
   recovery: 'gray',
-  easy: 'green',
-  moderate: 'blue',
-  tempo: 'yellow',
-  threshold: 'orange',
-  race: 'red',
+  easy: 'sage',
+  moderate: 'teal',
+  tempo: 'gold',
+  threshold: 'terracotta',
+  race: 'terracotta',
 };
 
 /**
@@ -139,7 +139,7 @@ export default function FuelCard({
     return (
       <Paper p="md" radius="md" withBorder>
         <Group spacing="xs">
-          <ThemeIcon size={32} radius="md" color="green" variant="light">
+          <ThemeIcon size={32} radius="md" color="sage" variant="light">
             <IconFlame size={18} />
           </ThemeIcon>
           <div>
@@ -226,7 +226,7 @@ export default function FuelCard({
           {/* Carbs */}
           <Group position="apart" noWrap>
             <Group spacing="xs" noWrap>
-              <ThemeIcon size={24} radius="sm" color="orange" variant="light">
+              <ThemeIcon size={24} radius="sm" color="terracotta" variant="light">
                 <IconApple size={14} />
               </ThemeIcon>
               <Text size="sm" fw={500}>On-Bike Carbs</Text>
@@ -239,7 +239,7 @@ export default function FuelCard({
           {/* Fueling timing */}
           <Group position="apart" noWrap>
             <Group spacing="xs" noWrap>
-              <ThemeIcon size={24} radius="sm" color="violet" variant="light">
+              <ThemeIcon size={24} radius="sm" color="mauve" variant="light">
                 <IconClock size={14} />
               </ThemeIcon>
               <Text size="sm" fw={500}>Start Eating</Text>
@@ -260,7 +260,7 @@ export default function FuelCard({
           {/* Hydration */}
           <Group position="apart" noWrap>
             <Group spacing="xs" noWrap>
-              <ThemeIcon size={24} radius="sm" color="blue" variant="light">
+              <ThemeIcon size={24} radius="sm" color="teal" variant="light">
                 <IconDroplet size={14} />
               </ThemeIcon>
               <Text size="sm" fw={500}>Hydration</Text>
@@ -311,7 +311,7 @@ export default function FuelCard({
         {plan.warnings.length > 0 && (
           <Alert
             icon={<IconAlertTriangle size={16} />}
-            color="yellow"
+            color="gold"
             variant="light"
             p="xs"
           >
@@ -438,11 +438,11 @@ export function FuelSummary({
       style={{ cursor: onClick ? 'pointer' : 'default' }}
       onClick={onClick}
     >
-      <IconFlame size={14} color="orange" />
+      <IconFlame size={14} color="#C4785C" />
       <Text size="xs" c="dimmed">
         {plan.carbs.totalGramsMin}-{plan.carbs.totalGramsMax}g carbs
       </Text>
-      <IconDroplet size={14} color="blue" />
+      <IconDroplet size={14} color="#7BA9A0" />
       <Text size="xs" c="dimmed">
         {plan.hydration.ozPerHour} oz/hr
       </Text>

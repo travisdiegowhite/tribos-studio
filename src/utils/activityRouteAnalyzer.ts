@@ -611,11 +611,11 @@ export function createAnalysisMapSegments(
 
   // Color scheme for segment types
   const segmentColors = {
-    flat: '#3b82f6',      // Blue - good for intervals
-    climb: '#ef4444',     // Red - climbing
-    descent: '#22c55e',   // Green - descending
-    rolling: '#f59e0b',   // Amber - rolling
-    interval: '#a855f7'   // Purple - interval zones
+    flat: '#7BA9A0',      // Teal - good for intervals
+    climb: '#C4785C',     // Terracotta - climbing
+    descent: '#A8BFA8',   // Sage - descending
+    rolling: '#D4A843',   // Gold - rolling
+    interval: '#C4A0B9'   // Mauve - interval zones
   };
 
   // Add flat segments

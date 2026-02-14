@@ -30,13 +30,13 @@ import ThreadLinkBadge from './ThreadLinkBadge';
 // Coach type configurations
 const COACH_CONFIGS = {
   strategist: {
-    color: 'blue',
+    color: 'teal',
     icon: IconChartLine,
     name: 'Training Strategist',
     primary: '#7BA9A0',
   },
   pulse: {
-    color: 'orange',
+    color: 'terracotta',
     icon: IconActivity,
     name: 'Pulse',
     primary: '#C4785C',

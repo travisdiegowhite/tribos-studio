@@ -956,7 +956,7 @@ function Settings() {
           id: 'garmin-history',
           title: 'Backfill In Progress',
           message: result.message || 'A backfill is already in progress. Check status for details.',
-          color: 'yellow',
+          color: 'gold',
           loading: false,
           autoClose: 8000
         });
@@ -996,7 +996,7 @@ function Settings() {
         notifications.show({
           title: 'Not Configured',
           message: 'Wahoo integration is not yet configured. Contact support.',
-          color: 'yellow',
+          color: 'gold',
         });
         return;
       }
@@ -1037,7 +1037,7 @@ function Settings() {
         notifications.show({
           title: 'Not Configured',
           message: 'Google Calendar integration requires a Google Client ID to be configured.',
-          color: 'yellow',
+          color: 'gold',
         });
         return;
       }
@@ -1095,7 +1095,7 @@ function Settings() {
         onClose={() => setShowStravaDisconnectModal(false)}
         title={
           <Group gap="sm">
-            <IconAlertTriangle size={24} color="orange" />
+            <IconAlertTriangle size={24} color="terracotta" />
             <Text fw={600}>Disconnect Strava?</Text>
           </Group>
         }
@@ -1103,7 +1103,7 @@ function Settings() {
         size="md"
       >
         <Stack gap="md">
-          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={18} />}>
+          <Alert color="terracotta" variant="light" icon={<IconAlertTriangle size={18} />}>
             <Text size="sm" fw={500}>
               This action will permanently delete all your Strava-synced activities and speed profile data.
             </Text>
@@ -1167,7 +1167,7 @@ function Settings() {
         onClose={() => setShowGarminReconnectModal(false)}
         title={
           <Group gap="sm">
-            <IconAlertTriangle size={24} color="orange" />
+            <IconAlertTriangle size={24} color="terracotta" />
             <Text fw={600}>Reconnect Garmin</Text>
           </Group>
         }
@@ -1175,7 +1175,7 @@ function Settings() {
         size="md"
       >
         <Stack gap="md">
-          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={18} />}>
+          <Alert color="terracotta" variant="light" icon={<IconAlertTriangle size={18} />}>
             <Text size="sm" fw={500}>
               Your Garmin connection has expired or become invalid. Activities are not syncing.
             </Text>
@@ -1205,7 +1205,7 @@ function Settings() {
             </Button>
             {garminStatus.connected ? (
               <Button
-                color="orange"
+                color="terracotta"
                 onClick={async () => {
                   setShowGarminReconnectModal(false);
                   await disconnectGarmin();
@@ -1238,7 +1238,7 @@ function Settings() {
             actions={
               <Button
                 variant="gradient"
-                gradient={{ from: 'orange', to: 'cyan', deg: 90 }}
+                gradient={{ from: 'terracotta', to: 'teal', deg: 90 }}
                 onClick={() => setShowImportWizard(true)}
               >
                 Import Wizard
@@ -1645,7 +1645,7 @@ function Settings() {
 
                   {/* Duplicate Preview */}
                   {duplicatePreview && duplicatePreview.duplicateGroups > 0 && (
-                    <Alert color="yellow" variant="light" mt="sm">
+                    <Alert color="gold" variant="light" mt="sm">
                       <Stack gap="xs">
                         <Text size="sm" fw={500}>
                           Found {duplicatePreview.duplicateGroups} duplicate groups ({duplicatePreview.totalDuplicates} extra activities)
@@ -1901,7 +1901,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
               </Box>
               <Button
                 size="xs"
-                color="violet"
+                color="mauve"
                 variant="light"
                 onClick={onBackfillHistory}
                 loading={backfillingHistory}
@@ -1928,7 +1928,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                   {backfillStatus.progress?.requested > 0 && (
                     <Group gap="xs">
                       <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Waiting:</Text>
-                      <Text size="xs" style={{ color: 'orange' }}>
+                      <Text size="xs" style={{ color: '#C4785C' }}>
                         {backfillStatus.progress.requested} chunks pending from Garmin
                       </Text>
                     </Group>
@@ -2013,7 +2013,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                   {webhookStatus.troubleshooting?.length > 0 && (
                     <Box style={{ marginTop: 4 }}>
                       {webhookStatus.troubleshooting.map((tip, i) => (
-                        <Text key={i} size="xs" style={{ color: 'orange' }}>
+                        <Text key={i} size="xs" style={{ color: '#C4785C' }}>
                           {tip}
                         </Text>
                       ))}
@@ -2060,7 +2060,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 <Button
                   size="xs"
                   variant="outline"
-                  color="yellow"
+                  color="gold"
                   onClick={onRepair}
                   loading={repairing}
                 >
@@ -2071,7 +2071,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 <Button
                   size="xs"
                   variant="outline"
-                  color="orange"
+                  color="terracotta"
                   onClick={onRecover}
                   loading={recovering}
                 >
@@ -2082,7 +2082,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 <Button
                   size="xs"
                   variant="outline"
-                  color="grape"
+                  color="mauve"
                   onClick={onDiagnose}
                 >
                   🔍 Diagnose Sync Issues

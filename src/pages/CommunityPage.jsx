@@ -73,11 +73,11 @@ const EXPERIENCE_OPTIONS = [
 ];
 
 const MOOD_DISPLAY = {
-  struggling: { emoji: '😓', label: 'Struggling', color: 'red' },
-  okay: { emoji: '😐', label: 'Okay', color: 'yellow' },
-  good: { emoji: '🙂', label: 'Good', color: 'blue' },
-  great: { emoji: '😊', label: 'Great', color: 'green' },
-  crushing_it: { emoji: '🔥', label: 'Crushing it', color: 'lime' },
+  struggling: { emoji: '😓', label: 'Struggling', color: 'terracotta' },
+  okay: { emoji: '😐', label: 'Okay', color: 'gold' },
+  good: { emoji: '🙂', label: 'Good', color: 'teal' },
+  great: { emoji: '😊', label: 'Great', color: 'sage' },
+  crushing_it: { emoji: '🔥', label: 'Crushing it', color: 'terracotta' },
 };
 
 function CommunityPage() {
@@ -189,7 +189,7 @@ function CommunityPage() {
       notifications.show({
         title: 'Cafe created',
         message: `${result.name} has been created. You're now the admin.`,
-        color: 'green',
+        color: 'sage',
       });
       closeCreateModal();
       setNewCafe({
@@ -209,7 +209,7 @@ function CommunityPage() {
       notifications.show({
         title: 'Joined cafe',
         message: `You've joined ${cafeName}`,
-        color: 'green',
+        color: 'sage',
       });
       closeFindModal();
     }
@@ -224,7 +224,7 @@ function CommunityPage() {
       notifications.show({
         title: 'Check-in shared',
         message: 'Your cafe can now see your update',
-        color: 'green',
+        color: 'sage',
       });
     }
   };
@@ -275,7 +275,7 @@ function CommunityPage() {
       notifications.show({
         title: 'Discussion created',
         message: 'Your discussion has been posted',
-        color: 'green',
+        color: 'sage',
       });
       closeNewDiscussionModal();
       setNewDiscussion({ title: '', body: '', category: 'general' });
@@ -974,7 +974,7 @@ function CheckInCard({ checkIn, isOwn, onEncourage, compact = false }) {
         <Group justify="space-between">
           <Group gap="xs">
             {checkIn.encouragement_count > 0 && (
-              <Badge size="xs" variant="light" color="pink">
+              <Badge size="xs" variant="light" color="dusty-rose">
                 {checkIn.encouragement_count} encouragements
               </Badge>
             )}
@@ -983,7 +983,7 @@ function CheckInCard({ checkIn, isOwn, onEncourage, compact = false }) {
             <Tooltip label="Send encouragement">
               <ActionIcon
                 variant="subtle"
-                color="pink"
+                color="dusty-rose"
                 onClick={onEncourage}
               >
                 <IconHeart size={16} />

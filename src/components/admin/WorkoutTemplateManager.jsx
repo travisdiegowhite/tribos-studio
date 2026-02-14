@@ -52,7 +52,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { WORKOUT_LIBRARY, getAllWorkoutIds } from '../../data/workoutLibrary';
 
 const CATEGORY_OPTIONS = [
-  { value: 'recovery', label: 'Recovery', color: 'green' },
+  { value: 'recovery', label: 'Recovery', color: 'sage' },
   { value: 'endurance', label: 'Endurance', color: 'blue' },
   { value: 'tempo', label: 'Tempo', color: 'cyan' },
   { value: 'sweet_spot', label: 'Sweet Spot', color: 'orange' },
@@ -265,7 +265,7 @@ export default function WorkoutTemplateManager() {
       notifications.show({
         title: 'Success',
         message: selectedWorkout ? 'Workout updated' : 'Workout created',
-        color: 'green',
+        color: 'sage',
         icon: <IconCheck size={18} />,
       });
       setEditModalOpen(false);
@@ -299,7 +299,7 @@ export default function WorkoutTemplateManager() {
       notifications.show({
         title: 'Deleted',
         message: 'Workout has been deactivated',
-        color: 'green',
+        color: 'sage',
         icon: <IconCheck size={18} />,
       });
       setDeleteConfirmOpen(false);
@@ -351,7 +351,7 @@ export default function WorkoutTemplateManager() {
       notifications.show({
         title: 'Seeding Complete',
         message: `Imported ${successCount} workouts from local files`,
-        color: 'green',
+        color: 'sage',
         icon: <IconCheck size={18} />,
       });
       loadWorkouts();
@@ -518,7 +518,7 @@ export default function WorkoutTemplateManager() {
                         variant="outline"
                         color={
                           workout.difficulty === 'beginner'
-                            ? 'green'
+                            ? 'sage'
                             : workout.difficulty === 'advanced'
                             ? 'red'
                             : 'blue'

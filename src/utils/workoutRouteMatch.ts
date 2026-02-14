@@ -170,14 +170,14 @@ const CATEGORY_REQUIREMENTS: Record<WorkoutCategory, CategoryRequirements> = {
 
 // Zone colors for map display
 const ZONE_COLORS: Record<number, string> = {
-  1: '#22c55e',   // Green - recovery
-  2: '#3b82f6',   // Blue - endurance
-  3: '#eab308',   // Yellow - tempo
-  3.5: '#f97316', // Orange - sweet spot
-  4: '#ef4444',   // Red - threshold
-  5: '#dc2626',   // Dark red - VO2 max
-  6: '#a855f7',   // Purple - anaerobic
-  7: '#ec4899',   // Pink - sprint
+  1: '#A8BFA8',   // Sage - recovery
+  2: '#7BA9A0',   // Teal - endurance
+  3: '#D4A843',   // Gold - tempo
+  3.5: '#D4A843', // Gold - sweet spot
+  4: '#C4785C',   // Terracotta - threshold
+  5: '#C4785C',   // Terracotta - VO2 max
+  6: '#C4A0B9',   // Mauve - anaerobic
+  7: '#9E7E90',   // Dusty rose - sprint
 };
 
 /**

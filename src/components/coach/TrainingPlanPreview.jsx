@@ -21,11 +21,11 @@ import {
 
 // Phase color mapping
 const PHASE_COLORS = {
-  regular: 'blue',
-  recovery: 'green',
-  build: 'orange',
-  peak: 'red',
-  taper: 'grape',
+  regular: 'teal',
+  recovery: 'sage',
+  build: 'gold',
+  peak: 'terracotta',
+  taper: 'mauve',
 };
 
 // Methodology labels
@@ -56,7 +56,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
       p={compact ? 'sm' : 'md'}
       style={{
         backgroundColor: 'var(--tribos-bg-tertiary)',
-        border: '1px solid var(--tribos-green-border, rgba(50, 205, 50, 0.3))',
+        border: '1px solid var(--tribos-green-border, rgba(196, 120, 92, 0.3))',
         borderRadius: 12,
       }}
     >

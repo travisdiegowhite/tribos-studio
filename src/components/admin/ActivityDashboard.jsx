@@ -156,7 +156,7 @@ export default function ActivityDashboard() {
       case 'page_view':
         return 'blue';
       case 'sync':
-        return 'green';
+        return 'sage';
       case 'upload':
         return 'orange';
       case 'feature':
@@ -241,7 +241,7 @@ export default function ActivityDashboard() {
                         <Badge variant="light" color="blue">{user.page_views}</Badge>
                       </Table.Td>
                       <Table.Td>
-                        <Badge variant="light" color="green">{user.sync_events}</Badge>
+                        <Badge variant="light" color="sage">{user.sync_events}</Badge>
                       </Table.Td>
                       <Table.Td>
                         <Badge variant="light" color="orange">{user.upload_events}</Badge>
@@ -250,7 +250,7 @@ export default function ActivityDashboard() {
                         <Badge variant="light" color="violet">{user.feature_uses}</Badge>
                       </Table.Td>
                       <Table.Td>
-                        <Text size="sm" c={user.events_24h > 0 ? 'green' : 'dimmed'}>
+                        <Text size="sm" c={user.events_24h > 0 ? 'sage' : 'dimmed'}>
                           {user.events_24h}
                         </Text>
                       </Table.Td>
@@ -502,7 +502,7 @@ export default function ActivityDashboard() {
                               <Badge variant="light">{data.total}</Badge>
                             </Table.Td>
                             <Table.Td>
-                              <Badge variant="light" color="green">{data.unique_users}</Badge>
+                              <Badge variant="light" color="sage">{data.unique_users}</Badge>
                             </Table.Td>
                           </Table.Tr>
                         ))}

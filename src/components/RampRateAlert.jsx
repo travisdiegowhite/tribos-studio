@@ -183,7 +183,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
                     top: 0,
                     bottom: 0,
                     width: `${((7 - 3) / 25) * 100}%`,
-                    backgroundColor: 'rgba(34, 197, 94, 0.3)',
+                    backgroundColor: 'rgba(168, 191, 168, 0.3)',
                     borderRadius: 4,
                     pointerEvents: 'none',
                   }}
