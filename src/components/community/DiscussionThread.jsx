@@ -94,7 +94,7 @@ function DiscussionThread({
           <Group justify="space-between" align="flex-start">
             <Group gap="xs">
               {discussion.is_pinned && (
-                <Badge size="xs" variant="light" color="lime" leftSection={<IconPin size={10} />}>
+                <Badge size="xs" variant="light" color="terracotta" leftSection={<IconPin size={10} />}>
                   Pinned
                 </Badge>
               )}
@@ -107,7 +107,7 @@ function DiscussionThread({
               </Badge>
               {discussion.include_training_context && (
                 <Tooltip label="Includes training context">
-                  <Badge size="xs" variant="light" color="blue" leftSection={<IconChartBar size={10} />}>
+                  <Badge size="xs" variant="light" color="teal" leftSection={<IconChartBar size={10} />}>
                     Context
                   </Badge>
                 </Tooltip>
@@ -236,7 +236,7 @@ function DiscussionThread({
                     color: 'var(--tribos-text-muted)',
                   },
                   '&:focus': {
-                    borderColor: 'var(--tribos-lime)',
+                    borderColor: 'var(--tribos-terracotta-500)',
                   },
                 },
               }}
@@ -248,7 +248,7 @@ function DiscussionThread({
                 loading={submitting}
                 disabled={!replyText.trim()}
                 style={{
-                  backgroundColor: 'var(--tribos-lime)',
+                  backgroundColor: 'var(--tribos-terracotta-500)',
                   color: 'var(--tribos-bg-primary)',
                 }}
               >
@@ -293,7 +293,7 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
       radius="md"
       style={{
         backgroundColor: 'var(--tribos-bg-secondary)',
-        border: `1px solid ${isOwn ? 'var(--tribos-lime)' + '30' : 'var(--tribos-bg-tertiary)'}`,
+        border: `1px solid ${isOwn ? 'var(--tribos-terracotta-500)' + '30' : 'var(--tribos-bg-tertiary)'}`,
       }}
     >
       <Stack gap="xs">
@@ -375,7 +375,7 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
             <Button
               variant={reply.has_marked_helpful ? 'light' : 'subtle'}
               size="xs"
-              color={reply.has_marked_helpful ? 'green' : 'gray'}
+              color={reply.has_marked_helpful ? 'sage' : 'gray'}
               leftSection={<IconThumbUp size={14} />}
               onClick={reply.has_marked_helpful ? onUnmarkHelpful : onMarkHelpful}
               disabled={isOwn}

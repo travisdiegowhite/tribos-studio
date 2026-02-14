@@ -224,7 +224,7 @@ function Settings() {
       notifications.show({
         title: 'Google Calendar Connected',
         message: 'Your Google Calendar is now linked. Busy times can be imported in Training Availability settings.',
-        color: 'lime',
+        color: 'terracotta',
       });
       searchParams.delete('connected');
       searchParams.delete('tab');
@@ -278,7 +278,7 @@ function Settings() {
         notifications.show({
           title: 'Success',
           message: 'Profile updated successfully',
-          color: 'green',
+          color: 'sage',
         });
       }
     } catch (error) {
@@ -325,7 +325,7 @@ function Settings() {
       notifications.show({
         title: 'Disconnected',
         message: 'Strava has been disconnected and all Strava-synced activities have been removed',
-        color: 'green',
+        color: 'sage',
       });
     } catch (error) {
       console.error('Error disconnecting Strava:', error);
@@ -366,7 +366,7 @@ function Settings() {
         id: 'strava-sync',
         title: 'Sync Complete!',
         message: `Synced ${result.totalSynced} activities. Speed profile ${profile ? 'updated' : 'needs more data'}.`,
-        color: 'lime',
+        color: 'terracotta',
         loading: false,
         autoClose: 5000
       });
@@ -457,7 +457,7 @@ function Settings() {
             id: 'strava-full-sync',
             title: 'Rate Limited',
             message: `Synced ${totalFetched} activities. Strava rate limit reached - try again in a few minutes.`,
-            color: 'yellow',
+            color: 'gold',
             loading: false,
             autoClose: 8000
           });
@@ -474,7 +474,7 @@ function Settings() {
         id: 'strava-full-sync',
         title: 'Full Sync Complete!',
         message: `Imported ${totalFetched} activities (${totalStored} new/updated). ${totalPages} pages processed.`,
-        color: 'lime',
+        color: 'terracotta',
         loading: false,
         autoClose: 8000
       });
@@ -524,7 +524,7 @@ function Settings() {
         notifications.show({
           title: 'No Duplicates Found',
           message: 'Your activity library is clean!',
-          color: 'lime'
+          color: 'terracotta'
         });
       }
     } catch (error) {
@@ -579,7 +579,7 @@ function Settings() {
         id: 'cleanup-duplicates',
         title: 'Cleanup Complete!',
         message: `Merged ${result.groupsMerged} duplicate groups. Removed ${result.activitiesDeleted} duplicate activities.`,
-        color: 'lime',
+        color: 'terracotta',
         loading: false,
         autoClose: 8000
       });
@@ -604,7 +604,7 @@ function Settings() {
         notifications.show({
           title: 'Not Configured',
           message: 'Garmin integration is not yet configured. Contact support.',
-          color: 'yellow',
+          color: 'gold',
         });
         return;
       }
@@ -628,7 +628,7 @@ function Settings() {
       notifications.show({
         title: 'Disconnected',
         message: 'Garmin has been disconnected',
-        color: 'green',
+        color: 'sage',
       });
     } catch (error) {
       console.error('Error disconnecting Garmin:', error);
@@ -673,7 +673,7 @@ function Settings() {
           id: 'garmin-repair',
           title: 'Connection Repaired!',
           message: 'Token refreshed and User ID fetched successfully.',
-          color: 'lime',
+          color: 'terracotta',
           loading: false,
           autoClose: 5000
         });
@@ -730,7 +730,7 @@ function Settings() {
           id: 'garmin-recover',
           title: reprocessed > 0 ? 'Recovery Complete!' : 'Up to Date',
           message,
-          color: reprocessed > 0 ? 'lime' : 'cyan',
+          color: reprocessed > 0 ? 'terracotta' : 'teal',
           loading: false,
           autoClose: 5000
         });
@@ -825,7 +825,7 @@ function Settings() {
           id: 'garmin-sync',
           title: storedCount > 0 ? 'Sync Complete!' : 'Up to Date',
           message,
-          color: storedCount > 0 ? 'lime' : 'cyan',
+          color: storedCount > 0 ? 'terracotta' : 'teal',
           loading: false,
           autoClose: 5000
         });
@@ -890,7 +890,7 @@ function Settings() {
           id: 'garmin-gps',
           title: stats.success > 0 ? 'GPS Backfill Complete!' : 'GPS Backfill',
           message,
-          color: stats.success > 0 ? 'lime' : stats.triggeredBackfill > 0 ? 'cyan' : 'yellow',
+          color: stats.success > 0 ? 'terracotta' : stats.triggeredBackfill > 0 ? 'teal' : 'gold',
           loading: false,
           autoClose: 8000
         });
@@ -944,7 +944,7 @@ function Settings() {
           id: 'garmin-history',
           title: 'Historical Backfill Started',
           message,
-          color: 'lime',
+          color: 'terracotta',
           loading: false,
           autoClose: 10000
         });
@@ -956,7 +956,7 @@ function Settings() {
           id: 'garmin-history',
           title: 'Backfill In Progress',
           message: result.message || 'A backfill is already in progress. Check status for details.',
-          color: 'yellow',
+          color: 'gold',
           loading: false,
           autoClose: 8000
         });
@@ -996,7 +996,7 @@ function Settings() {
         notifications.show({
           title: 'Not Configured',
           message: 'Wahoo integration is not yet configured. Contact support.',
-          color: 'yellow',
+          color: 'gold',
         });
         return;
       }
@@ -1019,7 +1019,7 @@ function Settings() {
       notifications.show({
         title: 'Disconnected',
         message: 'Wahoo has been disconnected',
-        color: 'green',
+        color: 'sage',
       });
     } catch (error) {
       console.error('Error disconnecting Wahoo:', error);
@@ -1037,7 +1037,7 @@ function Settings() {
         notifications.show({
           title: 'Not Configured',
           message: 'Google Calendar integration requires a Google Client ID to be configured.',
-          color: 'yellow',
+          color: 'gold',
         });
         return;
       }
@@ -1060,7 +1060,7 @@ function Settings() {
       notifications.show({
         title: 'Disconnected',
         message: 'Google Calendar has been disconnected',
-        color: 'green',
+        color: 'sage',
       });
     } catch (error) {
       console.error('Error disconnecting Google Calendar:', error);
@@ -1083,7 +1083,7 @@ function Settings() {
             notifications.show({
               title: 'Import Complete',
               message: `Successfully imported ${results.success.length} activities`,
-              color: 'green',
+              color: 'sage',
             });
           }
         }}
@@ -1095,7 +1095,7 @@ function Settings() {
         onClose={() => setShowStravaDisconnectModal(false)}
         title={
           <Group gap="sm">
-            <IconAlertTriangle size={24} color="orange" />
+            <IconAlertTriangle size={24} color="terracotta" />
             <Text fw={600}>Disconnect Strava?</Text>
           </Group>
         }
@@ -1103,7 +1103,7 @@ function Settings() {
         size="md"
       >
         <Stack gap="md">
-          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={18} />}>
+          <Alert color="terracotta" variant="light" icon={<IconAlertTriangle size={18} />}>
             <Text size="sm" fw={500}>
               This action will permanently delete all your Strava-synced activities and speed profile data.
             </Text>
@@ -1122,7 +1122,7 @@ function Settings() {
             }}
           >
             <Group gap="sm" mb="xs">
-              <IconUpload size={18} color={'var(--tribos-lime)'} />
+              <IconUpload size={18} color={'var(--tribos-terracotta-500)'} />
               <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                 Want to keep your data?
               </Text>
@@ -1131,7 +1131,7 @@ function Settings() {
               Before disconnecting, export your data from Strava and import it using the{' '}
               <Text
                 component="span"
-                style={{ color: 'var(--tribos-lime)', cursor: 'pointer' }}
+                style={{ color: 'var(--tribos-terracotta-500)', cursor: 'pointer' }}
                 onClick={() => {
                   setShowStravaDisconnectModal(false);
                   setShowBulkUploadModal(true);
@@ -1167,7 +1167,7 @@ function Settings() {
         onClose={() => setShowGarminReconnectModal(false)}
         title={
           <Group gap="sm">
-            <IconAlertTriangle size={24} color="orange" />
+            <IconAlertTriangle size={24} color="terracotta" />
             <Text fw={600}>Reconnect Garmin</Text>
           </Group>
         }
@@ -1175,7 +1175,7 @@ function Settings() {
         size="md"
       >
         <Stack gap="md">
-          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={18} />}>
+          <Alert color="terracotta" variant="light" icon={<IconAlertTriangle size={18} />}>
             <Text size="sm" fw={500}>
               Your Garmin connection has expired or become invalid. Activities are not syncing.
             </Text>
@@ -1205,7 +1205,7 @@ function Settings() {
             </Button>
             {garminStatus.connected ? (
               <Button
-                color="orange"
+                color="terracotta"
                 onClick={async () => {
                   setShowGarminReconnectModal(false);
                   await disconnectGarmin();
@@ -1217,7 +1217,7 @@ function Settings() {
               </Button>
             ) : (
               <Button
-                color="green"
+                color="sage"
                 onClick={() => {
                   setShowGarminReconnectModal(false);
                   connectGarmin();
@@ -1238,7 +1238,7 @@ function Settings() {
             actions={
               <Button
                 variant="gradient"
-                gradient={{ from: 'orange', to: 'cyan', deg: 90 }}
+                gradient={{ from: 'terracotta', to: 'teal', deg: 90 }}
                 onClick={() => setShowImportWizard(true)}
               >
                 Import Wizard
@@ -1308,7 +1308,7 @@ function Settings() {
                 </Text>
               )}
 
-              <Button color="lime" onClick={handleSaveProfile} loading={loading}>
+              <Button color="terracotta" onClick={handleSaveProfile} loading={loading}>
                 Save Changes
               </Button>
             </Stack>
@@ -1363,7 +1363,7 @@ function Settings() {
                   }}
                 >
                   <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                    Your W/kg: <Text component="span" fw={700} style={{ color: 'var(--tribos-lime)' }}>
+                    Your W/kg: <Text component="span" fw={700} style={{ color: 'var(--tribos-terracotta-500)' }}>
                       {(ftp / weightKg).toFixed(2)} W/kg
                     </Text>
                   </Text>
@@ -1425,7 +1425,7 @@ function Settings() {
                 </Box>
               )}
 
-              <Button color="lime" onClick={handleSaveProfile} loading={loading}>
+              <Button color="terracotta" onClick={handleSaveProfile} loading={loading}>
                 Save Training Settings
               </Button>
             </Stack>
@@ -1450,7 +1450,7 @@ function Settings() {
               <Alert
                 icon={<IconInfoCircle size={18} />}
                 title="About Strava Integration"
-                color="blue"
+                color="teal"
                 variant="light"
               >
                 <Stack gap="xs">
@@ -1462,13 +1462,13 @@ function Settings() {
                     Recommended: Export your data from Strava and use bulk import instead:
                   </Text>
                   <List size="sm" spacing="xs">
-                    <List.Item icon={<ThemeIcon color="green" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="sage" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
                       Your data stays even if you disconnect Strava later
                     </List.Item>
-                    <List.Item icon={<ThemeIcon color="green" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="sage" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
                       Full historical data with GPS tracks and power data
                     </List.Item>
-                    <List.Item icon={<ThemeIcon color="green" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="sage" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
                       Not subject to Strava's API restrictions
                     </List.Item>
                   </List>
@@ -1477,7 +1477,7 @@ function Settings() {
                   </Text>
                   <Button
                     variant="light"
-                    color="lime"
+                    color="terracotta"
                     size="sm"
                     leftSection={<IconUpload size={16} />}
                     onClick={() => setShowBulkUploadModal(true)}
@@ -1560,7 +1560,7 @@ function Settings() {
                     </Box>
                   </Group>
                   <Group>
-                    <Badge color="yellow" variant="light">
+                    <Badge color="gold" variant="light">
                       Coming Soon
                     </Badge>
                   </Group>
@@ -1598,7 +1598,7 @@ function Settings() {
                     </Box>
                     <Button
                       size="sm"
-                      color="lime"
+                      color="terracotta"
                       variant="light"
                       onClick={syncFullStravaHistory}
                       loading={fullHistorySyncing}
@@ -1633,7 +1633,7 @@ function Settings() {
                     </Box>
                     <Button
                       size="sm"
-                      color="blue"
+                      color="teal"
                       variant="light"
                       onClick={findDuplicateActivities}
                       loading={findingDuplicates}
@@ -1645,7 +1645,7 @@ function Settings() {
 
                   {/* Duplicate Preview */}
                   {duplicatePreview && duplicatePreview.duplicateGroups > 0 && (
-                    <Alert color="yellow" variant="light" mt="sm">
+                    <Alert color="gold" variant="light" mt="sm">
                       <Stack gap="xs">
                         <Text size="sm" fw={500}>
                           Found {duplicatePreview.duplicateGroups} duplicate groups ({duplicatePreview.totalDuplicates} extra activities)
@@ -1693,7 +1693,7 @@ function Settings() {
                 <Group gap="xs">
                   <Button
                     variant={colorScheme === 'dark' ? 'filled' : 'light'}
-                    color={colorScheme === 'dark' ? 'lime' : 'gray'}
+                    color={colorScheme === 'dark' ? 'terracotta' : 'gray'}
                     size="sm"
                     leftSection={<IconMoon size={16} />}
                     onClick={() => setColorScheme('dark')}
@@ -1702,7 +1702,7 @@ function Settings() {
                   </Button>
                   <Button
                     variant={colorScheme === 'light' ? 'filled' : 'light'}
-                    color={colorScheme === 'light' ? 'lime' : 'gray'}
+                    color={colorScheme === 'light' ? 'terracotta' : 'gray'}
                     size="sm"
                     leftSection={<IconSun size={16} />}
                     onClick={() => setColorScheme('light')}
@@ -1789,7 +1789,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
         <Group>
           {connected ? (
             <>
-              <Badge color="green" variant="light">
+              <Badge color="sage" variant="light">
                 Connected
               </Badge>
               <Button variant="subtle" color="red" size="sm" onClick={onDisconnect}>
@@ -1799,7 +1799,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
           ) : isStrava ? (
             <ConnectWithStravaButton onClick={onConnect} />
           ) : (
-            <Button variant="outline" color="lime" size="sm" onClick={onConnect}>
+            <Button variant="outline" color="terracotta" size="sm" onClick={onConnect}>
               Connect
             </Button>
           )}
@@ -1836,7 +1836,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
             </Box>
             <Button
               size="xs"
-              color="lime"
+              color="terracotta"
               variant="light"
               onClick={onSync}
               loading={syncing}
@@ -1901,7 +1901,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
               </Box>
               <Button
                 size="xs"
-                color="violet"
+                color="mauve"
                 variant="light"
                 onClick={onBackfillHistory}
                 loading={backfillingHistory}
@@ -1921,14 +1921,14 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 <Stack gap={4}>
                   <Group gap="xs">
                     <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Progress:</Text>
-                    <Text size="xs" style={{ color: backfillStatus.progress?.percentComplete === 100 ? 'var(--tribos-lime)' : 'var(--tribos-text-primary)' }}>
+                    <Text size="xs" style={{ color: backfillStatus.progress?.percentComplete === 100 ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-primary)' }}>
                       {backfillStatus.progress?.percentComplete || 0}% ({backfillStatus.progress?.received + backfillStatus.progress?.alreadyProcessed || 0}/{backfillStatus.progress?.total || 0} chunks)
                     </Text>
                   </Group>
                   {backfillStatus.progress?.requested > 0 && (
                     <Group gap="xs">
                       <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Waiting:</Text>
-                      <Text size="xs" style={{ color: 'orange' }}>
+                      <Text size="xs" style={{ color: '#9E5A3C' }}>
                         {backfillStatus.progress.requested} chunks pending from Garmin
                       </Text>
                     </Group>
@@ -1936,7 +1936,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                   {backfillStatus.progress?.activitiesReceived > 0 && (
                     <Group gap="xs">
                       <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Activities:</Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-lime)' }}>
+                      <Text size="xs" style={{ color: 'var(--tribos-terracotta-500)' }}>
                         {backfillStatus.progress.activitiesReceived} received
                       </Text>
                     </Group>
@@ -1994,13 +1994,13 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 <Stack gap={4}>
                   <Group gap="xs">
                     <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Garmin User ID:</Text>
-                    <Text size="xs" style={{ color: webhookStatus.integration?.hasGarminUserId ? 'var(--tribos-lime)' : 'red' }}>
+                    <Text size="xs" style={{ color: webhookStatus.integration?.hasGarminUserId ? 'var(--tribos-terracotta-500)' : 'red' }}>
                       {webhookStatus.integration?.hasGarminUserId ? '✓ Set' : '✗ Missing'}
                     </Text>
                   </Group>
                   <Group gap="xs">
                     <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Token Valid:</Text>
-                    <Text size="xs" style={{ color: webhookStatus.integration?.tokenValid ? 'var(--tribos-lime)' : 'red' }}>
+                    <Text size="xs" style={{ color: webhookStatus.integration?.tokenValid ? 'var(--tribos-terracotta-500)' : 'red' }}>
                       {webhookStatus.integration?.tokenValid ? '✓ Yes' : '✗ Expired'}
                     </Text>
                   </Group>
@@ -2013,7 +2013,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                   {webhookStatus.troubleshooting?.length > 0 && (
                     <Box style={{ marginTop: 4 }}>
                       {webhookStatus.troubleshooting.map((tip, i) => (
-                        <Text key={i} size="xs" style={{ color: 'orange' }}>
+                        <Text key={i} size="xs" style={{ color: '#9E5A3C' }}>
                           {tip}
                         </Text>
                       ))}
@@ -2060,7 +2060,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 <Button
                   size="xs"
                   variant="outline"
-                  color="yellow"
+                  color="gold"
                   onClick={onRepair}
                   loading={repairing}
                 >
@@ -2071,7 +2071,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 <Button
                   size="xs"
                   variant="outline"
-                  color="orange"
+                  color="terracotta"
                   onClick={onRecover}
                   loading={recovering}
                 >
@@ -2082,7 +2082,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 <Button
                   size="xs"
                   variant="outline"
-                  color="grape"
+                  color="mauve"
                   onClick={onDiagnose}
                 >
                   🔍 Diagnose Sync Issues
@@ -2102,7 +2102,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                   <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginBottom: 4 }}>
                     Diagnosis Results:
                   </Text>
-                  <Text size="xs" style={{ color: 'var(--tribos-lime)' }}>
+                  <Text size="xs" style={{ color: 'var(--tribos-terracotta-500)' }}>
                     Activities in DB: {diagnosis.activities?.count || 0}
                   </Text>
                   <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
@@ -2126,7 +2126,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                         Recent Events:
                       </Text>
                       {diagnosis.webhookEvents.analysis.slice(0, 5).map((event, i) => (
-                        <Box key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${event.error ? 'red' : 'var(--tribos-lime)'}` }}>
+                        <Box key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${event.error ? 'red' : 'var(--tribos-terracotta-500)'}` }}>
                           <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
                             {event.activityName || event.activity_id || 'Unknown'} - {event.activityType || 'N/A'}
                           </Text>

@@ -135,7 +135,7 @@ function OnboardingModal({ opened, onClose }) {
       size="lg"
       title={
         <Group gap="sm">
-          <ThemeIcon color="lime" variant="light" size="lg">
+          <ThemeIcon color="terracotta" variant="light" size="lg">
             <IconRocket size={20} />
           </ThemeIcon>
           <Text fw={600} size="lg">Welcome to tribos.studio</Text>
@@ -144,7 +144,7 @@ function OnboardingModal({ opened, onClose }) {
       }
       closeOnClickOutside={false}
     >
-      <Stepper active={active} onStepClick={setActive} color="lime" size="sm" mb="xl">
+      <Stepper active={active} onStepClick={setActive} color="terracotta" size="sm" mb="xl">
         <Stepper.Step label="Welcome" icon={<IconRocket size={18} />}>
           <Stack gap="lg" py="md">
             <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
@@ -204,8 +204,8 @@ function OnboardingModal({ opened, onClose }) {
                 p="md"
                 withBorder
                 style={{
-                  borderColor: stravaConnected ? 'var(--tribos-lime)' : 'var(--tribos-border)',
-                  backgroundColor: stravaConnected ? `${'var(--tribos-lime)'}10` : 'var(--tribos-bg-secondary)',
+                  borderColor: stravaConnected ? 'var(--tribos-terracotta-500)' : 'var(--tribos-border)',
+                  backgroundColor: stravaConnected ? `${'var(--tribos-terracotta-500)'}10` : 'var(--tribos-bg-secondary)',
                 }}
               >
                 <Group justify="space-between">
@@ -232,8 +232,8 @@ function OnboardingModal({ opened, onClose }) {
                 p="md"
                 withBorder
                 style={{
-                  borderColor: garminConnected ? 'var(--tribos-lime)' : 'var(--tribos-border)',
-                  backgroundColor: garminConnected ? `${'var(--tribos-lime)'}10` : 'var(--tribos-bg-secondary)',
+                  borderColor: garminConnected ? 'var(--tribos-terracotta-500)' : 'var(--tribos-border)',
+                  backgroundColor: garminConnected ? `${'var(--tribos-terracotta-500)'}10` : 'var(--tribos-bg-secondary)',
                 }}
               >
                 <Group justify="space-between">
@@ -262,8 +262,8 @@ function OnboardingModal({ opened, onClose }) {
                 p="md"
                 withBorder
                 style={{
-                  borderColor: wahooConnected ? 'var(--tribos-lime)' : 'var(--tribos-border)',
-                  backgroundColor: wahooConnected ? `${'var(--tribos-lime)'}10` : 'var(--tribos-bg-secondary)',
+                  borderColor: wahooConnected ? 'var(--tribos-terracotta-500)' : 'var(--tribos-border)',
+                  backgroundColor: wahooConnected ? `${'var(--tribos-terracotta-500)'}10` : 'var(--tribos-bg-secondary)',
                 }}
               >
                 <Group justify="space-between">
@@ -339,7 +339,7 @@ function OnboardingModal({ opened, onClose }) {
 
         <Stepper.Completed>
           <Stack gap="lg" py="md" align="center">
-            <ThemeIcon size={80} radius="xl" color="lime" variant="light">
+            <ThemeIcon size={80} radius="xl" color="terracotta" variant="light">
               <IconCheck size={40} />
             </ThemeIcon>
 
@@ -407,12 +407,12 @@ function OnboardingModal({ opened, onClose }) {
           <Button
             onClick={nextStep}
             rightSection={<IconChevronRight size={16} />}
-            color="lime"
+            color="terracotta"
           >
             {active === 2 ? 'Finish Setup' : 'Continue'}
           </Button>
         ) : (
-          <Button onClick={handleComplete} color="lime" loading={loading}>
+          <Button onClick={handleComplete} color="terracotta" loading={loading}>
             Go to Dashboard
           </Button>
         )}

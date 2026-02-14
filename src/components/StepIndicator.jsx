@@ -47,12 +47,12 @@ function StepIndicator({ currentStep, steps, onStepClick }) {
                   height: 36,
                   borderRadius: '50%',
                   backgroundColor: isCompleted
-                    ? 'var(--tribos-lime)'
+                    ? 'var(--tribos-terracotta-500)'
                     : isActive
-                    ? `${'var(--tribos-lime)'}30`
+                    ? `${'var(--tribos-terracotta-500)'}30`
                     : 'var(--tribos-bg-secondary)',
                   border: isActive
-                    ? `2px solid ${'var(--tribos-lime)'}`
+                    ? `2px solid ${'var(--tribos-terracotta-500)'}`
                     : isCompleted
                     ? 'none'
                     : `1px solid ${'var(--tribos-bg-elevated)'}`,
@@ -71,7 +71,7 @@ function StepIndicator({ currentStep, steps, onStepClick }) {
                     fw={600}
                     style={{
                       color: isActive
-                        ? 'var(--tribos-lime)'
+                        ? 'var(--tribos-terracotta-500)'
                         : 'var(--tribos-text-muted)',
                     }}
                   >
@@ -84,7 +84,7 @@ function StepIndicator({ currentStep, steps, onStepClick }) {
                 fw={isActive ? 600 : 400}
                 style={{
                   color: isActive
-                    ? 'var(--tribos-lime)'
+                    ? 'var(--tribos-terracotta-500)'
                     : isCompleted
                     ? 'var(--tribos-text-primary)'
                     : 'var(--tribos-text-muted)',
@@ -103,7 +103,7 @@ function StepIndicator({ currentStep, steps, onStepClick }) {
       <Progress
         value={progressPercentage}
         size="xs"
-        color="lime"
+        color="terracotta"
         style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}
         animated={currentStep < steps.length - 1}
       />

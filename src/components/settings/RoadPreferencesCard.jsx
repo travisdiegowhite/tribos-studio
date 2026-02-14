@@ -267,7 +267,7 @@ export default function RoadPreferencesCard() {
           id: notificationId,
           title: 'Extraction Complete',
           message: `Processed ${totalProcessed} activities, extracted ${totalSegments} road segments`,
-          color: 'green',
+          color: 'sage',
           icon: <IconCheck size={16} />,
           loading: false,
           autoClose: 5000,
@@ -320,7 +320,7 @@ export default function RoadPreferencesCard() {
       notifications.show({
         title: 'Preferences Saved',
         message: 'Your route preferences have been updated',
-        color: 'green',
+        color: 'sage',
         icon: <IconCheck size={16} />,
       });
     } catch (error) {
@@ -360,7 +360,7 @@ export default function RoadPreferencesCard() {
             </Text>
           </Box>
           {stats && (
-            <Badge color="lime" variant="light" size="lg">
+            <Badge color="terracotta" variant="light" size="lg">
               {stats.total_segments?.toLocaleString() || 0} segments learned
             </Badge>
           )}
@@ -440,12 +440,12 @@ export default function RoadPreferencesCard() {
                     </Badge>
                   </Tooltip>
                   <Tooltip label="Ridden 4-10 times">
-                    <Badge color="lime" variant="light" size="sm">
+                    <Badge color="terracotta" variant="light" size="sm">
                       4-10x: {stats.segments_by_ride_count['4_10_rides'] || 0}
                     </Badge>
                   </Tooltip>
                   <Tooltip label="Ridden 10+ times">
-                    <Badge color="green" variant="light" size="sm">
+                    <Badge color="sage" variant="light" size="sm">
                       10+: {stats.segments_by_ride_count['10_plus_rides'] || 0}
                     </Badge>
                   </Tooltip>
@@ -510,7 +510,7 @@ export default function RoadPreferencesCard() {
             </Box>
             <Button
               size="sm"
-              color="lime"
+              color="terracotta"
               variant="light"
               onClick={handleExtractSegments}
               loading={extracting}
@@ -535,7 +535,7 @@ export default function RoadPreferencesCard() {
               {extractionProgress.total > 0 && (
                 <Progress
                   value={(extractionProgress.processed / extractionProgress.total) * 100}
-                  color="lime"
+                  color="terracotta"
                   size="sm"
                   animated
                 />
@@ -570,7 +570,7 @@ export default function RoadPreferencesCard() {
             min={0}
             max={100}
             step={10}
-            color="lime"
+            color="terracotta"
             marks={[
               { value: 0, label: 'Off' },
               { value: 50, label: 'Balanced' },
@@ -598,7 +598,7 @@ export default function RoadPreferencesCard() {
           <Switch
             checked={exploreMode}
             onChange={(e) => setExploreMode(e.currentTarget.checked)}
-            color="lime"
+            color="terracotta"
             size="md"
           />
         </Group>
@@ -700,7 +700,7 @@ export default function RoadPreferencesCard() {
 
         {/* Save Button */}
         <Button
-          color="lime"
+          color="terracotta"
           onClick={handleSavePreferences}
           loading={savingPrefs}
           leftSection={<IconCheck size={16} />}

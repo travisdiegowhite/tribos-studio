@@ -200,7 +200,7 @@ export default function FloatingRouteSettings({
         notifications.show({
           title: 'Speed Profile Updated',
           message: `Calculated from ${profile.rides_analyzed || 0} rides`,
-          color: 'lime',
+          color: 'terracotta',
         });
       }
     } catch (error) {
@@ -246,7 +246,7 @@ export default function FloatingRouteSettings({
       notifications.show({
         title: 'Settings Saved',
         message: 'Your route preferences have been saved',
-        color: 'lime',
+        color: 'terracotta',
       });
       onClose();
     } catch (error) {
@@ -291,7 +291,7 @@ export default function FloatingRouteSettings({
         {/* Header */}
         <Group justify="space-between" align="center">
           <Group gap="xs">
-            <IconSettings size={20} style={{ color: 'var(--tribos-lime)' }} />
+            <IconSettings size={20} style={{ color: 'var(--tribos-terracotta-500)' }} />
             <Title order={4} style={{ color: 'var(--tribos-text-primary)' }}>
               Route Settings
             </Title>
@@ -306,19 +306,19 @@ export default function FloatingRouteSettings({
           p="sm"
           style={{
             backgroundColor: 'var(--tribos-bg-tertiary)',
-            border: `1px solid ${'var(--tribos-lime)'}40`,
+            border: `1px solid ${'var(--tribos-terracotta-500)'}40`,
             borderRadius: tokens.radius.md,
           }}
         >
           <Group justify="space-between" align="center">
             <Group gap="xs">
-              <IconGauge size={18} style={{ color: 'var(--tribos-lime)' }} />
+              <IconGauge size={18} style={{ color: 'var(--tribos-terracotta-500)' }} />
               <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
                 Your Pace
               </Text>
             </Group>
             <Group gap="xs">
-              <Text size="lg" fw={700} style={{ color: 'var(--tribos-lime)' }}>
+              <Text size="lg" fw={700} style={{ color: 'var(--tribos-terracotta-500)' }}>
                 {formatSpeed(effectiveSpeed)}
               </Text>
               <Badge size="xs" color="gray" variant="light">
@@ -588,7 +588,7 @@ export default function FloatingRouteSettings({
               {/* Scenic Section */}
               <Box>
                 <Group gap="xs" mb="xs">
-                  <IconCamera size={14} style={{ color: 'var(--tribos-lime)' }} />
+                  <IconCamera size={14} style={{ color: 'var(--tribos-terracotta-500)' }} />
                   <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Scenic</Text>
                 </Group>
                 <Stack gap="xs">
@@ -630,7 +630,7 @@ export default function FloatingRouteSettings({
               {/* Training Section */}
               <Box>
                 <Group gap="xs" mb="xs">
-                  <IconHeart size={14} style={{ color: 'var(--tribos-lime)' }} />
+                  <IconHeart size={14} style={{ color: 'var(--tribos-terracotta-500)' }} />
                   <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Training</Text>
                 </Group>
                 <Stack gap="xs">
@@ -673,7 +673,7 @@ export default function FloatingRouteSettings({
               {/* Weather Section */}
               <Box>
                 <Group gap="xs" mb="xs">
-                  <IconCloud size={14} style={{ color: 'var(--tribos-lime)' }} />
+                  <IconCloud size={14} style={{ color: 'var(--tribos-terracotta-500)' }} />
                   <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Weather</Text>
                 </Group>
                 <Stack gap="xs">
@@ -714,7 +714,7 @@ export default function FloatingRouteSettings({
 
         {/* Save Button */}
         <Button
-          color="lime"
+          color="terracotta"
           onClick={handleSave}
           loading={saving}
           fullWidth
@@ -763,11 +763,12 @@ export function RouteSettingsButton({ onClick, speedProfile, isImperial = true }
         style={{
           backgroundColor: 'var(--tribos-bg-secondary)',
           border: `1px solid ${'var(--tribos-border)'}`,
+          color: 'var(--tribos-text-100)',
         }}
       >
         <Group gap={4}>
-          <Text size="sm" fw={600}>{displaySpeed}</Text>
-          <Text size="xs" c="dimmed">{unit}</Text>
+          <Text size="sm" fw={600} c="var(--tribos-text-100)">{displaySpeed}</Text>
+          <Text size="xs" c="var(--tribos-text-300)">{unit}</Text>
         </Group>
       </Button>
     </Tooltip>

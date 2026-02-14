@@ -54,7 +54,7 @@ function FeatureCard({ name, description, highlight }) {
         {highlight && (
           <Badge
             variant="light"
-            color="lime"
+            color="terracotta"
             size="sm"
             style={{ alignSelf: 'flex-start' }}
           >
@@ -76,7 +76,7 @@ function FeatureSection({ feature }) {
           size="lg"
           radius="md"
           variant="light"
-          color="lime"
+          color="terracotta"
         >
           <IconComponent size={20} />
         </ThemeIcon>
@@ -108,12 +108,12 @@ function FeatureSection({ feature }) {
           mt="md"
           radius="md"
           style={{
-            background: `linear-gradient(135deg, ${'var(--tribos-lime)'}15, ${'var(--tribos-lime)'}05)`,
-            border: `1px solid ${'var(--tribos-lime)'}30`,
+            background: `linear-gradient(135deg, ${'var(--tribos-terracotta-500)'}15, ${'var(--tribos-terracotta-500)'}05)`,
+            border: `1px solid ${'var(--tribos-terracotta-500)'}30`,
           }}
         >
           <Group gap="xs">
-            <IconBulb size={16} color={'var(--tribos-lime)'} />
+            <IconBulb size={16} color={'var(--tribos-terracotta-500)'} />
             <Text size="sm" c={'var(--tribos-text-primary)'} fw={500}>
               {feature.summary}
             </Text>
@@ -135,7 +135,7 @@ function UpdateCard({ update }) {
       }}
     >
       <Group justify="space-between" mb="sm">
-        <Badge variant="light" color="lime" size="sm">
+        <Badge variant="light" color="terracotta" size="sm">
           {update.type === 'improvement' ? 'Improvement' : 'New'}
         </Badge>
         <Text size="xs" c={'var(--tribos-text-muted)'}>
@@ -155,7 +155,7 @@ function UpdateCard({ update }) {
         <Stack gap={6}>
           {update.details.map((detail, idx) => (
             <Group key={idx} gap="xs" wrap="nowrap">
-              <IconArrowRight size={14} color={'var(--tribos-lime)'} style={{ flexShrink: 0 }} />
+              <IconArrowRight size={14} color={'var(--tribos-terracotta-500)'} style={{ flexShrink: 0 }} />
               <Text size="sm" c={'var(--tribos-text-secondary)'}>
                 {detail}
               </Text>
@@ -177,12 +177,12 @@ function Updates() {
           {/* Welcome Section */}
           <Box mb="md">
             <Group gap="sm" mb="xs">
-              <IconSparkles size={28} color={'var(--tribos-lime)'} />
+              <IconSparkles size={28} color={'var(--tribos-terracotta-500)'} />
               <Title order={1} c={'var(--tribos-text-primary)'}>
                 {welcome.title}
               </Title>
             </Group>
-            <Text size="lg" c={'var(--tribos-lime)'} fw={500} mb="sm">
+            <Text size="lg" c={'var(--tribos-terracotta-500)'} fw={500} mb="sm">
               {welcome.subtitle}
             </Text>
             <Text size="md" c={'var(--tribos-text-secondary)'} lh={1.7} maw={700}>
@@ -202,7 +202,7 @@ function Updates() {
           {/* Recent Updates */}
           <Box>
             <Group gap="sm" mb="lg">
-              <ThemeIcon size="lg" radius="md" variant="light" color="lime">
+              <ThemeIcon size="lg" radius="md" variant="light" color="terracotta">
                 <IconRocket size={20} />
               </ThemeIcon>
               <Title order={2} c={'var(--tribos-text-primary)'}>

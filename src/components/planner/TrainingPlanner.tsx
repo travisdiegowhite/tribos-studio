@@ -757,7 +757,7 @@ export function TrainingPlanner({
           height: 400,
         }}
       >
-        <Loader color="lime" />
+        <Loader color="terracotta" />
       </Box>
     );
   }
@@ -875,7 +875,7 @@ export function TrainingPlanner({
                 <Button
                   variant="light"
                   size="xs"
-                  color="lime"
+                  color="terracotta"
                   leftSection={<IconBrain size={14} />}
                   onClick={handleWeekReview}
                   loading={store.isReviewingWeek}
@@ -887,7 +887,7 @@ export function TrainingPlanner({
                   <Button
                     variant="filled"
                     size="xs"
-                    color="lime"
+                    color="terracotta"
                     leftSection={<IconDeviceFloppy size={14} />}
                     onClick={handleSave}
                     loading={store.isSaving}
@@ -904,7 +904,7 @@ export function TrainingPlanner({
                 {store.hasUnsavedChanges && (
                   <ActionIcon
                     variant="filled"
-                    color="lime"
+                    color="terracotta"
                     onClick={handleSave}
                     loading={store.isSaving}
                   >
@@ -996,7 +996,7 @@ export function TrainingPlanner({
                 <ActionIcon
                   size={56}
                   radius="xl"
-                  color="lime"
+                  color="terracotta"
                   variant="filled"
                   style={transitionStyles}
                   onClick={() => setSidebarOpen(true)}
@@ -1017,8 +1017,8 @@ export function TrainingPlanner({
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor: 'var(--mantine-color-lime-9)',
-              borderTop: '2px solid var(--mantine-color-lime-5)',
+              backgroundColor: 'var(--mantine-color-terracotta-9)',
+              borderTop: '2px solid var(--mantine-color-terracotta-5)',
               zIndex: 100,
             }}
           >
@@ -1113,7 +1113,7 @@ export function TrainingPlanner({
                         <Tooltip label="Apply suggestion">
                           <ActionIcon
                             size="sm"
-                            color="green"
+                            color="sage"
                             variant="subtle"
                             onClick={() => store.applyHint(hint.id)}
                           >
@@ -1183,12 +1183,12 @@ export function TrainingPlanner({
             shadow="lg"
             style={{
               backgroundColor: 'var(--mantine-color-dark-6)',
-              border: '1px solid var(--mantine-color-lime-7)',
+              border: '1px solid var(--mantine-color-terracotta-7)',
             }}
           >
             <Stack gap="xs">
               <Group gap="xs" wrap="nowrap">
-                <IconCalendarOff size={18} color="var(--mantine-color-lime-5)" />
+                <IconCalendarOff size={18} color="var(--mantine-color-terracotta-5)" />
                 <Text size="sm" fw={500}>
                   Your availability changed
                 </Text>
@@ -1209,7 +1209,7 @@ export function TrainingPlanner({
                 <Button
                   variant="filled"
                   size="xs"
-                  color="lime"
+                  color="terracotta"
                   loading={reshuffleLoading}
                   onClick={async () => {
                     const result = await reshufflePlan({
@@ -1227,7 +1227,7 @@ export function TrainingPlanner({
                       notifications.show({
                         title: 'Plan Updated',
                         message: `${result.redistributions.length} workout${result.redistributions.length > 1 ? 's' : ''} moved to fit your schedule`,
-                        color: 'lime',
+                        color: 'terracotta',
                       });
                       // Refresh the planner store to reflect changes
                       store.syncWithDatabase();

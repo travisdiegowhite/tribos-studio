@@ -5,25 +5,23 @@
  * - Zone colors should be used for DATA VISUALIZATION only (charts, graphs)
  * - Do NOT use zone colors for buttons, badges, or interactive elements
  * - When used as backgrounds, always add opacity
- *
- * @see /docs/visual-hierarchy-guide.md
  */
 
 import { tokens } from '../../theme';
 
 /**
- * Zone color definitions
- * These are the canonical zone colors for the entire application
+ * Zone color definitions — mapped to Tribos brand palette
+ * Sage → Teal → Gold → Terracotta → Mauve → Dusty Rose → Sky
  */
 export const ZONE_COLORS = {
-  1: tokens.colors.zone1, // Recovery - Blue
-  2: tokens.colors.zone2, // Endurance - Green
-  3: tokens.colors.zone3, // Tempo - Yellow
-  3.5: '#f59e0b',         // Sweet Spot - Amber
-  4: tokens.colors.zone4, // Threshold - Orange
-  5: tokens.colors.zone5, // VO2max - Red
-  6: tokens.colors.zone6, // Anaerobic - Purple
-  7: tokens.colors.zone7, // Neuromuscular - Pink
+  1: tokens.colors.zone1, // Recovery - Sage
+  2: tokens.colors.zone2, // Endurance - Teal
+  3: tokens.colors.zone3, // Tempo - Gold
+  3.5: '#C9A04E',         // Sweet Spot - Gold variant
+  4: tokens.colors.zone4, // Threshold - Terracotta
+  5: tokens.colors.zone5, // VO2max - Mauve
+  6: tokens.colors.zone6, // Anaerobic - Dusty Rose
+  7: tokens.colors.zone7, // Neuromuscular - Sky
 };
 
 /**
@@ -116,10 +114,10 @@ export function getZoneFromPowerPct(powerPct) {
  * Use these for general charts that aren't zone-related
  */
 export const CHART_COLORS = {
-  primary: tokens.colors.electricLime,
-  secondary: tokens.colors.info,
-  tertiary: '#8b5cf6', // Purple
-  quaternary: '#f59e0b', // Amber
+  primary: tokens.colors.terracotta,
+  secondary: tokens.colors.teal,
+  tertiary: tokens.colors.mauve,
+  quaternary: tokens.colors.gold,
   neutral: tokens.colors.textMuted,
 };
 
@@ -135,8 +133,8 @@ export function getChartSeriesColor(index) {
     CHART_COLORS.secondary,
     CHART_COLORS.tertiary,
     CHART_COLORS.quaternary,
-    tokens.colors.zone1,
-    tokens.colors.zone5,
+    tokens.colors.sage,
+    tokens.colors.dustyRose,
   ];
   return palette[index % palette.length];
 }

@@ -463,7 +463,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         id: notificationId,
         title: planCreated ? 'Plan Created & Workout Added!' : 'Workout Added!',
         message: successMessage,
-        color: 'lime',
+        color: 'terracotta',
         icon: <IconCalendarPlus size={18} />,
         loading: false,
         autoClose: planCreated ? 6000 : 4000
@@ -670,7 +670,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         id: notificationId,
         title: 'Training Plan Activated!',
         message: `${planPreview.name} is now active with ${workoutsToInsert.length} workouts scheduled through ${planPreview.end_date}${scheduleNote}`,
-        color: 'lime',
+        color: 'terracotta',
         icon: <IconCalendarPlus size={18} />,
         loading: false,
         autoClose: 6000
@@ -710,7 +710,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       {/* Header */}
       <Group justify="space-between" mb="md">
         <Group gap="sm">
-          <IconRobot size={24} style={{ color: 'var(--tribos-lime)' }} />
+          <IconRobot size={24} style={{ color: 'var(--tribos-terracotta-500)' }} />
           <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             AI Training Coach
           </Text>
@@ -728,7 +728,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         <Stack gap="md" pr="xs">
           {loadingHistory && (
             <Box style={{ textAlign: 'center', padding: tokens.spacing.xl }}>
-              <Loader size="sm" color="lime" />
+              <Loader size="sm" color="terracotta" />
               <Text size="sm" c="dimmed" mt="sm">Loading conversation history...</Text>
             </Box>
           )}
@@ -776,7 +776,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                     width: 32,
                     height: 32,
                     borderRadius: '50%',
-                    backgroundColor: msg.role === 'user' ? 'var(--tribos-bg-tertiary)' : 'var(--tribos-lime)',
+                    backgroundColor: msg.role === 'user' ? 'var(--tribos-bg-tertiary)' : 'var(--tribos-terracotta-500)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -813,7 +813,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                             p="sm"
                             style={{
                               backgroundColor: 'var(--tribos-bg-tertiary)',
-                              border: `1px solid ${'var(--tribos-lime)'}33`
+                              border: `1px solid ${'var(--tribos-terracotta-500)'}33`
                             }}
                           >
                             <Group justify="space-between" align="flex-start" wrap="nowrap">
@@ -869,7 +869,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                       p="md"
                       style={{
                         backgroundColor: 'var(--tribos-bg-tertiary)',
-                        border: `2px solid ${'var(--tribos-lime)'}`,
+                        border: `2px solid ${'var(--tribos-terracotta-500)'}`,
                         borderRadius: tokens.radius.md
                       }}
                     >
@@ -877,7 +877,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                       <Group justify="space-between" align="flex-start" mb="md">
                         <Box>
                           <Group gap="xs" mb={4}>
-                            <ThemeIcon size="md" color="lime" variant="light">
+                            <ThemeIcon size="md" color="terracotta" variant="light">
                               <IconCalendar size={16} />
                             </ThemeIcon>
                             <Text fw={700} size="lg" style={{ color: 'var(--tribos-text-primary)' }}>
@@ -885,7 +885,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                             </Text>
                           </Group>
                           <Group gap="xs">
-                            <Badge color="lime" variant="filled" size="sm">
+                            <Badge color="terracotta" variant="filled" size="sm">
                               {msg.trainingPlanPreview.methodology}
                             </Badge>
                             <Badge variant="light" color="gray" size="sm">
@@ -901,21 +901,21 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                       {/* Key Stats */}
                       <SimpleGrid cols={3} spacing="xs" mb="md">
                         <Paper p="xs" withBorder ta="center" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
-                          <IconTarget size={18} style={{ color: 'var(--tribos-lime)', marginBottom: 4 }} />
+                          <IconTarget size={18} style={{ color: 'var(--tribos-terracotta-500)', marginBottom: 4 }} />
                           <Text size="lg" fw={700} style={{ color: 'var(--tribos-text-primary)' }}>
                             {msg.trainingPlanPreview.summary.total_workouts}
                           </Text>
                           <Text size="xs" c="dimmed">workouts</Text>
                         </Paper>
                         <Paper p="xs" withBorder ta="center" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
-                          <IconClock size={18} style={{ color: 'var(--tribos-lime)', marginBottom: 4 }} />
+                          <IconClock size={18} style={{ color: 'var(--tribos-terracotta-500)', marginBottom: 4 }} />
                           <Text size="lg" fw={700} style={{ color: 'var(--tribos-text-primary)' }}>
                             {msg.trainingPlanPreview.summary.avg_weekly_hours}
                           </Text>
                           <Text size="xs" c="dimmed">hrs/week</Text>
                         </Paper>
                         <Paper p="xs" withBorder ta="center" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
-                          <IconTrendingUp size={18} style={{ color: 'var(--tribos-lime)', marginBottom: 4 }} />
+                          <IconTrendingUp size={18} style={{ color: 'var(--tribos-terracotta-500)', marginBottom: 4 }} />
                           <Text size="lg" fw={700} style={{ color: 'var(--tribos-text-primary)' }}>
                             {msg.trainingPlanPreview.summary.avg_weekly_tss}
                           </Text>
@@ -972,7 +972,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                         {msg.trainingPlanPreview.target_event_date && (
                           <Box>
                             <Text size="xs" c="dimmed">Target Event</Text>
-                            <Text size="sm" fw={500} style={{ color: 'var(--tribos-lime)' }}>
+                            <Text size="sm" fw={500} style={{ color: 'var(--tribos-terracotta-500)' }}>
                               {msg.trainingPlanPreview.target_event_date}
                             </Text>
                           </Box>
@@ -983,7 +983,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
 
                       {/* Activate Button */}
                       <Button
-                        color="lime"
+                        color="terracotta"
                         size="md"
                         fullWidth
                         leftSection={<IconPlayerPlay size={18} />}
@@ -1009,7 +1009,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                   width: 32,
                   height: 32,
                   borderRadius: '50%',
-                  backgroundColor: 'var(--tribos-lime)',
+                  backgroundColor: 'var(--tribos-terracotta-500)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -1018,7 +1018,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                 <IconRobot size={18} style={{ color: 'var(--tribos-bg-primary)' }} />
               </Box>
               <Box style={{ padding: '8px 0' }}>
-                <Loader size="sm" color="lime" type="dots" />
+                <Loader size="sm" color="terracotta" type="dots" />
               </Box>
             </Group>
           )}
@@ -1039,7 +1039,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
               backgroundColor: 'var(--tribos-bg-tertiary)',
               borderColor: 'var(--tribos-bg-tertiary)',
               '&:focus': {
-                borderColor: 'var(--tribos-lime)'
+                borderColor: 'var(--tribos-terracotta-500)'
               }
             }
           }}
@@ -1047,7 +1047,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         <ActionIcon
           size="lg"
           variant="filled"
-          color="lime"
+          color="terracotta"
           onClick={sendMessage}
           disabled={!inputMessage.trim() || isLoading}
         >

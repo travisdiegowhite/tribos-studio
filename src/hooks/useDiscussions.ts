@@ -128,13 +128,13 @@ export const CATEGORY_LABELS: Record<DiscussionCategory, string> = {
 
 export const CATEGORY_COLORS: Record<DiscussionCategory, string> = {
   general: 'gray',
-  training: 'blue',
-  nutrition: 'green',
-  gear: 'orange',
-  motivation: 'pink',
-  race_prep: 'red',
-  recovery: 'teal',
-  question: 'yellow',
+  training: 'teal',
+  nutrition: 'sage',
+  gear: 'gold',
+  motivation: 'terracotta',
+  race_prep: 'mauve',
+  recovery: 'dusty-rose',
+  question: 'sky',
 };
 
 export function useDiscussions({

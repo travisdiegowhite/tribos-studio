@@ -157,7 +157,7 @@ export default function CafeSettingsModal({
         notifications.show({
           title: 'Settings saved',
           message: 'Cafe settings have been updated',
-          color: 'green',
+          color: 'sage',
           icon: <IconCheck size={16} />,
         });
         onClose();
@@ -183,7 +183,7 @@ export default function CafeSettingsModal({
         notifications.show({
           title: 'Cafe deleted',
           message: 'The cafe has been permanently deleted',
-          color: 'orange',
+          color: 'gold',
         });
         onClose();
       }
@@ -209,7 +209,7 @@ export default function CafeSettingsModal({
         notifications.show({
           title: 'Left cafe',
           message: 'You have left the cafe',
-          color: 'blue',
+          color: 'teal',
         });
         onClose();
       }
@@ -234,7 +234,7 @@ export default function CafeSettingsModal({
         notifications.show({
           title: 'Member removed',
           message: 'The member has been removed from the cafe',
-          color: 'orange',
+          color: 'gold',
         });
         loadMembers(); // Reload members list
       }
@@ -256,7 +256,7 @@ export default function CafeSettingsModal({
         notifications.show({
           title: 'Role updated',
           message: `Member has been ${newRole === 'admin' ? 'promoted to admin' : 'changed to member'}`,
-          color: 'green',
+          color: 'sage',
         });
         loadMembers(); // Reload members list
       }
@@ -393,7 +393,7 @@ export default function CafeSettingsModal({
                 description="Allow this cafe to appear in search results"
                 checked={formData.is_public}
                 onChange={(e) => setFormData({ ...formData, is_public: e.currentTarget.checked })}
-                color="lime"
+                color="terracotta"
               />
 
               <Switch
@@ -401,7 +401,7 @@ export default function CafeSettingsModal({
                 description="Allow new members to join without an invite"
                 checked={formData.is_open}
                 onChange={(e) => setFormData({ ...formData, is_open: e.currentTarget.checked })}
-                color="lime"
+                color="terracotta"
               />
 
               <Group justify="flex-end" mt="md">
@@ -412,7 +412,7 @@ export default function CafeSettingsModal({
                   onClick={handleSave}
                   loading={saving}
                   style={{
-                    backgroundColor: 'var(--tribos-lime)',
+                    backgroundColor: 'var(--tribos-terracotta-500)',
                     color: 'var(--tribos-bg-primary)',
                   }}
                 >
@@ -461,12 +461,12 @@ export default function CafeSettingsModal({
                                 {getMemberDisplayName(member)}
                               </Text>
                               {member.role === 'admin' && (
-                                <Badge size="xs" color="yellow" variant="light" leftSection={<IconCrown size={10} />}>
+                                <Badge size="xs" color="gold" variant="light" leftSection={<IconCrown size={10} />}>
                                   Admin
                                 </Badge>
                               )}
                               {member.user_id === currentUserId && (
-                                <Badge size="xs" color="blue" variant="light">
+                                <Badge size="xs" color="teal" variant="light">
                                   You
                                 </Badge>
                               )}
@@ -531,7 +531,7 @@ export default function CafeSettingsModal({
               radius="md"
               style={{
                 backgroundColor: 'var(--tribos-bg-tertiary)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
+                border: '1px solid rgba(158, 90, 60, 0.3)',
               }}
             >
               <Stack gap="sm">
@@ -589,12 +589,12 @@ export default function CafeSettingsModal({
                 radius="md"
                 style={{
                   backgroundColor: 'var(--tribos-bg-tertiary)',
-                  border: '1px solid rgba(239, 68, 68, 0.5)',
+                  border: '1px solid rgba(158, 90, 60, 0.5)',
                 }}
               >
                 <Stack gap="sm">
                   <Group>
-                    <IconTrash size={20} color="#ef4444" />
+                    <IconTrash size={20} color="#9E5A3C" />
                     <Text fw={500} c="red">
                       Delete Cafe
                     </Text>

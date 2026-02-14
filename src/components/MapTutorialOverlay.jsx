@@ -89,8 +89,8 @@ function MapTutorialOverlay({ show, onDismiss, waypointCount = 0 }) {
               width: 60,
               height: 60,
               borderRadius: '50%',
-              backgroundColor: `${'var(--tribos-lime)'}40`,
-              border: `3px solid ${'var(--tribos-lime)'}`,
+              backgroundColor: `${'var(--tribos-terracotta-500)'}40`,
+              border: `3px solid ${'var(--tribos-terracotta-500)'}`,
               animation: isPulsing ? 'pulse-tutorial 1.5s ease-in-out infinite' : 'none',
             }}
           />
@@ -108,7 +108,7 @@ function MapTutorialOverlay({ show, onDismiss, waypointCount = 0 }) {
           zIndex: 102,
           padding: '20px 24px',
           backgroundColor: 'var(--tribos-bg-secondary)',
-          border: `1px solid ${'var(--tribos-lime)'}`,
+          border: `1px solid ${'var(--tribos-terracotta-500)'}`,
           maxWidth: 320,
           textAlign: 'center',
         }}
@@ -116,7 +116,7 @@ function MapTutorialOverlay({ show, onDismiss, waypointCount = 0 }) {
       >
         <Box
           style={{
-            color: 'var(--tribos-lime)',
+            color: 'var(--tribos-terracotta-500)',
             marginBottom: '12px',
             display: 'flex',
             justifyContent: 'center',
@@ -143,7 +143,7 @@ function MapTutorialOverlay({ show, onDismiss, waypointCount = 0 }) {
             Skip Tutorial
           </Button>
           {step < 2 && (
-            <Button variant="filled" color="lime" size="xs" onClick={onDismiss}>
+            <Button variant="filled" color="terracotta" size="xs" onClick={onDismiss}>
               Got It
             </Button>
           )}

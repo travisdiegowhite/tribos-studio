@@ -308,7 +308,7 @@ const RideAnalysisModal = ({
       onClose={onClose}
       title={
         <Group gap="sm">
-          <ThemeIcon size="lg" color="lime" variant="light">
+          <ThemeIcon size="lg" color="terracotta" variant="light">
             <IconRoute size={18} />
           </ThemeIcon>
           <Box>
@@ -394,7 +394,7 @@ const RideAnalysisModal = ({
           </Paper>
 
           <Paper p="md" withBorder ta="center">
-            <ThemeIcon size="lg" variant="light" color="lime" mb="xs">
+            <ThemeIcon size="lg" variant="light" color="terracotta" mb="xs">
               <IconFlame size={18} />
             </ThemeIcon>
             <Text size="xl" fw={700}>
@@ -414,7 +414,7 @@ const RideAnalysisModal = ({
                 <Group gap="xs">
                   <Text size="sm">Power Analysis</Text>
                   {metrics.deviceWatts && (
-                    <Badge size="xs" color="lime" variant="light" leftSection={<IconGauge size={10} />}>
+                    <Badge size="xs" color="terracotta" variant="light" leftSection={<IconGauge size={10} />}>
                       Power Meter
                     </Badge>
                   )}
@@ -436,7 +436,7 @@ const RideAnalysisModal = ({
                       )}
                     </Group>
                   </Box>
-                  <IconBolt size={20} style={{ color: 'var(--tribos-lime)' }} />
+                  <IconBolt size={20} style={{ color: 'var(--tribos-terracotta-500)' }} />
                 </Group>
               </Paper>
 

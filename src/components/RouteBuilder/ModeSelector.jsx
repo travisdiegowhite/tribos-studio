@@ -22,7 +22,7 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
         icon={<IconRobot size={24} />}
         title="Describe a Route"
         description="Tell the AI what you want and get route suggestions"
-        accentColor="var(--tribos-lime)"
+        accentColor="var(--tribos-terracotta-500)"
         onClick={() => onSelectMode('ai')}
       />
 
@@ -31,7 +31,7 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
         icon={<IconHandClick size={24} />}
         title="Draw on Map"
         description="Click to place waypoints and build a route manually"
-        accentColor="#3b82f6"
+        accentColor="#5C7A5E"
         onClick={() => onSelectMode('manual')}
       />
 

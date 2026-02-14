@@ -26,42 +26,42 @@ import type {
 export const TRAINING_ZONES: TrainingZonesMap = {
   1: {
     name: 'Recovery',
-    color: '#4ade80',
+    color: '#6B8C72',
     ftp: { min: 0, max: 55 },
     description: 'Active recovery, easy spinning',
     icon: '😌'
   },
   2: {
     name: 'Endurance',
-    color: '#60a5fa',
+    color: '#5C7A5E',
     ftp: { min: 56, max: 75 },
     description: 'Aerobic base building, long steady rides',
     icon: '🚴'
   },
   3: {
     name: 'Tempo',
-    color: '#facc15',
+    color: '#B89040',
     ftp: { min: 76, max: 90 },
     description: 'Moderate intensity, sustainable pace',
     icon: '💪'
   },
   3.5: {
     name: 'Sweet Spot',
-    color: '#f59e0b',
+    color: '#B89040',
     ftp: { min: 88, max: 94 },
     description: 'High aerobic load, time-efficient training',
     icon: '🍯'
   },
   4: {
     name: 'Threshold',
-    color: '#f97316',
+    color: '#9E5A3C',
     ftp: { min: 95, max: 105 },
     description: 'Lactate threshold, hard sustained effort',
     icon: '🔥'
   },
   5: {
     name: 'VO2 Max',
-    color: '#ef4444',
+    color: '#9E5A3C',
     ftp: { min: 106, max: 150 },
     description: 'Maximum aerobic capacity, very hard efforts',
     icon: '🚀'
@@ -84,7 +84,7 @@ export const WORKOUT_TYPES: WorkoutTypesMap = {
     defaultTSS: 25,
     defaultDuration: 30,
     primaryZone: 1,
-    color: '#4ade80',
+    color: '#6B8C72',
     icon: '😌'
   },
   endurance: {
@@ -93,7 +93,7 @@ export const WORKOUT_TYPES: WorkoutTypesMap = {
     defaultTSS: 75,
     defaultDuration: 90,
     primaryZone: 2,
-    color: '#60a5fa',
+    color: '#5C7A5E',
     icon: '🚴'
   },
   tempo: {
@@ -102,7 +102,7 @@ export const WORKOUT_TYPES: WorkoutTypesMap = {
     defaultTSS: 65,
     defaultDuration: 60,
     primaryZone: 3,
-    color: '#facc15',
+    color: '#B89040',
     icon: '💪'
   },
   sweet_spot: {
@@ -111,7 +111,7 @@ export const WORKOUT_TYPES: WorkoutTypesMap = {
     defaultTSS: 85,
     defaultDuration: 70,
     primaryZone: 3.5,
-    color: '#f59e0b',
+    color: '#B89040',
     icon: '🍯'
   },
   threshold: {
@@ -120,7 +120,7 @@ export const WORKOUT_TYPES: WorkoutTypesMap = {
     defaultTSS: 90,
     defaultDuration: 75,
     primaryZone: 4,
-    color: '#f97316',
+    color: '#9E5A3C',
     icon: '🔥'
   },
   vo2max: {
@@ -129,7 +129,7 @@ export const WORKOUT_TYPES: WorkoutTypesMap = {
     defaultTSS: 95,
     defaultDuration: 75,
     primaryZone: 5,
-    color: '#ef4444',
+    color: '#9E5A3C',
     icon: '🚀'
   },
   hill_repeats: {
@@ -138,7 +138,7 @@ export const WORKOUT_TYPES: WorkoutTypesMap = {
     defaultTSS: 80,
     defaultDuration: 70,
     primaryZone: 4,
-    color: '#a855f7',
+    color: '#6B7F94',
     icon: '⛰️'
   },
   intervals: {
@@ -147,7 +147,7 @@ export const WORKOUT_TYPES: WorkoutTypesMap = {
     defaultTSS: 85,
     defaultDuration: 75,
     primaryZone: 4,
-    color: '#ec4899',
+    color: '#8B6B5A',
     icon: '⚡'
   },
   long_ride: {
@@ -156,7 +156,7 @@ export const WORKOUT_TYPES: WorkoutTypesMap = {
     defaultTSS: 140,
     defaultDuration: 180,
     primaryZone: 2,
-    color: '#3b82f6',
+    color: '#5C7A5E',
     icon: '🏔️'
   }
 };
@@ -168,28 +168,28 @@ export const TRAINING_PHASES: TrainingPhasesMap = {
     description: 'Build aerobic foundation with Zone 2 endurance',
     focus: 'Volume and aerobic capacity',
     primaryZones: [2, 3],
-    color: '#60a5fa'
+    color: '#5C7A5E'
   },
   build: {
     name: 'Build Phase',
     description: 'Add intensity with threshold and sweet spot work',
     focus: 'Functional threshold power and lactate clearance',
     primaryZones: [3, 3.5, 4],
-    color: '#f59e0b'
+    color: '#B89040'
   },
   peak: {
     name: 'Peak Phase',
     description: 'Race-specific high intensity work',
     focus: 'VO2max and race simulation',
     primaryZones: [4, 5],
-    color: '#ef4444'
+    color: '#9E5A3C'
   },
   taper: {
     name: 'Taper',
     description: 'Reduce volume while maintaining intensity',
     focus: 'Recovery and freshness',
     primaryZones: [2, 4],
-    color: '#4ade80'
+    color: '#6B8C72'
   },
   recovery: {
     name: 'Recovery Week',
@@ -258,25 +258,25 @@ export const PLAN_CATEGORIES: PlanCategoriesMap = {
     name: 'Road Racing',
     description: 'Criterium, road race, and time trial preparation for competitive cyclists',
     icon: '🏆',
-    color: '#ef4444' // red
+    color: '#9E5A3C' // terracotta
   },
   endurance_events: {
     name: 'Endurance Events',
     description: 'Century rides, gran fondos, and gravel racing preparation',
     icon: '🚴',
-    color: '#3b82f6' // blue
+    color: '#5C7A5E' // teal
   },
   masters: {
     name: 'Masters (35+)',
     description: 'Age-appropriate training with extended recovery and strength focus',
     icon: '👴',
-    color: '#8b5cf6' // purple
+    color: '#6B7F94' // mauve
   },
   time_crunched: {
     name: 'Time Crunched',
     description: 'Maximum results with ≤6 hours per week - research-backed HIIT focus',
     icon: '⏰',
-    color: '#f59e0b' // amber
+    color: '#B89040' // gold
   },
   indoor_focused: {
     name: 'Indoor Training',
@@ -288,13 +288,13 @@ export const PLAN_CATEGORIES: PlanCategoriesMap = {
     name: 'Strength & Power',
     description: 'Integrated gym and bike training for power development',
     icon: '🏋️',
-    color: '#ec4899' // pink
+    color: '#8B6B5A' // dusty rose
   },
   foundation: {
     name: 'Foundation',
     description: 'Beginner plans and aerobic base building for all levels',
     icon: '🌱',
-    color: '#22c55e' // green
+    color: '#6B8C72' // sage
   }
 };
 
@@ -439,35 +439,35 @@ export function interpretTSB(tsb: number): TSBInterpretation {
   if (tsb > 25) {
     return {
       status: 'fresh',
-      color: '#4ade80',
+      color: '#6B8C72',
       message: 'Very fresh - ready for hard training or racing',
       recommendation: 'Good time for a hard workout or event'
     };
   } else if (tsb > 5) {
     return {
       status: 'rested',
-      color: '#60a5fa',
+      color: '#5C7A5E',
       message: 'Well rested - performing at peak',
       recommendation: 'Maintain current training load'
     };
   } else if (tsb > -10) {
     return {
       status: 'neutral',
-      color: '#facc15',
+      color: '#B89040',
       message: 'Balanced - normal training state',
       recommendation: 'Continue with planned training'
     };
   } else if (tsb > -30) {
     return {
       status: 'fatigued',
-      color: '#f97316',
+      color: '#9E5A3C',
       message: 'Building fatigue - normal during hard training',
       recommendation: 'Consider a recovery day soon'
     };
   } else {
     return {
       status: 'very_fatigued',
-      color: '#ef4444',
+      color: '#9E5A3C',
       message: 'High fatigue - risk of overtraining',
       recommendation: 'Take a recovery week immediately'
     };

@@ -186,9 +186,9 @@ function BetaFeedbackWidget() {
             <Box
               p="sm"
               style={{
-                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                backgroundColor: 'rgba(123, 169, 160, 0.1)',
                 borderRadius: '8px',
-                border: '1px solid rgba(59, 130, 246, 0.2)',
+                border: '1px solid rgba(123, 169, 160, 0.2)',
               }}
             >
               <Text size="xs" c="dimmed">
@@ -224,7 +224,7 @@ function BetaFeedbackWidget() {
 
             <Text size="xs" c="dimmed" ta="center" mt="xs">
               Or email directly:{' '}
-              <a href="mailto:travis@tribos.studio" style={{ color: 'var(--tribos-lime)' }}>
+              <a href="mailto:travis@tribos.studio" style={{ color: 'var(--tribos-terracotta-500)' }}>
                 travis@tribos.studio
               </a>
             </Text>

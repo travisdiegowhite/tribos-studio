@@ -217,12 +217,12 @@ export function GoalInput({
         style={{ cursor: 'pointer' }}
       >
         <Group gap="xs">
-          <IconTarget size={18} color="var(--mantine-color-lime-5)" />
+          <IconTarget size={18} color="var(--mantine-color-terracotta-5)" />
           <Text size="sm" fw={600}>
             Training Goals
           </Text>
           {goals.length > 0 && (
-            <Badge size="sm" variant="light" color="lime">
+            <Badge size="sm" variant="light" color="terracotta">
               {goals.length}
             </Badge>
           )}

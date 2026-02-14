@@ -19,7 +19,7 @@ const METRICS = {
     key: 'sleep_hours',
     label: 'Sleep',
     unit: 'hrs',
-    color: '#3b82f6',
+    color: '#8B6B5A',
     icon: IconMoon,
     domain: [0, 12],
     goodRange: [7, 9],
@@ -28,7 +28,7 @@ const METRICS = {
     key: 'hrv',
     label: 'HRV',
     unit: 'ms',
-    color: '#22c55e',
+    color: '#6B8C72',
     icon: IconActivity,
     domain: [0, 'auto'],
     description: 'Higher is better',
@@ -37,7 +37,7 @@ const METRICS = {
     key: 'resting_hr',
     label: 'Resting HR',
     unit: 'bpm',
-    color: '#f59e0b',
+    color: '#B89040',
     icon: IconHeart,
     domain: [40, 100],
     description: 'Lower is better (when fit)',
@@ -46,7 +46,7 @@ const METRICS = {
     key: 'readiness',
     label: 'Readiness',
     unit: '%',
-    color: '#a78bfa',
+    color: '#6B7F94',
     icon: IconBrandSpeedtest,
     domain: [0, 100],
   },
@@ -165,7 +165,7 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
             <Badge
               size="lg"
               variant="light"
-              color="lime"
+              color="terracotta"
               style={{ cursor: 'pointer' }}
               onClick={onOpenCheckIn}
             >

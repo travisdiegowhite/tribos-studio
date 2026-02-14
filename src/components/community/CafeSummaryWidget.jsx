@@ -105,7 +105,7 @@ function CafeSummaryWidget({
         {/* Header */}
         <Group justify="space-between" align="flex-start">
           <Group gap="xs">
-            <IconCoffee size={18} color={'var(--tribos-lime)'} />
+            <IconCoffee size={18} color={'var(--tribos-terracotta-500)'} />
             <Text size="sm" fw={500}>
               {cafe.name}
             </Text>
@@ -133,7 +133,7 @@ function CafeSummaryWidget({
             value={checkInPercent}
             size="sm"
             radius="xl"
-            color={'var(--tribos-lime)'}
+            color={'var(--tribos-terracotta-500)'}
             style={{
               backgroundColor: 'var(--tribos-bg-tertiary)',
             }}

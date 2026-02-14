@@ -207,7 +207,7 @@ function Dashboard() {
         notifications.show({
           title: 'Sync Complete',
           message: 'Activities synced from Strava',
-          color: 'lime',
+          color: 'terracotta',
         });
         // Reload activities
         window.location.reload();
@@ -215,7 +215,7 @@ function Dashboard() {
         notifications.show({
           title: 'Not Connected',
           message: 'Connect Strava in Settings to sync',
-          color: 'yellow',
+          color: 'gold',
         });
       }
     } catch (err) {
@@ -237,7 +237,7 @@ function Dashboard() {
       notifications.show({
         title: 'Check-in shared',
         message: 'Your cafe can now see your update',
-        color: 'lime',
+        color: 'terracotta',
       });
     }
   };
@@ -295,13 +295,13 @@ function Dashboard() {
                   <Text fw={600} size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
                     This Week
                   </Text>
-                  <Badge variant="light" color="lime" size="sm">
+                  <Badge variant="light" color="terracotta" size="sm">
                     {weekStats.rides}/{weekStats.planned} rides
                   </Badge>
                 </Group>
                 <Progress
                   value={(weekStats.rides / Math.max(weekStats.planned, 1)) * 100}
-                  color="lime"
+                  color="terracotta"
                   size="sm"
                   radius="xl"
                   mb="sm"
@@ -390,7 +390,7 @@ function Dashboard() {
                 component={Link}
                 to="/routes/new"
                 variant="light"
-                color="lime"
+                color="terracotta"
                 size="sm"
                 leftSection={<IconRoute size={16} />}
               >
@@ -510,7 +510,7 @@ function TodayFocusCard({ workout, plan, loading }) {
             component={Link}
             to="/planner?tab=browse"
             variant="filled"
-            color="lime"
+            color="terracotta"
             leftSection={<IconCalendarEvent size={16} />}
           >
             Browse Plans
@@ -540,7 +540,7 @@ function TodayFocusCard({ workout, plan, loading }) {
               Recovery is part of the plan. Take it easy today.
             </Text>
           </Box>
-          <ThemeIcon size={48} radius="xl" variant="light" color="lime">
+          <ThemeIcon size={48} radius="xl" variant="light" color="terracotta">
             <IconTarget size={24} />
           </ThemeIcon>
         </Group>
@@ -552,12 +552,12 @@ function TodayFocusCard({ workout, plan, loading }) {
     <Card
       style={{
         background: `linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)`,
-        border: `1px solid var(--tribos-lime)30`,
+        border: `1px solid var(--tribos-terracotta-500)30`,
       }}
     >
       <Group justify="space-between" align="center">
         <Box>
-          <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--tribos-lime)' }} mb={4}>
+          <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--tribos-terracotta-500)' }} mb={4}>
             Today's Focus
           </Text>
           <Text fw={600} size="lg" style={{ color: 'var(--tribos-text-primary)' }}>
@@ -570,7 +570,7 @@ function TodayFocusCard({ workout, plan, loading }) {
               </Text>
             )}
             {workout.tss && (
-              <Badge variant="light" color="blue" size="sm">
+              <Badge variant="light" color="teal" size="sm">
                 TSS {workout.tss}
               </Badge>
             )}
@@ -590,7 +590,7 @@ function TodayFocusCard({ workout, plan, loading }) {
             component={Link}
             to="/planner"
             variant="filled"
-            color="lime"
+            color="terracotta"
             leftSection={<IconPlayerPlay size={16} />}
           >
             Start
@@ -693,7 +693,7 @@ function FitnessMetrics({ activities, loading }) {
           <Text fw={600} size="lg" style={{ color: 'var(--tribos-text-primary)' }}>
             {ctl}
           </Text>
-          {ctl > 0 && <IconTrendingUp size={14} color="var(--tribos-lime)" />}
+          {ctl > 0 && <IconTrendingUp size={14} color="var(--tribos-terracotta-500)" />}
         </Group>
       </Box>
       <Box>
@@ -732,7 +732,7 @@ function EmptyState() {
         Connect your devices or upload a file to get started
       </Text>
       <Group justify="center" gap="sm">
-        <Button component={Link} to="/settings" variant="light" color="lime" size="sm">
+        <Button component={Link} to="/settings" variant="light" color="terracotta" size="sm">
           Connect Strava
         </Button>
         <Button component={Link} to="/training?tab=history" variant="outline" color="gray" size="sm">
@@ -786,7 +786,7 @@ function ActivityRow({ activity, formatDist, formatElev }) {
               {activity.name || 'Ride'}
             </Text>
             {power > 0 && (
-              <Badge size="xs" variant="light" color="yellow">
+              <Badge size="xs" variant="light" color="gold">
                 {Math.round(power)}W
               </Badge>
             )}

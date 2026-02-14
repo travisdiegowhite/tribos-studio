@@ -21,7 +21,7 @@ function CoachCommandBarTrigger({
         <ActionIcon
           size="lg"
           variant="light"
-          color="lime"
+          color="terracotta"
           onClick={handleClick}
           className={className}
         >
@@ -39,7 +39,7 @@ function CoachCommandBarTrigger({
           size={56}
           radius="xl"
           variant="filled"
-          color="lime"
+          color="terracotta"
           onClick={handleClick}
           className={className}
           style={{
@@ -48,14 +48,14 @@ function CoachCommandBarTrigger({
             right: 24,
             zIndex: 100,
             boxShadow:
-              '0 8px 32px rgba(50, 205, 50, 0.35), 0 4px 12px rgba(0,0,0,0.4)',
+              '0 8px 32px rgba(158, 90, 60, 0.35), 0 4px 12px rgba(0,0,0,0.4)',
             transition: 'all 200ms ease',
           }}
           sx={{
             '&:hover': {
               transform: 'translateY(-2px) scale(1.05)',
               boxShadow:
-                '0 12px 40px rgba(50, 205, 50, 0.45), 0 6px 16px rgba(0,0,0,0.5)',
+                '0 12px 40px rgba(158, 90, 60, 0.45), 0 6px 16px rgba(0,0,0,0.5)',
             },
           }}
         >
@@ -69,7 +69,7 @@ function CoachCommandBarTrigger({
   return (
     <Button
       variant="light"
-      color="lime"
+      color="terracotta"
       onClick={handleClick}
       className={className}
       leftSection={<IconSparkles size={18} />}
@@ -93,7 +93,7 @@ function CoachCommandBarTrigger({
           transition: 'all 200ms ease',
           '&:hover': {
             transform: 'translateY(-1px)',
-            boxShadow: '0 4px 16px rgba(50, 205, 50, 0.3)',
+            boxShadow: '0 4px 16px rgba(158, 90, 60, 0.3)',
           },
         },
         section: {

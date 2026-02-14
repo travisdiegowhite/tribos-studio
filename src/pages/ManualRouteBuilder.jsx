@@ -81,7 +81,7 @@ export default function ManualRouteBuilder() {
 
   const [basemapStyle, setBasemapStyle] = useLocalStorage({
     key: 'tribos-manual-builder-basemap',
-    defaultValue: 'outdoors',
+    defaultValue: 'dark',
   });
 
   const [showInfrastructure, setShowInfrastructure] = useLocalStorage({
@@ -390,7 +390,7 @@ export default function ManualRouteBuilder() {
         >
           <Group justify="space-between">
             <Group>
-              <ThemeIcon size="lg" color="lime" variant="light">
+              <ThemeIcon size="lg" color="terracotta" variant="light">
                 <IconRoute size={20} />
               </ThemeIcon>
               <div>
@@ -468,7 +468,7 @@ export default function ManualRouteBuilder() {
               {/* Save */}
               <Button
                 leftSection={<IconDeviceFloppy size={16} />}
-                color="lime"
+                color="terracotta"
                 variant="filled"
                 loading={saving}
                 onClick={handleSave}
@@ -530,7 +530,7 @@ export default function ManualRouteBuilder() {
                       <Switch
                         checked={autoSnap}
                         onChange={(e) => setAutoSnap(e.currentTarget.checked)}
-                        color="lime"
+                        color="terracotta"
                       />
                     </Group>
 
@@ -539,7 +539,7 @@ export default function ManualRouteBuilder() {
                       <Switch
                         checked={showInfrastructure}
                         onChange={(e) => setShowInfrastructure(e.currentTarget.checked)}
-                        color="lime"
+                        color="terracotta"
                       />
                     </Group>
 
@@ -618,7 +618,7 @@ export default function ManualRouteBuilder() {
                     {waypoints.length >= 2 && !autoSnap && (
                       <Button
                         variant="light"
-                        color="lime"
+                        color="terracotta"
                         size="sm"
                         leftSection={<IconRefresh size={14} />}
                         onClick={handleCalculateRoute}
@@ -855,7 +855,7 @@ export default function ManualRouteBuilder() {
                   size="sm"
                   checked={autoSnap}
                   onChange={(e) => setAutoSnap(e.currentTarget.checked)}
-                  color="lime"
+                  color="terracotta"
                 />
               </Group>
 

@@ -112,12 +112,12 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
                   justify="space-between"
                   p="xs"
                   style={{
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    backgroundColor: 'rgba(168, 191, 168, 0.1)',
                     borderRadius: 4
                   }}
                 >
                   <Group gap="xs">
-                    <pr.icon size={14} color="#10b981" />
+                    <pr.icon size={14} color="#6B8C72" />
                     <Text size="sm" fw={500}>{pr.type}</Text>
                   </Group>
                   <Text size="sm" fw={600} c="teal">{pr.value}</Text>

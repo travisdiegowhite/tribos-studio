@@ -323,7 +323,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
       notifications.show({
         title: 'Training Plan Activated',
         message: `${planData.name} — ${actualWorkouts.length} workouts added to your calendar`,
-        color: 'lime',
+        color: 'sage',
       });
 
       setTrainingPlanPreview(null);
@@ -351,7 +351,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
       notifications.show({
         title: 'Workout Added',
         message: `Added to your calendar`,
-        color: 'lime',
+        color: 'sage',
       });
     }
   };
@@ -414,7 +414,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
               border: '1px solid var(--tribos-border)',
               borderRadius: 20,
               boxShadow:
-                '0 24px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 0 60px rgba(50, 205, 50, 0.08)',
+                '0 24px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 0 60px rgba(158, 90, 60, 0.08)',
               zIndex: 1001,
               display: 'flex',
               flexDirection: 'column',
@@ -438,7 +438,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                     width: 40,
                     height: 40,
                     borderRadius: 12,
-                    backgroundColor: 'var(--tribos-lime)',
+                    backgroundColor: 'var(--tribos-terracotta-500)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -473,7 +473,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                 {query.trim() && (
                   <Button
                     size="sm"
-                    color="lime"
+                    color="terracotta"
                     onClick={handleSubmit}
                     loading={isLoading}
                     rightSection={<IconSend size={16} />}

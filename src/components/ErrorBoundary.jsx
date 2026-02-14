@@ -133,7 +133,7 @@ class ErrorBoundary extends React.Component {
                     Go Home
                   </Button>
                   <Button
-                    color="lime"
+                    color="terracotta"
                     leftSection={<IconRefresh size={18} />}
                     onClick={this.handleRefresh}
                   >

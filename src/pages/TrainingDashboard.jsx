@@ -582,11 +582,11 @@ function TrainingDashboard() {
   // Get form status styling
   const getFormStatus = () => {
     const tsb = trainingMetrics.tsb;
-    if (tsb >= 15) return { label: 'FRESH', color: 'teal', icon: IconTrendingUp, bg: 'rgba(16, 185, 129, 0.15)' };
-    if (tsb >= 5) return { label: 'READY', color: 'green', icon: IconTrendingUp, bg: 'rgba(34, 197, 94, 0.15)' };
-    if (tsb >= -10) return { label: 'OPTIMAL', color: 'lime', icon: IconActivity, bg: 'rgba(132, 204, 22, 0.15)' };
-    if (tsb >= -25) return { label: 'TIRED', color: 'yellow', icon: IconTrendingDown, bg: 'rgba(234, 179, 8, 0.15)' };
-    return { label: 'FATIGUED', color: 'red', icon: IconTrendingDown, bg: 'rgba(239, 68, 68, 0.15)' };
+    if (tsb >= 15) return { label: 'FRESH', color: 'teal', icon: IconTrendingUp, bg: 'rgba(168, 191, 168, 0.15)' };
+    if (tsb >= 5) return { label: 'READY', color: 'green', icon: IconTrendingUp, bg: 'rgba(168, 191, 168, 0.15)' };
+    if (tsb >= -10) return { label: 'OPTIMAL', color: 'terracotta', icon: IconActivity, bg: 'rgba(168, 191, 168, 0.15)' };
+    if (tsb >= -25) return { label: 'TIRED', color: 'yellow', icon: IconTrendingDown, bg: 'rgba(212, 168, 67, 0.15)' };
+    return { label: 'FATIGUED', color: 'red', icon: IconTrendingDown, bg: 'rgba(158, 90, 60, 0.15)' };
   };
 
   const formStatus = getFormStatus();
@@ -766,7 +766,7 @@ function TrainingDashboard() {
               <>
                 <Button
                   variant="filled"
-                  color="lime"
+                  color="terracotta"
                   size="xs"
                   leftSection={<IconCalendarEvent size={14} />}
                   onClick={() => navigate('/planner')}
@@ -833,7 +833,7 @@ function TrainingDashboard() {
                 </Button>
                 <Button
                   variant="light"
-                  color="lime"
+                  color="terracotta"
                   size="xs"
                   leftSection={<IconSettings size={14} />}
                   onClick={() => navigate('/settings')}
@@ -845,7 +845,7 @@ function TrainingDashboard() {
           />
 
           {/* Main Tabs - Pill Style for clear visual distinction */}
-          <Tabs value={activeTab} onChange={setActiveTab} color="lime" variant="pills">
+          <Tabs value={activeTab} onChange={setActiveTab} color="terracotta" variant="pills">
             <Paper
               withBorder
               radius="xl"
@@ -945,7 +945,7 @@ function TrainingDashboard() {
                           notifications.show({
                             title: 'Workout Added',
                             message: `${workout.name || workout.workout_id} scheduled`,
-                            color: 'lime'
+                            color: 'terracotta'
                           });
                           setCalendarRefreshKey(prev => prev + 1);
                         }}
@@ -961,7 +961,7 @@ function TrainingDashboard() {
                       onClick={() => setTrainNowExpanded(!trainNowExpanded)}
                     >
                       <Group gap="xs">
-                        <ThemeIcon size="sm" color="lime" variant="light">
+                        <ThemeIcon size="sm" color="terracotta" variant="light">
                           <IconTarget size={14} />
                         </ThemeIcon>
                         <Text fw={600} size="sm">TrainNow Recommendations</Text>
@@ -1260,7 +1260,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
               <Group gap="sm" wrap="wrap">
                 <Button
                   variant="light"
-                  color="lime"
+                  color="terracotta"
                   rightSection={<IconChevronRight size={16} />}
                   onClick={() => onViewWorkout(suggestedWorkout)}
                 >
@@ -1406,7 +1406,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
               </ThemeIcon>
               <Text fw={600}>Body Check-in</Text>
               {hasCheckedIn && (
-                <Badge color="green" variant="light" size="xs">Done</Badge>
+                <Badge color="sage" variant="light" size="xs">Done</Badge>
               )}
             </Group>
             <Text size="sm" c="dimmed">
@@ -1512,17 +1512,17 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
       <Card withBorder p="md">
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconTrendingUp size={24} color="#10b981" style={{ marginBottom: 8 }} />
+            <IconTrendingUp size={24} color="#6B8C72" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="teal">+{Math.round(trainingMetrics.ctl * 0.12)}%</Text>
             <Text size="sm" c="dimmed">Fitness vs 90 days ago</Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconRoute size={24} color="#3b82f6" style={{ marginBottom: 8 }} />
+            <IconRoute size={24} color="#5C7A5E" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="blue">{activities.length}</Text>
             <Text size="sm" c="dimmed">Rides in 90 days</Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconAward size={24} color="#f59e0b" style={{ marginBottom: 8 }} />
+            <IconAward size={24} color="#B89040" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="yellow">
               {speedProfile ? `${(speedProfile.average_speed * (isImperial ? 0.621371 : 1)).toFixed(1)}` : '--'}
             </Text>
@@ -1628,15 +1628,15 @@ function PowerTab({ ftp, powerZones, navigate, activities, weight }) {
       <Paper
         p="lg"
         style={{
-          background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.15), transparent)',
-          border: '1px solid rgba(234, 179, 8, 0.3)',
+          background: 'linear-gradient(135deg, rgba(212, 168, 67, 0.15), transparent)',
+          border: '1px solid rgba(212, 168, 67, 0.3)',
         }}
       >
         <Group justify="space-between" align="center">
           <Box>
             <Text size="sm" c="dimmed">Current FTP</Text>
             <Group gap="sm" align="baseline">
-              <Text size="3rem" fw={700} style={{ color: '#fbbf24' }}>
+              <Text size="3rem" fw={700} style={{ color: '#B89040' }}>
                 {ftp}W
               </Text>
               {weight && (
@@ -1752,7 +1752,7 @@ function BodyCheckInCard({ todayHealthMetrics, onOpenHealthCheckIn }) {
             </ThemeIcon>
             <Text fw={600}>Body Check-in</Text>
             {hasCheckedIn && (
-              <Badge color="green" variant="light" size="xs">Done</Badge>
+              <Badge color="sage" variant="light" size="xs">Done</Badge>
             )}
           </Group>
           <Text size="sm" c="dimmed">
@@ -1973,7 +1973,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
         {/* Coach Notes */}
         {workout.coachNotes && (
           <Paper p="sm" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <Text fw={500} size="sm" mb="xs" c="lime">Coach Notes</Text>
+            <Text fw={500} size="sm" mb="xs" c="terracotta">Coach Notes</Text>
             <Text size="sm" c="dimmed">{workout.coachNotes}</Text>
           </Paper>
         )}
@@ -2177,7 +2177,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
             </Box>
             <Button
               variant="light"
-              color="lime"
+              color="terracotta"
               leftSection={<IconRoute size={16} />}
               onClick={() => {
                 onClose();
@@ -2191,7 +2191,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
         </Paper>
 
         {/* Close Button */}
-        <Button variant="light" color="lime" fullWidth onClick={onClose}>
+        <Button variant="light" color="terracotta" fullWidth onClick={onClose}>
           Close
         </Button>
       </Stack>

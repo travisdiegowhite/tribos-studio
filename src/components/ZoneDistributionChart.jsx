@@ -43,7 +43,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
     1: tokens.colors.zone1,
     2: tokens.colors.zone2,
     3: tokens.colors.zone3,
-    3.5: '#f59e0b', // Sweet Spot - amber
+    3.5: '#B89040', // Sweet Spot - gold
     4: tokens.colors.zone4,
     5: tokens.colors.zone5,
     6: tokens.colors.zone6,
@@ -257,7 +257,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconChartPie size={20} color={'var(--tribos-lime)'} />
+          <IconChartPie size={20} color={'var(--tribos-terracotta-500)'} />
           <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Training Zone Distribution
           </Text>

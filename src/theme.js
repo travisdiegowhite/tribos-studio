@@ -1,170 +1,174 @@
 import { createTheme } from '@mantine/core';
 
 // Design tokens for tribos.studio
-// Supports both dark (default) and light (Claude-inspired cream) themes
+// "Department of Cycling Intelligence" — retro-futuristic field guide
+// Anybody / Familjen Grotesk / DM Mono
+// Light: parchment-to-bone, Dark: cool green-black
 
 // ===== Depth Presets =====
-// Bundled style objects for the five depth techniques:
-// 1. Gradient surface  2. Top edge highlight  3. Inner glow
-// 4. Layered drop shadows  5. Shine line (via CSS class)
+// Flat surfaces with sharp borders — no gradients, no edge lighting
 export const depth = {
   card: {
-    background: 'linear-gradient(180deg, #1e242d 0%, #181d24 40%, #161a22 100%)',
-    border: '1px solid #2a3140',
-    borderTop: '1px solid rgba(255, 255, 255, 0.09)',
-    borderRadius: 16,
-    boxShadow: [
-      'inset 0 1px 0 rgba(255,255,255,0.07)',
-      'inset 0 0 30px rgba(255,255,255,0.01)',
-      '0 1px 1px rgba(0,0,0,0.4)',
-      '0 4px 8px rgba(0,0,0,0.3)',
-      '0 12px 32px rgba(0,0,0,0.35)',
-      '0 24px 56px rgba(0,0,0,0.2)',
-    ].join(', '),
-    boxShadowHover: [
-      'inset 0 1px 0 rgba(255,255,255,0.07)',
-      'inset 0 0 30px rgba(255,255,255,0.01)',
-      '0 2px 4px rgba(0,0,0,0.4)',
-      '0 8px 16px rgba(0,0,0,0.35)',
-      '0 20px 48px rgba(0,0,0,0.4)',
-      '0 32px 72px rgba(0,0,0,0.25)',
-    ].join(', '),
+    background: 'var(--tribos-card)',
+    border: '1.5px solid var(--tribos-border-default)',
+    borderRadius: 0,
+    boxShadow: 'var(--tribos-shadow-card)',
+    boxShadowHover: 'var(--tribos-shadow-card-hover)',
   },
 
   accentCard: {
-    background: 'linear-gradient(180deg, #1e242d 0%, #181d24 50%, #161a22 100%)',
-    border: '1px solid rgba(74, 222, 128, 0.35)',
-    borderTop: '1px solid rgba(74, 222, 128, 0.4)',
-    boxShadow: [
-      'inset 0 1px 0 rgba(74,222,128,0.08)',
-      '0 1px 1px rgba(0,0,0,0.4)',
-      '0 4px 8px rgba(0,0,0,0.3)',
-      '0 12px 32px rgba(0,0,0,0.35)',
-      '0 0 40px rgba(74,222,128,0.06)',
-    ].join(', '),
+    background: 'var(--tribos-card)',
+    border: '1.5px solid var(--tribos-terracotta-border)',
+    borderRadius: 0,
+    boxShadow: 'var(--tribos-shadow-card)',
   },
 
   recessed: {
     background: 'var(--tribos-input)',
-    border: '1px solid var(--tribos-border-subtle)',
-    boxShadow: 'var(--tribos-shadow-inset)',
+    border: '1px solid var(--tribos-border-default)',
+    boxShadow: 'none',
   },
 
   panel: {
-    background: 'linear-gradient(180deg, #14181e 0%, #12161b 100%)',
-    boxShadow: 'var(--tribos-shadow-panel)',
+    background: 'var(--tribos-panel)',
+    boxShadow: 'none',
   },
 };
 
-// Dark theme tokens
-export const darkTokens = {
-  colors: {
-    // Primary: Green (shifted from Electric Lime)
-    electricLime: '#4ade80',
-    electricLimeLight: '#6ee7a0',
-    electricLimeDark: '#22c55e',
-
-    // Backgrounds - wider elevation range
-    bgPrimary: '#000000',    // Void
-    bgSecondary: '#181d24',  // Card
-    bgTertiary: '#12161b',   // Panel
-    bgElevated: '#2a323e',   // Elevated
-
-    // Borders
-    border: '#2a3140',
-    borderLight: '#3a4455',
-    borderFocus: 'rgba(74, 222, 128, 0.5)',
-
-    // Text - high contrast for readability
-    textPrimary: '#f4f5f7',
-    textSecondary: '#a0a8b4',
-    textMuted: '#6d7888',
-
-    // Semantic
-    success: '#4ade80',
-    warning: '#f5a623',
-    error: '#f87171',
-    info: '#60a5fa',
-
-    // Training Zone Colors - FOR CHARTS/VISUALIZATION ONLY
-    zone1: '#3B82F6', // Recovery - Blue
-    zone2: '#22C55E', // Endurance - Green
-    zone3: '#EAB308', // Tempo - Yellow
-    zone4: '#F97316', // Threshold - Orange
-    zone5: '#EF4444', // VO2max - Red
-    zone6: '#A855F7', // Anaerobic - Purple
-    zone7: '#EC4899', // Neuromuscular - Pink
-  },
-
-  // Shadows for elevation - layered depth system
-  shadows: {
-    xs: '0 1px 2px rgba(0, 0, 0, 0.3)',
-    sm: '0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.25)',
-    md: depth.card.boxShadow,
-    lg: depth.card.boxShadowHover,
-    card: depth.card.boxShadow,
-    cardHover: depth.card.boxShadowHover,
-    focus: '0 0 0 2px rgba(74, 222, 128, 0.3)',
-  },
-};
-
-// Light theme tokens - Tribos fresh gray-green
+// Light theme tokens (default — bone/ink)
 export const lightTokens = {
   colors: {
-    // Primary: Adjusted lime for light backgrounds
-    electricLime: '#22A822',
-    electricLimeLight: '#32CD32',
-    electricLimeDark: '#1A8A1A',
+    // Primary accent: Sienna (via terracotta token)
+    terracotta: '#9E5A3C',
+    terracottaLight: '#BD7C58',
+    terracottaDark: '#864D33',
 
-    // Backgrounds - cool gray with subtle green undertone
-    bgPrimary: '#F4F6F5',     // Soft gray-green base
-    bgSecondary: '#FAFBFA',   // Near-white with green hint for cards
-    bgTertiary: '#EAEDEB',    // Muted cool gray
-    bgElevated: '#FFFFFF',    // Pure white for elevated surfaces
+    // Brand accents — geological, earthy
+    mauve: '#6B7F94',      // Slate (informational, Z5)
+    teal: '#5C7A5E',       // Moss (Z2 endurance)
+    sage: '#6B8C72',       // Forest (Z1 recovery)
+    gold: '#B89040',       // Ochre (Z3 tempo)
+    dustyRose: '#8B6B5A',  // Iron (warm brown)
+    skyPale: '#8B6B5A',    // Iron
 
-    // Borders - subtle warm grays
-    border: 'rgba(0, 0, 0, 0.08)',
-    borderLight: 'rgba(0, 0, 0, 0.12)',
-    borderFocus: 'rgba(34, 168, 34, 0.5)',
+    // Backgrounds — cool gray-green bone
+    bgPrimary: '#EDEDE8',     // Bone (page background)
+    bgSecondary: '#F5F5F1',   // Surface (cards)
+    bgTertiary: '#E0E0D9',    // Sunken (recessed areas)
+    bgElevated: '#FBFBF9',    // Elevated (modals/inputs)
 
-    // Text - darker for better contrast
-    textPrimary: '#171a18',
-    textSecondary: '#3d4240',
-    textMuted: '#5f6563',
+    // Borders
+    border: '#C8C8BE',
+    borderLight: '#E0E0D9',
+    borderFocus: 'rgba(158, 90, 60, 0.5)',
 
-    // Semantic - slightly adjusted for light bg
-    success: '#22A822',
-    warning: '#D99700',
-    error: '#DC3030',
-    info: '#0096B4',
+    // Text — green-black ink
+    textPrimary: '#24261F',
+    textSecondary: '#74766A',
+    textMuted: '#9A9C90',
 
-    // Training Zone Colors - same for consistency
-    zone1: '#3B82F6',
-    zone2: '#22C55E',
-    zone3: '#EAB308',
-    zone4: '#F97316',
-    zone5: '#EF4444',
-    zone6: '#A855F7',
-    zone7: '#EC4899',
+    // Semantic — mapped to palette
+    success: '#6B8C72',  // Forest (sage token)
+    warning: '#B89040',  // Ochre (gold token)
+    error: '#9E5A3C',    // Sienna (terracotta token)
+    info: '#6B7F94',     // Slate (mauve token)
+
+    // Training Zone Colors — 5 spec zones + 2 extensions
+    zone1: '#6B8C72', // Recovery — Forest
+    zone2: '#5C7A5E', // Endurance — Moss
+    zone3: '#B89040', // Tempo — Ochre
+    zone4: '#9E5A3C', // Threshold — Sienna
+    zone5: '#6B7F94', // VO2max — Slate
+    zone6: '#8B6B5A', // Anaerobic — Iron
+    zone7: '#C8C8BE', // Rest/Neuromuscular — Border gray
+
+    // Legacy aliases (backward compat)
+    electricLime: '#9E5A3C',
+    electricLimeLight: '#BD7C58',
+    electricLimeDark: '#864D33',
   },
 
-  // Shadows for light theme - softer, warmer
   shadows: {
-    xs: '0 1px 2px rgba(0, 0, 0, 0.05)',
-    sm: '0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
-    md: '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',
-    lg: '0 8px 24px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.06)',
-    // Card shadow - subtle lift
+    xs: '0 1px 2px rgba(0, 0, 0, 0.04)',
+    sm: '0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
+    md: '0 2px 6px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04)',
+    lg: '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',
     card: '0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
     cardHover: '0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
-    // Green glow for focus states
-    focus: '0 0 0 2px rgba(34, 168, 34, 0.25)',
+    focus: '0 0 0 2px rgba(158, 90, 60, 0.25)',
   },
 };
 
-// Default export for backward compatibility - uses dark theme
-// Components should use useThemeTokens() hook for theme-aware tokens
-export const tokens = darkTokens;
+// Dark theme tokens (cool green-black)
+export const darkTokens = {
+  colors: {
+    // Primary accent: Sienna (same hue, both themes)
+    terracotta: '#9E5A3C',
+    terracottaLight: '#BD7C58',
+    terracottaDark: '#864D33',
+
+    // Brand accents — slightly muted for dark
+    mauve: '#6B7F94',      // Slate
+    mauveDim: '#5B6C7D',
+    teal: '#507052',       // Moss (dark)
+    tealDim: '#405643',
+    sage: '#5E8068',       // Forest (dark)
+    gold: '#B89040',       // Ochre (same)
+    goldDim: '#9B7936',
+    dustyRose: '#7A5E4E',  // Iron (dark)
+    skyMuted: '#7A5E4E',   // Iron (dark)
+
+    // Backgrounds — cool green-black
+    bgPrimary: '#111210',     // Deep (page background)
+    bgSecondary: '#191A17',   // Surface (cards)
+    bgTertiary: '#1D1E1B',    // Card bg
+    bgElevated: '#222320',    // Elevated (modals)
+
+    // Borders
+    border: '#2C2D28',
+    borderLight: '#232420',
+    borderFocus: 'rgba(158, 90, 60, 0.5)',
+
+    // Text — cool cream hierarchy
+    textPrimary: '#E5E5DF',
+    textSecondary: '#959588',
+    textMuted: '#636358',
+    textDim: '#444439',
+
+    // Semantic
+    success: '#5E8068',
+    warning: '#B89040',
+    error: '#9E5A3C',
+    info: '#6B7F94',
+
+    // Training Zone Colors — dark adapted
+    zone1: '#5E8068', // Recovery — Forest (dark)
+    zone2: '#507052', // Endurance — Moss (dark)
+    zone3: '#B89040', // Tempo — Ochre
+    zone4: '#9E5A3C', // Threshold — Sienna
+    zone5: '#6B7F94', // VO2max — Slate
+    zone6: '#7A5E4E', // Anaerobic — Iron (dark)
+    zone7: '#2C2D28', // Rest — Border gray (dark)
+
+    // Legacy aliases
+    electricLime: '#9E5A3C',
+    electricLimeLight: '#BD7C58',
+    electricLimeDark: '#864D33',
+  },
+
+  shadows: {
+    xs: '0 1px 2px rgba(0, 0, 0, 0.2)',
+    sm: '0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15)',
+    md: '0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2)',
+    lg: '0 4px 16px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.2)',
+    card: '0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15)',
+    cardHover: '0 4px 12px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2)',
+    focus: '0 0 0 2px rgba(158, 90, 60, 0.3)',
+  },
+};
+
+// Default export — uses light theme (new default)
+export const tokens = lightTokens;
 
 // Shared tokens (theme-independent)
 export const sharedTokens = {
@@ -178,36 +182,32 @@ export const sharedTokens = {
   },
 
   radius: {
-    sm: '6px',
-    md: '8px',
-    lg: '12px',
-    xl: '16px',
+    sm: '0px',
+    md: '0px',
+    lg: '0px',
+    xl: '0px',
     full: '9999px',
   },
 
-  // Transitions
   transitions: {
     fast: '100ms ease',
     normal: '150ms ease',
     slow: '250ms ease',
   },
 
-  // Centralized breakpoints - use these consistently across all components
-  // Usage: useMediaQuery(`(max-width: ${sharedTokens.breakpoints.sm})`)
   breakpoints: {
-    xs: '480px',   // Small phones
-    sm: '768px',   // Tablets / large phones (primary mobile breakpoint)
-    md: '1024px',  // Small laptops / tablets landscape
-    lg: '1200px',  // Desktops
-    xl: '1400px',  // Large desktops
+    xs: '480px',
+    sm: '768px',
+    md: '1024px',
+    lg: '1200px',
+    xl: '1400px',
   },
 
-  // Mobile-specific spacing (use on mobile for better touch targets)
   mobileSpacing: {
-    touch: '44px',    // Minimum touch target size (iOS standard)
-    gap: '8px',       // Minimum gap between elements on mobile
-    gapLg: '12px',    // Comfortable gap for cards/list items
-    padding: '16px',  // Container padding on mobile
+    touch: '44px',
+    gap: '8px',
+    gapLg: '12px',
+    padding: '16px',
   },
 };
 
@@ -218,147 +218,178 @@ Object.assign(lightTokens, sharedTokens);
 
 // Helper to get tokens based on color scheme
 export function getThemeTokens(colorScheme) {
-  return colorScheme === 'light' ? lightTokens : darkTokens;
+  return colorScheme === 'dark' ? darkTokens : lightTokens;
 }
 
 // Mantine theme configuration
 export const theme = createTheme({
-  primaryColor: 'green',
-  primaryShade: { light: 6, dark: 4 },
+  primaryColor: 'terracotta',
+  primaryShade: { light: 5, dark: 4 },
 
   colors: {
-    green: [
-      '#e6fff0', '#b3ffd6', '#86efac', '#6ee7a0',
-      '#4ade80', '#22c55e', '#16a34a', '#15803d',
-      '#166534', '#14532d',
+    terracotta: [
+      '#F9F2EE', '#EEDBD0', '#DDB9A4', '#CC9778',
+      '#BD7C58', '#9E5A3C', '#864D33', '#6E402A',
+      '#563322', '#40271A',
+    ],
+    sage: [
+      '#F0F5F1', '#D8E6DB', '#BCD4C1', '#9CC1A4',
+      '#82A98A', '#6B8C72', '#5A7760', '#4A624F',
+      '#3B4E3F', '#2D3B30',
+    ],
+    teal: [
+      '#EEF3EF', '#D4E2D6', '#B5CEB8', '#93B896',
+      '#77A07A', '#5C7A5E', '#4E6850', '#405643',
+      '#334536', '#27352A',
+    ],
+    mauve: [
+      '#F1F4F7', '#D9E0E8', '#BCC8D4', '#9DAFC0',
+      '#8497AA', '#6B7F94', '#5B6C7D', '#4B5967',
+      '#3C4752', '#2E363E',
+    ],
+    gold: [
+      '#FAF5EA', '#F1E4C4', '#E6CF96', '#D9B96A',
+      '#CCA450', '#B89040', '#9B7936', '#7E632C',
+      '#624D23', '#48391A',
+    ],
+    sky: [
+      '#F5F0ED', '#E5DCD6', '#D1C1B6', '#BCA495',
+      '#A38877', '#8B6B5A', '#765B4C', '#624B3E',
+      '#4E3C32', '#3B2E26',
     ],
     dark: [
-      '#f4f5f7',  // 0 — lightest text
-      '#d0d5dc',  // 1
-      '#a0a8b4',  // 2
-      '#6d7888',  // 3
-      '#4a5363',  // 4
-      '#2a323e',  // 5 — elevated
-      '#1e242d',  // 6 — card top
-      '#181d24',  // 7 — card base
-      '#12161b',  // 8 — panel
-      '#000000',  // 9 — void
+      '#E5E5DF',  // 0 — lightest text
+      '#959588',  // 1 — secondary text
+      '#636358',  // 2 — tertiary text
+      '#444439',  // 3 — dim text
+      '#2C2D28',  // 4 — borders
+      '#222320',  // 5 — elevated
+      '#1D1E1B',  // 6 — card
+      '#191A17',  // 7 — surface
+      '#131410',  // 8 — panel
+      '#111210',  // 9 — deep
     ],
-    // Light theme gray scale (warm tones)
     gray: [
-      '#fafaf9',
-      '#f5f5f4',
-      '#e7e5e4',
-      '#d6d3d1',
-      '#a8a29e',
-      '#78716c',
-      '#57534e',
-      '#44403c',
-      '#292524',
-      '#1c1917',
+      '#FBFBF9',  // 0 — elevated
+      '#F5F5F1',  // 1 — surface
+      '#EDEDE8',  // 2 — bone (base)
+      '#E0E0D9',  // 3 — sunken
+      '#C8C8BE',  // 4 — border default
+      '#74766A',  // 5 — tertiary text
+      '#44463C',  // 6 — secondary text
+      '#24261F',  // 7 — primary text
+      '#1A1C16',  // 8 — deep ink
+      '#111210',  // 9 — darkest
+    ],
+    green: [
+      '#F0F5F1', '#D8E6DB', '#BCD4C1', '#9CC1A4',
+      '#82A98A', '#6B8C72', '#5A7760', '#4A624F',
+      '#3B4E3F', '#2D3B30',
     ],
   },
 
   radius: {
-    xs: '6px',
-    sm: '8px',
-    md: '10px',
-    lg: '14px',
-    xl: '16px',
+    xs: '0px',
+    sm: '0px',
+    md: '0px',
+    lg: '0px',
+    xl: '0px',
   },
 
-  fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-  fontFamilyMonospace: "'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  fontFamily: "'Familjen Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+  fontFamilyMonospace: "'DM Mono', 'SF Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 
   headings: {
-    fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    fontWeight: '700',
+    fontFamily: "'Anybody', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    fontWeight: '800',
     sizes: {
-      h1: { fontSize: '26px', lineHeight: '1.2' },
-      h2: { fontSize: '20px', lineHeight: '1.3' },
-      h3: { fontSize: '16px', lineHeight: '1.4' },
-      h4: { fontSize: '14px', lineHeight: '1.45' },
+      h1: { fontSize: '26px', lineHeight: '1.1' },
+      h2: { fontSize: '20px', lineHeight: '1.2' },
+      h3: { fontSize: '16px', lineHeight: '1.3' },
+      h4: { fontSize: '14px', lineHeight: '1.4' },
     },
   },
 
-  defaultRadius: 'md',
+  defaultRadius: 0,
 
   shadows: {
-    xs: '0 1px 2px rgba(0,0,0,0.3)',
-    sm: '0 1px 3px rgba(0,0,0,0.4), 0 4px 8px rgba(0,0,0,0.25)',
-    md: depth.card.boxShadow,
-    lg: depth.card.boxShadowHover,
-    xl: '0 2px 4px rgba(0,0,0,0.4), 0 12px 32px rgba(0,0,0,0.45), 0 32px 72px rgba(0,0,0,0.3)',
+    xs: '0 1px 2px rgba(0,0,0,0.04)',
+    sm: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+    md: '0 2px 6px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)',
+    lg: '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',
+    xl: '0 8px 24px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.06)',
   },
 
   other: {
-    // Expose tokens to components via theme.other
     transitions: sharedTokens.transitions,
     depth,
   },
 
   components: {
     Paper: {
-      defaultProps: { radius: 'xl' },
+      defaultProps: { radius: 0 },
       styles: () => ({
         root: {
-          background: depth.card.background,
-          border: depth.card.border,
-          borderTop: depth.card.borderTop,
-          boxShadow: depth.card.boxShadow,
-          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          background: 'var(--tribos-card)',
+          border: '1.5px solid var(--tribos-border-default)',
+          borderRadius: 0,
+          boxShadow: 'var(--tribos-shadow-card)',
+          transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
         },
       }),
     },
 
     Card: {
-      defaultProps: { radius: 'xl', padding: 'lg' },
+      defaultProps: { radius: 0, padding: 'lg' },
       styles: () => ({
         root: {
-          background: depth.card.background,
-          border: depth.card.border,
-          borderTop: depth.card.borderTop,
-          boxShadow: depth.card.boxShadow,
+          background: 'var(--tribos-card)',
+          border: '1.5px solid var(--tribos-border-default)',
+          borderRadius: 0,
+          boxShadow: 'var(--tribos-shadow-card)',
           overflow: 'hidden',
-          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
           '&:hover': {
-            boxShadow: depth.card.boxShadowHover,
+            boxShadow: 'var(--tribos-shadow-card-hover)',
             borderColor: 'var(--tribos-border-hover)',
-            transform: 'translateY(-2px)',
           },
         },
       }),
     },
 
     Button: {
-      defaultProps: { radius: 'md' },
+      defaultProps: { radius: 0 },
       styles: () => ({
         root: {
           fontWeight: 600,
+          fontFamily: "'DM Mono', monospace",
+          fontSize: 11,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
           transition: 'all 0.15s',
         },
       }),
     },
 
     TextInput: {
-      defaultProps: { radius: 'md' },
+      defaultProps: { radius: 0 },
       styles: () => ({
         input: {
           background: 'var(--tribos-input)',
-          border: '1px solid var(--tribos-border-subtle)',
+          border: '1px solid var(--tribos-border-default)',
           color: 'var(--tribos-text-100)',
-          boxShadow: 'var(--tribos-shadow-inset)',
           transition: 'all 0.15s',
           '&:focus': {
-            borderColor: 'var(--tribos-green-border)',
-            boxShadow: 'var(--tribos-shadow-inset), 0 0 0 3px rgba(74,222,128,0.06)',
+            borderColor: 'var(--tribos-terracotta-border)',
+            boxShadow: '0 0 0 2px rgba(158, 90, 60, 0.1)',
           },
           '&::placeholder': { color: 'var(--tribos-text-500)' },
         },
         label: {
+          fontFamily: "'DM Mono', monospace",
           fontSize: 10,
-          fontWeight: 600,
-          letterSpacing: '1px',
+          fontWeight: 500,
+          letterSpacing: '2px',
           textTransform: 'uppercase',
           color: 'var(--tribos-text-500)',
         },
@@ -366,76 +397,81 @@ export const theme = createTheme({
     },
 
     Textarea: {
+      defaultProps: { radius: 0 },
       styles: () => ({
         input: {
           background: 'var(--tribos-input)',
-          border: '1px solid var(--tribos-border-subtle)',
+          border: '1px solid var(--tribos-border-default)',
           color: 'var(--tribos-text-100)',
-          boxShadow: 'var(--tribos-shadow-inset)',
           '&:focus': {
-            borderColor: 'var(--tribos-green-border)',
-            boxShadow: 'var(--tribos-shadow-inset), 0 0 0 3px rgba(74,222,128,0.06)',
+            borderColor: 'var(--tribos-terracotta-border)',
+            boxShadow: '0 0 0 2px rgba(158, 90, 60, 0.1)',
           },
         },
       }),
     },
 
     PasswordInput: {
-      defaultProps: { radius: 'md' },
+      defaultProps: { radius: 0 },
     },
 
     Select: {
-      defaultProps: { radius: 'md' },
+      defaultProps: { radius: 0 },
       styles: () => ({
         input: {
           background: 'var(--tribos-input)',
-          border: '1px solid var(--tribos-border-subtle)',
+          border: '1px solid var(--tribos-border-default)',
           color: 'var(--tribos-text-100)',
-          boxShadow: 'var(--tribos-shadow-inset)',
         },
         dropdown: {
           background: 'var(--tribos-elevated)',
           border: '1px solid var(--tribos-border-default)',
+          borderRadius: 0,
           boxShadow: 'var(--tribos-shadow-card-hover)',
         },
       }),
     },
 
     Badge: {
+      defaultProps: { radius: 0 },
       styles: () => ({
-        root: { fontWeight: 600, fontSize: 11, textTransform: 'none' },
+        root: {
+          fontFamily: "'DM Mono', monospace",
+          fontWeight: 500,
+          fontSize: 10,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
+        },
       }),
     },
 
     Tabs: {
       styles: () => ({
         list: {
-          background: 'linear-gradient(180deg, #14181e, #111519)',
-          border: '1px solid var(--tribos-border-subtle)',
-          borderRadius: 12,
-          padding: 4,
-          boxShadow: 'var(--tribos-shadow-inset)',
-          gap: 2,
+          borderBottom: '1px solid var(--tribos-border-default)',
+          gap: 0,
           '&::before': { display: 'none' },
         },
         tab: {
-          borderRadius: 8,
+          borderRadius: 0,
           color: 'var(--tribos-text-400)',
+          fontFamily: "'DM Mono', monospace",
           fontWeight: 500,
-          fontSize: 13,
-          padding: '8px 18px',
+          fontSize: 11,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
+          padding: '10px 16px',
           border: 'none',
+          borderBottom: '2px solid transparent',
           transition: 'all 0.15s',
           '&:hover': {
-            background: 'rgba(255,255,255,0.03)',
-            color: 'var(--tribos-text-300)',
+            background: 'transparent',
+            color: 'var(--tribos-text-100)',
           },
           '&[data-active]': {
-            background: 'linear-gradient(180deg, var(--tribos-card-top), var(--tribos-card))',
+            background: 'transparent',
             color: 'var(--tribos-text-100)',
-            border: '1px solid var(--tribos-border-default)',
-            borderTop: '1px solid var(--tribos-edge-light-strong)',
-            boxShadow: 'var(--tribos-inner-glow), 0 2px 8px rgba(0,0,0,0.3)',
+            borderBottom: '2px solid var(--tribos-terracotta-500)',
           },
         },
       }),
@@ -445,22 +481,23 @@ export const theme = createTheme({
       styles: () => ({
         root: {
           background: 'var(--tribos-input)',
-          border: '1px solid var(--tribos-border-subtle)',
-          borderRadius: 10,
-          padding: 4,
-          boxShadow: 'var(--tribos-shadow-inset)',
+          border: '1px solid var(--tribos-border-default)',
+          borderRadius: 0,
+          padding: 2,
         },
         indicator: {
-          background: 'linear-gradient(180deg, var(--tribos-card-top), var(--tribos-card))',
+          background: 'var(--tribos-card)',
           border: '1px solid var(--tribos-border-default)',
-          borderTop: '1px solid var(--tribos-edge-light-strong)',
-          borderRadius: 7,
-          boxShadow: 'var(--tribos-inner-glow), 0 2px 6px rgba(0,0,0,0.3)',
+          borderRadius: 0,
+          boxShadow: 'var(--tribos-shadow-xs)',
         },
         label: {
           color: 'var(--tribos-text-500)',
+          fontFamily: "'DM Mono', monospace",
           fontWeight: 500,
-          fontSize: 12,
+          fontSize: 11,
+          letterSpacing: '1px',
+          textTransform: 'uppercase',
           '&[data-active]': { color: 'var(--tribos-text-100) !important' },
         },
       }),
@@ -470,14 +507,12 @@ export const theme = createTheme({
       styles: () => ({
         main: { background: 'var(--tribos-void)' },
         navbar: {
-          background: depth.panel.background,
+          background: 'var(--tribos-panel)',
           borderRight: '1px solid var(--tribos-border-default)',
-          boxShadow: depth.panel.boxShadow,
         },
         header: {
           background: 'var(--tribos-nav)',
-          borderBottom: '1px solid var(--tribos-border-subtle)',
-          boxShadow: '0 1px 0 var(--tribos-edge-light)',
+          borderBottom: '1px solid var(--tribos-border-default)',
         },
       }),
     },
@@ -485,23 +520,23 @@ export const theme = createTheme({
     NavLink: {
       styles: () => ({
         root: {
-          borderRadius: 8,
+          borderRadius: 0,
           color: 'var(--tribos-text-400)',
           '&:hover': {
-            background: 'rgba(255,255,255,0.04)',
-            color: 'var(--tribos-text-300)',
+            background: 'var(--tribos-terracotta-surface)',
+            color: 'var(--tribos-text-100)',
           },
           '&[data-active]': {
-            background: 'var(--tribos-green-surface-strong)',
-            color: 'var(--tribos-green-500)',
-            border: '1px solid var(--tribos-green-border)',
-            boxShadow: 'var(--tribos-inner-glow)',
+            background: 'var(--tribos-terracotta-surface)',
+            color: 'var(--tribos-terracotta-500)',
+            borderLeft: '2px solid var(--tribos-terracotta-500)',
           },
         },
       }),
     },
 
     ActionIcon: {
+      defaultProps: { radius: 0 },
       styles: () => ({
         root: {
           transition: 'all 150ms ease',
@@ -510,11 +545,12 @@ export const theme = createTheme({
     },
 
     Modal: {
-      defaultProps: { radius: 'lg', centered: true },
+      defaultProps: { radius: 0, centered: true },
       styles: () => ({
         content: {
           background: 'var(--tribos-elevated)',
           border: '1px solid var(--tribos-border-default)',
+          borderRadius: 0,
           boxShadow: 'var(--tribos-shadow-card-hover)',
         },
         header: {
@@ -524,6 +560,7 @@ export const theme = createTheme({
     },
 
     Drawer: {
+      defaultProps: { radius: 0 },
       styles: () => ({
         content: {
           background: 'var(--tribos-elevated)',
@@ -537,13 +574,15 @@ export const theme = createTheme({
         dropdown: {
           background: 'var(--tribos-elevated)',
           border: '1px solid var(--tribos-border-default)',
+          borderRadius: 0,
           boxShadow: 'var(--tribos-shadow-card-hover)',
         },
         item: {
           color: 'var(--tribos-text-300)',
+          borderRadius: 0,
           transition: 'background-color 100ms ease',
           '&:hover': {
-            background: 'rgba(255,255,255,0.04)',
+            background: 'var(--tribos-terracotta-surface)',
             color: 'var(--tribos-text-100)',
           },
         },
@@ -556,18 +595,21 @@ export const theme = createTheme({
           background: 'var(--tribos-elevated)',
           border: '1px solid var(--tribos-border-default)',
           color: 'var(--tribos-text-200)',
+          borderRadius: 0,
           boxShadow: 'var(--tribos-shadow-card)',
-          fontSize: 12,
+          fontFamily: "'DM Mono', monospace",
+          fontSize: 11,
         },
       }),
     },
 
     Notification: {
-      defaultProps: { radius: 'md' },
+      defaultProps: { radius: 0 },
       styles: () => ({
         root: {
           background: 'var(--tribos-elevated)',
           border: '1px solid var(--tribos-border-default)',
+          borderRadius: 0,
           boxShadow: 'var(--tribos-shadow-card)',
         },
       }),

@@ -372,7 +372,7 @@ export default function MapControls({
             <IconCompass
               size={20}
               style={{
-                color: isRotated ? 'var(--tribos-lime)' : 'var(--tribos-text-secondary)',
+                color: isRotated ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-secondary)',
               }}
             />
           </ActionIcon>
@@ -389,7 +389,7 @@ export default function MapControls({
             <IconTiltShift
               size={20}
               style={{
-                color: isTilted ? 'var(--tribos-lime)' : 'var(--tribos-text-secondary)',
+                color: isTilted ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-secondary)',
               }}
             />
           </ActionIcon>

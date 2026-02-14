@@ -120,7 +120,7 @@ function WeeklyCheckInWidget({
         radius="md"
         style={{
           backgroundColor: 'var(--tribos-bg-secondary)',
-          border: `1px solid ${'var(--tribos-lime)'}40`,
+          border: `1px solid ${'var(--tribos-terracotta-500)'}40`,
           position: 'relative',
         }}
       >
@@ -144,7 +144,7 @@ function WeeklyCheckInWidget({
         <Stack gap="sm">
           {/* Header */}
           <Group gap="xs">
-            <IconMessageCircle size={18} color={'var(--tribos-lime)'} />
+            <IconMessageCircle size={18} color={'var(--tribos-terracotta-500)'} />
             <Text size="sm" fw={500}>
               Weekly Check-In
             </Text>
@@ -210,7 +210,7 @@ function WeeklyCheckInWidget({
                 backgroundColor: 'var(--tribos-bg-tertiary)',
               },
               indicator: {
-                backgroundColor: 'var(--tribos-lime)',
+                backgroundColor: 'var(--tribos-terracotta-500)',
               },
               label: {
                 color: 'var(--tribos-text-secondary)',
@@ -239,7 +239,7 @@ function WeeklyCheckInWidget({
                       color: 'var(--tribos-text-muted)',
                     },
                     '&:focus': {
-                      borderColor: 'var(--tribos-lime)',
+                      borderColor: 'var(--tribos-terracotta-500)',
                     },
                   },
                 }}
@@ -260,7 +260,7 @@ function WeeklyCheckInWidget({
                       color: 'var(--tribos-text-muted)',
                     },
                     '&:focus': {
-                      borderColor: 'var(--tribos-lime)',
+                      borderColor: 'var(--tribos-terracotta-500)',
                     },
                   },
                 }}
@@ -298,7 +298,7 @@ function WeeklyCheckInWidget({
                             backgroundColor: 'var(--tribos-bg-tertiary)',
                           },
                           indicator: {
-                            backgroundColor: 'var(--tribos-lime)',
+                            backgroundColor: 'var(--tribos-terracotta-500)',
                           },
                         }}
                       />
@@ -320,7 +320,7 @@ function WeeklyCheckInWidget({
                             backgroundColor: 'var(--tribos-bg-tertiary)',
                           },
                           indicator: {
-                            backgroundColor: 'var(--tribos-lime)',
+                            backgroundColor: 'var(--tribos-terracotta-500)',
                           },
                         }}
                       />
@@ -335,7 +335,7 @@ function WeeklyCheckInWidget({
                             key={factor.value}
                             size="md"
                             variant={energyFactors.includes(factor.value) ? 'filled' : 'outline'}
-                            color={energyFactors.includes(factor.value) ? 'lime' : 'gray'}
+                            color={energyFactors.includes(factor.value) ? 'terracotta' : 'gray'}
                             style={{ cursor: 'pointer' }}
                             onClick={() => {
                               setEnergyFactors(prev =>
@@ -362,7 +362,7 @@ function WeeklyCheckInWidget({
                   disabled={!mood}
                   leftSection={<IconCheck size={16} />}
                   style={{
-                    backgroundColor: 'var(--tribos-lime)',
+                    backgroundColor: 'var(--tribos-terracotta-500)',
                     color: 'var(--tribos-bg-primary)',
                   }}
                 >
@@ -457,7 +457,7 @@ function WeeklyCheckInWidget({
                   backgroundColor: 'var(--tribos-bg-tertiary)',
                 },
                 indicator: {
-                  backgroundColor: 'var(--tribos-lime)',
+                  backgroundColor: 'var(--tribos-terracotta-500)',
                 },
               }}
             />
@@ -514,7 +514,7 @@ function WeeklyCheckInWidget({
                         backgroundColor: 'var(--tribos-bg-tertiary)',
                       },
                       indicator: {
-                        backgroundColor: 'var(--tribos-lime)',
+                        backgroundColor: 'var(--tribos-terracotta-500)',
                       },
                     }}
                   />
@@ -536,7 +536,7 @@ function WeeklyCheckInWidget({
                         backgroundColor: 'var(--tribos-bg-tertiary)',
                       },
                       indicator: {
-                        backgroundColor: 'var(--tribos-lime)',
+                        backgroundColor: 'var(--tribos-terracotta-500)',
                       },
                     }}
                   />
@@ -551,7 +551,7 @@ function WeeklyCheckInWidget({
                         key={factor.value}
                         size="md"
                         variant={energyFactors.includes(factor.value) ? 'filled' : 'outline'}
-                        color={energyFactors.includes(factor.value) ? 'lime' : 'gray'}
+                        color={energyFactors.includes(factor.value) ? 'terracotta' : 'gray'}
                         style={{ cursor: 'pointer' }}
                         onClick={() => {
                           setEnergyFactors(prev =>
@@ -596,7 +596,7 @@ function WeeklyCheckInWidget({
               loading={submitting}
               disabled={!mood}
               style={{
-                backgroundColor: 'var(--tribos-lime)',
+                backgroundColor: 'var(--tribos-terracotta-500)',
                 color: 'var(--tribos-bg-primary)',
               }}
             >

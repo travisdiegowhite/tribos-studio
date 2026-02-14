@@ -193,7 +193,7 @@ function DesktopNavLink({ to, label, icon: Icon, active }) {
       <Group gap={6}>
         <Icon
           size={16}
-          color={active ? 'var(--tribos-lime)' : 'var(--tribos-text-secondary)'}
+          color={active ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-secondary)'}
           stroke={1.5}
         />
         <Text
@@ -252,14 +252,14 @@ function MobileBottomNav({ navItems, isActive }) {
           >
             <Icon
               size={22}
-              color={active ? 'var(--tribos-lime)' : 'var(--tribos-text-secondary)'}
+              color={active ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-secondary)'}
               stroke={active ? 2 : 1.5}
             />
             <Text
               size="xs"
               fw={active ? 500 : 400}
               style={{
-                color: active ? 'var(--tribos-lime)' : 'var(--tribos-text-secondary)',
+                color: active ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-secondary)',
                 fontSize: 10,
               }}
             >

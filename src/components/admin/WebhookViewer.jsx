@@ -83,7 +83,7 @@ export default function WebhookViewer() {
       if (webhook.process_error) {
         return <Badge color="red" variant="light" leftSection={<IconX size={12} />}>Error</Badge>;
       }
-      return <Badge color="green" variant="light" leftSection={<IconCheck size={12} />}>Processed</Badge>;
+      return <Badge color="sage" variant="light" leftSection={<IconCheck size={12} />}>Processed</Badge>;
     }
     return <Badge color="yellow" variant="light" leftSection={<IconClock size={12} />}>Pending</Badge>;
   }
@@ -186,7 +186,7 @@ export default function WebhookViewer() {
             <Badge color="gray" variant="outline" size="sm">Total: {statusCounts.total}</Badge>
           </Group>
           <Group gap="xs">
-            <Badge color="green" variant="light" size="sm" leftSection={<IconCheck size={10} />}>
+            <Badge color="sage" variant="light" size="sm" leftSection={<IconCheck size={10} />}>
               Processed: {statusCounts.processed}
             </Badge>
           </Group>

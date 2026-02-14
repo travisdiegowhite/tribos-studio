@@ -541,7 +541,7 @@ export default function CrossTrainingModal({
                 label="Color"
                 value={newTypeColor}
                 onChange={setNewTypeColor}
-                swatches={['#ef4444', '#f97316', '#22c55e', '#06b6d4', '#6366f1', '#8b5cf6', '#ec4899']}
+                swatches={['#9E5A3C', '#B89040', '#6B8C72', '#5C7A5E', '#6366f1', '#6B7F94', '#8B6B5A']}
               />
               <Button
                 onClick={handleCreateType}

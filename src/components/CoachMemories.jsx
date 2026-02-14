@@ -42,7 +42,7 @@ const MEMORY_CATEGORIES = [
   { value: 'context', label: 'Life Context', icon: IconHeart, color: 'pink' },
   { value: 'obstacle', label: 'Obstacles', icon: IconAlertCircle, color: 'orange' },
   { value: 'pattern', label: 'Patterns', icon: IconClock, color: 'violet' },
-  { value: 'win', label: 'Wins', icon: IconTrophy, color: 'lime' },
+  { value: 'win', label: 'Wins', icon: IconTrophy, color: 'terracotta' },
   { value: 'preference', label: 'Preferences', icon: IconCalendar, color: 'cyan' },
   { value: 'injury', label: 'Injuries', icon: IconMoodSad, color: 'red' },
   { value: 'schedule', label: 'Schedule', icon: IconCalendar, color: 'gray' },
@@ -133,7 +133,7 @@ function CoachMemories({ opened, onClose }) {
       notifications.show({
         title: 'Memory Added',
         message: 'Your coach will remember this',
-        color: 'lime'
+        color: 'terracotta'
       });
     } catch (err) {
       console.error('Error adding memory:', err);
@@ -167,7 +167,7 @@ function CoachMemories({ opened, onClose }) {
       notifications.show({
         title: 'Memory Updated',
         message: 'Changes saved',
-        color: 'lime'
+        color: 'terracotta'
       });
     } catch (err) {
       console.error('Error updating memory:', err);
@@ -228,7 +228,7 @@ function CoachMemories({ opened, onClose }) {
       onClose={onClose}
       title={
         <Group gap="xs">
-          <ThemeIcon color="lime" variant="light">
+          <ThemeIcon color="terracotta" variant="light">
             <IconBrain size={18} />
           </ThemeIcon>
           <Text fw={600}>What I Remember</Text>
@@ -245,7 +245,7 @@ function CoachMemories({ opened, onClose }) {
         {!isAddingMemory ? (
           <Button
             variant="outline"
-            color="lime"
+            color="terracotta"
             leftSection={<IconPlus size={16} />}
             onClick={() => setIsAddingMemory(true)}
           >
@@ -282,7 +282,7 @@ function CoachMemories({ opened, onClose }) {
                   Cancel
                 </Button>
                 <Button
-                  color="lime"
+                  color="terracotta"
                   leftSection={<IconCheck size={16} />}
                   onClick={handleAddMemory}
                   disabled={!newMemory.content.trim()}
@@ -313,7 +313,7 @@ function CoachMemories({ opened, onClose }) {
         {/* Memory List */}
         {loading ? (
           <Stack align="center" py="xl">
-            <Loader color="lime" />
+            <Loader color="terracotta" />
             <Text size="sm" c="dimmed">Loading memories...</Text>
           </Stack>
         ) : filteredMemories.length === 0 ? (
@@ -358,7 +358,7 @@ function CoachMemories({ opened, onClose }) {
                         </Button>
                         <Button
                           size="xs"
-                          color="lime"
+                          color="terracotta"
                           onClick={() => handleUpdateMemory(memory.id, { content: memory.content })}
                         >
                           Save

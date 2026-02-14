@@ -69,7 +69,7 @@ export default function BikeInfrastructureLegend({ visible = true }) {
           userSelect: 'none',
         }}
       >
-        <IconInfoCircle size={16} color={'var(--tribos-lime)'} />
+        <IconInfoCircle size={16} color={'var(--tribos-terracotta-500)'} />
         <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
           Bike Infrastructure
         </Text>

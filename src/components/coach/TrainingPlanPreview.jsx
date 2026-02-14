@@ -21,11 +21,11 @@ import {
 
 // Phase color mapping
 const PHASE_COLORS = {
-  regular: 'blue',
-  recovery: 'green',
-  build: 'orange',
-  peak: 'red',
-  taper: 'grape',
+  regular: 'teal',
+  recovery: 'sage',
+  build: 'gold',
+  peak: 'terracotta',
+  taper: 'mauve',
 };
 
 // Methodology labels
@@ -56,7 +56,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
       p={compact ? 'sm' : 'md'}
       style={{
         backgroundColor: 'var(--tribos-bg-tertiary)',
-        border: '1px solid var(--tribos-green-border, rgba(50, 205, 50, 0.3))',
+        border: '1px solid var(--tribos-terracotta-border)',
         borderRadius: 12,
       }}
     >
@@ -64,7 +64,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
         {/* Header */}
         <Group justify="space-between" wrap="nowrap">
           <Group gap="xs" wrap="nowrap">
-            <IconChartLine size={16} style={{ color: 'var(--tribos-lime)' }} />
+            <IconChartLine size={16} style={{ color: 'var(--tribos-terracotta-500)' }} />
             <Text size={compact ? 'sm' : 'md'} fw={600} lineClamp={1}>
               {plan.name}
             </Text>
@@ -84,14 +84,14 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
 
         {/* Methodology badge */}
         <Group gap="xs">
-          <Badge size="sm" variant="light" color="lime">
+          <Badge size="sm" variant="light" color="terracotta">
             {METHODOLOGY_LABELS[plan.methodology] || plan.methodology}
           </Badge>
           <Badge size="sm" variant="light" color="gray">
             {plan.duration_weeks} weeks
           </Badge>
           {plan.goal && (
-            <Badge size="sm" variant="light" color="blue">
+            <Badge size="sm" variant="light" color="teal">
               {plan.goal.replace(/_/g, ' ')}
             </Badge>
           )}
@@ -149,7 +149,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
 
         {/* Activate button */}
         <Button
-          color="lime"
+          color="terracotta"
           size={compact ? 'xs' : 'sm'}
           leftSection={activating ? <Loader size={14} color="dark" /> : <IconTrophy size={16} />}
           onClick={handleActivate}

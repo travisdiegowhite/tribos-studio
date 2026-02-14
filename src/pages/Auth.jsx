@@ -147,7 +147,7 @@ function Auth() {
           <Text
             size="lg"
             fw={600}
-            style={{ color: 'var(--tribos-lime)', letterSpacing: '0.1em' }}
+            style={{ color: 'var(--tribos-terracotta-500)', letterSpacing: '0.1em' }}
             mb="xs"
           >
             TRIBOS.STUDIO
@@ -171,7 +171,7 @@ function Auth() {
                         <Button
                           size="xs"
                           variant="light"
-                          color={copied ? 'green' : 'yellow'}
+                          color={copied ? 'sage' : 'yellow'}
                           onClick={copy}
                         >
                           {copied ? 'Copied!' : 'Copy link to open in browser'}
@@ -189,13 +189,13 @@ function Auth() {
               )}
 
               {message && (
-                <Alert color="green" variant="light">
+                <Alert color="sage" variant="light">
                   {message}
                 </Alert>
               )}
 
               {fromBetaSignup && !message && (
-                <Alert color="lime" variant="light">
+                <Alert color="terracotta" variant="light">
                   Your email has been added to the beta list! Complete your account below.
                 </Alert>
               )}
@@ -228,7 +228,7 @@ function Auth() {
                 minLength={6}
               />
 
-              <Button type="submit" color="lime" loading={loading} fullWidth mt="sm">
+              <Button type="submit" color="terracotta" loading={loading} fullWidth mt="sm">
                 {isSignUp ? 'Create Account' : 'Sign In'}
               </Button>
             </Stack>
@@ -264,7 +264,7 @@ function Auth() {
                 setError('');
                 setMessage('');
               }}
-              style={{ color: 'var(--tribos-lime)' }}
+              style={{ color: 'var(--tribos-terracotta-500)' }}
             >
               {isSignUp ? 'Sign in' : 'Sign up'}
             </Anchor>

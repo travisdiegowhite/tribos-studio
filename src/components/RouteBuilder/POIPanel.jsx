@@ -65,9 +65,9 @@ export default function POIPanel({
             Nearby POIs
           </Text>
           {loading ? (
-            <Loader size={14} color="lime" />
+            <Loader size={14} color="terracotta" />
           ) : (
-            <Badge size="xs" variant="light" color="lime">{totalVisible}</Badge>
+            <Badge size="xs" variant="light" color="terracotta">{totalVisible}</Badge>
           )}
         </Group>
         <ActionIcon size="sm" variant="subtle" onClick={onClose} color="gray">

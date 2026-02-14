@@ -285,7 +285,7 @@ const IntervalDetection = ({ activity, ftp }) => {
     <Card>
       <Group justify="space-between" mb="md">
         <Group gap="sm">
-          <IconChartAreaLine size={20} color={'var(--tribos-lime)'} />
+          <IconChartAreaLine size={20} color={'var(--tribos-terracotta-500)'} />
           <Text size="sm" fw={600}>Workout Structure Analysis</Text>
         </Group>
         <Badge color={getTypeColor(analysis.type)} variant="light">

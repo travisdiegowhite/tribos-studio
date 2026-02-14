@@ -43,7 +43,7 @@ export default function SegmentAlternativesPanel({
         style={{ borderBottom: '1px solid var(--tribos-bg-tertiary)' }}
       >
         <Group gap={6}>
-          <IconArrowRight size={16} color="var(--tribos-lime)" />
+          <IconArrowRight size={16} color="var(--tribos-terracotta-500)" />
           <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Segment Alternatives
           </Text>
@@ -82,7 +82,7 @@ export default function SegmentAlternativesPanel({
       <Box style={{ padding: tokens.spacing.xs }}>
         {loading ? (
           <Box py="lg" style={{ textAlign: 'center' }}>
-            <Loader size={24} color="lime" />
+            <Loader size={24} color="terracotta" />
             <Text size="xs" mt="xs" style={{ color: 'var(--tribos-text-muted)' }}>
               Finding alternative routes…
             </Text>
@@ -143,7 +143,7 @@ export default function SegmentAlternativesPanel({
                       <ActionIcon
                         size="sm"
                         variant="light"
-                        color="lime"
+                        color="terracotta"
                         onClick={(e) => {
                           e.stopPropagation();
                           onApply?.(alt);
@@ -165,7 +165,7 @@ export default function SegmentAlternativesPanel({
                         <Text
                           size="xs"
                           fw={500}
-                          style={{ color: distDelta > 0 ? tokens.colors.zone4 : 'var(--tribos-lime)' }}
+                          style={{ color: distDelta > 0 ? tokens.colors.zone4 : 'var(--tribos-terracotta-500)' }}
                         >
                           {distDelta > 0 ? '+' : ''}{distDelta.toFixed(1)}
                         </Text>
@@ -182,7 +182,7 @@ export default function SegmentAlternativesPanel({
                           <Text
                             size="xs"
                             fw={500}
-                            style={{ color: elevDelta > 0 ? tokens.colors.zone4 : 'var(--tribos-lime)' }}
+                            style={{ color: elevDelta > 0 ? tokens.colors.zone4 : 'var(--tribos-terracotta-500)' }}
                           >
                             {elevDelta > 0 ? '+' : ''}{Math.round(elevDelta)}m
                           </Text>

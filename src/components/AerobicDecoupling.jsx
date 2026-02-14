@@ -91,7 +91,7 @@ export function interpretDecoupling(decoupling) {
   } else if (decoupling < 5) {
     return {
       status: 'good',
-      color: 'lime',
+      color: 'terracotta',
       icon: IconCheck,
       message: 'Good aerobic fitness',
       description: 'Low decoupling shows solid aerobic conditioning.',
@@ -282,7 +282,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconHeart size={20} color="#ef4444" />
+          <IconHeart size={20} color="#9E5A3C" />
           <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Aerobic Efficiency (Pw:Hr)
           </Text>
@@ -296,7 +296,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
         <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs" mb={2}>
-            <IconHeart size={14} color="#ef4444" />
+            <IconHeart size={14} color="#9E5A3C" />
             <Text size="xs" c="dimmed">Avg EF</Text>
           </Group>
           <Text size="lg" fw={700}>{analysis.avgEF}</Text>
@@ -361,16 +361,16 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
             {/* Average EF reference line */}
             <ReferenceLine
               y={analysis.avgEF}
-              stroke={'var(--tribos-lime)'}
+              stroke={'var(--tribos-terracotta-500)'}
               strokeDasharray="5 5"
             />
 
             <Line
               type="monotone"
               dataKey="ef"
-              stroke="#ef4444"
+              stroke="#9E5A3C"
               strokeWidth={2}
-              dot={{ fill: '#ef4444', r: 3 }}
+              dot={{ fill: '#9E5A3C', r: 3 }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -401,7 +401,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
           <Box style={{ position: 'relative', height: 8 }}>
             <Progress.Root size="lg" radius="xl">
               <Progress.Section value={15} color="green" />
-              <Progress.Section value={10} color="lime" />
+              <Progress.Section value={10} color="terracotta" />
               <Progress.Section value={25} color="yellow" />
               <Progress.Section value={25} color="orange" />
               <Progress.Section value={25} color="red" />

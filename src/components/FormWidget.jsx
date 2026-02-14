@@ -108,8 +108,8 @@ function getFormStatus(tsb) {
     return {
       label: 'Ready',
       description: 'Good balance of fitness and freshness',
-      color: 'var(--tribos-lime)',
-      colorName: 'lime',
+      color: 'var(--tribos-terracotta-500)',
+      colorName: 'terracotta',
       advice: 'Solid training day ahead',
       icon: IconTrendingUp,
     };
@@ -239,7 +239,7 @@ const FormWidget = ({ activities = [], loading = false }) => {
             <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
               Fitness (CTL)
             </Text>
-            <Text fw={600} style={{ color: '#3b82f6' }}>
+            <Text fw={600} style={{ color: '#5C7A5E' }}>
               {ctl}
             </Text>
           </Box>
@@ -253,7 +253,7 @@ const FormWidget = ({ activities = [], loading = false }) => {
             <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
               Fatigue (ATL)
             </Text>
-            <Text fw={600} style={{ color: '#f59e0b' }}>
+            <Text fw={600} style={{ color: '#B89040' }}>
               {atl}
             </Text>
           </Box>

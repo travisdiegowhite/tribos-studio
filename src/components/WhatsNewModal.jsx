@@ -67,7 +67,7 @@ function WhatsNewModal({ opened, onClose, userId }) {
       size="md"
       title={
         <Group gap="sm">
-          <ThemeIcon color="lime" variant="light" size="lg">
+          <ThemeIcon color="terracotta" variant="light" size="lg">
             <IconSparkles size={20} />
           </ThemeIcon>
           <Text fw={600} size="lg">What's New</Text>
@@ -90,7 +90,7 @@ function WhatsNewModal({ opened, onClose, userId }) {
               style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}
             >
               <Group justify="space-between" mb="xs">
-                <Badge variant="light" color={update.type === 'new' ? 'lime' : 'blue'} size="sm">
+                <Badge variant="light" color={update.type === 'new' ? 'terracotta' : 'blue'} size="sm">
                   {update.type === 'improvement' ? 'Improvement' : 'New'}
                 </Badge>
                 <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
@@ -107,7 +107,7 @@ function WhatsNewModal({ opened, onClose, userId }) {
                 <Stack gap={4} mt="xs">
                   {update.details.slice(0, 3).map((detail, idx) => (
                     <Group key={idx} gap="xs" wrap="nowrap">
-                      <IconArrowRight size={12} color={'var(--tribos-lime)'} style={{ flexShrink: 0 }} />
+                      <IconArrowRight size={12} color={'var(--tribos-terracotta-500)'} style={{ flexShrink: 0 }} />
                       <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
                         {detail}
                       </Text>
@@ -141,7 +141,7 @@ function WhatsNewModal({ opened, onClose, userId }) {
         <Divider />
 
         <Group justify="flex-end">
-          <Button onClick={handleClose} color="lime">
+          <Button onClick={handleClose} color="terracotta">
             Got it!
           </Button>
         </Group>

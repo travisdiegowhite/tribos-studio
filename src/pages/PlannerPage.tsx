@@ -165,7 +165,7 @@ export default function PlannerPage() {
             height: 'calc(100vh - 60px)',
           }}
         >
-          <Loader color="lime" size="lg" />
+          <Loader color="terracotta" size="lg" />
         </Box>
       </AppShell>
     );
@@ -195,7 +195,7 @@ export default function PlannerPage() {
           <Tabs
             value={activeTab}
             onChange={(value) => setActiveTab(value || 'planner')}
-            color="lime"
+            color="terracotta"
           >
             <Tabs.List mb="md">
             <Tabs.Tab

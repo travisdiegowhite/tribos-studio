@@ -251,7 +251,7 @@ function RouteBuilder() {
     key: 'tribos-route-builder-basemap',
     defaultValue: 'dark',
   });
-  const currentMapStyle = BASEMAP_STYLES.find(s => s.id === mapStyleId)?.style || BASEMAP_STYLES[1].style;
+  const currentMapStyle = BASEMAP_STYLES.find(s => s.id === mapStyleId)?.style || BASEMAP_STYLES[0].style;
 
   // Bike infrastructure overlay state
   const [showBikeInfrastructure, setShowBikeInfrastructure] = useLocalStorage({
@@ -1248,7 +1248,7 @@ function RouteBuilder() {
     notifications.show({
       title: 'Route updated',
       message: 'AI edit applied successfully',
-      color: 'lime',
+      color: 'terracotta',
       autoClose: 3000,
     });
   }, []);
@@ -1403,7 +1403,7 @@ function RouteBuilder() {
       notifications.show({
         title: 'Route Saved!',
         message: `"${routeName}" has been saved to your routes`,
-        color: 'lime'
+        color: 'terracotta'
       });
 
       // If this was a new route, update URL to include route ID
@@ -1441,7 +1441,7 @@ function RouteBuilder() {
     notifications.show({
       title: 'Session Cleared',
       message: 'Ready to create a new route',
-      color: 'lime'
+      color: 'terracotta'
     });
   }, [resetAll, routeId, navigate]);
 
@@ -1605,7 +1605,7 @@ function RouteBuilder() {
       notifications.show({
         title: 'Routes Generated!',
         message: `Found ${routes.length} routes for your ${trainingGoal} session${useIterativeBuilder ? ' (iterative)' : ''}`,
-        color: 'lime'
+        color: 'terracotta'
       });
     } catch (error) {
       console.error('AI route generation error:', error);
@@ -1671,7 +1671,7 @@ function RouteBuilder() {
         notifications.show({
           title: 'Route Selected!',
           message: `${formatDist(suggestion.distance || 0)} - ${suggestion.name}`,
-          color: 'lime',
+          color: 'terracotta',
           autoClose: 3000
         });
       } else {
@@ -1979,7 +1979,7 @@ function RouteBuilder() {
             id: 'generating-route',
             title: notificationTitle,
             message: notificationMessage,
-            color: 'lime',
+            color: 'terracotta',
             loading: false,
             autoClose: 4000
           });
@@ -2073,7 +2073,7 @@ function RouteBuilder() {
         id: 'generating-route',
         title: 'Route Generated!',
         message: notificationMessage,
-        color: 'lime',
+        color: 'terracotta',
         loading: false,
         autoClose: 4000
       });
@@ -2157,7 +2157,7 @@ function RouteBuilder() {
         notifications.show({
           title: 'Location Found',
           message: 'Map centered on your current location',
-          color: 'lime'
+          color: 'terracotta'
         });
       },
       (error) => {
@@ -2178,7 +2178,7 @@ function RouteBuilder() {
       <AppShell fullWidth>
         <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100dvh - 60px)', minHeight: 'calc(100vh - 60px)' }}>
           <Stack align="center" gap="md">
-            <Loader color="lime" size="lg" />
+            <Loader color="terracotta" size="lg" />
             <Text style={{ color: 'var(--tribos-text-secondary)' }}>Loading route...</Text>
           </Stack>
         </Box>
@@ -2206,7 +2206,7 @@ function RouteBuilder() {
       </Box>
       <Button
         size="xs"
-        color="lime"
+        color="terracotta"
         disabled={!routeGeometry}
         onClick={handleSaveRoute}
         loading={isSaving}
@@ -2258,16 +2258,16 @@ function RouteBuilder() {
         <Paper
           p="sm"
           style={{
-            backgroundColor: `${'var(--tribos-lime)'}15`,
-            border: `1px solid ${'var(--tribos-lime)'}`,
+            backgroundColor: `${'var(--tribos-terracotta-500)'}15`,
+            border: `1px solid ${'var(--tribos-terracotta-500)'}`,
           }}
           radius="md"
         >
           <Group justify="space-between" align="flex-start">
             <Group gap="xs">
-              <IconCalendar size={16} style={{ color: 'var(--tribos-lime)' }} />
+              <IconCalendar size={16} style={{ color: 'var(--tribos-terracotta-500)' }} />
               <Box>
-                <Text size="xs" fw={600} style={{ color: 'var(--tribos-lime)' }}>
+                <Text size="xs" fw={600} style={{ color: 'var(--tribos-terracotta-500)' }}>
                   Creating route for scheduled workout
                 </Text>
                 <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
@@ -2305,8 +2305,8 @@ function RouteBuilder() {
         p="sm"
         radius="md"
         style={{
-          backgroundColor: useIterativeBuilder ? `${'var(--tribos-lime)'}15` : 'var(--tribos-bg-tertiary)',
-          border: `1px solid ${useIterativeBuilder ? 'var(--tribos-lime)' : 'var(--tribos-bg-tertiary)'}`,
+          backgroundColor: useIterativeBuilder ? `${'var(--tribos-terracotta-500)'}15` : 'var(--tribos-bg-tertiary)',
+          border: `1px solid ${useIterativeBuilder ? 'var(--tribos-terracotta-500)' : 'var(--tribos-bg-tertiary)'}`,
           transition: 'all 0.2s ease'
         }}
       >
@@ -2315,7 +2315,7 @@ function RouteBuilder() {
             <IconRefreshDot
               size={20}
               style={{
-                color: useIterativeBuilder ? 'var(--tribos-lime)' : 'var(--tribos-text-muted)',
+                color: useIterativeBuilder ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-muted)',
                 transition: 'color 0.2s ease'
               }}
             />
@@ -2335,7 +2335,7 @@ function RouteBuilder() {
             checked={useIterativeBuilder}
             onChange={(e) => setUseIterativeBuilder(e.currentTarget.checked)}
             size="md"
-            color="lime"
+            color="terracotta"
           />
         </Group>
       </Paper>
@@ -2364,14 +2364,14 @@ function RouteBuilder() {
           onClick={handleNaturalLanguageGenerate}
           loading={generatingAI}
           leftSection={<IconSparkles size={16} />}
-          color="lime"
+          color="terracotta"
           variant={calendarContext ? 'filled' : 'light'}
           size="xs"
           mt="xs"
           fullWidth
           style={calendarContext ? {
             animation: 'pulse-glow 2s ease-in-out infinite',
-            boxShadow: `0 0 20px ${'var(--tribos-lime)'}40`,
+            boxShadow: `0 0 20px ${'var(--tribos-terracotta-500)'}40`,
           } : undefined}
         >
           {calendarContext ? '✨ Generate Route for Workout' : 'Generate from Description'}
@@ -2382,11 +2382,11 @@ function RouteBuilder() {
       <style>{`
         @keyframes pulse-glow {
           0%, 100% {
-            box-shadow: 0 0 5px ${'var(--tribos-lime)'}40;
+            box-shadow: 0 0 5px ${'var(--tribos-terracotta-500)'}40;
             transform: scale(1);
           }
           50% {
-            box-shadow: 0 0 25px ${'var(--tribos-lime)'}80;
+            box-shadow: 0 0 25px ${'var(--tribos-terracotta-500)'}80;
             transform: scale(1.02);
           }
         }
@@ -2511,7 +2511,7 @@ function RouteBuilder() {
               checked={showWorkoutOverlay}
               onChange={(e) => setShowWorkoutOverlay(e.currentTarget.checked)}
               size="xs"
-              color="lime"
+              color="terracotta"
             />
           </Group>
         )}
@@ -2521,7 +2521,7 @@ function RouteBuilder() {
         onClick={handleGenerateAIRoutes}
         loading={generatingAI}
         leftSection={useIterativeBuilder ? <IconRefreshDot size={18} /> : <IconSparkles size={18} />}
-        color="lime"
+        color="terracotta"
         fullWidth
       >
         {generatingAI ? 'Generating Routes...' : (useIterativeBuilder ? 'Generate Iterative Routes' : 'Generate AI Routes')}
@@ -2548,7 +2548,7 @@ function RouteBuilder() {
                 p="sm"
                 withBorder
                 style={{
-                  borderColor: convertingRoute === index ? 'var(--tribos-lime)' : 'var(--tribos-bg-tertiary)',
+                  borderColor: convertingRoute === index ? 'var(--tribos-terracotta-500)' : 'var(--tribos-bg-tertiary)',
                   backgroundColor: 'var(--tribos-bg-primary)',
                   cursor: convertingRoute !== null ? 'wait' : 'pointer',
                   opacity: convertingRoute !== null && convertingRoute !== index ? 0.5 : 1,
@@ -2570,7 +2570,7 @@ function RouteBuilder() {
                       {suggestion.name}
                     </Text>
                     {convertingRoute === index ? (
-                      <Loader size={16} color="lime" />
+                      <Loader size={16} color="terracotta" />
                     ) : (
                       <Badge size="xs" color={
                         suggestion.difficulty === 'easy' ? 'green' :
@@ -2621,7 +2621,7 @@ function RouteBuilder() {
       {/* Actions */}
       <Stack gap="sm">
         <Button
-          color="lime"
+          color="terracotta"
           fullWidth
           size="sm"
           disabled={!routeGeometry}
@@ -2669,7 +2669,7 @@ function RouteBuilder() {
 
         {/* Selected Segment Actions */}
         {editMode && selectedSegment && (
-          <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444' }}>
+          <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(158, 90, 60, 0.1)', borderColor: '#9E5A3C' }}>
             <Stack gap="xs">
               <Text size="sm" fw={500} c="red">Segment Selected</Text>
               <Text size="xs" c="dimmed">
@@ -2754,7 +2754,7 @@ function RouteBuilder() {
         {routeGeometry && !editMode && !altMode && (
           <Button
             variant={aiEditMode ? 'filled' : 'light'}
-            color={aiEditMode ? 'lime' : 'gray'}
+            color={aiEditMode ? 'terracotta' : 'gray'}
             size="sm"
             fullWidth
             onClick={() => {
@@ -2830,7 +2830,7 @@ function RouteBuilder() {
         )}
         <Button
           variant="light"
-          color="lime"
+          color="terracotta"
           size="xs"
           leftSection={<IconRobot size={14} />}
           onClick={() => setBuilderMode('ai')}
@@ -2958,7 +2958,7 @@ function RouteBuilder() {
                       id="route-line"
                       type="line"
                       paint={{
-                        'line-color': editMode ? '#666666' : '#32CD32',
+                        'line-color': editMode ? '#666666' : '#9E5A3C',
                         'line-width': 4,
                         'line-opacity': editMode ? 0.6 : 0.8,
                         ...(!snapToRoads && { 'line-dasharray': [2, 1] }),
@@ -2974,7 +2974,7 @@ function RouteBuilder() {
                       id="segment-highlight-line"
                       type="line"
                       paint={{
-                        'line-color': '#ef4444',
+                        'line-color': '#9E5A3C',
                         'line-width': 6,
                         'line-opacity': 0.9
                       }}
@@ -2988,10 +2988,10 @@ function RouteBuilder() {
                     <div style={{
                       width: 16,
                       height: 16,
-                      backgroundColor: '#3b82f6',
+                      backgroundColor: '#5C7A5E',
                       borderRadius: '50%',
                       border: '3px solid white',
-                      boxShadow: '0 0 0 2px #3b82f6',
+                      boxShadow: '0 0 0 2px #5C7A5E',
                     }} />
                   </Marker>
                 )}
@@ -3012,7 +3012,7 @@ function RouteBuilder() {
                     }}
                   >
                     <div style={{
-                      backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : '#32CD32',
+                      backgroundColor: index === 0 ? '#6B8C72' : index === waypoints.length - 1 ? '#9E5A3C' : '#5C7A5E',
                       color: 'white',
                       width: 28,
                       height: 28,
@@ -3041,10 +3041,10 @@ function RouteBuilder() {
                     <div style={{
                       width: 14,
                       height: 14,
-                      backgroundColor: '#32CD32',
+                      backgroundColor: '#9E5A3C',
                       borderRadius: '50%',
                       border: '2px solid white',
-                      boxShadow: '0 0 0 2px #32CD32, 0 2px 12px rgba(50, 205, 50, 0.6)',
+                      boxShadow: '0 0 0 2px #9E5A3C, 0 2px 12px rgba(158, 90, 60, 0.6)',
                     }} />
                   </Marker>
                 )}
@@ -3099,7 +3099,7 @@ function RouteBuilder() {
                   styles={{ input: { backgroundColor: 'var(--tribos-bg-secondary)' } }}
                 />
                 <Tooltip label="My Location">
-                  <Button variant="filled" color="lime" size="md" onClick={handleGeolocate} loading={isLocating} style={{ padding: '0 12px', flexShrink: 0 }}>
+                  <Button variant="filled" color="terracotta" size="md" onClick={handleGeolocate} loading={isLocating} style={{ padding: '0 12px', flexShrink: 0 }}>
                     <IconCurrentLocation size={20} />
                   </Button>
                 </Tooltip>
@@ -3114,11 +3114,11 @@ function RouteBuilder() {
                     style={{
                       padding: '0 12px',
                       flexShrink: 0,
-                      backgroundColor: showBikeInfrastructure ? 'var(--tribos-lime)' : 'var(--tribos-bg-secondary)',
+                      backgroundColor: showBikeInfrastructure ? 'var(--tribos-terracotta-500)' : 'var(--tribos-bg-secondary)',
                       border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconBike size={20} color={showBikeInfrastructure ? '#000' : '#fff'} />
+                    <IconBike size={20} color={showBikeInfrastructure ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
                 {routeGeometry && (
@@ -3132,11 +3132,11 @@ function RouteBuilder() {
                       style={{
                         padding: '0 12px',
                         flexShrink: 0,
-                        backgroundColor: showPOIs ? '#3b82f6' : 'var(--tribos-bg-secondary)',
+                        backgroundColor: showPOIs ? '#5C7A5E' : 'var(--tribos-bg-secondary)',
                         border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
-                      <IconMapPin size={20} color={showPOIs ? '#fff' : '#fff'} />
+                      <IconMapPin size={20} color={showPOIs ? '#fff' : 'var(--tribos-text-100)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -3151,6 +3151,7 @@ function RouteBuilder() {
                         flexShrink: 0,
                         backgroundColor: 'var(--tribos-bg-secondary)',
                         border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+                        color: 'var(--tribos-text-100)',
                       }}
                     >
                       <IconMap size={20} />
@@ -3189,7 +3190,7 @@ function RouteBuilder() {
                       border: '1px solid var(--tribos-border)',
                     }}
                   >
-                    <IconBrain size={20} color="var(--tribos-lime)" />
+                    <IconBrain size={20} color="var(--tribos-terracotta-500)" />
                   </Button>
                 </Tooltip>
                 {routeGeometry && (
@@ -3205,11 +3206,11 @@ function RouteBuilder() {
                       style={{
                         padding: '0 12px',
                         flexShrink: 0,
-                        backgroundColor: editMode ? '#ef4444' : 'var(--tribos-bg-secondary)',
-                        border: `1px solid ${editMode ? '#ef4444' : 'var(--tribos-bg-tertiary)'}`,
+                        backgroundColor: editMode ? '#9E5A3C' : 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${editMode ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
-                      <IconScissors size={20} color={editMode ? '#fff' : '#fff'} />
+                      <IconScissors size={20} color={editMode ? '#fff' : 'var(--tribos-text-100)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -3223,11 +3224,11 @@ function RouteBuilder() {
                       style={{
                         padding: '0 12px',
                         flexShrink: 0,
-                        backgroundColor: altMode ? '#8b5cf6' : 'var(--tribos-bg-secondary)',
-                        border: `1px solid ${altMode ? '#8b5cf6' : 'var(--tribos-bg-tertiary)'}`,
+                        backgroundColor: altMode ? '#6B7F94' : 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${altMode ? '#6B7F94' : 'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
-                      <IconArrowsExchange size={20} color="#fff" />
+                      <IconArrowsExchange size={20} color={altMode ? '#fff' : 'var(--tribos-text-100)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -3235,7 +3236,7 @@ function RouteBuilder() {
                   <Tooltip label={aiEditMode ? 'Close AI Edit' : 'AI Edit Route'}>
                     <Button
                       variant={aiEditMode ? 'filled' : 'default'}
-                      color={aiEditMode ? 'lime' : 'dark'}
+                      color={aiEditMode ? 'terracotta' : 'dark'}
                       size="md"
                       onClick={() => {
                         setAiEditMode(!aiEditMode);
@@ -3244,11 +3245,11 @@ function RouteBuilder() {
                       style={{
                         padding: '0 12px',
                         flexShrink: 0,
-                        backgroundColor: aiEditMode ? '#84cc16' : 'var(--tribos-bg-secondary)',
-                        border: `1px solid ${aiEditMode ? '#84cc16' : 'var(--tribos-bg-tertiary)'}`,
+                        backgroundColor: aiEditMode ? '#9E5A3C' : 'var(--tribos-bg-secondary)',
+                        border: `1px solid ${aiEditMode ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                       }}
                     >
-                      <IconWand size={20} color={aiEditMode ? '#000' : '#fff'} />
+                      <IconWand size={20} color={aiEditMode ? '#fff' : 'var(--tribos-text-100)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -3313,8 +3314,8 @@ function RouteBuilder() {
                   left: 16,
                   right: 16,
                   zIndex: 10,
-                  backgroundColor: selectedSegment ? 'rgba(239, 68, 68, 0.95)' : 'var(--tribos-bg-secondary)',
-                  border: `1px solid ${selectedSegment ? '#ef4444' : 'var(--tribos-bg-tertiary)'}`,
+                  backgroundColor: selectedSegment ? 'rgba(158, 90, 60, 0.95)' : 'var(--tribos-bg-secondary)',
+                  border: `1px solid ${selectedSegment ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                 }}
               >
                 {selectedSegment ? (
@@ -3477,16 +3478,16 @@ function RouteBuilder() {
                 <Paper
                   p="sm"
                   style={{
-                    backgroundColor: `${'var(--tribos-lime)'}15`,
-                    border: `1px solid ${'var(--tribos-lime)'}`,
+                    backgroundColor: `${'var(--tribos-terracotta-500)'}15`,
+                    border: `1px solid ${'var(--tribos-terracotta-500)'}`,
                   }}
                   radius="md"
                 >
                   <Group justify="space-between" align="flex-start">
                     <Group gap="xs">
-                      <IconCalendar size={16} style={{ color: 'var(--tribos-lime)' }} />
+                      <IconCalendar size={16} style={{ color: 'var(--tribos-terracotta-500)' }} />
                       <Box>
-                        <Text size="xs" fw={600} style={{ color: 'var(--tribos-lime)' }}>
+                        <Text size="xs" fw={600} style={{ color: 'var(--tribos-terracotta-500)' }}>
                           Creating route for scheduled workout
                         </Text>
                         <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
@@ -3523,12 +3524,12 @@ function RouteBuilder() {
                   size="md"
                   styles={{
                     input: {
-                      borderColor: routeName.length > 0 ? 'var(--tribos-lime)' : undefined,
-                      '&:focus': { borderColor: 'var(--tribos-lime)' },
+                      borderColor: routeName.length > 0 ? 'var(--tribos-terracotta-500)' : undefined,
+                      '&:focus': { borderColor: 'var(--tribos-terracotta-500)' },
                     }
                   }}
                   rightSection={routeName.length > 0 && routeName !== 'Untitled Route' && (
-                    <Box style={{ color: 'var(--tribos-lime)' }}>✓</Box>
+                    <Box style={{ color: 'var(--tribos-terracotta-500)' }}>✓</Box>
                   )}
                 />
               </Box>
@@ -3536,14 +3537,14 @@ function RouteBuilder() {
               {/* AI Route Generator Section - Visual Card */}
               <Box
                 style={{
-                  backgroundColor: `${'var(--tribos-lime)'}08`,
-                  border: `1px solid ${'var(--tribos-lime)'}25`,
+                  backgroundColor: `${'var(--tribos-terracotta-500)'}08`,
+                  border: `1px solid ${'var(--tribos-terracotta-500)'}25`,
                   borderRadius: tokens.radius.md,
                   padding: tokens.spacing.md,
                 }}
               >
                 <Group gap="xs" mb="md">
-                  <IconRobot size={20} style={{ color: 'var(--tribos-lime)' }} />
+                  <IconRobot size={20} style={{ color: 'var(--tribos-terracotta-500)' }} />
                   <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
                     AI Route Generator
                   </Text>
@@ -3555,8 +3556,8 @@ function RouteBuilder() {
                     p="sm"
                     radius="md"
                     style={{
-                      backgroundColor: useIterativeBuilder ? `${'var(--tribos-lime)'}15` : 'var(--tribos-bg-tertiary)',
-                      border: `1px solid ${useIterativeBuilder ? 'var(--tribos-lime)' : 'var(--tribos-bg-tertiary)'}`,
+                      backgroundColor: useIterativeBuilder ? `${'var(--tribos-terracotta-500)'}15` : 'var(--tribos-bg-tertiary)',
+                      border: `1px solid ${useIterativeBuilder ? 'var(--tribos-terracotta-500)' : 'var(--tribos-bg-tertiary)'}`,
                       transition: 'all 0.2s ease'
                     }}
                   >
@@ -3565,7 +3566,7 @@ function RouteBuilder() {
                         <IconRefreshDot
                           size={20}
                           style={{
-                            color: useIterativeBuilder ? 'var(--tribos-lime)' : 'var(--tribos-text-muted)',
+                            color: useIterativeBuilder ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-muted)',
                             transition: 'color 0.2s ease'
                           }}
                         />
@@ -3585,7 +3586,7 @@ function RouteBuilder() {
                         checked={useIterativeBuilder}
                         onChange={(e) => setUseIterativeBuilder(e.currentTarget.checked)}
                         size="md"
-                        color="lime"
+                        color="terracotta"
                       />
                     </Group>
                   </Paper>
@@ -3609,13 +3610,13 @@ function RouteBuilder() {
                     onClick={handleNaturalLanguageGenerate}
                     loading={generatingAI}
                     leftSection={useIterativeBuilder ? <IconRefreshDot size={16} /> : <IconSparkles size={16} />}
-                    color="lime"
+                    color="terracotta"
                     variant={calendarContext ? 'filled' : 'light'}
                     size="sm"
                     fullWidth
                     style={calendarContext ? {
                       animation: 'pulse-glow 2s ease-in-out infinite',
-                      boxShadow: `0 0 20px ${'var(--tribos-lime)'}40`,
+                      boxShadow: `0 0 20px ${'var(--tribos-terracotta-500)'}40`,
                     } : undefined}
                   >
                     {calendarContext ? '✨ Generate Route for Workout' : (useIterativeBuilder ? 'Generate Iterative Route' : 'Generate from Description')}
@@ -3627,11 +3628,11 @@ function RouteBuilder() {
               <style>{`
                 @keyframes pulse-glow {
                   0%, 100% {
-                    box-shadow: 0 0 5px ${'var(--tribos-lime)'}40;
+                    box-shadow: 0 0 5px ${'var(--tribos-terracotta-500)'}40;
                     transform: scale(1);
                   }
                   50% {
-                    box-shadow: 0 0 25px ${'var(--tribos-lime)'}80;
+                    box-shadow: 0 0 25px ${'var(--tribos-terracotta-500)'}80;
                     transform: scale(1.02);
                   }
                 }
@@ -3763,7 +3764,7 @@ function RouteBuilder() {
                           checked={showWorkoutOverlay}
                           onChange={(e) => setShowWorkoutOverlay(e.currentTarget.checked)}
                           size="xs"
-                          color="lime"
+                          color="terracotta"
                         />
                       </Group>
                     )}
@@ -3773,7 +3774,7 @@ function RouteBuilder() {
                     onClick={handleGenerateAIRoutes}
                     loading={generatingAI}
                     leftSection={useIterativeBuilder ? <IconRefreshDot size={18} /> : <IconSparkles size={18} />}
-                    color="lime"
+                    color="terracotta"
                     fullWidth
                   >
                     {generatingAI ? 'Generating Routes...' : (useIterativeBuilder ? 'Generate Iterative Routes' : 'Generate AI Routes')}
@@ -3788,7 +3789,7 @@ function RouteBuilder() {
                   icon={<IconSparkles size={18} />}
                   badge={`${aiSuggestions.length}`}
                   defaultExpanded={true}
-                  accentColor={'var(--tribos-lime)'}
+                  accentColor={'var(--tribos-terracotta-500)'}
                 >
                   <Stack gap="sm" mt="sm" style={{ maxHeight: '350px', overflowY: 'auto' }}>
                     {aiSuggestions.map((suggestion, index) => (
@@ -3903,7 +3904,7 @@ function RouteBuilder() {
                   padding: tokens.spacing.md,
                   backgroundColor: 'var(--tribos-bg-tertiary)',
                   borderRadius: tokens.radius.md,
-                  borderLeft: `3px solid ${'var(--tribos-lime)'}`,
+                  borderLeft: `3px solid ${'var(--tribos-terracotta-500)'}`,
                 }}
               >
                 <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
@@ -3955,13 +3956,13 @@ function RouteBuilder() {
                 <Box
                   style={{
                     padding: tokens.spacing.md,
-                    backgroundColor: '#3b82f608',
-                    border: '1px solid #3b82f625',
+                    backgroundColor: '#5C7A5E08',
+                    border: '1px solid #5C7A5E25',
                     borderRadius: tokens.radius.md,
                   }}
                 >
                   <Group gap="xs" mb="xs">
-                    <IconHandClick size={18} style={{ color: '#3b82f6' }} />
+                    <IconHandClick size={18} style={{ color: '#5C7A5E' }} />
                     <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
                       Manual Route Builder
                     </Text>
@@ -4087,7 +4088,7 @@ function RouteBuilder() {
                 {/* Switch to AI mode */}
                 <Button
                   variant="light"
-                  color="lime"
+                  color="terracotta"
                   size="xs"
                   leftSection={<IconRobot size={14} />}
                   onClick={() => setBuilderMode('ai')}
@@ -4110,7 +4111,7 @@ function RouteBuilder() {
           >
             <Stack gap="sm">
               <Button
-                color="lime"
+                color="terracotta"
                 fullWidth
                 size="md"
                 disabled={!routeGeometry}
@@ -4190,7 +4191,7 @@ function RouteBuilder() {
 
               {/* Selected Segment Actions (desktop sidebar) */}
               {editMode && selectedSegment && (
-                <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444' }}>
+                <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(158, 90, 60, 0.1)', borderColor: '#9E5A3C' }}>
                   <Stack gap="xs">
                     <Text size="sm" fw={500} c="red">Segment Selected</Text>
                     <Text size="xs" c="dimmed">
@@ -4222,7 +4223,7 @@ function RouteBuilder() {
               {routeGeometry && !editMode && !altMode && (
                 <Button
                   variant={aiEditMode ? 'filled' : 'light'}
-                  color={aiEditMode ? 'lime' : 'gray'}
+                  color={aiEditMode ? 'terracotta' : 'gray'}
                   size="sm"
                   fullWidth
                   onClick={() => {
@@ -4307,7 +4308,7 @@ function RouteBuilder() {
                       backgroundColor: 'var(--tribos-bg-secondary)',
                       borderColor: 'var(--tribos-bg-tertiary)',
                       '&:focus': {
-                        borderColor: 'var(--tribos-lime)',
+                        borderColor: 'var(--tribos-terracotta-500)',
                       },
                     },
                   }}
@@ -4356,7 +4357,7 @@ function RouteBuilder() {
               <Tooltip label="My Location">
                 <Button
                   variant="filled"
-                  color="lime"
+                  color="terracotta"
                   size="md"
                   onClick={handleGeolocate}
                   loading={isLocating}
@@ -4375,11 +4376,11 @@ function RouteBuilder() {
                   disabled={mapStyleId === 'cyclosm'}
                   style={{
                     padding: '0 12px',
-                    backgroundColor: showBikeInfrastructure ? 'var(--tribos-lime)' : 'var(--tribos-bg-secondary)',
+                    backgroundColor: showBikeInfrastructure ? 'var(--tribos-terracotta-500)' : 'var(--tribos-bg-secondary)',
                     border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                   }}
                 >
-                  <IconBike size={20} color={showBikeInfrastructure ? '#000' : '#fff'} />
+                  <IconBike size={20} color={showBikeInfrastructure ? '#fff' : 'var(--tribos-text-100)'} />
                 </Button>
               </Tooltip>
               {routeGeometry && (
@@ -4392,11 +4393,11 @@ function RouteBuilder() {
                     loading={poiLoading}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: showPOIs ? '#3b82f6' : 'var(--tribos-bg-secondary)',
+                      backgroundColor: showPOIs ? '#5C7A5E' : 'var(--tribos-bg-secondary)',
                       border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconMapPin size={20} color="#fff" />
+                    <IconMapPin size={20} color={showPOIs ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4411,6 +4412,7 @@ function RouteBuilder() {
                         padding: '0 12px',
                         backgroundColor: 'var(--tribos-bg-secondary)',
                         border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+                        color: 'var(--tribos-text-100)',
                       }}
                     >
                       <IconMap size={20} />
@@ -4449,7 +4451,7 @@ function RouteBuilder() {
                     border: '1px solid var(--tribos-border)',
                   }}
                 >
-                  <IconBrain size={20} color="var(--tribos-lime)" />
+                  <IconBrain size={20} color="var(--tribos-terracotta-500)" />
                 </Button>
               </Tooltip>
               {routeGeometry && (
@@ -4464,11 +4466,11 @@ function RouteBuilder() {
                     }}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: editMode ? '#ef4444' : 'var(--tribos-bg-secondary)',
-                      border: `1px solid ${editMode ? '#ef4444' : 'var(--tribos-bg-tertiary)'}`,
+                      backgroundColor: editMode ? '#9E5A3C' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${editMode ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconScissors size={20} color="#fff" />
+                    <IconScissors size={20} color={editMode ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4481,11 +4483,11 @@ function RouteBuilder() {
                     onClick={() => altMode ? exitAltMode() : setAltMode(true)}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: altMode ? '#8b5cf6' : 'var(--tribos-bg-secondary)',
-                      border: `1px solid ${altMode ? '#8b5cf6' : 'var(--tribos-bg-tertiary)'}`,
+                      backgroundColor: altMode ? '#6B7F94' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${altMode ? '#6B7F94' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconArrowsExchange size={20} color="#fff" />
+                    <IconArrowsExchange size={20} color={altMode ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4493,7 +4495,7 @@ function RouteBuilder() {
                 <Tooltip label={aiEditMode ? 'Close AI Edit' : 'AI Edit Route'}>
                   <Button
                     variant={aiEditMode ? 'filled' : 'default'}
-                    color={aiEditMode ? 'lime' : 'dark'}
+                    color={aiEditMode ? 'terracotta' : 'dark'}
                     size="md"
                     onClick={() => {
                       setAiEditMode(!aiEditMode);
@@ -4501,11 +4503,11 @@ function RouteBuilder() {
                     }}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: aiEditMode ? '#84cc16' : 'var(--tribos-bg-secondary)',
-                      border: `1px solid ${aiEditMode ? '#84cc16' : 'var(--tribos-bg-tertiary)'}`,
+                      backgroundColor: aiEditMode ? '#9E5A3C' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${aiEditMode ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconWand size={20} color={aiEditMode ? '#000' : '#fff'} />
+                    <IconWand size={20} color={aiEditMode ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4513,16 +4515,16 @@ function RouteBuilder() {
                 <Tooltip label={showWorkoutOverlay ? 'Hide workout zones' : 'Show workout zone coloring'}>
                   <Button
                     variant={showWorkoutOverlay ? 'filled' : 'default'}
-                    color={showWorkoutOverlay ? 'lime' : 'dark'}
+                    color={showWorkoutOverlay ? 'terracotta' : 'dark'}
                     size="md"
                     onClick={() => { setShowWorkoutOverlay(!showWorkoutOverlay); if (!showWorkoutOverlay) { setShowGradient(false); setShowSurface(false); } }}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: showWorkoutOverlay ? '#84cc16' : 'var(--tribos-bg-secondary)',
-                      border: `1px solid ${showWorkoutOverlay ? '#84cc16' : 'var(--tribos-bg-tertiary)'}`,
+                      backgroundColor: showWorkoutOverlay ? '#9E5A3C' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${showWorkoutOverlay ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconHeartRateMonitor size={20} color="#fff" />
+                    <IconHeartRateMonitor size={20} color={showWorkoutOverlay ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4535,11 +4537,11 @@ function RouteBuilder() {
                     onClick={() => { setShowGradient(!showGradient); if (!showGradient) { setShowSurface(false); setShowWorkoutOverlay(false); } }}
                     style={{
                       padding: '0 12px',
-                      backgroundColor: showGradient ? '#22c55e' : 'var(--tribos-bg-secondary)',
-                      border: `1px solid ${showGradient ? '#22c55e' : 'var(--tribos-bg-tertiary)'}`,
+                      backgroundColor: showGradient ? '#6B8C72' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${showGradient ? '#6B8C72' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconMountain size={20} color="#fff" />
+                    <IconMountain size={20} color={showGradient ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4557,7 +4559,7 @@ function RouteBuilder() {
                       border: `1px solid ${showSurface ? '#D97706' : 'var(--tribos-bg-tertiary)'}`,
                     }}
                   >
-                    <IconRoad size={20} color="#fff" />
+                    <IconRoad size={20} color={showSurface ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4650,7 +4652,7 @@ function RouteBuilder() {
                     id="route-line"
                     type="line"
                     paint={{
-                      'line-color': editMode ? '#666666' : '#32CD32',
+                      'line-color': editMode ? '#666666' : '#9E5A3C',
                       'line-width': 4,
                       'line-opacity': editMode ? 0.6 : 0.8,
                       ...(!snapToRoads && { 'line-dasharray': [2, 1] }),
@@ -4666,7 +4668,7 @@ function RouteBuilder() {
                     id="segment-highlight-line"
                     type="line"
                     paint={{
-                      'line-color': '#ef4444',
+                      'line-color': '#9E5A3C',
                       'line-width': 6,
                       'line-opacity': 0.9
                     }}
@@ -4684,10 +4686,10 @@ function RouteBuilder() {
                   <div style={{
                     width: 16,
                     height: 16,
-                    backgroundColor: '#3b82f6',
+                    backgroundColor: '#5C7A5E',
                     borderRadius: '50%',
                     border: '3px solid white',
-                    boxShadow: '0 0 0 2px #3b82f6, 0 2px 8px rgba(59, 130, 246, 0.5)',
+                    boxShadow: '0 0 0 2px #5C7A5E, 0 2px 8px rgba(123, 169, 160, 0.5)',
                   }} />
                 </Marker>
               )}
@@ -4708,7 +4710,7 @@ function RouteBuilder() {
                   }}
                 >
                   <div style={{
-                    backgroundColor: index === 0 ? '#22c55e' : index === waypoints.length - 1 ? '#ef4444' : '#32CD32',
+                    backgroundColor: index === 0 ? '#6B8C72' : index === waypoints.length - 1 ? '#9E5A3C' : '#5C7A5E',
                     color: 'white',
                     width: 32,
                     height: 32,
@@ -4737,10 +4739,10 @@ function RouteBuilder() {
                   <div style={{
                     width: 16,
                     height: 16,
-                    backgroundColor: '#32CD32',
+                    backgroundColor: '#9E5A3C',
                     borderRadius: '50%',
                     border: '3px solid white',
-                    boxShadow: '0 0 0 2px #32CD32, 0 2px 12px rgba(50, 205, 50, 0.6)',
+                    boxShadow: '0 0 0 2px #9E5A3C, 0 2px 12px rgba(158, 90, 60, 0.6)',
                     animation: 'pulse 1.5s ease-in-out infinite',
                   }} />
                 </Marker>
@@ -4856,8 +4858,8 @@ function RouteBuilder() {
                 transform: 'translateX(-50%)',
                 zIndex: 10,
                 minWidth: 320,
-                backgroundColor: selectedSegment ? 'rgba(239, 68, 68, 0.95)' : 'var(--tribos-bg-secondary)',
-                border: `1px solid ${selectedSegment ? '#ef4444' : 'var(--tribos-bg-tertiary)'}`,
+                backgroundColor: selectedSegment ? 'rgba(158, 90, 60, 0.95)' : 'var(--tribos-bg-secondary)',
+                border: `1px solid ${selectedSegment ? '#9E5A3C' : 'var(--tribos-bg-tertiary)'}`,
               }}
             >
               {selectedSegment ? (

@@ -14,7 +14,7 @@ import { Badge, Tooltip } from '@mantine/core';
  * - Completion status - use tier="secondary"
  *
  * @param {string} tier - "primary", "secondary", or "muted"
- * @param {string} color - Mantine color (lime, red, yellow, etc.)
+ * @param {string} color - Mantine color (terracotta, sage, gold, etc.)
  * @param {string} size - Badge size
  * @param {ReactNode} leftSection - Icon or content for left section
  * @param {string} tooltip - Optional tooltip text
@@ -72,7 +72,7 @@ export function FormStatusBadge({ status, icon: Icon, tooltip }) {
   const statusConfig = {
     FRESH: { color: 'teal', tooltip: 'Ready for hard training' },
     READY: { color: 'green', tooltip: 'Quality session day' },
-    OPTIMAL: { color: 'lime', tooltip: 'Sweet spot training' },
+    OPTIMAL: { color: 'terracotta', tooltip: 'Sweet spot training' },
     TIRED: { color: 'yellow', tooltip: 'Consider recovery' },
     FATIGUED: { color: 'red', tooltip: 'Recovery needed' },
   };

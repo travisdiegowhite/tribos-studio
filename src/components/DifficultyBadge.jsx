@@ -7,11 +7,11 @@ import { Badge } from '@mantine/core';
  */
 function DifficultyBadge({ difficulty, size = 'sm' }) {
   const colorMap = {
-    easy: '#10b981',      // Green
-    moderate: '#f59e0b',  // Amber
-    hard: '#ef4444',      // Red
-    recovery: '#3b82f6',  // Blue
-    intervals: '#8b5cf6', // Purple
+    easy: '#6B8C72',      // Sage
+    moderate: '#B89040',  // Gold
+    hard: '#9E5A3C',      // Terracotta
+    recovery: '#5C7A5E',  // Teal
+    intervals: '#6B7F94', // Mauve
   };
 
   const backgroundColor = colorMap[difficulty?.toLowerCase()] || colorMap.moderate;

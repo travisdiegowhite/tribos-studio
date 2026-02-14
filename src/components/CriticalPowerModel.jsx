@@ -402,9 +402,9 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
               <Line
                 type="monotone"
                 dataKey="power"
-                stroke="#ef4444"
+                stroke="#9E5A3C"
                 strokeWidth={2}
-                dot={{ fill: '#ef4444', r: 3 }}
+                dot={{ fill: '#9E5A3C', r: 3 }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -457,7 +457,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
 export function WPrimeBalanceGauge({ wBalancePercent, wPrimeKJ }) {
   const getColor = (pct) => {
     if (pct > 75) return 'green';
-    if (pct > 50) return 'lime';
+    if (pct > 50) return 'terracotta';
     if (pct > 25) return 'yellow';
     if (pct > 10) return 'orange';
     return 'red';

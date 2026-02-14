@@ -15,9 +15,9 @@ const WaypointList = ({ waypoints, onReorder, onRemove, onFocus }) => {
   if (!waypoints || waypoints.length === 0) return null;
 
   const getMarkerColor = (index) => {
-    if (index === 0) return '#22c55e'; // green — start
-    if (index === waypoints.length - 1) return '#ef4444'; // red — end
-    return '#32CD32'; // lime — intermediate
+    if (index === 0) return '#6B8C72'; // sage — start
+    if (index === waypoints.length - 1) return '#9E5A3C'; // terracotta — end
+    return '#5C7A5E'; // teal — intermediate
   };
 
   const getLabel = (index) => {

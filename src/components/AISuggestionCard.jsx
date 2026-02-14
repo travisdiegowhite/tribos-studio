@@ -33,19 +33,19 @@ function AISuggestionCard({
   };
 
   // Visual Hierarchy: Neutral colors for unselected, accent for selected/converting
-  const metricColor = isConverting ? 'var(--tribos-lime)' : 'var(--tribos-text-muted)';
-  const metricBg = isConverting ? `${'var(--tribos-lime)'}15` : `${'var(--tribos-text-muted)'}10`;
+  const metricColor = isConverting ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-muted)';
+  const metricBg = isConverting ? `${'var(--tribos-terracotta-500)'}15` : `${'var(--tribos-text-muted)'}10`;
 
   return (
     <Card
       padding="md"
       style={{
         backgroundColor: isConverting
-          ? `${'var(--tribos-lime)'}08`
+          ? `${'var(--tribos-terracotta-500)'}08`
           : 'var(--tribos-bg-tertiary)',
         cursor: isDisabled ? 'wait' : 'pointer',
         border: isConverting
-          ? `2px solid ${'var(--tribos-lime)'}`
+          ? `2px solid ${'var(--tribos-terracotta-500)'}`
           : '1px solid var(--mantine-color-dark-5)',
         transition: 'all 0.2s ease',
         opacity: isDisabled && !isConverting ? 0.5 : 1,
@@ -155,7 +155,7 @@ function AISuggestionCard({
         <Button
           size="sm"
           variant={isConverting ? 'filled' : 'subtle'}
-          color={isConverting ? 'lime' : 'gray'}
+          color={isConverting ? 'terracotta' : 'gray'}
           leftSection={
             isConverting ? (
               <Loader size={14} color="dark" />

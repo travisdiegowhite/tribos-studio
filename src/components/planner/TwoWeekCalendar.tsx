@@ -298,7 +298,7 @@ export function TwoWeekCalendar({
       withBorder
       style={{
         backgroundColor: 'var(--mantine-color-dark-7)',
-        border: selectedWorkoutId ? '2px dashed var(--mantine-color-lime-5)' : undefined,
+        border: selectedWorkoutId ? '2px dashed var(--mantine-color-terracotta-5)' : undefined,
       }}
     >
       {!isMobile && (
@@ -312,7 +312,7 @@ export function TwoWeekCalendar({
               </Group>
             </Badge>
             {summary.actual > 0 && (
-              <Badge size="xs" color="lime" variant="light">
+              <Badge size="xs" color="terracotta" variant="light">
                 {summary.actual} done
               </Badge>
             )}
@@ -397,7 +397,7 @@ export function TwoWeekCalendar({
                 {currentWeekSummary.planned} TSS
               </Badge>
               {currentWeekSummary.actual > 0 && (
-                <Badge size="xs" color="lime" variant="light">
+                <Badge size="xs" color="terracotta" variant="light">
                   {currentWeekSummary.actual} done
                 </Badge>
               )}
@@ -411,7 +411,7 @@ export function TwoWeekCalendar({
             withBorder
             style={{
               backgroundColor: 'var(--mantine-color-dark-7)',
-              border: selectedWorkoutId ? '2px dashed var(--mantine-color-lime-5)' : undefined,
+              border: selectedWorkoutId ? '2px dashed var(--mantine-color-terracotta-5)' : undefined,
             }}
           >
             <Group justify="space-around" gap={0}>
@@ -427,16 +427,16 @@ export function TwoWeekCalendar({
 
                 // Status indicator colors and symbols
                 const statusConfig: Record<DayStatus, { color: string; symbol: string; bgColor: string }> = {
-                  done: { color: 'var(--mantine-color-green-5)', symbol: '●', bgColor: 'rgba(34, 197, 94, 0.15)' },
-                  planned: { color: 'var(--mantine-color-blue-5)', symbol: '○', bgColor: 'rgba(59, 130, 246, 0.15)' },
-                  partial: { color: 'var(--mantine-color-orange-5)', symbol: '◐', bgColor: 'rgba(251, 146, 60, 0.15)' },
-                  missed: { color: 'var(--mantine-color-red-5)', symbol: '✗', bgColor: 'rgba(239, 68, 68, 0.15)' },
+                  done: { color: 'var(--mantine-color-green-5)', symbol: '●', bgColor: 'rgba(168, 191, 168, 0.15)' },
+                  planned: { color: 'var(--mantine-color-blue-5)', symbol: '○', bgColor: 'rgba(123, 169, 160, 0.15)' },
+                  partial: { color: 'var(--mantine-color-orange-5)', symbol: '◐', bgColor: 'rgba(212, 168, 67, 0.15)' },
+                  missed: { color: 'var(--mantine-color-red-5)', symbol: '✗', bgColor: 'rgba(158, 90, 60, 0.15)' },
                   empty: { color: 'var(--mantine-color-dark-3)', symbol: '·', bgColor: 'transparent' },
                 };
 
                 // Override background for blocked/preferred days
                 const bgColor = isBlocked
-                  ? 'rgba(250, 82, 82, 0.15)'
+                  ? 'rgba(158, 90, 60, 0.15)'
                   : isPreferred
                   ? 'rgba(250, 204, 21, 0.15)'
                   : statusConfig[status].bgColor;
@@ -452,14 +452,14 @@ export function TwoWeekCalendar({
                       padding: '8px 6px',
                       borderRadius: 8,
                       backgroundColor: isSelected
-                        ? 'var(--mantine-color-lime-9)'
+                        ? 'var(--mantine-color-terracotta-9)'
                         : canDrop
-                        ? 'rgba(163, 230, 53, 0.2)'
+                        ? 'rgba(158, 90, 60, 0.2)'
                         : bgColor,
                       border: day.isToday
-                        ? '2px solid var(--mantine-color-lime-5)'
+                        ? '2px solid var(--mantine-color-terracotta-5)'
                         : isSelected
-                        ? '2px solid var(--mantine-color-lime-6)'
+                        ? '2px solid var(--mantine-color-terracotta-6)'
                         : isBlocked
                         ? '2px solid var(--mantine-color-red-7)'
                         : isPreferred
@@ -471,14 +471,14 @@ export function TwoWeekCalendar({
                     }}
                   >
                     {/* Day name */}
-                    <Text size="xs" c={isSelected ? 'lime' : 'dimmed'} fw={500}>
+                    <Text size="xs" c={isSelected ? 'terracotta' : 'dimmed'} fw={500}>
                       {day.dayOfWeek.charAt(0)}
                     </Text>
                     {/* Day number */}
                     <Text
                       size="md"
                       fw={isSelected || day.isToday ? 700 : 500}
-                      c={isSelected ? 'lime' : day.isToday ? 'lime.4' : undefined}
+                      c={isSelected ? 'terracotta' : day.isToday ? 'terracotta.4' : undefined}
                     >
                       {day.dayNumber}
                     </Text>
@@ -506,20 +506,20 @@ export function TwoWeekCalendar({
               withBorder
               style={{
                 backgroundColor: 'var(--mantine-color-dark-6)',
-                borderColor: selectedDay.isToday ? 'var(--mantine-color-lime-6)' : undefined,
+                borderColor: selectedDay.isToday ? 'var(--mantine-color-terracotta-6)' : undefined,
               }}
             >
               {/* Day header */}
               <Group justify="space-between" mb="md">
                 <Group gap="xs">
-                  <Text size="lg" fw={600} c={selectedDay.isToday ? 'lime' : undefined}>
+                  <Text size="lg" fw={600} c={selectedDay.isToday ? 'terracotta' : undefined}>
                     {selectedDay.dayOfWeek}
                   </Text>
                   <Text size="lg" fw={600}>
                     {selectedDay.monthName} {selectedDay.dayNumber}
                   </Text>
                   {selectedDay.isToday && (
-                    <Badge size="xs" color="lime" variant="filled">Today</Badge>
+                    <Badge size="xs" color="terracotta" variant="filled">Today</Badge>
                   )}
                 </Group>
                 {selectedDayWorkout && (
@@ -595,8 +595,8 @@ export function TwoWeekCalendar({
                   </Box>
                   {/* Target TSS */}
                   <Group gap="xs" mt="xs">
-                    <IconFlame size={14} color="var(--mantine-color-lime-5)" />
-                    <Text size="sm" c="lime">Target: {selectedDayWorkout.targetTSS} TSS</Text>
+                    <IconFlame size={14} color="var(--mantine-color-terracotta-5)" />
+                    <Text size="sm" c="terracotta">Target: {selectedDayWorkout.targetTSS} TSS</Text>
                   </Group>
                 </Box>
               ) : (
@@ -607,8 +607,8 @@ export function TwoWeekCalendar({
                     border: '2px dashed var(--mantine-color-dark-4)',
                     borderRadius: 8,
                     textAlign: 'center',
-                    backgroundColor: selectedWorkoutId ? 'rgba(163, 230, 53, 0.1)' : undefined,
-                    borderColor: selectedWorkoutId ? 'var(--mantine-color-lime-5)' : undefined,
+                    backgroundColor: selectedWorkoutId ? 'rgba(158, 90, 60, 0.1)' : undefined,
+                    borderColor: selectedWorkoutId ? 'var(--mantine-color-terracotta-5)' : undefined,
                   }}
                   onClick={() => selectedWorkoutId && onDateClick(selectedDay.date)}
                 >
@@ -758,7 +758,7 @@ export function TwoWeekCalendar({
 
       {/* Selection mode indicator */}
       {selectedWorkoutId && (
-        <Text size="xs" c="lime" ta="center" mt="xs">
+        <Text size="xs" c="terracotta" ta="center" mt="xs">
           Tap a day to place the workout
         </Text>
       )}

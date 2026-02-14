@@ -35,8 +35,8 @@ import { supabase } from '../lib/supabase';
 
 // Training Strategist theme colors
 const STRATEGIST_THEME = {
-  primary: '#3B82F6', // Blue
-  primaryLight: '#3B82F633',
+  primary: '#5C7A5E', // Teal
+  primaryLight: '#5C7A5E33',
   name: 'Training Strategist',
   coachType: 'strategist',
 };
@@ -830,7 +830,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                         size="sm"
                         style={{
                           color: msg.role === 'user'
-                            ? '#60A5FA'  // Blue for user questions
+                            ? '#5C7A5E'  // Teal for user questions
                             : isOlderMessage ? 'var(--tribos-text-secondary)' : 'var(--tribos-text-primary)',
                           whiteSpace: 'pre-wrap',
                           lineHeight: 1.5,

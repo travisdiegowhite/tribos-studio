@@ -92,7 +92,7 @@ const WeekSummary = ({
             label="Distance"
             value={formatDist ? formatDist(weekStats.distance) : `${weekStats.distance} km`}
             progress={distanceProgress}
-            progressColor={'var(--tribos-lime)'}
+            progressColor={'var(--tribos-terracotta-500)'}
             goal={formatDist ? formatDist(weeklyDistanceGoal) : `${weeklyDistanceGoal} km`}
           />
 
@@ -156,7 +156,7 @@ function StatBox({ icon: Icon, label, value, progress, progressColor, goal, icon
             <Progress
               value={progress}
               size="sm"
-              color={progressColor === 'var(--tribos-lime)' ? 'lime' : 'blue'}
+              color={progressColor === 'var(--tribos-terracotta-500)' ? 'terracotta' : 'blue'}
               style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}
             />
             <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>

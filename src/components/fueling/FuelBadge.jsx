@@ -59,7 +59,7 @@ export default function FuelBadge({
     return null;
   }
 
-  const color = isHighFuel ? 'orange' : 'yellow';
+  const color = isHighFuel ? 'terracotta' : 'gold';
 
   const tooltipContent = (
     <div>
@@ -73,7 +73,7 @@ export default function FuelBadge({
         <Text size="xs">{plan.hydration.ozPerHour} oz/hr</Text>
       </Group>
       {isHighFuel && (
-        <Text size="xs" c="yellow" mt={4}>
+        <Text size="xs" c="gold" mt={4}>
           High fueling needs - prepare well!
         </Text>
       )}
@@ -181,7 +181,7 @@ export function FuelIndicator({
         withArrow
       >
         <Group spacing={2}>
-          <IconFlame size={12} color="#fd7e14" />
+          <IconFlame size={12} color="#9E5A3C" />
           <Text size="xs" c="dimmed">{plan.gelsEquivalent.min}-{plan.gelsEquivalent.max}</Text>
         </Group>
       </Tooltip>
@@ -190,7 +190,7 @@ export function FuelIndicator({
         withArrow
       >
         <Group spacing={2}>
-          <IconDroplet size={12} color="#228be6" />
+          <IconDroplet size={12} color="#5C7A5E" />
           <Text size="xs" c="dimmed">{plan.bottlesNeeded}</Text>
         </Group>
       </Tooltip>

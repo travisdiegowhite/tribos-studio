@@ -96,7 +96,7 @@ const TrainNow = ({
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconTarget size={20} color={'var(--tribos-lime)'} />
+          <IconTarget size={20} color={'var(--tribos-terracotta-500)'} />
           <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             TrainNow
           </Text>

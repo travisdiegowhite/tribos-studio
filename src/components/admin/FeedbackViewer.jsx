@@ -32,7 +32,7 @@ import { listFeedback } from '../../services/adminService';
 const FEEDBACK_TYPE_CONFIG = {
   bug: { color: 'red', icon: IconBug, label: 'Bug Report' },
   feature: { color: 'blue', icon: IconBulb, label: 'Feature Request' },
-  improvement: { color: 'green', icon: IconBulb, label: 'Improvement' },
+  improvement: { color: 'sage', icon: IconBulb, label: 'Improvement' },
   question: { color: 'yellow', icon: IconQuestionMark, label: 'Question' },
   general: { color: 'gray', icon: IconMessage, label: 'General' }
 };
@@ -41,7 +41,7 @@ const STATUS_COLORS = {
   new: 'blue',
   reviewed: 'yellow',
   in_progress: 'orange',
-  completed: 'green',
+  completed: 'sage',
   wont_fix: 'gray'
 };
 
