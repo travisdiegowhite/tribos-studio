@@ -249,9 +249,9 @@ function RouteBuilder() {
   // Basemap style state (persisted to localStorage)
   const [mapStyleId, setMapStyleId] = useLocalStorage({
     key: 'tribos-route-builder-basemap',
-    defaultValue: 'outdoors',
+    defaultValue: 'dark',
   });
-  const currentMapStyle = BASEMAP_STYLES.find(s => s.id === mapStyleId)?.style || BASEMAP_STYLES[1].style;
+  const currentMapStyle = BASEMAP_STYLES.find(s => s.id === mapStyleId)?.style || BASEMAP_STYLES[0].style;
 
   // Bike infrastructure overlay state
   const [showBikeInfrastructure, setShowBikeInfrastructure] = useLocalStorage({

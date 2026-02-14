@@ -81,7 +81,7 @@ export default function ManualRouteBuilder() {
 
   const [basemapStyle, setBasemapStyle] = useLocalStorage({
     key: 'tribos-manual-builder-basemap',
-    defaultValue: 'outdoors',
+    defaultValue: 'dark',
   });
 
   const [showInfrastructure, setShowInfrastructure] = useLocalStorage({
