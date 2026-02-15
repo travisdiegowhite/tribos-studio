@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   Container,
   Title,
@@ -13,16 +12,13 @@ import {
   Paper,
   Divider,
   Center,
-  TextInput,
   Anchor,
   Badge,
   SimpleGrid,
 } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import {
   IconRoute,
   IconCheck,
-  IconMail,
   IconChevronRight,
   IconTrendingUp,
   IconMapPin,
@@ -35,71 +31,9 @@ import {
   IconCalendarEvent,
   IconMap2,
 } from '@tabler/icons-react';
-import { tokens } from '../theme';
-import { supabase } from '../lib/supabase';
 import SEO, { getOrganizationSchema, getWebSiteSchema } from '../components/SEO';
 
 function Landing() {
-  const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [bottomEmail, setBottomEmail] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [bottomSubmitting, setBottomSubmitting] = useState(false);
-
-  const handleBetaSignup = async (e, emailValue, setLoadingFn) => {
-    e.preventDefault();
-
-    if (!emailValue || !emailValue.includes('@')) {
-      notifications.show({
-        title: 'Invalid Email',
-        message: 'Please enter a valid email address',
-        color: 'terracotta',
-      });
-      return;
-    }
-
-    setLoadingFn(true);
-
-    try {
-      const { error } = await supabase
-        .from('beta_signups')
-        .insert([{
-          email: emailValue,
-          signed_up_at: new Date().toISOString(),
-          status: 'pending'
-        }]);
-
-      if (error) {
-        if (error.code === '23505') {
-          notifications.show({
-            title: 'Welcome Back!',
-            message: "You're already on the list! Let's create your account...",
-            color: 'blue',
-          });
-          navigate('/auth', { state: { email: emailValue, fromBetaSignup: true } });
-        } else {
-          throw error;
-        }
-      } else {
-        notifications.show({
-          title: 'Welcome to the Beta!',
-          message: "You're in! Let's create your account...",
-          color: 'sage',
-        });
-
-        navigate('/auth', { state: { email: emailValue, fromBetaSignup: true } });
-      }
-    } catch (error) {
-      console.error('Beta signup error:', error);
-      notifications.show({
-        title: 'Signup Failed',
-        message: 'Please try again later',
-        color: 'terracotta',
-      });
-    } finally {
-      setLoadingFn(false);
-    }
-  };
 
   return (
     <>
@@ -183,43 +117,17 @@ function Landing() {
                   A cycling route builder and training platform that learns from your ride history. Plan routes, get AI coaching, and follow structured training plans—all in one place.
                 </Text>
 
-                {/* Beta Signup Form */}
-                <Paper
-                  p="md"
-                  radius="md"
-                  style={{
-                    background: 'rgba(158, 90, 60, 0.05)',
-                    border: `1px solid ${'var(--tribos-terracotta-500)'}30`,
-                  }}
-                >
-                  <form onSubmit={(e) => handleBetaSignup(e, email, setSubmitting)}>
-                    <Group gap="sm">
-                      <TextInput
-                        placeholder="your@email.com"
-                        size="md"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        leftSection={<IconMail size={18} />}
-                        style={{ flex: 1 }}
-                        styles={{
-                          input: {
-                            backgroundColor: 'var(--tribos-bg-primary)',
-                            borderColor: 'var(--tribos-border)',
-                          },
-                        }}
-                      />
-                      <Button
-                        type="submit"
-                        size="md"
-                        color="terracotta"
-                        loading={submitting}
-                        rightSection={<IconChevronRight size={18} />}
-                      >
-                        Get Started for Free
-                      </Button>
-                    </Group>
-                  </form>
-                  <Group gap="lg" mt="xs">
+                <Stack gap="xs">
+                  <Button
+                    component={Link}
+                    to="/auth"
+                    size="lg"
+                    color="terracotta"
+                    rightSection={<IconChevronRight size={18} />}
+                  >
+                    Create Free Account
+                  </Button>
+                  <Group gap="lg">
                     <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                       <IconCheck size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Free access
                     </Text>
@@ -227,7 +135,7 @@ function Landing() {
                       <IconCheck size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> No credit card
                     </Text>
                   </Group>
-                </Paper>
+                </Stack>
               </Stack>
             </Grid.Col>
 
@@ -769,45 +677,15 @@ function Landing() {
               Join the beta — build your first route, connect your devices, and see what AI coaching can do for your cycling.
             </Text>
 
-            {/* Bottom Beta Signup Form */}
-            <Paper
-              p="xl"
-              radius="lg"
-              style={{
-                background: `linear-gradient(135deg, rgba(158, 90, 60, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%)`,
-                border: `2px solid ${'var(--tribos-terracotta-500)'}40`,
-                maxWidth: 500,
-                width: '100%',
-              }}
+            <Button
+              component={Link}
+              to="/auth"
+              size="xl"
+              color="terracotta"
+              rightSection={<IconChevronRight size={20} />}
             >
-              <form onSubmit={(e) => handleBetaSignup(e, bottomEmail, setBottomSubmitting)}>
-                <Stack gap="md">
-                  <TextInput
-                    placeholder="your@email.com"
-                    size="lg"
-                    value={bottomEmail}
-                    onChange={(e) => setBottomEmail(e.target.value)}
-                    leftSection={<IconMail size={20} />}
-                    styles={{
-                      input: {
-                        backgroundColor: 'var(--tribos-bg-primary)',
-                        borderColor: 'var(--tribos-border)',
-                      },
-                    }}
-                  />
-                  <Button
-                    type="submit"
-                    size="lg"
-                    color="terracotta"
-                    loading={bottomSubmitting}
-                    rightSection={<IconChevronRight size={20} />}
-                    fullWidth
-                  >
-                    Get Started for Free
-                  </Button>
-                </Stack>
-              </form>
-            </Paper>
+              Create Free Account
+            </Button>
 
             <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
               Free to start  -  No credit card required
