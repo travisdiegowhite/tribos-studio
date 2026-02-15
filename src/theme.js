@@ -454,7 +454,7 @@ export const theme = createTheme({
         },
         tab: {
           borderRadius: 0,
-          color: 'var(--tribos-text-400)',
+          color: 'var(--tribos-text-300)',
           fontFamily: "'DM Mono', monospace",
           fontWeight: 500,
           fontSize: 12,
