@@ -24,6 +24,7 @@ import ElevationProfile from '../components/ElevationProfile.jsx';
 import WeatherWidget from '../components/WeatherWidget.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
+import { DEFAULT_ROUTE_COLOR } from '../components/ui/zoneColors';
 import { detectRouteClick, findNearestPointOnRoute, findSegmentToRemove, removeSegmentAndReroute, getSegmentHighlight, getRemovalStats } from '../utils/routeEditor';
 import { getElevationData, calculateElevationStats, calculateCumulativeDistances } from '../utils/elevation';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
@@ -367,6 +368,23 @@ function RouteBuilder() {
       // Already logged in useMemo above
     }
   }, [routeGeometry, selectedWorkout, routeStats.distance, showWorkoutOverlay]);
+
+  // Generate transition marker points at zone boundaries
+  const zoneTransitionPoints = useMemo(() => {
+    if (!coloredSegments?.features || coloredSegments.features.length < 2) return null;
+    const points = [];
+    for (let i = 1; i < coloredSegments.features.length; i++) {
+      const coords = coloredSegments.features[i].geometry.coordinates;
+      if (coords?.length > 0) {
+        points.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: coords[0] },
+          properties: {},
+        });
+      }
+    }
+    return points.length > 0 ? { type: 'FeatureCollection', features: points } : null;
+  }, [coloredSegments]);
 
   // Memoize route GeoJSON to prevent re-creating on every map move/render
   const routeGeoJSON = useMemo(() => {
@@ -2906,16 +2924,44 @@ function RouteBuilder() {
                   <AlternativeRouteLayers alternatives={altData} hoveredIndex={altHovered} />
                 )}
 
-                {/* Colored route segments */}
+                {/* Colored route segments (workout zones) */}
                 {coloredSegments && (
                   <Source id="colored-route" type="geojson" data={coloredSegments}>
+                    <Layer
+                      id="route-colored-glow"
+                      type="line"
+                      paint={{
+                        'line-color': ['get', 'color'],
+                        'line-width': 18,
+                        'line-opacity': 0.25,
+                        'line-blur': 6,
+                      }}
+                      layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                    />
                     <Layer
                       id="route-colored"
                       type="line"
                       paint={{
                         'line-color': ['get', 'color'],
-                        'line-width': 6,
-                        'line-opacity': 0.9
+                        'line-width': 5,
+                        'line-opacity': 1,
+                      }}
+                      layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                    />
+                  </Source>
+                )}
+
+                {/* Zone transition markers — neutral dots at zone boundaries */}
+                {zoneTransitionPoints && (
+                  <Source id="zone-transitions" type="geojson" data={zoneTransitionPoints}>
+                    <Layer
+                      id="zone-transition-dots"
+                      type="circle"
+                      paint={{
+                        'circle-radius': 4,
+                        'circle-color': '#232420',
+                        'circle-stroke-color': 'rgba(255,255,255,0.15)',
+                        'circle-stroke-width': 1,
                       }}
                     />
                   </Source>
@@ -2925,6 +2971,17 @@ function RouteBuilder() {
                 {surfaceRouteGeoJSON && !coloredSegments && (
                   <Source id="surface-route" type="geojson" data={surfaceRouteGeoJSON}>
                     <Layer
+                      id="route-surface-glow"
+                      type="line"
+                      paint={{
+                        'line-color': ['get', 'color'],
+                        'line-width': 18,
+                        'line-opacity': 0.25,
+                        'line-blur': 6,
+                      }}
+                      layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                    />
+                    <Layer
                       id="route-surface"
                       type="line"
                       paint={{
@@ -2932,6 +2989,7 @@ function RouteBuilder() {
                         'line-width': 5,
                         'line-opacity': 0.9,
                       }}
+                      layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                     />
                   </Source>
                 )}
@@ -2940,6 +2998,17 @@ function RouteBuilder() {
                 {gradientRouteGeoJSON && !coloredSegments && !surfaceRouteGeoJSON && (
                   <Source id="gradient-route" type="geojson" data={gradientRouteGeoJSON}>
                     <Layer
+                      id="route-gradient-glow"
+                      type="line"
+                      paint={{
+                        'line-color': ['get', 'color'],
+                        'line-width': 18,
+                        'line-opacity': 0.25,
+                        'line-blur': 6,
+                      }}
+                      layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                    />
+                    <Layer
                       id="route-gradient"
                       type="line"
                       paint={{
@@ -2947,6 +3016,7 @@ function RouteBuilder() {
                         'line-width': 5,
                         'line-opacity': 0.9,
                       }}
+                      layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                     />
                   </Source>
                 )}
@@ -2955,14 +3025,26 @@ function RouteBuilder() {
                 {routeGeoJSON && !coloredSegments && !surfaceRouteGeoJSON && !gradientRouteGeoJSON && (
                   <Source id="route" type="geojson" data={routeGeoJSON}>
                     <Layer
+                      id="route-line-glow"
+                      type="line"
+                      paint={{
+                        'line-color': editMode ? '#666666' : DEFAULT_ROUTE_COLOR,
+                        'line-width': editMode ? 8 : 18,
+                        'line-opacity': editMode ? 0.15 : 0.25,
+                        'line-blur': editMode ? 3 : 6,
+                      }}
+                      layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                    />
+                    <Layer
                       id="route-line"
                       type="line"
                       paint={{
-                        'line-color': editMode ? '#666666' : '#9E5A3C',
-                        'line-width': 4,
-                        'line-opacity': editMode ? 0.6 : 0.8,
+                        'line-color': editMode ? '#666666' : DEFAULT_ROUTE_COLOR,
+                        'line-width': 5,
+                        'line-opacity': editMode ? 0.6 : 1,
                         ...(!snapToRoads && { 'line-dasharray': [2, 1] }),
                       }}
+                      layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                     />
                   </Source>
                 )}
@@ -2971,13 +3053,25 @@ function RouteBuilder() {
                 {segmentHighlightGeoJSON && (
                   <Source id="segment-highlight" type="geojson" data={segmentHighlightGeoJSON}>
                     <Layer
+                      id="segment-highlight-glow"
+                      type="line"
+                      paint={{
+                        'line-color': DEFAULT_ROUTE_COLOR,
+                        'line-width': 18,
+                        'line-opacity': 0.25,
+                        'line-blur': 6,
+                      }}
+                      layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                    />
+                    <Layer
                       id="segment-highlight-line"
                       type="line"
                       paint={{
-                        'line-color': '#9E5A3C',
-                        'line-width': 6,
-                        'line-opacity': 0.9
+                        'line-color': DEFAULT_ROUTE_COLOR,
+                        'line-width': 5,
+                        'line-opacity': 1,
                       }}
+                      layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                     />
                   </Source>
                 )}
@@ -2997,39 +3091,55 @@ function RouteBuilder() {
                 )}
 
                 {/* Waypoint markers — draggable */}
-                {waypoints.map((waypoint, index) => (
-                  <Marker
-                    key={waypoint.id}
-                    longitude={waypoint.position[0]}
-                    latitude={waypoint.position[1]}
-                    anchor="bottom"
-                    draggable
-                    onDragStart={() => { waypointDragRef.current = true; }}
-                    onDragEnd={(e) => handleWaypointDragEnd(waypoint.id, e)}
-                    onClick={(e) => {
-                      e.originalEvent.stopPropagation();
-                      removeWaypoint(waypoint.id);
-                    }}
-                  >
-                    <div style={{
-                      backgroundColor: index === 0 ? '#6B8C72' : index === waypoints.length - 1 ? '#9E5A3C' : '#5C7A5E',
-                      color: 'white',
-                      width: 28,
-                      height: 28,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 600,
-                      fontSize: 12,
-                      cursor: 'grab',
-                      border: '2px solid white',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                    }}>
-                      {index + 1}
-                    </div>
-                  </Marker>
-                ))}
+                {waypoints.map((waypoint, index) => {
+                  const isStart = index === 0;
+                  const isEnd = index === waypoints.length - 1;
+                  return (
+                    <Marker
+                      key={waypoint.id}
+                      longitude={waypoint.position[0]}
+                      latitude={waypoint.position[1]}
+                      anchor={isStart || isEnd ? 'center' : 'bottom'}
+                      draggable
+                      onDragStart={() => { waypointDragRef.current = true; }}
+                      onDragEnd={(e) => handleWaypointDragEnd(waypoint.id, e)}
+                      onClick={(e) => {
+                        e.originalEvent.stopPropagation();
+                        removeWaypoint(waypoint.id);
+                      }}
+                    >
+                      {isStart ? (
+                        <div style={{
+                          width: 22, height: 22, borderRadius: '50%',
+                          backgroundColor: '#232420', border: `2.5px solid ${DEFAULT_ROUTE_COLOR}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'grab', boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                        }}>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: DEFAULT_ROUTE_COLOR }} />
+                        </div>
+                      ) : isEnd ? (
+                        <div style={{
+                          width: 22, height: 22, borderRadius: '50%',
+                          backgroundColor: '#232420', border: `2.5px solid ${DEFAULT_ROUTE_COLOR}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'grab', boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                        }}>
+                          <div style={{ width: 7, height: 7, backgroundColor: DEFAULT_ROUTE_COLOR }} />
+                        </div>
+                      ) : (
+                        <div style={{
+                          backgroundColor: '#5C7A5E', color: 'white',
+                          width: 28, height: 28, borderRadius: '50%',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 600, fontSize: 12, cursor: 'grab',
+                          border: '2px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                        }}>
+                          {index + 1}
+                        </div>
+                      )}
+                    </Marker>
+                  );
+                })}
 
                 {/* Elevation profile hover marker */}
                 {elevationHoverPosition && (
@@ -3041,10 +3151,10 @@ function RouteBuilder() {
                     <div style={{
                       width: 14,
                       height: 14,
-                      backgroundColor: '#9E5A3C',
+                      backgroundColor: DEFAULT_ROUTE_COLOR,
                       borderRadius: '50%',
                       border: '2px solid white',
-                      boxShadow: '0 0 0 2px #9E5A3C, 0 2px 12px rgba(158, 90, 60, 0.6)',
+                      boxShadow: `0 0 0 2px ${DEFAULT_ROUTE_COLOR}, 0 2px 12px rgba(255, 107, 74, 0.6)`,
                     }} />
                   </Marker>
                 )}
@@ -4604,15 +4714,44 @@ function RouteBuilder() {
               )}
 
               {/* Route visualization layers — priority: workout > surface > gradient > flat */}
+              {/* Each layer renders as glow (wide, blurred, translucent) + core (sharp) */}
               {coloredSegments && (
                 <Source id="colored-route" type="geojson" data={coloredSegments}>
+                  <Layer
+                    id="route-colored-glow"
+                    type="line"
+                    paint={{
+                      'line-color': ['get', 'color'],
+                      'line-width': 18,
+                      'line-opacity': 0.25,
+                      'line-blur': 6,
+                    }}
+                    layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                  />
                   <Layer
                     id="route-colored"
                     type="line"
                     paint={{
                       'line-color': ['get', 'color'],
-                      'line-width': 6,
-                      'line-opacity': 0.9
+                      'line-width': 5,
+                      'line-opacity': 1,
+                    }}
+                    layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                  />
+                </Source>
+              )}
+
+              {/* Zone transition markers — neutral dots at zone boundaries */}
+              {zoneTransitionPoints && (
+                <Source id="zone-transitions" type="geojson" data={zoneTransitionPoints}>
+                  <Layer
+                    id="zone-transition-dots"
+                    type="circle"
+                    paint={{
+                      'circle-radius': 4,
+                      'circle-color': '#232420',
+                      'circle-stroke-color': 'rgba(255,255,255,0.15)',
+                      'circle-stroke-width': 1,
                     }}
                   />
                 </Source>
@@ -4621,13 +4760,25 @@ function RouteBuilder() {
               {surfaceRouteGeoJSON && !coloredSegments && (
                 <Source id="surface-route" type="geojson" data={surfaceRouteGeoJSON}>
                   <Layer
+                    id="route-surface-glow"
+                    type="line"
+                    paint={{
+                      'line-color': ['get', 'color'],
+                      'line-width': 18,
+                      'line-opacity': 0.25,
+                      'line-blur': 6,
+                    }}
+                    layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                  />
+                  <Layer
                     id="route-surface"
                     type="line"
                     paint={{
                       'line-color': ['get', 'color'],
-                      'line-width': 6,
-                      'line-opacity': 0.85,
+                      'line-width': 5,
+                      'line-opacity': 0.9,
                     }}
+                    layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                   />
                 </Source>
               )}
@@ -4635,13 +4786,25 @@ function RouteBuilder() {
               {gradientRouteGeoJSON && !coloredSegments && !surfaceRouteGeoJSON && (
                 <Source id="gradient-route" type="geojson" data={gradientRouteGeoJSON}>
                   <Layer
+                    id="route-gradient-glow"
+                    type="line"
+                    paint={{
+                      'line-color': ['get', 'color'],
+                      'line-width': 18,
+                      'line-opacity': 0.25,
+                      'line-blur': 6,
+                    }}
+                    layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                  />
+                  <Layer
                     id="route-gradient"
                     type="line"
                     paint={{
                       'line-color': ['get', 'color'],
-                      'line-width': 6,
-                      'line-opacity': 0.85,
+                      'line-width': 5,
+                      'line-opacity': 0.9,
                     }}
+                    layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                   />
                 </Source>
               )}
@@ -4649,14 +4812,26 @@ function RouteBuilder() {
               {routeGeoJSON && !coloredSegments && !surfaceRouteGeoJSON && !gradientRouteGeoJSON && (
                 <Source id="route" type="geojson" data={routeGeoJSON}>
                   <Layer
+                    id="route-line-glow"
+                    type="line"
+                    paint={{
+                      'line-color': editMode ? '#666666' : DEFAULT_ROUTE_COLOR,
+                      'line-width': editMode ? 8 : 18,
+                      'line-opacity': editMode ? 0.15 : 0.25,
+                      'line-blur': editMode ? 3 : 6,
+                    }}
+                    layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                  />
+                  <Layer
                     id="route-line"
                     type="line"
                     paint={{
-                      'line-color': editMode ? '#666666' : '#9E5A3C',
-                      'line-width': 4,
-                      'line-opacity': editMode ? 0.6 : 0.8,
+                      'line-color': editMode ? '#666666' : DEFAULT_ROUTE_COLOR,
+                      'line-width': 5,
+                      'line-opacity': editMode ? 0.6 : 1,
                       ...(!snapToRoads && { 'line-dasharray': [2, 1] }),
                     }}
+                    layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                   />
                 </Source>
               )}
@@ -4665,13 +4840,25 @@ function RouteBuilder() {
               {segmentHighlightGeoJSON && (
                 <Source id="segment-highlight" type="geojson" data={segmentHighlightGeoJSON}>
                   <Layer
+                    id="segment-highlight-glow"
+                    type="line"
+                    paint={{
+                      'line-color': DEFAULT_ROUTE_COLOR,
+                      'line-width': 18,
+                      'line-opacity': 0.25,
+                      'line-blur': 6,
+                    }}
+                    layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                  />
+                  <Layer
                     id="segment-highlight-line"
                     type="line"
                     paint={{
-                      'line-color': '#9E5A3C',
-                      'line-width': 6,
-                      'line-opacity': 0.9
+                      'line-color': DEFAULT_ROUTE_COLOR,
+                      'line-width': 5,
+                      'line-opacity': 1,
                     }}
+                    layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                   />
                 </Source>
               )}
@@ -4695,39 +4882,55 @@ function RouteBuilder() {
               )}
 
               {/* Render waypoint markers — draggable */}
-              {waypoints.map((waypoint, index) => (
-                <Marker
-                  key={waypoint.id}
-                  longitude={waypoint.position[0]}
-                  latitude={waypoint.position[1]}
-                  anchor="bottom"
-                  draggable
-                  onDragStart={() => { waypointDragRef.current = true; }}
-                  onDragEnd={(e) => handleWaypointDragEnd(waypoint.id, e)}
-                  onClick={(e) => {
-                    e.originalEvent.stopPropagation();
-                    removeWaypoint(waypoint.id);
-                  }}
-                >
-                  <div style={{
-                    backgroundColor: index === 0 ? '#6B8C72' : index === waypoints.length - 1 ? '#9E5A3C' : '#5C7A5E',
-                    color: 'white',
-                    width: 32,
-                    height: 32,
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 600,
-                    fontSize: 14,
-                    cursor: 'grab',
-                    border: '2px solid white',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                  }}>
-                    {index === 0 ? 'S' : index === waypoints.length - 1 ? 'E' : index + 1}
-                  </div>
-                </Marker>
-              ))}
+              {waypoints.map((waypoint, index) => {
+                const isStart = index === 0;
+                const isEnd = index === waypoints.length - 1;
+                return (
+                  <Marker
+                    key={waypoint.id}
+                    longitude={waypoint.position[0]}
+                    latitude={waypoint.position[1]}
+                    anchor={isStart || isEnd ? 'center' : 'bottom'}
+                    draggable
+                    onDragStart={() => { waypointDragRef.current = true; }}
+                    onDragEnd={(e) => handleWaypointDragEnd(waypoint.id, e)}
+                    onClick={(e) => {
+                      e.originalEvent.stopPropagation();
+                      removeWaypoint(waypoint.id);
+                    }}
+                  >
+                    {isStart ? (
+                      <div style={{
+                        width: 24, height: 24, borderRadius: '50%',
+                        backgroundColor: '#232420', border: `2.5px solid ${DEFAULT_ROUTE_COLOR}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'grab', boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                      }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: DEFAULT_ROUTE_COLOR }} />
+                      </div>
+                    ) : isEnd ? (
+                      <div style={{
+                        width: 24, height: 24, borderRadius: '50%',
+                        backgroundColor: '#232420', border: `2.5px solid ${DEFAULT_ROUTE_COLOR}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'grab', boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                      }}>
+                        <div style={{ width: 8, height: 8, backgroundColor: DEFAULT_ROUTE_COLOR }} />
+                      </div>
+                    ) : (
+                      <div style={{
+                        backgroundColor: '#5C7A5E', color: 'white',
+                        width: 32, height: 32, borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontWeight: 600, fontSize: 14, cursor: 'grab',
+                        border: '2px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                      }}>
+                        {index + 1}
+                      </div>
+                    )}
+                  </Marker>
+                );
+              })}
 
               {/* Elevation profile hover marker */}
               {elevationHoverPosition && (
@@ -4739,10 +4942,10 @@ function RouteBuilder() {
                   <div style={{
                     width: 16,
                     height: 16,
-                    backgroundColor: '#9E5A3C',
+                    backgroundColor: DEFAULT_ROUTE_COLOR,
                     borderRadius: '50%',
                     border: '3px solid white',
-                    boxShadow: '0 0 0 2px #9E5A3C, 0 2px 12px rgba(158, 90, 60, 0.6)',
+                    boxShadow: `0 0 0 2px ${DEFAULT_ROUTE_COLOR}, 0 2px 12px rgba(255, 107, 74, 0.6)`,
                     animation: 'pulse 1.5s ease-in-out infinite',
                   }} />
                 </Marker>

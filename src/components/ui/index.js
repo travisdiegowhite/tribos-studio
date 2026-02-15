@@ -27,4 +27,7 @@ export {
   getZoneFromPowerPct,
   CHART_COLORS,
   getChartSeriesColor,
+  ROUTE_ZONE_COLORS,
+  DEFAULT_ROUTE_COLOR,
+  getRouteZoneColor,
 } from './zoneColors';

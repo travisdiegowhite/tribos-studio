@@ -3,6 +3,8 @@
  * Provides location-based instructions for where to perform intervals
  */
 
+import { ROUTE_ZONE_COLORS } from '../components/ui/zoneColors';
+
 /**
  * Calculate total distance from coordinates array
  */
@@ -935,7 +937,7 @@ export function createColoredRouteSegments(coordinates, cues) {
         type: 'Feature',
         properties: {
           zone: cue.zone,
-          color: getZoneColor(cue.zone),
+          color: ROUTE_ZONE_COLORS[cue.zone] || ROUTE_ZONE_COLORS[Math.round(cue.zone)] || '#FF6B4A',
           type: cue.type,
           instruction: cue.instruction
         },

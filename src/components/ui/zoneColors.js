@@ -12,6 +12,7 @@ import { tokens } from '../../theme';
 /**
  * Zone color definitions — mapped to Tribos brand palette
  * Sage → Teal → Gold → Terracotta → Mauve → Dusty Rose → Sky
+ * Used for charts, badges, and UI elements.
  */
 export const ZONE_COLORS = {
   1: tokens.colors.zone1, // Recovery - Sage
@@ -23,6 +24,25 @@ export const ZONE_COLORS = {
   6: tokens.colors.zone6, // Anaerobic - Dusty Rose
   7: tokens.colors.zone7, // Neuromuscular - Sky
 };
+
+/**
+ * Route-specific zone colors — vivid off-palette colors for map route lines.
+ * These intentionally break the Parchment to Bone palette so they pop
+ * against the muted geological basemap. The route is data, not brand.
+ */
+export const ROUTE_ZONE_COLORS = {
+  1: '#4ECDC4', // Z1–Z2 Recovery — teal
+  2: '#4ECDC4', // Z1–Z2 Recovery — teal
+  3: '#FF6B4A', // Z3 Endurance — coral (default/primary route color)
+  3.5: '#FF6B4A', // Sweet Spot — same as endurance
+  4: '#FFBE2E', // Z4 Tempo — amber
+  5: '#FF4E8E', // Z5 VO2max — hot pink
+  6: '#B44EFF', // Z6+ Sprint — purple
+  7: '#B44EFF', // Z6+ Sprint — purple
+};
+
+/** Default route color when no workout zone is active (Z3 Endurance) */
+export const DEFAULT_ROUTE_COLOR = '#FF6B4A';
 
 /**
  * Zone names for display
@@ -47,6 +67,17 @@ export const ZONE_NAMES = {
  */
 export function getZoneColor(zone) {
   return ZONE_COLORS[zone] || ZONE_COLORS[2];
+}
+
+/**
+ * Get vivid route zone color for map route line rendering.
+ * These are high-contrast colors designed to pop against the basemap.
+ *
+ * @param {number} zone - Zone number (1-7)
+ * @returns {string} Hex color
+ */
+export function getRouteZoneColor(zone) {
+  return ROUTE_ZONE_COLORS[zone] || ROUTE_ZONE_COLORS[3];
 }
 
 /**
