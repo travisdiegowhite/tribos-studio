@@ -64,8 +64,8 @@ export const lightTokens = {
 
     // Text — green-black ink
     textPrimary: '#24261F',
-    textSecondary: '#74766A',
-    textMuted: '#9A9C90',
+    textSecondary: '#5E6054',
+    textMuted: '#84867A',
 
     // Semantic — mapped to palette
     success: '#6B8C72',  // Forest (sage token)
@@ -131,9 +131,9 @@ export const darkTokens = {
 
     // Text — cool cream hierarchy
     textPrimary: '#E5E5DF',
-    textSecondary: '#959588',
-    textMuted: '#636358',
-    textDim: '#555650',
+    textSecondary: '#ADADA3',
+    textMuted: '#84857C',
+    textDim: '#6E6F66',
 
     // Semantic
     success: '#5E8068',

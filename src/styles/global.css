@@ -77,8 +77,8 @@
   /* ===== TEXT (green-black ink) ===== */
   --tribos-text-100: #24261F;
   --tribos-text-200: #44463C;
-  --tribos-text-300: #74766A;
-  --tribos-text-400: #9A9C90;
+  --tribos-text-300: #5E6054;
+  --tribos-text-400: #84867A;
   --tribos-text-500: #C8C8BE;
   --tribos-text-600: #E0E0D9;
 
@@ -221,9 +221,9 @@
 
   /* Text */
   --tribos-text-100: #E5E5DF;
-  --tribos-text-200: #959588;
-  --tribos-text-300: #636358;
-  --tribos-text-400: #74766A;
+  --tribos-text-200: #ADADA3;
+  --tribos-text-300: #84857C;
+  --tribos-text-400: #6E6F66;
   --tribos-text-500: #555650;
   --tribos-text-600: #444439;
 
