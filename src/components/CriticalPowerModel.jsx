@@ -372,16 +372,16 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
               <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 10, fill: 'var(--tribos-text-muted)' }}
+                tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+                tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
                 domain={['auto', 'auto']}
                 label={{
                   value: 'Watts',
                   angle: -90,
                   position: 'insideLeft',
-                  style: { fill: 'var(--tribos-text-muted)', fontSize: 11 }
+                  style: { fill: 'var(--tribos-text-muted)', fontSize: 12 }
                 }}
               />
               <RechartsTooltip content={<CustomTooltip />} />
@@ -395,7 +395,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
                   value: `CP: ${cpModel.cp}W`,
                   position: 'right',
                   fill: tokens.colors.zone4,
-                  fontSize: 10
+                  fontSize: 11
                 }}
               />
 

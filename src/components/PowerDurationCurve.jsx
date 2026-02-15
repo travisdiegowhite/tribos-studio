@@ -281,15 +281,15 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
           <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
           <XAxis
             dataKey="duration"
-            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
             label={{
               value: 'Watts',
               angle: -90,
               position: 'insideLeft',
-              style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 11 }
+              style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 12 }
             }}
           />
           <RechartsTooltip content={<CustomTooltip />} />
@@ -304,7 +304,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
                 value: `FTP: ${ftp}W`,
                 position: 'right',
                 fill: tokens.colors.zone4,
-                fontSize: 10
+                fontSize: 11
               }}
             />
           )}

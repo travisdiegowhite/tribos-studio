@@ -333,18 +333,18 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
             <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 10, fill: 'var(--tribos-text-muted)' }}
+              tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
               angle={-20}
               textAnchor="end"
               height={50}
             />
             <YAxis
-              tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+              tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
               label={{
                 value: '%',
                 angle: -90,
                 position: 'insideLeft',
-                style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 11 }
+                style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 12 }
               }}
             />
             <RechartsTooltip content={<CustomTooltip />} />

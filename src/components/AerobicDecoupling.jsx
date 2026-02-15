@@ -343,17 +343,17 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
             <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
             <XAxis
               dataKey="formattedDate"
-              tick={{ fontSize: 10, fill: 'var(--tribos-text-muted)' }}
+              tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
               interval="preserveStartEnd"
             />
             <YAxis
-              tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+              tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
               domain={['auto', 'auto']}
               label={{
                 value: 'EF (W/bpm)',
                 angle: -90,
                 position: 'insideLeft',
-                style: { fill: 'var(--tribos-text-muted)', fontSize: 11 }
+                style: { fill: 'var(--tribos-text-muted)', fontSize: 12 }
               }}
             />
             <RechartsTooltip content={<CustomTooltip />} />

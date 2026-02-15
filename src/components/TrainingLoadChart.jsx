@@ -136,10 +136,10 @@ const TrainingLoadChart = ({ data }) => {
           <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
           <XAxis
             dataKey="formattedDate"
-            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
             interval="preserveStartEnd"
           />
-          <YAxis tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }} />
+          <YAxis tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }} />
           <Tooltip content={<CustomTooltip />} />
           <Area
             type="monotone"
@@ -162,12 +162,12 @@ const TrainingLoadChart = ({ data }) => {
           <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
           <XAxis
             dataKey="formattedDate"
-            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
             interval="preserveStartEnd"
           />
-          <YAxis tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }} />
+          <YAxis tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }} />
           <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: 13 }} />
 
           {/* Reference line at TSB = 0 */}
           <ReferenceLine y={0} stroke={'var(--tribos-text-muted)'} strokeDasharray="3 3" />

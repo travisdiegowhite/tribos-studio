@@ -264,7 +264,7 @@ function FitnessProgressionChart({ snapshots }) {
           <XAxis
             dataKey="date"
             stroke={'var(--tribos-text-muted)'}
-            tick={{ fontSize: 10 }}
+            tick={{ fontSize: 12 }}
             tickFormatter={(date) => {
               const d = new Date(date);
               return `${d.getMonth() + 1}/${d.getFullYear().toString().slice(2)}`;
