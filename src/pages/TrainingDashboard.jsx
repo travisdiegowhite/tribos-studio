@@ -845,7 +845,19 @@ function TrainingDashboard() {
           />
 
           {/* Main Tabs - Pill Style for clear visual distinction */}
-          <Tabs value={activeTab} onChange={setActiveTab} color="terracotta" variant="pills">
+          <Tabs
+            value={activeTab}
+            onChange={setActiveTab}
+            color="terracotta"
+            variant="pills"
+            styles={{
+              tab: {
+                '&[data-active]': {
+                  color: '#fff',
+                },
+              },
+            }}
+          >
             <Paper
               withBorder
               radius="xl"
