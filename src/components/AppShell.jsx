@@ -260,7 +260,7 @@ function MobileBottomNav({ navItems, isActive }) {
               fw={active ? 500 : 400}
               style={{
                 color: active ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-secondary)',
-                fontSize: 10,
+                fontSize: 11,
               }}
             >
               {item.label}

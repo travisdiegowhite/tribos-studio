@@ -160,18 +160,18 @@ const ActivityPowerCurve = ({ powerCurveSummary, ftp, weight }) => {
           />
           <XAxis
             dataKey="duration"
-            tick={{ fontSize: 10, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
             axisLine={{ stroke: 'var(--tribos-bg-tertiary)' }}
           />
           <YAxis
-            tick={{ fontSize: 10, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
             axisLine={{ stroke: 'var(--tribos-bg-tertiary)' }}
             width={45}
             label={{
               value: 'W',
               angle: -90,
               position: 'insideLeft',
-              style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 10 },
+              style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 12 },
             }}
           />
           <RechartsTooltip content={<CustomTooltip />} />
@@ -186,7 +186,7 @@ const ActivityPowerCurve = ({ powerCurveSummary, ftp, weight }) => {
                 value: `FTP ${ftp}W`,
                 position: 'right',
                 fill: tokens.colors.zone4,
-                fontSize: 9,
+                fontSize: 11,
               }}
             />
           )}

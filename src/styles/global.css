@@ -614,7 +614,7 @@ button {
 .recharts-text {
   fill: var(--tribos-text-muted);
   font-family: 'DM Mono', monospace;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 /* ===== Dashboard Grid ===== */
@@ -647,7 +647,7 @@ button {
 }
 
 .mantine-Tooltip-tooltip {
-  font-size: 11px;
+  font-size: 12px;
   padding: 6px 10px;
 }
 

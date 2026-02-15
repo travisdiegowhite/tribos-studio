@@ -61,7 +61,7 @@ function CollapsibleSection({
                 color: 'var(--tribos-bg-primary)',
                 padding: '2px 8px',
                 borderRadius: tokens.radius.full,
-                fontSize: '11px',
+                fontSize: '12px',
                 fontWeight: 600,
               }}
             >

@@ -490,7 +490,7 @@ const ElevationProfile = ({
               <text
                 x={chartConfig.padding + 5}
                 y={chartConfig.padding + 10}
-                fontSize="11"
+                fontSize="12"
                 fill={'var(--tribos-text-secondary)'}
                 fontWeight="500"
               >
@@ -499,7 +499,7 @@ const ElevationProfile = ({
               <text
                 x={chartConfig.padding + 5}
                 y={chartConfig.chartHeight - chartConfig.padding - 2}
-                fontSize="11"
+                fontSize="12"
                 fill={'var(--tribos-text-secondary)'}
                 fontWeight="500"
               >
@@ -536,10 +536,10 @@ const ElevationProfile = ({
                       rx="4"
                       fill="rgba(0,0,0,0.85)"
                     />
-                    <text x="8" y="14" fontSize="10" fill="#fff" fontWeight="500">
+                    <text x="8" y="14" fontSize="12" fill="#fff" fontWeight="500">
                       {formatElev(hoverInfo.elevation)}
                     </text>
-                    <text x="8" y="28" fontSize="10" fill="#aaa">
+                    <text x="8" y="28" fontSize="12" fill="#aaa">
                       {formatDist(hoverInfo.distance)} km
                     </text>
                   </g>
@@ -576,10 +576,10 @@ const ElevationProfile = ({
                       rx="4"
                       fill="rgba(0,0,0,0.85)"
                     />
-                    <text x="8" y="14" fontSize="10" fill="#fff" fontWeight="500">
+                    <text x="8" y="14" fontSize="12" fill="#fff" fontWeight="500">
                       {formatElev(externalHighlight.elevation)}
                     </text>
-                    <text x="8" y="28" fontSize="10" fill="#aaa">
+                    <text x="8" y="28" fontSize="12" fill="#aaa">
                       {formatDist(externalHighlight.distance)} km
                     </text>
                   </g>

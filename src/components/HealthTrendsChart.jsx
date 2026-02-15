@@ -274,18 +274,18 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
           <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
           <XAxis
             dataKey="formattedDate"
-            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
             interval="preserveStartEnd"
           />
           <YAxis
             yAxisId="left"
-            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
             domain={[0, 'auto']}
           />
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
             domain={[0, 100]}
           />
           <RechartsTooltip content={<CustomTooltip />} />
