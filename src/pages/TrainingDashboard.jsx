@@ -853,7 +853,7 @@ function TrainingDashboard() {
             styles={{
               tab: {
                 '&[data-active]': {
-                  color: '#fff',
+                  color: '#fff !important',
                 },
               },
             }}
