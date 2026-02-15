@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   Container,
   Title,
@@ -13,100 +12,47 @@ import {
   Paper,
   Divider,
   Center,
-  TextInput,
   Anchor,
   Badge,
   SimpleGrid,
+  SegmentedControl,
+  Textarea,
+  TextInput,
+  ActionIcon,
 } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import {
   IconRoute,
   IconCheck,
-  IconMail,
   IconChevronRight,
   IconTrendingUp,
   IconMapPin,
   IconHeart,
-  IconBolt,
   IconUpload,
-  IconBrandStrava,
   IconActivity,
   IconDeviceWatch,
+  IconMessageChatbot,
+  IconCalendarEvent,
+  IconMap2,
+  IconSparkles,
+  IconRuler,
+  IconMountain,
+  IconClock,
+  IconSend,
+  IconUser,
+  IconRobot,
+  IconCalendarPlus,
+  IconDownload,
 } from '@tabler/icons-react';
-import { tokens } from '../theme';
-import { supabase } from '../lib/supabase';
 import SEO, { getOrganizationSchema, getWebSiteSchema } from '../components/SEO';
 
 function Landing() {
-  const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [bottomEmail, setBottomEmail] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [bottomSubmitting, setBottomSubmitting] = useState(false);
-
-  const handleBetaSignup = async (e, emailValue, setLoadingFn) => {
-    e.preventDefault();
-
-    if (!emailValue || !emailValue.includes('@')) {
-      notifications.show({
-        title: 'Invalid Email',
-        message: 'Please enter a valid email address',
-        color: 'terracotta',
-      });
-      return;
-    }
-
-    setLoadingFn(true);
-
-    try {
-      const { error } = await supabase
-        .from('beta_signups')
-        .insert([{
-          email: emailValue,
-          signed_up_at: new Date().toISOString(),
-          status: 'pending'
-        }]);
-
-      if (error) {
-        if (error.code === '23505') {
-          notifications.show({
-            title: 'Welcome Back!',
-            message: "You're already on the list! Let's create your account...",
-            color: 'blue',
-          });
-          navigate('/auth', { state: { email: emailValue, fromBetaSignup: true } });
-        } else {
-          throw error;
-        }
-      } else {
-        // Beta signup saved - user will receive the branded confirmation email from Supabase
-        // after they create their account on the auth page
-        notifications.show({
-          title: 'Welcome to the Beta!',
-          message: "You're in! Let's create your account...",
-          color: 'sage',
-        });
-
-        navigate('/auth', { state: { email: emailValue, fromBetaSignup: true } });
-      }
-    } catch (error) {
-      console.error('Beta signup error:', error);
-      notifications.show({
-        title: 'Signup Failed',
-        message: 'Please try again later',
-        color: 'terracotta',
-      });
-    } finally {
-      setLoadingFn(false);
-    }
-  };
 
   return (
     <>
       <SEO
-        title="tribos.studio - AI-Powered Cycling Training App"
-        description="Elevate your cycling performance with AI route planning, training analytics, and seamless device sync for Strava, Garmin, and Wahoo. Join the beta today."
-        keywords="cycling training app, AI cycling routes, bike training planner, cycling analytics, strava integration, garmin connect, wahoo sync, cycling performance tracking"
+        title="tribos.studio - Cycling Route Builder, AI Coach & Training Platform"
+        description="Build smarter cycling routes with AI, get personalized coaching from your ride history, and follow structured training plans. Syncs with Strava, Garmin, and Wahoo."
+        keywords="cycling route builder, cycling route planner, AI cycling coach, cycling training platform, bike route builder, cycling training plans, strava route builder, garmin route sync, cycling analytics, cycling power analysis"
         url="https://tribos.studio"
         image="https://tribos.studio/og-image.svg"
         structuredData={{
@@ -148,352 +94,495 @@ function Landing() {
         </Group>
       </Box>
 
-      {/* HERO SECTION - User-Focused */}
+      {/* HERO SECTION */}
       <Box py={{ base: 60, md: 100 }} px={{ base: 'md', md: 'xl' }}>
-        <Container size="lg">
-          <Grid gutter={{ base: 40, md: 60 }} align="center">
-            <Grid.Col span={{ base: 12, md: 6 }}>
-              <Stack gap="lg">
-                <Badge color="terracotta" variant="light" size="lg">
-                  Now in Private Beta
-                </Badge>
+        <Container size="md">
+          <Stack gap="lg" align="center" ta="center">
+            <Badge color="terracotta" variant="light" size="lg">
+              Now in Private Beta
+            </Badge>
 
-                <Title
-                  order={1}
-                  style={{
-                    fontSize: 'clamp(2.2rem, 5vw, 3.5rem)',
-                    color: 'var(--tribos-text-primary)',
-                    lineHeight: 1.1,
-                  }}
-                >
-                  Know Exactly What{' '}
-                  <span
-                    style={{
-                      background: `linear-gradient(135deg, ${'var(--tribos-terracotta-500)'} 0%, #22d3ee 100%)`,
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                    }}
-                  >
-                    Ride Your Body Needs
-                  </span>
-                  {' '}Today
-                </Title>
-
-                <Text size="xl" style={{ color: 'var(--tribos-text-secondary)' }}>
-                  The cycling training app that combines training load analytics, AI route planning, and recovery tracking—finally in one place.
-                </Text>
-
-                {/* Beta Signup Form */}
-                <Paper
-                  p="md"
-                  radius="md"
-                  style={{
-                    background: 'rgba(158, 90, 60, 0.05)',
-                    border: `1px solid ${'var(--tribos-terracotta-500)'}30`,
-                  }}
-                >
-                  <form onSubmit={(e) => handleBetaSignup(e, email, setSubmitting)}>
-                    <Group gap="sm">
-                      <TextInput
-                        placeholder="your@email.com"
-                        size="md"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        leftSection={<IconMail size={18} />}
-                        style={{ flex: 1 }}
-                        styles={{
-                          input: {
-                            backgroundColor: 'var(--tribos-bg-primary)',
-                            borderColor: 'var(--tribos-border)',
-                          },
-                        }}
-                      />
-                      <Button
-                        type="submit"
-                        size="md"
-                        color="terracotta"
-                        loading={submitting}
-                        rightSection={<IconChevronRight size={18} />}
-                      >
-                        Get Started for Free
-                      </Button>
-                    </Group>
-                  </form>
-                  <Group gap="lg" mt="xs">
-                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
-                      <IconCheck size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Free access
-                    </Text>
-                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
-                      <IconCheck size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> No credit card
-                    </Text>
-                  </Group>
-                </Paper>
-              </Stack>
-            </Grid.Col>
-
-            {/* Product Preview */}
-            <Grid.Col span={{ base: 12, md: 6 }}>
-              <Paper
-                p="lg"
-                radius="lg"
+            <Title
+              order={1}
+              style={{
+                fontSize: 'clamp(2.2rem, 5vw, 3.5rem)',
+                color: 'var(--tribos-text-primary)',
+                lineHeight: 1.1,
+              }}
+            >
+              Build Routes.{' '}
+              <span
                 style={{
-                  background: `linear-gradient(135deg, ${'var(--tribos-bg-secondary)'} 0%, rgba(158, 90, 60, 0.05) 100%)`,
-                  border: `2px solid ${'var(--tribos-terracotta-500)'}30`,
+                  background: `linear-gradient(135deg, ${'var(--tribos-terracotta-500)'} 0%, #22d3ee 100%)`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
                 }}
               >
-                <Stack gap="md">
-                  <Text size="sm" fw={600} style={{ color: 'var(--tribos-terracotta-500)' }}>
-                    TRAINING DASHBOARD PREVIEW
-                  </Text>
+                Train with AI.
+              </span>
+              {' '}Ride Smarter.
+            </Title>
 
-                  {/* Mock Dashboard Stats */}
-                  <SimpleGrid cols={{ base: 2 }} spacing="sm">
-                    <Paper p="sm" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                      <Text size="xs" c="dimmed">Today's Readiness</Text>
-                      <Group gap="xs" align="baseline">
-                        <Text size="xl" fw={700} style={{ color: 'var(--tribos-terracotta-500)' }}>78</Text>
-                        <Text size="xs" c="sage">Good to train</Text>
-                      </Group>
-                    </Paper>
-                    <Paper p="sm" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                      <Text size="xs" c="dimmed">Form (TSB)</Text>
-                      <Group gap="xs" align="baseline">
-                        <Text size="xl" fw={700} style={{ color: '#22d3ee' }}>+12</Text>
-                        <Text size="xs" c="blue">Fresh</Text>
-                      </Group>
-                    </Paper>
-                    <Paper p="sm" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                      <Text size="xs" c="dimmed">Fitness (CTL)</Text>
-                      <Group gap="xs" align="baseline">
-                        <Text size="xl" fw={700} style={{ color: '#B89040' }}>67</Text>
-                        <Text size="xs" c="orange">Building</Text>
-                      </Group>
-                    </Paper>
-                    <Paper p="sm" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
-                      <Text size="xs" c="dimmed">Fatigue (ATL)</Text>
-                      <Group gap="xs" align="baseline">
-                        <Text size="xl" fw={700} style={{ color: '#9E5A3C' }}>55</Text>
-                        <Text size="xs" c="red">Moderate</Text>
-                      </Group>
-                    </Paper>
-                  </SimpleGrid>
+            <Text size="xl" style={{ color: 'var(--tribos-text-secondary)', maxWidth: 600 }}>
+              A cycling route builder and training platform that learns from your ride history. Plan routes, get AI coaching, and follow structured training plans—all in one place.
+            </Text>
 
-                  {/* Recommendation */}
-                  <Paper p="sm" style={{ backgroundColor: 'var(--tribos-terracotta-500)' + '20', border: `1px solid ${'var(--tribos-terracotta-500)'}50` }}>
-                    <Group gap="sm">
-                      <ThemeIcon color="terracotta" variant="light" radius="xl">
-                        <IconBolt size={16} />
-                      </ThemeIcon>
-                      <div>
-                        <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
-                          Today: Threshold intervals
-                        </Text>
-                        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-                          Your form is good for intensity work
-                        </Text>
-                      </div>
-                    </Group>
-                  </Paper>
-                </Stack>
-              </Paper>
-            </Grid.Col>
-          </Grid>
+            <Stack gap="xs" align="center">
+              <Button
+                component={Link}
+                to="/auth"
+                size="lg"
+                color="terracotta"
+                rightSection={<IconChevronRight size={18} />}
+              >
+                Create Free Account
+              </Button>
+              <Group gap="lg">
+                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <IconCheck size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Free access
+                </Text>
+                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <IconCheck size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> No credit card
+                </Text>
+              </Group>
+            </Stack>
+          </Stack>
         </Container>
       </Box>
 
-      {/* PROBLEM SECTION - Quick Pain Points */}
+      {/* WHAT IS TRIBOS - Quick Explainer for Cold Traffic */}
       <Box py={{ base: 40, md: 60 }} px={{ base: 'md', md: 'xl' }} style={{ backgroundColor: `${'var(--tribos-bg-secondary)'}50` }}>
         <Container size="md">
           <Stack align="center" gap="xl">
             <Title order={2} size={28} ta="center" style={{ color: 'var(--tribos-text-primary)' }}>
-              Sound Familiar?
+              One Platform for Your Entire Ride
             </Title>
+            <Text size="lg" ta="center" style={{ color: 'var(--tribos-text-secondary)', maxWidth: 600 }}>
+              tribos.studio connects your Strava, Garmin, and Wahoo data to give you a complete cycling platform—from planning your route to analyzing your performance.
+            </Text>
 
             <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
               <Paper p="md" style={{ backgroundColor: 'rgba(158, 90, 60, 0.1)', border: '1px solid rgba(158, 90, 60, 0.2)', textAlign: 'center' }}>
-                <Text size="lg" mb="xs">📊</Text>
-                <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
-                  "Strava shows me numbers but never tells me what to DO with them"
+                <ThemeIcon size={40} radius="xl" color="sage" variant="light" mx="auto" mb="sm">
+                  <IconMap2 size={20} />
+                </ThemeIcon>
+                <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }} mb={4}>
+                  Plan the Ride
+                </Text>
+                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  Build routes manually or let AI generate one based on your fitness, distance, and terrain preferences.
                 </Text>
               </Paper>
               <Paper p="md" style={{ backgroundColor: 'rgba(158, 90, 60, 0.1)', border: '1px solid rgba(158, 90, 60, 0.2)', textAlign: 'center' }}>
-                <Text size="lg" mb="xs">🗺️</Text>
-                <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
-                  "Route builders don't know if I'm fresh or cooked"
+                <ThemeIcon size={40} radius="xl" color="terracotta" variant="light" mx="auto" mb="sm">
+                  <IconMessageChatbot size={20} />
+                </ThemeIcon>
+                <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }} mb={4}>
+                  Train with AI
+                </Text>
+                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  An AI coach that knows your ride history, training load, and recovery to recommend what you actually need today.
                 </Text>
               </Paper>
               <Paper p="md" style={{ backgroundColor: 'rgba(158, 90, 60, 0.1)', border: '1px solid rgba(158, 90, 60, 0.2)', textAlign: 'center' }}>
-                <Text size="lg" mb="xs">🔀</Text>
-                <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
-                  "I'm paying for 5 apps that don't talk to each other"
+                <ThemeIcon size={40} radius="xl" color="blue" variant="light" mx="auto" mb="sm">
+                  <IconTrendingUp size={20} />
+                </ThemeIcon>
+                <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }} mb={4}>
+                  Track Everything
+                </Text>
+                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  Fitness trends, power curves, training load, recovery—all auto-calculated from your synced rides.
                 </Text>
               </Paper>
             </SimpleGrid>
-
-            <Text size="lg" ta="center" style={{ color: 'var(--tribos-terracotta-500)' }} fw={600}>
-              tribos.studio brings it all together.
-            </Text>
           </Stack>
         </Container>
       </Box>
 
       {/* PRODUCT SHOWCASE */}
       <Box py={{ base: 60, md: 80 }} px={{ base: 'md', md: 'xl' }}>
-        <Container size="lg">
-          <Stack gap={60}>
-            {/* Training Analytics */}
+        <Container size="md">
+          <Stack gap={48}>
+
+            {/* 1. ROUTE BUILDING */}
             <Grid gutter="xl" align="center">
-              <Grid.Col span={{ base: 12, md: 6 }}>
-                <Stack gap="md">
-                  <Group gap="sm">
-                    <ThemeIcon size={40} color="blue" variant="light">
-                      <IconTrendingUp size={20} />
-                    </ThemeIcon>
-                    <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
-                      Cycling Analytics That Guide You
-                    </Title>
-                  </Group>
-                  <Text style={{ color: 'var(--tribos-text-secondary)' }}>
-                    CTL, ATL, TSB aren't just numbers—our cycling training app tells you what they mean for TODAY's ride.
-                    Track your fitness trajectory and know exactly when to push and when to rest.
-                  </Text>
-                  <Stack gap="xs">
-                    <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Daily readiness recommendations</Text>
-                    </Group>
-                    <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>TSS auto-calculated from power or HR</Text>
-                    </Group>
-                    <Group gap="xs">
-                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Long-term fitness trend visualization</Text>
-                    </Group>
+              <Grid.Col span={{ base: 12, md: 5 }} order={{ base: 2, md: 1 }}>
+                {/* Accurate preview of the Route Builder sidebar */}
+                <Paper
+                  p="md"
+                  radius="lg"
+                  style={{
+                    background: 'var(--tribos-bg-secondary)',
+                    border: '1px solid var(--tribos-border)',
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                  }}
+                >
+                  <Stack gap="sm">
+                    {/* Mode selector - matches real SegmentedControl */}
+                    <SegmentedControl
+                      size="xs"
+                      readOnly
+                      value="ai"
+                      data={[
+                        { label: 'AI Builder', value: 'ai' },
+                        { label: 'Manual', value: 'manual' },
+                        { label: 'Import GPX', value: 'import' },
+                      ]}
+                      styles={{ root: { backgroundColor: 'var(--tribos-bg-tertiary)' } }}
+                      fullWidth
+                    />
+
+                    {/* AI prompt textarea - matches real placeholder */}
+                    <div>
+                      <Text size="xs" fw={600} c="dimmed" mb={4}>DESCRIBE YOUR RIDE</Text>
+                      <Textarea
+                        readOnly
+                        value="40 mile gravel loop with rolling hills, avoid highways"
+                        rows={2}
+                        variant="filled"
+                        styles={{
+                          input: {
+                            backgroundColor: 'var(--tribos-bg-tertiary)',
+                            fontSize: 'var(--mantine-font-size-sm)',
+                          },
+                        }}
+                      />
+                    </div>
+
+                    {/* Route profile selector - matches real options */}
+                    <div>
+                      <Text size="xs" fw={600} c="dimmed" mb={4}>ROUTE PROFILE</Text>
+                      <SegmentedControl
+                        size="xs"
+                        readOnly
+                        value="gravel"
+                        fullWidth
+                        data={[
+                          { label: 'Road', value: 'road' },
+                          { label: 'Gravel', value: 'gravel' },
+                          { label: 'MTB', value: 'mountain' },
+                          { label: 'Commute', value: 'commuting' },
+                        ]}
+                        styles={{ root: { backgroundColor: 'var(--tribos-bg-tertiary)' } }}
+                      />
+                    </div>
+
+                    {/* Generate button - matches real styling */}
+                    <Button
+                      color="terracotta"
+                      fullWidth
+                      leftSection={<IconSparkles size={16} />}
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      Generate from Description
+                    </Button>
+
+                    {/* Route stats - matches real RouteStatsPanel layout */}
+                    <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)', border: '1px solid var(--tribos-border)' }}>
+                      <Text size="xs" fw={600} c="dimmed" mb="xs">ROUTE STATS</Text>
+                      <SimpleGrid cols={2} spacing="xs">
+                        <Group gap="xs">
+                          <IconRuler size={16} color="var(--tribos-terracotta-500)" />
+                          <div>
+                            <Text size="xs" c="dimmed">Distance</Text>
+                            <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>64.3 km</Text>
+                          </div>
+                        </Group>
+                        <Group gap="xs">
+                          <IconMountain size={16} color="#D4734D" />
+                          <div>
+                            <Text size="xs" c="dimmed">Elevation</Text>
+                            <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>780m</Text>
+                          </div>
+                        </Group>
+                        <Group gap="xs">
+                          <IconClock size={16} color="var(--tribos-terracotta-500)" />
+                          <div>
+                            <Text size="xs" c="dimmed">Est. Time</Text>
+                            <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>2h 45m</Text>
+                          </div>
+                        </Group>
+                        <Group gap="xs">
+                          <IconDownload size={16} color="var(--tribos-terracotta-500)" />
+                          <div>
+                            <Text size="xs" c="dimmed">Export</Text>
+                            <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>GPX / TCX</Text>
+                          </div>
+                        </Group>
+                      </SimpleGrid>
+                    </Paper>
                   </Stack>
-                </Stack>
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, md: 6 }}>
-                <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: `1px solid ${'var(--tribos-border)'}` }}>
-                  <Text size="xs" c="dimmed" mb="md">FITNESS CHART</Text>
-                  <Box style={{ height: 150, background: 'linear-gradient(90deg, rgba(158, 90, 60, 0.2) 0%, rgba(34, 211, 238, 0.2) 100%)', borderRadius: 8, display: 'flex', alignItems: 'flex-end', padding: 16, gap: 4 }}>
-                    {[40, 55, 48, 62, 58, 70, 65, 75, 68, 80, 72, 85].map((h, i) => (
-                      <Box key={i} style={{ flex: 1, height: `${h}%`, backgroundColor: i > 8 ? 'var(--tribos-terracotta-500)' : '#22d3ee', borderRadius: 2, opacity: 0.8 }} />
-                    ))}
-                  </Box>
-                  <Group justify="space-between" mt="sm">
-                    <Text size="xs" c="dimmed">12 weeks ago</Text>
-                    <Text size="xs" c="dimmed">Today</Text>
-                  </Group>
                 </Paper>
               </Grid.Col>
-            </Grid>
-
-            <Divider style={{ borderColor: `${'var(--tribos-terracotta-500)'}20` }} />
-
-            {/* Route Planning */}
-            <Grid gutter="xl" align="center">
-              <Grid.Col span={{ base: 12, md: 6 }} order={{ base: 2, md: 1 }}>
-                <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: `1px solid ${'var(--tribos-border)'}` }}>
-                  <Text size="xs" c="dimmed" mb="md">ROUTE BUILDER</Text>
-                  <Box style={{ height: 180, background: `linear-gradient(135deg, rgba(168, 191, 168, 0.3) 0%, rgba(123, 169, 160, 0.3) 100%)`, borderRadius: 8, position: 'relative', overflow: 'hidden' }}>
-                    <Box style={{ position: 'absolute', top: '30%', left: '10%', right: '10%', height: 3, background: 'var(--tribos-terracotta-500)', borderRadius: 2, transform: 'rotate(5deg)' }} />
-                    <Box style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: 4 }}>
-                      <Text size="xs" c="white">42.5 km • 650m elev</Text>
-                    </Box>
-                  </Box>
-                </Paper>
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, md: 6 }} order={{ base: 1, md: 2 }}>
+              <Grid.Col span={{ base: 12, md: 7 }} order={{ base: 1, md: 2 }}>
                 <Stack gap="md">
                   <Group gap="sm">
                     <ThemeIcon size={40} color="sage" variant="light">
                       <IconMapPin size={20} />
                     </ThemeIcon>
                     <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
-                      AI-Powered Route Planning
+                      Route Builder
                     </Title>
                   </Group>
                   <Text style={{ color: 'var(--tribos-text-secondary)' }}>
-                    Our bike training planner lets you build routes manually or use AI to generate cycling routes based on your fitness goals.
-                    Professional editing tools with elevation profiles and surface analysis.
+                    Build cycling routes by clicking on a map or describe what you want and let AI generate one for you.
+                    Full elevation profiles, surface analysis, and difficulty ratings included.
                   </Text>
-                  <Stack gap="xs">
+                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
                     <Group gap="xs">
                       <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>AI route generation based on your fitness</Text>
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>AI route generation from natural language</Text>
                     </Group>
                     <Group gap="xs">
                       <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Export to Garmin, Wahoo, or GPX</Text>
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Drag-and-drop waypoints with elevation profile</Text>
                     </Group>
                     <Group gap="xs">
                       <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Drag-and-drop route editing</Text>
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Surface type detection (road, gravel, mixed)</Text>
                     </Group>
-                  </Stack>
+                    <Group gap="xs">
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Export to Garmin, Wahoo, GPX, or TCX</Text>
+                    </Group>
+                    <Group gap="xs">
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Weather, fueling, and tire pressure tools</Text>
+                    </Group>
+                    <Group gap="xs">
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Workout zone overlay on route</Text>
+                    </Group>
+                  </SimpleGrid>
                 </Stack>
               </Grid.Col>
             </Grid>
 
             <Divider style={{ borderColor: `${'var(--tribos-terracotta-500)'}20` }} />
 
-            {/* Health & Recovery */}
+            {/* 2. AI COACH */}
             <Grid gutter="xl" align="center">
-              <Grid.Col span={{ base: 12, md: 6 }}>
+              <Grid.Col span={{ base: 12, md: 7 }}>
                 <Stack gap="md">
                   <Group gap="sm">
                     <ThemeIcon size={40} color="terracotta" variant="light">
-                      <IconHeart size={20} />
+                      <IconMessageChatbot size={20} />
                     </ThemeIcon>
                     <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
-                      Recovery Tracking
+                      AI Coach
                     </Title>
                   </Group>
                   <Text style={{ color: 'var(--tribos-text-secondary)' }}>
-                    Log sleep, HRV, and how you feel. We combine your health data with training
-                    load to give smarter recommendations.
+                    A conversational cycling coach that actually knows your data. Ask it anything—what to ride today, how your fitness is trending, or to build you a training plan. It sees your ride history, training load, and recovery status.
                   </Text>
-                  <Stack gap="xs">
+                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
                     <Group gap="xs">
                       <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Daily health check-ins</Text>
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Workout recommendations based on your current form</Text>
                     </Group>
                     <Group gap="xs">
                       <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>HRV and resting HR tracking</Text>
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Knows your CTL, ATL, TSB, and recovery status</Text>
                     </Group>
                     <Group gap="xs">
                       <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Readiness score calculation</Text>
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Can generate full training plans on demand</Text>
                     </Group>
-                  </Stack>
+                    <Group gap="xs">
+                      <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Persistent conversation history</Text>
+                    </Group>
+                  </SimpleGrid>
                 </Stack>
               </Grid.Col>
-              <Grid.Col span={{ base: 12, md: 6 }}>
-                <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: `1px solid ${'var(--tribos-border)'}` }}>
-                  <Text size="xs" c="dimmed" mb="md">HEALTH CHECK-IN</Text>
+              <Grid.Col span={{ base: 12, md: 5 }}>
+                {/* Accurate preview of the CoachCard component */}
+                <Paper
+                  p="md"
+                  radius="lg"
+                  style={{
+                    background: `linear-gradient(135deg, rgba(158, 90, 60, 0.15), transparent), var(--tribos-bg-secondary)`,
+                    border: '1px solid var(--tribos-border)',
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                  }}
+                >
                   <Stack gap="sm">
+                    {/* Header - matches real CoachCard */}
                     <Group justify="space-between">
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Sleep</Text>
-                      <Badge color="sage">7.5 hrs</Badge>
+                      <Group gap="xs">
+                        <ThemeIcon color="terracotta" variant="light" size="sm">
+                          <IconSparkles size={14} />
+                        </ThemeIcon>
+                        <Text fw={600} size="sm" style={{ color: 'var(--tribos-text-primary)' }}>AI Coach</Text>
+                      </Group>
                     </Group>
-                    <Group justify="space-between">
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>HRV</Text>
-                      <Badge color="blue">58 ms</Badge>
-                    </Group>
-                    <Group justify="space-between">
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Energy</Text>
-                      <Badge color="terracotta">4/5</Badge>
-                    </Group>
-                    <Group justify="space-between">
-                      <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Soreness</Text>
-                      <Badge color="orange">2/5</Badge>
+
+                    {/* Chat messages - matches real message styling */}
+                    <Stack gap="xs">
+                      {/* User message */}
+                      <Group gap={6} align="flex-start">
+                        <ThemeIcon color="teal" variant="light" size="xs" mt={2}>
+                          <IconUser size={10} />
+                        </ThemeIcon>
+                        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)', lineHeight: 1.5 }}>
+                          What should I ride today? I have about 90 minutes.
+                        </Text>
+                      </Group>
+
+                      {/* Coach message */}
+                      <Group gap={6} align="flex-start">
+                        <ThemeIcon color="terracotta" variant="light" size="xs" mt={2}>
+                          <IconRobot size={10} />
+                        </ThemeIcon>
+                        <Stack gap={4} style={{ flex: 1 }}>
+                          <Text size="xs" style={{ color: 'var(--tribos-text-primary)', lineHeight: 1.5 }}>
+                            Your TSB is +8 and you had a rest day yesterday — you're fresh. I'd recommend sweet spot intervals: 3x15min at 88-93% FTP with 5min recovery between sets.
+                          </Text>
+                          {/* Workout recommendation action - matches real button */}
+                          <Button
+                            size="compact-xs"
+                            variant="light"
+                            color="terracotta"
+                            leftSection={<IconCalendarPlus size={12} />}
+                            style={{ alignSelf: 'flex-start', pointerEvents: 'none' }}
+                          >
+                            Add Sweet Spot 3x15
+                          </Button>
+                        </Stack>
+                      </Group>
+                    </Stack>
+
+                    {/* Input - matches real CoachCard input */}
+                    <Group gap="xs">
+                      <TextInput
+                        readOnly
+                        placeholder="Ask your coach anything..."
+                        size="xs"
+                        style={{ flex: 1 }}
+                        styles={{
+                          input: {
+                            backgroundColor: 'var(--tribos-bg-tertiary)',
+                            borderColor: 'var(--tribos-border)',
+                          },
+                        }}
+                      />
+                      <ActionIcon color="terracotta" variant="light" size="md">
+                        <IconSend size={14} />
+                      </ActionIcon>
                     </Group>
                   </Stack>
                 </Paper>
               </Grid.Col>
             </Grid>
+
+            <Divider style={{ borderColor: `${'var(--tribos-terracotta-500)'}20` }} />
+
+            {/* 3. TRAINING PLANS */}
+            <Stack gap="md">
+              <Group gap="sm">
+                <ThemeIcon size={40} color="blue" variant="light">
+                  <IconCalendarEvent size={20} />
+                </ThemeIcon>
+                <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+                  Structured Training Plans
+                </Title>
+              </Group>
+              <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+                Choose from training plans across polarized, sweet spot, threshold, and goal-specific programs—or let the AI coach build one for you. Drag workouts onto your calendar and track compliance as you go.
+              </Text>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Plans for racing, gran fondo, climbing, gravel, and more</Text>
+                </Group>
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Workouts with power and HR zone targets</Text>
+                </Group>
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Drag-and-drop calendar with compliance tracking</Text>
+                </Group>
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Cross-training and race goal support</Text>
+                </Group>
+              </SimpleGrid>
+            </Stack>
+
+            <Divider style={{ borderColor: `${'var(--tribos-terracotta-500)'}20` }} />
+
+            {/* 4. TRAINING ANALYTICS */}
+            <Stack gap="md">
+              <Group gap="sm">
+                <ThemeIcon size={40} color="blue" variant="light">
+                  <IconTrendingUp size={20} />
+                </ThemeIcon>
+                <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+                  Training Analytics
+                </Title>
+              </Group>
+              <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+                Your rides automatically sync and feed into fitness, fatigue, and form calculations. See your power curves, zone distribution, and long-term trends—all in context so you know what the numbers mean.
+              </Text>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Fitness (CTL), Fatigue (ATL), and Form (TSB) tracking</Text>
+                </Group>
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Power duration curves and personal records</Text>
+                </Group>
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Daily readiness score with training recommendations</Text>
+                </Group>
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Year-over-year fitness comparisons and insights</Text>
+                </Group>
+              </SimpleGrid>
+            </Stack>
+
+            <Divider style={{ borderColor: `${'var(--tribos-terracotta-500)'}20` }} />
+
+            {/* 5. RECOVERY */}
+            <Stack gap="md">
+              <Group gap="sm">
+                <ThemeIcon size={40} color="terracotta" variant="light">
+                  <IconHeart size={20} />
+                </ThemeIcon>
+                <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+                  Recovery & Health Tracking
+                </Title>
+              </Group>
+              <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+                Quick daily check-ins for sleep, HRV, energy, and soreness feed directly into your readiness score. Combined with your training load, the platform knows when you're ready to push and when you need to back off.
+              </Text>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>30-second daily health check-ins</Text>
+                </Group>
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Auto-sync resting HR and HRV from Garmin</Text>
+                </Group>
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Health trends visualization over time</Text>
+                </Group>
+                <Group gap="xs">
+                  <IconCheck size={16} color={'var(--tribos-terracotta-500)'} />
+                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Integrated into readiness and training recommendations</Text>
+                </Group>
+              </SimpleGrid>
+            </Stack>
+
           </Stack>
         </Container>
       </Box>
@@ -503,8 +592,11 @@ function Landing() {
         <Container size="md">
           <Stack align="center" gap="xl">
             <Title order={2} size={28} ta="center" style={{ color: 'var(--tribos-text-primary)' }}>
-              Works With Your Gear
+              Syncs With Your Gear
             </Title>
+            <Text size="md" ta="center" style={{ color: 'var(--tribos-text-secondary)', maxWidth: 500 }}>
+              Connect your accounts and your ride history imports automatically. New rides sync in real-time.
+            </Text>
 
             <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
               <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: '2px solid #FC4C02', textAlign: 'center' }}>
@@ -519,7 +611,7 @@ function Landing() {
                   <IconDeviceWatch size={24} />
                 </ThemeIcon>
                 <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Garmin</Text>
-                <Text size="xs" c="dimmed">Sync routes to device</Text>
+                <Text size="xs" c="dimmed">Sync activities & routes</Text>
               </Paper>
               <Paper p="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)', border: '2px solid #1A73E8', textAlign: 'center' }}>
                 <ThemeIcon size={50} radius="xl" color="cyan" variant="light" mx="auto" mb="sm">
@@ -540,59 +632,29 @@ function Landing() {
         </Container>
       </Box>
 
-      {/* FINAL CTA - Bottom Beta Signup */}
+      {/* FINAL CTA */}
       <Box py={{ base: 60, md: 80 }} px={{ base: 'md', md: 'xl' }}>
         <Container size="sm">
           <Stack align="center" gap="xl">
             <Title order={2} size={32} ta="center" style={{ color: 'var(--tribos-text-primary)' }}>
-              Ready to Train Smarter?
+              Ready to Ride Smarter?
             </Title>
             <Text size="lg" ta="center" style={{ color: 'var(--tribos-text-secondary)' }}>
-              Join the beta and help build the cycling platform we've all been waiting for.
+              Join the beta — build your first route, connect your devices, and see what AI coaching can do for your cycling.
             </Text>
 
-            {/* Bottom Beta Signup Form */}
-            <Paper
-              p="xl"
-              radius="lg"
-              style={{
-                background: `linear-gradient(135deg, rgba(158, 90, 60, 0.1) 0%, rgba(34, 211, 238, 0.1) 100%)`,
-                border: `2px solid ${'var(--tribos-terracotta-500)'}40`,
-                maxWidth: 500,
-                width: '100%',
-              }}
+            <Button
+              component={Link}
+              to="/auth"
+              size="xl"
+              color="terracotta"
+              rightSection={<IconChevronRight size={20} />}
             >
-              <form onSubmit={(e) => handleBetaSignup(e, bottomEmail, setBottomSubmitting)}>
-                <Stack gap="md">
-                  <TextInput
-                    placeholder="your@email.com"
-                    size="lg"
-                    value={bottomEmail}
-                    onChange={(e) => setBottomEmail(e.target.value)}
-                    leftSection={<IconMail size={20} />}
-                    styles={{
-                      input: {
-                        backgroundColor: 'var(--tribos-bg-primary)',
-                        borderColor: 'var(--tribos-border)',
-                      },
-                    }}
-                  />
-                  <Button
-                    type="submit"
-                    size="lg"
-                    color="terracotta"
-                    loading={bottomSubmitting}
-                    rightSection={<IconChevronRight size={20} />}
-                    fullWidth
-                  >
-                    Get Started for Free
-                  </Button>
-                </Stack>
-              </form>
-            </Paper>
+              Create Free Account
+            </Button>
 
             <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
-              Free to start • No credit card required
+              Free to start  -  No credit card required
             </Text>
           </Stack>
         </Container>
