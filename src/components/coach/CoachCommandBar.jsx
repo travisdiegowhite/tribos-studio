@@ -445,7 +445,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                     flexShrink: 0,
                   }}
                 >
-                  <IconSparkles size={20} color="#000" />
+                  <IconSparkles size={20} color="#fff" />
                 </Box>
 
                 <TextInput

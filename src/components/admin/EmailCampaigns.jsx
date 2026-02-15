@@ -98,7 +98,7 @@ const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                 <tr>
                   <td align="center">
-                    <a href="https://www.tribos.studio" style="display: inline-block; padding: 16px 32px; background-color: #9E5A3C; color: #121212; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Visit Tribos.Studio</a>
+                    <a href="https://www.tribos.studio" style="display: inline-block; padding: 16px 32px; background-color: #9E5A3C; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Visit Tribos.Studio</a>
                   </td>
                 </tr>
               </table>
