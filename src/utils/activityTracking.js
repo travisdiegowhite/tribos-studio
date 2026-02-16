@@ -52,15 +52,33 @@ export const EventType = {
   FIT_UPLOAD: 'fit_upload',
   BULK_IMPORT: 'bulk_import',
 
-  // Feature usage
-  TRAINING_PLAN_CREATE: 'training_plan_create',
-  TRAINING_PLAN_VIEW: 'training_plan_view',
+  // Feature usage - Routes
   ROUTE_CREATE: 'route_create',
   ROUTE_VIEW: 'route_view',
-  COACH_MESSAGE: 'coach_message',
+  ROUTE_EXPORT: 'route_export',
+  ROUTE_SEND_TO_GARMIN: 'route_send_to_garmin',
+  ROUTE_SEND_TO_WAHOO: 'route_send_to_wahoo',
+
+  // Feature usage - Training
+  TRAINING_PLAN_CREATE: 'training_plan_create',
+  TRAINING_PLAN_VIEW: 'training_plan_view',
+  TRAINING_PLAN_PAUSE: 'training_plan_pause',
+  TRAINING_PLAN_RESUME: 'training_plan_resume',
+  TRAINING_PLAN_DELETE: 'training_plan_delete',
   WORKOUT_SCHEDULE: 'workout_schedule',
   WORKOUT_COMPLETE: 'workout_complete',
   CALENDAR_SYNC: 'calendar_sync',
+
+  // Feature usage - AI Coach
+  COACH_MESSAGE: 'coach_message',
+  COACH_WORKOUT_ADD: 'coach_workout_add',
+
+  // Feature usage - Community
+  CAFE_JOIN: 'cafe_join',
+  CHECKIN_CREATE: 'checkin_create',
+  CHECKIN_ENCOURAGE: 'checkin_encourage',
+  DISCUSSION_CREATE: 'discussion_create',
+  DISCUSSION_REPLY: 'discussion_reply',
 
   // Interactions
   INTEGRATION_CONNECT: 'integration_connect',

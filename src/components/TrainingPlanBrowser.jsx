@@ -45,6 +45,7 @@ import { TRAINING_PHASES, GOAL_TYPES, FITNESS_LEVELS, WORKOUT_TYPES, PLAN_CATEGO
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { trackFeature, EventType } from '../utils/activityTracking';
 
 /**
  * Training Plan Browser Component
@@ -113,6 +114,11 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
       if (error) throw error;
 
+      trackFeature(
+        newStatus === 'paused' ? EventType.TRAINING_PLAN_PAUSE : EventType.TRAINING_PLAN_RESUME,
+        { planId: activePlan.id, planName: activePlan.name }
+      );
+
       notifications.show({
         title: newStatus === 'paused' ? 'Plan Paused' : 'Plan Resumed',
         message: newStatus === 'paused'
@@ -155,6 +161,11 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         .eq('id', activePlan.id);
 
       if (error) throw error;
+
+      trackFeature(EventType.TRAINING_PLAN_DELETE, {
+        planId: activePlan.id,
+        planName: activePlan.name
+      });
 
       notifications.show({
         title: 'Plan Removed',
@@ -849,6 +860,16 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       } else {
         console.warn('No workouts generated for plan - check template structure');
       }
+
+      trackFeature(EventType.TRAINING_PLAN_CREATE, {
+        planId: newPlan.id,
+        planName: plan.name,
+        durationWeeks: plan.duration,
+        methodology: plan.methodology,
+        goal: plan.goal,
+        fitnessLevel: plan.fitnessLevel,
+        workoutCount: workouts.length
+      });
 
       const formattedDate = planStartDate.toLocaleDateString('en-US', {
         weekday: 'long',

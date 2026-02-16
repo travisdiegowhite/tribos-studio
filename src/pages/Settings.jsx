@@ -44,6 +44,7 @@ import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx'
 import IntegrationAlert from '../components/IntegrationAlert.jsx';
 import { googleCalendarService } from '../utils/googleCalendarService';
 import { IconBrandGoogle } from '@tabler/icons-react';
+import { trackInteraction, EventType } from '../utils/activityTracking';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -275,6 +276,14 @@ function Settings() {
           color: 'red',
         });
       } else {
+        trackInteraction(EventType.PROFILE_UPDATE, {
+          hasDisplayName: !!displayName,
+          hasLocation: !!location,
+          unitsPreference: unitsPreference,
+          ftpUpdated: !!ftp,
+          weightUpdated: !!weightKg
+        });
+
         notifications.show({
           title: 'Success',
           message: 'Profile updated successfully',
@@ -322,6 +331,7 @@ function Settings() {
       await stravaService.disconnect();
       setStravaStatus({ connected: false, loading: false });
       setSpeedProfile(null);
+      trackInteraction(EventType.INTEGRATION_DISCONNECT, { provider: 'strava' });
       notifications.show({
         title: 'Disconnected',
         message: 'Strava has been disconnected and all Strava-synced activities have been removed',
@@ -625,6 +635,7 @@ function Settings() {
       await garminService.disconnect();
       setGarminStatus({ connected: false, loading: false });
       setGarminWebhookStatus(null);
+      trackInteraction(EventType.INTEGRATION_DISCONNECT, { provider: 'garmin' });
       notifications.show({
         title: 'Disconnected',
         message: 'Garmin has been disconnected',
@@ -1016,6 +1027,7 @@ function Settings() {
     try {
       await wahooService.disconnect();
       setWahooStatus({ connected: false, loading: false });
+      trackInteraction(EventType.INTEGRATION_DISCONNECT, { provider: 'wahoo' });
       notifications.show({
         title: 'Disconnected',
         message: 'Wahoo has been disconnected',

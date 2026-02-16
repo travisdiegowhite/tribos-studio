@@ -234,6 +234,7 @@ async function getActivitySummary(req, res) {
         sync_events: 0,
         upload_events: 0,
         feature_uses: 0,
+        interaction_events: 0,
         last_activity: null,
         events_24h: 0,
         events_7d: 0
@@ -249,6 +250,7 @@ async function getActivitySummary(req, res) {
     else if (e.event_category === 'sync') stats.sync_events++;
     else if (e.event_category === 'upload') stats.upload_events++;
     else if (e.event_category === 'feature') stats.feature_uses++;
+    else if (e.event_category === 'interaction') stats.interaction_events++;
 
     if (!stats.last_activity || eventDate > new Date(stats.last_activity)) {
       stats.last_activity = e.created_at;
