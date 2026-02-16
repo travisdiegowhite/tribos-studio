@@ -154,6 +154,9 @@ export default async function handler(req, res) {
       case 'send_campaign':
         return await sendCampaign(req, res, adminUser);
 
+      case 'get_user_insights':
+        return await getUserInsights(req, res, adminUser);
+
       default:
         return res.status(400).json({ error: 'Invalid action' });
     }
@@ -530,6 +533,232 @@ async function getStats(req, res, adminUser) {
       total_training_plans: plansResult.count || 0,
       total_routes: routesResult.count || 0,
       total_feedback: feedbackResult.count || 0
+    }
+  });
+}
+
+/**
+ * Get user insights: activation funnel, feature adoption, retention, stale users
+ */
+async function getUserInsights(req, res, adminUser) {
+  await logAdminAction(adminUser.id, 'get_user_insights', null, null);
+
+  // Fetch all auth users
+  let allUsers = [];
+  let page = 1;
+  while (true) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) break;
+    allUsers = allUsers.concat(data.users || []);
+    if (!data.users || data.users.length < 1000) break;
+    page++;
+  }
+
+  // Fetch all data in parallel for funnel/adoption analysis
+  const [
+    profilesResult,
+    integrationsResult,
+    activitiesResult,
+    routesResult,
+    plansResult,
+    coachMemoriesResult,
+    activityEventsResult
+  ] = await Promise.all([
+    supabase.from('user_profiles').select('id, display_name, ftp, weight_kg'),
+    supabase.from('bike_computer_integrations').select('user_id, provider'),
+    supabase.from('activities').select('user_id, start_date'),
+    supabase.from('routes').select('user_id, created_at'),
+    supabase.from('training_plans').select('user_id, created_at'),
+    supabase.from('accountability_coach_memories').select('user_id'),
+    supabase.from('user_activity_events').select('user_id, event_category, event_type, created_at')
+  ]);
+
+  const profiles = profilesResult.data || [];
+  const integrations = integrationsResult.data || [];
+  const activities = activitiesResult.data || [];
+  const routes = routesResult.data || [];
+  const plans = plansResult.data || [];
+  const coachMemories = coachMemoriesResult.data || [];
+  const activityEvents = activityEventsResult.data || [];
+
+  // Build per-user data sets
+  const profileSet = new Set(profiles.filter(p => p.display_name || p.ftp || p.weight_kg).map(p => p.id));
+  const integrationSet = new Set(integrations.map(i => i.user_id));
+  const activityUserSet = new Set(activities.map(a => a.user_id));
+  const routeUserSet = new Set(routes.map(r => r.user_id));
+  const planUserSet = new Set(plans.map(p => p.user_id));
+  const coachUserSet = new Set(coachMemories.map(c => c.user_id));
+
+  // Per-user integration providers
+  const integrationsByUser = {};
+  integrations.forEach(i => {
+    if (!integrationsByUser[i.user_id]) integrationsByUser[i.user_id] = new Set();
+    integrationsByUser[i.user_id].add(i.provider);
+  });
+
+  // Per-user event types
+  const eventTypesByUser = {};
+  activityEvents.forEach(e => {
+    if (!eventTypesByUser[e.user_id]) eventTypesByUser[e.user_id] = new Set();
+    eventTypesByUser[e.user_id].add(e.event_type);
+  });
+
+  // Per-user last activity event timestamp
+  const lastEventByUser = {};
+  activityEvents.forEach(e => {
+    const ts = new Date(e.created_at).getTime();
+    if (!lastEventByUser[e.user_id] || ts > lastEventByUser[e.user_id]) {
+      lastEventByUser[e.user_id] = ts;
+    }
+  });
+
+  const totalUsers = allUsers.length;
+
+  // ---- ACTIVATION FUNNEL ----
+  const funnel = {
+    signed_up: totalUsers,
+    profile_completed: 0,
+    integration_connected: 0,
+    first_activity: 0,
+    route_created: 0,
+    training_plan: 0,
+    coach_used: 0
+  };
+
+  allUsers.forEach(u => {
+    if (profileSet.has(u.id)) funnel.profile_completed++;
+    if (integrationSet.has(u.id)) funnel.integration_connected++;
+    if (activityUserSet.has(u.id)) funnel.first_activity++;
+    if (routeUserSet.has(u.id)) funnel.route_created++;
+    if (planUserSet.has(u.id)) funnel.training_plan++;
+    if (coachUserSet.has(u.id)) funnel.coach_used++;
+  });
+
+  // ---- FEATURE ADOPTION ----
+  const featureAdoption = {
+    strava: { users: 0, label: 'Strava Connected' },
+    garmin: { users: 0, label: 'Garmin Connected' },
+    wahoo: { users: 0, label: 'Wahoo Connected' },
+    route_builder: { users: routeUserSet.size, label: 'Route Builder' },
+    training_plans: { users: planUserSet.size, label: 'Training Plans' },
+    ai_coach: { users: coachUserSet.size, label: 'AI Coach' },
+    file_uploads: { users: 0, label: 'File Uploads' },
+    community: { users: 0, label: 'Community' }
+  };
+
+  // Count per-provider integrations
+  Object.values(integrationsByUser).forEach(providers => {
+    if (providers.has('strava')) featureAdoption.strava.users++;
+    if (providers.has('garmin')) featureAdoption.garmin.users++;
+    if (providers.has('wahoo')) featureAdoption.wahoo.users++;
+  });
+
+  // Count users who've done uploads and community actions
+  Object.entries(eventTypesByUser).forEach(([userId, types]) => {
+    if (types.has('gpx_upload') || types.has('fit_upload') || types.has('bulk_import')) {
+      featureAdoption.file_uploads.users++;
+    }
+    if (types.has('cafe_join') || types.has('checkin_create') || types.has('discussion_create')) {
+      featureAdoption.community.users++;
+    }
+  });
+
+  // ---- RETENTION COHORTS (by signup week) ----
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
+
+  // Get users active in last 7 and 30 days (from activity events or last_sign_in)
+  const activeIn7d = new Set();
+  const activeIn30d = new Set();
+  allUsers.forEach(u => {
+    const lastEvent = lastEventByUser[u.id];
+    const lastSignIn = u.last_sign_in_at ? new Date(u.last_sign_in_at).getTime() : 0;
+    const latest = Math.max(lastEvent || 0, lastSignIn);
+    if (latest >= sevenDaysAgo.getTime()) activeIn7d.add(u.id);
+    if (latest >= thirtyDaysAgo.getTime()) activeIn30d.add(u.id);
+  });
+
+  // Group users by signup week
+  const cohorts = {};
+  allUsers.forEach(u => {
+    const created = new Date(u.created_at);
+    // Get Monday of signup week
+    const day = created.getDay();
+    const diff = created.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(created);
+    monday.setDate(diff);
+    const weekKey = monday.toISOString().slice(0, 10);
+
+    if (!cohorts[weekKey]) {
+      cohorts[weekKey] = { week: weekKey, signed_up: 0, active_7d: 0, active_30d: 0, activated: 0 };
+    }
+    cohorts[weekKey].signed_up++;
+    if (activeIn7d.has(u.id)) cohorts[weekKey].active_7d++;
+    if (activeIn30d.has(u.id)) cohorts[weekKey].active_30d++;
+    if (activityUserSet.has(u.id) || routeUserSet.has(u.id) || planUserSet.has(u.id)) {
+      cohorts[weekKey].activated++;
+    }
+  });
+
+  const retentionCohorts = Object.values(cohorts).sort((a, b) => a.week.localeCompare(b.week));
+
+  // ---- STALE / AT-RISK USERS ----
+  const staleUsers = [];
+  allUsers.forEach(u => {
+    const lastEvent = lastEventByUser[u.id];
+    const lastSignIn = u.last_sign_in_at ? new Date(u.last_sign_in_at).getTime() : 0;
+    const latest = Math.max(lastEvent || 0, lastSignIn);
+    const daysSinceActive = latest > 0 ? Math.floor((now.getTime() - latest) / 86400000) : null;
+    const hasActivity = activityUserSet.has(u.id);
+    const hasIntegration = integrationSet.has(u.id);
+    const hasProfile = profileSet.has(u.id);
+
+    let status = 'healthy';
+    if (daysSinceActive === null || daysSinceActive > 30) {
+      status = !hasActivity && !hasIntegration ? 'never_activated' : 'churned';
+    } else if (daysSinceActive > 14) {
+      status = 'at_risk';
+    }
+
+    if (status !== 'healthy') {
+      staleUsers.push({
+        email: u.email,
+        created_at: u.created_at,
+        last_active: latest > 0 ? new Date(latest).toISOString() : null,
+        days_inactive: daysSinceActive,
+        status,
+        has_profile: hasProfile,
+        has_integration: hasIntegration,
+        has_activity: hasActivity
+      });
+    }
+  });
+
+  // Sort: never_activated first, then by days_inactive descending
+  const statusOrder = { never_activated: 0, churned: 1, at_risk: 2 };
+  staleUsers.sort((a, b) => {
+    if (statusOrder[a.status] !== statusOrder[b.status]) {
+      return statusOrder[a.status] - statusOrder[b.status];
+    }
+    return (b.days_inactive || 9999) - (a.days_inactive || 9999);
+  });
+
+  return res.status(200).json({
+    success: true,
+    insights: {
+      total_users: totalUsers,
+      funnel,
+      feature_adoption: featureAdoption,
+      retention_cohorts: retentionCohorts,
+      stale_users: staleUsers,
+      summary: {
+        active_7d: activeIn7d.size,
+        active_30d: activeIn30d.size,
+        never_activated: staleUsers.filter(u => u.status === 'never_activated').length,
+        churned: staleUsers.filter(u => u.status === 'churned').length,
+        at_risk: staleUsers.filter(u => u.status === 'at_risk').length
+      }
     }
   });
 }
