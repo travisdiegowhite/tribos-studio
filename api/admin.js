@@ -170,8 +170,24 @@ export default async function handler(req, res) {
 async function listUsers(req, res, adminUser) {
   await logAdminAction(adminUser.id, 'list_users', null, null);
 
-  // Get users from auth.users via admin API
-  const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+  // Get ALL users from auth.users via admin API (paginate to avoid 50-per-page default)
+  let allUsers = [];
+  let page = 1;
+  const perPage = 1000;
+  let authError = null;
+
+  while (true) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      authError = error;
+      break;
+    }
+    allUsers = allUsers.concat(data.users || []);
+    if (!data.users || data.users.length < perPage) break;
+    page++;
+  }
+
+  const authUsers = { users: allUsers };
 
   if (authError) {
     console.error('Error listing auth users:', authError);
@@ -483,14 +499,23 @@ async function listWebhooks(req, res, adminUser) {
 async function getStats(req, res, adminUser) {
   await logAdminAction(adminUser.id, 'get_stats', null, null);
 
+  // Fetch all users by paginating (avoids default 50-per-page limit)
+  let allStatsUsers = [];
+  let statsPage = 1;
+  while (true) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page: statsPage, perPage: 1000 });
+    if (error) break;
+    allStatsUsers = allStatsUsers.concat(data.users || []);
+    if (!data.users || data.users.length < 1000) break;
+    statsPage++;
+  }
+
   const [
-    usersResult,
     activitiesResult,
     plansResult,
     routesResult,
     feedbackResult
   ] = await Promise.all([
-    supabase.auth.admin.listUsers(),
     supabase.from('activities').select('id', { count: 'exact', head: true }),
     supabase.from('training_plans').select('id', { count: 'exact', head: true }),
     supabase.from('routes').select('id', { count: 'exact', head: true }),
@@ -500,7 +525,7 @@ async function getStats(req, res, adminUser) {
   return res.status(200).json({
     success: true,
     stats: {
-      total_users: usersResult.data?.users?.length || 0,
+      total_users: allStatsUsers.length,
       total_activities: activitiesResult.count || 0,
       total_training_plans: plansResult.count || 0,
       total_routes: routesResult.count || 0,
