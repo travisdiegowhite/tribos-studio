@@ -18,6 +18,7 @@ import { scoreRoutePreference, getFamiliarLoopWaypoints } from '../utils/routeSc
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { stravaService } from '../utils/stravaService';
 import { saveRoute, getRoute } from '../utils/routesService';
+import { trackFeature, EventType } from '../utils/activityTracking';
 import FloatingRouteSettings, { RouteSettingsButton } from '../components/FloatingRouteSettings.jsx';
 import IntervalCues from '../components/IntervalCues.jsx';
 import ElevationProfile from '../components/ElevationProfile.jsx';
@@ -1417,6 +1418,16 @@ function RouteBuilder() {
 
       const saved = await saveRoute(routeData);
       setSavedRouteId(saved.id);
+
+      trackFeature(EventType.ROUTE_CREATE, {
+        routeId: saved.id,
+        routeName: routeName,
+        distanceKm: parseFloat(routeStats.distance) || null,
+        routeType: routeType,
+        trainingGoal: trainingGoal,
+        generatedBy: aiSuggestions.length > 0 ? 'ai' : 'manual',
+        isUpdate: !!savedRouteId
+      });
 
       notifications.show({
         title: 'Route Saved!',

@@ -31,6 +31,7 @@ import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parseFitFile, fitToActivityFormat } from '../utils/fitParser';
+import { trackUpload, EventType } from '../utils/activityTracking';
 
 function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: formatDistanceProp, formatElevation: formatElevationProp }) {
   const { user } = useAuth();
@@ -132,6 +133,12 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
 
     setProgress(100);
     setUploading(false);
+
+    trackUpload(EventType.FIT_UPLOAD, {
+      totalFiles: selectedFiles.length,
+      successCount: results.success.length,
+      failedCount: results.failed.length
+    });
 
     // Show results
     if (results.success.length > 0) {

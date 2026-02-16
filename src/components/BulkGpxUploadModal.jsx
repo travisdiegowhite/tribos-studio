@@ -44,6 +44,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { parseGpxFile, gpxToActivityFormat } from '../utils/gpxParser';
 import { parseFitFile, fitToActivityFormat } from '../utils/fitParser';
 import { formatDistance as formatDistanceUnit, formatElevation as formatElevationUnit } from '../utils/units';
+import { trackUpload, EventType } from '../utils/activityTracking';
 import JSZip from 'jszip';
 import pako from 'pako';
 
@@ -506,6 +507,13 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     setCurrentFile('');
     setUploading(false);
     setResults(uploadResults);
+
+    trackUpload(EventType.BULK_IMPORT, {
+      totalFiles: selectedFiles.length,
+      successCount: uploadResults.success.length,
+      skippedCount: uploadResults.skipped.length,
+      failedCount: uploadResults.failed.length
+    });
 
     // Show notification
     if (uploadResults.success.length > 0) {

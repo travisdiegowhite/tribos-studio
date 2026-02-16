@@ -19,6 +19,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { exportAndDownloadRoute } from '../utils/routeExport';
 import { garminService } from '../utils/garminService';
+import { trackFeature, EventType } from '../utils/activityTracking';
 
 /**
  * RouteExportMenu - Dropdown menu for exporting routes
@@ -91,6 +92,11 @@ export function RouteExportMenu({
     try {
       exportAndDownloadRoute(getRouteData(), format);
 
+      trackFeature(EventType.ROUTE_EXPORT, {
+        format: format,
+        routeName: getRouteData().name
+      });
+
       notifications.show({
         title: 'Route Exported',
         message: `Your route has been exported as ${format.toUpperCase()}. You can now upload it to Garmin Connect or copy it to your device.`,
@@ -114,6 +120,11 @@ export function RouteExportMenu({
       const result = await garminService.pushRoute(getRouteData());
 
       if (result.success) {
+        trackFeature(EventType.ROUTE_SEND_TO_GARMIN, {
+          routeName: getRouteData().name,
+          success: true
+        });
+
         notifications.show({
           title: 'Sent to Garmin!',
           message: result.message || 'Route sent to Garmin Connect. Sync your device to download it.',

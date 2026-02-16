@@ -25,6 +25,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { useUserAvailability } from '../hooks/useUserAvailability';
 import { redistributeWorkouts } from '../utils/trainingPlans';
+import { trackFeature, EventType } from '../utils/activityTracking';
 
 // Get the API base URL
 const getApiBaseUrl = () => {
@@ -285,6 +286,13 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
 
       setMessages(prev => [...prev, assistantMessage]);
 
+      trackFeature(EventType.COACH_MESSAGE, {
+        messageLength: userMessage.length,
+        hasWorkoutRecommendations: !!data.workoutRecommendations,
+        workoutCount: data.workoutRecommendations?.length || 0,
+        hasTrainingPlanPreview: !!data.trainingPlanPreview
+      });
+
       // Save assistant message to database (include plan preview in context)
       await saveMessage('assistant', data.message, data.workoutRecommendations);
     } catch (error) {
@@ -451,6 +459,14 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         console.error('Database error saving workout:', dbError);
         throw new Error(`Failed to save workout: ${dbError.message}`);
       }
+
+      trackFeature(EventType.COACH_WORKOUT_ADD, {
+        workoutName: workout.name,
+        workoutId: recommendation.workout_id,
+        scheduledDate: scheduledDate,
+        planCreated: planCreated,
+        planId: planId
+      });
 
       // Build success message
       let successMessage = `${workout.name} added for ${scheduledDate}`;

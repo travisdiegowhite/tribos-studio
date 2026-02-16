@@ -2,6 +2,7 @@
 // Wahoo uses OAuth 2.0
 
 import { supabase } from '../lib/supabase';
+import { trackSync, trackInteraction, trackFeature, EventType } from './activityTracking';
 
 const WAHOO_OAUTH_BASE = 'https://api.wahooligan.com/oauth';
 
@@ -100,6 +101,7 @@ export class WahooService {
       }
 
       console.log('✅ Wahoo tokens stored securely');
+      trackInteraction(EventType.INTEGRATION_CONNECT, { provider: 'wahoo' });
       return data;
     } catch (error) {
       console.error('Wahoo token exchange error:', error);
@@ -171,6 +173,7 @@ export class WahooService {
       }
 
       console.log('✅ Wahoo disconnected');
+      trackInteraction(EventType.INTEGRATION_DISCONNECT, { provider: 'wahoo' });
     } catch (error) {
       console.error('Error disconnecting from Wahoo:', error);
       throw error;
@@ -185,6 +188,8 @@ export class WahooService {
     if (!userId) {
       throw new Error('User must be authenticated');
     }
+
+    trackSync('wahoo', 'start');
 
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/wahoo-auth`, {
@@ -205,6 +210,9 @@ export class WahooService {
       }
 
       const data = await response.json();
+      trackSync('wahoo', 'complete', {
+        workoutsSynced: data.workouts?.length || 0
+      });
       return data;
     } catch (error) {
       console.error('Error syncing Wahoo workouts:', error);
@@ -241,6 +249,10 @@ export class WahooService {
       }
 
       const data = await response.json();
+      trackFeature(EventType.ROUTE_SEND_TO_WAHOO, {
+        routeName: routeData?.name,
+        success: true
+      });
       return data;
     } catch (error) {
       console.error('Error pushing route to Wahoo:', error);

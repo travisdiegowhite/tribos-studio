@@ -51,6 +51,7 @@ import AppShell from '../components/AppShell';
 import PageHeader from '../components/PageHeader';
 import { WeeklyCheckInWidget, DiscussionList, DiscussionThread, CafeSettingsModal } from '../components/community';
 import { tokens } from '../theme';
+import { trackFeature, trackInteraction, EventType } from '../utils/activityTracking';
 
 const GOAL_OPTIONS = [
   { value: 'general_fitness', label: 'General Fitness' },
@@ -206,6 +207,7 @@ function CommunityPage() {
   const handleJoinCafe = async (cafeId, cafeName) => {
     const success = await joinCafe(cafeId);
     if (success) {
+      trackInteraction(EventType.CAFE_JOIN, { cafeId, cafeName });
       notifications.show({
         title: 'Joined cafe',
         message: `You've joined ${cafeName}`,
@@ -221,6 +223,10 @@ function CommunityPage() {
 
     const success = await createCheckIn(activeCafe.cafe_id, data);
     if (success) {
+      trackFeature(EventType.CHECKIN_CREATE, {
+        cafeId: activeCafe.cafe_id,
+        mood: data.mood
+      });
       notifications.show({
         title: 'Check-in shared',
         message: 'Your cafe can now see your update',
@@ -232,6 +238,7 @@ function CommunityPage() {
   // Add encouragement to a check-in
   const handleEncourage = async (checkInId) => {
     await addEncouragement(checkInId, 'encourage');
+    trackInteraction(EventType.CHECKIN_ENCOURAGE, { checkInId });
   };
 
   // Load discussions when tab changes to discussions
@@ -272,6 +279,9 @@ function CommunityPage() {
 
     const result = await createDiscussion(newDiscussion);
     if (result) {
+      trackFeature(EventType.DISCUSSION_CREATE, {
+        category: newDiscussion.category
+      });
       notifications.show({
         title: 'Discussion created',
         message: 'Your discussion has been posted',
@@ -286,6 +296,9 @@ function CommunityPage() {
   const handleCreateReply = async (data) => {
     if (!activeDiscussion) return;
     await createReply(activeDiscussion.id, data);
+    trackInteraction(EventType.DISCUSSION_REPLY, {
+      discussionId: activeDiscussion.id
+    });
   };
 
   // Calculate week stats from activities (would be passed from Dashboard in real use)

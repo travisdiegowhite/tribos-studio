@@ -146,6 +146,8 @@ export default function ActivityDashboard() {
         return <IconUpload size={14} />;
       case 'feature':
         return <IconClick size={14} />;
+      case 'interaction':
+        return <IconUsers size={14} />;
       default:
         return <IconActivity size={14} />;
     }
@@ -161,6 +163,8 @@ export default function ActivityDashboard() {
         return 'orange';
       case 'feature':
         return 'violet';
+      case 'interaction':
+        return 'teal';
       default:
         return 'gray';
     }
@@ -220,6 +224,7 @@ export default function ActivityDashboard() {
                     <Table.Th>Syncs</Table.Th>
                     <Table.Th>Uploads</Table.Th>
                     <Table.Th>Features</Table.Th>
+                    <Table.Th>Interactions</Table.Th>
                     <Table.Th>24h</Table.Th>
                     <Table.Th>7d</Table.Th>
                     <Table.Th>Actions</Table.Th>
@@ -248,6 +253,9 @@ export default function ActivityDashboard() {
                       </Table.Td>
                       <Table.Td>
                         <Badge variant="light" color="violet">{user.feature_uses}</Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge variant="light" color="teal">{user.interaction_events || 0}</Badge>
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm" c={user.events_24h > 0 ? 'sage' : 'dimmed'}>
