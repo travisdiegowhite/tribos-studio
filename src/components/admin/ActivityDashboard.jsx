@@ -36,7 +36,10 @@ import {
   IconActivity,
   IconChartBar,
   IconClock,
-  IconUser
+  IconUser,
+  IconChevronUp,
+  IconChevronDown,
+  IconSelector
 } from '@tabler/icons-react';
 import {
   getActivitySummary,
@@ -56,6 +59,9 @@ export default function ActivityDashboard() {
   const [stats, setStats] = useState(null);
   const [selectedDays, setSelectedDays] = useState('7');
   const [categoryFilter, setCategoryFilter] = useState(null);
+
+  // Sort state for summary tab
+  const [summarySort, setSummarySort] = useState({ column: 'last_activity', direction: 'desc' });
 
   // User activity modal
   const [selectedUser, setSelectedUser] = useState(null);
@@ -170,6 +176,40 @@ export default function ActivityDashboard() {
     }
   }
 
+  function handleSummarySort(column) {
+    setSummarySort(prev => ({
+      column,
+      direction: prev.column === column && prev.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  }
+
+  function SummarySortIcon({ column }) {
+    if (summarySort.column !== column) return <IconSelector size={14} style={{ opacity: 0.3 }} />;
+    return summarySort.direction === 'asc'
+      ? <IconChevronUp size={14} />
+      : <IconChevronDown size={14} />;
+  }
+
+  const sortedSummary = [...summary].sort((a, b) => {
+    const dir = summarySort.direction === 'asc' ? 1 : -1;
+    switch (summarySort.column) {
+      case 'email':
+        return dir * (a.email || '').localeCompare(b.email || '');
+      case 'last_activity':
+        return dir * (new Date(a.last_activity || 0) - new Date(b.last_activity || 0));
+      case 'page_views':
+      case 'sync_events':
+      case 'upload_events':
+      case 'feature_uses':
+      case 'interaction_events':
+      case 'events_24h':
+      case 'events_7d':
+        return dir * ((a[summarySort.column] || 0) - (b[summarySort.column] || 0));
+      default:
+        return 0;
+    }
+  });
+
   return (
     <Stack gap="md">
       <Tabs value={activeTab} onChange={setActiveTab}>
@@ -218,20 +258,38 @@ export default function ActivityDashboard() {
               <Table striped highlightOnHover>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th>User</Table.Th>
-                    <Table.Th>Last Active</Table.Th>
-                    <Table.Th>Page Views</Table.Th>
-                    <Table.Th>Syncs</Table.Th>
-                    <Table.Th>Uploads</Table.Th>
-                    <Table.Th>Features</Table.Th>
-                    <Table.Th>Interactions</Table.Th>
-                    <Table.Th>24h</Table.Th>
-                    <Table.Th>7d</Table.Th>
+                    <Table.Th onClick={() => handleSummarySort('email')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <Group gap={4} wrap="nowrap">User <SummarySortIcon column="email" /></Group>
+                    </Table.Th>
+                    <Table.Th onClick={() => handleSummarySort('last_activity')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <Group gap={4} wrap="nowrap">Last Active <SummarySortIcon column="last_activity" /></Group>
+                    </Table.Th>
+                    <Table.Th onClick={() => handleSummarySort('page_views')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <Group gap={4} wrap="nowrap">Page Views <SummarySortIcon column="page_views" /></Group>
+                    </Table.Th>
+                    <Table.Th onClick={() => handleSummarySort('sync_events')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <Group gap={4} wrap="nowrap">Syncs <SummarySortIcon column="sync_events" /></Group>
+                    </Table.Th>
+                    <Table.Th onClick={() => handleSummarySort('upload_events')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <Group gap={4} wrap="nowrap">Uploads <SummarySortIcon column="upload_events" /></Group>
+                    </Table.Th>
+                    <Table.Th onClick={() => handleSummarySort('feature_uses')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <Group gap={4} wrap="nowrap">Features <SummarySortIcon column="feature_uses" /></Group>
+                    </Table.Th>
+                    <Table.Th onClick={() => handleSummarySort('interaction_events')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <Group gap={4} wrap="nowrap">Interactions <SummarySortIcon column="interaction_events" /></Group>
+                    </Table.Th>
+                    <Table.Th onClick={() => handleSummarySort('events_24h')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <Group gap={4} wrap="nowrap">24h <SummarySortIcon column="events_24h" /></Group>
+                    </Table.Th>
+                    <Table.Th onClick={() => handleSummarySort('events_7d')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <Group gap={4} wrap="nowrap">7d <SummarySortIcon column="events_7d" /></Group>
+                    </Table.Th>
                     <Table.Th>Actions</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {summary.map(user => (
+                  {sortedSummary.map(user => (
                     <Table.Tr key={user.user_id}>
                       <Table.Td>
                         <Text size="sm" fw={500}>{user.email}</Text>

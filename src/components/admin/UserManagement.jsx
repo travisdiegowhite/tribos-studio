@@ -32,7 +32,10 @@ import {
   IconActivity,
   IconPlugConnected,
   IconCheck,
-  IconInfoCircle
+  IconInfoCircle,
+  IconChevronUp,
+  IconChevronDown,
+  IconSelector
 } from '@tabler/icons-react';
 import { listUsers, getUserDetails, cleanUserData, getStats } from '../../services/adminService';
 
@@ -42,6 +45,10 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Sort state
+  const [sortColumn, setSortColumn] = useState('created_at');
+  const [sortDirection, setSortDirection] = useState('desc');
 
   // Modal state
   const [selectedUser, setSelectedUser] = useState(null);
@@ -113,11 +120,45 @@ export default function UserManagement() {
     }
   }
 
-  // Filter users by search query
-  const filteredUsers = users.filter(user =>
-    user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.id?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Sort handler
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const SortIcon = ({ column }) => {
+    if (sortColumn !== column) return <IconSelector size={14} style={{ opacity: 0.3 }} />;
+    return sortDirection === 'asc'
+      ? <IconChevronUp size={14} />
+      : <IconChevronDown size={14} />;
+  };
+
+  // Filter and sort users
+  const filteredUsers = users
+    .filter(user =>
+      user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.id?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      switch (sortColumn) {
+        case 'email':
+          return dir * (a.email || '').localeCompare(b.email || '');
+        case 'created_at':
+        case 'last_sign_in_at':
+          return dir * (new Date(a[sortColumn] || 0) - new Date(b[sortColumn] || 0));
+        case 'activity_count':
+          return dir * ((a.activity_count || 0) - (b.activity_count || 0));
+        case 'integrations':
+          return dir * ((a.integrations?.length || 0) - (b.integrations?.length || 0));
+        default:
+          return 0;
+      }
+    });
 
   // Format date for display
   function formatDate(dateString) {
@@ -221,11 +262,21 @@ export default function UserManagement() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Email</Table.Th>
-              <Table.Th>Signed Up</Table.Th>
-              <Table.Th>Last Sign In</Table.Th>
-              <Table.Th>Activities</Table.Th>
-              <Table.Th>Integrations</Table.Th>
+              <Table.Th onClick={() => handleSort('email')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                <Group gap={4} wrap="nowrap">Email <SortIcon column="email" /></Group>
+              </Table.Th>
+              <Table.Th onClick={() => handleSort('created_at')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                <Group gap={4} wrap="nowrap">Signed Up <SortIcon column="created_at" /></Group>
+              </Table.Th>
+              <Table.Th onClick={() => handleSort('last_sign_in_at')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                <Group gap={4} wrap="nowrap">Last Sign In <SortIcon column="last_sign_in_at" /></Group>
+              </Table.Th>
+              <Table.Th onClick={() => handleSort('activity_count')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                <Group gap={4} wrap="nowrap">Activities <SortIcon column="activity_count" /></Group>
+              </Table.Th>
+              <Table.Th onClick={() => handleSort('integrations')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                <Group gap={4} wrap="nowrap">Integrations <SortIcon column="integrations" /></Group>
+              </Table.Th>
               <Table.Th>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
