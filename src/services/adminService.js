@@ -141,6 +141,13 @@ export async function getUserActivity(targetUserId, limit = 100, offset = 0) {
   return activityFetch('get_user_activity', { targetUserId, limit, offset });
 }
 
+/**
+ * Get user insights (funnel, adoption, retention, stale users)
+ */
+export async function getUserInsights() {
+  return adminFetch('get_user_insights');
+}
+
 // ============================================================================
 // Email Campaign Functions
 // ============================================================================
@@ -230,6 +237,7 @@ export default {
   listFeedback,
   listWebhooks,
   getStats,
+  getUserInsights,
   getActivitySummary,
   getRecentActivity,
   getActivityStats,
