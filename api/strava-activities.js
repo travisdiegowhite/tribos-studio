@@ -230,7 +230,7 @@ async function syncActivities(req, res, userId, page, perPage) {
  */
 async function syncAllActivities(req, res, userId) {
   // Process 5 pages per call (~500 activities) to stay within timeout
-  const { startPage = 1, pagesPerChunk = 5 } = req.body;
+  const { startPage = 1, pagesPerChunk = 5, after, before } = req.body;
 
   try {
     const accessToken = await getValidAccessToken(userId);
@@ -242,9 +242,13 @@ async function syncAllActivities(req, res, userId) {
     const endPage = startPage + pagesPerChunk - 1;
 
     console.log(`📥 Strava history sync for user ${userId} (pages ${startPage}-${endPage})...`);
+    if (after) console.log(`📅 Filtering after: ${new Date(after * 1000).toISOString()}`);
+    if (before) console.log(`📅 Filtering before: ${new Date(before * 1000).toISOString()}`);
 
     while (hasMore && page <= endPage) {
-      const url = `${STRAVA_API_BASE}/athlete/activities?page=${page}&per_page=100`;
+      let url = `${STRAVA_API_BASE}/athlete/activities?page=${page}&per_page=100`;
+      if (after) url += `&after=${after}`;
+      if (before) url += `&before=${before}`;
       console.log(`📄 Fetching page ${page}...`);
 
       const response = await fetch(url, {
