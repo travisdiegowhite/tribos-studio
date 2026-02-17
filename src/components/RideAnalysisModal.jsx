@@ -338,7 +338,7 @@ const RideAnalysisModal = ({
             <Box
               p="xl"
               ta="center"
-              style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}
+              style={{ backgroundColor: 'var(--tribos-card)' }}
             >
               <IconMapOff size={48} style={{ opacity: 0.3, marginBottom: 8 }} />
               <Text c="dimmed" size="sm">
@@ -635,7 +635,7 @@ const RideAnalysisModal = ({
 
         {/* Strava attribution if applicable */}
         {ride.provider === 'strava' && (
-          <Box pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+          <Box pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
             <PoweredByStrava variant="light" size="sm" />
           </Box>
         )}
