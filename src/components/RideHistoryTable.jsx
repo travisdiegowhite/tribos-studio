@@ -234,7 +234,7 @@ const RideHistoryTable = ({
               key={ride.id}
               withBorder
               p="sm"
-              style={{ backgroundColor: 'var(--mantine-color-dark-6)', cursor: 'pointer' }}
+              style={{ backgroundColor: 'var(--tribos-card)', cursor: 'pointer' }}
               onClick={() => onViewRide?.(ride)}
             >
               <Group justify="space-between" mb="xs">
@@ -444,7 +444,7 @@ const RideHistoryTable = ({
 
       {/* Pagination controls - show when there are multiple pages */}
       {totalPages > 1 && maxRows === Infinity && (
-        <Group justify="space-between" align="center" mt="md" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+        <Group justify="space-between" align="center" mt="md" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
           <Text size="xs" c="dimmed">
             Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalFilteredCount)} of {totalFilteredCount} rides
           </Text>
@@ -473,7 +473,7 @@ const RideHistoryTable = ({
 
       {/* Strava Attribution - show if any rides are from Strava */}
       {filteredRides.some(r => isFromStrava(r)) && (
-        <Box mt="sm" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+        <Box mt="sm" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
           <PoweredByStrava variant="light" size="sm" />
         </Box>
       )}
