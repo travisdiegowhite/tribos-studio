@@ -327,7 +327,7 @@ export class StravaService {
    * @param {Function|null} options.onProgress - Progress callback
    * @returns {Promise<{totalFetched: number, totalStored: number, pages: number}>}
    */
-  async syncFullHistory({ after = null, before = null, onProgress = null } = {}) {
+  async syncFullHistory({ after = null, before = null, onProgress = null, importSource = 'strava_import_wizard' } = {}) {
     const userId = await this.getCurrentUserId();
     if (!userId) {
       throw new Error('User must be authenticated');
@@ -358,6 +358,7 @@ export class StravaService {
           userId,
           startPage,
           pagesPerChunk: 5,
+          importSource,
           ...(afterTimestamp && { after: afterTimestamp }),
           ...(beforeTimestamp && { before: beforeTimestamp })
         })

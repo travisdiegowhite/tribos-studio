@@ -175,6 +175,8 @@ async function getValidAccessToken(userId) {
  * Sync activities from Strava to Supabase
  */
 async function syncActivities(req, res, userId, page, perPage) {
+  const { importSource = 'strava_dashboard_sync' } = req.body;
+
   try {
     const accessToken = await getValidAccessToken(userId);
 
@@ -205,7 +207,7 @@ async function syncActivities(req, res, userId, page, perPage) {
     console.log(`🚴 ${cyclingActivities.length} cycling activities`);
 
     // Store activities in Supabase
-    const storedCount = await storeActivities(userId, cyclingActivities);
+    const storedCount = await storeActivities(userId, cyclingActivities, importSource);
 
     // Recalculate speed profile after syncing
     await calculateAndStoreSpeedProfile(userId);
@@ -230,7 +232,7 @@ async function syncActivities(req, res, userId, page, perPage) {
  */
 async function syncAllActivities(req, res, userId) {
   // Process 5 pages per call (~500 activities) to stay within timeout
-  const { startPage = 1, pagesPerChunk = 5, after, before } = req.body;
+  const { startPage = 1, pagesPerChunk = 5, after, before, importSource = 'strava_settings_sync' } = req.body;
 
   try {
     const accessToken = await getValidAccessToken(userId);
@@ -294,7 +296,7 @@ async function syncAllActivities(req, res, userId) {
       );
 
       // Store with deduplication
-      const stored = await storeActivities(userId, cyclingActivities);
+      const stored = await storeActivities(userId, cyclingActivities, importSource);
       totalStored += stored;
 
       // Check if there are more pages
@@ -334,7 +336,7 @@ async function syncAllActivities(req, res, userId) {
 /**
  * Store activities in Supabase with cross-provider duplicate detection
  */
-async function storeActivities(userId, activities) {
+async function storeActivities(userId, activities, importSource = null) {
   if (activities.length === 0) return 0;
 
   let stored = 0;
@@ -368,7 +370,8 @@ async function storeActivities(userId, activities) {
       gear_id: a.gear_id || null,
       map_summary_polyline: a.map?.summary_polyline || null,
       raw_data: a,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      ...(importSource && { imported_from: importSource })
     };
 
     // Check for same-provider duplicate first
