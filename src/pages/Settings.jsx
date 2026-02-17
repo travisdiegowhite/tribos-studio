@@ -440,7 +440,8 @@ function Settings() {
             action: 'sync_all_activities',
             userId: user.id,
             startPage,
-            pagesPerChunk: 5
+            pagesPerChunk: 5,
+            importSource: 'strava_settings_sync'
           })
         });
 

@@ -13,6 +13,7 @@ import {
   SimpleGrid,
   Progress,
   ThemeIcon,
+  CloseButton,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import {
@@ -25,6 +26,8 @@ import {
   IconCalendarEvent,
   IconTrendingUp,
   IconTarget,
+  IconHistory,
+  IconX,
 } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { tokens } from '../theme';
@@ -54,6 +57,11 @@ function Dashboard() {
   const [weekStats, setWeekStats] = useState({ rides: 0, planned: 0, distance: 0, elevation: 0 });
   const [syncing, setSyncing] = useState(false);
   const [checkInDismissed, setCheckInDismissed] = useState(false);
+  const [stravaConnected, setStravaConnected] = useState(false);
+  const [totalActivityCount, setTotalActivityCount] = useState(null);
+  const [importNudgeDismissed, setImportNudgeDismissed] = useState(
+    () => localStorage.getItem(`tribos_import_nudge_dismissed_${user?.id}`) === 'true'
+  );
 
   // Community hook
   const {
@@ -154,6 +162,17 @@ function Dashboard() {
             elevation: weekActivities.reduce((sum, a) => sum + (a.elevation_gain_meters || a.total_elevation_gain || 0), 0),
           });
         }
+
+        // Check Strava connection and total activity count for import nudge
+        const [connectionStatus, { count: actCount }] = await Promise.all([
+          stravaService.getConnectionStatus(),
+          supabase
+            .from('activities')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+        ]);
+        setStravaConnected(connectionStatus?.connected || false);
+        setTotalActivityCount(actCount || 0);
 
         // Fetch active training plan
         const { data: planData } = await supabase
@@ -428,6 +447,49 @@ function Dashboard() {
               </Button>
             </Group>
           </Card>
+
+          {/* Import History Nudge */}
+          {stravaConnected && !importNudgeDismissed && totalActivityCount !== null && totalActivityCount < 10 && (
+            <Card
+              style={{
+                background: 'linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)',
+                border: '1px solid var(--tribos-border)',
+              }}
+            >
+              <Group justify="space-between" align="flex-start" wrap="nowrap">
+                <Group gap="md" align="flex-start" wrap="nowrap">
+                  <ThemeIcon size="lg" variant="light" color="terracotta" mt={2}>
+                    <IconHistory size={20} />
+                  </ThemeIcon>
+                  <Box>
+                    <Text fw={600} size="sm" style={{ color: 'var(--tribos-text-primary)' }} mb={4}>
+                      Import your ride history
+                    </Text>
+                    <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }} mb="sm">
+                      The Route Builder uses your past rides to suggest roads you already love, and the Training AI coach needs your history to build a plan that fits your fitness level.
+                    </Text>
+                    <Button
+                      component={Link}
+                      to="/settings"
+                      variant="light"
+                      color="terracotta"
+                      size="xs"
+                    >
+                      Import from Strava
+                    </Button>
+                  </Box>
+                </Group>
+                <CloseButton
+                  size="sm"
+                  onClick={() => {
+                    setImportNudgeDismissed(true);
+                    localStorage.setItem(`tribos_import_nudge_dismissed_${user?.id}`, 'true');
+                  }}
+                  style={{ color: 'var(--tribos-text-muted)' }}
+                />
+              </Group>
+            </Card>
+          )}
 
           {/* Recent Activities */}
           <Card>

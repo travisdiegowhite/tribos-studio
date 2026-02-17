@@ -317,6 +317,79 @@ export class StravaService {
   }
 
   /**
+   * Sync full history using the chunked sync_all_activities endpoint.
+   * Unlike syncAllActivities(), this calls the backend's chunked endpoint
+   * directly (no page cap) and supports date filtering via after/before.
+   *
+   * @param {Object} options
+   * @param {Date|null} options.after - Only fetch activities after this date
+   * @param {Date|null} options.before - Only fetch activities before this date
+   * @param {Function|null} options.onProgress - Progress callback
+   * @returns {Promise<{totalFetched: number, totalStored: number, pages: number}>}
+   */
+  async syncFullHistory({ after = null, before = null, onProgress = null, importSource = 'strava_import_wizard' } = {}) {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    const headers = await this.getAuthHeaders();
+    let startPage = 1;
+    let totalFetched = 0;
+    let totalStored = 0;
+    let totalPages = 0;
+    let reachedEnd = false;
+
+    // Convert dates to Unix timestamps for Strava API
+    const afterTimestamp = after ? Math.floor(new Date(after).getTime() / 1000) : undefined;
+    const beforeTimestamp = before ? Math.floor(new Date(before).getTime() / 1000) : undefined;
+
+    while (!reachedEnd) {
+      if (onProgress) {
+        onProgress({ startPage, totalFetched, totalStored, totalPages });
+      }
+
+      const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'sync_all_activities',
+          userId,
+          startPage,
+          pagesPerChunk: 5,
+          importSource,
+          ...(afterTimestamp && { after: afterTimestamp }),
+          ...(beforeTimestamp && { before: beforeTimestamp })
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Sync failed');
+      }
+
+      totalFetched += result.totalFetched;
+      totalStored += result.totalStored;
+      totalPages += result.pagesProcessed;
+      reachedEnd = result.reachedEnd;
+
+      if (!reachedEnd && result.nextPage) {
+        startPage = result.nextPage;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // If rate limited, report back rather than throwing
+      if (result.rateLimited) {
+        return { totalFetched, totalStored, pages: totalPages, rateLimited: true };
+      }
+    }
+
+    return { totalFetched, totalStored, pages: totalPages, rateLimited: false };
+  }
+
+  /**
    * Get user's speed profile
    */
   async getSpeedProfile() {

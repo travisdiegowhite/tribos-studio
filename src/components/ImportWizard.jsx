@@ -136,24 +136,30 @@ const ImportWizard = ({ opened, onClose }) => {
       setImportStatus('Syncing activities from Strava...');
       setImportProgress(20);
 
-      // Use the sync all activities method
-      let totalSynced = 0;
-      const result = await stravaService.syncAllActivities((progress) => {
-        setImportProgress(20 + (progress.page * 10));
-        setImportStatus(`Syncing page ${progress.page}... (${progress.totalSynced} activities)`);
-        totalSynced = progress.totalSynced;
+      // Use the chunked full-history sync with date filtering
+      const result = await stravaService.syncFullHistory({
+        after: historicalPeriod !== 'all' ? startDate : null,
+        onProgress: (progress) => {
+          // Progress scales from 20-90% during sync
+          const progressPct = Math.min(90, 20 + (progress.totalPages * 5));
+          setImportProgress(progressPct);
+          setImportStatus(`Syncing pages ${progress.startPage}-${progress.startPage + 4}... (${progress.totalFetched} activities found)`);
+        }
       });
 
       setImportProgress(100);
-      setImportStatus('Import complete!');
+      const statusMsg = result.rateLimited
+        ? `Imported ${result.totalStored} activities (rate limited - sync again later for more)`
+        : 'Import complete!';
+      setImportStatus(statusMsg);
       setImportResults({
-        imported: result.totalSynced,
-        skipped: 0,
+        imported: result.totalStored,
+        skipped: result.totalFetched - result.totalStored,
         errors: 0,
-        totalActivities: result.totalSynced
+        totalActivities: result.totalFetched
       });
 
-      if (result.totalSynced > 0) {
+      if (result.totalStored > 0) {
         setTimeout(() => nextStep(), 2000);
       }
 
