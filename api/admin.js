@@ -48,6 +48,29 @@ async function verifyAdminAccess(req) {
 }
 
 /**
+ * Fetch all rows from a Supabase table, paginating past the 1000-row default limit
+ */
+async function fetchAllRows(table, selectColumns) {
+  let allRows = [];
+  let start = 0;
+  const batchSize = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(selectColumns)
+      .range(start, start + batchSize - 1);
+    if (error) {
+      console.error(`Error fetching from ${table}:`, error);
+      break;
+    }
+    allRows = allRows.concat(data || []);
+    if (!data || data.length < batchSize) break;
+    start += batchSize;
+  }
+  return allRows;
+}
+
+/**
  * Log admin action to audit table
  */
 async function logAdminAction(adminUserId, action, targetUserId, details) {
@@ -197,19 +220,12 @@ async function listUsers(req, res, adminUser) {
     return res.status(500).json({ error: 'Failed to list users' });
   }
 
-  // Get activity counts per user
-  const { data: activityCounts, error: activityError } = await supabase
-    .from('activities')
-    .select('user_id')
-    .then(result => {
-      if (result.error) return { data: null, error: result.error };
-      // Count activities per user
-      const counts = {};
-      (result.data || []).forEach(a => {
-        counts[a.user_id] = (counts[a.user_id] || 0) + 1;
-      });
-      return { data: counts, error: null };
-    });
+  // Get activity counts per user - paginate to avoid Supabase default 1000-row limit
+  const allActivities = await fetchAllRows('activities', 'user_id');
+  const activityCounts = {};
+  allActivities.forEach(a => {
+    activityCounts[a.user_id] = (activityCounts[a.user_id] || 0) + 1;
+  });
 
   // Get integration status per user
   const { data: integrations } = await supabase
@@ -231,7 +247,7 @@ async function listUsers(req, res, adminUser) {
     created_at: user.created_at,
     last_sign_in_at: user.last_sign_in_at,
     email_confirmed_at: user.email_confirmed_at,
-    activity_count: activityCounts?.[user.id] || 0,
+    activity_count: activityCounts[user.id] || 0,
     integrations: integrationMap[user.id] || []
   }));
 
@@ -554,32 +570,24 @@ async function getUserInsights(req, res, adminUser) {
     page++;
   }
 
-  // Fetch all data in parallel for funnel/adoption analysis
+  // Fetch all data for funnel/adoption analysis - paginate large tables
   const [
-    profilesResult,
-    integrationsResult,
-    activitiesResult,
-    routesResult,
-    plansResult,
-    coachMemoriesResult,
-    activityEventsResult
+    profiles,
+    integrations,
+    activities,
+    routes,
+    plans,
+    coachMemories,
+    activityEvents
   ] = await Promise.all([
-    supabase.from('user_profiles').select('id, display_name, ftp, weight_kg'),
-    supabase.from('bike_computer_integrations').select('user_id, provider'),
-    supabase.from('activities').select('user_id, start_date'),
-    supabase.from('routes').select('user_id, created_at'),
-    supabase.from('training_plans').select('user_id, created_at'),
-    supabase.from('accountability_coach_memories').select('user_id'),
-    supabase.from('user_activity_events').select('user_id, event_category, event_type, created_at')
+    fetchAllRows('user_profiles', 'id, display_name, ftp, weight_kg'),
+    fetchAllRows('bike_computer_integrations', 'user_id, provider'),
+    fetchAllRows('activities', 'user_id, start_date'),
+    fetchAllRows('routes', 'user_id, created_at'),
+    fetchAllRows('training_plans', 'user_id, created_at'),
+    fetchAllRows('accountability_coach_memories', 'user_id'),
+    fetchAllRows('user_activity_events', 'user_id, event_category, event_type, created_at')
   ]);
-
-  const profiles = profilesResult.data || [];
-  const integrations = integrationsResult.data || [];
-  const activities = activitiesResult.data || [];
-  const routes = routesResult.data || [];
-  const plans = plansResult.data || [];
-  const coachMemories = coachMemoriesResult.data || [];
-  const activityEvents = activityEventsResult.data || [];
 
   // Build per-user data sets
   const profileSet = new Set(profiles.filter(p => p.display_name || p.ftp || p.weight_kg).map(p => p.id));
