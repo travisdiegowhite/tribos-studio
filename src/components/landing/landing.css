@@ -1,0 +1,310 @@
+/* ===== Landing Page Scroll-Driven Animations ===== */
+
+/* Step section reveal */
+.landing-step {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.landing-step.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Staggered children within a step */
+.landing-step .step-label {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+  transition-delay: 0s;
+}
+
+.landing-step .step-title {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+  transition-delay: 0.1s;
+}
+
+.landing-step .step-desc {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+  transition-delay: 0.2s;
+}
+
+.landing-step .step-content {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+  transition-delay: 0.3s;
+}
+
+.landing-step.visible .step-label,
+.landing-step.visible .step-title,
+.landing-step.visible .step-desc,
+.landing-step.visible .step-content {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ===== Hero Section ===== */
+
+.landing-hero {
+  transition: opacity 0.3s ease;
+}
+
+.scroll-prompt {
+  animation: scrollBounce 2s ease-in-out infinite;
+}
+
+@keyframes scrollBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(8px); }
+}
+
+.scroll-prompt.hidden {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+
+/* ===== Integration Cards ===== */
+
+.integration-card {
+  opacity: 0.3;
+  transform: translateY(12px) scale(0.98);
+  transition: opacity 0.5s ease-out, transform 0.5s ease-out, border-color 0.5s ease-out, box-shadow 0.5s ease-out;
+}
+
+.integration-card.active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.integration-card .connected-badge {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.integration-card.active .connected-badge {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ===== Import Ride List ===== */
+
+.ride-row {
+  opacity: 0;
+  transform: translateX(-20px);
+  transition: opacity 0.28s ease-out, transform 0.28s ease-out;
+}
+
+.ride-row.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.import-progress-bar {
+  transition: width 2.8s ease-out;
+}
+
+.import-counter {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Chart Animations ===== */
+
+.chart-line-draw {
+  stroke-dashoffset: var(--line-length, 1000);
+  stroke-dasharray: var(--line-length, 1000);
+  transition: stroke-dashoffset 2s ease-out;
+}
+
+.chart-line-draw.animate {
+  stroke-dashoffset: 0;
+}
+
+.chart-area-fill {
+  opacity: 0;
+  transition: opacity 1s ease-out 0.8s;
+}
+
+.chart-area-fill.animate {
+  opacity: 1;
+}
+
+.zone-bar {
+  transform-origin: bottom;
+  transform: scaleY(0);
+  transition: transform 0.6s ease-out;
+}
+
+.zone-bar.animate {
+  transform: scaleY(1);
+}
+
+/* Stagger zone bars */
+.zone-bar:nth-child(1) { transition-delay: 0.1s; }
+.zone-bar:nth-child(2) { transition-delay: 0.2s; }
+.zone-bar:nth-child(3) { transition-delay: 0.3s; }
+.zone-bar:nth-child(4) { transition-delay: 0.4s; }
+.zone-bar:nth-child(5) { transition-delay: 0.5s; }
+.zone-bar:nth-child(6) { transition-delay: 0.6s; }
+
+/* ===== Chat Animation ===== */
+
+.chat-message {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+}
+
+.chat-message.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Typing indicator */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--tribos-text-400);
+  animation: typingBounce 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* ===== Route Map Animation ===== */
+
+.route-stats-row {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+}
+
+.route-stats-row.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ===== Progress Indicator ===== */
+
+.progress-indicator {
+  position: fixed;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.progress-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--tribos-text-500);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+}
+
+.progress-dot.passed {
+  background: var(--tribos-text-400);
+  border-color: var(--tribos-text-400);
+}
+
+.progress-dot.active {
+  background: var(--tribos-terracotta-500);
+  border-color: var(--tribos-terracotta-500);
+  box-shadow: 0 0 8px rgba(158, 90, 60, 0.4);
+  transform: scale(1.2);
+}
+
+/* ===== Fixed Nav ===== */
+
+.landing-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--tribos-void) 85%, transparent);
+  border-bottom: 1px solid var(--tribos-border-default);
+  transition: background 0.3s ease;
+}
+
+/* ===== Mobile Responsive ===== */
+
+@media (max-width: 768px) {
+  .progress-indicator {
+    display: none;
+  }
+
+  .landing-step {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+/* ===== Reduced Motion ===== */
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-step,
+  .landing-step .step-label,
+  .landing-step .step-title,
+  .landing-step .step-desc,
+  .landing-step .step-content,
+  .integration-card,
+  .integration-card .connected-badge,
+  .ride-row,
+  .chart-line-draw,
+  .chart-area-fill,
+  .zone-bar,
+  .chat-message,
+  .route-stats-row,
+  .scroll-prompt {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .chart-line-draw {
+    stroke-dashoffset: 0 !important;
+  }
+
+  .zone-bar {
+    transform: scaleY(1) !important;
+  }
+
+  .import-progress-bar {
+    transition: none !important;
+  }
+}
