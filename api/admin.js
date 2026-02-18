@@ -1229,14 +1229,21 @@ async function getFilteredRecipients(audienceType, filterCriteria) {
 
   // Get registered users if needed
   if (audienceType === 'users' || audienceType === 'both') {
-    const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
-
-    if (authError) {
-      console.error('Error listing auth users:', authError);
-      throw new Error('Failed to list users');
+    // Paginate to get ALL users (avoids 50-per-page default)
+    let allAuthUsers = [];
+    let authPage = 1;
+    while (true) {
+      const { data, error } = await supabase.auth.admin.listUsers({ page: authPage, perPage: 1000 });
+      if (error) {
+        console.error('Error listing auth users:', error);
+        throw new Error('Failed to list users');
+      }
+      allAuthUsers = allAuthUsers.concat(data.users || []);
+      if (!data.users || data.users.length < 1000) break;
+      authPage++;
     }
 
-    let users = authData.users || [];
+    let users = allAuthUsers;
 
     // If manual selection mode, filter to only selected users
     if (isManualSelection) {
@@ -1324,6 +1331,49 @@ async function getFilteredRecipients(audienceType, filterCriteria) {
         } else {
           users = users.filter(u => !usersWithIntegrations.has(u.id));
         }
+      }
+
+      // User health status filter (never_activated, at_risk, churned)
+      if (filterCriteria.userStatus && filterCriteria.userStatus.length > 0) {
+        const userIds = users.map(u => u.id);
+
+        // Fetch activity and integration data for status calculation
+        const [statusActivities, statusIntegrations, statusEvents] = await Promise.all([
+          fetchAllRows('activities', 'user_id'),
+          fetchAllRows('bike_computer_integrations', 'user_id'),
+          fetchAllRows('user_activity_events', 'user_id, created_at')
+        ]);
+
+        const statusActivitySet = new Set(statusActivities.map(a => a.user_id));
+        const statusIntegrationSet = new Set(statusIntegrations.map(i => i.user_id));
+
+        // Find last event timestamp per user
+        const lastEventByUser = {};
+        statusEvents.forEach(e => {
+          const ts = new Date(e.created_at).getTime();
+          if (!lastEventByUser[e.user_id] || ts > lastEventByUser[e.user_id]) {
+            lastEventByUser[e.user_id] = ts;
+          }
+        });
+
+        const now = Date.now();
+        users = users.filter(u => {
+          const lastEvent = lastEventByUser[u.id] || 0;
+          const lastSignIn = u.last_sign_in_at ? new Date(u.last_sign_in_at).getTime() : 0;
+          const latest = Math.max(lastEvent, lastSignIn);
+          const daysSinceActive = latest > 0 ? Math.floor((now - latest) / 86400000) : null;
+          const hasActivity = statusActivitySet.has(u.id);
+          const hasIntegration = statusIntegrationSet.has(u.id);
+
+          let status = 'healthy';
+          if (daysSinceActive === null || daysSinceActive > 30) {
+            status = !hasActivity && !hasIntegration ? 'never_activated' : 'churned';
+          } else if (daysSinceActive > 14) {
+            status = 'at_risk';
+          }
+
+          return filterCriteria.userStatus.includes(status);
+        });
       }
     }
 
