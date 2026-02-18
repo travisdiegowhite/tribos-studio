@@ -33,7 +33,8 @@ import {
   ScrollArea,
   Checkbox,
   SegmentedControl,
-  ThemeIcon
+  ThemeIcon,
+  MultiSelect
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import {
@@ -935,6 +936,34 @@ export default function EmailCampaigns() {
                     })}
                     min={1}
                   />
+
+                  <Paper withBorder p="md" bg="var(--mantine-color-dark-7)">
+                    <Group gap="xs" mb="sm">
+                      <ThemeIcon size="sm" variant="light" color="orange">
+                        <IconUsers size={14} />
+                      </ThemeIcon>
+                      <Text fw={500} size="sm">Target by User Health Status</Text>
+                    </Group>
+                    <MultiSelect
+                      label="User status"
+                      placeholder="Select statuses to target"
+                      data={[
+                        { value: 'never_activated', label: 'Never Activated - signed up but never connected or synced' },
+                        { value: 'at_risk', label: 'At Risk - inactive 14-30 days' },
+                        { value: 'churned', label: 'Churned - was active, now 30+ days inactive' },
+                        { value: 'healthy', label: 'Healthy - recently active' }
+                      ]}
+                      value={filterCriteria.userStatus || []}
+                      onChange={(value) => setFilterCriteria({
+                        ...filterCriteria,
+                        userStatus: value?.length ? value : undefined
+                      })}
+                      clearable
+                    />
+                    <Text size="xs" c="dimmed" mt="xs">
+                      Matches the same statuses shown in the Insights tab. Useful for re-engagement campaigns.
+                    </Text>
+                  </Paper>
                 </>
               )}
 
