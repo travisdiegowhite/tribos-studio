@@ -23,6 +23,65 @@ const supabaseAdmin = createClient(
 const ADMIN_EMAIL = 'travis@tribos.studio';
 
 /**
+ * Fetch all rows from a Supabase table, paginating in batches to avoid the 1000-row default limit.
+ * @param {string} table - Table name
+ * @param {string} selectColumns - Columns to select
+ * @param {object} filters - Optional filters: { column, op, value } or array of filters
+ * @returns {Promise<Array>} All rows
+ */
+async function fetchAllRows(table, selectColumns, filters = []) {
+  let allRows = [];
+  let start = 0;
+  const batchSize = 1000;
+
+  while (true) {
+    let query = supabaseAdmin.from(table).select(selectColumns).range(start, start + batchSize - 1);
+
+    // Apply filters
+    const filterList = Array.isArray(filters) ? filters : [filters];
+    for (const f of filterList) {
+      if (f && f.column && f.op) {
+        query = query[f.op](f.column, f.value);
+      }
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error(`fetchAllRows error on ${table}:`, error);
+      break;
+    }
+    allRows = allRows.concat(data || []);
+    if (!data || data.length < batchSize) break;
+    start += batchSize;
+  }
+
+  return allRows;
+}
+
+/**
+ * Fetch all auth users, paginating past the 50-per-page default limit.
+ * @returns {Promise<Array>} All auth users
+ */
+async function fetchAllAuthUsers() {
+  let allUsers = [];
+  let page = 1;
+  const perPage = 1000;
+
+  while (true) {
+    const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      console.error('fetchAllAuthUsers error:', error);
+      break;
+    }
+    allUsers = allUsers.concat(users || []);
+    if (!users || users.length < perPage) break;
+    page++;
+  }
+
+  return allUsers;
+}
+
+/**
  * Get user from JWT token
  */
 async function getUser(req) {
@@ -209,15 +268,8 @@ async function getUserActivity(req, res) {
  * Admin: Get activity summary for all users
  */
 async function getActivitySummary(req, res) {
-  // Get aggregated stats per user
-  const { data: events, error } = await supabaseAdmin
-    .from('user_activity_events')
-    .select('user_id, event_category, created_at');
-
-  if (error) {
-    console.error('Error fetching activity summary:', error);
-    return res.status(500).json({ error: 'Failed to fetch summary' });
-  }
+  // Get ALL events, paginating past the 1000-row default limit
+  const events = await fetchAllRows('user_activity_events', 'user_id, event_category, created_at');
 
   // Aggregate by user
   const userStats = {};
@@ -225,7 +277,7 @@ async function getActivitySummary(req, res) {
   const last24h = new Date(now - 24 * 60 * 60 * 1000);
   const last7d = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-  (events || []).forEach(e => {
+  events.forEach(e => {
     if (!userStats[e.user_id]) {
       userStats[e.user_id] = {
         user_id: e.user_id,
@@ -260,10 +312,10 @@ async function getActivitySummary(req, res) {
     if (eventDate > last7d) stats.events_7d++;
   });
 
-  // Get user emails
-  const { data: { users: authUsers } } = await supabaseAdmin.auth.admin.listUsers();
+  // Get ALL user emails, paginating past the 50-per-page default limit
+  const authUsers = await fetchAllAuthUsers();
   const userMap = {};
-  (authUsers || []).forEach(u => {
+  authUsers.forEach(u => {
     userMap[u.id] = u.email;
   });
 
@@ -312,11 +364,11 @@ async function getRecentActivity(req, res) {
     return res.status(500).json({ error: 'Failed to fetch activity' });
   }
 
-  // Get user emails
+  // Get ALL user emails, paginating past the 50-per-page default limit
   const userIds = [...new Set((events || []).map(e => e.user_id))];
-  const { data: { users: authUsers } } = await supabaseAdmin.auth.admin.listUsers();
+  const authUsers = await fetchAllAuthUsers();
   const userMap = {};
-  (authUsers || []).forEach(u => {
+  authUsers.forEach(u => {
     if (userIds.includes(u.id)) {
       userMap[u.id] = u.email;
     }
@@ -344,15 +396,12 @@ async function getActivityStats(req, res) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  const { data: events, error } = await supabaseAdmin
-    .from('user_activity_events')
-    .select('event_type, event_category, created_at, user_id')
-    .gte('created_at', startDate.toISOString());
-
-  if (error) {
-    console.error('Error fetching activity stats:', error);
-    return res.status(500).json({ error: 'Failed to fetch stats' });
-  }
+  // Fetch ALL events in the date range, paginating past the 1000-row limit
+  const events = await fetchAllRows(
+    'user_activity_events',
+    'event_type, event_category, created_at, user_id',
+    [{ column: 'created_at', op: 'gte', value: startDate.toISOString() }]
+  );
 
   // Calculate stats
   const stats = {
