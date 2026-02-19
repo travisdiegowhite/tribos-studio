@@ -2,37 +2,70 @@ import { useState, useEffect, useRef } from 'react';
 import { Container, Text, Paper, SimpleGrid, Box, Stack, Group } from '@mantine/core';
 import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
 
-// ===== Data for charts =====
+// ===== Chart colors — match actual app components =====
+// From TrainingLoadChart.jsx: CTL=#5C7A5E, ATL=#B89040, TSB=#6B8C72
+// From PowerDurationCurve.jsx: current line=#fbbf24, FTP ref=#9E5A3C
+// From zoneColors.js: Z1=#6B8C72, Z2=#5C7A5E, Z3=#B89040, Z4=#9E5A3C, Z5=#6B7F94, Z6=#8B6B5A
+const COLORS = {
+  ctl: '#5C7A5E',    // Moss — Chronic Training Load (Fitness)
+  atl: '#B89040',    // Ochre — Acute Training Load (Fatigue)
+  tsb: '#6B8C72',    // Sage — Training Stress Balance (Form)
+  pdc: '#9E5A3C',    // Terracotta — Power curve primary
+  pdcFill: '#9E5A3C',
+  zone1: '#6B8C72',  // Recovery — Forest
+  zone2: '#5C7A5E',  // Endurance — Moss
+  zone3: '#B89040',  // Tempo — Ochre
+  zone4: '#9E5A3C',  // Threshold — Sienna
+  zone5: '#6B7F94',  // VO2max — Slate
+  zone6: '#8B6B5A',  // Anaerobic — Iron
+};
 
-// CTL (fitness) and ATL (fatigue) over ~90 days
+// ===== Realistic data — FTP ~245W rider, 90-day training block =====
+
+// CTL/ATL over 30 data points (~90 days, sampled every 3 days)
+// Shows a structured training build with recovery weeks
 const fitnessData = [
-  { ctl: 42, atl: 38 }, { ctl: 43, atl: 45 }, { ctl: 44, atl: 40 }, { ctl: 45, atl: 52 },
-  { ctl: 47, atl: 48 }, { ctl: 48, atl: 42 }, { ctl: 49, atl: 55 }, { ctl: 50, atl: 50 },
-  { ctl: 51, atl: 46 }, { ctl: 53, atl: 58 }, { ctl: 54, atl: 52 }, { ctl: 55, atl: 48 },
-  { ctl: 56, atl: 60 }, { ctl: 57, atl: 55 }, { ctl: 58, atl: 50 }, { ctl: 59, atl: 62 },
-  { ctl: 60, atl: 56 }, { ctl: 61, atl: 52 }, { ctl: 62, atl: 65 }, { ctl: 63, atl: 58 },
-  { ctl: 64, atl: 54 }, { ctl: 65, atl: 68 }, { ctl: 66, atl: 62 }, { ctl: 67, atl: 56 },
-  { ctl: 67, atl: 70 }, { ctl: 68, atl: 64 }, { ctl: 68, atl: 58 }, { ctl: 69, atl: 72 },
-  { ctl: 70, atl: 66 }, { ctl: 70, atl: 60 },
+  { ctl: 44, atl: 40 }, { ctl: 45, atl: 52 }, { ctl: 46, atl: 48 },
+  { ctl: 48, atl: 42 }, { ctl: 49, atl: 56 }, { ctl: 50, atl: 50 },
+  { ctl: 51, atl: 44 }, // Recovery week dip
+  { ctl: 52, atl: 58 }, { ctl: 53, atl: 54 }, { ctl: 55, atl: 62 },
+  { ctl: 56, atl: 58 }, { ctl: 57, atl: 52 }, // Recovery week
+  { ctl: 58, atl: 64 }, { ctl: 59, atl: 60 }, { ctl: 60, atl: 68 },
+  { ctl: 62, atl: 65 }, { ctl: 63, atl: 58 }, // Recovery
+  { ctl: 64, atl: 70 }, { ctl: 65, atl: 66 }, { ctl: 66, atl: 72 },
+  { ctl: 67, atl: 68 }, { ctl: 67, atl: 62 }, // Recovery
+  { ctl: 68, atl: 74 }, { ctl: 69, atl: 70 }, { ctl: 70, atl: 76 },
+  { ctl: 70, atl: 72 }, { ctl: 71, atl: 65 }, // Taper
+  { ctl: 71, atl: 60 }, { ctl: 70, atl: 62 }, { ctl: 70, atl: 58 },
 ];
 
-// Power duration curve (seconds vs watts)
+// Power duration curve — FTP ~245W, weight ~78kg
+// Best efforts from 90-day window
 const pdcData = [
-  { sec: 1, watts: 1050 }, { sec: 5, watts: 920 }, { sec: 10, watts: 780 },
-  { sec: 15, watts: 680 }, { sec: 30, watts: 520 }, { sec: 60, watts: 380 },
-  { sec: 120, watts: 320 }, { sec: 300, watts: 285 }, { sec: 600, watts: 268 },
-  { sec: 1200, watts: 255 }, { sec: 1800, watts: 248 }, { sec: 3600, watts: 238 },
-  { sec: 5400, watts: 225 }, { sec: 7200, watts: 210 },
+  { sec: 1, watts: 1080 },
+  { sec: 5, watts: 948 },
+  { sec: 15, watts: 702 },
+  { sec: 30, watts: 538 },
+  { sec: 60, watts: 392 },
+  { sec: 120, watts: 332 },
+  { sec: 300, watts: 295 },
+  { sec: 480, watts: 278 },
+  { sec: 600, watts: 270 },
+  { sec: 1200, watts: 258 },
+  { sec: 1800, watts: 250 },
+  { sec: 3600, watts: 238 },
+  { sec: 5400, watts: 222 },
+  { sec: 7200, watts: 208 },
 ];
 
-// Zone distribution (percent of time)
+// Zone distribution — 90-day, polarized-ish training pattern
 const zoneData = [
-  { zone: 'Z1', label: 'Recovery', pct: 18, color: 'var(--tribos-sage-500)' },
-  { zone: 'Z2', label: 'Endurance', pct: 35, color: 'var(--tribos-teal-500)' },
-  { zone: 'Z3', label: 'Tempo', pct: 22, color: 'var(--tribos-gold-500)' },
-  { zone: 'Z4', label: 'Threshold', pct: 15, color: 'var(--tribos-terracotta-500)' },
-  { zone: 'Z5', label: 'VO2max', pct: 7, color: 'var(--tribos-mauve-500)' },
-  { zone: 'Z6', label: 'Anaerobic', pct: 3, color: 'var(--tribos-sky-500)' },
+  { zone: 'Z1', label: 'Recovery', pct: 15, color: COLORS.zone1 },
+  { zone: 'Z2', label: 'Endurance', pct: 38, color: COLORS.zone2 },
+  { zone: 'Z3', label: 'Tempo', pct: 18, color: COLORS.zone3 },
+  { zone: 'Z4', label: 'Threshold', pct: 17, color: COLORS.zone4 },
+  { zone: 'Z5', label: 'VO2max', pct: 9, color: COLORS.zone5 },
+  { zone: 'Z6', label: 'Anaerobic', pct: 3, color: COLORS.zone6 },
 ];
 
 // ===== SVG Chart Components =====
@@ -44,8 +77,8 @@ function FitnessChart({ animate }) {
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
-  const maxVal = 80;
-  const minVal = 30;
+  const maxVal = 82;
+  const minVal = 32;
 
   const toX = (i) => padding.left + (i / (fitnessData.length - 1)) * chartW;
   const toY = (val) => padding.top + ((maxVal - val) / (maxVal - minVal)) * chartH;
@@ -72,16 +105,20 @@ function FitnessChart({ animate }) {
     <Paper p="sm" style={{ overflow: 'hidden' }}>
       <Group justify="space-between" mb="xs">
         <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-          Fitness / Fatigue / Form
+          Training Load
         </Text>
         <Group gap="md">
           <Group gap={4}>
-            <Box style={{ width: 10, height: 2, background: 'var(--tribos-teal-500)' }} />
+            <Box style={{ width: 10, height: 2, background: COLORS.ctl }} />
             <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)' }}>CTL</Text>
           </Group>
           <Group gap={4}>
-            <Box style={{ width: 10, height: 2, background: 'var(--tribos-terracotta-500)' }} />
+            <Box style={{ width: 10, height: 2, background: COLORS.atl }} />
             <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)' }}>ATL</Text>
+          </Group>
+          <Group gap={4}>
+            <Box style={{ width: 10, height: 2, background: COLORS.tsb, opacity: 0.3 }} />
+            <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)' }}>TSB</Text>
           </Group>
         </Group>
       </Group>
@@ -99,11 +136,11 @@ function FitnessChart({ animate }) {
         ))}
 
         {/* TSB fill area */}
-        <path d={tsbPath} fill="var(--tribos-sage-500)" className={`chart-area-fill ${animate ? 'animate' : ''}`}
+        <path d={tsbPath} fill={COLORS.tsb} className={`chart-area-fill ${animate ? 'animate' : ''}`}
           opacity="0.08" />
 
-        {/* CTL line */}
-        <path ref={ctlRef} d={ctlPath} fill="none" stroke="var(--tribos-teal-500)" strokeWidth="2"
+        {/* CTL line (Fitness) */}
+        <path ref={ctlRef} d={ctlPath} fill="none" stroke={COLORS.ctl} strokeWidth="2"
           strokeLinecap="round" strokeLinejoin="round"
           style={{
             strokeDasharray: ctlLength,
@@ -112,8 +149,8 @@ function FitnessChart({ animate }) {
           }}
         />
 
-        {/* ATL line */}
-        <path ref={atlRef} d={atlPath} fill="none" stroke="var(--tribos-terracotta-500)" strokeWidth="2"
+        {/* ATL line (Fatigue) */}
+        <path ref={atlRef} d={atlPath} fill="none" stroke={COLORS.atl} strokeWidth="2"
           strokeLinecap="round" strokeLinejoin="round"
           style={{
             strokeDasharray: atlLength,
@@ -133,8 +170,9 @@ function PowerDurationCurve({ animate }) {
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
-  const maxWatts = 1100;
+  const maxWatts = 1150;
   const minWatts = 150;
+  const ftp = 245;
 
   // Log scale for x-axis
   const logMin = Math.log10(1);
@@ -177,6 +215,16 @@ function PowerDurationCurve({ animate }) {
           </g>
         ))}
 
+        {/* FTP reference line — matches actual PowerDurationCurve.jsx */}
+        <line
+          x1={padding.left} y1={toY(ftp)} x2={width - padding.right} y2={toY(ftp)}
+          stroke={COLORS.zone4} strokeWidth="1" strokeDasharray="5,5" opacity="0.6"
+        />
+        <text x={width - padding.right + 2} y={toY(ftp) + 3}
+          style={{ fontSize: 8, fontFamily: "'DM Mono', monospace", fill: COLORS.zone4 }}>
+          FTP
+        </text>
+
         {/* X-axis labels */}
         {xLabels.map(({ sec, label }) => (
           <text key={sec} x={toX(sec)} y={height - 6} textAnchor="middle"
@@ -186,11 +234,11 @@ function PowerDurationCurve({ animate }) {
         ))}
 
         {/* Area fill */}
-        <path d={areaPath} fill="var(--tribos-gold-500)" className={`chart-area-fill ${animate ? 'animate' : ''}`}
-          opacity="0.1" />
+        <path d={areaPath} fill={COLORS.pdcFill} className={`chart-area-fill ${animate ? 'animate' : ''}`}
+          opacity="0.08" />
 
         {/* Line */}
-        <path ref={pathRef} d={linePath} fill="none" stroke="var(--tribos-gold-500)" strokeWidth="2"
+        <path ref={pathRef} d={linePath} fill="none" stroke={COLORS.pdc} strokeWidth="2"
           strokeLinecap="round" strokeLinejoin="round"
           style={{
             strokeDasharray: pathLength,
@@ -213,7 +261,7 @@ function ZoneDistribution({ animate }) {
   const totalWidth = zoneData.length * barWidth + (zoneData.length - 1) * gap;
   const startX = (width - totalWidth) / 2;
 
-  const maxPct = 40;
+  const maxPct = 45;
 
   return (
     <Paper p="sm" style={{ overflow: 'hidden' }}>

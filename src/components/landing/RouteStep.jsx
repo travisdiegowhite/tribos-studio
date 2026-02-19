@@ -6,33 +6,59 @@ import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
-// ~42-mile loop: Hygiene → north toward Lyons → west through foothills →
-// south through Niwot → east back to Longmont → return to Hygiene
-// Realistic roads: N 75th St, Hygiene Rd, Apple Valley Rd, US-36, Niwot Rd
+// ~42-mile loop: Hygiene → Hygiene Rd west → Apple Valley → south past Lyons →
+// Left Hand Canyon Dr → Niwot → Nelson Rd rollers → N 75th St → back to Hygiene
+// Roads: N 75th St, Hygiene Rd, Apple Valley Rd, US-36, Left Hand Canyon Dr,
+// Niwot Rd, Nelson Rd, N 83rd St, Ute Hwy
 const fullRoute = [
-  [-105.1857, 40.2069], // Start: Hygiene area
-  [-105.1857, 40.2180], // North on N 75th St
-  [-105.1900, 40.2300], // Continue north
-  [-105.2050, 40.2380], // Northwest on Hygiene Rd
-  [-105.2250, 40.2420], // Continue west
-  [-105.2450, 40.2500], // Approaching Apple Valley
-  [-105.2600, 40.2520], // Apple Valley Rd
-  [-105.2750, 40.2460], // Curve south toward Lyons area
-  [-105.2800, 40.2350], // South on US-36 corridor
-  [-105.2700, 40.2220], // Continue south
-  [-105.2600, 40.2100], // Left Hand Canyon area
-  [-105.2500, 40.2000], // Continue south
-  [-105.2400, 40.1900], // Approaching Niwot
-  [-105.2200, 40.1800], // East through Niwot
-  [-105.2000, 40.1750], // Continue east on Niwot Rd
-  [-105.1800, 40.1720], // Continue east
-  [-105.1600, 40.1750], // Heading northeast
-  [-105.1450, 40.1850], // Nelson Rd area
-  [-105.1400, 40.1950], // Continue north
-  [-105.1450, 40.2050], // Northwest toward Longmont
-  [-105.1550, 40.2100], // Continue northwest
-  [-105.1700, 40.2080], // West back toward start
-  [-105.1857, 40.2069], // Return to start
+  [-105.1857, 40.2069], // Start: Hygiene — N 75th St & Hygiene Rd
+  [-105.1857, 40.2110], // North on N 75th St
+  [-105.1860, 40.2155], // Curve on 75th
+  [-105.1870, 40.2200], // 75th heading north
+  [-105.1890, 40.2260], // Approaching Hygiene Rd turn
+  [-105.1935, 40.2300], // West on Hygiene Rd
+  [-105.1990, 40.2330], // Hygiene Rd gentle curve
+  [-105.2060, 40.2355], // Continue west
+  [-105.2140, 40.2380], // Rolling terrain
+  [-105.2220, 40.2405], // Past Pella Crossing
+  [-105.2300, 40.2420], // Approaching Apple Valley Rd
+  [-105.2380, 40.2450], // Northwest on Apple Valley
+  [-105.2460, 40.2480], // Apple Valley climbing
+  [-105.2530, 40.2510], // Approaching foothills
+  [-105.2600, 40.2520], // Apple Valley high point
+  [-105.2670, 40.2500], // Curve south
+  [-105.2720, 40.2460], // Descending toward US-36
+  [-105.2760, 40.2410], // Approach US-36
+  [-105.2790, 40.2350], // South on US-36 corridor
+  [-105.2770, 40.2280], // Continue south
+  [-105.2740, 40.2210], // Rolling south
+  [-105.2700, 40.2150], // Past Altona area
+  [-105.2660, 40.2090], // Approaching Left Hand Canyon
+  [-105.2610, 40.2030], // Left Hand Canyon Dr
+  [-105.2550, 40.1975], // Continue east on Left Hand Canyon
+  [-105.2480, 40.1930], // Rolling terrain
+  [-105.2400, 40.1890], // East past Buckingham Park
+  [-105.2310, 40.1850], // Approaching Niwot
+  [-105.2220, 40.1815], // Niwot Rd junction
+  [-105.2130, 40.1790], // East through Niwot
+  [-105.2040, 40.1770], // Past Niwot center
+  [-105.1950, 40.1750], // Continue east on Niwot Rd
+  [-105.1860, 40.1735], // East toward Longmont
+  [-105.1780, 40.1725], // Niwot Rd straightaway
+  [-105.1700, 40.1730], // Approaching Nelson Rd
+  [-105.1630, 40.1755], // Turn north — Nelson Rd
+  [-105.1570, 40.1800], // Nelson Rd rollers — sweet spot zone
+  [-105.1520, 40.1850], // Climbing roller
+  [-105.1480, 40.1900], // Nelson Rd north
+  [-105.1450, 40.1950], // Continue north
+  [-105.1430, 40.2000], // Past Ute Hwy
+  [-105.1460, 40.2040], // Curve northwest on N 83rd St
+  [-105.1510, 40.2070], // N 83rd heading northwest
+  [-105.1570, 40.2085], // Approaching 75th
+  [-105.1640, 40.2080], // West on connecting road
+  [-105.1720, 40.2075], // Heading back west
+  [-105.1790, 40.2070], // Almost home
+  [-105.1857, 40.2069], // Return to start — Hygiene
 ];
 
 // Bounds for initial map view
