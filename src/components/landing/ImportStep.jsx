@@ -2,17 +2,19 @@ import { useState, useEffect, useRef } from 'react';
 import { Container, Text, Paper, Group, Box, Stack } from '@mantine/core';
 import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
 
+// Realistic rides from the Boulder/Longmont/Hygiene CO area
+// Power numbers calibrated to FTP ~245W
 const rides = [
-  { date: 'Jan 14', name: 'Hygiene Loop', distance: '38.2 mi', power: '192w' },
-  { date: 'Jan 12', name: 'Nelson Rd Intervals', distance: '28.4 mi', power: '218w' },
-  { date: 'Jan 10', name: 'Lyons Loop', distance: '52.1 mi', power: '185w' },
-  { date: 'Jan 8', name: 'Diagonal Highway Tempo', distance: '31.7 mi', power: '205w' },
-  { date: 'Jan 6', name: 'Boulder Creek Path', distance: '22.3 mi', power: '168w' },
-  { date: 'Jan 4', name: 'Niwot Back Roads', distance: '41.8 mi', power: '194w' },
-  { date: 'Jan 2', name: 'Left Hand Canyon Climb', distance: '35.6 mi', power: '211w' },
-  { date: 'Dec 31', name: 'St Vrain Greenway', distance: '18.9 mi', power: '155w' },
-  { date: 'Dec 29', name: 'US-36 Tempo', distance: '44.2 mi', power: '201w' },
-  { date: 'Dec 27', name: 'Heil Valley Ranch', distance: '26.5 mi', power: '178w' },
+  { date: 'Feb 16', name: 'Hygiene Loop', distance: '42.1 mi', power: '198w' },
+  { date: 'Feb 14', name: 'Nelson Rd Intervals', distance: '28.4 mi', power: '232w' },
+  { date: 'Feb 12', name: 'Lyons Loop', distance: '52.3 mi', power: '188w' },
+  { date: 'Feb 10', name: 'Diagonal Highway Tempo', distance: '31.7 mi', power: '215w' },
+  { date: 'Feb 8', name: 'Boulder Creek Path', distance: '22.3 mi', power: '162w' },
+  { date: 'Feb 5', name: 'Niwot Back Roads', distance: '44.8 mi', power: '196w' },
+  { date: 'Feb 3', name: 'Left Hand Canyon Climb', distance: '35.6 mi', power: '224w' },
+  { date: 'Feb 1', name: 'St Vrain Greenway', distance: '18.9 mi', power: '148w' },
+  { date: 'Jan 30', name: 'US-36 Tempo', distance: '46.2 mi', power: '208w' },
+  { date: 'Jan 28', name: 'Heil Valley Ranch', distance: '26.5 mi', power: '178w' },
 ];
 
 const TOTAL_RIDES = 347;
