@@ -20,52 +20,57 @@ const COLORS = {
   zone6: '#8B6B5A',  // Anaerobic — Iron
 };
 
-// ===== Realistic data — FTP ~245W rider, 90-day training block =====
+// ===== Realistic data — FTP ~295W rider (~4.0 W/kg), 90-day training block =====
+// Above-average Cat 2-3, 3:1 build/recovery periodization
 
 // CTL/ATL over 30 data points (~90 days, sampled every 3 days)
-// Shows a structured training build with recovery weeks
+// 3-week build + 1-week recovery × 3 cycles, ending with taper
 const fitnessData = [
-  { ctl: 44, atl: 40 }, { ctl: 45, atl: 52 }, { ctl: 46, atl: 48 },
-  { ctl: 48, atl: 42 }, { ctl: 49, atl: 56 }, { ctl: 50, atl: 50 },
-  { ctl: 51, atl: 44 }, // Recovery week dip
-  { ctl: 52, atl: 58 }, { ctl: 53, atl: 54 }, { ctl: 55, atl: 62 },
-  { ctl: 56, atl: 58 }, { ctl: 57, atl: 52 }, // Recovery week
-  { ctl: 58, atl: 64 }, { ctl: 59, atl: 60 }, { ctl: 60, atl: 68 },
-  { ctl: 62, atl: 65 }, { ctl: 63, atl: 58 }, // Recovery
-  { ctl: 64, atl: 70 }, { ctl: 65, atl: 66 }, { ctl: 66, atl: 72 },
-  { ctl: 67, atl: 68 }, { ctl: 67, atl: 62 }, // Recovery
-  { ctl: 68, atl: 74 }, { ctl: 69, atl: 70 }, { ctl: 70, atl: 76 },
-  { ctl: 70, atl: 72 }, { ctl: 71, atl: 65 }, // Taper
-  { ctl: 71, atl: 60 }, { ctl: 70, atl: 62 }, { ctl: 70, atl: 58 },
+  // Block 1 — base build (CTL 72→83)
+  { ctl: 72, atl: 68 }, { ctl: 74, atl: 90 }, { ctl: 76, atl: 96 },
+  { ctl: 78, atl: 102 }, { ctl: 80, atl: 95 }, { ctl: 83, atl: 108 },
+  { ctl: 82, atl: 98 }, { ctl: 80, atl: 62 }, // Recovery week — ATL crashes
+  // Block 2 — threshold build (CTL 81→95)
+  { ctl: 81, atl: 72 }, { ctl: 83, atl: 94 }, { ctl: 86, atl: 102 },
+  { ctl: 88, atl: 110 }, { ctl: 91, atl: 105 }, { ctl: 93, atl: 118 },
+  { ctl: 95, atl: 112 }, { ctl: 93, atl: 65 }, // Recovery week
+  // Block 3 — race-specificity build (CTL 93→105) + taper
+  { ctl: 93, atl: 78 }, { ctl: 95, atl: 98 }, { ctl: 97, atl: 110 },
+  { ctl: 99, atl: 118 }, { ctl: 101, atl: 122 }, { ctl: 103, atl: 128 },
+  { ctl: 105, atl: 120 }, { ctl: 104, atl: 95 }, // Start taper
+  // Taper — CTL holds, ATL drops, TSB goes positive
+  { ctl: 103, atl: 82 }, { ctl: 102, atl: 75 }, { ctl: 101, atl: 80 },
+  { ctl: 100, atl: 72 }, { ctl: 99, atl: 78 }, { ctl: 98, atl: 74 },
 ];
 
-// Power duration curve — FTP ~245W, weight ~78kg
-// Best efforts from 90-day window
+// Power duration curve — FTP ~295W, weight ~74kg (4.0 W/kg)
+// Best efforts from 90-day window, above-average Cat 2-3
 const pdcData = [
-  { sec: 1, watts: 1080 },
-  { sec: 5, watts: 948 },
-  { sec: 15, watts: 702 },
-  { sec: 30, watts: 538 },
-  { sec: 60, watts: 392 },
-  { sec: 120, watts: 332 },
-  { sec: 300, watts: 295 },
-  { sec: 480, watts: 278 },
-  { sec: 600, watts: 270 },
-  { sec: 1200, watts: 258 },
-  { sec: 1800, watts: 250 },
-  { sec: 3600, watts: 238 },
-  { sec: 5400, watts: 222 },
-  { sec: 7200, watts: 208 },
+  { sec: 1, watts: 1280 },
+  { sec: 5, watts: 1120 },
+  { sec: 15, watts: 820 },
+  { sec: 30, watts: 630 },
+  { sec: 60, watts: 465 },
+  { sec: 120, watts: 385 },
+  { sec: 300, watts: 345 },
+  { sec: 480, watts: 320 },
+  { sec: 600, watts: 310 },
+  { sec: 1200, watts: 300 },
+  { sec: 1800, watts: 295 },
+  { sec: 3600, watts: 280 },
+  { sec: 5400, watts: 260 },
+  { sec: 7200, watts: 245 },
 ];
 
-// Zone distribution — 90-day, polarized-ish training pattern
+// Zone distribution — 90-day, polarized training (Cat 2-3 racer)
+// Heavy Z2 base, limited Z3 "junk miles", targeted high-intensity
 const zoneData = [
-  { zone: 'Z1', label: 'Recovery', pct: 15, color: COLORS.zone1 },
-  { zone: 'Z2', label: 'Endurance', pct: 38, color: COLORS.zone2 },
-  { zone: 'Z3', label: 'Tempo', pct: 18, color: COLORS.zone3 },
-  { zone: 'Z4', label: 'Threshold', pct: 17, color: COLORS.zone4 },
-  { zone: 'Z5', label: 'VO2max', pct: 9, color: COLORS.zone5 },
-  { zone: 'Z6', label: 'Anaerobic', pct: 3, color: COLORS.zone6 },
+  { zone: 'Z1', label: 'Recovery', pct: 10, color: COLORS.zone1 },
+  { zone: 'Z2', label: 'Endurance', pct: 50, color: COLORS.zone2 },
+  { zone: 'Z3', label: 'Tempo', pct: 10, color: COLORS.zone3 },
+  { zone: 'Z4', label: 'Threshold', pct: 15, color: COLORS.zone4 },
+  { zone: 'Z5', label: 'VO2max', pct: 11, color: COLORS.zone5 },
+  { zone: 'Z6', label: 'Anaerobic', pct: 4, color: COLORS.zone6 },
 ];
 
 // ===== SVG Chart Components =====
@@ -77,8 +82,8 @@ function FitnessChart({ animate }) {
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
-  const maxVal = 82;
-  const minVal = 32;
+  const maxVal = 138;
+  const minVal = 52;
 
   const toX = (i) => padding.left + (i / (fitnessData.length - 1)) * chartW;
   const toY = (val) => padding.top + ((maxVal - val) / (maxVal - minVal)) * chartH;
@@ -124,7 +129,7 @@ function FitnessChart({ animate }) {
       </Group>
       <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto' }}>
         {/* Grid lines */}
-        {[40, 50, 60, 70].map(v => (
+        {[60, 80, 100, 120].map(v => (
           <g key={v}>
             <line x1={padding.left} y1={toY(v)} x2={width - padding.right} y2={toY(v)}
               stroke="var(--tribos-border-default)" strokeWidth="0.5" strokeDasharray="4,4" opacity="0.5" />
@@ -170,9 +175,9 @@ function PowerDurationCurve({ animate }) {
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
-  const maxWatts = 1150;
-  const minWatts = 150;
-  const ftp = 245;
+  const maxWatts = 1400;
+  const minWatts = 180;
+  const ftp = 295;
 
   // Log scale for x-axis
   const logMin = Math.log10(1);
@@ -204,7 +209,7 @@ function PowerDurationCurve({ animate }) {
       </Text>
       <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto' }}>
         {/* Grid lines */}
-        {[300, 500, 700, 900].map(v => (
+        {[400, 600, 800, 1000, 1200].map(v => (
           <g key={v}>
             <line x1={padding.left} y1={toY(v)} x2={width - padding.right} y2={toY(v)}
               stroke="var(--tribos-border-default)" strokeWidth="0.5" strokeDasharray="4,4" opacity="0.5" />
@@ -261,7 +266,7 @@ function ZoneDistribution({ animate }) {
   const totalWidth = zoneData.length * barWidth + (zoneData.length - 1) * gap;
   const startX = (width - totalWidth) / 2;
 
-  const maxPct = 45;
+  const maxPct = 58;
 
   return (
     <Paper p="sm" style={{ overflow: 'hidden' }}>
