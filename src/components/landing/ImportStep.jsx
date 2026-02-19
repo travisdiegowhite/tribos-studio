@@ -6,7 +6,7 @@ import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
 // Power numbers calibrated to FTP ~245W
 const rides = [
   { date: 'Feb 16', name: 'Hygiene Loop', distance: '42.1 mi', power: '198w' },
-  { date: 'Feb 14', name: 'Nelson Rd Intervals', distance: '28.4 mi', power: '232w' },
+  { date: 'Feb 14', name: 'Erie Gravel/Unpaved', distance: '50.6 mi', power: '196w' },
   { date: 'Feb 12', name: 'Lyons Loop', distance: '52.3 mi', power: '188w' },
   { date: 'Feb 10', name: 'Diagonal Highway Tempo', distance: '31.7 mi', power: '215w' },
   { date: 'Feb 8', name: 'Boulder Creek Path', distance: '22.3 mi', power: '162w' },

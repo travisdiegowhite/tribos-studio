@@ -6,7 +6,7 @@ import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
 const chatMessages = [
   {
     type: 'user',
-    text: 'What should I ride today? I have about 90 minutes.',
+    text: 'What should I ride today? I have about 3 hours.',
     delay: 0,
   },
   {
@@ -32,7 +32,7 @@ const chatMessages = [
   },
   {
     type: 'coach',
-    text: 'Done \u2014 42mi loop through Hygiene and Longmont using roads from your ride history. 2,230ft elevation, chip-seal free. Sweet spot zones are mapped to the rollers on Nelson Rd. Sending to your Garmin.',
+    text: 'Done \u2014 50.6mi gravel loop from Erie through Hygiene and back, using roads from your ride history. 1,840ft elevation, mostly unpaved county roads. Sweet spot zones mapped to the rollers north of Niwot. Sending to your Garmin.',
     delay: 6000,
   },
 ];
