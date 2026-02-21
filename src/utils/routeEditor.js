@@ -8,6 +8,7 @@
  */
 
 import { getSmartCyclingRoute } from './smartCyclingRouter';
+import { getSmartRunningRoute } from './smartRunningRouter';
 
 /**
  * Calculate haversine distance between two points in meters
@@ -283,6 +284,7 @@ export async function removeSegmentAndReroute(coordinates, startIndex, endIndex,
     profile = 'road',
     preferences = null,
     mapboxToken = null,
+    sportType = 'cycling',
   } = options;
 
   if (startIndex < 0 || endIndex >= coordinates.length || startIndex >= endIndex) {
@@ -300,7 +302,8 @@ export async function removeSegmentAndReroute(coordinates, startIndex, endIndex,
 
   try {
     // Get a new route between the two points
-    const newSegmentRoute = await getSmartCyclingRoute(
+    const routingFn = sportType === 'running' ? getSmartRunningRoute : getSmartCyclingRoute;
+    const newSegmentRoute = await routingFn(
       [pointBefore, pointAfter],
       {
         profile,

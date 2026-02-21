@@ -30,6 +30,9 @@ const initialState = {
     zoom: 12
   },
 
+  // Sport type: 'cycling' | 'running'
+  sportType: 'cycling',
+
   // Route generation settings
   trainingGoal: 'endurance',
   timeAvailable: 60,
@@ -113,6 +116,22 @@ export const useRouteBuilderStore = create(
       setRouteProfile: (profile) => set({
         routeProfile: profile,
         lastSaved: Date.now()
+      }),
+
+      // Switch sport type — resets route-specific state and adjusts defaults
+      setSportType: (sport) => set({
+        sportType: sport,
+        routeProfile: 'road',
+        trainingGoal: sport === 'running' ? 'easy_run' : 'endurance',
+        routeGeometry: null,
+        routeStats: { distance: 0, elevation: 0, duration: 0 },
+        waypoints: [],
+        aiSuggestions: [],
+        routingSource: null,
+        explicitDistanceKm: null,
+        selectedWorkoutId: null,
+        builderMode: 'ready',
+        lastSaved: Date.now(),
       }),
 
       setExplicitDistanceKm: (distance) => set({
@@ -204,6 +223,7 @@ export const useRouteBuilderStore = create(
         routeStats: state.routeStats,
         waypoints: state.waypoints,
         viewport: state.viewport,
+        sportType: state.sportType,
         trainingGoal: state.trainingGoal,
         timeAvailable: state.timeAvailable,
         routeType: state.routeType,

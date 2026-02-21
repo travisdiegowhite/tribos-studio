@@ -272,8 +272,158 @@ export function getSupportedProfiles() {
   return Object.keys(ROUTE_PROFILE_COSTING);
 }
 
+/**
+ * Pedestrian costing options for running route profiles
+ */
+const PEDESTRIAN_PROFILE_COSTING = {
+  road: {
+    walking_speed: 10,           // ~6:00/km
+    use_hills: 0.5,
+    max_hiking_difficulty: 1,
+    use_roads: 0.3,
+  },
+  trail: {
+    walking_speed: 8,            // ~7:30/km
+    use_hills: 0.7,
+    max_hiking_difficulty: 3,
+    use_roads: 0.1,
+  },
+  track: {
+    walking_speed: 12,           // ~5:00/km
+    use_hills: 0.3,
+    max_hiking_difficulty: 1,
+    use_roads: 0.5,
+  },
+  mixed: {
+    walking_speed: 9,            // ~6:40/km
+    use_hills: 0.5,
+    max_hiking_difficulty: 2,
+    use_roads: 0.2,
+  },
+};
+
+/**
+ * Get pedestrian route from Stadia Maps Valhalla API (for running)
+ *
+ * @param {Array<[lon, lat]>} waypoints - Array of [longitude, latitude] coordinates
+ * @param {Object} options - Routing options
+ * @param {string} options.profile - Running profile: 'road', 'trail', 'track', 'mixed'
+ * @param {Object} options.preferences - User preferences
+ * @param {string} options.trainingGoal - Training goal
+ * @param {number} options.userSpeed - Optional personalized running speed in km/h
+ * @returns {Promise<Object>} Route object with coordinates, distance, duration
+ */
+export async function getStadiaPedestrianRoute(waypoints, options = {}) {
+  const {
+    profile = 'road',
+    preferences = null,
+    trainingGoal = 'easy_run',
+    userSpeed = null
+  } = options;
+
+  const apiKey = import.meta.env.VITE_STADIA_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('Stadia Maps API key not configured. Add VITE_STADIA_API_KEY to .env');
+  }
+
+  if (!waypoints || waypoints.length < 2) {
+    throw new Error('At least 2 waypoints required for routing');
+  }
+
+  console.log(`🏃 Stadia Maps: Generating ${profile} running route with ${waypoints.length} waypoints`);
+
+  let costing_options = {
+    pedestrian: { ...PEDESTRIAN_PROFILE_COSTING[profile] || PEDESTRIAN_PROFILE_COSTING.road }
+  };
+
+  if (userSpeed && userSpeed > 0) {
+    costing_options.pedestrian.walking_speed = userSpeed;
+  }
+
+  if (preferences) {
+    if (preferences.avoidHills) {
+      costing_options.pedestrian.use_hills = 0.1;
+    }
+  }
+
+  if (trainingGoal === 'recovery' || trainingGoal === 'easy_run') {
+    costing_options.pedestrian.use_hills = Math.min(costing_options.pedestrian.use_hills, 0.3);
+  }
+
+  const locations = waypoints.map(([lon, lat]) => ({
+    lat,
+    lon,
+    type: 'break'
+  }));
+
+  const requestBody = {
+    locations,
+    costing: 'pedestrian',
+    costing_options,
+    units: 'kilometers',
+    language: 'en-US',
+    id: `tribos-run-${Date.now()}`
+  };
+
+  try {
+    const url = `${STADIA_MAPS_API_URL}?api_key=${apiKey}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Stadia Maps pedestrian API error:', response.status, errorText);
+      throw new Error(`Stadia Maps API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.trip || !data.trip.legs || data.trip.legs.length === 0) {
+      throw new Error('No pedestrian route found between waypoints');
+    }
+
+    const trip = data.trip;
+    let coordinates = [];
+    let totalDistance = 0;
+    let totalDuration = 0;
+
+    trip.legs.forEach((leg, index) => {
+      const legCoordinates = decodePolyline(leg.shape);
+      if (index === 0) {
+        coordinates = legCoordinates;
+      } else {
+        coordinates = coordinates.concat(legCoordinates.slice(1));
+      }
+      totalDistance += leg.summary.length * 1000;
+      totalDuration += leg.summary.time;
+    });
+
+    console.log(`✅ Stadia Maps: Running route generated - ${(totalDistance / 1000).toFixed(2)} km, ${Math.round(totalDuration / 60)} min`);
+
+    return {
+      coordinates,
+      distance: totalDistance,
+      duration: totalDuration,
+      confidence: 1.0,
+      source: 'stadia_pedestrian',
+      profile,
+      raw: data
+    };
+
+  } catch (error) {
+    console.error('Stadia Maps pedestrian routing failed:', error);
+    throw error;
+  }
+}
+
 export default {
   getStadiaMapsRoute,
+  getStadiaPedestrianRoute,
   isStadiaMapsAvailable,
   getSupportedProfiles
 };

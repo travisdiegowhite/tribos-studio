@@ -51,7 +51,9 @@ export default function FloatingRouteSettings({
   speedProfile,
   onSpeedProfileUpdate,
   isImperial = true,
+  sportType = 'cycling',
 }) {
+  const isRunning = sportType === 'running';
   const [activeTab, setActiveTab] = useState('speed');
   const [saving, setSaving] = useState(false);
 
@@ -438,7 +440,7 @@ export default function FloatingRouteSettings({
                   disabled={recalculating}
                   fullWidth
                 >
-                  {recalculating ? 'Calculating...' : 'Recalculate from Rides'}
+                  {recalculating ? 'Calculating...' : isRunning ? 'Recalculate from Runs' : 'Recalculate from Rides'}
                 </Button>
               )}
 
@@ -452,12 +454,16 @@ export default function FloatingRouteSettings({
           <Tabs.Panel value="routing" pt="md">
             <Stack gap="sm">
               <Select
-                label="Traffic Tolerance"
-                description="How comfortable riding near traffic?"
+                label={isRunning ? 'Road Tolerance' : 'Traffic Tolerance'}
+                description={isRunning ? 'How comfortable running near traffic?' : 'How comfortable riding near traffic?'}
                 value={trafficTolerance}
                 onChange={setTrafficTolerance}
                 size="xs"
-                data={[
+                data={isRunning ? [
+                  { value: 'low', label: 'Low - Prefer sidewalks & paths' },
+                  { value: 'medium', label: 'Medium - Road shoulders okay' },
+                  { value: 'high', label: 'High - Any road type' },
+                ] : [
                   { value: 'low', label: 'Low - Avoid busy roads' },
                   { value: 'medium', label: 'Medium - Some traffic okay' },
                   { value: 'high', label: 'High - Any road type' },
@@ -527,12 +533,17 @@ export default function FloatingRouteSettings({
           <Tabs.Panel value="safety" pt="md">
             <Stack gap="sm">
               <Select
-                label="Bike Infrastructure"
-                description="Preference for bike lanes and paths"
+                label={isRunning ? 'Pedestrian Infrastructure' : 'Bike Infrastructure'}
+                description={isRunning ? 'Preference for sidewalks and paths' : 'Preference for bike lanes and paths'}
                 value={bikeInfrastructure}
                 onChange={setBikeInfrastructure}
                 size="xs"
-                data={[
+                data={isRunning ? [
+                  { value: 'required', label: 'Required - Must have sidewalks' },
+                  { value: 'strongly_preferred', label: 'Strongly Preferred' },
+                  { value: 'preferred', label: 'Preferred - Nice to have' },
+                  { value: 'flexible', label: 'Flexible - Any surface' },
+                ] : [
                   { value: 'required', label: 'Required - Must have bike infrastructure' },
                   { value: 'strongly_preferred', label: 'Strongly Preferred' },
                   { value: 'preferred', label: 'Preferred - Nice to have' },

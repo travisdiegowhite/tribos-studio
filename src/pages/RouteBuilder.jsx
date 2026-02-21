@@ -12,6 +12,7 @@ import BottomSheet from '../components/BottomSheet.jsx';
 import { generateAIRoutes, generateSmartWaypoints } from '../utils/aiRouteGenerator';
 import { generateIterativeRoute, generateIterativeRouteVariations } from '../utils/iterativeRouteBuilder';
 import { getSmartCyclingRoute, getRoutingSourceLabel } from '../utils/smartCyclingRouter';
+import { getSmartRunningRoute, getRunningRoutingSourceLabel } from '../utils/smartRunningRouter';
 import { buildNaturalLanguagePrompt, parseNaturalLanguageResponse } from '../utils/naturalLanguagePrompt';
 import { geocodeWaypoint } from '../utils/geocoding';
 import { scoreRoutePreference, getFamiliarLoopWaypoints } from '../utils/routeScoring';
@@ -64,7 +65,7 @@ import { applyRouteEdit, classifyEditIntent } from '../utils/aiRouteEditService'
 import AIEditPanel from '../components/RouteBuilder/AIEditPanel.jsx';
 
 // Shared constants — single source of truth in components/RouteBuilder/index.js
-import { MAPBOX_TOKEN, BASEMAP_STYLES, CYCLOSM_STYLE } from '../components/RouteBuilder';
+import { MAPBOX_TOKEN, BASEMAP_STYLES, CYCLOSM_STYLE, getRouteProfiles, getTrainingGoals } from '../components/RouteBuilder';
 
 function RouteBuilder() {
   const { routeId } = useParams();
@@ -92,6 +93,7 @@ function RouteBuilder() {
     routeStats, setRouteStats,
     waypoints, setWaypoints,
     viewport, setViewport,
+    sportType, setSportType,
     trainingGoal, setTrainingGoal,
     timeAvailable, setTimeAvailable,
     routeType, setRouteType,
@@ -460,8 +462,9 @@ function RouteBuilder() {
       speedProfile: speedProfile,
       routeProfile: routeProfile,
       trainingGoal: trainingGoal,
+      sportType: sportType,
     });
-  }, [routeStats?.distance, elevationProfileData, surfaceDistribution, speedProfile, routeProfile, trainingGoal]);
+  }, [routeStats?.distance, elevationProfileData, surfaceDistribution, speedProfile, routeProfile, trainingGoal, sportType]);
 
   // Memoize segment highlight GeoJSON for edit mode
   const segmentHighlightGeoJSON = useMemo(() => {
@@ -829,8 +832,10 @@ function RouteBuilder() {
       }
 
       // Snap-to-roads: smart multi-provider routing (Stadia/BRouter/Mapbox)
-      const smartRoute = await getSmartCyclingRoute(waypointCoordinates, {
-        profile: routeProfile === 'gravel' ? 'gravel' :
+      const routingFn = sportType === 'running' ? getSmartRunningRoute : getSmartCyclingRoute;
+      const smartRoute = await routingFn(waypointCoordinates, {
+        profile: sportType === 'running' ? routeProfile :
+                 routeProfile === 'gravel' ? 'gravel' :
                  routeProfile === 'mountain' ? 'mountain' : 'bike',
         mapboxToken: MAPBOX_TOKEN,
       });
@@ -1221,6 +1226,7 @@ function RouteBuilder() {
         routeStats: routeStats || { distance: 0, elevation: 0, duration: 0 },
         editIntent,
         mapboxToken: MAPBOX_TOKEN,
+        sportType,
       });
 
       setAiEditResult(result);
@@ -1235,7 +1241,8 @@ function RouteBuilder() {
         // If the edited route needs re-routing (e.g. trimmed coordinates)
         if (result.editedRoute.needsReroute) {
           try {
-            const rerouted = await getSmartCyclingRoute(
+            const rerouteFn = sportType === 'running' ? getSmartRunningRoute : getSmartCyclingRoute;
+            const rerouted = await rerouteFn(
               result.editedRoute.coordinates.filter(
                 (_, i) => i === 0 || i === result.editedRoute.coordinates.length - 1 ||
                 i % Math.max(1, Math.floor(result.editedRoute.coordinates.length / 4)) === 0
@@ -1302,7 +1309,8 @@ function RouteBuilder() {
         selectedSegment.endIndex,
         {
           profile: routeProfile || 'road',
-          mapboxToken: import.meta.env.VITE_MAPBOX_TOKEN
+          mapboxToken: import.meta.env.VITE_MAPBOX_TOKEN,
+          sportType,
         }
       );
 
@@ -1412,6 +1420,7 @@ function RouteBuilder() {
         route_type: routeType,
         training_goal: trainingGoal,
         surface_type: routeProfile,
+        sport_type: sportType,
         generated_by: aiSuggestions.length > 0 ? 'ai' : 'manual',
         waypoints: waypoints.length > 0 ? waypoints : null
       };
@@ -1742,7 +1751,8 @@ function RouteBuilder() {
         weatherData,
         [viewportRef.current.longitude, viewportRef.current.latitude],
         null, // userAddress - could add reverse geocoding later
-        { todaysWorkout, upcomingWorkouts } // Calendar context for NL understanding
+        { todaysWorkout, upcomingWorkouts }, // Calendar context for NL understanding
+        sportType
       );
 
       // Step 2: Call Claude API to parse the request
@@ -1922,8 +1932,10 @@ function RouteBuilder() {
 
             console.log(`🧠 Routing through ${waypointCoords.length} waypoints (including start/end)`);
 
-            const routeResult = await getSmartCyclingRoute(waypointCoords, {
-              profile: parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
+            const familiarRoutingFn = sportType === 'running' ? getSmartRunningRoute : getSmartCyclingRoute;
+            const routeResult = await familiarRoutingFn(waypointCoords, {
+              profile: sportType === 'running' ? routeProfile :
+                       parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
               trainingGoal: goal,
               mapboxToken: MAPBOX_TOKEN
             });
@@ -2047,9 +2059,11 @@ function RouteBuilder() {
         autoClose: false
       });
 
-      const routeResult = await getSmartCyclingRoute(waypointCoords, {
-        profile: parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
-        trainingGoal: parsed.trainingGoal || 'endurance',
+      const nlRoutingFn = sportType === 'running' ? getSmartRunningRoute : getSmartCyclingRoute;
+      const routeResult = await nlRoutingFn(waypointCoords, {
+        profile: sportType === 'running' ? routeProfile :
+                 parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
+        trainingGoal: parsed.trainingGoal || (sportType === 'running' ? 'easy_run' : 'endurance'),
         mapboxToken: MAPBOX_TOKEN
       });
 
@@ -2061,7 +2075,7 @@ function RouteBuilder() {
       const distanceKm = parseFloat((routeResult.distance / 1000).toFixed(1));
       const generatedRouteName = parsed.waypoints?.length > 0
         ? `${parsed.waypoints.join(' → ')} ${parsed.routeType}`
-        : `${distanceKm}km ${parsed.trainingGoal || 'endurance'} ${parsed.routeType || 'loop'}`;
+        : `${distanceKm}km ${parsed.trainingGoal || (sportType === 'running' ? 'easy_run' : 'endurance')} ${parsed.routeType || 'loop'}`;
 
       // Score the route if user prefers familiar roads
       let familiarityScore = null;
@@ -2268,6 +2282,8 @@ function RouteBuilder() {
         <ModeSelector
           onSelectMode={(mode) => setBuilderMode(mode)}
           onImportGPX={handleImportGPX}
+          sportType={sportType}
+          onSportTypeChange={setSportType}
         />
       )}
 
@@ -2372,10 +2388,12 @@ function RouteBuilder() {
       {/* Natural Language Input */}
       <Box>
         <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="xs">
-          DESCRIBE YOUR RIDE
+          {sportType === 'running' ? 'DESCRIBE YOUR RUN' : 'DESCRIBE YOUR RIDE'}
         </Text>
         <Textarea
-          placeholder="e.g., '40 mile gravel loop' or '2 hour recovery ride'"
+          placeholder={sportType === 'running'
+            ? "e.g., '5 mile trail run' or '45 minute easy run on paths'"
+            : "e.g., '40 mile gravel loop' or '2 hour recovery ride'"}
           value={naturalLanguageInput}
           onChange={(e) => setNaturalLanguageInput(e.target.value)}
           minRows={2}
@@ -2433,12 +2451,7 @@ function RouteBuilder() {
           onChange={setRouteProfile}
           fullWidth
           size="xs"
-          data={[
-            { label: '🚴 Road', value: 'road' },
-            { label: '🌲 Gravel', value: 'gravel' },
-            { label: '⛰️ MTB', value: 'mountain' },
-            { label: '🏙️ Commute', value: 'commuting' }
-          ]}
+          data={getRouteProfiles(sportType).map(p => ({ label: p.label, value: p.value }))}
           styles={{
             root: { backgroundColor: 'var(--tribos-bg-tertiary)' }
           }}
@@ -2455,12 +2468,7 @@ function RouteBuilder() {
           onChange={setTrainingGoal}
           fullWidth
           size="xs"
-          data={[
-            { label: 'Recovery', value: 'recovery' },
-            { label: 'Endurance', value: 'endurance' },
-            { label: 'Intervals', value: 'intervals' },
-            { label: 'Hills', value: 'hills' }
-          ]}
+          data={getTrainingGoals(sportType)}
           styles={{
             root: { backgroundColor: 'var(--tribos-bg-tertiary)' }
           }}
@@ -2806,6 +2814,7 @@ function RouteBuilder() {
             onReject={handleAIEditReject}
             onClose={() => { setAiEditMode(false); setAiEditResult(null); setAiEditPrevGeometry(null); }}
             formatDist={formatDist}
+            sportType={sportType}
           />
         )}
 
@@ -3482,6 +3491,7 @@ function RouteBuilder() {
               speedProfile={speedProfile}
               onSpeedProfileUpdate={setSpeedProfile}
               isImperial={isImperial}
+              sportType={sportType}
             />
 
             {/* Road Preferences Modal */}
@@ -3713,7 +3723,9 @@ function RouteBuilder() {
                   </Paper>
 
                   <Textarea
-                    placeholder="e.g., '40 mile gravel loop' or '2 hour recovery ride on bike paths'"
+                    placeholder={sportType === 'running'
+                      ? "e.g., '5 mile trail run' or '45 minute easy run on paths'"
+                      : "e.g., '40 mile gravel loop' or '2 hour recovery ride on bike paths'"}
                     value={naturalLanguageInput}
                     onChange={(e) => setNaturalLanguageInput(e.target.value)}
                     minRows={2}
@@ -3776,12 +3788,7 @@ function RouteBuilder() {
                       onChange={setRouteProfile}
                       fullWidth
                       size="xs"
-                      data={[
-                        { label: '🚴 Road', value: 'road' },
-                        { label: '🌲 Gravel', value: 'gravel' },
-                        { label: '⛰️ MTB', value: 'mountain' },
-                        { label: '🏙️ Commute', value: 'commuting' }
-                      ]}
+                      data={getRouteProfiles(sportType).map(p => ({ label: p.label, value: p.value }))}
                       styles={{
                         root: { backgroundColor: 'var(--tribos-bg-secondary)' }
                       }}
@@ -3798,12 +3805,7 @@ function RouteBuilder() {
                       onChange={setTrainingGoal}
                       fullWidth
                       size="xs"
-                      data={[
-                        { label: 'Recovery', value: 'recovery' },
-                        { label: 'Endurance', value: 'endurance' },
-                        { label: 'Intervals', value: 'intervals' },
-                        { label: 'Hills', value: 'hills' }
-                      ]}
+                      data={getTrainingGoals(sportType)}
                       styles={{
                         root: { backgroundColor: 'var(--tribos-bg-secondary)' }
                       }}
@@ -3826,7 +3828,7 @@ function RouteBuilder() {
                       />
                       {(timeAvailable < 30 || timeAvailable > 300) && (
                         <Text size="xs" style={{ color: 'var(--tribos-warning)' }} mt={4}>
-                          {timeAvailable < 30 ? 'Very short ride' : 'Long ride!'}
+                          {timeAvailable < 30 ? (sportType === 'running' ? 'Very short run' : 'Very short ride') : (sportType === 'running' ? 'Long run!' : 'Long ride!')}
                         </Text>
                       )}
                     </Box>

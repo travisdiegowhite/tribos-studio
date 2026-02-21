@@ -16,9 +16,17 @@
  */
 
 import { getSmartCyclingRoute } from './smartCyclingRouter.js';
+import { getSmartRunningRoute } from './smartRunningRouter.js';
 import { getBRouterDirections, BROUTER_PROFILES } from './brouter.js';
 import { getStadiaMapsRoute } from './stadiaMapsRouter.js';
 import { getElevationData, calculateElevationStats } from './elevation.js';
+
+// Sport-aware routing helper
+function getSmartRoute(waypoints, options, sportType = 'cycling') {
+  return sportType === 'running'
+    ? getSmartRunningRoute(waypoints, options)
+    : getSmartCyclingRoute(waypoints, options);
+}
 
 // ── Intent classification ──────────────────────────────────────────────────────
 
@@ -161,6 +169,19 @@ export const QUICK_ACTIONS = [
   { id: 'reverse', icon: 'arrows', label: 'Reverse', description: 'Flip direction', intent: 'reverse' },
 ];
 
+export const RUNNING_QUICK_ACTIONS = [
+  { id: 'flatten', icon: 'mountain', label: 'Flatter', description: 'Minimize climbing', intent: 'flatten' },
+  { id: 'scenic', icon: 'tree', label: 'Scenic', description: 'Parks & paths', intent: 'scenic' },
+  { id: 'trail', icon: 'road', label: 'More trail', description: 'Trails & paths', intent: 'surface_gravel' },
+  { id: 'paved', icon: 'road', label: 'Sidewalks', description: 'Paved surfaces', intent: 'surface_paved' },
+  { id: 'faster', icon: 'bolt', label: 'Shorter', description: 'Direct & efficient', intent: 'faster' },
+  { id: 'reverse', icon: 'arrows', label: 'Reverse', description: 'Flip direction', intent: 'reverse' },
+];
+
+export function getQuickActions(sportType) {
+  return sportType === 'running' ? RUNNING_QUICK_ACTIONS : QUICK_ACTIONS;
+}
+
 // ── Route modification engine ──────────────────────────────────────────────────
 
 /**
@@ -175,7 +196,7 @@ export const QUICK_ACTIONS = [
  * @returns {Promise<Object>} { success, editedRoute, comparison, message }
  */
 export async function applyRouteEdit(params) {
-  const { routeGeometry, routeProfile, routeStats, editIntent, mapboxToken } = params;
+  const { routeGeometry, routeProfile, routeStats, editIntent, mapboxToken, sportType = 'cycling' } = params;
 
   if (!routeGeometry?.coordinates || routeGeometry.coordinates.length < 2) {
     return { success: false, message: 'No route to edit' };
@@ -187,25 +208,25 @@ export async function applyRouteEdit(params) {
   try {
     switch (intent) {
       case 'flatten':
-        return await applyFlattenEdit(coords, routeProfile, routeStats);
+        return await applyFlattenEdit(coords, routeProfile, routeStats, sportType);
       case 'surface_gravel':
-        return await applySurfaceEdit(coords, routeProfile, routeStats, 'gravel');
+        return await applySurfaceEdit(coords, routeProfile, routeStats, 'gravel', sportType);
       case 'surface_paved':
-        return await applySurfaceEdit(coords, routeProfile, routeStats, 'paved');
+        return await applySurfaceEdit(coords, routeProfile, routeStats, 'paved', sportType);
       case 'scenic':
-        return await applyScenicEdit(coords, routeProfile, routeStats);
+        return await applyScenicEdit(coords, routeProfile, routeStats, sportType);
       case 'faster':
-        return await applyFasterEdit(coords, routeProfile, routeStats);
+        return await applyFasterEdit(coords, routeProfile, routeStats, sportType);
       case 'shorter':
         return applyShorterEdit(coords, routeStats, editIntent.distanceModifier);
       case 'longer':
-        return await applyLongerEdit(coords, routeProfile, routeStats, editIntent.distanceModifier);
+        return await applyLongerEdit(coords, routeProfile, routeStats, editIntent.distanceModifier, sportType);
       case 'reverse':
         return applyReverseEdit(coords, routeStats);
       case 'avoid':
-        return await applyAvoidEdit(coords, routeProfile, routeStats, editIntent.location, mapboxToken);
+        return await applyAvoidEdit(coords, routeProfile, routeStats, editIntent.location, mapboxToken, sportType);
       case 'detour':
-        return await applyDetourEdit(coords, routeProfile, routeStats, editIntent.location, mapboxToken);
+        return await applyDetourEdit(coords, routeProfile, routeStats, editIntent.location, mapboxToken, sportType);
       default:
         return { success: false, message: `I couldn't understand that edit. Try "make it flatter", "more gravel", "avoid [place]", or use the quick actions.` };
     }
@@ -217,7 +238,7 @@ export async function applyRouteEdit(params) {
 
 // ── Individual edit strategies ──────────────────────────────────────────────────
 
-async function applyFlattenEdit(coords, profile, stats) {
+async function applyFlattenEdit(coords, profile, stats, sportType = 'cycling') {
   const start = coords[0];
   const end = coords[coords.length - 1];
   const isLoop = haversineKm(start, end) < 1;
@@ -264,7 +285,7 @@ async function applyFlattenEdit(coords, profile, stats) {
   };
 }
 
-async function applySurfaceEdit(coords, profile, stats, targetSurface) {
+async function applySurfaceEdit(coords, profile, stats, targetSurface, sportType = 'cycling') {
   const start = coords[0];
   const end = coords[coords.length - 1];
   const isLoop = haversineKm(start, end) < 1;
@@ -321,7 +342,7 @@ async function applySurfaceEdit(coords, profile, stats, targetSurface) {
   };
 }
 
-async function applyScenicEdit(coords, profile, stats) {
+async function applyScenicEdit(coords, profile, stats, sportType = 'cycling') {
   const start = coords[0];
   const end = coords[coords.length - 1];
   const isLoop = haversineKm(start, end) < 1;
@@ -365,7 +386,7 @@ async function applyScenicEdit(coords, profile, stats) {
   };
 }
 
-async function applyFasterEdit(coords, profile, stats) {
+async function applyFasterEdit(coords, profile, stats, sportType = 'cycling') {
   const start = coords[0];
   const end = coords[coords.length - 1];
   const isLoop = haversineKm(start, end) < 1;
@@ -458,7 +479,7 @@ function applyShorterEdit(coords, stats, targetReduction) {
   };
 }
 
-async function applyLongerEdit(coords, profile, stats, targetExtension) {
+async function applyLongerEdit(coords, profile, stats, targetExtension, sportType = 'cycling') {
   const totalDist = stats.distance || estimateDistanceKm(coords);
   const addKm = targetExtension || totalDist * 0.2;
   const start = coords[0];
@@ -488,7 +509,7 @@ async function applyLongerEdit(coords, profile, stats, targetExtension) {
   ];
 
   try {
-    const route = await getSmartCyclingRoute(waypoints, { profile });
+    const route = await getSmartRoute(waypoints, { profile }, sportType);
     if (route?.coordinates?.length > 1) {
       const comparison = await buildComparison(coords, route.coordinates, stats);
       return {
@@ -526,7 +547,7 @@ function applyReverseEdit(coords, stats) {
   };
 }
 
-async function applyAvoidEdit(coords, profile, stats, location, mapboxToken) {
+async function applyAvoidEdit(coords, profile, stats, location, mapboxToken, sportType = 'cycling') {
   if (!location) {
     return { success: false, message: 'Please specify what to avoid (e.g., "avoid the highway" or "avoid downtown").' };
   }
@@ -572,7 +593,7 @@ async function applyAvoidEdit(coords, profile, stats, location, mapboxToken) {
   ];
 
   try {
-    const rerouted = await getSmartCyclingRoute(rerouteWaypoints, { profile });
+    const rerouted = await getSmartRoute(rerouteWaypoints, { profile }, sportType);
     if (rerouted?.coordinates?.length > 1) {
       const newCoords = [...beforeCoords, ...rerouted.coordinates, ...afterCoords];
       const comparison = await buildComparison(coords, newCoords, stats);
@@ -593,7 +614,7 @@ async function applyAvoidEdit(coords, profile, stats, location, mapboxToken) {
   return { success: false, message: `Could not route around "${location}".` };
 }
 
-async function applyDetourEdit(coords, profile, stats, location, mapboxToken) {
+async function applyDetourEdit(coords, profile, stats, location, mapboxToken, sportType = 'cycling') {
   if (!location) {
     return { success: false, message: 'Please specify where to detour (e.g., "go through the park" or "pass by Main Street").' };
   }
@@ -616,8 +637,8 @@ async function applyDetourEdit(coords, profile, stats, location, mapboxToken) {
   const before = coords.slice(0, insertIdx + 1);
   const after = coords.slice(insertIdx);
 
-  const legA = await getSmartCyclingRoute([coords[insertIdx], detourPoint], { profile }).catch(() => null);
-  const legB = await getSmartCyclingRoute([detourPoint, after[0]], { profile }).catch(() => null);
+  const legA = await getSmartRoute([coords[insertIdx], detourPoint], { profile }, sportType).catch(() => null);
+  const legB = await getSmartRoute([detourPoint, after[0]], { profile }, sportType).catch(() => null);
 
   if (!legA?.coordinates?.length || !legB?.coordinates?.length) {
     return { success: false, message: `Could not route through "${location}".` };
@@ -789,5 +810,7 @@ export default {
   classifyEditIntent,
   applyRouteEdit,
   QUICK_ACTIONS,
+  RUNNING_QUICK_ACTIONS,
+  getQuickActions,
   EDIT_INTENTS,
 };

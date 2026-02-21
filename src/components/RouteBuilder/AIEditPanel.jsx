@@ -17,7 +17,7 @@ import {
   IconArrowBack, IconRoute, IconDroplet,
 } from '@tabler/icons-react';
 import { tokens } from '../../theme';
-import { classifyEditIntent, QUICK_ACTIONS } from '../../utils/aiRouteEditService';
+import { classifyEditIntent, getQuickActions } from '../../utils/aiRouteEditService';
 
 const QUICK_ACTION_ICONS = {
   mountain: IconMountain,
@@ -45,6 +45,7 @@ export default function AIEditPanel({
   onReject,
   onClose,
   formatDist,
+  sportType = 'cycling',
 }) {
   const [inputText, setInputText] = useState('');
   const inputRef = useRef(null);
@@ -117,7 +118,7 @@ export default function AIEditPanel({
         {/* Quick actions */}
         {!showPreview && (
           <SimpleGrid cols={3} spacing={4}>
-            {QUICK_ACTIONS.map((action) => {
+            {getQuickActions(sportType).map((action) => {
               const Icon = QUICK_ACTION_ICONS[action.icon] || IconRoute;
               return (
                 <Tooltip key={action.id} label={action.description} position="top">

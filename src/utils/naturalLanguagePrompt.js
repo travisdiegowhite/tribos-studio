@@ -16,22 +16,34 @@
  * @param {string} userAddress - User's address for regional context
  * @param {object} calendarData - Calendar context with upcoming workouts
  */
-export function buildNaturalLanguagePrompt(userRequest, weatherData, userLocation, userAddress, calendarData = null) {
+export function buildNaturalLanguagePrompt(userRequest, weatherData, userLocation, userAddress, calendarData = null, sportType = 'cycling') {
+  const isRunning = sportType === 'running';
+  const athlete = isRunning ? 'runner' : 'cyclist';
+  const activity = isRunning ? 'running' : 'cycling';
+
   // Build region context from user's address (no hardcoded state assumptions)
   let regionContext = '';
-  let gravelExamples = '';
+  let surfaceExamples = '';
 
   if (userAddress) {
-    regionContext = `The cyclist is near: ${userAddress}`;
-    gravelExamples = `
+    regionContext = `The ${athlete} is near: ${userAddress}`;
+    surfaceExamples = isRunning ? `
+   **Running Route Strategy:**
+   - Suggest parks, trails, greenways, and pedestrian paths near the ${athlete}'s location
+   - Prefer sidewalked streets, multi-use paths, and running-friendly areas
+   - Use actual, geocodable park or trail names from the ${athlete}'s region` : `
    **Gravel Route Strategy:**
-   - Suggest small towns and communities near the cyclist's location
+   - Suggest small towns and communities near the ${athlete}'s location
    - Rural areas and county roads between small towns are often unpaved
    - Agricultural areas and foothills typically have good gravel riding
-   - Use actual, geocodable town or landmark names from the cyclist's region`;
+   - Use actual, geocodable town or landmark names from the ${athlete}'s region`;
   } else {
-    regionContext = 'Cyclist location unknown.';
-    gravelExamples = `
+    regionContext = `${athlete.charAt(0).toUpperCase() + athlete.slice(1)} location unknown.`;
+    surfaceExamples = isRunning ? `
+   **Running Route Strategy:**
+   - Suggest parks, greenways, and pedestrian-friendly areas
+   - Running trails and multi-use paths are ideal
+   - Use actual trail/park names that will geocode reliably` : `
    **Gravel Route Strategy:**
    - Suggest small towns logically placed between start and destination
    - Rural areas and small communities often have gravel roads
@@ -43,7 +55,7 @@ export function buildNaturalLanguagePrompt(userRequest, weatherData, userLocatio
   if (calendarData?.todaysWorkout || calendarData?.upcomingWorkouts?.length > 0) {
     calendarContext = `
 TRAINING CALENDAR CONTEXT:
-The cyclist has a training plan. When they reference "today's workout", "my scheduled ride", "this week's long ride", etc., use this information:
+The ${athlete} has a training plan. When they reference "today's workout", "my scheduled ${isRunning ? 'run' : 'ride'}", "this week's long ${isRunning ? 'run' : 'ride'}", etc., use this information:
 `;
     if (calendarData.todaysWorkout) {
       const tw = calendarData.todaysWorkout;
@@ -62,7 +74,11 @@ The cyclist has a training plan. When they reference "today's workout", "my sche
     }
   }
 
-  return `You are an expert cycling route planner. A cyclist has requested: "${userRequest}"
+  const trainingGoalList = isRunning
+    ? '"easy_run|tempo|long_run|intervals|hills|recovery"'
+    : '"endurance|intervals|recovery|hills"';
+
+  return `You are an expert ${activity} route planner. A ${athlete} has requested: "${userRequest}"
 
 ${regionContext}
 ${calendarContext}
@@ -76,7 +92,7 @@ Extract the following:
 2. Waypoints - CRITICAL: Include any trail names, path names, roads, or landmarks the user specifically mentioned
 3. Route type (loop, out_back, point_to_point)
 4. Distance or time
-5. Surface preference (gravel, paved, mixed)
+5. Surface preference (${isRunning ? 'trail, paved, mixed' : 'gravel, paved, mixed'})
 
 ROUTE TYPE DEFINITIONS:
 - "loop": Returns to start via DIFFERENT roads. If user says "heading south and back", this is a loop.
@@ -87,7 +103,7 @@ Current conditions:
 ${weatherData ? `- Weather: ${weatherData.temperature}°C, ${weatherData.description}
 - Wind: ${weatherData.windSpeed} km/h` : '- Weather data not available'}
 
-${gravelExamples}
+${surfaceExamples}
 
 Return ONLY a JSON object:
 {
@@ -98,7 +114,7 @@ Return ONLY a JSON object:
   "timeAvailable": number in minutes (or null),
   "surfaceType": "gravel|paved|mixed",
   "avoidHighways": true/false,
-  "trainingGoal": "endurance|intervals|recovery|hills" or null,
+  "trainingGoal": ${trainingGoalList} or null,
   "direction": "north|south|east|west" if user mentioned a direction,
   "preferFamiliar": true if user mentions "familiar roads", "roads I know", "my usual routes", or similar
 }

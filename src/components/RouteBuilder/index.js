@@ -65,7 +65,7 @@ export const BASEMAP_STYLES = [
   { id: 'cyclosm', label: 'CyclOSM', style: CYCLOSM_STYLE },
 ];
 
-// Route profile options
+// Route profile options (cycling)
 export const ROUTE_PROFILES = [
   { value: 'road', label: 'Road' },
   { value: 'gravel', label: 'Gravel' },
@@ -73,6 +73,40 @@ export const ROUTE_PROFILES = [
   { value: 'commuting', label: 'Commuting' },
   { value: 'walking', label: 'Walking' },
 ];
+
+// Route profile options (running)
+export const RUNNING_ROUTE_PROFILES = [
+  { value: 'road', label: 'Road' },
+  { value: 'trail', label: 'Trail' },
+  { value: 'track', label: 'Track' },
+  { value: 'mixed', label: 'Mixed' },
+];
+
+export function getRouteProfiles(sportType) {
+  return sportType === 'running' ? RUNNING_ROUTE_PROFILES : ROUTE_PROFILES;
+}
+
+// Training goals (cycling)
+export const CYCLING_TRAINING_GOALS = [
+  { label: 'Recovery', value: 'recovery' },
+  { label: 'Endurance', value: 'endurance' },
+  { label: 'Intervals', value: 'intervals' },
+  { label: 'Hills', value: 'hills' },
+];
+
+// Training goals (running)
+export const RUNNING_TRAINING_GOALS = [
+  { label: 'Easy Run', value: 'easy_run' },
+  { label: 'Tempo', value: 'tempo' },
+  { label: 'Long Run', value: 'long_run' },
+  { label: 'Intervals', value: 'intervals' },
+  { label: 'Hills', value: 'hills' },
+  { label: 'Recovery', value: 'recovery' },
+];
+
+export function getTrainingGoals(sportType) {
+  return sportType === 'running' ? RUNNING_TRAINING_GOALS : CYCLING_TRAINING_GOALS;
+}
 
 // Waypoint marker colors
 export const WAYPOINT_COLORS = {

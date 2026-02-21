@@ -248,15 +248,17 @@ export function generateTCX(
   workout: CyclingWorkoutStructure,
   workoutName: string,
   description: string,
-  author: string = 'Tribos Studio'
+  author: string = 'Tribos Studio',
+  sportType: string = 'cycling'
 ): string {
   const lines: string[] = [];
   const now = new Date().toISOString();
+  const tcxSport = sportType === 'running' ? 'Running' : 'Biking';
 
   lines.push('<?xml version="1.0" encoding="UTF-8"?>');
   lines.push('<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2 http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">');
   lines.push('  <Workouts>');
-  lines.push('    <Workout Sport="Biking">');
+  lines.push(`    <Workout Sport="${tcxSport}">`);
   lines.push(`      <Name>${escapeXml(workoutName)}</Name>`);
 
   // Generate workout steps

@@ -38,6 +38,7 @@ export interface RouteData {
   elevationLossM?: number;
   routeType?: 'loop' | 'out_back' | 'point_to_point';
   surfaceType?: 'paved' | 'gravel' | 'mixed';
+  sportType?: 'cycling' | 'running';
 }
 
 export interface RouteExportOptions {
@@ -173,6 +174,7 @@ export function generateGPX(route: RouteData, options: RouteExportOptions = { fo
   if (route.description) {
     lines.push(`    <desc>${escapeXml(route.description)}</desc>`);
   }
+  lines.push(`    <type>${route.sportType === 'running' ? 'running' : 'cycling'}</type>`);
   lines.push('    <trkseg>');
 
   // Track points
