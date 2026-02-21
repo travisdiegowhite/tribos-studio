@@ -3,46 +3,87 @@
 export const WORKOUT_LIBRARY_FOR_AI = `
 AVAILABLE WORKOUTS IN LIBRARY:
 
-=== RECOVERY (Zone 1) ===
+=== CYCLING: RECOVERY (Zone 1) ===
 - recovery_spin: 30min, 20 TSS - Easy spinning for active recovery
 - easy_recovery_ride: 45min, 30 TSS - Extended recovery ride
 
-=== ENDURANCE / BASE (Zone 2) ===
+=== CYCLING: ENDURANCE / BASE (Zone 2) ===
 - foundation_miles: 60min, 55 TSS - Classic Z2 endurance ride
 - endurance_base_build: 90min, 70 TSS - 90min Zone 2 for aerobic capacity
 - long_endurance_ride: 180min, 140 TSS - Classic 3-hour long ride
 - polarized_long_ride: 240min, 180 TSS - 4-hour polarized endurance
 
-=== TEMPO (Zone 3) ===
+=== CYCLING: TEMPO (Zone 3) ===
 - tempo_ride: 60min, 65 TSS - Sustained Zone 3 tempo effort
 - two_by_twenty_tempo: 75min, 80 TSS - 2x20min tempo intervals
 
-=== SWEET SPOT (88-94% FTP) ===
+=== CYCLING: SWEET SPOT (88-94% FTP) ===
 - traditional_sst: 65min, 85 TSS - 45min sustained Sweet Spot
 - three_by_ten_sst: 60min, 80 TSS - 3x10min sweet spot intervals
 - four_by_twelve_sst: 80min, 95 TSS - 4x12min sweet spot intervals
 - sweet_spot_progression: 90min, 105 TSS - Progressive sweet spot
 
-=== THRESHOLD / FTP (95-105% FTP) ===
+=== CYCLING: THRESHOLD / FTP (95-105% FTP) ===
 - two_by_twenty_ftp: 70min, 90 TSS - Classic 2x20min at FTP
 - over_under_intervals: 75min, 100 TSS - Over-under threshold intervals
 - three_by_twelve_threshold: 75min, 95 TSS - 3x12min at threshold
 
-=== VO2 MAX (106-120% FTP) ===
+=== CYCLING: VO2 MAX (106-120% FTP) ===
 - thirty_thirty_intervals: 60min, 85 TSS - 30/30s VO2max intervals
 - five_by_four_vo2: 65min, 95 TSS - 5x4min VO2max
 - four_by_eight_vo2: 75min, 105 TSS - 4x8min VO2max (research-proven)
 - bossi_intervals: 65min, 100 TSS - Surging VO2max protocol
 - polarized_intensity_day: 90min, 110 TSS - High-intensity polarized day
 
-=== CLIMBING / HILLS ===
+=== CYCLING: CLIMBING / HILLS ===
 - hill_repeats: 70min, 80 TSS - 6x3min climbing intervals
 
-=== HIGH INTENSITY / RACE PREP ===
+=== CYCLING: HIGH INTENSITY / RACE PREP ===
 - sprint_intervals: 75min, 70 TSS - 10x30s max sprints
 - race_simulation: 90min, 105 TSS - Race-like efforts with surges
 
-Use workout IDs (like "three_by_ten_sst") when recommending workouts.
+=== RUNNING: RECOVERY ===
+- run_recovery_jog: 25min, 20 rTSS, ~4km - Very easy jog for recovery
+- run_easy_recovery: 30min, 30 rTSS, ~5km - Easy run with strides
+
+=== RUNNING: EASY / AEROBIC (Zone 2) ===
+- run_easy_aerobic: 40min, 45 rTSS, ~7km - Easy aerobic run
+- run_easy_long: 60min, 60 rTSS, ~10km - Hour-long easy run
+- run_long_run: 90min, 100 rTSS, ~16km - Long run for endurance
+- run_long_run_extended: 120min, 140 rTSS, ~20km - Extended long run
+
+=== RUNNING: TEMPO (Zone 3) ===
+- run_tempo_continuous: 45min, 65 rTSS, ~8km - Continuous 20min tempo block
+- run_tempo_cruise: 50min, 70 rTSS, ~9km - 2x15min cruise intervals
+- run_progression_run: 50min, 70 rTSS, ~9km - Easy to tempo progression
+
+=== RUNNING: THRESHOLD (Zone 4) ===
+- run_threshold_intervals: 50min, 80 rTSS, ~9km - 4x5min at threshold pace
+- run_threshold_continuous: 45min, 75 rTSS, ~8.5km - 20min continuous threshold
+- run_tempo_threshold_combo: 55min, 80 rTSS, ~10km - Mixed tempo & threshold
+
+=== RUNNING: VO2MAX (Zone 5) ===
+- run_vo2max_800s: 50min, 80 rTSS, ~8km - 5x800m at VO2max pace (track)
+- run_vo2max_1000s: 50min, 80 rTSS, ~9km - 4x1000m at VO2max pace
+- run_vo2max_hills: 45min, 75 rTSS, ~7km - 8x90sec uphill hard
+
+=== RUNNING: SPEED (Zone 6) ===
+- run_speed_200s: 40min, 60 rTSS, ~6km - 8x200m fast (track)
+- run_speed_400s: 45min, 65 rTSS, ~8km - 6x400m at 5K pace (track)
+
+=== RUNNING: RACE-SPECIFIC ===
+- run_race_pace_half: 60min, 90 rTSS, ~11km - 30min at half marathon pace
+- run_race_pace_marathon: 90min, 110 rTSS, ~16km - 60min at marathon pace
+
+=== STRENGTH / CORE / FLEXIBILITY (both sports) ===
+- cyclist_strength_foundation: 45min - Full body foundation strength
+- full_body_strength: 60min - Full body strength training
+- cyclist_core_stability: 30min - Core stability routine
+- yoga_for_cyclists: 45min - Yoga for flexibility and recovery
+- hip_mobility_routine: 20min - Hip mobility and flexibility
+
+Use workout IDs (like "three_by_ten_sst" or "run_tempo_continuous") when recommending workouts.
+Use CYCLING workouts for cycling athletes and RUNNING workouts for running athletes.
 `;
 
 // Tool definitions for Claude
@@ -104,10 +145,15 @@ IMPORTANT: Use this instead of multiple recommend_workout calls when the athlete
         enum: ["polarized", "sweet_spot", "threshold", "pyramidal", "endurance"],
         description: "Training methodology: polarized (80/20 low/high), sweet_spot (focus on 88-94% FTP), threshold (FTP-focused), pyramidal (balanced), endurance (aerobic base)"
       },
+      sport_type: {
+        type: "string",
+        enum: ["cycling", "running"],
+        description: "Sport type for the plan: 'cycling' for bike training, 'running' for run training. Determines which workout library and metrics to use."
+      },
       goal: {
         type: "string",
-        enum: ["general_fitness", "century", "gran_fondo", "climbing", "racing", "time_trial"],
-        description: "Primary goal for the plan"
+        enum: ["general_fitness", "century", "gran_fondo", "climbing", "racing", "time_trial", "5k", "10k", "half_marathon", "marathon", "ultra", "trail", "speed", "base_building"],
+        description: "Primary goal. Cycling goals: general_fitness, century, gran_fondo, climbing, racing, time_trial. Running goals: 5k, 10k, half_marathon, marathon, ultra, trail, speed, base_building."
       },
       start_date: {
         type: "string",

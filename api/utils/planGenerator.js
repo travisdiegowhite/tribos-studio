@@ -283,6 +283,197 @@ const METHODOLOGY_PATTERNS = {
   },
 };
 
+// Running workout library for plan generation
+const RUNNING_WORKOUT_LIBRARY = {
+  // Recovery
+  run_recovery_jog: { name: 'Recovery Jog', duration: 25, tss: 20, category: 'recovery' },
+  run_easy_recovery: { name: 'Easy Recovery Run', duration: 30, tss: 30, category: 'recovery' },
+
+  // Easy / Aerobic
+  run_easy_aerobic: { name: 'Easy Aerobic Run', duration: 40, tss: 45, category: 'endurance' },
+  run_easy_long: { name: 'Easy Long Run', duration: 60, tss: 60, category: 'endurance' },
+  run_long_run: { name: 'Long Run', duration: 90, tss: 100, category: 'endurance' },
+  run_long_run_extended: { name: 'Extended Long Run', duration: 120, tss: 140, category: 'endurance' },
+
+  // Tempo
+  run_tempo_continuous: { name: 'Tempo Run', duration: 45, tss: 65, category: 'tempo' },
+  run_tempo_cruise: { name: 'Cruise Intervals', duration: 50, tss: 70, category: 'tempo' },
+  run_progression_run: { name: 'Progression Run', duration: 50, tss: 70, category: 'tempo' },
+
+  // Threshold
+  run_threshold_intervals: { name: 'Threshold Intervals', duration: 50, tss: 80, category: 'threshold' },
+  run_threshold_continuous: { name: 'Continuous Threshold', duration: 45, tss: 75, category: 'threshold' },
+  run_tempo_threshold_combo: { name: 'Tempo-Threshold Combo', duration: 55, tss: 80, category: 'threshold' },
+
+  // VO2max
+  run_vo2max_800s: { name: '800m Repeats', duration: 50, tss: 80, category: 'vo2max' },
+  run_vo2max_1000s: { name: '1000m Repeats', duration: 50, tss: 80, category: 'vo2max' },
+  run_vo2max_hills: { name: 'Hill Repeats', duration: 45, tss: 75, category: 'vo2max' },
+
+  // Speed
+  run_speed_200s: { name: '200m Strides', duration: 40, tss: 60, category: 'speed' },
+  run_speed_400s: { name: '400m Repeats', duration: 45, tss: 65, category: 'speed' },
+
+  // Race-specific
+  run_race_pace_half: { name: 'Half Marathon Pace', duration: 60, tss: 90, category: 'race_pace' },
+  run_race_pace_marathon: { name: 'Marathon Pace', duration: 90, tss: 110, category: 'race_pace' },
+
+  // Strength (shared with cycling)
+  cyclist_strength_foundation: { name: 'Strength Foundation', duration: 45, tss: 30, category: 'strength' },
+  cyclist_core_stability: { name: 'Core Stability', duration: 30, tss: 15, category: 'core' },
+};
+
+// Running methodology patterns
+const RUNNING_METHODOLOGY_PATTERNS = {
+  polarized: {
+    regular: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_easy_recovery' },
+      2: { type: 'endurance', workout: 'run_easy_aerobic' },
+      3: { type: 'vo2max', workout: 'run_vo2max_1000s' },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'endurance', workout: 'run_easy_aerobic' },
+      6: { type: 'endurance', workout: 'run_long_run' },
+    },
+    recovery: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'rest', workout: null },
+      2: { type: 'recovery', workout: 'run_recovery_jog' },
+      3: { type: 'endurance', workout: 'run_easy_aerobic' },
+      4: { type: 'recovery', workout: 'run_easy_recovery' },
+      5: { type: 'strength', workout: 'cyclist_core_stability' },
+      6: { type: 'endurance', workout: 'run_easy_long' },
+    },
+    build: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_easy_recovery' },
+      2: { type: 'endurance', workout: 'run_easy_aerobic' },
+      3: { type: 'vo2max', workout: 'run_vo2max_800s' },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'threshold', workout: 'run_threshold_intervals' },
+      6: { type: 'endurance', workout: 'run_long_run' },
+    },
+    peak: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_recovery_jog' },
+      2: { type: 'vo2max', workout: 'run_vo2max_1000s' },
+      3: { type: 'endurance', workout: 'run_easy_aerobic' },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'tempo', workout: 'run_tempo_continuous' },
+      6: { type: 'endurance', workout: 'run_easy_long' },
+    },
+    taper: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_recovery_jog' },
+      2: { type: 'tempo', workout: 'run_tempo_continuous' },
+      3: { type: 'rest', workout: null },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'endurance', workout: 'run_easy_aerobic' },
+      6: { type: 'rest', workout: null },
+    },
+  },
+  pyramidal: {
+    regular: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_easy_recovery' },
+      2: { type: 'tempo', workout: 'run_tempo_continuous' },
+      3: { type: 'endurance', workout: 'run_easy_aerobic' },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'endurance', workout: 'run_easy_aerobic' },
+      6: { type: 'endurance', workout: 'run_long_run' },
+    },
+    recovery: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'rest', workout: null },
+      2: { type: 'recovery', workout: 'run_recovery_jog' },
+      3: { type: 'endurance', workout: 'run_easy_aerobic' },
+      4: { type: 'recovery', workout: 'run_easy_recovery' },
+      5: { type: 'endurance', workout: 'run_easy_aerobic' },
+      6: { type: 'rest', workout: null },
+    },
+    build: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_easy_recovery' },
+      2: { type: 'threshold', workout: 'run_threshold_intervals' },
+      3: { type: 'endurance', workout: 'run_easy_aerobic' },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'tempo', workout: 'run_tempo_cruise' },
+      6: { type: 'endurance', workout: 'run_long_run' },
+    },
+    peak: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_recovery_jog' },
+      2: { type: 'vo2max', workout: 'run_vo2max_800s' },
+      3: { type: 'endurance', workout: 'run_easy_aerobic' },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'threshold', workout: 'run_threshold_continuous' },
+      6: { type: 'endurance', workout: 'run_easy_long' },
+    },
+    taper: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_recovery_jog' },
+      2: { type: 'tempo', workout: 'run_progression_run' },
+      3: { type: 'rest', workout: null },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'endurance', workout: 'run_easy_aerobic' },
+      6: { type: 'rest', workout: null },
+    },
+  },
+  // For running, endurance and sweet_spot methodologies both map to base-building
+  endurance: {
+    regular: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_easy_recovery' },
+      2: { type: 'endurance', workout: 'run_easy_aerobic' },
+      3: { type: 'endurance', workout: 'run_easy_aerobic' },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'strength', workout: 'cyclist_strength_foundation' },
+      6: { type: 'endurance', workout: 'run_long_run' },
+    },
+    recovery: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'rest', workout: null },
+      2: { type: 'recovery', workout: 'run_recovery_jog' },
+      3: { type: 'endurance', workout: 'run_easy_aerobic' },
+      4: { type: 'recovery', workout: 'run_easy_recovery' },
+      5: { type: 'endurance', workout: 'run_easy_aerobic' },
+      6: { type: 'rest', workout: null },
+    },
+    build: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_easy_recovery' },
+      2: { type: 'endurance', workout: 'run_easy_aerobic' },
+      3: { type: 'tempo', workout: 'run_progression_run' },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'endurance', workout: 'run_easy_aerobic' },
+      6: { type: 'endurance', workout: 'run_long_run' },
+    },
+    peak: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_recovery_jog' },
+      2: { type: 'tempo', workout: 'run_tempo_continuous' },
+      3: { type: 'endurance', workout: 'run_easy_aerobic' },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'endurance', workout: 'run_easy_aerobic' },
+      6: { type: 'endurance', workout: 'run_long_run' },
+    },
+    taper: {
+      0: { type: 'rest', workout: null },
+      1: { type: 'recovery', workout: 'run_recovery_jog' },
+      2: { type: 'endurance', workout: 'run_easy_aerobic' },
+      3: { type: 'rest', workout: null },
+      4: { type: 'recovery', workout: 'run_recovery_jog' },
+      5: { type: 'endurance', workout: 'run_easy_aerobic' },
+      6: { type: 'rest', workout: null },
+    },
+  },
+};
+
+// Map running methodologies: sweet_spot and threshold don't exist for running,
+// fallback to pyramidal (balanced approach)
+RUNNING_METHODOLOGY_PATTERNS.sweet_spot = RUNNING_METHODOLOGY_PATTERNS.pyramidal;
+RUNNING_METHODOLOGY_PATTERNS.threshold = RUNNING_METHODOLOGY_PATTERNS.pyramidal;
+
 // Helper to add days to a date
 function addDays(date, days) {
   const result = new Date(date);
@@ -372,7 +563,9 @@ function redistributeForAvailability(workouts, availability) {
       .map(([day]) => Number(day))
   );
 
-  const preferWeekendLong = availability.preferences?.preferWeekendLongRides ?? true;
+  const preferWeekendLong = availability.preferences?.preferWeekendLongRides
+    ?? availability.preferences?.preferWeekendLongRuns
+    ?? true;
 
   // Group workouts by week number
   const weekMap = new Map();
@@ -469,6 +662,7 @@ export function generateTrainingPlan(params) {
     duration_weeks,
     methodology = 'sweet_spot',
     goal = 'general_fitness',
+    sport_type = 'cycling',
     start_date,
     target_event_date,
     weekly_hours,
@@ -477,11 +671,14 @@ export function generateTrainingPlan(params) {
     userAvailability = null,
   } = params;
 
+  const isRunning = sport_type === 'running';
   const startDate = resolveStartDate(start_date);
   const hasTargetEvent = !!target_event_date;
 
-  // Get methodology patterns
-  const patterns = METHODOLOGY_PATTERNS[methodology] || METHODOLOGY_PATTERNS.sweet_spot;
+  // Get methodology patterns based on sport type
+  const allPatterns = isRunning ? RUNNING_METHODOLOGY_PATTERNS : METHODOLOGY_PATTERNS;
+  const defaultMethodology = isRunning ? 'polarized' : 'sweet_spot';
+  const patterns = allPatterns[methodology] || allPatterns[defaultMethodology];
 
   // Generate workouts for each day
   const workouts = [];
@@ -521,7 +718,9 @@ export function generateTrainingPlan(params) {
     for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
       const dayPlan = weekPattern[dayOfWeek];
       const workoutDate = addDays(startDate, (week - 1) * 7 + dayOfWeek);
-      const workoutInfo = dayPlan.workout ? WORKOUT_LIBRARY[dayPlan.workout] : null;
+      const workoutLib = isRunning ? RUNNING_WORKOUT_LIBRARY : WORKOUT_LIBRARY;
+      // Check both libraries in case of shared workouts (strength/core)
+      const workoutInfo = dayPlan.workout ? (workoutLib[dayPlan.workout] || WORKOUT_LIBRARY[dayPlan.workout] || RUNNING_WORKOUT_LIBRARY[dayPlan.workout]) : null;
 
       workouts.push({
         week_number: week,
@@ -577,6 +776,7 @@ export function generateTrainingPlan(params) {
     duration_weeks,
     methodology,
     goal,
+    sport_type,
     start_date: formatDate(startDate),
     end_date: formatDate(endDate),
     target_event_date: target_event_date || null,

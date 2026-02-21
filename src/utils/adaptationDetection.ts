@@ -6,6 +6,9 @@
  * athletes deviate from their training plans.
  */
 
+import {
+  isRunningActivity,
+} from '../types/training';
 import type {
   PlannedWorkoutDB,
   ActivitySummary,
@@ -155,13 +158,70 @@ export function detectAdaptationType(input: DetectAdaptationInput): AdaptationTy
 }
 
 /**
+ * Infer the workout category from a running activity using pace
+ * Uses average pace relative to threshold pace to classify
+ */
+function inferRunningWorkoutCategory(
+  activity: ActivitySummary & { averagePace?: number | null },
+  thresholdPaceSec?: number
+): WorkoutCategory {
+  // If we have pace and threshold pace, calculate intensity
+  if (activity.averagePace && thresholdPaceSec && thresholdPaceSec > 0) {
+    // For running, slower = easier. Ratio > 1 means easier than threshold
+    const paceRatio = activity.averagePace / thresholdPaceSec;
+
+    if (paceRatio > 1.40) return 'recovery';
+    if (paceRatio > 1.20) return 'endurance';
+    if (paceRatio > 1.08) return 'tempo';
+    if (paceRatio > 0.98) return 'threshold';
+    if (paceRatio > 0.90) return 'vo2max';
+    return 'anaerobic';
+  }
+
+  // Fall back to pace estimation from distance and duration
+  if (activity.distance > 0 && activity.duration > 0) {
+    const paceMinPerKm = activity.duration / activity.distance;
+
+    // Very rough classification without knowing the runner's fitness
+    // These thresholds represent a broad intermediate runner
+    if (paceMinPerKm > 7.0) return 'recovery';
+    if (paceMinPerKm > 5.5) return 'endurance';
+    if (paceMinPerKm > 4.8) return 'tempo';
+    if (paceMinPerKm > 4.3) return 'threshold';
+    if (paceMinPerKm > 3.8) return 'vo2max';
+    return 'anaerobic';
+  }
+
+  // Fall back to TSS-based estimation
+  if (activity.tss && activity.duration) {
+    const tssPerHour = activity.tss / (activity.duration / 60);
+    if (tssPerHour < 35) return 'recovery';
+    if (tssPerHour < 55) return 'endurance';
+    if (tssPerHour < 75) return 'tempo';
+    if (tssPerHour < 95) return 'threshold';
+    return 'vo2max';
+  }
+
+  return 'endurance';
+}
+
+/**
  * Infer the workout category from activity metrics
- * Uses Intensity Factor (IF) and power data to classify the workout
+ * Uses Intensity Factor (IF) and power data for cycling,
+ * or pace data for running activities
  */
 export function inferWorkoutCategory(
-  activity: ActivitySummary & { intensityFactor?: number | null; normalizedPower?: number | null },
-  userFtp?: number
+  activity: ActivitySummary & { intensityFactor?: number | null; normalizedPower?: number | null; averagePace?: number | null },
+  userFtp?: number,
+  thresholdPaceSec?: number
 ): WorkoutCategory {
+  // Route to running-specific classification for running activities
+  if (activity.type && isRunningActivity(activity.type)) {
+    return inferRunningWorkoutCategory(activity, thresholdPaceSec);
+  }
+
+  // Cycling classification below — uses power-based IF
+
   // If we have IF directly, use it
   let intensityFactor = activity.intensityFactor;
 
