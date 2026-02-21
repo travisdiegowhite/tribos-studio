@@ -3579,6 +3579,8 @@ function RouteBuilder() {
                 <ModeSelector
                   onSelectMode={(mode) => setBuilderMode(mode)}
                   onImportGPX={handleImportGPX}
+                  sportType={sportType}
+                  onSportTypeChange={setSportType}
                 />
               )}
 
@@ -4369,6 +4371,7 @@ function RouteBuilder() {
                   onReject={handleAIEditReject}
                   onClose={() => { setAiEditMode(false); setAiEditResult(null); setAiEditPrevGeometry(null); }}
                   formatDist={formatDist}
+                  sportType={sportType}
                 />
               )}
 
@@ -5121,6 +5124,7 @@ function RouteBuilder() {
             speedProfile={speedProfile}
             onSpeedProfileUpdate={setSpeedProfile}
             isImperial={isImperial}
+            sportType={sportType}
           />
 
           {/* Road Preferences Modal */}
