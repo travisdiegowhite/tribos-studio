@@ -214,13 +214,13 @@ async function processWahooWorkout(integration, workout, webhookData) {
     }
   }
 
-  // Map Wahoo workout type to activity type
+  // Map Wahoo workout type to activity type (cycling + running)
   const activityType = mapWahooWorkoutType(workoutDetails.workout_type);
 
-  // Only import cycling workouts
+  // Only import supported activity types
   if (!activityType) {
-    console.log('Skipping non-cycling workout:', workoutDetails.workout_type);
-    return { activityId: null, skipped: true, reason: 'Non-cycling workout' };
+    console.log('Skipping unsupported workout type:', workoutDetails.workout_type);
+    return { activityId: null, skipped: true, reason: 'Unsupported workout type' };
   }
 
   // Try to get GPS data (polyline) from workout file or route
@@ -237,7 +237,7 @@ async function processWahooWorkout(integration, workout, webhookData) {
     user_id: integration.user_id,
     provider: 'wahoo',
     provider_activity_id: workout.id.toString(),
-    name: workoutDetails.name || `Wahoo Ride - ${new Date().toLocaleDateString()}`,
+    name: workoutDetails.name || `Wahoo ${['Run', 'VirtualRun', 'TrailRun'].includes(activityType) ? 'Run' : 'Ride'} - ${new Date().toLocaleDateString()}`,
     type: activityType,
     sport_type: workoutDetails.workout_type,
     start_date: workoutDetails.starts || workoutDetails.created_at || new Date().toISOString(),
@@ -252,7 +252,7 @@ async function processWahooWorkout(integration, workout, webhookData) {
     max_heartrate: workoutDetails.heart_rate_max,
     average_cadence: workoutDetails.cadence_avg,
     kilojoules: workoutDetails.work_accum ? workoutDetails.work_accum / 1000 : null,
-    trainer: workoutDetails.workout_type === 'indoor_cycling',
+    trainer: workoutDetails.workout_type === 'indoor_cycling' || workoutDetails.workout_type === 'treadmill_running',
     map_summary_polyline: mapPolyline,
     raw_data: webhookData,
     imported_from: 'wahoo_webhook'
@@ -381,6 +381,13 @@ function mapWahooWorkoutType(wahooType) {
     'gravel_cycling': 'GravelRide'
   };
 
+  const runningTypes = {
+    'running': 'Run',
+    'treadmill_running': 'Run',
+    'indoor_running': 'Run',
+    'trail_running': 'TrailRun'
+  };
+
   const lowerType = (wahooType || '').toLowerCase();
 
   // Check if it's a cycling type
@@ -388,12 +395,22 @@ function mapWahooWorkoutType(wahooType) {
     return cyclingTypes[lowerType];
   }
 
+  // Check if it's a running type
+  if (runningTypes[lowerType]) {
+    return runningTypes[lowerType];
+  }
+
   // Check if it contains 'bike' or 'cycling'
   if (lowerType.includes('bike') || lowerType.includes('cycling')) {
     return 'Ride';
   }
 
-  // Not a cycling activity
+  // Check if it contains 'run'
+  if (lowerType.includes('run')) {
+    return 'Run';
+  }
+
+  // Unsupported activity type
   return null;
 }
 

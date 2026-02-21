@@ -199,15 +199,18 @@ async function syncActivities(req, res, userId, page, perPage) {
     const activities = await response.json();
     console.log(`📦 Received ${activities.length} activities from Strava`);
 
-    // Filter to only cycling activities
-    const cyclingActivities = activities.filter(a =>
-      ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'].includes(a.type)
+    // Filter to supported activity types (cycling + running)
+    const SUPPORTED_TYPES = ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide', 'Run', 'VirtualRun', 'TrailRun'];
+    const supportedActivities = activities.filter(a =>
+      SUPPORTED_TYPES.includes(a.type)
     );
 
-    console.log(`🚴 ${cyclingActivities.length} cycling activities`);
+    const cyclingCount = supportedActivities.filter(a => ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'].includes(a.type)).length;
+    const runningCount = supportedActivities.filter(a => ['Run', 'VirtualRun', 'TrailRun'].includes(a.type)).length;
+    console.log(`🚴 ${cyclingCount} cycling + 🏃 ${runningCount} running activities`);
 
     // Store activities in Supabase
-    const storedCount = await storeActivities(userId, cyclingActivities, importSource);
+    const storedCount = await storeActivities(userId, supportedActivities, importSource);
 
     // Recalculate speed profile after syncing
     await calculateAndStoreSpeedProfile(userId);
@@ -215,7 +218,9 @@ async function syncActivities(req, res, userId, page, perPage) {
     return res.status(200).json({
       success: true,
       fetched: activities.length,
-      cyclingActivities: cyclingActivities.length,
+      supportedActivities: supportedActivities.length,
+      cyclingActivities: cyclingCount,
+      runningActivities: runningCount,
       stored: storedCount,
       hasMore: activities.length === perPage
     });
@@ -290,13 +295,14 @@ async function syncAllActivities(req, res, userId) {
 
       totalFetched += activities.length;
 
-      // Filter to cycling activities
-      const cyclingActivities = activities.filter(a =>
-        ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'].includes(a.type)
+      // Filter to supported activity types (cycling + running)
+      const SUPPORTED_TYPES = ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide', 'Run', 'VirtualRun', 'TrailRun'];
+      const supportedActivities = activities.filter(a =>
+        SUPPORTED_TYPES.includes(a.type)
       );
 
       // Store with deduplication
-      const stored = await storeActivities(userId, cyclingActivities, importSource);
+      const stored = await storeActivities(userId, supportedActivities, importSource);
       totalStored += stored;
 
       // Check if there are more pages
@@ -501,14 +507,17 @@ async function calculateSpeedProfile(req, res, userId) {
  */
 async function calculateAndStoreSpeedProfile(userId) {
   // Get recent outdoor cycling activities (last 3 months)
+  // Speed profiles are cycling-specific; running pace profiles are handled separately
   const threeMonthsAgo = new Date();
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
+  const CYCLING_TYPES = ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'];
   const { data: activities, error } = await supabase
     .from('activities')
     .select('*')
     .eq('user_id', userId)
     .eq('trainer', false) // Outdoor only
+    .in('type', CYCLING_TYPES) // Cycling only for speed profile
     .gte('start_date', threeMonthsAgo.toISOString())
     .gte('distance', 5000) // At least 5km
     .order('start_date', { ascending: false });

@@ -26,8 +26,10 @@ const RATE_LIMIT_WINDOW_MS = 60000;
 const RATE_LIMIT_MAX_REQUESTS = 100;
 const rateLimitStore = new Map();
 
-// Cycling activity types we want to import
+// Activity types we want to import (cycling + running)
 const CYCLING_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
+const RUNNING_TYPES = ['Run', 'VirtualRun', 'TrailRun'];
+const SUPPORTED_ACTIVITY_TYPES = [...CYCLING_TYPES, ...RUNNING_TYPES];
 
 // Track last webhook for diagnostics
 let lastWebhookReceived = null;
@@ -301,10 +303,10 @@ async function handleActivityCreate(eventId, webhookData, integration) {
       return;
     }
 
-    // Check if it's a cycling activity
-    if (!CYCLING_TYPES.includes(activity.type)) {
-      console.log('⚠️ Skipping non-cycling activity:', activity.type);
-      await markEventProcessed(eventId, `Non-cycling activity type: ${activity.type}`);
+    // Check if it's a supported activity type (cycling or running)
+    if (!SUPPORTED_ACTIVITY_TYPES.includes(activity.type)) {
+      console.log('⚠️ Skipping unsupported activity type:', activity.type);
+      await markEventProcessed(eventId, `Unsupported activity type: ${activity.type}`);
       return;
     }
 

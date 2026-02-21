@@ -50,13 +50,101 @@ export function calculateTSB(ctl, atl) {
   return Math.round(ctl - atl);
 }
 
+// Running activity types
+const RUNNING_TYPES = ['Run', 'VirtualRun', 'TrailRun'];
+
+/**
+ * Check if an activity is a running activity
+ */
+function isRunningActivity(activity) {
+  return RUNNING_TYPES.includes(activity.type);
+}
+
+/**
+ * Estimate running TSS (rTSS) from pace and duration
+ * Based on the formula: rTSS = (duration_sec × NGP × IF) / (threshold_pace × 3600) × 100
+ * where NGP = Normalized Graded Pace, IF = Intensity Factor
+ *
+ * Without a known threshold pace, we estimate using heart rate or pace heuristics:
+ * - Easy run (~60-70% effort): ~40-50 rTSS/hour
+ * - Moderate run (~70-80% effort): ~60-80 rTSS/hour
+ * - Tempo run (~80-90% effort): ~80-100 rTSS/hour
+ * - Threshold run (~90-100% effort): ~100+ rTSS/hour
+ */
+function estimateRunningTSS(activity) {
+  const durationHours = (activity.moving_time || 0) / 3600;
+  if (durationHours === 0) return 0;
+
+  const distanceKm = (activity.distance || 0) / 1000;
+  const elevationM = activity.total_elevation_gain || 0;
+
+  // Calculate pace in min/km if we have distance
+  let intensityMultiplier = 1.0;
+
+  if (distanceKm > 0 && durationHours > 0) {
+    const paceMinPerKm = (durationHours * 60) / distanceKm;
+
+    // Estimate intensity from pace
+    // ~6:00/km = easy, ~5:00/km = moderate, ~4:30/km = tempo, ~4:00/km = threshold
+    // These are rough averages; actual zones depend on the runner's fitness
+    if (paceMinPerKm < 3.5) {
+      intensityMultiplier = 1.6; // Very fast (race pace / interval)
+    } else if (paceMinPerKm < 4.0) {
+      intensityMultiplier = 1.4; // Threshold-ish
+    } else if (paceMinPerKm < 4.5) {
+      intensityMultiplier = 1.2; // Tempo
+    } else if (paceMinPerKm < 5.0) {
+      intensityMultiplier = 1.05; // Moderate
+    } else if (paceMinPerKm < 6.0) {
+      intensityMultiplier = 0.85; // Easy
+    } else if (paceMinPerKm < 7.0) {
+      intensityMultiplier = 0.7; // Recovery
+    } else {
+      intensityMultiplier = 0.55; // Very easy / walk breaks
+    }
+  }
+
+  // Heart rate adjustment (if available, override pace-based estimate)
+  if (activity.average_heartrate && activity.average_heartrate > 0) {
+    // Rough heuristic: 120bpm = easy, 150bpm = moderate, 170bpm = hard, 185+ = max
+    const hr = activity.average_heartrate;
+    if (hr >= 175) {
+      intensityMultiplier = Math.max(intensityMultiplier, 1.5);
+    } else if (hr >= 160) {
+      intensityMultiplier = Math.max(intensityMultiplier, 1.2);
+    } else if (hr >= 145) {
+      intensityMultiplier = Math.max(intensityMultiplier, 1.0);
+    } else if (hr >= 130) {
+      intensityMultiplier = Math.max(intensityMultiplier, 0.8);
+    }
+  }
+
+  // Running base: ~60 rTSS/hour (slightly higher than cycling due to impact stress)
+  const baseRTSS = durationHours * 60;
+
+  // Elevation has a bigger impact on running than cycling
+  const elevationFactor = (elevationM / 200) * 10;
+
+  // Trail running has additional stress from terrain
+  const trailFactor = activity.type === 'TrailRun' ? 1.1 : 1.0;
+
+  return Math.round((baseRTSS + elevationFactor) * intensityMultiplier * trailFactor);
+}
+
 /**
  * Estimate TSS from activity data when power data isn't available
- * Matches the approach used in coachingContext
+ * Supports both cycling and running activities
  */
 export function estimateTSS(activity) {
   // Use actual TSS if available from power data
   if (activity.tss && activity.tss > 0) return activity.tss;
+
+  // Route to running-specific estimation for running activities
+  if (isRunningActivity(activity)) {
+    return estimateRunningTSS(activity);
+  }
+
+  // Cycling TSS estimation below
 
   // Calculate from kilojoules if available (more accurate)
   if (activity.kilojoules && activity.kilojoules > 0 && activity.moving_time) {
@@ -181,7 +269,7 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
   const { data: activities, error } = await supabase
     .from('activities')
     .select(`
-      id, start_date, moving_time, elapsed_time,
+      id, type, sport_type, start_date, moving_time, elapsed_time,
       distance, total_elevation_gain, average_watts,
       kilojoules, average_heartrate, trainer, is_hidden, duplicate_of
     `)
@@ -246,6 +334,13 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
   const loadTrend = computeLoadTrend(tssArray);
   const fitnessTrend = computeFitnessTrend(ctl, weeklyTSS / 7);
 
+  // Split counts by sport type
+  const cyclingActivities = weekActivities.filter(a => !RUNNING_TYPES.includes(a.type));
+  const runningActivitiesThisWeek = weekActivities.filter(a => RUNNING_TYPES.includes(a.type));
+  const weeklyRunDistance = runningActivitiesThisWeek.reduce(
+    (sum, a) => sum + ((a.distance || 0) / 1000), 0
+  );
+
   return {
     user_id: userId,
     snapshot_week: weekStart,
@@ -257,11 +352,13 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
     ftp_source: prefs?.ftp ? 'user_preferences' : null,
     weekly_tss: Math.round(weeklyTSS),
     weekly_hours: Math.round(weeklyHours * 100) / 100,
-    weekly_ride_count: weekActivities.length,
+    weekly_ride_count: cyclingActivities.length,
+    weekly_run_count: runningActivitiesThisWeek.length,
     weekly_distance_km: Math.round(weeklyDistance * 100) / 100,
+    weekly_run_distance_km: Math.round(weeklyRunDistance * 100) / 100,
     weekly_elevation_m: Math.round(weeklyElevation),
-    avg_normalized_power: computeAvgNP(weekActivities),
-    peak_20min_power: findPeak20minPower(weekActivities),
+    avg_normalized_power: computeAvgNP(cyclingActivities),
+    peak_20min_power: findPeak20minPower(cyclingActivities),
     load_trend: loadTrend,
     fitness_trend: fitnessTrend,
     activities_analyzed: (activities || []).length

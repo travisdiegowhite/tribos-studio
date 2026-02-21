@@ -7,6 +7,11 @@
 // CORE ENUMS & LITERAL TYPES
 // ============================================================
 
+/**
+ * Primary sport type for multi-sport support
+ */
+export type SportType = 'cycling' | 'running';
+
 export type TrainingMethodology =
   | 'polarized'
   | 'sweet_spot'
@@ -14,7 +19,10 @@ export type TrainingMethodology =
   | 'pyramidal'
   | 'endurance';
 
-export type TrainingGoal =
+/**
+ * Cycling-specific training goals
+ */
+export type CyclingTrainingGoal =
   | 'general_fitness'
   | 'century'
   | 'climbing'
@@ -25,13 +33,28 @@ export type TrainingGoal =
   | 'criterium'
   | 'time_trial';
 
+/**
+ * Running-specific training goals
+ */
+export type RunningTrainingGoal =
+  | 'general_fitness'
+  | '5k'
+  | '10k'
+  | 'half_marathon'
+  | 'marathon'
+  | 'ultra'
+  | 'trail'
+  | 'speed'
+  | 'base_building';
+
+export type TrainingGoal = CyclingTrainingGoal | RunningTrainingGoal;
+
 export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
 
 /**
- * Plan categories for grouping and filtering
- * Based on target audience and training focus
+ * Cycling-specific plan categories
  */
-export type PlanCategory =
+export type CyclingPlanCategory =
   | 'road_racing'      // Criterium, Road Race, TT - Cat 1-5 competitive
   | 'endurance_events' // Century, Gran Fondo, Gravel - long distance
   | 'masters'          // Age 35+ specific adaptations
@@ -39,6 +62,23 @@ export type PlanCategory =
   | 'indoor_focused'   // Trainer-optimized plans
   | 'strength_power'   // Gym + bike integration
   | 'foundation';      // Beginners and base building
+
+/**
+ * Running-specific plan categories
+ */
+export type RunningPlanCategory =
+  | 'race_distance'      // 5K, 10K, Half, Marathon specific
+  | 'trail_ultra'        // Trail running and ultra-distance
+  | 'speed_development'  // Track/speed-focused plans
+  | 'base_building'      // Mileage building for beginners/returning runners
+  | 'masters'            // Age 35+ specific adaptations
+  | 'foundation';        // Beginners and base building
+
+/**
+ * Plan categories for grouping and filtering
+ * Based on target audience and training focus
+ */
+export type PlanCategory = CyclingPlanCategory | RunningPlanCategory;
 
 export type TrainingPhase = 'base' | 'build' | 'peak' | 'taper' | 'recovery';
 
@@ -63,15 +103,38 @@ export type WorkoutCategory =
   | 'climbing'
   | 'anaerobic'
   | 'racing'
-  | 'strength'      // Off-bike strength training
+  | 'strength'      // Off-bike/off-run strength training
   | 'core'          // Core stability workouts
   | 'flexibility'   // Stretching and yoga
   | 'rest';         // Complete rest day
 
 export type TerrainType = 'flat' | 'rolling' | 'hilly';
 
+/**
+ * Running-specific terrain types
+ */
+export type RunningTerrainType = 'road' | 'trail' | 'track' | 'treadmill' | 'mixed';
+
+/**
+ * Strava/Garmin activity types we recognize
+ */
+export type CyclingActivityType = 'Ride' | 'VirtualRide' | 'EBikeRide' | 'GravelRide' | 'MountainBikeRide';
+export type RunningActivityType = 'Run' | 'VirtualRun' | 'TrailRun';
+export type SupportedActivityType = CyclingActivityType | RunningActivityType;
+
 // Zone can be 1, 2, 3, 3.5, 4, 5, 6, 7 (7 = neuromuscular/sprint)
 export type TrainingZone = 1 | 2 | 3 | 3.5 | 4 | 5 | 6 | 7;
+
+/**
+ * Running pace zones (based on threshold/lactate threshold pace)
+ * Zone 1: Recovery (slower than 129% of threshold pace)
+ * Zone 2: Easy/Aerobic (114-129% of threshold pace)
+ * Zone 3: Tempo (106-113% of threshold pace)
+ * Zone 4: Threshold (99-105% of threshold pace)
+ * Zone 5: VO2max (97-103% of vVO2max)
+ * Zone 6: Anaerobic/Speed (faster than VO2max pace)
+ */
+export type RunningPaceZone = 1 | 2 | 3 | 4 | 5 | 6;
 
 // ============================================================
 // VALUE RANGES
@@ -101,6 +164,87 @@ export interface PowerZone extends TrainingZoneDefinition {
 }
 
 export type PowerZonesMap = Record<string, PowerZone>;
+
+// ============================================================
+// RUNNING PACE ZONE DEFINITIONS
+// ============================================================
+
+/**
+ * Pace zone definition for running (based on threshold pace)
+ * Pace values are in seconds per km
+ */
+export interface PaceZoneDefinition {
+  name: string;
+  color: string;
+  paceRange: Range; // seconds per km (min = faster, max = slower)
+  hrRange?: Range; // percentage of max HR
+  description: string;
+  icon: string;
+}
+
+export type PaceZonesMap = Record<string, PaceZoneDefinition>;
+
+/**
+ * Running-specific workout segment (pace-based instead of power-based)
+ */
+export interface RunningWorkoutSegment {
+  duration?: number; // in minutes (for time-based segments)
+  distance?: number; // in meters (for distance-based segments, e.g. 400m repeats)
+  paceZone: RunningPaceZone | null;
+  pacePctThreshold?: number; // percentage of threshold pace (100 = threshold)
+  targetPace?: string; // descriptive pace target, e.g. "5:00-5:15/km"
+  heartRateZone?: number; // 1-5 HR zone
+  cadence?: string; // steps per minute, e.g. "170-180"
+  description: string;
+}
+
+/**
+ * Running interval structure
+ */
+export interface RunningWorkoutInterval {
+  type: 'repeat';
+  sets: number;
+  work: RunningWorkoutSegment;
+  rest: RunningWorkoutSegment | { duration: number; paceZone: null };
+}
+
+/**
+ * Complete running workout structure
+ */
+export interface RunningWorkoutStructure {
+  warmup: RunningWorkoutSegment | null;
+  main: (RunningWorkoutSegment | RunningWorkoutInterval)[];
+  cooldown: RunningWorkoutSegment | null;
+  /** Total planned distance in km (for mileage tracking) */
+  totalDistance?: number;
+  /** Running terrain */
+  terrain?: RunningTerrainType;
+  /** Strides at the end (common in easy runs) */
+  strides?: number;
+}
+
+/**
+ * Running threshold / fitness profile
+ * Used to calculate pace zones and rTSS
+ */
+export interface RunningProfile {
+  /** Threshold pace in seconds per km (lactate threshold / tempo pace) */
+  thresholdPaceSec: number;
+  /** VDOT score (Jack Daniels' running fitness metric) */
+  vdot?: number;
+  /** Max heart rate in bpm */
+  maxHR?: number;
+  /** Resting heart rate in bpm */
+  restingHR?: number;
+  /** Lactate threshold HR in bpm */
+  lthr?: number;
+  /** Race PRs for VDOT estimation */
+  racePRs?: {
+    distance: '5k' | '10k' | 'half_marathon' | 'marathon';
+    timeSec: number;
+    date?: string;
+  }[];
+}
 
 // ============================================================
 // WORKOUT TYPES
@@ -404,6 +548,8 @@ export interface WorkoutDefinitionExtended extends Omit<WorkoutDefinition, 'stru
 export interface WorkoutDefinition {
   id: string;
   name: string;
+  /** Sport type - defaults to 'cycling' for backward compatibility */
+  sportType?: SportType;
   category: WorkoutCategory;
   difficulty: FitnessLevel;
   duration: number; // in minutes
@@ -413,8 +559,14 @@ export interface WorkoutDefinition {
   focusArea: string;
   tags: string[];
   terrainType: TerrainType;
+  /** Running terrain type (only for running workouts) */
+  runningTerrainType?: RunningTerrainType;
   structure: WorkoutStructure;
+  /** Running-specific workout structure (only for running workouts) */
+  runningStructure?: RunningWorkoutStructure;
   coachNotes: string;
+  /** Target distance in km (primarily for running workouts) */
+  targetDistance?: number;
   /** Whether this workout can be exported to bike computers */
   exportable?: boolean;
   /** Supported export formats */
@@ -451,6 +603,8 @@ export interface ExpectedGains {
 export interface TrainingPlanTemplate {
   id: string;
   name: string;
+  /** Sport type - defaults to 'cycling' for backward compatibility */
+  sportType?: SportType;
   description: string;
   duration: number; // in weeks
   methodology: TrainingMethodology;
@@ -459,6 +613,8 @@ export interface TrainingPlanTemplate {
   category: PlanCategory; // For grouping in UI
   hoursPerWeek: Range;
   weeklyTSS: Range;
+  /** Weekly distance target in km (primarily for running plans) */
+  weeklyDistance?: Range;
   phases: PlanPhase[];
   weekTemplates: Record<number, WeekTemplate>;
   expectedGains: ExpectedGains;
@@ -506,6 +662,8 @@ export interface TrainingPlanDB {
   user_id: string;
   template_id: string | null;
   name: string;
+  /** Sport type - 'cycling' or 'running' */
+  sport_type: SportType | null;
   duration_weeks: number;
   methodology: TrainingMethodology | null;
   goal: TrainingGoal | null;
@@ -653,6 +811,10 @@ export interface ActivityMatch {
 export interface ActivitySummary {
   id: string;
   name: string;
+  /** Activity type (e.g. 'Ride', 'Run', 'TrailRun') */
+  type?: string;
+  /** Resolved sport type */
+  sportType?: SportType;
   date: string;
   duration: number; // minutes
   distance: number; // km
@@ -660,6 +822,12 @@ export interface ActivitySummary {
   elevationGain: number;
   averagePower: number | null;
   normalizedPower: number | null;
+  /** Average pace in seconds per km (running) */
+  averagePace?: number | null;
+  /** Average heart rate in bpm */
+  averageHeartrate?: number | null;
+  /** Average cadence (RPM for cycling, steps/min for running) */
+  averageCadence?: number | null;
 }
 
 // ============================================================
@@ -678,6 +846,45 @@ export function isPlanActive(plan: TrainingPlanDB): boolean {
 
 export function isPlanCompleted(plan: TrainingPlanDB): boolean {
   return plan.status === 'completed';
+}
+
+// ============================================================
+// SPORT TYPE HELPERS
+// ============================================================
+
+const CYCLING_ACTIVITY_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
+const RUNNING_ACTIVITY_TYPES = ['Run', 'VirtualRun', 'TrailRun'];
+
+/**
+ * Determine the sport type from a Strava/Garmin activity type string
+ */
+export function getSportTypeFromActivityType(activityType: string): SportType | null {
+  if (CYCLING_ACTIVITY_TYPES.includes(activityType)) return 'cycling';
+  if (RUNNING_ACTIVITY_TYPES.includes(activityType)) return 'running';
+  return null;
+}
+
+/**
+ * Check if an activity type is a cycling activity
+ */
+export function isCyclingActivity(activityType: string): boolean {
+  return CYCLING_ACTIVITY_TYPES.includes(activityType);
+}
+
+/**
+ * Check if an activity type is a running activity
+ */
+export function isRunningActivity(activityType: string): boolean {
+  return RUNNING_ACTIVITY_TYPES.includes(activityType);
+}
+
+/**
+ * Check if a running workout interval
+ */
+export function isRunningWorkoutInterval(
+  segment: RunningWorkoutSegment | RunningWorkoutInterval
+): segment is RunningWorkoutInterval {
+  return 'type' in segment && segment.type === 'repeat';
 }
 
 // ============================================================
@@ -730,7 +937,11 @@ export interface UserTrainingPreferencesDB {
   max_hard_days_per_week: number | null;
   prefer_morning_workouts: boolean | null;
   prefer_weekend_long_rides: boolean;
+  /** Prefer weekend long runs (running equivalent of long rides) */
+  prefer_weekend_long_runs: boolean;
   min_rest_days_per_week: number;
+  /** User's primary sport type */
+  primary_sport: SportType | null;
   created_at: string;
   updated_at: string;
 }
@@ -780,7 +991,9 @@ export interface UserAvailabilityConfig {
     maxHardDaysPerWeek: number | null;
     preferMorningWorkouts: boolean | null;
     preferWeekendLongRides: boolean;
+    preferWeekendLongRuns: boolean;
     minRestDaysPerWeek: number;
+    primarySport: SportType | null;
   };
 }
 
@@ -813,7 +1026,9 @@ export interface UpdateTrainingPreferencesInput {
   maxHardDaysPerWeek?: number | null;
   preferMorningWorkouts?: boolean | null;
   preferWeekendLongRides?: boolean;
+  preferWeekendLongRuns?: boolean;
   minRestDaysPerWeek?: number;
+  primarySport?: SportType | null;
 }
 
 /**
