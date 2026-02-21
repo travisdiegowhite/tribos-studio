@@ -6,35 +6,13 @@
  * or import an existing GPX file.
  */
 
-import { Box, Text, Group, Stack, UnstyledButton, SegmentedControl } from '@mantine/core';
-import { IconRobot, IconHandClick, IconUpload, IconBike, IconRun } from '@tabler/icons-react';
+import { Box, Text, Group, Stack, UnstyledButton } from '@mantine/core';
+import { IconRobot, IconHandClick, IconUpload } from '@tabler/icons-react';
 import { tokens } from '../../theme';
 
-function ModeSelector({ onSelectMode, onImportGPX, sportType = 'cycling', onSportTypeChange }) {
+function ModeSelector({ onSelectMode, onImportGPX }) {
   return (
     <Stack gap="md">
-      {/* Sport Type Selector */}
-      {onSportTypeChange && (
-        <Box>
-          <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-muted)', letterSpacing: '0.05em' }} mb="xs">
-            SPORT
-          </Text>
-          <SegmentedControl
-            value={sportType}
-            onChange={onSportTypeChange}
-            fullWidth
-            size="sm"
-            data={[
-              { label: 'Cycling', value: 'cycling' },
-              { label: 'Running', value: 'running' },
-            ]}
-            styles={{
-              root: { backgroundColor: 'var(--tribos-bg-tertiary)' }
-            }}
-          />
-        </Box>
-      )}
-
       <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-muted)', letterSpacing: '0.05em' }}>
         HOW DO YOU WANT TO BUILD?
       </Text>

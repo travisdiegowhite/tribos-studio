@@ -2277,13 +2277,29 @@ function RouteBuilder() {
         My Routes
       </Button>
 
+      {/* Sport type toggle - always visible (mobile) */}
+      <Box>
+        <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-muted)', letterSpacing: '0.05em' }} mb="xs">
+          SPORT
+        </Text>
+        <SegmentedControl
+          value={sportType}
+          onChange={setSportType}
+          fullWidth
+          size="sm"
+          data={[
+            { label: 'Cycling', value: 'cycling' },
+            { label: 'Running', value: 'running' },
+          ]}
+          styles={{ root: { backgroundColor: 'var(--tribos-bg-tertiary)' } }}
+        />
+      </Box>
+
       {/* Mode selector (mobile - ready mode) */}
       {builderMode === 'ready' && (
         <ModeSelector
           onSelectMode={(mode) => setBuilderMode(mode)}
           onImportGPX={handleImportGPX}
-          sportType={sportType}
-          onSportTypeChange={setSportType}
         />
       )}
 
@@ -2882,7 +2898,7 @@ function RouteBuilder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [
     // State values that affect the rendered output
-    builderMode, routeName, naturalLanguageInput, generatingAI,
+    sportType, builderMode, routeName, naturalLanguageInput, generatingAI,
     calendarContext, useIterativeBuilder, routeProfile, trainingGoal,
     timeAvailable, routeType, selectedWorkout, showWorkoutOverlay,
     workoutOptions, aiSuggestions, convertingRoute, userLocation,
@@ -3574,13 +3590,29 @@ function RouteBuilder() {
                 My Routes
               </Button>
 
+              {/* Sport type toggle - always visible */}
+              <Box>
+                <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-muted)', letterSpacing: '0.05em' }} mb="xs">
+                  SPORT
+                </Text>
+                <SegmentedControl
+                  value={sportType}
+                  onChange={setSportType}
+                  fullWidth
+                  size="sm"
+                  data={[
+                    { label: 'Cycling', value: 'cycling' },
+                    { label: 'Running', value: 'running' },
+                  ]}
+                  styles={{ root: { backgroundColor: 'var(--tribos-bg-tertiary)' } }}
+                />
+              </Box>
+
               {/* === READY MODE: Mode selector === */}
               {builderMode === 'ready' && (
                 <ModeSelector
                   onSelectMode={(mode) => setBuilderMode(mode)}
                   onImportGPX={handleImportGPX}
-                  sportType={sportType}
-                  onSportTypeChange={setSportType}
                 />
               )}
 
