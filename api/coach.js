@@ -414,7 +414,14 @@ IMPORTANT: Use this real-time calendar data when recommending workouts or discus
 
     systemPrompt += `\n\n=== INSTRUCTIONS ===
 Use the current date context and athlete data above to provide personalized, time-appropriate coaching advice.
-When races are listed above, use their exact names, dates, and details in your response - you have full visibility into their calendar.`;
+When races are listed above, use their exact names, dates, and details in your response - you have full visibility into their calendar.
+
+=== CRITICAL: TODAY'S WORKOUT CONSISTENCY ===
+The "TODAY'S WORKOUT RECOMMENDATION" section above shows what the athlete sees on their dashboard right now. You MUST be consistent with it:
+- If the dashboard shows a specific workout (e.g., "Foundation Miles"), your initial advice MUST reference that same workout by name. Do NOT mention a different workout name.
+- If the dashboard workout comes from the athlete's Training Plan (Source: Training Plan), affirm the planned workout. Do NOT tell the athlete to skip it unless they specifically ask about skipping or report feeling unwell.
+- If you believe a different workout would be better, first acknowledge the planned workout, then explain why you'd suggest an adjustment.
+- NEVER contradict the dashboard by recommending the athlete skip a workout that the dashboard is actively showing them. This creates confusion and undermines trust in the platform.`;
 
     // Add quickMode instructions for concise responses (Command Bar mode)
     if (quickMode) {

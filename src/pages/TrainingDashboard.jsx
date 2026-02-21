@@ -598,10 +598,10 @@ function TrainingDashboard() {
     trainingMetrics,
     activities: visibleActivities,
     raceGoals,
-    plannedWorkouts: activePlan?.workouts || [],
+    plannedWorkouts,
     ftp,
     timeAvailable: focusTimeAvailable ? parseInt(focusTimeAvailable) : null,
-  }), [trainingMetrics, visibleActivities, raceGoals, activePlan, ftp, focusTimeAvailable]);
+  }), [trainingMetrics, visibleActivities, raceGoals, plannedWorkouts, ftp, focusTimeAvailable]);
 
   const suggestedWorkout = recommendation.primary?.workout || null;
 
@@ -987,7 +987,7 @@ function TrainingDashboard() {
                         <TrainNow
                           activities={visibleActivities}
                           trainingMetrics={trainingMetrics}
-                          plannedWorkouts={activePlan?.workouts || []}
+                          plannedWorkouts={plannedWorkouts}
                           ftp={ftp}
                           raceGoals={raceGoals}
                           onSelectWorkout={(workout) => {
@@ -2467,7 +2467,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
         const wDate = new Date(w.scheduled_date + 'T12:00:00');
         const dayLabel = dayNames[wDate.getDay()];
         const dateLabel = wDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const isToday = wDate.getTime() === today.getTime();
+        const isToday = w.scheduled_date === today.toISOString().split('T')[0];
         const todayTag = isToday ? ' ** TODAY **' : '';
         const status = w.completed ? 'DONE' : w.skipped_reason ? 'SKIPPED' : 'planned';
         const typeParts = [];

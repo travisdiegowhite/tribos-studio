@@ -372,9 +372,10 @@ export function getWorkoutRecommendation({
       ? getWorkoutById(todayPlanned.workout_id)
       : null;
 
+    // Build alternatives from normal scoring for "if you want something different"
+    const recommendations = buildCategoryRecommendations(needs, timeAvailable);
+
     if (plannedWorkout) {
-      // Build alternatives from normal scoring for "if you want something different"
-      const recommendations = buildCategoryRecommendations(needs, timeAvailable);
       const alternatives = recommendations
         .filter(rec => rec.workouts[0]?.id !== plannedWorkout.id)
         .slice(0, 2)
@@ -397,6 +398,36 @@ export function getWorkoutRecommendation({
         analysis,
       };
     }
+
+    // Planned workout not in library — synthesize from the plan data
+    const syntheticWorkout = {
+      id: todayPlanned.workout_id || `plan_${todayPlanned.id}`,
+      name: todayPlanned.name || plannedType,
+      category: plannedType,
+      duration: todayPlanned.duration_minutes || todayPlanned.target_duration || 60,
+      tss: todayPlanned.target_tss || null,
+    };
+
+    const alternatives = recommendations
+      .slice(0, 2)
+      .map(rec => ({
+        workout: rec.workouts[0],
+        reason: rec.reason,
+        score: rec.score,
+        category: rec.category,
+      }));
+
+    return {
+      primary: {
+        workout: syntheticWorkout,
+        reason: `Planned: ${syntheticWorkout.name}`,
+        score: 90,
+        category: plannedType,
+        source: 'plan',
+      },
+      alternatives,
+      analysis,
+    };
   }
 
   // Normal recommendation path: build ranked categories

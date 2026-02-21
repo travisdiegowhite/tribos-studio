@@ -550,6 +550,42 @@ describe('getWorkoutRecommendation', () => {
     expect(result.primary.source).not.toBe('plan');
   });
 
+  it('synthesizes workout from plan data when workout_id not in library', () => {
+    const result = getWorkoutRecommendation({
+      trainingMetrics: { tsb: 10, ctl: 70, atl: 60 },
+      plannedWorkouts: [{
+        scheduled_date: todayStr(),
+        workout_type: 'endurance',
+        workout_id: 'custom_workout_xyz',
+        name: 'Custom Long Ride',
+        duration_minutes: 120,
+        target_tss: 100,
+      }],
+      ftp: 250,
+    });
+    expect(result.primary.source).toBe('plan');
+    expect(result.primary.workout.name).toBe('Custom Long Ride');
+    expect(result.primary.workout.duration).toBe(120);
+    expect(result.primary.category).toBe('endurance');
+  });
+
+  it('synthesizes workout when no workout_id provided', () => {
+    const result = getWorkoutRecommendation({
+      trainingMetrics: { tsb: 10, ctl: 70, atl: 60 },
+      plannedWorkouts: [{
+        id: 'pw_123',
+        scheduled_date: todayStr(),
+        workout_type: 'threshold',
+        name: 'Tempo Intervals',
+        duration_minutes: 60,
+      }],
+      ftp: 250,
+    });
+    expect(result.primary.source).toBe('plan');
+    expect(result.primary.workout.name).toBe('Tempo Intervals');
+    expect(result.primary.category).toBe('threshold');
+  });
+
   it('race proximity still overrides planned workouts', () => {
     const result = getWorkoutRecommendation({
       trainingMetrics: { tsb: 20, ctl: 80, atl: 60 },
