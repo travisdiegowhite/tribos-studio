@@ -41,6 +41,7 @@ import { TIMEZONE_OPTIONS, getBrowserTimezone, getTimezoneOffset } from '../util
 import { formatSpeed } from '../utils/units';
 import PageHeader from '../components/PageHeader.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
+import RunningProfileSettings from '../components/settings/RunningProfileSettings.jsx';
 import IntegrationAlert from '../components/IntegrationAlert.jsx';
 import { googleCalendarService } from '../utils/googleCalendarService';
 import { IconBrandGoogle } from '@tabler/icons-react';
@@ -1443,6 +1444,9 @@ function Settings() {
               </Button>
             </Stack>
           </Card>
+
+          {/* Running Profile */}
+          <RunningProfileSettings />
 
           {/* Connected Services */}
           <Card>

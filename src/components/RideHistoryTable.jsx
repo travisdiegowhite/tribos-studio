@@ -15,7 +15,7 @@ import {
   Box,
   Pagination,
 } from '@mantine/core';
-import { IconSearch, IconEye, IconChartBar, IconChevronRight, IconChevronLeft, IconFilter, IconEyeOff, IconEyeCheck, IconUpload, IconDeviceWatch, IconRoute } from '@tabler/icons-react';
+import { IconSearch, IconEye, IconChartBar, IconChevronRight, IconChevronLeft, IconFilter, IconEyeOff, IconEyeCheck, IconUpload, IconDeviceWatch, IconRoute, IconBike, IconRun } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '@mantine/hooks';
 import { ViewOnStravaLink, StravaLogo, PoweredByStrava, STRAVA_ORANGE } from './StravaBranding';
@@ -38,6 +38,7 @@ const RideHistoryTable = ({
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState('all');
+  const [sportFilter, setSportFilter] = useState('all');
   const [showHidden, setShowHidden] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -54,6 +55,10 @@ const RideHistoryTable = ({
   const isFromStrava = (r) => r.provider === 'strava';
   const getStravaActivityId = (r) => r.provider === 'strava' ? r.provider_activity_id : null;
   const getProvider = (r) => r.provider || 'manual';
+  const getSportType = (r) => r.sport_type || (r.type === 'Run' ? 'running' : 'cycling');
+
+  // Check if we have mixed sport types
+  const hasMixedSports = rides.some(r => getSportType(r) === 'running') && rides.some(r => getSportType(r) === 'cycling');
 
   // Get provider display info
   const getProviderInfo = (provider) => {
@@ -77,6 +82,9 @@ const RideHistoryTable = ({
     // Filter by hidden status first
     if (!showHidden && ride.is_hidden) return false;
     if (showHidden && !ride.is_hidden) return false;
+
+    // Filter by sport type
+    if (sportFilter !== 'all' && getSportType(ride) !== sportFilter) return false;
 
     const matchesSearch = getName(ride).toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -110,6 +118,11 @@ const RideHistoryTable = ({
   // Reset to page 1 when filters change
   const handleFilterChange = (newFilter) => {
     setTimeFilter(newFilter);
+    setCurrentPage(1);
+  };
+
+  const handleSportFilterChange = (newFilter) => {
+    setSportFilter(newFilter);
     setCurrentPage(1);
   };
 
@@ -162,6 +175,23 @@ const RideHistoryTable = ({
     return `${minutes}m`;
   };
 
+  // Running-specific helpers
+  const getPace = (r) => {
+    const distKm = getDistance(r);
+    const durSec = getDuration(r);
+    if (!distKm || !durSec || distKm === 0) return null;
+    return durSec / 60 / distKm; // min/km
+  };
+
+  const formatPace = (minPerKm) => {
+    if (!minPerKm) return '-';
+    const mins = Math.floor(minPerKm);
+    const secs = Math.round((minPerKm - mins) * 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}/km`;
+  };
+
+  const getCadence = (r) => r.average_cadence || 0;
+
   // Estimate TSS
   const estimateTSS = (ride) => {
     const distanceKm = getDistance(ride);
@@ -175,7 +205,7 @@ const RideHistoryTable = ({
   if (!rides || rides.length === 0) {
     return (
       <Card withBorder p="xl">
-        <Text c="dimmed" ta="center">No rides recorded yet</Text>
+        <Text c="dimmed" ta="center">No activities recorded yet</Text>
       </Card>
     );
   }
@@ -185,7 +215,7 @@ const RideHistoryTable = ({
       <Group justify="space-between" mb="md" wrap="wrap" gap="xs">
         <Group gap="sm">
           <Text size="sm" fw={600}>
-            {showHidden ? 'Hidden Rides' : 'Ride History'}
+            {showHidden ? 'Hidden Activities' : 'Activity History'}
           </Text>
           {hiddenCount > 0 && (
             <Switch
@@ -198,6 +228,20 @@ const RideHistoryTable = ({
           )}
         </Group>
         <Group gap="xs" wrap="wrap">
+          {hasMixedSports && (
+            <Select
+              size="xs"
+              value={sportFilter}
+              onChange={handleSportFilterChange}
+              data={[
+                { value: 'all', label: 'All Sports' },
+                { value: 'cycling', label: 'Cycling' },
+                { value: 'running', label: 'Running' },
+              ]}
+              leftSection={sportFilter === 'running' ? <IconRun size={12} /> : sportFilter === 'cycling' ? <IconBike size={12} /> : <IconFilter size={12} />}
+              w={{ base: 'auto', sm: 120 }}
+            />
+          )}
           <Select
             size="xs"
             value={timeFilter}
@@ -224,7 +268,7 @@ const RideHistoryTable = ({
 
       {filteredRides.length === 0 ? (
         <Text c="dimmed" ta="center" py="xl">
-          No rides found {searchQuery && `matching "${searchQuery}"`}
+          No activities found {searchQuery && `matching "${searchQuery}"`}
         </Text>
       ) : isMobile ? (
         // Mobile card view
@@ -244,6 +288,16 @@ const RideHistoryTable = ({
                   </Text>
                 </Group>
                 <Group gap="xs">
+                  {hasMixedSports && (
+                    <Badge
+                      size="xs"
+                      color={getSportType(ride) === 'running' ? 'teal' : 'blue'}
+                      variant="light"
+                      leftSection={getSportType(ride) === 'running' ? <IconRun size={10} /> : <IconBike size={10} />}
+                    >
+                      {getSportType(ride) === 'running' ? 'Run' : 'Ride'}
+                    </Badge>
+                  )}
                   {(() => {
                     const provider = getProvider(ride);
                     const info = getProviderInfo(provider);
@@ -291,9 +345,18 @@ const RideHistoryTable = ({
                   <Badge color="blue" variant="light" size="sm">
                     {estimateTSS(ride)} TSS
                   </Badge>
-                  {getPower(ride) > 0 && (
+                  {getSportType(ride) === 'running' && getPace(ride) ? (
+                    <Badge color="teal" variant="light" size="sm">
+                      {formatPace(getPace(ride))}
+                    </Badge>
+                  ) : getPower(ride) > 0 ? (
                     <Badge color="yellow" variant="light" size="sm">
                       {Math.round(getPower(ride))}W
+                    </Badge>
+                  ) : null}
+                  {getCadence(ride) > 0 && getSportType(ride) === 'running' && (
+                    <Badge color="grape" variant="light" size="sm">
+                      {Math.round(getCadence(ride) * 2)} spm
                     </Badge>
                   )}
                   {getStravaActivityId(ride) && (
@@ -328,13 +391,14 @@ const RideHistoryTable = ({
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Date</Table.Th>
+                {hasMixedSports && <Table.Th>Sport</Table.Th>}
                 <Table.Th>Name</Table.Th>
                 <Table.Th>Source</Table.Th>
                 <Table.Th>Distance</Table.Th>
                 <Table.Th>Elevation</Table.Th>
                 <Table.Th>Duration</Table.Th>
                 <Table.Th>TSS</Table.Th>
-                <Table.Th>Power</Table.Th>
+                <Table.Th>Pace/Power</Table.Th>
                 <Table.Th>Actions</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -344,6 +408,20 @@ const RideHistoryTable = ({
                   <Table.Td>
                     <Text size="xs">{formatDate(getDate(ride))}</Text>
                   </Table.Td>
+                  {hasMixedSports && (
+                    <Table.Td>
+                      <Tooltip label={getSportType(ride) === 'running' ? 'Running' : 'Cycling'}>
+                        <Badge
+                          size="xs"
+                          color={getSportType(ride) === 'running' ? 'teal' : 'blue'}
+                          variant="light"
+                          leftSection={getSportType(ride) === 'running' ? <IconRun size={10} /> : <IconBike size={10} />}
+                        >
+                          {getSportType(ride) === 'running' ? 'Run' : 'Ride'}
+                        </Badge>
+                      </Tooltip>
+                    </Table.Td>
+                  )}
                   <Table.Td>
                     <Text size="sm" fw={500} lineClamp={1} maw={180}>
                       {getName(ride)}
@@ -389,7 +467,9 @@ const RideHistoryTable = ({
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    {getPower(ride) > 0 ? (
+                    {getSportType(ride) === 'running' && getPace(ride) ? (
+                      <Text size="sm">{formatPace(getPace(ride))}</Text>
+                    ) : getPower(ride) > 0 ? (
                       <Text size="sm">{Math.round(getPower(ride))}W</Text>
                     ) : (
                       <Text size="sm" c="dimmed">-</Text>
@@ -446,7 +526,7 @@ const RideHistoryTable = ({
       {totalPages > 1 && maxRows === Infinity && (
         <Group justify="space-between" align="center" mt="md" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
           <Text size="xs" c="dimmed">
-            Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalFilteredCount)} of {totalFilteredCount} rides
+            Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalFilteredCount)} of {totalFilteredCount} activities
           </Text>
           <Pagination
             size="sm"
@@ -467,7 +547,7 @@ const RideHistoryTable = ({
           rightSection={<IconChevronRight size={16} />}
           onClick={() => navigate('/training?tab=history')}
         >
-          View all {visibleRidesCount} rides
+          View all {visibleRidesCount} activities
         </Button>
       )}
 
