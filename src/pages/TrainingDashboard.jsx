@@ -932,6 +932,9 @@ function TrainingDashboard() {
                         raceGoals={raceGoals}
                         suggestedWorkout={suggestedWorkout}
                         recommendationReason={recommendation.primary?.reason}
+                        recommendationSource={recommendation.primary?.source}
+                        plannedRest={recommendation.plannedRest}
+                        plannedRestReason={recommendation.plannedRestReason}
                         focusTimeAvailable={focusTimeAvailable}
                         onFocusTimeChange={setFocusTimeAvailable}
                         onViewWorkout={handleViewWorkout}
@@ -1175,7 +1178,7 @@ function TrainingDashboard() {
 // ============================================================================
 // TODAY'S FOCUS HERO CARD - Story-Driven Narrative
 // ============================================================================
-function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, raceGoals, suggestedWorkout, recommendationReason, focusTimeAvailable, onFocusTimeChange, onViewWorkout }) {
+function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, raceGoals, suggestedWorkout, recommendationReason, recommendationSource, plannedRest, plannedRestReason, focusTimeAvailable, onFocusTimeChange, onViewWorkout }) {
   const lastRide = activities[0];
   const FormIcon = formStatus.icon;
 
@@ -1196,6 +1199,20 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
     const raceContext = daysUntilRace && nextRace
       ? `With ${nextRace.name} in ${daysUntilRace} day${daysUntilRace === 1 ? '' : 's'}, `
       : '';
+
+    // Planned rest day from training plan
+    if (plannedRest) {
+      return `${raceContext}Your training plan has a rest day scheduled today ${weekContext}. Recovery is part of the process.`;
+    }
+
+    // Planned workout from training plan — align narrative with the plan
+    if (recommendationSource === 'plan' && suggestedWorkout) {
+      const workoutCategory = suggestedWorkout.category || '';
+      if (workoutCategory === 'recovery') {
+        return `${raceContext}Your plan calls for easy recovery today ${weekContext}. Keep it light and let your body absorb recent training.`;
+      }
+      return `${raceContext}Your training plan has ${suggestedWorkout.name} scheduled today ${weekContext}.`;
+    }
 
     // RACE PROXIMITY TAKES PRIORITY OVER TSB
     // Race week (0-2 days): Rest and mental prep
@@ -1252,8 +1269,27 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             {getStory()}
           </Text>
 
-          {suggestedWorkout && (
+          {plannedRest && (
             <Box mt="md">
+              <Group gap="xs" mb="xs">
+                <Badge size="sm" variant="light" color="blue" leftSection={<IconCalendarEvent size={12} />}>
+                  Training Plan
+                </Badge>
+              </Group>
+              <Text size="sm" c="dimmed" fs="italic">{plannedRestReason || 'Rest day scheduled.'}</Text>
+              <Text size="xs" c="dimmed" mt="xs">Ask the AI Coach if you want to adjust today's plan.</Text>
+            </Box>
+          )}
+
+          {suggestedWorkout && !plannedRest && (
+            <Box mt="md">
+              {recommendationSource === 'plan' && (
+                <Group gap="xs" mb="xs">
+                  <Badge size="sm" variant="light" color="blue" leftSection={<IconCalendarEvent size={12} />}>
+                    Training Plan
+                  </Badge>
+                </Group>
+              )}
               {recommendationReason && (
                 <Text size="xs" c="dimmed" mb="xs" fs="italic">{recommendationReason}</Text>
               )}
@@ -1270,6 +1306,9 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
                   <Badge size="lg" variant="light" color="gray">{suggestedWorkout.duration}m</Badge>
                 )}
               </Group>
+              {recommendationSource === 'plan' && (
+                <Text size="xs" c="dimmed" mt="xs">Ask the AI Coach if you want to adjust today's plan.</Text>
+              )}
             </Box>
           )}
 
@@ -2463,14 +2502,27 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
   }
 
   // Add today's workout recommendation from unified service
-  if (workoutRecommendation?.primary) {
+  if (workoutRecommendation?.plannedRest) {
+    context.push(`\n--- TODAY'S WORKOUT RECOMMENDATION ---`);
+    context.push(`IMPORTANT: The dashboard is showing a REST DAY to the athlete (from their training plan). Your advice should be consistent with this. If you believe the athlete should train today instead, explain why you're deviating from the plan.`);
+    context.push(`Primary: Rest Day (from training plan)`);
+    const analysis = workoutRecommendation.analysis;
+    if (analysis?.formStatus) {
+      context.push(`Form Status: ${analysis.formStatus}`);
+    }
+  } else if (workoutRecommendation?.primary) {
     const rec = workoutRecommendation.primary;
     const analysis = workoutRecommendation.analysis;
     context.push(`\n--- TODAY'S WORKOUT RECOMMENDATION ---`);
-    context.push(`IMPORTANT: The dashboard is currently showing the following recommendation to the athlete. Your workout advice should be consistent with this unless the athlete asks you to override it.`);
+    if (rec.source === 'plan') {
+      context.push(`IMPORTANT: The dashboard is showing the athlete's PLANNED workout from their training plan. Your advice should be consistent with this. If you believe the athlete should do something different, explain why you're deviating from the plan.`);
+    } else {
+      context.push(`IMPORTANT: The dashboard is currently showing the following recommendation to the athlete. Your workout advice should be consistent with this unless the athlete asks you to override it.`);
+    }
     context.push(`Primary: ${rec.workout?.name || 'None'} (${rec.workout?.id || 'unknown'})`);
     context.push(`Category: ${rec.category}`);
     context.push(`Reason: ${rec.reason}`);
+    context.push(`Source: ${rec.source === 'plan' ? 'Training Plan' : 'Auto-recommendation'}`);
     if (analysis?.formStatus) {
       context.push(`Form Status: ${analysis.formStatus}`);
     }

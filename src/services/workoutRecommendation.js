@@ -346,6 +346,59 @@ export function getWorkoutRecommendation({
     };
   }
 
+  // ── Planned workout for today takes priority ──────────────────────────────
+  // If the training plan has a workout scheduled for today, surface it as the
+  // primary recommendation so the Today card stays consistent with the calendar
+  // and AI Coach (which also sees the planned calendar).
+  const today = new Date().toISOString().split('T')[0];
+  const todayPlanned = plannedWorkouts.find(w => w.scheduled_date === today && !w.completed && !w.skipped_reason);
+
+  if (todayPlanned) {
+    const plannedType = todayPlanned.workout_type || 'endurance';
+
+    // Rest / off days: recommend rest, no workout
+    if (plannedType === 'rest' || plannedType === 'off') {
+      return {
+        primary: null,
+        alternatives: [],
+        analysis,
+        plannedRest: true,
+        plannedRestReason: 'Rest day — your training plan has a rest day scheduled today.',
+      };
+    }
+
+    // Try to find the exact workout from the library
+    const plannedWorkout = todayPlanned.workout_id
+      ? getWorkoutById(todayPlanned.workout_id)
+      : null;
+
+    if (plannedWorkout) {
+      // Build alternatives from normal scoring for "if you want something different"
+      const recommendations = buildCategoryRecommendations(needs, timeAvailable);
+      const alternatives = recommendations
+        .filter(rec => rec.workouts[0]?.id !== plannedWorkout.id)
+        .slice(0, 2)
+        .map(rec => ({
+          workout: rec.workouts[0],
+          reason: rec.reason,
+          score: rec.score,
+          category: rec.category,
+        }));
+
+      return {
+        primary: {
+          workout: plannedWorkout,
+          reason: `Planned: ${todayPlanned.name || plannedWorkout.name}`,
+          score: 90,
+          category: plannedWorkout.category || plannedType,
+          source: 'plan',
+        },
+        alternatives,
+        analysis,
+      };
+    }
+  }
+
   // Normal recommendation path: build ranked categories
   const recommendations = buildCategoryRecommendations(needs, timeAvailable);
 
