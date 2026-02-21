@@ -29,11 +29,11 @@ ALTER TABLE training_plans
 COMMENT ON COLUMN training_plans.sport_type IS 'Primary sport for this plan: cycling or running';
 
 -- ============================================================
--- 3. Add running profile fields to user profiles
+-- 3. Add running profile fields to user_profiles
 -- ============================================================
 
 -- Running threshold pace and fitness metrics
-ALTER TABLE profiles
+ALTER TABLE user_profiles
   ADD COLUMN IF NOT EXISTS threshold_pace_sec INTEGER,
   ADD COLUMN IF NOT EXISTS vdot NUMERIC,
   ADD COLUMN IF NOT EXISTS max_hr INTEGER,
@@ -41,12 +41,12 @@ ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS lthr INTEGER,
   ADD COLUMN IF NOT EXISTS primary_sport TEXT DEFAULT 'cycling';
 
-COMMENT ON COLUMN profiles.threshold_pace_sec IS 'Running lactate threshold pace in seconds per km';
-COMMENT ON COLUMN profiles.vdot IS 'Jack Daniels VDOT running fitness score';
-COMMENT ON COLUMN profiles.max_hr IS 'Maximum heart rate in bpm';
-COMMENT ON COLUMN profiles.resting_hr IS 'Resting heart rate in bpm';
-COMMENT ON COLUMN profiles.lthr IS 'Lactate threshold heart rate in bpm';
-COMMENT ON COLUMN profiles.primary_sport IS 'User primary sport: cycling or running';
+COMMENT ON COLUMN user_profiles.threshold_pace_sec IS 'Running lactate threshold pace in seconds per km';
+COMMENT ON COLUMN user_profiles.vdot IS 'Jack Daniels VDOT running fitness score';
+COMMENT ON COLUMN user_profiles.max_hr IS 'Maximum heart rate in bpm';
+COMMENT ON COLUMN user_profiles.resting_hr IS 'Resting heart rate in bpm';
+COMMENT ON COLUMN user_profiles.lthr IS 'Lactate threshold heart rate in bpm';
+COMMENT ON COLUMN user_profiles.primary_sport IS 'User primary sport: cycling or running';
 
 -- ============================================================
 -- 4. Add running-specific fields to user_training_preferences
