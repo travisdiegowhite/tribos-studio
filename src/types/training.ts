@@ -312,7 +312,7 @@ export interface PlanCategoryDefinition {
   color: string;
 }
 
-export type PlanCategoriesMap = Record<PlanCategory, PlanCategoryDefinition>;
+export type PlanCategoriesMap = Partial<Record<PlanCategory, PlanCategoryDefinition>>;
 
 // ============================================================
 // WORKOUT STRUCTURE

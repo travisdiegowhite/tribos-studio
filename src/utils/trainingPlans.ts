@@ -246,6 +246,47 @@ export const GOAL_TYPES: GoalTypesMap = {
     name: 'Gravel Racing',
     description: 'Mixed terrain endurance events',
     icon: '🪨'
+  },
+  // Running-specific goals
+  '5k': {
+    name: '5K',
+    description: 'Train for a 5K race',
+    icon: '🏃'
+  },
+  '10k': {
+    name: '10K',
+    description: 'Train for a 10K race',
+    icon: '🏃'
+  },
+  half_marathon: {
+    name: 'Half Marathon',
+    description: 'Train for a half marathon (21.1 km)',
+    icon: '🏅'
+  },
+  marathon: {
+    name: 'Marathon',
+    description: 'Train for a full marathon (42.2 km)',
+    icon: '🥇'
+  },
+  ultra: {
+    name: 'Ultra Marathon',
+    description: 'Ultra-distance running preparation',
+    icon: '🏔️'
+  },
+  trail: {
+    name: 'Trail Running',
+    description: 'Off-road and trail race preparation',
+    icon: '⛰️'
+  },
+  speed: {
+    name: 'Speed',
+    description: 'Improve running speed and track performance',
+    icon: '⚡'
+  },
+  base_building: {
+    name: 'Base Building',
+    description: 'Build aerobic base and weekly mileage',
+    icon: '🏗️'
   }
 };
 
@@ -295,6 +336,31 @@ export const PLAN_CATEGORIES: PlanCategoriesMap = {
     description: 'Beginner plans and aerobic base building for all levels',
     icon: '🌱',
     color: '#6B8C72' // sage
+  },
+  // Running-specific categories
+  race_distance: {
+    name: 'Race Distance',
+    description: '5K, 10K, half marathon, and marathon training plans for runners',
+    icon: '🏃',
+    color: '#2B8A7F' // teal
+  },
+  trail_ultra: {
+    name: 'Trail & Ultra',
+    description: 'Trail running and ultra-distance preparation plans',
+    icon: '⛰️',
+    color: '#6B5B3E' // earthy
+  },
+  speed_development: {
+    name: 'Speed Development',
+    description: 'Track and speed-focused running plans for race performance',
+    icon: '⚡',
+    color: '#C17520' // amber
+  },
+  base_building: {
+    name: 'Base Building',
+    description: 'Mileage building for new or returning runners',
+    icon: '🏗️',
+    color: '#5B7AA8' // steel blue
   }
 };
 

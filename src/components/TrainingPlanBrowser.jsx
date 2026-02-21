@@ -37,12 +37,16 @@ import {
   IconDotsVertical,
   IconX,
   IconRefresh,
+  IconBike,
+  IconRun,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { getAllPlans, getPlansByGoal, getPlansByFitnessLevel, getPlansByCategory } from '../data/trainingPlanTemplates';
+import { getAllRunningPlans, getRunningPlansByCategory } from '../data/runningPlanTemplates';
 import { TRAINING_PHASES, GOAL_TYPES, FITNESS_LEVELS, WORKOUT_TYPES, PLAN_CATEGORIES } from '../utils/trainingPlans';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
+import { RUNNING_WORKOUT_LIBRARY } from '../data/runningWorkoutLibrary';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { trackFeature, EventType } from '../utils/activityTracking';
@@ -53,6 +57,7 @@ import { trackFeature, EventType } from '../utils/activityTracking';
  */
 const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) => {
   const { user } = useAuth();
+  const [sportFilter, setSportFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [filter, setFilter] = useState('all');
   const [selectedPlan, setSelectedPlan] = useState(null);
@@ -68,8 +73,24 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
   });
   const [planToActivate, setPlanToActivate] = useState(null);
 
-  // Get all plans and filter
-  const allPlans = useMemo(() => getAllPlans(), []);
+  // Get all plans (cycling + running) and filter by sport
+  const allPlans = useMemo(() => {
+    const cycling = getAllPlans().map(p => ({ ...p, sportType: p.sportType || 'cycling' }));
+    const running = getAllRunningPlans().map(p => ({ ...p, sportType: p.sportType || 'running' }));
+    const combined = [...cycling, ...running];
+    if (sportFilter === 'cycling') return cycling;
+    if (sportFilter === 'running') return running;
+    return combined;
+  }, [sportFilter]);
+
+  // Helper to look up a workout in the correct library by sport type
+  const getWorkoutFromLibrary = (workoutId, planSportType) => {
+    if (!workoutId) return null;
+    if (planSportType === 'running') {
+      return RUNNING_WORKOUT_LIBRARY[workoutId] || WORKOUT_LIBRARY[workoutId] || null;
+    }
+    return WORKOUT_LIBRARY[workoutId] || RUNNING_WORKOUT_LIBRARY[workoutId] || null;
+  };
 
   // Helper to get plan start date (supports both old and new schema)
   const getPlanStartDate = (plan) => plan?.started_at || plan?.start_date;
@@ -345,7 +366,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             dayNames.forEach((dayName, dayIndex) => {
               const dayPlan = weekTemplate[dayName];
               if (dayPlan) {
-                const workoutInfo = dayPlan.workout ? WORKOUT_LIBRARY[dayPlan.workout] : null;
+                const workoutInfo = dayPlan.workout ? getWorkoutFromLibrary(dayPlan.workout, activePlan?.sportType || template?.sportType) : null;
                 workouts.push({
                   plan_id: activePlan.id,
                   user_id: user.id, // Required by database schema
@@ -370,7 +391,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         for (let week = 1; week <= totalWeeks; week++) {
           for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
             const dayWorkout = getWorkoutForDay(methodology, dayOfWeek, week, totalWeeks);
-            const workoutInfo = dayWorkout.workout ? WORKOUT_LIBRARY[dayWorkout.workout] : null;
+            const workoutInfo = dayWorkout.workout ? getWorkoutFromLibrary(dayWorkout.workout, activePlan?.sportType || template?.sportType) : null;
             workouts.push({
               plan_id: activePlan.id,
               user_id: user.id, // Required by database schema
@@ -469,7 +490,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
     // First filter by category
     if (categoryFilter !== 'all') {
-      plans = getPlansByCategory(categoryFilter);
+      // Get plans from both libraries matching the category
+      const cyclingByCategory = getPlansByCategory(categoryFilter);
+      const runningByCategory = getRunningPlansByCategory(categoryFilter);
+      const allByCategory = [...cyclingByCategory, ...runningByCategory];
+      // Intersect with current sport-filtered list
+      const planIds = new Set(plans.map(p => p.id));
+      plans = allByCategory.filter(p => planIds.has(p.id));
     }
 
     // Then filter by fitness level or goal
@@ -718,7 +745,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             dayNames.forEach((dayName, dayIndex) => {
               const dayPlan = weekTemplate[dayName];
               if (dayPlan) {
-                const workoutInfo = dayPlan.workout ? WORKOUT_LIBRARY[dayPlan.workout] : null;
+                const workoutInfo = dayPlan.workout ? getWorkoutFromLibrary(dayPlan.workout, plan.sportType) : null;
 
                 workouts.push({
                   plan_id: newPlan.id,
@@ -751,7 +778,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               plan.duration
             );
 
-            const workoutInfo = dayWorkout.workout ? WORKOUT_LIBRARY[dayWorkout.workout] : null;
+            const workoutInfo = dayWorkout.workout ? getWorkoutFromLibrary(dayWorkout.workout, plan.sportType) : null;
 
             workouts.push({
               plan_id: newPlan.id,
@@ -939,6 +966,14 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         </Group>
 
         <Group gap="xs" wrap="wrap">
+          <Badge
+            size="xs"
+            color={plan.sportType === 'running' ? 'teal' : 'blue'}
+            variant="light"
+            leftSection={plan.sportType === 'running' ? <IconRun size={10} /> : <IconBike size={10} />}
+          >
+            {plan.sportType === 'running' ? 'Running' : 'Cycling'}
+          </Badge>
           {plan.category && PLAN_CATEGORIES[plan.category] && (
             <Badge
               size="xs"
@@ -1028,6 +1063,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
           {/* Badges */}
           <Group gap="xs">
+            <Badge
+              color={selectedPlan.sportType === 'running' ? 'teal' : 'blue'}
+              variant="light"
+              leftSection={selectedPlan.sportType === 'running' ? <IconRun size={12} /> : <IconBike size={12} />}
+            >
+              {selectedPlan.sportType === 'running' ? 'Running' : 'Cycling'}
+            </Badge>
             <Badge color={getMethodologyColor(selectedPlan.methodology)} variant="filled">
               {selectedPlan.methodology} Training
             </Badge>
@@ -1183,9 +1225,25 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         <Text fw={600} size="lg" style={{ color: 'var(--tribos-text-primary)' }}>
           Training Plans
         </Text>
-        <Badge size="lg" color="gray" variant="light">
-          {filteredPlans.length} {filteredPlans.length === 1 ? 'plan' : 'plans'}
-        </Badge>
+        <Group gap="sm">
+          <SegmentedControl
+            size="xs"
+            value={sportFilter}
+            onChange={(value) => {
+              setSportFilter(value);
+              setCategoryFilter('all');
+              setFilter('all');
+            }}
+            data={[
+              { label: 'All', value: 'all' },
+              { label: 'Cycling', value: 'cycling' },
+              { label: 'Running', value: 'running' },
+            ]}
+          />
+          <Badge size="lg" color="gray" variant="light">
+            {filteredPlans.length} {filteredPlans.length === 1 ? 'plan' : 'plans'}
+          </Badge>
+        </Group>
       </Group>
 
       {/* Category Tabs */}
