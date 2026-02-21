@@ -498,6 +498,69 @@ describe('getWorkoutRecommendation', () => {
     expect(result.analysis.formStatus).toBe('ready');
   });
 
+  it('returns planned workout when one is scheduled for today', () => {
+    const result = getWorkoutRecommendation({
+      trainingMetrics: { tsb: 20, ctl: 80, atl: 60 },
+      plannedWorkouts: [{ scheduled_date: todayStr(), workout_type: 'recovery', workout_id: 'recovery_spin', name: 'Recovery Spin' }],
+      ftp: 250,
+    });
+    expect(result.primary.workout.id).toBe('recovery_spin');
+    expect(result.primary.source).toBe('plan');
+    expect(result.primary.category).toBe('recovery');
+  });
+
+  it('planned workout overrides TSB-based recommendation', () => {
+    // TSB 20 (fresh) would normally suggest intensity, but plan says recovery
+    const result = getWorkoutRecommendation({
+      trainingMetrics: { tsb: 20, ctl: 80, atl: 60 },
+      plannedWorkouts: [{ scheduled_date: todayStr(), workout_type: 'recovery', workout_id: 'recovery_spin', name: 'Recovery Spin' }],
+      ftp: 250,
+    });
+    expect(result.primary.workout.id).toBe('recovery_spin');
+    expect(result.primary.source).toBe('plan');
+  });
+
+  it('returns planned rest when rest day is scheduled', () => {
+    const result = getWorkoutRecommendation({
+      trainingMetrics: { tsb: 20, ctl: 80, atl: 60 },
+      plannedWorkouts: [{ scheduled_date: todayStr(), workout_type: 'rest', name: 'Rest Day' }],
+      ftp: 250,
+    });
+    expect(result.primary).toBeNull();
+    expect(result.plannedRest).toBe(true);
+  });
+
+  it('skips completed planned workouts', () => {
+    const result = getWorkoutRecommendation({
+      trainingMetrics: { tsb: 20, ctl: 80, atl: 60 },
+      plannedWorkouts: [{ scheduled_date: todayStr(), workout_type: 'recovery', workout_id: 'recovery_spin', completed: true }],
+      ftp: 250,
+    });
+    // Should fall through to normal recommendation since planned workout is completed
+    expect(result.primary.source).not.toBe('plan');
+  });
+
+  it('skips skipped planned workouts', () => {
+    const result = getWorkoutRecommendation({
+      trainingMetrics: { tsb: 20, ctl: 80, atl: 60 },
+      plannedWorkouts: [{ scheduled_date: todayStr(), workout_type: 'recovery', workout_id: 'recovery_spin', skipped_reason: 'sick' }],
+      ftp: 250,
+    });
+    // Should fall through to normal recommendation
+    expect(result.primary.source).not.toBe('plan');
+  });
+
+  it('race proximity still overrides planned workouts', () => {
+    const result = getWorkoutRecommendation({
+      trainingMetrics: { tsb: 20, ctl: 80, atl: 60 },
+      plannedWorkouts: [{ scheduled_date: todayStr(), workout_type: 'threshold', workout_id: 'two_by_twenty_ftp' }],
+      raceGoals: [{ name: 'Crit', race_date: futureDate(3) }],
+      ftp: 250,
+    });
+    // Race week should still force recovery
+    expect(result.primary.category).toBe('recovery');
+  });
+
   it('primary reason is always a non-empty string', () => {
     const scenarios = [
       { trainingMetrics: { tsb: 20 }, ftp: 200 },

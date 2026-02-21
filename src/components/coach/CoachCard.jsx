@@ -35,10 +35,16 @@ function getCoachingMessage(trainingContext, workoutRecommendation) {
     return "Ready to help with your training. Ask me about your fitness, race prep, or training strategy.";
   }
 
+  // Planned rest day from training plan
+  if (workoutRecommendation?.plannedRest) {
+    return "Your plan has a rest day today. Recovery is when your body adapts and gets stronger. Ask me if you're unsure whether to rest or ride.";
+  }
+
   // If we have a recommendation from the unified service, reference it
   const rec = workoutRecommendation?.primary;
   if (rec?.workout?.name && rec?.reason) {
-    return `Today I'd suggest ${rec.workout.name} — ${rec.reason.charAt(0).toLowerCase() + rec.reason.slice(1)} Ask me if you want to adjust or discuss alternatives.`;
+    const sourceNote = rec.source === 'plan' ? ' (from your training plan)' : '';
+    return `Today I'd suggest ${rec.workout.name}${sourceNote} — ${rec.reason.charAt(0).toLowerCase() + rec.reason.slice(1)} Ask me if you want to adjust or discuss alternatives.`;
   }
 
   // Fallback: TSB-based message if no recommendation available
