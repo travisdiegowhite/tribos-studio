@@ -679,7 +679,6 @@ export default function EmailCampaigns() {
           </Group>
         }
         size="xl"
-        scrollAreaComponent={ScrollArea.Autosize}
       >
         <Tabs defaultValue="content">
           <Tabs.List>
@@ -839,7 +838,7 @@ export default function EmailCampaigns() {
                           signedUpAfter: date instanceof Date ? date.toISOString() : undefined
                         })}
                         clearable
-                        popoverProps={{ withinPortal: true, zIndex: 1000 }}
+                        popoverProps={{ withinPortal: true, zIndex: 10000, middlewares: { flip: true, shift: true } }}
                       />
                       <DateInput
                         label="Signed up before"
@@ -850,7 +849,7 @@ export default function EmailCampaigns() {
                           signedUpBefore: date instanceof Date ? date.toISOString() : undefined
                         })}
                         clearable
-                        popoverProps={{ withinPortal: true, zIndex: 1000 }}
+                        popoverProps={{ withinPortal: true, zIndex: 10000, middlewares: { flip: true, shift: true } }}
                       />
                     </Group>
                     <Text size="xs" c="dimmed" mt="xs">
