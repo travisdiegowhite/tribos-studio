@@ -23,6 +23,7 @@ import Terms from './pages/Terms.jsx';
 import NotFound from './pages/NotFound.jsx';
 import Admin from './pages/Admin.jsx';
 import CommunityPage from './pages/CommunityPage.jsx';
+import GearPage from './pages/GearPage.jsx';
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
@@ -192,6 +193,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/gear"
+        element={
+          <ProtectedRoute>
+            <GearPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/gear/:gearId"
+        element={
+          <ProtectedRoute>
+            <GearPage />
           </ProtectedRoute>
         }
       />

@@ -43,6 +43,8 @@ import { stravaService } from '../utils/stravaService';
 import { notifications } from '@mantine/notifications';
 import { useCommunity } from '../hooks/useCommunity';
 import { CafeSummaryWidget, WeeklyCheckInWidget } from '../components/community';
+import { useGear } from '../hooks/useGear.ts';
+import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -73,6 +75,9 @@ function Dashboard() {
     createCheckIn,
     shouldPromptCheckIn,
   } = useCommunity({ userId: user?.id });
+
+  // Gear alerts hook
+  const { alerts: gearAlerts, dismissAlert: dismissGearAlert } = useGear({ userId: user?.id, alertsOnly: true });
 
   // Check if onboarding is needed and load user profile
   useEffect(() => {
@@ -360,6 +365,17 @@ function Dashboard() {
                 </Group>
                 <FitnessMetrics activities={activities} loading={loading} />
               </Card>
+
+              {/* Gear Alerts */}
+              {gearAlerts.length > 0 && (
+                <Card>
+                  <Group justify="space-between" mb="sm">
+                    <Text fw={500} size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Gear Alerts</Text>
+                    <Button size="xs" variant="subtle" component={Link} to="/gear">View All</Button>
+                  </Group>
+                  <GearAlertBanner alerts={gearAlerts} onDismiss={dismissGearAlert} compact />
+                </Card>
+              )}
 
               {/* Cafe Summary Widget */}
               <CafeSummaryWidget

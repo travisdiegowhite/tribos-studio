@@ -320,6 +320,20 @@ async function processWahooWorkout(integration, workout, webhookData) {
     hasGPS: !!mapPolyline
   });
 
+  // Auto-assign gear to activity
+  try {
+    const { assignGearToActivity } = await import('./utils/gearAssignment.js');
+    await assignGearToActivity(supabase, {
+      activityId: activity.id,
+      userId: integration.user_id,
+      activityType: activity.type,
+      distance: activity.distance,
+      stravaGearId: null,
+    });
+  } catch (gearError) {
+    console.error('⚠️ Gear assignment failed (non-critical):', gearError.message);
+  }
+
   // Update integration last sync
   await supabase
     .from('bike_computer_integrations')

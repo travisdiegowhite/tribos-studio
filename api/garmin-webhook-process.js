@@ -393,6 +393,20 @@ async function downloadAndProcessActivity(event, integration) {
     dataSource: activityDetails ? 'Garmin API' : 'Webhook only'
   });
 
+  // Auto-assign gear to activity
+  try {
+    const { assignGearToActivity } = await import('./utils/gearAssignment.js');
+    await assignGearToActivity(supabase, {
+      activityId: activity.id,
+      userId: integration.user_id,
+      activityType: activity.type,
+      distance: activity.distance,
+      stravaGearId: null,
+    });
+  } catch (gearError) {
+    console.error('⚠️ Gear assignment failed (non-critical):', gearError.message);
+  }
+
   if (activityInfo.startTimeInSeconds) {
     await updateBackfillChunkIfApplicable(integration.user_id, activityInfo.startTimeInSeconds);
   }
