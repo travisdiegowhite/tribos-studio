@@ -492,7 +492,8 @@ body {
 .mantine-TextInput-input:focus,
 .mantine-Select-input:focus,
 .mantine-Textarea-input:focus,
-.mantine-NumberInput-input:focus {
+.mantine-NumberInput-input:focus,
+.mantine-DateInput-input:focus {
   border-color: var(--tribos-terracotta-border) !important;
   outline: none;
   box-shadow: 0 0 0 2px rgba(158, 90, 60, 0.1) !important;
