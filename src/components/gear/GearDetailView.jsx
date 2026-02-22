@@ -176,6 +176,7 @@ export default function GearDetailView({
         title={null}
         size="xl"
         fullScreen={isMobile}
+        closeOnClickOutside={!addComponentOpen}
       >
         {loading ? (
           <Group justify="center" py="xl">
