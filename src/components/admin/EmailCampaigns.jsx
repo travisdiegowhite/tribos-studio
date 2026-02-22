@@ -822,7 +822,7 @@ export default function EmailCampaigns() {
                   <Text fw={600}>Registered Users Filters</Text>
 
                   {/* NEW: Date Range Filter for New Users */}
-                  <Paper withBorder p="md" bg="var(--mantine-color-dark-7)">
+                  <Paper withBorder p="md">
                     <Group gap="xs" mb="sm">
                       <ThemeIcon size="sm" variant="light" color="sage">
                         <IconCalendar size={14} />
@@ -937,7 +937,7 @@ export default function EmailCampaigns() {
                     min={1}
                   />
 
-                  <Paper withBorder p="md" bg="var(--mantine-color-dark-7)">
+                  <Paper withBorder p="md">
                     <Group gap="xs" mb="sm">
                       <ThemeIcon size="sm" variant="light" color="orange">
                         <IconUsers size={14} />

@@ -432,6 +432,44 @@ export const theme = createTheme({
       }),
     },
 
+    DateInput: {
+      defaultProps: { radius: 0 },
+      styles: () => ({
+        input: {
+          background: 'var(--tribos-input)',
+          border: '1px solid var(--tribos-border-default)',
+          color: 'var(--tribos-text-100)',
+          transition: 'all 0.15s',
+          '&:focus': {
+            borderColor: 'var(--tribos-terracotta-border)',
+            boxShadow: '0 0 0 2px rgba(158, 90, 60, 0.1)',
+          },
+          '&::placeholder': { color: 'var(--tribos-text-400)' },
+        },
+        label: {
+          fontFamily: "'DM Mono', monospace",
+          fontSize: 12,
+          fontWeight: 500,
+          letterSpacing: '2px',
+          textTransform: 'uppercase',
+          color: 'var(--tribos-text-300)',
+        },
+        calendarHeader: {
+          background: 'var(--tribos-elevated)',
+        },
+        day: {
+          color: 'var(--tribos-text-100)',
+          '&:hover': {
+            background: 'var(--tribos-terracotta-surface)',
+          },
+          '&[data-selected]': {
+            background: 'var(--tribos-terracotta-500)',
+            color: '#fff',
+          },
+        },
+      }),
+    },
+
     Badge: {
       defaultProps: { radius: 0 },
       styles: () => ({
