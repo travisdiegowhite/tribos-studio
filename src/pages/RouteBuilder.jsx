@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil, IconMountain, IconHeartRateMonitor, IconMapPin, IconArrowRight } from '@tabler/icons-react';
+import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil, IconMountain, IconHeartRateMonitor, IconMapPin, IconArrowRight, IconRun } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -62,6 +62,9 @@ import AlternativeRouteLayers from '../components/RouteBuilder/AlternativeRouteL
 import { IconArrowsExchange, IconWand } from '@tabler/icons-react';
 import { applyRouteEdit, classifyEditIntent } from '../utils/aiRouteEditService';
 import AIEditPanel from '../components/RouteBuilder/AIEditPanel.jsx';
+import RunReachLayer from '../components/RunReachLayer.jsx';
+import RunReachPanel from '../components/RunReachPanel.jsx';
+import { fetchRunReach } from '../utils/isochroneService';
 
 // Shared constants — single source of truth in components/RouteBuilder/index.js
 import { MAPBOX_TOKEN, BASEMAP_STYLES, CYCLOSM_STYLE } from '../components/RouteBuilder';
@@ -285,6 +288,20 @@ function RouteBuilder() {
   const [aiEditLoading, setAiEditLoading] = useState(false);
   const [aiEditResult, setAiEditResult] = useState(null);
   const [aiEditPrevGeometry, setAiEditPrevGeometry] = useState(null);
+
+  // Run Reach — road network reachability visualization
+  const [showRunReach, setShowRunReach] = useState(false);
+  const [runReachData, setRunReachData] = useState(null);
+  const [runReachSource, setRunReachSource] = useState('none'); // 'valhalla' | 'mapbox' | 'none'
+  const [runReachLoading, setRunReachLoading] = useState(false);
+  const [runReachOrigin, setRunReachOrigin] = useState(null); // [lng, lat]
+  const [settingRunReachOrigin, setSettingRunReachOrigin] = useState(false);
+  const [runReachMode, setRunReachMode] = useState('running');
+  const [runReachPace, setRunReachPace] = useState(8.5);
+  const [runReachSpeed, setRunReachSpeed] = useState(15);
+  const [runReachTime, setRunReachTime] = useState(30);
+  const [runReachOutAndBack, setRunReachOutAndBack] = useState(true);
+  const [runReachMaxDistance, setRunReachMaxDistance] = useState(0);
 
   // Effective waypoints for segment alternatives: use actual waypoints if available,
   // otherwise derive start/end from route geometry (covers AI-generated routes)
@@ -752,6 +769,49 @@ function RouteBuilder() {
     };
   }, [viewport, showBikeInfrastructure, mapStyleId, fetchInfrastructureForViewport]);
 
+  // Fetch Run Reach data when origin or settings change
+  const fetchRunReachData = useCallback(async (origin) => {
+    if (!origin) return;
+    setRunReachLoading(true);
+    try {
+      const result = await fetchRunReach(origin, {
+        mode: runReachMode,
+        paceMinPerMile: runReachPace,
+        speedMph: runReachSpeed,
+        timeMinutes: runReachTime,
+        outAndBack: runReachOutAndBack,
+        mapboxToken: MAPBOX_TOKEN,
+      });
+      setRunReachData(result.data);
+      setRunReachSource(result.source);
+      setRunReachMaxDistance(result.maxDistanceMeters);
+    } catch (error) {
+      console.error('Run Reach fetch failed:', error);
+      setRunReachData(null);
+      setRunReachSource('none');
+    } finally {
+      setRunReachLoading(false);
+    }
+  }, [runReachMode, runReachPace, runReachSpeed, runReachTime, runReachOutAndBack]);
+
+  // Re-fetch when settings change and we have an origin
+  useEffect(() => {
+    if (showRunReach && runReachOrigin) {
+      fetchRunReachData(runReachOrigin);
+    }
+  }, [showRunReach, runReachOrigin, fetchRunReachData]);
+
+  // Clear Run Reach data when toggled off
+  useEffect(() => {
+    if (!showRunReach) {
+      setRunReachData(null);
+      setRunReachSource('none');
+      setRunReachOrigin(null);
+      setSettingRunReachOrigin(false);
+      setRunReachMaxDistance(0);
+    }
+  }, [showRunReach]);
+
   // Fetch POIs along route when toggle is on and route changes
   useEffect(() => {
     if (!showPOIs || !routeGeometry?.coordinates || routeGeometry.coordinates.length < 2) {
@@ -879,6 +939,13 @@ function RouteBuilder() {
   const handleMapClick = useCallback((event) => {
     const { lng, lat } = event.lngLat;
 
+    // If setting Run Reach origin, capture this click
+    if (settingRunReachOrigin) {
+      setRunReachOrigin([lng, lat]);
+      setSettingRunReachOrigin(false);
+      return;
+    }
+
     // If in edit mode and we have a route, check for route click
     if (editMode && routeGeometry?.coordinates) {
       const routeClick = detectRouteClick(routeGeometry.coordinates, { lng, lat }, 100);
@@ -988,7 +1055,7 @@ function RouteBuilder() {
     newWaypoints.push(newWaypoint);
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
-  }, [waypoints, calculateRoute, editMode, routeGeometry, builderMode]);
+  }, [waypoints, calculateRoute, editMode, routeGeometry, builderMode, settingRunReachOrigin]);
 
   // Remove waypoint (suppressed during drag)
   const removeWaypoint = useCallback((id) => {
@@ -2910,13 +2977,23 @@ function RouteBuilder() {
                 mapStyle={currentMapStyle}
                 mapboxAccessToken={MAPBOX_TOKEN}
                 style={{ width: '100%', height: '100%' }}
-                cursor={builderMode === 'manual' || builderMode === 'editing' ? 'crosshair' : 'grab'}
+                cursor={settingRunReachOrigin ? 'crosshair' : builderMode === 'manual' || builderMode === 'editing' ? 'crosshair' : 'grab'}
               >
                 {/* Bike Infrastructure Layer - renders below routes */}
                 {showBikeInfrastructure && mapStyleId !== 'cyclosm' && (
                   <BikeInfrastructureLayer
                     data={infrastructureData}
                     visible={showBikeInfrastructure}
+                  />
+                )}
+
+                {/* Run Reach Layer - road network reachability */}
+                {showRunReach && (
+                  <RunReachLayer
+                    data={runReachData}
+                    source={runReachSource}
+                    origin={runReachOrigin}
+                    visible={showRunReach}
                   />
                 )}
 
@@ -3242,6 +3319,27 @@ function RouteBuilder() {
                     <IconBike size={20} color={showBikeInfrastructure ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
+                <Tooltip label={showRunReach ? 'Hide Run Reach' : 'Run Reach'}>
+                  <Button
+                    variant={showRunReach ? 'filled' : 'default'}
+                    color={showRunReach ? 'green' : 'dark'}
+                    size="md"
+                    onClick={() => {
+                      const newVal = !showRunReach;
+                      setShowRunReach(newVal);
+                      if (newVal) setSettingRunReachOrigin(true);
+                    }}
+                    loading={runReachLoading}
+                    style={{
+                      padding: '0 12px',
+                      flexShrink: 0,
+                      backgroundColor: showRunReach ? '#22c55e' : 'var(--tribos-bg-secondary)',
+                      border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+                    }}
+                  >
+                    <IconRun size={20} color={showRunReach ? '#fff' : 'var(--tribos-text-100)'} />
+                  </Button>
+                </Tooltip>
                 {routeGeometry && (
                   <Tooltip label={showPOIs ? 'Hide POIs' : 'Show Nearby POIs'}>
                     <Button
@@ -3422,6 +3520,30 @@ function RouteBuilder() {
                 onClose={() => setShowPOIs(false)}
                 formatDist={formatDist}
               />
+            )}
+
+            {/* Run Reach Panel (mobile) */}
+            {showRunReach && (
+              <Box style={{ position: 'absolute', bottom: 20, left: 16, right: 16, zIndex: 10 }}>
+                <RunReachPanel
+                  mode={runReachMode}
+                  onModeChange={setRunReachMode}
+                  paceMinPerMile={runReachPace}
+                  onPaceChange={setRunReachPace}
+                  speedMph={runReachSpeed}
+                  onSpeedChange={setRunReachSpeed}
+                  timeMinutes={runReachTime}
+                  onTimeChange={setRunReachTime}
+                  outAndBack={runReachOutAndBack}
+                  onOutAndBackChange={setRunReachOutAndBack}
+                  maxDistanceMeters={runReachMaxDistance}
+                  loading={runReachLoading}
+                  source={runReachSource}
+                  hasOrigin={!!runReachOrigin}
+                  onClose={() => setShowRunReach(false)}
+                  onSetOrigin={() => setSettingRunReachOrigin(true)}
+                />
+              </Box>
             )}
 
             {/* Edit Mode Floating Panel */}
@@ -4504,6 +4626,26 @@ function RouteBuilder() {
                   <IconBike size={20} color={showBikeInfrastructure ? '#fff' : 'var(--tribos-text-100)'} />
                 </Button>
               </Tooltip>
+              <Tooltip label={showRunReach ? 'Hide Run Reach' : 'Run Reach'}>
+                <Button
+                  variant={showRunReach ? 'filled' : 'default'}
+                  color={showRunReach ? 'green' : 'dark'}
+                  size="md"
+                  onClick={() => {
+                    const newVal = !showRunReach;
+                    setShowRunReach(newVal);
+                    if (newVal) setSettingRunReachOrigin(true);
+                  }}
+                  loading={runReachLoading}
+                  style={{
+                    padding: '0 12px',
+                    backgroundColor: showRunReach ? '#22c55e' : 'var(--tribos-bg-secondary)',
+                    border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+                  }}
+                >
+                  <IconRun size={20} color={showRunReach ? '#fff' : 'var(--tribos-text-100)'} />
+                </Button>
+              </Tooltip>
               {routeGeometry && (
                 <Tooltip label={showPOIs ? 'Hide POIs' : 'Show Nearby POIs'}>
                   <Button
@@ -4706,6 +4848,16 @@ function RouteBuilder() {
                 <BikeInfrastructureLayer
                   data={infrastructureData}
                   visible={showBikeInfrastructure}
+                />
+              )}
+
+              {/* Run Reach Layer - road network reachability */}
+              {showRunReach && (
+                <RunReachLayer
+                  data={runReachData}
+                  source={runReachSource}
+                  origin={runReachOrigin}
+                  visible={showRunReach}
                 />
               )}
 
@@ -5013,6 +5165,30 @@ function RouteBuilder() {
                 selectedId={selectedPOI?.id}
                 onClose={() => setShowPOIs(false)}
                 formatDist={formatDist}
+              />
+            </Box>
+          )}
+
+          {/* Run Reach Panel (desktop) */}
+          {showRunReach && (
+            <Box style={{ position: 'absolute', bottom: 20, left: showPOIs ? 360 : 20, zIndex: 10 }}>
+              <RunReachPanel
+                mode={runReachMode}
+                onModeChange={setRunReachMode}
+                paceMinPerMile={runReachPace}
+                onPaceChange={setRunReachPace}
+                speedMph={runReachSpeed}
+                onSpeedChange={setRunReachSpeed}
+                timeMinutes={runReachTime}
+                onTimeChange={setRunReachTime}
+                outAndBack={runReachOutAndBack}
+                onOutAndBackChange={setRunReachOutAndBack}
+                maxDistanceMeters={runReachMaxDistance}
+                loading={runReachLoading}
+                source={runReachSource}
+                hasOrigin={!!runReachOrigin}
+                onClose={() => setShowRunReach(false)}
+                onSetOrigin={() => setSettingRunReachOrigin(true)}
               />
             </Box>
           )}
