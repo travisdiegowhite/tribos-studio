@@ -351,14 +351,14 @@ export default function GearDetailView({
         ) : (
           <Text c="dimmed" ta="center" py="xl">Gear not found</Text>
         )}
-      </Modal>
 
-      <AddComponentModal
-        opened={addComponentOpen}
-        onClose={() => setAddComponentOpen(false)}
-        onSave={handleAddComponent}
-        gearItemId={gearId}
-      />
+        <AddComponentModal
+          opened={addComponentOpen}
+          onClose={() => setAddComponentOpen(false)}
+          onSave={handleAddComponent}
+          gearItemId={gearId}
+        />
+      </Modal>
     </>
   );
 }
