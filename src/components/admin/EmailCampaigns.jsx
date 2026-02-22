@@ -36,7 +36,6 @@ import {
   ThemeIcon,
   MultiSelect
 } from '@mantine/core';
-import { DateInput } from '@mantine/dates';
 import {
   IconPlus,
   IconSend,
@@ -829,27 +828,25 @@ export default function EmailCampaigns() {
                       <Text fw={500} size="sm">Filter by Signup Date (New Users)</Text>
                     </Group>
                     <Group grow>
-                      <DateInput
+                      <TextInput
                         label="Signed up after"
                         placeholder="Select start date"
-                        value={filterCriteria.signedUpAfter ? new Date(filterCriteria.signedUpAfter) : null}
-                        onChange={(date) => setFilterCriteria({
+                        type="date"
+                        value={filterCriteria.signedUpAfter ? filterCriteria.signedUpAfter.split('T')[0] : ''}
+                        onChange={(e) => setFilterCriteria({
                           ...filterCriteria,
-                          signedUpAfter: date instanceof Date ? date.toISOString() : undefined
+                          signedUpAfter: e.target.value ? new Date(e.target.value + 'T00:00:00').toISOString() : undefined
                         })}
-                        clearable
-                        popoverProps={{ withinPortal: true, zIndex: 10000, middlewares: { flip: true, shift: true } }}
                       />
-                      <DateInput
+                      <TextInput
                         label="Signed up before"
                         placeholder="Select end date"
-                        value={filterCriteria.signedUpBefore ? new Date(filterCriteria.signedUpBefore) : null}
-                        onChange={(date) => setFilterCriteria({
+                        type="date"
+                        value={filterCriteria.signedUpBefore ? filterCriteria.signedUpBefore.split('T')[0] : ''}
+                        onChange={(e) => setFilterCriteria({
                           ...filterCriteria,
-                          signedUpBefore: date instanceof Date ? date.toISOString() : undefined
+                          signedUpBefore: e.target.value ? new Date(e.target.value + 'T00:00:00').toISOString() : undefined
                         })}
-                        clearable
-                        popoverProps={{ withinPortal: true, zIndex: 10000, middlewares: { flip: true, shift: true } }}
                       />
                     </Group>
                     <Text size="xs" c="dimmed" mt="xs">
