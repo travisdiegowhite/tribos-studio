@@ -26,7 +26,7 @@ import {
 import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSun, IconMoon, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
@@ -1447,6 +1447,27 @@ function Settings() {
 
           {/* Running Profile */}
           <RunningProfileSettings />
+
+          {/* Gear Management */}
+          <Card>
+            <Group justify="space-between" align="flex-start">
+              <Stack gap={4}>
+                <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+                  Gear
+                </Title>
+                <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  Track mileage and maintenance for your bikes and running shoes
+                </Text>
+              </Stack>
+              <Button
+                component={Link}
+                to="/gear"
+                variant="light"
+              >
+                Manage Gear
+              </Button>
+            </Group>
+          </Card>
 
           {/* Connected Services */}
           <Card>

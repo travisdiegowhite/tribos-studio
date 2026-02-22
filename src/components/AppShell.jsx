@@ -46,6 +46,10 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
     if (item.path === '/training') {
       return location.pathname.startsWith('/training') || location.pathname.startsWith('/planner');
     }
+    // Special handling for settings - also match /gear paths
+    if (item.path === '/settings') {
+      return location.pathname === '/settings' || location.pathname.startsWith('/gear');
+    }
     return location.pathname === item.path || location.pathname.startsWith(item.path + '/');
   };
 

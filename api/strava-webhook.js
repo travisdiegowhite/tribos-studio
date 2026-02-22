@@ -402,6 +402,20 @@ async function handleActivityCreate(eventId, webhookData, integration) {
       hasGPS: !!savedActivity.map_summary_polyline
     });
 
+    // Auto-assign gear to activity
+    try {
+      const { assignGearToActivity } = await import('./utils/gearAssignment.js');
+      await assignGearToActivity(supabase, {
+        activityId: savedActivity.id,
+        userId: integration.user_id,
+        activityType: savedActivity.type,
+        distance: savedActivity.distance,
+        stravaGearId: savedActivity.gear_id || null,
+      });
+    } catch (gearError) {
+      console.error('⚠️ Gear assignment failed (non-critical):', gearError.message);
+    }
+
     // Update fitness snapshot for the week of this activity
     try {
       await updateSnapshotForActivity(supabase, integration.user_id, savedActivity.start_date);
