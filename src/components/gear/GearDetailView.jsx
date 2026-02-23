@@ -73,8 +73,6 @@ export default function GearDetailView({
     }
   }, [opened, gearId, getGearDetail]);
 
-  if (!opened) return null;
-
   const handleRetire = async () => {
     if (!gear) return;
     try {
