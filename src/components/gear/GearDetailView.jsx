@@ -28,6 +28,7 @@ import {
 import { formatDistance } from '../../utils/units';
 import { RUNNING_SHOE_THRESHOLDS, METERS_PER_MILE } from './gearConstants';
 import ComponentTable from './ComponentTable';
+import AddComponentForm from './AddComponentForm';
 import { notifications } from '@mantine/notifications';
 
 /**
@@ -39,20 +40,20 @@ export default function GearDetailView({
   onClose,
   useGearHook,
   useImperial = true,
-  onRequestAddComponent,
-  stackId,
 }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [gear, setGear] = useState(null);
   const [components, setComponents] = useState([]);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [addCompOpen, setAddCompOpen] = useState(false);
 
   const {
     getGearDetail,
     updateGear,
     retireGear,
     deleteGear,
+    createComponent,
     replaceComponent,
     deleteComponent,
     recalculateMileage,
@@ -62,6 +63,7 @@ export default function GearDetailView({
   useEffect(() => {
     if (opened && gearId) {
       setLoading(true);
+      setAddCompOpen(false);
       getGearDetail(gearId)
         .then(({ gear: g, components: c, activities: a }) => {
           setGear(g);
@@ -72,6 +74,8 @@ export default function GearDetailView({
         .finally(() => setLoading(false));
     }
   }, [opened, gearId, getGearDetail]);
+
+  if (!opened) return null;
 
   const handleRetire = async () => {
     if (!gear) return;
@@ -138,6 +142,20 @@ export default function GearDetailView({
     }
   };
 
+  const handleAddComponent = async (params) => {
+    const comp = await createComponent(params);
+    // Refresh components list
+    const { components: c } = await getGearDetail(gearId);
+    setComponents(c);
+    setAddCompOpen(false);
+    notifications.show({
+      title: 'Component added',
+      message: `${params.componentType} has been added`,
+      color: 'green',
+    });
+    return comp;
+  };
+
   const distanceKm = (gear?.total_distance_logged || 0) / 1000;
   const isShoes = gear?.gear_type === 'shoes';
   const isBike = gear?.gear_type === 'bike';
@@ -162,7 +180,6 @@ export default function GearDetailView({
       onClose={onClose}
       title={null}
       size="xl"
-      stackId={stackId}
       fullScreen={isMobile}
     >
       {loading ? (
@@ -246,12 +263,19 @@ export default function GearDetailView({
                     size="xs"
                     variant="light"
                     leftSection={<IconPlus size={14} />}
-                    onClick={() => onRequestAddComponent?.(gearId)}
+                    onClick={() => setAddCompOpen(!addCompOpen)}
                   >
                     Add Component
                   </Button>
                 )}
               </Group>
+              {/* Inline add component form */}
+              <AddComponentForm
+                opened={addCompOpen}
+                gearItemId={gearId}
+                onSave={handleAddComponent}
+                onCancel={() => setAddCompOpen(false)}
+              />
               <ComponentTable
                 components={components}
                 parentDistance={gear.total_distance_logged}

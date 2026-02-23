@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Container,
   Stack,
   Button,
-  Modal,
-  useModalsStack,
   SegmentedControl,
   SimpleGrid,
   Text,
@@ -22,26 +20,16 @@ import PageHeader from '../components/PageHeader.jsx';
 import GearItemCard from '../components/gear/GearItemCard.jsx';
 import GearDetailView from '../components/gear/GearDetailView.jsx';
 import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
-import AddGearModal from '../components/gear/AddGearModal.jsx';
-import AddComponentModal from '../components/gear/AddComponentModal.jsx';
+import AddGearForm from '../components/gear/AddGearForm.jsx';
 import { notifications } from '@mantine/notifications';
 
 function GearPage() {
   const { user } = useAuth();
   const { gearId: urlGearId } = useParams();
   const [activeSport, setActiveSport] = useState('cycling');
-  const [addComponentGearId, setAddComponentGearId] = useState(null);
+  const [addGearOpen, setAddGearOpen] = useState(false);
   const [selectedGearId, setSelectedGearId] = useState(urlGearId || null);
   const [showRetired, setShowRetired] = useState(false);
-
-  const stack = useModalsStack(['addGear', 'addComponent', 'gearDetail']);
-
-  // Open gear detail modal if navigated via URL param
-  useEffect(() => {
-    if (urlGearId) {
-      stack.open('gearDetail');
-    }
-  }, []);
 
   const gearHook = useGear({ userId: user?.id });
   const {
@@ -49,7 +37,6 @@ function GearPage() {
     alerts,
     loading,
     createGear,
-    createComponent,
     dismissAlert,
   } = gearHook;
 
@@ -67,6 +54,7 @@ function GearPage() {
         message: `${gear.name} has been added`,
         color: 'green',
       });
+      setAddGearOpen(false);
     } catch (err) {
       notifications.show({
         title: 'Error',
@@ -75,21 +63,6 @@ function GearPage() {
       });
       throw err;
     }
-  };
-
-  const handleRequestAddComponent = (gearId) => {
-    setAddComponentGearId(gearId);
-    stack.open('addComponent');
-  };
-
-  const handleAddComponent = async (params) => {
-    const comp = await createComponent(params);
-    notifications.show({
-      title: 'Component added',
-      message: `${params.componentType} has been added`,
-      color: 'green',
-    });
-    return comp;
   };
 
   return (
@@ -102,11 +75,18 @@ function GearPage() {
             actions={
               <Button
                 leftSection={<IconPlus size={16} />}
-                onClick={() => stack.open('addGear')}
+                onClick={() => setAddGearOpen(!addGearOpen)}
               >
                 Add Gear
               </Button>
             }
+          />
+
+          {/* Inline add gear form */}
+          <AddGearForm
+            opened={addGearOpen}
+            onCancel={() => setAddGearOpen(false)}
+            onSave={handleCreateGear}
           />
 
           {/* Alerts */}
@@ -142,7 +122,7 @@ function GearPage() {
               <Button
                 variant="light"
                 size="sm"
-                onClick={() => stack.open('addGear')}
+                onClick={() => setAddGearOpen(true)}
               >
                 Add your first {activeSport === 'cycling' ? 'bike' : 'pair of shoes'}
               </Button>
@@ -153,7 +133,7 @@ function GearPage() {
                 <GearItemCard
                   key={gear.id}
                   gear={gear}
-                  onClick={() => { setSelectedGearId(gear.id); stack.open('gearDetail'); }}
+                  onClick={() => setSelectedGearId(gear.id)}
                   useImperial={useImperial}
                 />
               ))}
@@ -177,7 +157,7 @@ function GearPage() {
                     <GearItemCard
                       key={gear.id}
                       gear={gear}
-                      onClick={() => { setSelectedGearId(gear.id); stack.open('gearDetail'); }}
+                      onClick={() => setSelectedGearId(gear.id)}
                       useImperial={useImperial}
                     />
                   ))}
@@ -188,29 +168,14 @@ function GearPage() {
         </Stack>
       </Container>
 
-      {/* Modal.Stack + useModalsStack manages z-index and focus for stacked modals */}
-      <Modal.Stack>
-        <AddGearModal
-          {...stack.register('addGear')}
-          onSave={handleCreateGear}
-        />
-
-        <AddComponentModal
-          {...stack.register('addComponent')}
-          onClose={() => { stack.close('addComponent'); setAddComponentGearId(null); }}
-          onSave={handleAddComponent}
-          gearItemId={addComponentGearId}
-        />
-
-        <GearDetailView
-          {...stack.register('gearDetail')}
-          onClose={() => { stack.close('gearDetail'); setSelectedGearId(null); }}
-          gearId={selectedGearId}
-          useGearHook={gearHook}
-          useImperial={useImperial}
-          onRequestAddComponent={handleRequestAddComponent}
-        />
-      </Modal.Stack>
+      {/* Gear detail — single modal, no stacking needed */}
+      <GearDetailView
+        gearId={selectedGearId}
+        opened={!!selectedGearId}
+        onClose={() => setSelectedGearId(null)}
+        useGearHook={gearHook}
+        useImperial={useImperial}
+      />
     </AppShell>
   );
 }
