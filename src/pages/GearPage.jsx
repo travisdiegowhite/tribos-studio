@@ -4,6 +4,7 @@ import {
   Container,
   Stack,
   Button,
+  Modal,
   SegmentedControl,
   SimpleGrid,
   Text,
@@ -179,28 +180,33 @@ function GearPage() {
         </Stack>
       </Container>
 
-      {/* Modals — all at page level, no nesting */}
-      <AddGearModal
-        opened={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
-        onSave={handleCreateGear}
-      />
+      {/* Modal.Stack manages z-index and focus for stacked modals */}
+      <Modal.Stack>
+        <AddGearModal
+          stackId="addGear"
+          opened={addModalOpen}
+          onClose={() => setAddModalOpen(false)}
+          onSave={handleCreateGear}
+        />
 
-      <AddComponentModal
-        opened={addComponentOpen}
-        onClose={() => setAddComponentOpen(false)}
-        onSave={handleAddComponent}
-        gearItemId={addComponentGearId}
-      />
+        <AddComponentModal
+          stackId="addComponent"
+          opened={addComponentOpen}
+          onClose={() => setAddComponentOpen(false)}
+          onSave={handleAddComponent}
+          gearItemId={addComponentGearId}
+        />
 
-      <GearDetailView
-        gearId={selectedGearId}
-        opened={!!selectedGearId}
-        onClose={() => setSelectedGearId(null)}
-        useGearHook={gearHook}
-        useImperial={useImperial}
-        onRequestAddComponent={handleRequestAddComponent}
-      />
+        <GearDetailView
+          stackId="gearDetail"
+          gearId={selectedGearId}
+          opened={!!selectedGearId}
+          onClose={() => setSelectedGearId(null)}
+          useGearHook={gearHook}
+          useImperial={useImperial}
+          onRequestAddComponent={handleRequestAddComponent}
+        />
+      </Modal.Stack>
     </AppShell>
   );
 }
