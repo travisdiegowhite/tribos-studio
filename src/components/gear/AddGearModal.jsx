@@ -18,7 +18,7 @@ import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 /**
  * Modal for adding a new gear item (bike or shoes).
  */
-export default function AddGearModal({ opened, onClose, onSave, stackId }) {
+export default function AddGearModal({ opened, onClose, onSave }) {
   const [sportType, setSportType] = useState('cycling');
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
@@ -78,7 +78,6 @@ export default function AddGearModal({ opened, onClose, onSave, stackId }) {
       onClose={handleClose}
       title="Add Gear"
       size="md"
-      stackId={stackId}
     >
       <Stack gap="md">
         <SegmentedControl
