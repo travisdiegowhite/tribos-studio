@@ -263,7 +263,7 @@ export default function GearDetailView({
                     size="xs"
                     variant="light"
                     leftSection={<IconPlus size={14} />}
-                    onClick={() => setAddCompOpen(!addCompOpen)}
+                    onClick={() => setAddCompOpen(true)}
                   >
                     Add Component
                   </Button>

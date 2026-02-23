@@ -20,14 +20,14 @@ import PageHeader from '../components/PageHeader.jsx';
 import GearItemCard from '../components/gear/GearItemCard.jsx';
 import GearDetailView from '../components/gear/GearDetailView.jsx';
 import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
-import AddGearForm from '../components/gear/AddGearForm.jsx';
+import AddGearModal from '../components/gear/AddGearModal.jsx';
 import { notifications } from '@mantine/notifications';
 
 function GearPage() {
   const { user } = useAuth();
   const { gearId: urlGearId } = useParams();
   const [activeSport, setActiveSport] = useState('cycling');
-  const [addGearOpen, setAddGearOpen] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
   const [selectedGearId, setSelectedGearId] = useState(urlGearId || null);
   const [showRetired, setShowRetired] = useState(false);
 
@@ -54,7 +54,7 @@ function GearPage() {
         message: `${gear.name} has been added`,
         color: 'green',
       });
-      setAddGearOpen(false);
+      setAddModalOpen(false);
     } catch (err) {
       notifications.show({
         title: 'Error',
@@ -75,17 +75,16 @@ function GearPage() {
             actions={
               <Button
                 leftSection={<IconPlus size={16} />}
-                onClick={() => setAddGearOpen(!addGearOpen)}
+                onClick={() => setAddModalOpen(true)}
               >
                 Add Gear
               </Button>
             }
           />
 
-          {/* Inline add gear form */}
-          <AddGearForm
-            opened={addGearOpen}
-            onCancel={() => setAddGearOpen(false)}
+          <AddGearModal
+            opened={addModalOpen}
+            onClose={() => setAddModalOpen(false)}
             onSave={handleCreateGear}
           />
 
@@ -122,7 +121,7 @@ function GearPage() {
               <Button
                 variant="light"
                 size="sm"
-                onClick={() => setAddGearOpen(true)}
+                onClick={() => setAddModalOpen(true)}
               >
                 Add your first {activeSport === 'cycling' ? 'bike' : 'pair of shoes'}
               </Button>
