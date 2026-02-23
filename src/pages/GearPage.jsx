@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Container,
   Stack,
   Button,
   Modal,
+  useModalsStack,
   SegmentedControl,
   SimpleGrid,
   Text,
@@ -29,11 +30,18 @@ function GearPage() {
   const { user } = useAuth();
   const { gearId: urlGearId } = useParams();
   const [activeSport, setActiveSport] = useState('cycling');
-  const [addModalOpen, setAddModalOpen] = useState(false);
-  const [addComponentOpen, setAddComponentOpen] = useState(false);
   const [addComponentGearId, setAddComponentGearId] = useState(null);
   const [selectedGearId, setSelectedGearId] = useState(urlGearId || null);
   const [showRetired, setShowRetired] = useState(false);
+
+  const stack = useModalsStack(['addGear', 'addComponent', 'gearDetail']);
+
+  // Open gear detail modal if navigated via URL param
+  useEffect(() => {
+    if (urlGearId) {
+      stack.open('gearDetail');
+    }
+  }, []);
 
   const gearHook = useGear({ userId: user?.id });
   const {
@@ -71,7 +79,7 @@ function GearPage() {
 
   const handleRequestAddComponent = (gearId) => {
     setAddComponentGearId(gearId);
-    setAddComponentOpen(true);
+    stack.open('addComponent');
   };
 
   const handleAddComponent = async (params) => {
@@ -94,7 +102,7 @@ function GearPage() {
             actions={
               <Button
                 leftSection={<IconPlus size={16} />}
-                onClick={() => setAddModalOpen(true)}
+                onClick={() => stack.open('addGear')}
               >
                 Add Gear
               </Button>
@@ -134,7 +142,7 @@ function GearPage() {
               <Button
                 variant="light"
                 size="sm"
-                onClick={() => setAddModalOpen(true)}
+                onClick={() => stack.open('addGear')}
               >
                 Add your first {activeSport === 'cycling' ? 'bike' : 'pair of shoes'}
               </Button>
@@ -145,7 +153,7 @@ function GearPage() {
                 <GearItemCard
                   key={gear.id}
                   gear={gear}
-                  onClick={() => setSelectedGearId(gear.id)}
+                  onClick={() => { setSelectedGearId(gear.id); stack.open('gearDetail'); }}
                   useImperial={useImperial}
                 />
               ))}
@@ -169,7 +177,7 @@ function GearPage() {
                     <GearItemCard
                       key={gear.id}
                       gear={gear}
-                      onClick={() => setSelectedGearId(gear.id)}
+                      onClick={() => { setSelectedGearId(gear.id); stack.open('gearDetail'); }}
                       useImperial={useImperial}
                     />
                   ))}
@@ -180,28 +188,24 @@ function GearPage() {
         </Stack>
       </Container>
 
-      {/* Modal.Stack manages z-index and focus for stacked modals */}
+      {/* Modal.Stack + useModalsStack manages z-index and focus for stacked modals */}
       <Modal.Stack>
         <AddGearModal
-          stackId="addGear"
-          opened={addModalOpen}
-          onClose={() => setAddModalOpen(false)}
+          {...stack.register('addGear')}
           onSave={handleCreateGear}
         />
 
         <AddComponentModal
-          stackId="addComponent"
-          opened={addComponentOpen}
-          onClose={() => setAddComponentOpen(false)}
+          {...stack.register('addComponent')}
+          onClose={() => { stack.close('addComponent'); setAddComponentGearId(null); }}
           onSave={handleAddComponent}
           gearItemId={addComponentGearId}
         />
 
         <GearDetailView
-          stackId="gearDetail"
+          {...stack.register('gearDetail')}
+          onClose={() => { stack.close('gearDetail'); setSelectedGearId(null); }}
           gearId={selectedGearId}
-          opened={!!selectedGearId}
-          onClose={() => setSelectedGearId(null)}
           useGearHook={gearHook}
           useImperial={useImperial}
           onRequestAddComponent={handleRequestAddComponent}
