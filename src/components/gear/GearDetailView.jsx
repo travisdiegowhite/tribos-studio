@@ -40,6 +40,7 @@ export default function GearDetailView({
   useGearHook,
   useImperial = true,
   onRequestAddComponent,
+  stackId,
 }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [gear, setGear] = useState(null);
@@ -163,6 +164,7 @@ export default function GearDetailView({
       onClose={onClose}
       title={null}
       size="xl"
+      stackId={stackId}
       fullScreen={isMobile}
     >
       {loading ? (

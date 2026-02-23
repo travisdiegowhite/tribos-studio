@@ -27,7 +27,7 @@ const DEFAULT_THRESHOLDS_MILES = {
 /**
  * Modal for adding a component to a bike.
  */
-export default function AddComponentModal({ opened, onClose, onSave, gearItemId }) {
+export default function AddComponentModal({ opened, onClose, onSave, gearItemId, stackId }) {
   const [componentType, setComponentType] = useState('');
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
@@ -96,6 +96,7 @@ export default function AddComponentModal({ opened, onClose, onSave, gearItemId 
       opened={opened}
       onClose={handleClose}
       title="Add Component"
+      stackId={stackId}
       size="md"
     >
       <Stack gap="md">
