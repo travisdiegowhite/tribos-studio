@@ -97,8 +97,6 @@ export default function AddComponentModal({ opened, onClose, onSave, gearItemId 
       onClose={handleClose}
       title="Add Component"
       size="md"
-      withinPortal={false}
-      zIndex={301}
     >
       <Stack gap="md">
         <Select

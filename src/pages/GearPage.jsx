@@ -21,6 +21,7 @@ import GearItemCard from '../components/gear/GearItemCard.jsx';
 import GearDetailView from '../components/gear/GearDetailView.jsx';
 import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
 import AddGearModal from '../components/gear/AddGearModal.jsx';
+import AddComponentModal from '../components/gear/AddComponentModal.jsx';
 import { notifications } from '@mantine/notifications';
 
 function GearPage() {
@@ -28,6 +29,8 @@ function GearPage() {
   const { gearId: urlGearId } = useParams();
   const [activeSport, setActiveSport] = useState('cycling');
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addComponentOpen, setAddComponentOpen] = useState(false);
+  const [addComponentGearId, setAddComponentGearId] = useState(null);
   const [selectedGearId, setSelectedGearId] = useState(urlGearId || null);
   const [showRetired, setShowRetired] = useState(false);
 
@@ -37,6 +40,7 @@ function GearPage() {
     alerts,
     loading,
     createGear,
+    createComponent,
     dismissAlert,
   } = gearHook;
 
@@ -62,6 +66,21 @@ function GearPage() {
       });
       throw err;
     }
+  };
+
+  const handleRequestAddComponent = (gearId) => {
+    setAddComponentGearId(gearId);
+    setAddComponentOpen(true);
+  };
+
+  const handleAddComponent = async (params) => {
+    const comp = await createComponent(params);
+    notifications.show({
+      title: 'Component added',
+      message: `${params.componentType} has been added`,
+      color: 'green',
+    });
+    return comp;
   };
 
   return (
@@ -160,11 +179,18 @@ function GearPage() {
         </Stack>
       </Container>
 
-      {/* Modals */}
+      {/* Modals — all at page level, no nesting */}
       <AddGearModal
         opened={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         onSave={handleCreateGear}
+      />
+
+      <AddComponentModal
+        opened={addComponentOpen}
+        onClose={() => setAddComponentOpen(false)}
+        onSave={handleAddComponent}
+        gearItemId={addComponentGearId}
       />
 
       <GearDetailView
@@ -173,6 +199,7 @@ function GearPage() {
         onClose={() => setSelectedGearId(null)}
         useGearHook={gearHook}
         useImperial={useImperial}
+        onRequestAddComponent={handleRequestAddComponent}
       />
     </AppShell>
   );
