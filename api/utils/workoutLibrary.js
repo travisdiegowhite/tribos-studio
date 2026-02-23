@@ -276,10 +276,122 @@ This tool calculates personalized fueling recommendations based on ride duration
   }
 };
 
-// Combined tools for AI coach (includes workout, fitness history, plan creation, and fueling)
+// Training Data Query Tool - enables AI coach to answer ad hoc questions about activities
+export const TRAINING_DATA_TOOL = {
+  name: "query_training_data",
+  description: `Query the athlete's activity data to answer ad hoc questions about their training history. Use this tool for questions about:
+- Activity counts ("How many rides did I do last month?")
+- Commute tracking ("How many bike commutes this year?")
+- Distance/duration totals ("Total miles ridden in 2025?")
+- Activity type breakdowns ("What % of my riding is gravel vs road?")
+- Geographic/location queries ("How many times did I ride across the Golden Gate Bridge?")
+- Filtered queries ("How many rides over 50 miles in the last 6 months?")
+- Activity lookups ("What was my longest ride this year?")
+
+This tool queries individual activities, NOT fitness metrics. For CTL/ATL/TSB trends, use query_fitness_history instead.
+
+IMPORTANT: For geographic queries, provide the place name (e.g., "Golden Gate Bridge, San Francisco") and the server will geocode it automatically via Mapbox.`,
+  input_schema: {
+    type: "object",
+    properties: {
+      filters: {
+        type: "object",
+        description: "Filters to narrow down activities",
+        properties: {
+          date_from: {
+            type: "string",
+            description: "Start date. ISO format (YYYY-MM-DD) or relative: 'last_year', 'ytd', 'this_year', '6_months_ago', '3_months_ago', '1_year_ago', '52_weeks_ago'"
+          },
+          date_to: {
+            type: "string",
+            description: "End date. ISO format or relative. Defaults to now if omitted."
+          },
+          activity_types: {
+            type: "array",
+            items: { type: "string" },
+            description: "Filter by activity type: 'Ride', 'GravelRide', 'MountainBikeRide', 'VirtualRide', 'EBikeRide', 'Run', 'TrailRun'"
+          },
+          commute: {
+            type: "boolean",
+            description: "true = only commutes, false = only non-commutes, omit = all"
+          },
+          trainer: {
+            type: "boolean",
+            description: "true = indoor only, false = outdoor only, omit = all"
+          },
+          name_contains: {
+            type: "string",
+            description: "Search activity names (case-insensitive). E.g., 'morning ride' or 'race'"
+          },
+          min_distance_km: {
+            type: "number",
+            description: "Minimum distance in kilometers"
+          },
+          max_distance_km: {
+            type: "number",
+            description: "Maximum distance in kilometers"
+          },
+          near_location: {
+            type: "object",
+            description: "Find activities whose route passes near a location. Server geocodes via Mapbox.",
+            properties: {
+              place_name: {
+                type: "string",
+                description: "Place name to geocode, e.g., 'Golden Gate Bridge, San Francisco' or 'Central Park, New York'"
+              },
+              radius_km: {
+                type: "number",
+                description: "Proximity radius in km (default 0.5)"
+              }
+            },
+            required: ["place_name"]
+          }
+        }
+      },
+      aggregation: {
+        type: "string",
+        enum: [
+          "count",
+          "sum_distance_km",
+          "sum_duration_hours",
+          "sum_elevation_m",
+          "avg_distance_km",
+          "avg_duration_hours",
+          "avg_speed_kph",
+          "avg_power_watts",
+          "list_activities"
+        ],
+        description: "How to aggregate results. 'count' counts activities, 'sum_*' totals a metric, 'avg_*' averages a metric, 'list_activities' returns individual activities."
+      },
+      group_by: {
+        type: "string",
+        enum: ["none", "type", "month", "week", "year", "commute"],
+        description: "Group results by this dimension. Useful for breakdowns (e.g., distance by type for road/gravel splits)."
+      },
+      limit: {
+        type: "integer",
+        description: "Max activities to return for list_activities (default 10, max 50)"
+      },
+      sort_by: {
+        type: "string",
+        enum: ["start_date", "distance", "duration", "elevation_gain"],
+        description: "Sort field for list_activities"
+      },
+      sort_order: {
+        type: "string",
+        enum: ["asc", "desc"],
+        description: "Sort direction (default desc)"
+      }
+    },
+    required: ["aggregation"]
+  }
+};
+
+// Combined tools for AI coach (includes workout, fitness history, plan creation, fueling, and training data queries)
 export const ALL_COACH_TOOLS = [
   ...WORKOUT_TOOLS,
   FITNESS_HISTORY_TOOL,
   CREATE_PLAN_TOOL,
-  FUEL_PLAN_TOOL
+  FUEL_PLAN_TOOL,
+  TRAINING_DATA_TOOL
 ];

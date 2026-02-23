@@ -25,11 +25,11 @@ const QUICK_ACTIONS = [
     query: 'What workout should I do today based on my current fatigue and goals?',
   },
   {
-    id: 'route',
-    icon: '🛣️',
-    label: 'Suggest a route',
-    description: 'Find a ride based on your goals today',
-    query: 'Suggest a route for today\'s ride',
+    id: 'ama',
+    icon: '🔍',
+    label: 'AMA about your data',
+    description: 'Ask anything about your rides, commutes, routes, or stats',
+    query: 'What are some interesting stats and highlights from my riding this year?',
   },
 ];
 

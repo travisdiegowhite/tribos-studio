@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
+import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
 import { generateTrainingPlan } from './utils/planGenerator.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
@@ -166,6 +167,44 @@ Use this tool whenever the athlete asks about:
 - "historically"
 
 IMPORTANT: Always use the query_fitness_history tool for historical questions. Never guess about past performance - the tool has actual data.
+
+**AD HOC TRAINING DATA QUERIES (AMA ABOUT YOUR DATA):**
+
+You have access to the query_training_data tool to answer specific questions about the athlete's individual activities.
+Think of this as an "Ask Me Anything" about their training data.
+
+Use this tool when the athlete asks about:
+- Activity counts ("How many rides did I do last month?")
+- Commute tracking ("How many bike commutes this year?", "How many daycare dropoffs by bike?")
+- Distance/duration totals ("Total miles ridden in 2025?")
+- Activity type breakdowns ("What % of my riding is gravel vs road?")
+- Geographic/location questions ("How many times did I ride across the Golden Gate Bridge?")
+- Filtered queries ("How many rides over 50 miles in the last 6 months?")
+- Activity lookups ("What was my longest ride this year?", "Show me my last 5 gravel rides")
+
+**Trigger phrases for training data tool:**
+- "how many rides/runs"
+- "how many commutes"
+- "total miles/kilometers"
+- "% road/gravel/singletrack"
+- "how many times did I ride/cross/visit"
+- "longest/shortest ride"
+- "this year/last year/last month" (when about activity counts or stats, not fitness trends)
+
+**For geographic queries**: Provide the place name in near_location.place_name.
+The server geocodes it via Mapbox. Use descriptive names like "Golden Gate Bridge, San Francisco" or "Central Park, New York".
+
+**For terrain/surface breakdowns**: Group by activity type. Strava categorizes rides as:
+- Ride = road cycling
+- GravelRide = gravel/mixed surface
+- MountainBikeRide = singletrack/MTB
+- VirtualRide = indoor trainer (Zwift, etc.)
+- EBikeRide = electric assist
+Note: This is per-activity classification. A mixed-surface ride tagged as "Ride" won't show its gravel segments separately.
+
+**Tip**: For percentage questions, use sum_distance_km grouped by type, then calculate percentages from the results.
+
+**IMPORTANT**: This tool queries individual activities, NOT fitness metrics (CTL/ATL/TSB). Use query_fitness_history for fitness trend questions and query_training_data for activity-level questions.
 
 **FUELING GUIDANCE:**
 
@@ -497,6 +536,7 @@ ${conversationSummary}
     // Check if we need to handle tool calls
     let toolUses = response.content.filter(block => block.type === 'tool_use');
     const fitnessHistoryUses = toolUses.filter(tool => tool.name === 'query_fitness_history');
+    const trainingDataUses = toolUses.filter(tool => tool.name === 'query_training_data');
     const planCreationUses = toolUses.filter(tool => tool.name === 'create_training_plan');
     const fuelPlanUses = toolUses.filter(tool => tool.name === 'generate_fuel_plan');
 
@@ -504,32 +544,42 @@ ${conversationSummary}
     console.log(`🤖 Coach response: ${toolUses.length} tool uses`);
     console.log(`   - Tool names used: ${toolUses.map(t => t.name).join(', ') || 'none'}`);
     console.log(`   - Fitness history queries: ${fitnessHistoryUses.length}`);
+    console.log(`   - Training data queries: ${trainingDataUses.length}`);
     console.log(`   - Plan creations: ${planCreationUses.length}`);
     if (planCreationUses.length > 0) {
       console.log(`   - Plan creation input:`, JSON.stringify(planCreationUses[0].input, null, 2));
     }
 
-    // Handle fitness history tool calls (requires continuation)
-    if (fitnessHistoryUses.length > 0 && userId) {
-      console.log(`🤖 Fitness history tool requested. userId: ${userId}`);
+    // Handle server-side tool calls that require a continuation turn
+    // (fitness history and training data queries both need server-side processing)
+    const serverSideTools = [...fitnessHistoryUses, ...trainingDataUses];
+
+    if (serverSideTools.length > 0 && userId) {
       const toolResults = [];
 
-      for (const tool of fitnessHistoryUses) {
+      for (const tool of serverSideTools) {
         try {
-          const result = await handleFitnessHistoryQuery(userId, tool.input);
+          let result;
+          if (tool.name === 'query_fitness_history') {
+            console.log(`🤖 Fitness history tool requested. userId: ${userId}`);
+            result = await handleFitnessHistoryQuery(userId, tool.input);
+          } else if (tool.name === 'query_training_data') {
+            console.log(`📋 Training data query requested. userId: ${userId}`);
+            result = await handleTrainingDataQuery(userId, tool.input);
+          }
           toolResults.push({
             type: 'tool_result',
             tool_use_id: tool.id,
             content: JSON.stringify(result)
           });
         } catch (error) {
-          console.error('Fitness history tool error:', error);
+          console.error(`${tool.name} tool error:`, error);
           toolResults.push({
             type: 'tool_result',
             tool_use_id: tool.id,
             content: JSON.stringify({
               success: false,
-              error: 'Failed to retrieve fitness history'
+              error: `Failed to process ${tool.name}`
             })
           });
         }
