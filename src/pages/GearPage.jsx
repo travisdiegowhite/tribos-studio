@@ -75,7 +75,7 @@ function GearPage() {
             actions={
               <Button
                 leftSection={<IconPlus size={16} />}
-                onClick={() => setAddModalOpen(true)}
+                onClick={() => { console.log('🔴 ADD GEAR CLICKED'); setAddModalOpen(true); }}
               >
                 Add Gear
               </Button>
