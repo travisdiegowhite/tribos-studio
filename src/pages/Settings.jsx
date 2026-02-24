@@ -22,14 +22,17 @@ import {
   Collapse,
   UnstyledButton,
   SimpleGrid,
+  Tabs,
+  Paper,
 } from '@mantine/core';
-import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSun, IconMoon, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
+import { useMediaQuery } from '@mantine/hooks';
+import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSun, IconMoon, IconChevronDown, IconChevronRight, IconUser, IconBarbell, IconBike, IconPlugConnected, IconRoute, IconAdjustments } from '@tabler/icons-react';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
-import { tokens } from '../theme';
+import { tokens, depth } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import ImportWizard from '../components/ImportWizard.jsx';
 import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
@@ -60,6 +63,14 @@ function Settings() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
+  const isMobile = useMediaQuery('(max-width: 768px)');
+
+  // Tab state with URL parameter support
+  const urlTab = searchParams.get('tab');
+  const validTabs = ['profile', 'training', 'gear', 'integrations', 'routes', 'preferences'];
+  const initialTab = validTabs.includes(urlTab) ? urlTab : 'profile';
+  const [activeTab, setActiveTab] = useState(initialTab);
+
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [stravaStatus, setStravaStatus] = useState({ connected: false, loading: true });
@@ -1260,6 +1271,47 @@ function Settings() {
             }
           />
 
+          <Tabs value={activeTab} onChange={setActiveTab} color="terracotta" variant="pills">
+            <Paper
+              withBorder
+              radius="xl"
+              p="xs"
+              style={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 100,
+                background: depth.panel.background,
+                boxShadow: depth.panel.boxShadow,
+                border: '1px solid var(--tribos-border-default)',
+              }}
+            >
+              <Tabs.List grow={!isMobile} justify={isMobile ? 'center' : undefined}>
+                <Tabs.Tab value="profile" leftSection={<IconUser size={isMobile ? 20 : 18} />}>
+                  {!isMobile && 'Profile'}
+                </Tabs.Tab>
+                <Tabs.Tab value="training" leftSection={<IconBarbell size={isMobile ? 20 : 18} />}>
+                  {!isMobile && 'Training'}
+                </Tabs.Tab>
+                <Tabs.Tab value="gear" leftSection={<IconBike size={isMobile ? 20 : 18} />}>
+                  {!isMobile && 'Gear'}
+                </Tabs.Tab>
+                <Tabs.Tab value="integrations" leftSection={<IconPlugConnected size={isMobile ? 20 : 18} />}>
+                  {!isMobile && 'Integrations'}
+                </Tabs.Tab>
+                <Tabs.Tab value="routes" leftSection={<IconRoute size={isMobile ? 20 : 18} />}>
+                  {!isMobile && 'Routes'}
+                </Tabs.Tab>
+                <Tabs.Tab value="preferences" leftSection={<IconAdjustments size={isMobile ? 20 : 18} />}>
+                  {!isMobile && 'Preferences'}
+                </Tabs.Tab>
+              </Tabs.List>
+            </Paper>
+
+            <Box mt="md">
+              {/* Profile Tab */}
+              <Tabs.Panel value="profile">
+                <Stack gap="md">
+
           {/* Profile Settings */}
           <Card>
             <Stack gap="md">
@@ -1327,6 +1379,13 @@ function Settings() {
               </Button>
             </Stack>
           </Card>
+
+                </Stack>
+              </Tabs.Panel>
+
+              {/* Training Tab */}
+              <Tabs.Panel value="training">
+                <Stack gap="md">
 
           {/* Training & Power */}
           <Card>
@@ -1448,6 +1507,13 @@ function Settings() {
           {/* Running Profile */}
           <RunningProfileSettings />
 
+                </Stack>
+              </Tabs.Panel>
+
+              {/* Gear Tab */}
+              <Tabs.Panel value="gear">
+                <Stack gap="md">
+
           {/* Gear Management */}
           <Card>
             <Group justify="space-between" align="flex-start">
@@ -1468,6 +1534,13 @@ function Settings() {
               </Button>
             </Group>
           </Card>
+
+                </Stack>
+              </Tabs.Panel>
+
+              {/* Integrations Tab */}
+              <Tabs.Panel value="integrations">
+                <Stack gap="md">
 
           {/* Connected Services */}
           <Card>
@@ -1710,8 +1783,22 @@ function Settings() {
             </Stack>
           </Card>
 
+                </Stack>
+              </Tabs.Panel>
+
+              {/* Routes Tab */}
+              <Tabs.Panel value="routes">
+                <Stack gap="md">
+
           {/* Route Learning */}
           <RoadPreferencesCard />
+
+                </Stack>
+              </Tabs.Panel>
+
+              {/* Preferences Tab */}
+              <Tabs.Panel value="preferences">
+                <Stack gap="md">
 
           {/* Preferences */}
           <Card>
@@ -1788,6 +1875,11 @@ function Settings() {
               </Button>
             </Stack>
           </Card>
+
+                </Stack>
+              </Tabs.Panel>
+            </Box>
+          </Tabs>
         </Stack>
       </Container>
     </AppShell>
