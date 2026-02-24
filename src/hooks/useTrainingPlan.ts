@@ -309,6 +309,27 @@ export function useTrainingPlan({
         };
 
         setActivePlan(activePlanWithTemplate);
+
+        // Track activation step for first plan
+        try {
+          const { data: activation } = await supabase
+            .from('user_activation')
+            .select('steps')
+            .eq('user_id', userId)
+            .single();
+
+          if (activation && !activation.steps?.first_plan?.completed) {
+            const steps = { ...activation.steps };
+            steps.first_plan = { completed: true, completed_at: new Date().toISOString() };
+            await supabase
+              .from('user_activation')
+              .update({ steps, updated_at: new Date().toISOString() })
+              .eq('user_id', userId);
+          }
+        } catch {
+          // Non-critical - don't break plan activation
+        }
+
         return activePlanWithTemplate;
       } catch (err: any) {
         console.error('Error activating plan:', err);

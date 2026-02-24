@@ -19,7 +19,7 @@ import {
   SegmentedControl,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconPlus, IconDotsVertical, IconTrash, IconEdit, IconDownload, IconSearch, IconX, IconDeviceWatch, IconRoute, IconCloudUpload } from '@tabler/icons-react';
+import { IconPlus, IconDotsVertical, IconTrash, IconEdit, IconDownload, IconSearch, IconX, IconDeviceWatch, IconRoute, IconCloudUpload, IconBrain, IconMap } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -380,22 +380,55 @@ function MyRoutes() {
           {/* Routes Grid */}
           {routes.length === 0 ? (
             <Card>
-              <Stack align="center" gap="md" py="xl">
+              <Stack align="center" gap="lg" py="xl">
                 <Text size="4rem">🗺️</Text>
                 <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
                   No routes yet
                 </Title>
                 <Text style={{ color: 'var(--tribos-text-secondary)', textAlign: 'center' }} maw={{ base: '100%', sm: 400 }}>
-                  Create your first route using our AI-powered route builder or by drawing on the map.
+                  Plan your next ride with the route builder. Start from scratch, let AI suggest something, or trace one of your past rides.
                 </Text>
-                <Button
-                  color="terracotta"
-                  size="lg"
-                  leftSection={<IconPlus size={20} />}
-                  onClick={() => navigate('/routes/new')}
-                >
-                  Create Your First Route
-                </Button>
+                <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm" w="100%" maw={600}>
+                  <Button
+                    variant="light"
+                    color="sage"
+                    size="md"
+                    leftSection={<IconBrain size={18} />}
+                    onClick={() => navigate('/routes/new?mode=ai')}
+                    styles={{ root: { height: 'auto', padding: '12px 16px' } }}
+                  >
+                    <Stack gap={2} align="flex-start">
+                      <Text size="sm" fw={600}>AI-suggested route</Text>
+                      <Text size="xs" c="dimmed">Based on your location</Text>
+                    </Stack>
+                  </Button>
+                  <Button
+                    variant="light"
+                    color="terracotta"
+                    size="md"
+                    leftSection={<IconRoute size={18} />}
+                    onClick={() => navigate('/routes/new?mode=activity')}
+                    styles={{ root: { height: 'auto', padding: '12px 16px' } }}
+                  >
+                    <Stack gap={2} align="flex-start">
+                      <Text size="sm" fw={600}>From a past ride</Text>
+                      <Text size="xs" c="dimmed">Retrace your steps</Text>
+                    </Stack>
+                  </Button>
+                  <Button
+                    variant="light"
+                    color="gray"
+                    size="md"
+                    leftSection={<IconMap size={18} />}
+                    onClick={() => navigate('/routes/new')}
+                    styles={{ root: { height: 'auto', padding: '12px 16px' } }}
+                  >
+                    <Stack gap={2} align="flex-start">
+                      <Text size="sm" fw={600}>Start from scratch</Text>
+                      <Text size="xs" c="dimmed">Draw on the map</Text>
+                    </Stack>
+                  </Button>
+                </SimpleGrid>
               </Stack>
             </Card>
           ) : filteredRoutes.length === 0 ? (

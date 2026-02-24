@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
+import { completeActivationStep, enqueueProactiveInsight } from './utils/activation.js';
 
 // Initialize Supabase (server-side with service key for webhook processing)
 const supabase = createClient(
@@ -423,6 +424,14 @@ async function handleActivityCreate(eventId, webhookData, integration) {
     } catch (snapshotError) {
       // Don't fail the webhook for snapshot errors
       console.error('⚠️ Snapshot update failed (non-critical):', snapshotError.message);
+    }
+
+    // Track activation progress and enqueue insight
+    try {
+      await completeActivationStep(supabase, integration.user_id, 'first_sync');
+      await enqueueProactiveInsight(supabase, integration.user_id, savedActivity.id);
+    } catch (activationError) {
+      console.error('⚠️ Activation tracking failed (non-critical):', activationError.message);
     }
 
     // Update webhook event

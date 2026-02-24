@@ -3,6 +3,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
+import { completeActivationStep } from './utils/activation.js';
 
 // Initialize Supabase (server-side with service role)
 const supabase = createClient(
@@ -177,6 +178,9 @@ async function saveRoute(req, res, userId, routeData) {
       if (error) throw error;
       result = data;
       console.log(`✅ Created route: ${result.id}`);
+
+      // Track activation step for first route
+      await completeActivationStep(supabase, userId, 'first_route').catch(() => {});
     }
 
     return res.status(200).json({

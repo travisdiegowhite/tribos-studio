@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
+import { completeActivationStep, enqueueProactiveInsight } from './utils/activation.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -332,6 +333,14 @@ async function processWahooWorkout(integration, workout, webhookData) {
     });
   } catch (gearError) {
     console.error('⚠️ Gear assignment failed (non-critical):', gearError.message);
+  }
+
+  // Track activation progress and enqueue insight
+  try {
+    await completeActivationStep(supabase, integration.user_id, 'first_sync');
+    await enqueueProactiveInsight(supabase, integration.user_id, activity.id);
+  } catch (activationError) {
+    console.error('⚠️ Activation tracking failed (non-critical):', activationError.message);
   }
 
   // Update integration last sync

@@ -5,8 +5,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Container, Loader, Box, Alert, Tabs, Group, Text, ThemeIcon, Stack } from '@mantine/core';
-import { IconAlertCircle, IconCalendarEvent, IconList, IconHistory } from '@tabler/icons-react';
+import { Container, Loader, Box, Alert, Tabs, Group, Text, ThemeIcon, Stack, Card, Button } from '@mantine/core';
+import { IconAlertCircle, IconCalendarEvent, IconList, IconHistory, IconTarget, IconBrain } from '@tabler/icons-react';
 import { useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import PageHeader from '../components/PageHeader.jsx';
@@ -191,6 +191,35 @@ export default function PlannerPage() {
             title="Plan"
             subtitle={activePlan ? `Active: ${activePlan.name}` : 'Schedule and manage your training'}
           />
+
+          {/* Nudge for users without an active plan */}
+          {!activePlan && activities.length > 0 && (
+            <Card style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #9E5A3C)' }}>
+              <Group gap="sm" wrap="nowrap">
+                <ThemeIcon size="lg" variant="light" color="terracotta" radius="xl">
+                  <IconTarget size={18} />
+                </ThemeIcon>
+                <Box style={{ flex: 1 }}>
+                  <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                    Ready for structured training?
+                  </Text>
+                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                    {`You've been averaging ${Math.round(activities.length / 4)} rides/week. A training plan can help you get more from each session.`}
+                  </Text>
+                </Box>
+                <Group gap="xs">
+                  <Button
+                    variant="light"
+                    color="terracotta"
+                    size="compact-sm"
+                    onClick={() => setActiveTab('browse')}
+                  >
+                    Browse plans
+                  </Button>
+                </Group>
+              </Group>
+            </Card>
+          )}
 
           <Tabs
             value={activeTab}
