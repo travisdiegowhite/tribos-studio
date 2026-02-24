@@ -4,6 +4,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
+import { completeActivationStep } from './utils/activation.js';
 import crypto from 'crypto';
 
 // Initialize Supabase (server-side)
@@ -376,6 +377,9 @@ async function exchangeToken(req, res, userId, code, state) {
     }
 
     console.log('✅ Integration stored successfully for user:', userId, 'with Garmin User ID:', garminUserId);
+
+    // Track activation step
+    await completeActivationStep(supabase, userId, 'connect_device').catch(() => {});
 
     // Clean up temp data
     await supabase

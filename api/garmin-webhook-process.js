@@ -8,6 +8,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
+import { completeActivationStep, enqueueProactiveInsight } from './utils/activation.js';
 import { updateBackfillChunkIfApplicable } from './utils/garminBackfill.js';
 import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
 
@@ -424,6 +425,14 @@ async function downloadAndProcessActivity(event, integration) {
     if (!isIndoorActivity && activityInfo.startTimeInSeconds) {
       await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
     }
+  }
+
+  // Track activation progress and enqueue insight
+  try {
+    await completeActivationStep(supabase, integration.user_id, 'first_sync');
+    await enqueueProactiveInsight(supabase, integration.user_id, activity.id);
+  } catch (activationError) {
+    console.error('⚠️ Activation tracking failed (non-critical):', activationError.message);
   }
 
   await supabase

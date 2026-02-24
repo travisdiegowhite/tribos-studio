@@ -11,6 +11,10 @@
     {
       "path": "/api/garmin-webhook-process",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/proactive-insights-process",
+      "schedule": "* * * * *"
     }
   ],
   "rewrites": [

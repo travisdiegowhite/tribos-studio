@@ -451,11 +451,42 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
 
         {/* Chat area */}
         <Box style={{ flex: 1, minHeight: 0 }}>
-          {/* Empty state — coaching message when no history */}
+          {/* Empty state — coaching message + suggested prompts when no history */}
           {!hasMessages && !isLoading && !loadingHistory && (
-            <Text size="sm" style={{ color: 'var(--tribos-text-primary)', lineHeight: 1.6 }}>
-              {coachingMessage}
-            </Text>
+            <Stack gap="sm">
+              <Text size="sm" style={{ color: 'var(--tribos-text-primary)', lineHeight: 1.6 }}>
+                {coachingMessage}
+              </Text>
+              <Text size="xs" fw={500} style={{ color: 'var(--tribos-text-muted)' }}>
+                Try asking:
+              </Text>
+              <Stack gap={4}>
+                {[
+                  'What should I work on based on my recent rides?',
+                  'Build me a 4-week training plan',
+                  "How's my fitness trending?",
+                ].map((prompt) => (
+                  <Button
+                    key={prompt}
+                    variant="light"
+                    color="gray"
+                    size="compact-xs"
+                    justify="flex-start"
+                    styles={{
+                      root: { height: 'auto', padding: '6px 10px' },
+                      label: { whiteSpace: 'normal', textAlign: 'left' },
+                    }}
+                    onClick={() => {
+                      setQuery(prompt);
+                    }}
+                  >
+                    <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                      {prompt}
+                    </Text>
+                  </Button>
+                ))}
+              </Stack>
+            </Stack>
           )}
 
           {/* Loading history spinner */}

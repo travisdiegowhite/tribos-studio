@@ -4,6 +4,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
+import { completeActivationStep } from './utils/activation.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -181,6 +182,9 @@ async function exchangeCodeForToken(req, res, code, userId) {
     }
 
     console.log('✅ Wahoo integration stored successfully');
+
+    // Track activation step
+    await completeActivationStep(supabase, userId, 'connect_device').catch(() => {});
 
     return res.status(200).json({
       success: true,

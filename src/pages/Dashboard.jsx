@@ -45,6 +45,8 @@ import { useCommunity } from '../hooks/useCommunity';
 import { CafeSummaryWidget, WeeklyCheckInWidget } from '../components/community';
 import { useGear } from '../hooks/useGear.ts';
 import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
+import GetStartedGuide from '../components/activation/GetStartedGuide.jsx';
+import ProactiveInsightCard from '../components/activation/ProactiveInsightCard.jsx';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -290,6 +292,10 @@ function Dashboard() {
             title={displayName}
             titleOrder={2}
           />
+
+          {/* Activation Guide */}
+          <GetStartedGuide />
+          <ProactiveInsightCard />
 
           {/* Today's Focus Card */}
           <TodayFocusCard
