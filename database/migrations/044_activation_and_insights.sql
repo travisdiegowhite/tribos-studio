@@ -33,15 +33,15 @@ CREATE POLICY "Users can update own activation"
   USING (auth.uid() = user_id);
 
 -- Auto-create activation record on user signup
-CREATE OR REPLACE FUNCTION create_user_activation()
+CREATE OR REPLACE FUNCTION public.create_user_activation()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO user_activation (user_id)
+  INSERT INTO public.user_activation (user_id)
   VALUES (NEW.id)
   ON CONFLICT (user_id) DO NOTHING;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER on_auth_user_created_activation
   AFTER INSERT ON auth.users
