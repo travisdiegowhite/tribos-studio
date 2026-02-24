@@ -1,21 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Card,
   Text,
   Group,
-  Stack,
   Button,
   Box,
   ThemeIcon,
 } from '@mantine/core';
 import { IconBrain, IconMessageCircle } from '@tabler/icons-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { useCoachCommandBar } from '../coach/CoachCommandBarContext.jsx';
 import { supabase } from '../../lib/supabase';
 
 export default function ProactiveInsightCard() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const { open: openCoach } = useCoachCommandBar();
   const [insight, setInsight] = useState(null);
   const [activityName, setActivityName] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -80,8 +79,8 @@ export default function ProactiveInsightCard() {
       .update({ seen: true, seen_at: new Date().toISOString() })
       .eq('id', insight.id);
 
-    // Navigate to coach
-    navigate('/coach');
+    // Open coach command bar with insight context
+    openCoach(`Tell me more about this insight: ${insight.insight_text}`);
   };
 
   const handleDismiss = async () => {
