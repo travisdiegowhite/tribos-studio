@@ -78,6 +78,7 @@ export default function GetStartedGuide() {
     totalSteps,
     isComplete,
     isDismissed,
+    completeStep,
     dismissGuide,
     setActivation,
   } = useActivation(user?.id);
@@ -233,6 +234,7 @@ export default function GetStartedGuide() {
                             } else {
                               openCoach('What should I work on based on my recent rides?');
                             }
+                            completeStep('first_insight');
                           }
                         },
                       }

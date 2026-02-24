@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
+  ActionIcon,
   Box,
   TextInput,
   Button,
@@ -19,6 +20,7 @@ import {
   IconSend,
   IconArrowRight,
   IconHistory,
+  IconX,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 
@@ -481,6 +483,16 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                     Ask
                   </Button>
                 )}
+
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  onClick={close}
+                  aria-label="Close coach"
+                  style={{ flexShrink: 0 }}
+                >
+                  <IconX size={18} />
+                </ActionIcon>
               </Group>
             </Box>
 
