@@ -22,6 +22,7 @@ import {
 } from '@tabler/icons-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useActivation } from '../../hooks/useActivation';
+import { useCoachCommandBar } from '../coach/CoachCommandBarContext.jsx';
 import { supabase } from '../../lib/supabase';
 
 const ACTIVATION_STEPS = [
@@ -46,7 +47,7 @@ const ACTIVATION_STEPS = [
     label: 'See what your coach thinks',
     description: 'AI analysis of your ride',
     cta: 'View insight',
-    href: '#insight-card',
+    action: 'open-coach',
     icon: IconBrain,
   },
   {
@@ -69,6 +70,7 @@ const ACTIVATION_STEPS = [
 
 export default function GetStartedGuide() {
   const { user } = useAuth();
+  const { open: openCoach } = useCoachCommandBar();
   const {
     activation,
     loading,
@@ -220,14 +222,18 @@ export default function GetStartedGuide() {
 
               {!isStepComplete && (
                 <Button
-                  component={step.href.startsWith('#') ? 'button' : Link}
-                  {...(step.href.startsWith('#')
+                  component={step.action ? 'button' : Link}
+                  {...(step.action
                     ? {
                         onClick: () => {
-                          const el = document.getElementById(
-                            step.href.replace('#', '')
-                          );
-                          el?.scrollIntoView({ behavior: 'smooth' });
+                          if (step.action === 'open-coach') {
+                            const insightEl = document.getElementById('insight-card');
+                            if (insightEl) {
+                              insightEl.scrollIntoView({ behavior: 'smooth' });
+                            } else {
+                              openCoach('What should I work on based on my recent rides?');
+                            }
+                          }
                         },
                       }
                     : { to: step.href })}
