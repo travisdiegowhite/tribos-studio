@@ -149,6 +149,19 @@ export function RouteExportMenu({
           message: 'Please reconnect your Garmin account in Settings.',
           color: 'yellow',
         });
+      } else if (error.message?.includes('COURSES_API_NOT_AVAILABLE') || error.message?.includes('ApplicationNotFound')) {
+        // Courses API not enabled — auto-fallback to TCX download
+        notifications.show({
+          title: 'Direct send not available yet',
+          message: 'Downloading as TCX instead. Import it at connect.garmin.com > Courses > Import.',
+          color: 'yellow',
+          autoClose: 8000,
+        });
+        try {
+          exportAndDownloadRoute(getRouteData(), 'tcx');
+        } catch (exportErr) {
+          console.error('TCX fallback export failed:', exportErr);
+        }
       } else {
         notifications.show({
           title: 'Send Failed',

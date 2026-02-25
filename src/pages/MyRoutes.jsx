@@ -187,8 +187,9 @@ function MyRoutes() {
   // Send route directly to Garmin Connect
   const handleSendToGarmin = async (routeId) => {
     setSendingToGarmin(routeId);
+    let route;
     try {
-      const route = await getRoute(routeId);
+      route = await getRoute(routeId);
       if (!route?.geometry?.coordinates) {
         throw new Error('Route has no geometry');
       }
@@ -216,11 +217,37 @@ function MyRoutes() {
       }
     } catch (error) {
       console.error('Error sending to Garmin:', error);
-      notifications.show({
-        title: 'Send Failed',
-        message: error.message || 'Failed to send route to Garmin',
-        color: 'red'
-      });
+      if (error.message?.includes('COURSES_API_NOT_AVAILABLE') || error.message?.includes('ApplicationNotFound')) {
+        notifications.show({
+          title: 'Direct send not available yet',
+          message: 'Downloading as TCX instead. Import it at connect.garmin.com > Courses > Import.',
+          color: 'yellow',
+          autoClose: 8000,
+        });
+        try {
+          exportAndDownloadRoute(
+            {
+              name: route.name,
+              description: route.description,
+              coordinates: route.geometry.coordinates,
+              distanceKm: route.distance_km,
+              elevationGainM: route.elevation_gain_m,
+              elevationLossM: route.elevation_loss_m,
+              routeType: route.route_type,
+              surfaceType: route.surface_type,
+            },
+            'tcx'
+          );
+        } catch (exportErr) {
+          console.error('TCX fallback export failed:', exportErr);
+        }
+      } else {
+        notifications.show({
+          title: 'Send Failed',
+          message: error.message || 'Failed to send route to Garmin',
+          color: 'red'
+        });
+      }
     } finally {
       setSendingToGarmin(null);
     }

@@ -807,6 +807,14 @@ async function pushRoute(req, res, userId, routeData) {
       });
 
       // Check for specific error types
+      if (errorText.includes('ApplicationNotFound')) {
+        return res.status(503).json({
+          error: 'Garmin Courses API is not yet enabled for this app. Please download as TCX and import manually to Garmin Connect.',
+          code: 'COURSES_API_NOT_AVAILABLE',
+          details: errorText
+        });
+      }
+
       if (uploadResponse.status === 401 || uploadResponse.status === 403) {
         return res.status(401).json({
           error: 'Garmin authorization failed. Please reconnect your account.',
