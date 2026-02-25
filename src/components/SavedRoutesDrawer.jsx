@@ -185,8 +185,9 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
 
   const handleSendToGarmin = useCallback(async (routeId) => {
     setSendingToGarmin(routeId);
+    let route;
     try {
-      const route = await getRoute(routeId);
+      route = await getRoute(routeId);
       if (!route?.geometry?.coordinates) {
         throw new Error('Route has no geometry');
       }
@@ -211,11 +212,40 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
         throw new Error(result.error || 'Failed to send route');
       }
     } catch (error) {
-      notifications.show({
-        title: 'Send Failed',
-        message: error.message || 'Failed to send route to Garmin',
-        color: 'red',
-      });
+      console.error('Error sending to Garmin:', error);
+      if (error.message?.includes('COURSES_API_NOT_AVAILABLE') || error.message?.includes('ApplicationNotFound')) {
+        notifications.show({
+          title: 'Direct send not available yet',
+          message: 'Downloading as TCX instead. Import it at connect.garmin.com > Courses > Import.',
+          color: 'yellow',
+          autoClose: 8000,
+        });
+        if (route?.geometry?.coordinates) {
+          try {
+            exportAndDownloadRoute(
+              {
+                name: route.name,
+                description: route.description,
+                coordinates: route.geometry.coordinates,
+                distanceKm: route.distance_km,
+                elevationGainM: route.elevation_gain_m,
+                elevationLossM: route.elevation_loss_m,
+                routeType: route.route_type,
+                surfaceType: route.surface_type,
+              },
+              'tcx'
+            );
+          } catch (exportErr) {
+            console.error('TCX fallback export failed:', exportErr);
+          }
+        }
+      } else {
+        notifications.show({
+          title: 'Send Failed',
+          message: error.message || 'Failed to send route to Garmin',
+          color: 'red',
+        });
+      }
     } finally {
       setSendingToGarmin(null);
     }
