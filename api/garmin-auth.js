@@ -807,9 +807,9 @@ async function pushRoute(req, res, userId, routeData) {
       });
 
       // Check for specific error types
-      if (errorText.includes('ApplicationNotFound')) {
+      if (errorText.includes('ApplicationNotFound') || (uploadResponse.status === 404 && errorText.includes('course-portal'))) {
         return res.status(503).json({
-          error: 'Garmin Courses API could not be reached. Please download as TCX and import manually to Garmin Connect.',
+          error: 'Garmin Courses API is not enabled for this app. Please download as TCX and import manually to Garmin Connect.',
           code: 'COURSES_API_NOT_AVAILABLE',
           details: errorText
         });
