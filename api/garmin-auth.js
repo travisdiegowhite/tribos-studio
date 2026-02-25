@@ -778,7 +778,7 @@ async function pushRoute(req, res, userId, routeData) {
 
     // Upload course to Garmin Connect
     // Garmin Courses API endpoint (https://developer.garmin.com/gc-developer-program/courses-api/)
-    const courseUploadUrl = 'https://apis.garmin.com/course-api/course';
+    const courseUploadUrl = 'https://apis.garmin.com/training-api/courses';
 
     console.log('Uploading course to Garmin:', routeData.name, `(${courseData.geoPoints.length} points)`, 'URL:', courseUploadUrl);
 
@@ -809,7 +809,7 @@ async function pushRoute(req, res, userId, routeData) {
       // Check for specific error types
       if (errorText.includes('ApplicationNotFound')) {
         return res.status(503).json({
-          error: 'Garmin Courses API is not yet enabled for this app. Please download as TCX and import manually to Garmin Connect.',
+          error: 'Garmin Courses API could not be reached. Please download as TCX and import manually to Garmin Connect.',
           code: 'COURSES_API_NOT_AVAILABLE',
           details: errorText
         });
