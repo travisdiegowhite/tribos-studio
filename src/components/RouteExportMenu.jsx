@@ -52,7 +52,7 @@ export function RouteExportMenu({
     const checkGarmin = async () => {
       try {
         const status = await garminService.getConnectionStatus();
-        setGarminConnected(status.connected && !status.requiresReconnect);
+        setGarminConnected(status.connected);
       } catch (error) {
         console.error('Error checking Garmin status:', error);
         setGarminConnected(false);

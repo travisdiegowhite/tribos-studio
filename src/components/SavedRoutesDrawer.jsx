@@ -110,7 +110,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
     const checkGarmin = async () => {
       try {
         const status = await garminService.getConnectionStatus();
-        setGarminConnected(status.connected && !status.requiresReconnect);
+        setGarminConnected(status.connected);
       } catch (error) {
         setGarminConnected(false);
       }
