@@ -238,6 +238,12 @@ Please provide 3-4 route suggestions in the following JSON format:
   ]
 }
 
+ROAD QUALITY PRIORITIES:
+- Prefer quiet roads: residential streets, bike paths, greenways, rural roads with low traffic
+- Avoid busy arterials and multi-lane roads unless no alternative exists
+- Minimize exposure to traffic signals and stop signs, especially for interval and endurance routes
+- For interval/tempo routes: ensure effort segments fall on long uninterrupted stretches (1+ km with no stops)
+
 IMPORTANT:
 - Focus on realistic, rideable routes
 - Consider safety (bike lanes, traffic levels)
@@ -284,24 +290,42 @@ function getTrainingGoalDescription(goal) {
     endurance: `
 - Focus: Aerobic base building, steady effort
 - Intensity: Moderate, sustainable pace
-- Route needs: Consistent terrain, minimal stops`,
-    
+- Route needs: Consistent terrain, minimal stops, roads that allow steady rhythm
+- Road quality: Prefer roads with few traffic signals and intersections to maintain consistent effort
+- Avoid: Frequent stop-and-go sections, busy multi-lane roads with traffic lights`,
+
     intervals: `
 - Focus: High-intensity efforts with recovery periods
 - Intensity: Alternating hard efforts and easy recovery
-- Route needs: Safe sections for hard efforts, good visibility`,
-    
+- Route needs: Long uninterrupted road segments (1-3km minimum) for high-intensity efforts
+- CRITICAL for intervals: Avoid roads with traffic signals, stop signs, or busy intersections during effort segments
+- Effort segments: Use quiet residential streets, bike paths, or rural roads with minimal cross-traffic
+- Recovery segments: Can use any safe road, preferably low-traffic for easy spinning
+- Road quality: Smooth pavement, good visibility, minimal need to brake or stop
+- Avoid: Downtown areas with stoplights, busy arterials, school zones, roads with frequent driveways`,
+
     recovery: `
 - Focus: Active recovery, easy spinning
 - Intensity: Very easy, conversational pace
-- Route needs: Flat terrain, scenic/enjoyable, minimal traffic`,
-    
+- Route needs: Flat terrain, scenic/enjoyable, minimal traffic
+- Road quality: Quiet residential streets, bike paths, greenways — prioritize low stress
+- Avoid: Busy roads, steep hills, roads without shoulders or bike infrastructure`,
+
     hills: `
 - Focus: Climbing strength and power development
 - Intensity: Sustained efforts on climbs
-- Route needs: Significant elevation gain, varied gradients`
+- Route needs: Significant elevation gain, varied gradients
+- Road quality: Climbs with consistent grades, safe descents with good sight lines
+- Avoid: Climbs on narrow busy roads without shoulders`,
+
+    tempo: `
+- Focus: Sustained threshold effort
+- Intensity: Comfortably hard, steady pace near lactate threshold
+- Route needs: Long stretches of consistent terrain to maintain steady power
+- Road quality: Smooth roads with few interruptions, similar needs to intervals but less extreme
+- Avoid: Frequent stop signs/traffic lights that break rhythm, steep grades that force power spikes`
   };
-  
+
   return descriptions[goal] || 'General fitness and enjoyment';
 }
 

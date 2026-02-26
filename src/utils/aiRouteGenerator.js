@@ -11,6 +11,7 @@ import { EnhancedContextCollector } from './enhancedContext';
 import { optimizeLoopRoute, validateLoopRoute } from './routeOptimizer';
 import { filterRoutesByInfrastructure, enhanceRouteWithInfrastructure, generateInfrastructureReport } from './infrastructureValidator';
 import { getSmartCyclingRoute, getRoutingStrategyDescription } from './smartCyclingRouter';
+import { analyzeSegmentSuitability } from './stadiaMapsRouter';
 import { generateSmartRouteName, generateAlternativeNames } from './routeNaming';
 
 // Normalize startLocation to [lng, lat] array format
@@ -1042,6 +1043,20 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
         source: 'claude_mapbox'
       };
 
+      // Pass through maneuver data if available (from Valhalla/Stadia Maps)
+      if (route.maneuvers) {
+        fullRoute.maneuvers = route.maneuvers;
+
+        // Analyze interval suitability if this is an interval/tempo workout
+        const trainingGoal = claudeRoute.trainingGoal || claudeRoute.trainingFocus || 'endurance';
+        if (trainingGoal === 'intervals' || trainingGoal === 'tempo') {
+          fullRoute.intervalSuitability = analyzeRouteIntervalSuitability(
+            route.maneuvers, fullRoute.distance
+          );
+          console.log(`🏋️ Interval suitability for "${claudeRoute.name}": ${fullRoute.intervalSuitability.overallScore.toFixed(2)}`);
+        }
+      }
+
       // Apply smart naming if the route has a fallback name like "Claude Route 1"
       const isFallbackName = /^Claude Route \d+$/i.test(claudeRoute.name);
       if (isFallbackName) {
@@ -1973,14 +1988,16 @@ function calculateWindFactor(coordinates, weatherData) {
 }
 
 // Get appropriate Mapbox routing profile
+// Walking profile is quieter (local roads, paths) — useful for recovery and intervals
+// where avoiding busy roads and stoplights matters more than speed
 function getMapboxProfile(trainingGoal) {
   switch (trainingGoal) {
     case 'recovery':
-      return 'cycling'; // Prefer bike-friendly routes
+      return 'walking'; // Quietest roads, bike paths, greenways
+    case 'intervals':
+      return 'cycling'; // Cycling profile but we rely on Valhalla maneuver_penalty for quiet routing
     case 'endurance':
       return 'cycling';
-    case 'intervals':
-      return 'cycling'; // Might prefer roads with less traffic
     case 'hills':
       return 'cycling';
     default:
@@ -2029,6 +2046,74 @@ function generateRouteDescription(trainingGoal, pattern, elevationStats) {
   return desc;
 }
 
+/**
+ * Analyze a route's suitability for interval/tempo workouts
+ * Divides route into segments and scores each for uninterrupted riding quality
+ *
+ * For a typical interval workout:
+ * - Warmup: first 15-20% of route (moderate requirements)
+ * - Main set: middle 60-70% (strict: need long uninterrupted stretches)
+ * - Cooldown: last 15-20% (relaxed requirements)
+ *
+ * @param {Object} maneuverData - Maneuver data from Valhalla routing
+ * @param {number} routeDistanceKm - Total route distance in km
+ * @returns {Object} Interval suitability analysis with per-segment scores
+ */
+function analyzeRouteIntervalSuitability(maneuverData, routeDistanceKm) {
+  if (!maneuverData || routeDistanceKm <= 0) {
+    return { overallScore: 0.5, segments: [], reason: 'no data' };
+  }
+
+  // Define workout phase boundaries (as fraction of total distance)
+  const phases = [
+    { name: 'warmup', startFraction: 0, endFraction: 0.15, weight: 0.15 },
+    { name: 'effort_block_1', startFraction: 0.15, endFraction: 0.35, weight: 0.25 },
+    { name: 'effort_block_2', startFraction: 0.35, endFraction: 0.55, weight: 0.25 },
+    { name: 'effort_block_3', startFraction: 0.55, endFraction: 0.75, weight: 0.20 },
+    { name: 'cooldown', startFraction: 0.75, endFraction: 1.0, weight: 0.15 }
+  ];
+
+  const segments = phases.map(phase => {
+    const startKm = phase.startFraction * routeDistanceKm;
+    const endKm = phase.endFraction * routeDistanceKm;
+    const analysis = analyzeSegmentSuitability(maneuverData, startKm, endKm);
+
+    return {
+      name: phase.name,
+      startKm,
+      endKm,
+      weight: phase.weight,
+      ...analysis
+    };
+  });
+
+  // Calculate weighted overall score
+  const overallScore = segments.reduce(
+    (sum, seg) => sum + seg.score * seg.weight,
+    0
+  );
+
+  // Find worst effort segment
+  const effortSegments = segments.filter(s => s.name.startsWith('effort_block'));
+  const worstEffort = effortSegments.reduce(
+    (worst, seg) => seg.score < worst.score ? seg : worst,
+    effortSegments[0]
+  );
+
+  return {
+    overallScore,
+    segments,
+    worstEffortSegment: worstEffort
+      ? { name: worstEffort.name, score: worstEffort.score, turnsPerKm: worstEffort.turnsPerKm }
+      : null,
+    recommendation: overallScore >= 0.7
+      ? 'Route is well-suited for intervals'
+      : overallScore >= 0.5
+        ? 'Route is acceptable but some segments have frequent intersections'
+        : 'Route has too many interruptions for quality intervals — consider alternative'
+  };
+}
+
 // Score and rank routes
 async function scoreRoutes(routes, criteria) {
   const { trainingGoal, weatherData, timeAvailable, ridingPatterns, userPreferences } = criteria;
@@ -2073,16 +2158,54 @@ async function scoreRoutes(routes, criteria) {
 
 // Training goal scoring
 function getTrainingGoalScore(route, goal) {
+  let score = 0;
+
   switch (goal) {
     case 'hills':
-      return (route.elevationGain / route.distance) > 20 ? 0.2 : -0.1;
+      score = (route.elevationGain / route.distance) > 20 ? 0.2 : -0.1;
+      break;
     case 'recovery':
-      return (route.elevationGain / route.distance) < 15 ? 0.2 : -0.1;
+      score = (route.elevationGain / route.distance) < 15 ? 0.2 : -0.1;
+      // Bonus for routes with low turn density (smoother, more relaxing)
+      if (route.maneuvers?.turnsPerKm !== undefined) {
+        score += route.maneuvers.turnsPerKm < 1.5 ? 0.1 : -0.05;
+      }
+      break;
     case 'intervals':
-      return route.windFactor > 0.8 ? 0.15 : 0; // Prefer low wind for intervals
+    case 'tempo':
+      // Wind factor still matters for intervals
+      score = route.windFactor > 0.8 ? 0.1 : 0;
+      // Big bonus/penalty based on maneuver density — fewer turns = fewer stoplights
+      if (route.maneuvers?.turnsPerKm !== undefined) {
+        if (route.maneuvers.turnsPerKm <= 1.0) {
+          score += 0.25; // Excellent: very few intersections
+        } else if (route.maneuvers.turnsPerKm <= 2.0) {
+          score += 0.1;  // Acceptable
+        } else {
+          score -= 0.15; // Too many intersections for quality intervals
+        }
+      }
+      // Use interval suitability analysis if available
+      if (route.intervalSuitability?.overallScore !== undefined) {
+        score += (route.intervalSuitability.overallScore - 0.5) * 0.3;
+      }
+      // Prefer flatter routes for consistent power output
+      if (route.distance > 0 && (route.elevationGain / route.distance) < 10) {
+        score += 0.05;
+      }
+      break;
+    case 'endurance':
+      score = 0.1;
+      // Moderate bonus for fewer turns — helps maintain rhythm
+      if (route.maneuvers?.turnsPerKm !== undefined) {
+        score += route.maneuvers.turnsPerKm < 2.0 ? 0.08 : 0;
+      }
+      break;
     default:
-      return 0.1;
+      score = 0.1;
   }
+
+  return score;
 }
 
 // Weather scoring
