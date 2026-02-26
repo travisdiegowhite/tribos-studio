@@ -3,6 +3,7 @@
 // Used by Garmin webhook to get route data from activities
 
 import EasyFit from 'easy-fit';
+import { computePerRideAnalytics } from './advancedRideAnalytics.js';
 
 // Maximum valid values for FIT data fields
 // FIT protocol uses sentinel values (e.g., 0xFFFF = 65535 for uint16) to indicate "invalid/no data"
@@ -90,11 +91,33 @@ export function parseFitFile(fitBuffer) {
             console.log(`⚡ Power metrics extracted: NP=${normalizedPower}W, Avg=${avgPowerFromStream}W, Max=${powerMetrics.maxPower}W, Work=${workKj}kJ, Samples=${powerStream.length}`);
           }
 
+          // Compute advanced per-ride analytics from full-resolution streams
+          let rideAnalytics = null;
+          try {
+            const hrStreamFull = allDataPoints
+              .map(p => p.heartRate)
+              .filter(v => v !== null && v !== undefined);
+            const cadenceStreamFull = allDataPoints
+              .map(p => p.cadence)
+              .filter(v => v !== null && v !== undefined);
+
+            rideAnalytics = computePerRideAnalytics({
+              powerStream: powerStream || [],
+              hrStream: hrStreamFull.length > 60 ? hrStreamFull : null,
+              cadenceStream: cadenceStreamFull.length > 60 ? cadenceStreamFull : null,
+              ftp: summary?.threshold_power || null,
+              maxHR: summary?.maxHeartRate || null,
+            });
+          } catch (analyticsError) {
+            console.warn('⚠️ Advanced ride analytics failed (non-fatal):', analyticsError.message);
+          }
+
           resolve({
             trackPoints,
             allDataPoints,
             summary,
             powerMetrics,
+            rideAnalytics,
             recordCount: data.records?.length || 0,
             hasGpsData: trackPoints.length > 0,
             hasPowerData: powerMetrics?.hasPowerData || false
@@ -578,6 +601,7 @@ export async function downloadAndParseFitFile(url, accessToken) {
       activityStreams,
       summary: parsed.summary,
       powerMetrics: parsed.powerMetrics,
+      rideAnalytics: parsed.rideAnalytics,
       pointCount: parsed.trackPoints.length,
       simplifiedCount: simplified.length,
       hasPowerData: parsed.hasPowerData,

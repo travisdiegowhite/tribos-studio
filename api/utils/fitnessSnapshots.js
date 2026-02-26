@@ -8,6 +8,11 @@
  * - Answer questions like "How am I doing compared to last year?"
  */
 
+import {
+  estimateDynamicFTP,
+  calculateTrainingMonotonyStrain,
+} from './advancedRideAnalytics.js';
+
 /**
  * Calculate Chronic Training Load (CTL) - 42-day exponentially weighted average
  * Mirrors the calculation in src/utils/trainingPlans.ts
@@ -271,7 +276,9 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
     .select(`
       id, type, sport_type, start_date, moving_time, elapsed_time,
       distance, total_elevation_gain, average_watts,
-      kilojoules, average_heartrate, trainer, is_hidden, duplicate_of
+      kilojoules, average_heartrate, trainer, is_hidden, duplicate_of,
+      normalized_power, tss, intensity_factor, power_curve_summary,
+      ride_analytics, execution_score
     `)
     .eq('user_id', userId)
     .or('is_hidden.eq.false,is_hidden.is.null')
@@ -341,6 +348,54 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
     (sum, a) => sum + ((a.distance || 0) / 1000), 0
   );
 
+  // ─── Advanced Longitudinal Analytics ─────────────────────────────────
+
+  // Training monotony & strain (Banister model)
+  const monotonyStrain = calculateTrainingMonotonyStrain(tssArray.slice(-14));
+
+  // Dynamic FTP estimation from recent activities with power curves
+  const activitiesWithPower = (activities || []).filter(a => a.power_curve_summary);
+  const ftpEstimate = estimateDynamicFTP(activitiesWithPower, prefs?.ftp);
+
+  // Best efforts across 90-day window
+  const bestEfforts = {};
+  const durationKeys = ['5s', '60s', '300s', '600s', '1200s', '3600s'];
+  for (const activity of activitiesWithPower) {
+    const curve = activity.power_curve_summary;
+    if (!curve) continue;
+    for (const key of durationKeys) {
+      if (curve[key] && (!bestEfforts[key] || curve[key] > bestEfforts[key])) {
+        bestEfforts[key] = curve[key];
+      }
+    }
+  }
+
+  // Average efficiency factor and variability index from this week's rides
+  const weekRideAnalytics = weekActivities
+    .map(a => a.ride_analytics)
+    .filter(Boolean);
+  const efValues = weekRideAnalytics
+    .map(ra => ra.efficiency_factor)
+    .filter(v => v && v > 0);
+  const viValues = weekRideAnalytics
+    .map(ra => ra.variability_index)
+    .filter(v => v && v > 0);
+
+  const avgEF = efValues.length > 0
+    ? Math.round((efValues.reduce((a, b) => a + b, 0) / efValues.length) * 100) / 100
+    : null;
+  const avgVI = viValues.length > 0
+    ? Math.round((viValues.reduce((a, b) => a + b, 0) / viValues.length) * 100) / 100
+    : null;
+
+  // Average execution score
+  const execScores = weekActivities
+    .map(a => a.execution_score)
+    .filter(v => v != null);
+  const avgExecScore = execScores.length > 0
+    ? Math.round(execScores.reduce((a, b) => a + b, 0) / execScores.length)
+    : null;
+
   return {
     user_id: userId,
     snapshot_week: weekStart,
@@ -361,7 +416,18 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
     peak_20min_power: findPeak20minPower(cyclingActivities),
     load_trend: loadTrend,
     fitness_trend: fitnessTrend,
-    activities_analyzed: (activities || []).length
+    activities_analyzed: (activities || []).length,
+    // New longitudinal analytics
+    training_monotony: monotonyStrain?.monotony || null,
+    training_strain: monotonyStrain?.strain || null,
+    overtraining_risk: monotonyStrain?.risk || null,
+    estimated_ftp: ftpEstimate?.estimated_ftp || null,
+    ftp_estimation_method: ftpEstimate?.method || null,
+    ftp_estimation_confidence: ftpEstimate?.confidence || null,
+    best_efforts: Object.keys(bestEfforts).length > 0 ? bestEfforts : null,
+    avg_efficiency_factor: avgEF,
+    avg_variability_index: avgVI,
+    avg_execution_score: avgExecScore,
   };
 }
 

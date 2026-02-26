@@ -280,6 +280,12 @@ async function handleExistingActivity(event, existing, integration) {
     }
   }
 
+  // Store advanced ride analytics (pacing, match burning, fatigue resistance, etc.)
+  if (fitResult.rideAnalytics) {
+    activityUpdate.ride_analytics = fitResult.rideAnalytics;
+    updates.push('Advanced analytics');
+  }
+
   if (updates.length > 0) {
     const { error: updateError } = await supabase
       .from('activities')
@@ -470,6 +476,7 @@ async function handleDuplicateActivity(event, integration, activityData, activit
             if (fitResult.powerMetrics?.maxPower) fitUpdate.max_watts = fitResult.powerMetrics.maxPower;
             if (fitResult.powerMetrics?.powerCurveSummary) fitUpdate.power_curve_summary = fitResult.powerMetrics.powerCurveSummary;
             if (fitResult.powerMetrics?.workKj) fitUpdate.kilojoules = fitResult.powerMetrics.workKj;
+            if (fitResult.rideAnalytics) fitUpdate.ride_analytics = fitResult.rideAnalytics;
             fitUpdate.device_watts = true;
 
             await supabase
@@ -533,6 +540,11 @@ async function processFitFile(activityId, fitFileUrl, accessToken) {
       activityUpdate.device_watts = true;
 
       console.log(`⚡ Power metrics from FIT: Avg=${pm.avgPower}W, NP=${pm.normalizedPower}W, Max=${pm.maxPower}W, Work=${pm.workKj}kJ`);
+    }
+
+    // Store advanced ride analytics
+    if (fitResult.rideAnalytics) {
+      activityUpdate.ride_analytics = fitResult.rideAnalytics;
     }
 
     if (Object.keys(activityUpdate).length > 1) {
