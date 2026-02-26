@@ -519,6 +519,24 @@ WEATHER CONDITIONS:`;
 
     prompt += `
 
+ROAD QUALITY & TRAINING-SPECIFIC ROUTING:${trainingGoal === 'intervals' || trainingGoal === 'tempo' ? `
+- CRITICAL: This is a ${trainingGoal} workout — route MUST include long uninterrupted segments (1-3km) for high-intensity efforts
+- Place effort segments on quiet residential streets, bike paths, or rural roads with minimal cross-traffic
+- AVOID stoplights, stop signs, and busy intersections on segments where the rider will be at high intensity
+- AVOID: State highways (SR/SH), US routes, numbered county roads, multi-lane boulevards with traffic signals
+- PREFER: Roads with bike lanes, wide shoulders, residential grids with long blocks, rail trails, greenways
+- A parallel road with a bike lane beats a straight highway every time — always check for safer alternatives nearby
+- Recovery segments between efforts can use any safe, low-traffic road
+- Annotate each waypoint with "segmentType": "effort" or "recovery" to indicate workout phase suitability` : ''}${trainingGoal === 'endurance' ? `
+- Prefer roads that allow sustained rhythm: minimal stop signs, traffic lights, or forced stops
+- Avoid downtown areas or commercial strips with frequent traffic signals
+- Use bike paths, greenways, and quiet rural roads where possible` : ''}${trainingGoal === 'recovery' ? `
+- Maximize use of bike paths, greenways, and quiet residential streets
+- Minimize exposure to any traffic stress — this is an easy recovery ride
+- Flat terrain is essential — avoid unnecessary climbs` : ''}
+- For ALL routes: prefer quiet roads over busy ones unless the busy road offers significantly better cycling infrastructure
+- Minimize time spent on multi-lane arterial roads
+
 DETAILED WAYPOINT REQUIREMENTS:
 Please provide routes with comprehensive waypoint information including:
 
@@ -529,7 +547,8 @@ Please provide routes with comprehensive waypoint information including:
 5. Rest stop opportunities (cafes, parks, facilities)
 6. Scenic highlights and photo opportunities
 7. Navigation complexity notes (tricky turns, unmarked roads)
-8. Safety considerations (busy intersections, narrow sections)
+8. Safety considerations (busy intersections, narrow sections)${trainingGoal === 'intervals' || trainingGoal === 'tempo' ? `
+9. Workout segment suitability: mark each waypoint as suitable for "effort" or "recovery" phases` : ''}
 
 FORMAT YOUR RESPONSE AS JSON:
 {
@@ -556,7 +575,8 @@ FORMAT YOUR RESPONSE AS JSON:
           "trafficLevel": "low|medium|high",
           "safetyNotes": "any safety considerations",
           "amenities": ["cafe", "restroom", "bike_shop"],
-          "scenicValue": "scenic_rating_and_description"
+          "scenicValue": "scenic_rating_and_description",
+          "segmentType": "effort|recovery|warmup|cooldown|neutral"
         }
       ],
       "keyDirections": ["turn by turn directions with landmarks"],

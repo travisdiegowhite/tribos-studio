@@ -85,10 +85,11 @@ export async function getSmartCyclingRoute(waypoints, options = {}) {
   } else {
     // === ROAD/COMMUTING ROUTING STRATEGY ===
     // Stadia Maps (Valhalla) excels at paved cycling infrastructure
+    // Training goal is now passed through to influence Valhalla costing parameters
 
     // Strategy 1: Try Stadia Maps FIRST for road/commuting
     if (isStadiaMapsAvailable()) {
-      console.log('🗺️ Using Stadia Maps as PRIMARY (excellent for paved cycling routes)');
+      console.log(`🗺️ Using Stadia Maps as PRIMARY (training goal: ${trainingGoal})`);
       const stadiaResult = await tryStadiaMapsRouting(waypoints, {
         profile,
         preferences,
@@ -97,20 +98,26 @@ export async function getSmartCyclingRoute(waypoints, options = {}) {
       });
 
       if (stadiaResult && stadiaResult.coordinates && stadiaResult.coordinates.length > 10) {
-        console.log('✅ Stadia Maps provided optimized cycling route');
+        const maneuverInfo = stadiaResult.maneuvers
+          ? `, ${stadiaResult.maneuvers.turnsPerKm.toFixed(1)} turns/km`
+          : '';
+        console.log(`✅ Stadia Maps route optimized for ${trainingGoal}${maneuverInfo}`);
         return {
           ...stadiaResult,
           source: 'stadia_maps',
-          confidence: 1.0 // Highest confidence for road - Valhalla is excellent
+          confidence: 1.0
         };
       } else {
         console.warn('⚠️ Stadia Maps routing failed, falling back to BRouter');
       }
     }
 
-    // Strategy 2: Fall back to BRouter for road routes
+    // Strategy 2: Fall back to BRouter with training-goal-aware profile selection
+    // For recovery: use SAFETY profile (quietest roads)
+    // For intervals/tempo: use FASTBIKE (smooth, fast roads)
+    // For endurance: use TREKKING (balanced)
     const brouterProfile = selectBRouterProfile(trainingGoal, preferences?.surfaceType);
-    console.log(`🚴 Trying BRouter as fallback with profile: ${brouterProfile}`);
+    console.log(`🚴 Trying BRouter as fallback with profile: ${brouterProfile} (goal: ${trainingGoal})`);
     const brouterResult = await tryBRouterRouting(waypoints, {
       profile: brouterProfile,
       preferences,
@@ -175,7 +182,12 @@ async function tryStadiaMapsRouting(waypoints, options) {
         elevationLoss: result.elevationLoss || 0,
         confidence: result.confidence || 1.0,
         profile: profile,
-        source: 'stadia_maps'
+        source: 'stadia_maps',
+        maneuvers: result.maneuvers || null,
+        trafficScore: result.trafficScore,
+        quietnessScore: result.quietnessScore,
+        roadClassification: result.roadClassification || null,
+        infrastructureScore: result.infrastructureScore
       };
     }
 
