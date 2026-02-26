@@ -17,7 +17,9 @@ import {
   CopyButton,
   ActionIcon,
   Tooltip,
+  Checkbox,
 } from '@mantine/core';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
@@ -58,6 +60,7 @@ function Auth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [tosAccepted, setTosAccepted] = useState(false);
   const [webviewInfo, setWebviewInfo] = useState({ isWebview: false, appName: null });
 
   const { signIn, signUp, signInWithGoogle } = useAuth();
@@ -94,6 +97,19 @@ function Auth() {
             console.error('Failed to link beta signup:', linkError);
             // Non-blocking - don't prevent signup success
           }
+        }
+
+        // Store consent acceptance for later persistence to user_profiles
+        // (profile may not exist yet — created by DB trigger after email confirmation)
+        try {
+          localStorage.setItem('tribos_consent_pending', JSON.stringify({
+            tos_accepted_at: new Date().toISOString(),
+            privacy_accepted_at: new Date().toISOString(),
+            tos_version: '2026-02',
+            privacy_version: '2026-02',
+          }));
+        } catch (storageErr) {
+          console.error('Failed to store consent locally:', storageErr);
         }
 
         setMessage('Check your email for the confirmation link!');
@@ -228,7 +244,35 @@ function Auth() {
                 minLength={6}
               />
 
-              <Button type="submit" color="terracotta" loading={loading} fullWidth mt="sm">
+              {isSignUp && (
+                <Checkbox
+                  label={
+                    <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                      I agree to the{' '}
+                      <Anchor component={Link} to="/terms" target="_blank" style={{ color: 'var(--tribos-terracotta-500)' }}>
+                        Terms of Service
+                      </Anchor>
+                      {' '}and{' '}
+                      <Anchor component={Link} to="/privacy" target="_blank" style={{ color: 'var(--tribos-terracotta-500)' }}>
+                        Privacy Policy
+                      </Anchor>
+                    </Text>
+                  }
+                  checked={tosAccepted}
+                  onChange={(e) => setTosAccepted(e.currentTarget.checked)}
+                  color="terracotta"
+                  size="sm"
+                />
+              )}
+
+              <Button
+                type="submit"
+                color="terracotta"
+                loading={loading}
+                fullWidth
+                mt="sm"
+                disabled={isSignUp && !tosAccepted}
+              >
                 {isSignUp ? 'Create Account' : 'Sign In'}
               </Button>
             </Stack>

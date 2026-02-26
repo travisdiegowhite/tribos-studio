@@ -5,6 +5,7 @@ import Map, { Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
 import { ViewOnStravaLink, PoweredByStrava, STRAVA_ORANGE } from './StravaBranding';
+import { PoweredByGarmin } from './GarminBranding';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -420,6 +421,12 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
             {allRidesWithRoutes.some(r => r.provider === 'strava') && (
               <Box mt="xs">
                 <PoweredByStrava variant="light" size="sm" />
+              </Box>
+            )}
+            {/* Garmin Attribution */}
+            {allRidesWithRoutes.some(r => r.provider === 'garmin') && (
+              <Box mt="xs">
+                <PoweredByGarmin variant="light" size="sm" />
               </Box>
             )}
           </Stack>

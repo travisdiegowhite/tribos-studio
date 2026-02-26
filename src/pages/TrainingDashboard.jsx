@@ -100,6 +100,7 @@ import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, ca
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { PoweredByStrava } from '../components/StravaBranding';
+import { PoweredByGarmin } from '../components/GarminBranding';
 import { garminService } from '../utils/garminService.js';
 import PageHeader from '../components/PageHeader.jsx';
 import { useCrossTraining } from '../hooks/useCrossTraining';
@@ -1483,8 +1484,9 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
 // TRENDS TAB
 // ============================================================================
 function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, formatDist, formatElev, isImperial, ftp, weight, healthHistory, onOpenCheckIn }) {
-  // Check if any activities are from Strava for attribution
+  // Check if any activities are from Strava/Garmin for attribution
   const hasStravaActivities = activities?.some(a => a.provider === 'strava');
+  const hasGarminActivities = activities?.some(a => a.provider === 'garmin');
 
   return (
     <Stack gap="lg">
@@ -1524,6 +1526,11 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
         {hasStravaActivities && (
           <Box mt="md" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
             <PoweredByStrava variant="light" size="sm" />
+          </Box>
+        )}
+        {hasGarminActivities && (
+          <Box mt={hasStravaActivities ? 'xs' : 'md'} pt={hasStravaActivities ? 0 : 'sm'} style={{ borderTop: hasStravaActivities ? 'none' : '1px solid var(--mantine-color-dark-4)' }}>
+            <PoweredByGarmin variant="light" size="sm" />
           </Box>
         )}
       </Card>
@@ -1573,6 +1580,11 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
             <PoweredByStrava variant="light" size="sm" />
           </Box>
         )}
+        {hasGarminActivities && (
+          <Box mt={hasStravaActivities ? 'xs' : 'md'} pt={hasStravaActivities ? 0 : 'sm'} style={{ borderTop: hasStravaActivities ? 'none' : '1px solid var(--mantine-color-dark-4)' }}>
+            <PoweredByGarmin variant="light" size="sm" />
+          </Box>
+        )}
       </Card>
 
       {/* Personal Records */}
@@ -1612,6 +1624,11 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
           {hasStravaActivities && (
             <Box mt="md" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
               <PoweredByStrava variant="light" size="sm" />
+            </Box>
+          )}
+          {hasGarminActivities && (
+            <Box mt={hasStravaActivities ? 'xs' : 'md'} pt={hasStravaActivities ? 0 : 'sm'} style={{ borderTop: hasStravaActivities ? 'none' : '1px solid var(--mantine-color-dark-4)' }}>
+              <PoweredByGarmin variant="light" size="sm" />
             </Box>
           )}
         </Card>
