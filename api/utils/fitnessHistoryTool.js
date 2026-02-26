@@ -130,7 +130,10 @@ function analyzeRecentTrend(snapshots, metrics) {
     ctl: avg(recent.map(s => s.ctl)),
     atl: avg(recent.map(s => s.atl)),
     weekly_tss: avg(recent.map(s => s.weekly_tss)),
-    weekly_hours: avg(recent.map(s => s.weekly_hours))
+    weekly_hours: avg(recent.map(s => s.weekly_hours)),
+    training_monotony: avg(recent.filter(s => s.training_monotony).map(s => s.training_monotony)),
+    training_strain: avg(recent.filter(s => s.training_strain).map(s => s.training_strain)),
+    efficiency_factor: avg(recent.filter(s => s.avg_efficiency_factor).map(s => s.avg_efficiency_factor)),
   };
 
   const priorAvg = prior.length > 0 ? {
@@ -151,6 +154,33 @@ function analyzeRecentTrend(snapshots, metrics) {
 
   const direction = ctlChange > 5 ? 'improving' :
                     ctlChange < -5 ? 'declining' : 'stable';
+
+  // Build advanced analytics section
+  const advanced = {};
+  if (currentWeek.training_monotony) {
+    advanced.training_monotony = currentWeek.training_monotony;
+    advanced.training_strain = currentWeek.training_strain;
+    advanced.overtraining_risk = currentWeek.overtraining_risk;
+  }
+  if (currentWeek.estimated_ftp) {
+    advanced.estimated_ftp = currentWeek.estimated_ftp;
+    advanced.ftp_estimation_confidence = currentWeek.ftp_estimation_confidence;
+    if (currentWeek.ftp && currentWeek.estimated_ftp !== currentWeek.ftp) {
+      advanced.ftp_delta = currentWeek.estimated_ftp - currentWeek.ftp;
+    }
+  }
+  if (currentWeek.best_efforts) {
+    advanced.best_efforts_90day = currentWeek.best_efforts;
+  }
+  if (currentWeek.avg_efficiency_factor) {
+    advanced.avg_efficiency_factor = currentWeek.avg_efficiency_factor;
+  }
+  if (currentWeek.avg_variability_index) {
+    advanced.avg_variability_index = currentWeek.avg_variability_index;
+  }
+  if (currentWeek.avg_execution_score != null) {
+    advanced.avg_execution_score = currentWeek.avg_execution_score;
+  }
 
   return {
     success: true,
@@ -174,6 +204,7 @@ function analyzeRecentTrend(snapshots, metrics) {
       recent_avg_hours: round2(recentAvg.weekly_hours),
       prior_avg_hours: round2(priorAvg.weekly_hours)
     },
+    advanced_analytics: Object.keys(advanced).length > 0 ? advanced : undefined,
     weeks_analyzed: snapshots.length,
     summary: `Fitness is ${direction}. CTL ${ctlChange >= 0 ? '+' : ''}${ctlChange}% over last 4 weeks. ` +
              `Currently at CTL ${currentWeek.ctl}, TSB ${currentWeek.tsb} (${currentWeek.tsb > 5 ? 'fresh' : currentWeek.tsb > -10 ? 'balanced' : 'fatigued'}).`
