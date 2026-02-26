@@ -6,6 +6,8 @@
  * Docs: https://docs.stadiamaps.com/routing/
  */
 
+import { fetchBikeInfrastructure, INFRASTRUCTURE_TYPES } from './bikeInfrastructureService';
+
 const STADIA_MAPS_API_URL = 'https://api.stadiamaps.com/route/v1';
 
 /**
@@ -55,22 +57,23 @@ const ROUTE_PROFILE_COSTING = {
  */
 const TRAINING_GOAL_COSTING = {
   intervals: {
-    // Intervals need long uninterrupted stretches - penalize turns/intersections heavily
-    maneuver_penalty: 30,       // 6x default — strongly avoid turns during efforts
-    use_roads: 0.15,            // Prefer bike paths/quiet roads for safety at high intensity
-    use_living_streets: 0.8,    // Residential streets = fewer stoplights
+    // Intervals need long uninterrupted stretches on QUIET roads with bike infrastructure
+    // Low maneuver_penalty avoids pushing Valhalla onto straight arterials/highways
+    maneuver_penalty: 8,        // 1.6x default — mild turn preference without favoring arterials
+    use_roads: 0,               // Maximum bike path/cycleway preference
+    use_living_streets: 1.0,    // Maximum residential preference — these have long blocks + bike lanes
     use_hills: 0.2              // Keep it flat for consistent power output
   },
   recovery: {
     // Recovery needs low-stress, pleasant, quiet roads
-    maneuver_penalty: 15,       // Moderate turn avoidance for smoother riding
+    maneuver_penalty: 8,        // Mild turn avoidance — quiet roads matter more than straightness
     use_roads: 0,               // Maximum bike path preference
     use_living_streets: 1.0,    // Strongly prefer quiet residential streets
     use_hills: 0.2              // Minimize climbing
   },
   endurance: {
     // Endurance needs consistent terrain with minimal interruptions
-    maneuver_penalty: 15,       // Moderate turn avoidance for rhythm
+    maneuver_penalty: 10,       // Moderate turn avoidance for rhythm
     use_roads: 0.2,             // Slight bike path preference
     use_living_streets: 0.5,    // Balanced
     use_hills: 0.5              // Accept some hills for variety
@@ -82,10 +85,10 @@ const TRAINING_GOAL_COSTING = {
     use_living_streets: 0.3     // Roads with hills may not be residential
   },
   tempo: {
-    // Tempo needs steady effort roads, similar to intervals but less extreme
-    maneuver_penalty: 20,       // Moderate-high turn avoidance
-    use_roads: 0.2,             // Slight preference for bike paths
-    use_living_streets: 0.6,    // Moderate preference for quiet streets
+    // Tempo needs steady effort roads — prefer bike infrastructure over straightness
+    maneuver_penalty: 12,       // Moderate turn avoidance, won't override bike-safety routing
+    use_roads: 0.1,             // Stronger bike path preference
+    use_living_streets: 0.9,    // Stronger residential preference
     use_hills: 0.3              // Prefer flatter terrain for steady effort
   }
 };
@@ -97,7 +100,7 @@ const TRAFFIC_TOLERANCE_COSTING = {
   low: {
     use_roads: 0,               // Maximum bike path preference
     use_living_streets: 1.0,    // Strongly prefer residential streets
-    maneuver_penalty: 20        // Fewer turns = fewer busy intersections
+    maneuver_penalty: 8         // Mild turn avoidance — avoid pushing onto arterials
   },
   medium: {
     use_roads: 0.2,             // Moderate bike path preference
@@ -200,7 +203,9 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
         trafficCosting.use_living_streets
       );
     }
-    if (trafficCosting.maneuver_penalty !== undefined) {
+    // maneuver_penalty: if a training goal already set this, keep the goal's value
+    // (training goal is more specific than traffic tolerance about how many turns are OK)
+    if (trafficCosting.maneuver_penalty !== undefined && !goalCosting) {
       costing_options.bicycle.maneuver_penalty = Math.max(
         costing_options.bicycle.maneuver_penalty || 5,
         trafficCosting.maneuver_penalty
@@ -308,6 +313,11 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     // Extract maneuver data for intersection/turn analysis
     const maneuvers = extractManeuverData(trip);
 
+    // Derive traffic and quietness scores from road classification
+    const roadClassification = maneuvers.roadClassification;
+    const trafficScore = roadClassification ? roadClassification.arterialFraction : 0.5;
+    const quietnessScore = roadClassification ? (1 - roadClassification.arterialFraction) : 0.5;
+
     console.log(`✅ Stadia Maps: Route generated - ${(distance / 1000).toFixed(2)} km, ${Math.round(duration / 60)} min, ${maneuvers.totalManeuvers} maneuvers`);
 
     return {
@@ -318,6 +328,9 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
       source: 'stadia_maps',
       profile,
       maneuvers,
+      trafficScore,
+      quietnessScore,
+      roadClassification,
       raw: data // Include raw response for debugging
     };
 
@@ -350,7 +363,9 @@ function extractManeuverData(trip) {
           length: m.length,                       // km
           time: m.time,                           // seconds
           beginShapeIndex: m.begin_shape_index,
-          endShapeIndex: m.end_shape_index
+          endShapeIndex: m.end_shape_index,
+          highway: m.highway || false,            // Valhalla highway flag (from OSM)
+          roadClass: m.road_class || null          // Valhalla road class if available
         });
       });
     }
@@ -367,13 +382,164 @@ function extractManeuverData(trip) {
     ? realTurns.length / totalDistanceKm
     : 0;
 
+  // Classify road segments for arterial detection
+  const roadClassification = classifyRoadSegments(allManeuvers, totalDistanceKm);
+
   return {
     totalManeuvers: allManeuvers.length,
     totalTurns: realTurns.length,
     totalDistanceKm,
     turnsPerKm,
-    maneuvers: allManeuvers
+    maneuvers: allManeuvers,
+    roadClassification
   };
+}
+
+/**
+ * Classify road segments to detect arterials/highways vs quiet roads
+ * Two-tier detection:
+ *   Tier 1: Valhalla highway boolean (from OSM tags, most reliable)
+ *   Tier 2: Street name patterns (catches roads not flagged as highway but still high-traffic)
+ *
+ * @param {Array} maneuvers - Maneuver array from extractManeuverData
+ * @param {number} totalDistanceKm - Total route distance in km
+ * @returns {Object} Road classification with arterial fraction and distances
+ */
+function classifyRoadSegments(maneuvers, totalDistanceKm) {
+  const ARTERIAL_NAME_PATTERN = /\b(Highway|Hwy|US[-\s]?\d|State\s*(Route|Road|Hwy)|SR[-\s]?\d|Interstate|I-\d|County\s*(Road|Rd)|CR[-\s]?\d|Boulevard|Blvd|Expressway|Freeway|Parkway|Turnpike|Route\s+\d)/i;
+
+  let highwayDistanceKm = 0;
+  let arterialByNameKm = 0;
+
+  for (const m of maneuvers) {
+    const segmentKm = m.length || 0;
+
+    // Tier 1: Valhalla highway flag
+    if (m.highway) {
+      highwayDistanceKm += segmentKm;
+      continue; // Don't double-count
+    }
+
+    // Tier 2: Street name pattern matching
+    if (m.streetNames && m.streetNames.length > 0) {
+      const isArterial = m.streetNames.some(name => ARTERIAL_NAME_PATTERN.test(name));
+      if (isArterial) {
+        arterialByNameKm += segmentKm;
+      }
+    }
+  }
+
+  const totalArterialKm = highwayDistanceKm + arterialByNameKm;
+  const arterialFraction = totalDistanceKm > 0 ? totalArterialKm / totalDistanceKm : 0;
+
+  if (arterialFraction > 0.1) {
+    console.log(`⚠️ Road classification: ${(arterialFraction * 100).toFixed(0)}% arterial (${highwayDistanceKm.toFixed(1)}km highway, ${arterialByNameKm.toFixed(1)}km by name)`);
+  } else {
+    console.log(`✅ Road classification: ${(arterialFraction * 100).toFixed(0)}% arterial — mostly quiet roads`);
+  }
+
+  return {
+    arterialFraction,
+    highwayDistanceKm,
+    arterialByNameKm,
+    totalDistanceKm
+  };
+}
+
+/**
+ * Score a route's overlap with bike infrastructure using Overpass data
+ * Uses the existing bikeInfrastructureService (cached, 3 fallback endpoints)
+ *
+ * Non-blocking: returns null if data unavailable (cache miss), so it won't
+ * delay route generation. The data gets cached for subsequent requests.
+ *
+ * @param {Array<[lon, lat]>} coordinates - Route coordinates
+ * @returns {Promise<number|null>} Infrastructure score 0-1, or null if unavailable
+ */
+export async function scoreRouteInfrastructure(coordinates) {
+  if (!coordinates || coordinates.length < 2) return null;
+
+  try {
+    // Build bounding box with ~300m buffer (~0.003 degrees)
+    const BUFFER = 0.003;
+    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    for (const coord of coordinates) {
+      const lon = coord[0], lat = coord[1];
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lon < minLon) minLon = lon;
+      if (lon > maxLon) maxLon = lon;
+    }
+
+    const bounds = {
+      south: minLat - BUFFER,
+      north: maxLat + BUFFER,
+      west: minLon - BUFFER,
+      east: maxLon + BUFFER
+    };
+
+    // Fetch infrastructure data (uses cached grid if user has viewed the area)
+    const infraData = await fetchBikeInfrastructure(bounds, { signal: AbortSignal.timeout(3000) });
+    if (!infraData || !infraData.features || infraData.features.length === 0) {
+      return null; // No data available
+    }
+
+    // Score route segments by proximity to infrastructure
+    // Sample every ~200m along the route
+    const SAMPLE_INTERVAL = Math.max(1, Math.floor(coordinates.length / Math.ceil((coordinates.length * 0.0001) / 0.2)));
+    const PROXIMITY_THRESHOLD = 0.0005; // ~50m in degrees
+
+    // Infrastructure tier scores
+    const TIER_SCORES = {
+      [INFRASTRUCTURE_TYPES.PROTECTED_CYCLEWAY]: 1.0,
+      [INFRASTRUCTURE_TYPES.BIKE_LANE]: 0.8,
+      [INFRASTRUCTURE_TYPES.SHARED_PATH]: 0.6,
+      [INFRASTRUCTURE_TYPES.BIKE_FRIENDLY]: 0.4,
+      [INFRASTRUCTURE_TYPES.SHARED_LANE]: 0.2,
+    };
+
+    let totalSamples = 0;
+    let infraScoreSum = 0;
+
+    // Sample route points
+    for (let i = 0; i < coordinates.length; i += Math.max(1, Math.floor(coordinates.length / 50))) {
+      const [sampleLon, sampleLat] = coordinates[i];
+      let bestTierScore = 0;
+
+      // Check proximity to each infrastructure feature
+      for (const feature of infraData.features) {
+        if (!feature.geometry || !feature.geometry.coordinates) continue;
+
+        const infraType = feature.properties?.infraType;
+        const tierScore = TIER_SCORES[infraType] || 0;
+        if (tierScore <= bestTierScore) continue; // Skip lower-tier features
+
+        // Check if any point on this feature is near our sample point
+        const featureCoords = feature.geometry.coordinates;
+        for (const [fLon, fLat] of featureCoords) {
+          const dLat = Math.abs(fLat - sampleLat);
+          const dLon = Math.abs(fLon - sampleLon);
+          if (dLat < PROXIMITY_THRESHOLD && dLon < PROXIMITY_THRESHOLD) {
+            bestTierScore = tierScore;
+            break;
+          }
+        }
+      }
+
+      infraScoreSum += bestTierScore;
+      totalSamples++;
+    }
+
+    const score = totalSamples > 0 ? infraScoreSum / totalSamples : null;
+    if (score !== null) {
+      console.log(`🚲 Infrastructure score: ${score.toFixed(2)} (${totalSamples} samples, ${infraData.features.length} features)`);
+    }
+    return score;
+  } catch (error) {
+    // Non-blocking: if Overpass fails, just skip infrastructure scoring
+    console.warn('Infrastructure scoring skipped:', error.message);
+    return null;
+  }
 }
 
 /**

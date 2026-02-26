@@ -1057,6 +1057,12 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
         }
       }
 
+      // Propagate traffic, quietness, road classification, and infrastructure scores
+      if (route.trafficScore !== undefined) fullRoute.trafficScore = route.trafficScore;
+      if (route.quietnessScore !== undefined) fullRoute.quietnessScore = route.quietnessScore;
+      if (route.roadClassification) fullRoute.roadClassification = route.roadClassification;
+      if (route.infrastructureScore !== undefined) fullRoute.infrastructureScore = route.infrastructureScore;
+
       // Apply smart naming if the route has a fallback name like "Claude Route 1"
       const isFallbackName = /^Claude Route \d+$/i.test(claudeRoute.name);
       if (isFallbackName) {
@@ -2175,16 +2181,33 @@ function getTrainingGoalScore(route, goal) {
     case 'tempo':
       // Wind factor still matters for intervals
       score = route.windFactor > 0.8 ? 0.1 : 0;
-      // Big bonus/penalty based on maneuver density — fewer turns = fewer stoplights
-      if (route.maneuvers?.turnsPerKm !== undefined) {
-        if (route.maneuvers.turnsPerKm <= 1.0) {
-          score += 0.25; // Excellent: very few intersections
-        } else if (route.maneuvers.turnsPerKm <= 2.0) {
-          score += 0.1;  // Acceptable
+
+      // PRIMARY: Arterial detection — penalize routes on highways/arterials
+      if (route.roadClassification?.arterialFraction !== undefined) {
+        const af = route.roadClassification.arterialFraction;
+        if (af <= 0.1) {
+          score += 0.25; // Almost no arterials — excellent
+        } else if (af <= 0.25) {
+          score += 0.10; // Mostly quiet roads
+        } else if (af <= 0.5) {
+          score -= 0.10; // Concerning amount of arterials
         } else {
-          score -= 0.15; // Too many intersections for quality intervals
+          score -= 0.25; // Mostly arterial — bad for cycling
+        }
+      } else if (route.maneuvers?.turnsPerKm !== undefined) {
+        // Fallback: mild turn preference (reduced from 0.25 to 0.10)
+        if (route.maneuvers.turnsPerKm <= 1.0) {
+          score += 0.10;
+        } else if (route.maneuvers.turnsPerKm > 3.0) {
+          score -= 0.10;
         }
       }
+
+      // Infrastructure bonus — reward routes with bike lanes/paths
+      if (route.infrastructureScore !== undefined && route.infrastructureScore !== null) {
+        score += (route.infrastructureScore - 0.5) * 0.2;
+      }
+
       // Use interval suitability analysis if available
       if (route.intervalSuitability?.overallScore !== undefined) {
         score += (route.intervalSuitability.overallScore - 0.5) * 0.3;

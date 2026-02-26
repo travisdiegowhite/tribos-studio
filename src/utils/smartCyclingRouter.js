@@ -183,7 +183,11 @@ async function tryStadiaMapsRouting(waypoints, options) {
         confidence: result.confidence || 1.0,
         profile: profile,
         source: 'stadia_maps',
-        maneuvers: result.maneuvers || null
+        maneuvers: result.maneuvers || null,
+        trafficScore: result.trafficScore,
+        quietnessScore: result.quietnessScore,
+        roadClassification: result.roadClassification || null,
+        infrastructureScore: result.infrastructureScore
       };
     }
 

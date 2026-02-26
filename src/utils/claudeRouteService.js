@@ -299,7 +299,10 @@ function getTrainingGoalDescription(goal) {
 - Intensity: Alternating hard efforts and easy recovery
 - Route needs: Long uninterrupted road segments (1-3km minimum) for high-intensity efforts
 - CRITICAL for intervals: Avoid roads with traffic signals, stop signs, or busy intersections during effort segments
-- Effort segments: Use quiet residential streets, bike paths, or rural roads with minimal cross-traffic
+- NEVER use state highways (SR/SH), US routes, numbered county highways, or multi-lane arterials for effort segments
+- PREFER: Residential streets with long blocks, dedicated bike paths, rural roads with bike lanes or wide shoulders
+- A lower-traffic road with a bike lane is ALWAYS better than a straight highway without cycling infrastructure
+- Look for parallel alternatives: frontage roads, bike routes, rail trails running alongside busy roads
 - Recovery segments: Can use any safe road, preferably low-traffic for easy spinning
 - Road quality: Smooth pavement, good visibility, minimal need to brake or stop
 - Avoid: Downtown areas with stoplights, busy arterials, school zones, roads with frequent driveways`,
@@ -322,6 +325,9 @@ function getTrainingGoalDescription(goal) {
 - Focus: Sustained threshold effort
 - Intensity: Comfortably hard, steady pace near lactate threshold
 - Route needs: Long stretches of consistent terrain to maintain steady power
+- AVOID state highways (SR/SH), US routes, and numbered county roads for sustained effort segments
+- PREFER roads with cycling infrastructure: bike lanes, wide shoulders, separated paths
+- A parallel road with a bike lane beats a straight highway every time
 - Road quality: Smooth roads with few interruptions, similar needs to intervals but less extreme
 - Avoid: Frequent stop signs/traffic lights that break rhythm, steep grades that force power spikes`
   };

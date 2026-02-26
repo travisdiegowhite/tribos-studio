@@ -523,6 +523,9 @@ ROAD QUALITY & TRAINING-SPECIFIC ROUTING:${trainingGoal === 'intervals' || train
 - CRITICAL: This is a ${trainingGoal} workout — route MUST include long uninterrupted segments (1-3km) for high-intensity efforts
 - Place effort segments on quiet residential streets, bike paths, or rural roads with minimal cross-traffic
 - AVOID stoplights, stop signs, and busy intersections on segments where the rider will be at high intensity
+- AVOID: State highways (SR/SH), US routes, numbered county roads, multi-lane boulevards with traffic signals
+- PREFER: Roads with bike lanes, wide shoulders, residential grids with long blocks, rail trails, greenways
+- A parallel road with a bike lane beats a straight highway every time — always check for safer alternatives nearby
 - Recovery segments between efforts can use any safe, low-traffic road
 - Annotate each waypoint with "segmentType": "effort" or "recovery" to indicate workout phase suitability` : ''}${trainingGoal === 'endurance' ? `
 - Prefer roads that allow sustained rhythm: minimal stop signs, traffic lights, or forced stops
