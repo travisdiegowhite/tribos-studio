@@ -174,6 +174,9 @@ function Landing() {
                   <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                     Contact
                   </Anchor>
+                  <Anchor href="mailto:travis@tribos.studio?subject=Abuse%20Report" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                    Report Abuse
+                  </Anchor>
                 </Group>
               </Center>
             </Stack>

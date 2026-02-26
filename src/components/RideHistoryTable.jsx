@@ -19,6 +19,7 @@ import { IconSearch, IconEye, IconChartBar, IconChevronRight, IconChevronLeft, I
 import { useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '@mantine/hooks';
 import { ViewOnStravaLink, StravaLogo, PoweredByStrava, STRAVA_ORANGE } from './StravaBranding';
+import { PoweredByGarmin } from './GarminBranding';
 
 /**
  * Ride History Table Component
@@ -555,6 +556,13 @@ const RideHistoryTable = ({
       {filteredRides.some(r => isFromStrava(r)) && (
         <Box mt="sm" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
           <PoweredByStrava variant="light" size="sm" />
+        </Box>
+      )}
+
+      {/* Garmin Attribution - show if any rides are from Garmin */}
+      {filteredRides.some(r => r.provider === 'garmin' || r.imported_from === 'garmin') && (
+        <Box mt="sm" pt="sm" style={{ borderTop: filteredRides.some(r => isFromStrava(r)) ? 'none' : '1px solid var(--tribos-border-default)' }}>
+          <PoweredByGarmin variant="light" size="sm" />
         </Box>
       )}
     </Card>

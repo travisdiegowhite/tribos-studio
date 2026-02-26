@@ -34,6 +34,7 @@ import {
   getIFZone,
 } from './ActivityMetrics.jsx';
 import { ViewOnStravaLink, PoweredByStrava, StravaLogo } from './StravaBranding';
+import { PoweredByGarmin } from './GarminBranding';
 import { FuelCard } from './fueling';
 import ActivityPowerCurve from './ActivityPowerCurve';
 import ColoredRouteMap from './ColoredRouteMap';
@@ -637,6 +638,13 @@ const RideAnalysisModal = ({
         {ride.provider === 'strava' && (
           <Box pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
             <PoweredByStrava variant="light" size="sm" />
+          </Box>
+        )}
+
+        {/* Garmin attribution if applicable */}
+        {ride.provider === 'garmin' && (
+          <Box pt="sm" style={{ borderTop: ride.provider === 'strava' ? 'none' : '1px solid var(--tribos-border-default)' }}>
+            <PoweredByGarmin variant="light" size="sm" />
           </Box>
         )}
       </Stack>

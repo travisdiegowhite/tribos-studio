@@ -241,6 +241,16 @@ export interface UserProfileDB {
   timezone: string | null;
   created_at: string;
   updated_at: string;
+  // Consent tracking (Garmin Developer Program compliance)
+  tos_accepted_at: string | null;
+  tos_version: string | null;
+  privacy_accepted_at: string | null;
+  privacy_version: string | null;
+  ai_consent_granted_at: string | null;
+  ai_consent_withdrawn_at: string | null;
+  garmin_data_consent_at: string | null;
+  account_deletion_requested_at: string | null;
+  data_export_requested_at: string | null;
 }
 
 export interface UserProfileInsert {
@@ -258,6 +268,16 @@ export interface UserProfileInsert {
   garmin_connected?: boolean;
   wahoo_connected?: boolean;
   timezone?: string | null;
+  // Consent tracking
+  tos_accepted_at?: string | null;
+  tos_version?: string | null;
+  privacy_accepted_at?: string | null;
+  privacy_version?: string | null;
+  ai_consent_granted_at?: string | null;
+  ai_consent_withdrawn_at?: string | null;
+  garmin_data_consent_at?: string | null;
+  account_deletion_requested_at?: string | null;
+  data_export_requested_at?: string | null;
 }
 
 export interface UserProfileUpdate {
@@ -274,6 +294,16 @@ export interface UserProfileUpdate {
   wahoo_connected?: boolean;
   timezone?: string | null;
   updated_at?: string;
+  // Consent tracking
+  tos_accepted_at?: string | null;
+  tos_version?: string | null;
+  privacy_accepted_at?: string | null;
+  privacy_version?: string | null;
+  ai_consent_granted_at?: string | null;
+  ai_consent_withdrawn_at?: string | null;
+  garmin_data_consent_at?: string | null;
+  account_deletion_requested_at?: string | null;
+  data_export_requested_at?: string | null;
 }
 
 // ============================================================

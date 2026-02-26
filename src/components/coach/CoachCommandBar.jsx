@@ -13,6 +13,8 @@ import {
   Kbd,
   UnstyledButton,
   ScrollArea,
+  Alert,
+  Anchor,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import {
@@ -21,7 +23,9 @@ import {
   IconArrowRight,
   IconHistory,
   IconX,
+  IconShieldCheck,
 } from '@tabler/icons-react';
+import { Link } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 
 import { useCoachCommandBar } from './CoachCommandBarContext';
@@ -53,6 +57,8 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [trainingPlanPreview, setTrainingPlanPreview] = useState(null);
+  const [aiConsentStatus, setAiConsentStatus] = useState(null); // null=loading, true=granted, false=not granted
+  const [consentGranting, setConsentGranting] = useState(false);
 
   // Load conversation history for AI memory
   const loadConversationHistory = useCallback(async () => {
@@ -123,6 +129,36 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
     }
   }, [user?.id]);
 
+  // Check AI consent status on open
+  useEffect(() => {
+    if (!isOpen || !user?.id) return;
+    supabase
+      .from('user_profiles')
+      .select('ai_consent_granted_at, ai_consent_withdrawn_at')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        setAiConsentStatus(!!data?.ai_consent_granted_at && !data?.ai_consent_withdrawn_at);
+      })
+      .catch(() => setAiConsentStatus(false));
+  }, [isOpen, user?.id]);
+
+  // Grant AI consent inline
+  const grantAiConsent = async () => {
+    setConsentGranting(true);
+    try {
+      await supabase
+        .from('user_profiles')
+        .update({ ai_consent_granted_at: new Date().toISOString(), ai_consent_withdrawn_at: null })
+        .eq('id', user.id);
+      setAiConsentStatus(true);
+    } catch (err) {
+      console.error('Error granting AI consent:', err);
+    } finally {
+      setConsentGranting(false);
+    }
+  };
+
   // Handle opening
   useEffect(() => {
     if (isOpen) {
@@ -153,6 +189,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
   // Submit query
   const handleSubmit = async () => {
     if (!query.trim() || isLoading) return;
+    if (!aiConsentStatus) return; // Consent required
 
     setIsLoading(true);
     setError(null);
@@ -505,6 +542,44 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
               offsetScrollbars
             >
               <Stack gap="lg" p="lg" pt="md">
+                {/* AI Consent Prompt */}
+                {aiConsentStatus === false && (
+                  <Alert
+                    variant="light"
+                    color="terracotta"
+                    icon={<IconShieldCheck size={20} />}
+                    title="Enable AI Coach"
+                  >
+                    <Stack gap="sm">
+                      <Text size="sm">
+                        AI Coach uses Anthropic's Claude to analyze your training data and provide
+                        personalized insights. Your activity summaries and fitness profile are sent
+                        to the AI — raw GPS data and personal info are not shared.
+                      </Text>
+                      <Text size="sm">
+                        See our{' '}
+                        <Anchor component={Link} to="/privacy#ai" onClick={close} style={{ color: 'var(--tribos-terracotta-500)' }}>
+                          Privacy Policy
+                        </Anchor>{' '}
+                        for full details. You can disable AI features anytime in Settings.
+                      </Text>
+                      <Group gap="sm">
+                        <Button
+                          size="sm"
+                          color="terracotta"
+                          loading={consentGranting}
+                          onClick={grantAiConsent}
+                        >
+                          Enable AI Coach
+                        </Button>
+                        <Button size="sm" variant="subtle" color="gray" onClick={close}>
+                          Not Now
+                        </Button>
+                      </Group>
+                    </Stack>
+                  </Alert>
+                )}
+
                 {/* Response Area */}
                 <CoachResponseArea
                   isLoading={isLoading}

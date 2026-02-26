@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -20,6 +21,8 @@ import {
   IconSun,
   IconMoon,
 } from '@tabler/icons-react';
+import { useAuth } from '../contexts/AuthContext.jsx';
+import { supabase } from '../lib/supabase';
 import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
 
 // Flat navigation - 5 direct links, no dropdowns
@@ -35,6 +38,26 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
   const location = useLocation();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
+  const { user } = useAuth();
+  const consentPersisted = useRef(false);
+
+  // Persist pending consent from signup flow to user_profiles
+  useEffect(() => {
+    if (!user?.id || consentPersisted.current) return;
+    consentPersisted.current = true;
+
+    try {
+      const pending = localStorage.getItem('tribos_consent_pending');
+      if (pending) {
+        const consent = JSON.parse(pending);
+        supabase.from('user_profiles').update(consent).eq('id', user.id)
+          .then(() => localStorage.removeItem('tribos_consent_pending'))
+          .catch(() => {}); // Non-blocking
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, [user?.id]);
 
   // Check if current path matches nav item
   const isActive = (item) => {
@@ -157,6 +180,9 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
               </Anchor>
               <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
                 Contact
+              </Anchor>
+              <Anchor href="mailto:travis@tribos.studio?subject=Abuse%20Report" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                Report Abuse
               </Anchor>
             </Group>
           </Container>

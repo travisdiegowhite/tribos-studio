@@ -58,7 +58,7 @@ function Terms() {
               <Title order={1} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>
                 Terms of Service
               </Title>
-              <Text c="dimmed" size="sm">Last Updated: December 2025</Text>
+              <Text c="dimmed" size="sm">Last Updated: February 2026</Text>
             </div>
 
             <div>
@@ -157,6 +157,38 @@ function Terms() {
               <Text style={{ color: 'var(--tribos-text-secondary)' }} mt="sm">
                 You can revoke these integrations at any time through your settings.
               </Text>
+
+              <Title order={3} size="h4" mt="md" mb="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                7.1 Garmin Connect
+              </Title>
+              <Text style={{ color: 'var(--tribos-text-secondary)' }} mb="sm">
+                Your use of data from Garmin Connect is subject to the following additional terms:
+              </Text>
+              <List style={{ color: 'var(--tribos-text-secondary)' }}>
+                <List.Item>
+                  Garmin International, Inc. and its affiliates ("Garmin") are intended third-party
+                  beneficiaries of these Terms of Service as they relate to your use of Garmin Connect
+                  data within our Service. Garmin has the right to enforce any provisions of these Terms
+                  that benefit or protect Garmin.
+                </List.Item>
+                <List.Item>
+                  Garmin Connect data and API services accessed through our Service are provided "AS IS"
+                  without warranty of any kind from either tribos.studio or Garmin, including without
+                  limitation any warranties of merchantability, fitness for a particular purpose, or
+                  non-infringement.
+                </List.Item>
+                <List.Item>
+                  Neither tribos.studio nor Garmin shall be liable for any damages arising from your
+                  use of or reliance on Garmin Connect data accessed through our Service.
+                </List.Item>
+                <List.Item>
+                  You agree to comply with{' '}
+                  <Anchor href="https://www.garmin.com/en-US/legal/connect-terms-of-use/" target="_blank" style={{ color: 'var(--tribos-terracotta-500)' }}>
+                    Garmin Connect Terms of Use
+                  </Anchor>{' '}
+                  when accessing Garmin data through our Service.
+                </List.Item>
+              </List>
             </div>
 
             <div>
@@ -173,6 +205,22 @@ function Terms() {
                 <List.Item>Using appropriate safety equipment (helmet, lights, etc.)</List.Item>
                 <List.Item>Riding within your skill and fitness level</List.Item>
                 <List.Item>Bringing appropriate supplies (water, nutrition, repair kit)</List.Item>
+                <List.Item>Understanding that routes and navigation data are NOT designed for, and should NOT be relied upon for, life-critical, emergency, or time-critical applications</List.Item>
+              </List>
+
+              <Title order={3} size="h4" mt="md" mb="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                8.1 AI-Powered Features Disclaimer
+              </Title>
+              <Text style={{ color: 'var(--tribos-text-secondary)' }} mb="sm">
+                Our Service includes AI-powered features (coaching, route generation, training insights)
+                powered by third-party AI technology. You acknowledge that:
+              </Text>
+              <List style={{ color: 'var(--tribos-text-secondary)' }}>
+                <List.Item>AI-generated content is provided for informational purposes only</List.Item>
+                <List.Item>AI recommendations do NOT constitute professional medical, fitness, or coaching advice</List.Item>
+                <List.Item>You should consult qualified professionals before making significant changes to your training, diet, or exercise regimen</List.Item>
+                <List.Item>AI outputs may contain errors or inaccuracies — always verify important information independently</List.Item>
+                <List.Item>AI features require your explicit opt-in consent and can be disabled at any time in Settings</List.Item>
               </List>
             </div>
 
@@ -222,7 +270,52 @@ function Terms() {
 
             <div>
               <Title order={2} size="h3" mb="sm" style={{ color: 'var(--tribos-text-primary)' }}>
-                12. Changes to Terms
+                12. Data Accuracy
+              </Title>
+              <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+                We do not guarantee the accuracy, completeness, or reliability of any data displayed
+                in the Service, including data sourced from Garmin Connect, Strava, Wahoo, or generated
+                by AI features. Activity metrics, route data, elevation profiles, and AI-generated
+                analysis are provided on a best-effort basis and may contain errors.
+              </Text>
+            </div>
+
+            <div>
+              <Title order={2} size="h3" mb="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                13. Account Termination
+              </Title>
+              <Text style={{ color: 'var(--tribos-text-secondary)' }} mb="sm">
+                We may suspend or terminate your account if you:
+              </Text>
+              <List style={{ color: 'var(--tribos-text-secondary)' }}>
+                <List.Item>Violate these Terms of Service</List.Item>
+                <List.Item>Engage in fraudulent or abusive behavior</List.Item>
+                <List.Item>Misuse the Service or third-party integrations</List.Item>
+              </List>
+              <Text style={{ color: 'var(--tribos-text-secondary)' }} mt="sm">
+                You may delete your account at any time through Settings. Upon account deletion,
+                all your data will be permanently removed in accordance with our{' '}
+                <Anchor component={Link} to="/privacy" style={{ color: 'var(--tribos-terracotta-500)' }}>
+                  Privacy Policy
+                </Anchor>.
+              </Text>
+            </div>
+
+            <div>
+              <Title order={2} size="h3" mb="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                14. Governing Law
+              </Title>
+              <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+                These Terms shall be governed by and construed in accordance with the laws of the
+                State of Colorado, United States, without regard to its conflict of law provisions.
+                Any disputes arising from these Terms or your use of the Service shall be resolved
+                in the courts of Colorado, United States.
+              </Text>
+            </div>
+
+            <div>
+              <Title order={2} size="h3" mb="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                15. Changes to Terms
               </Title>
               <Text style={{ color: 'var(--tribos-text-secondary)' }}>
                 We reserve the right to modify these terms at any time. We will notify users of
@@ -233,7 +326,7 @@ function Terms() {
 
             <div>
               <Title order={2} size="h3" mb="sm" style={{ color: 'var(--tribos-text-primary)' }}>
-                13. Contact
+                16. Contact
               </Title>
               <Text style={{ color: 'var(--tribos-text-secondary)' }}>
                 For questions about these Terms of Service, contact us at:{' '}

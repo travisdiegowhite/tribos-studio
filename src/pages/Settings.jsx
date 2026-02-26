@@ -26,7 +26,7 @@ import {
   Paper,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSun, IconMoon, IconChevronDown, IconChevronRight, IconUser, IconBarbell, IconBike, IconPlugConnected, IconRoute, IconAdjustments } from '@tabler/icons-react';
+import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSun, IconMoon, IconChevronDown, IconChevronRight, IconUser, IconBarbell, IconBike, IconPlugConnected, IconRoute, IconAdjustments, IconSparkles, IconDownload, IconTrash } from '@tabler/icons-react';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -37,6 +37,8 @@ import AppShell from '../components/AppShell.jsx';
 import ImportWizard from '../components/ImportWizard.jsx';
 import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { ConnectWithStravaButton, PoweredByStrava, STRAVA_ORANGE } from '../components/StravaBranding';
+import { PoweredByGarmin } from '../components/GarminBranding';
+import GarminConsentModal from '../components/settings/GarminConsentModal.jsx';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
@@ -91,6 +93,13 @@ function Settings() {
   const [showStravaDisconnectModal, setShowStravaDisconnectModal] = useState(false);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
   const [showGarminReconnectModal, setShowGarminReconnectModal] = useState(false);
+  const [showGarminConsentModal, setShowGarminConsentModal] = useState(false);
+  const [aiConsentEnabled, setAiConsentEnabled] = useState(false);
+  const [aiConsentLoading, setAiConsentLoading] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
 
   // Activity maintenance state
   const [fullHistorySyncing, setFullHistorySyncing] = useState(false);
@@ -131,6 +140,7 @@ function Settings() {
           setFtp(data.ftp || null);
           setWeightKg(data.weight_kg || null);
           setPowerZones(data.power_zones || null);
+          setAiConsentEnabled(!!data.ai_consent_granted_at && !data.ai_consent_withdrawn_at);
         }
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -316,6 +326,104 @@ function Settings() {
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
+  };
+
+  // AI consent toggle
+  const handleAiConsentToggle = async (enabled) => {
+    setAiConsentLoading(true);
+    try {
+      const update = enabled
+        ? { ai_consent_granted_at: new Date().toISOString(), ai_consent_withdrawn_at: null }
+        : { ai_consent_withdrawn_at: new Date().toISOString() };
+
+      const { error } = await supabase
+        .from('user_profiles')
+        .update(update)
+        .eq('id', user.id);
+
+      if (error) throw error;
+      setAiConsentEnabled(enabled);
+      notifications.show({
+        title: enabled ? 'AI Features Enabled' : 'AI Features Disabled',
+        message: enabled
+          ? 'AI Coach and insights are now active.'
+          : 'AI features have been turned off.',
+        color: enabled ? 'sage' : 'gray',
+      });
+    } catch (err) {
+      console.error('Error updating AI consent:', err);
+      notifications.show({ title: 'Error', message: 'Failed to update AI preferences.', color: 'red' });
+    } finally {
+      setAiConsentLoading(false);
+    }
+  };
+
+  // Data export
+  const handleDataExport = async () => {
+    setExportingData(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+
+      const res = await fetch(`${getApiBaseUrl()}/api/data-export`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Export failed');
+      }
+
+      const exportData = await res.json();
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tribos-data-export-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      notifications.show({ title: 'Export Complete', message: 'Your data has been downloaded.', color: 'sage' });
+    } catch (err) {
+      console.error('Error exporting data:', err);
+      notifications.show({ title: 'Export Failed', message: err.message, color: 'red' });
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  // Account deletion
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+    setDeletingAccount(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+
+      const res = await fetch(`${getApiBaseUrl()}/api/account-delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Deletion failed');
+      }
+
+      await signOut();
+      navigate('/');
+    } catch (err) {
+      console.error('Error deleting account:', err);
+      notifications.show({ title: 'Deletion Failed', message: err.message, color: 'red' });
+      setDeletingAccount(false);
+    }
   };
 
   // OAuth handlers
@@ -622,14 +730,26 @@ function Settings() {
   };
 
   const connectGarmin = async () => {
+    if (!garminService.isConfigured()) {
+      notifications.show({
+        title: 'Not Configured',
+        message: 'Garmin integration is not yet configured. Contact support.',
+        color: 'gold',
+      });
+      return;
+    }
+    // Show consent modal before proceeding with OAuth
+    setShowGarminConsentModal(true);
+  };
+
+  const handleGarminConsentConfirmed = async () => {
+    setShowGarminConsentModal(false);
     try {
-      if (!garminService.isConfigured()) {
-        notifications.show({
-          title: 'Not Configured',
-          message: 'Garmin integration is not yet configured. Contact support.',
-          color: 'gold',
-        });
-        return;
+      // Record consent timestamp
+      if (user?.id) {
+        await supabase.from('user_profiles').update({
+          garmin_data_consent_at: new Date().toISOString(),
+        }).eq('id', user.id);
       }
       const authUrl = await garminService.getAuthorizationUrl();
       window.location.href = authUrl;
@@ -1185,6 +1305,60 @@ function Settings() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        opened={showDeleteAccountModal}
+        onClose={() => { setShowDeleteAccountModal(false); setDeleteConfirmText(''); }}
+        title="Delete Your Account"
+        centered
+        size="md"
+      >
+        <Stack gap="md">
+          <Alert color="red" variant="light" icon={<IconAlertTriangle size={18} />}>
+            <Text size="sm" fw={500}>This action is permanent and cannot be undone.</Text>
+          </Alert>
+          <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+            Deleting your account will permanently remove:
+          </Text>
+          <List size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <List.Item>Your profile and preferences</List.Item>
+            <List.Item>All activities and routes</List.Item>
+            <List.Item>Training plans and workout history</List.Item>
+            <List.Item>AI coach conversations</List.Item>
+            <List.Item>Gear and component data</List.Item>
+            <List.Item>Connected service tokens (Strava, Garmin, Wahoo)</List.Item>
+          </List>
+          <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+            Type <strong>DELETE</strong> below to confirm:
+          </Text>
+          <TextInput
+            placeholder="Type DELETE to confirm"
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+          />
+          <Group justify="flex-end">
+            <Button variant="subtle" color="gray" onClick={() => { setShowDeleteAccountModal(false); setDeleteConfirmText(''); }}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              disabled={deleteConfirmText !== 'DELETE'}
+              loading={deletingAccount}
+              onClick={handleDeleteAccount}
+            >
+              Delete My Account
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Garmin Data Transfer Consent Modal */}
+      <GarminConsentModal
+        opened={showGarminConsentModal}
+        onClose={() => setShowGarminConsentModal(false)}
+        onConsent={handleGarminConsentConfirmed}
+      />
 
       {/* Garmin Reconnect Modal */}
       <Modal
@@ -1863,6 +2037,37 @@ function Settings() {
             </Stack>
           </Card>
 
+          {/* AI Features */}
+          <Card>
+            <Stack gap="md">
+              <Group gap="xs">
+                <IconSparkles size={20} color="var(--tribos-terracotta-500)" />
+                <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+                  AI Features
+                </Title>
+              </Group>
+
+              <Group justify="space-between">
+                <Box style={{ flex: 1 }}>
+                  <Text style={{ color: 'var(--tribos-text-primary)' }}>AI Coach & Insights</Text>
+                  <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                    Enable AI-powered coaching, training insights, and route suggestions.
+                    Your data is processed by Anthropic's Claude AI.{' '}
+                    <Link to="/privacy#ai" style={{ color: 'var(--tribos-terracotta-500)' }}>
+                      Learn more
+                    </Link>
+                  </Text>
+                </Box>
+                <Switch
+                  color="terracotta"
+                  checked={aiConsentEnabled}
+                  disabled={aiConsentLoading}
+                  onChange={(e) => handleAiConsentToggle(e.currentTarget.checked)}
+                />
+              </Group>
+            </Stack>
+          </Card>
+
           {/* Account Actions */}
           <Card>
             <Stack gap="md">
@@ -1870,8 +2075,37 @@ function Settings() {
                 Account
               </Title>
 
-              <Button variant="outline" color="red" onClick={handleSignOut}>
+              <Group justify="space-between">
+                <Box>
+                  <Text style={{ color: 'var(--tribos-text-primary)' }}>Export My Data</Text>
+                  <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                    Download all your data as JSON
+                  </Text>
+                </Box>
+                <Button
+                  variant="light"
+                  color="gray"
+                  leftSection={<IconDownload size={16} />}
+                  loading={exportingData}
+                  onClick={handleDataExport}
+                >
+                  Export
+                </Button>
+              </Group>
+
+              <Divider />
+
+              <Button variant="outline" color="gray" onClick={handleSignOut}>
                 Sign Out
+              </Button>
+
+              <Button
+                variant="outline"
+                color="red"
+                leftSection={<IconTrash size={16} />}
+                onClick={() => setShowDeleteAccountModal(true)}
+              >
+                Delete My Account
               </Button>
             </Stack>
           </Card>
@@ -1957,6 +2191,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                     {speedProfile.rides_analyzed} rides analyzed • Avg: {formatSpeed(speedProfile.average_speed, unitsPreference === 'imperial')}
                   </Text>
                   {isStrava && <PoweredByStrava variant="light" size="sm" />}
+                  {name === 'Garmin Connect' && <PoweredByGarmin variant="light" size="sm" />}
                 </Stack>
               ) : (
                 <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
