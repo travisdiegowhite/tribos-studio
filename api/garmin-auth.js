@@ -777,8 +777,8 @@ async function pushRoute(req, res, userId, routeData) {
     const courseData = buildCoursePayload(routeData);
 
     // Upload course to Garmin Connect
-    // Garmin Courses API endpoint (https://developer.garmin.com/gc-developer-program/courses-api/)
-    const courseUploadUrl = 'https://apis.garmin.com/course-api/course';
+    // Garmin Courses API v1.0.1 — POST creates a new course
+    const courseUploadUrl = 'https://apis.garmin.com/training-api/courses/v1/course';
 
     console.log('Uploading course to Garmin:', routeData.name, `(${courseData.geoPoints.length} points)`, 'URL:', courseUploadUrl);
 
@@ -818,6 +818,14 @@ async function pushRoute(req, res, userId, routeData) {
       if (uploadResponse.status === 401 || uploadResponse.status === 403) {
         return res.status(401).json({
           error: 'Garmin authorization failed. Please reconnect your account.',
+          requiresReconnect: true,
+          details: errorText
+        });
+      }
+
+      if (uploadResponse.status === 412) {
+        return res.status(412).json({
+          error: 'Garmin user has not granted COURSE_IMPORT permission. Please disconnect and reconnect your Garmin account.',
           requiresReconnect: true,
           details: errorText
         });
