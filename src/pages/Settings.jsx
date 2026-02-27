@@ -24,9 +24,10 @@ import {
   SimpleGrid,
   Tabs,
   Paper,
+  SegmentedControl,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSun, IconMoon, IconChevronDown, IconChevronRight, IconUser, IconBarbell, IconBike, IconPlugConnected, IconRoute, IconAdjustments, IconSparkles, IconDownload, IconTrash } from '@tabler/icons-react';
+import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSun, IconMoon, IconChevronDown, IconChevronRight, IconUser, IconBarbell, IconBike, IconPlugConnected, IconRoute, IconAdjustments, IconSparkles, IconDownload, IconTrash, IconPlus, IconTool } from '@tabler/icons-react';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -47,6 +48,11 @@ import { formatSpeed } from '../utils/units';
 import PageHeader from '../components/PageHeader.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import RunningProfileSettings from '../components/settings/RunningProfileSettings.jsx';
+import { useGear } from '../hooks/useGear.ts';
+import GearItemCard from '../components/gear/GearItemCard.jsx';
+import GearDetailView from '../components/gear/GearDetailView.jsx';
+import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
+import AddGearModal from '../components/gear/AddGearModal.jsx';
 import IntegrationAlert from '../components/IntegrationAlert.jsx';
 import { googleCalendarService } from '../utils/googleCalendarService';
 import { IconBrandGoogle } from '@tabler/icons-react';
@@ -106,6 +112,37 @@ function Settings() {
   const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
   const [duplicatePreview, setDuplicatePreview] = useState(null);
   const [findingDuplicates, setFindingDuplicates] = useState(false);
+
+  // Gear state
+  const gearHook = useGear({ userId: user?.id });
+  const { gearItems, alerts, loading: gearLoading, createGear, dismissAlert } = gearHook;
+  const [activeSport, setActiveSport] = useState('cycling');
+  const [addGearModalOpen, setAddGearModalOpen] = useState(false);
+  const [selectedGearId, setSelectedGearId] = useState(null);
+  const [showRetired, setShowRetired] = useState(false);
+  const useImperial = true; // TODO: Get from user preferences context
+
+  const activeGear = gearItems.filter(g => g.status === 'active' && g.sport_type === activeSport);
+  const retiredGear = gearItems.filter(g => g.status === 'retired' && g.sport_type === activeSport);
+
+  const handleCreateGear = async (params) => {
+    try {
+      const gear = await createGear(params);
+      notifications.show({
+        title: 'Gear added',
+        message: `${gear.name} has been added`,
+        color: 'green',
+      });
+      setAddGearModalOpen(false);
+    } catch (err) {
+      notifications.show({
+        title: 'Error',
+        message: err.message || 'Failed to add gear',
+        color: 'red',
+      });
+      throw err;
+    }
+  };
 
   // Form state
   const [displayName, setDisplayName] = useState('');
@@ -1688,26 +1725,109 @@ function Settings() {
               <Tabs.Panel value="gear">
                 <Stack gap="md">
 
-          {/* Gear Management */}
-          <Card>
-            <Group justify="space-between" align="flex-start">
-              <Stack gap={4}>
-                <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
-                  Gear
-                </Title>
-                <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                  Track mileage and maintenance for your bikes and running shoes
-                </Text>
-              </Stack>
+          <Group justify="space-between" align="center">
+            <Stack gap={4}>
+              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+                Gear
+              </Title>
+              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                Track mileage and maintenance for your bikes and running shoes
+              </Text>
+            </Stack>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setAddGearModalOpen(true)}
+            >
+              Add Gear
+            </Button>
+          </Group>
+
+          <AddGearModal
+            opened={addGearModalOpen}
+            onClose={() => setAddGearModalOpen(false)}
+            onSave={handleCreateGear}
+          />
+
+          {alerts.length > 0 && (
+            <GearAlertBanner
+              alerts={alerts}
+              onDismiss={dismissAlert}
+              useImperial={useImperial}
+            />
+          )}
+
+          <SegmentedControl
+            value={activeSport}
+            onChange={setActiveSport}
+            data={[
+              { label: 'Cycling', value: 'cycling' },
+              { label: 'Running', value: 'running' },
+            ]}
+          />
+
+          {gearLoading ? (
+            <Text c="dimmed" ta="center" py="xl">Loading gear...</Text>
+          ) : activeGear.length === 0 ? (
+            <Stack align="center" gap="sm" py="xl">
+              <ThemeIcon size={48} radius="xl" variant="light" color="gray">
+                <IconTool size={24} />
+              </ThemeIcon>
+              <Text c="dimmed" ta="center">
+                No {activeSport === 'cycling' ? 'bikes' : 'shoes'} tracked yet.
+              </Text>
               <Button
-                component={Link}
-                to="/gear"
                 variant="light"
+                size="sm"
+                onClick={() => setAddGearModalOpen(true)}
               >
-                Manage Gear
+                Add your first {activeSport === 'cycling' ? 'bike' : 'pair of shoes'}
               </Button>
-            </Group>
-          </Card>
+            </Stack>
+          ) : (
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              {activeGear.map((gear) => (
+                <GearItemCard
+                  key={gear.id}
+                  gear={gear}
+                  onClick={() => setSelectedGearId(gear.id)}
+                  useImperial={useImperial}
+                />
+              ))}
+            </SimpleGrid>
+          )}
+
+          {retiredGear.length > 0 && (
+            <>
+              <UnstyledButton onClick={() => setShowRetired(!showRetired)}>
+                <Group gap={4}>
+                  {showRetired ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                  <Text size="sm" c="dimmed">
+                    Retired ({retiredGear.length})
+                  </Text>
+                </Group>
+              </UnstyledButton>
+              <Collapse in={showRetired}>
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                  {retiredGear.map((gear) => (
+                    <GearItemCard
+                      key={gear.id}
+                      gear={gear}
+                      onClick={() => setSelectedGearId(gear.id)}
+                      useImperial={useImperial}
+                    />
+                  ))}
+                </SimpleGrid>
+              </Collapse>
+            </>
+          )}
+
+          <GearDetailView
+            gearId={selectedGearId}
+            opened={!!selectedGearId}
+            onClose={() => setSelectedGearId(null)}
+            useGearHook={gearHook}
+            useImperial={useImperial}
+          />
 
                 </Stack>
               </Tabs.Panel>
