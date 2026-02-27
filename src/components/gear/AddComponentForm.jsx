@@ -11,6 +11,7 @@ import {
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { Collapse } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { COMPONENT_TYPES, METERS_PER_MILE } from './gearConstants';
 
 // Default thresholds in miles for display (matching api/utils/gearDefaults.js)
@@ -84,8 +85,12 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
         notes: notes.trim() || undefined,
       });
       reset();
-    } catch {
-      // Error handling done by caller
+    } catch (err) {
+      notifications.show({
+        title: 'Error',
+        message: err?.message || 'Failed to add component',
+        color: 'red',
+      });
     } finally {
       setSaving(false);
     }

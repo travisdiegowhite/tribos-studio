@@ -143,17 +143,25 @@ export default function GearDetailView({
   };
 
   const handleAddComponent = async (params) => {
-    const comp = await createComponent(params);
-    // Refresh components list
-    const { components: c } = await getGearDetail(gearId);
-    setComponents(c);
-    setAddCompOpen(false);
-    notifications.show({
-      title: 'Component added',
-      message: `${params.componentType} has been added`,
-      color: 'green',
-    });
-    return comp;
+    try {
+      const comp = await createComponent(params);
+      // Refresh components list
+      const { components: c } = await getGearDetail(gearId);
+      setComponents(c);
+      setAddCompOpen(false);
+      notifications.show({
+        title: 'Component added',
+        message: `${params.componentType} has been added`,
+        color: 'green',
+      });
+      return comp;
+    } catch {
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to add component',
+        color: 'red',
+      });
+    }
   };
 
   const distanceKm = (gear?.total_distance_logged || 0) / 1000;
