@@ -234,7 +234,7 @@ function App() {
     <>
       <ColorSchemeScript defaultColorScheme="light" forceColorScheme={null} />
       <MantineProvider theme={theme} defaultColorScheme="light">
-        <DatesProvider settings={{ firstDayOfWeek: 0 }}>
+        <DatesProvider settings={{ firstDayOfWeek: 0, consistentWeeks: true }}>
           <ErrorBoundary>
             <Notifications position="top-right" />
             <AuthProvider>
