@@ -77,7 +77,9 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
         componentType,
         brand: brand.trim() || undefined,
         model: model.trim() || undefined,
-        installedDate: installedDate ? installedDate.toISOString().split('T')[0] : undefined,
+        installedDate: installedDate
+          ? (installedDate instanceof Date ? installedDate.toISOString().split('T')[0] : String(installedDate))
+          : undefined,
         // Convert miles to meters for the API
         warningThreshold: warningMiles ? warningMiles * METERS_PER_MILE : undefined,
         replaceThreshold: replaceMiles ? replaceMiles * METERS_PER_MILE : undefined,
@@ -132,7 +134,7 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
         <DateInput
           label="Installed Date"
           value={installedDate}
-          onChange={setInstalledDate}
+          onChange={(v) => setInstalledDate(v instanceof Date ? v : v ? new Date(v) : null)}
           popoverProps={{ withinPortal: false }}
         />
 
