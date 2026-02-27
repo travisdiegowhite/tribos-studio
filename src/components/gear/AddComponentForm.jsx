@@ -10,7 +10,6 @@ import {
   Text,
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
-import { Collapse } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { COMPONENT_TYPES, METERS_PER_MILE } from './gearConstants';
 
@@ -98,85 +97,87 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
 
   const isBarTape = componentType === 'bar_tape';
 
+  if (!opened) return null;
+
   return (
-    <Collapse in={opened}>
-      <Paper withBorder p="md" radius="md" mt="sm">
-        <Stack gap="md">
-          <Text fw={500}>Add Component</Text>
+    <Paper withBorder p="md" radius="md" mt="sm">
+      <Stack gap="md">
+        <Text fw={500}>Add Component</Text>
 
-          <Select
-            label="Component Type"
-            placeholder="Select component"
-            data={COMPONENT_TYPES}
-            value={componentType}
-            onChange={(v) => setComponentType(v || '')}
-            required
-          />
+        <Select
+          label="Component Type"
+          placeholder="Select component"
+          data={COMPONENT_TYPES}
+          value={componentType}
+          onChange={(v) => setComponentType(v || '')}
+          comboboxProps={{ withinPortal: false }}
+          required
+        />
 
-          <Group grow>
-            <TextInput
-              label="Brand"
-              placeholder="e.g. Shimano"
-              value={brand}
-              onChange={(e) => setBrand(e.currentTarget.value)}
-            />
-            <TextInput
-              label="Model"
-              placeholder="e.g. CN-HG601"
-              value={model}
-              onChange={(e) => setModel(e.currentTarget.value)}
-            />
-          </Group>
-
-          <DateInput
-            label="Installed Date"
-            value={installedDate}
-            onChange={setInstalledDate}
-          />
-
-          {isBarTape ? (
-            <Text size="sm" c="dimmed">
-              Bar tape uses a time-based threshold (12 months from install date).
-              No mileage thresholds needed.
-            </Text>
-          ) : (
-            <Group grow>
-              <NumberInput
-                label="Warning at (miles)"
-                placeholder="80% of replace"
-                value={warningMiles}
-                onChange={setWarningMiles}
-                min={0}
-              />
-              <NumberInput
-                label="Replace at (miles)"
-                placeholder="Service interval"
-                value={replaceMiles}
-                onChange={setReplaceMiles}
-                min={0}
-              />
-            </Group>
-          )}
-
+        <Group grow>
           <TextInput
-            label="Notes"
-            placeholder="Optional notes"
-            value={notes}
-            onChange={(e) => setNotes(e.currentTarget.value)}
+            label="Brand"
+            placeholder="e.g. Shimano"
+            value={brand}
+            onChange={(e) => setBrand(e.currentTarget.value)}
           />
+          <TextInput
+            label="Model"
+            placeholder="e.g. CN-HG601"
+            value={model}
+            onChange={(e) => setModel(e.currentTarget.value)}
+          />
+        </Group>
 
-          <Group justify="flex-end" mt="sm">
-            <Button variant="subtle" onClick={handleCancel}>Cancel</Button>
-            <Button
-              onClick={handleSubmit}
-              loading={saving}
-              disabled={!componentType}
-            >
-              Add Component
-            </Button>
+        <DateInput
+          label="Installed Date"
+          value={installedDate}
+          onChange={setInstalledDate}
+          popoverProps={{ withinPortal: false }}
+        />
+
+        {isBarTape ? (
+          <Text size="sm" c="dimmed">
+            Bar tape uses a time-based threshold (12 months from install date).
+            No mileage thresholds needed.
+          </Text>
+        ) : (
+          <Group grow>
+            <NumberInput
+              label="Warning at (miles)"
+              placeholder="80% of replace"
+              value={warningMiles}
+              onChange={setWarningMiles}
+              min={0}
+            />
+            <NumberInput
+              label="Replace at (miles)"
+              placeholder="Service interval"
+              value={replaceMiles}
+              onChange={setReplaceMiles}
+              min={0}
+            />
           </Group>
-        </Stack>
-      </Paper>
-    </Collapse>
+        )}
+
+        <TextInput
+          label="Notes"
+          placeholder="Optional notes"
+          value={notes}
+          onChange={(e) => setNotes(e.currentTarget.value)}
+        />
+
+        <Group justify="flex-end" mt="sm">
+          <Button variant="subtle" onClick={handleCancel}>Cancel</Button>
+          <Button
+            onClick={handleSubmit}
+            loading={saving}
+            disabled={!componentType}
+          >
+            Add Component
+          </Button>
+        </Group>
+      </Stack>
+    </Paper>
   );
 }
