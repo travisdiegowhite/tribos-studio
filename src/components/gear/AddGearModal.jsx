@@ -123,7 +123,6 @@ export default function AddGearModal({ opened, onClose, onSave }) {
             onChange={(v) => setPurchaseDate(v instanceof Date ? v : v ? new Date(v) : null)}
             maxDate={new Date()}
             required
-            popoverProps={{ withinPortal: false }}
           />
           <NumberInput
             label="Purchase Price"

@@ -190,6 +190,57 @@ async function createGear(req, res, userId) {
 
   if (error) return res.status(500).json({ error: error.message });
 
+  // Auto-link existing unassigned activities from after purchase date
+  if (purchaseDate) {
+    try {
+      // Find activities matching sport type, after purchase date, not yet linked to any gear
+      const { data: activities } = await supabase
+        .from('activities')
+        .select('id, distance')
+        .eq('user_id', userId)
+        .eq('sport_type', sportType)
+        .gte('start_date', purchaseDate);
+
+      if (activities && activities.length > 0) {
+        // Get IDs already assigned to gear
+        const activityIds = activities.map(a => a.id);
+        const { data: existingLinks } = await supabase
+          .from('activity_gear')
+          .select('activity_id')
+          .in('activity_id', activityIds);
+
+        const linkedIds = new Set((existingLinks || []).map(l => l.activity_id));
+        const unlinked = activities.filter(a => !linkedIds.has(a.id));
+
+        if (unlinked.length > 0) {
+          // Batch insert activity-gear links
+          const links = unlinked.map(a => ({
+            activity_id: a.id,
+            gear_item_id: data.id,
+            user_id: userId,
+            assigned_by: 'auto',
+          }));
+          await supabase.from('activity_gear').insert(links);
+
+          // Calculate total distance and update gear
+          const totalDistance = unlinked.reduce((sum, a) => sum + (a.distance || 0), 0);
+          if (totalDistance > 0) {
+            await supabase
+              .from('gear_items')
+              .update({ total_distance_logged: totalDistance, updated_at: new Date().toISOString() })
+              .eq('id', data.id);
+            data.total_distance_logged = totalDistance;
+          }
+
+          console.log(`🔧 Auto-linked ${unlinked.length} activities to new gear ${data.id} (${totalDistance}m)`);
+        }
+      }
+    } catch (linkErr) {
+      // Non-fatal: gear was created, just log the linking failure
+      console.error('Failed to auto-link activities to new gear:', linkErr.message);
+    }
+  }
+
   return res.status(201).json({ gear: data });
 }
 
