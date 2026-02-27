@@ -243,8 +243,8 @@ function App() {
                   <BrowserRouter>
                     <PageTracker />
                     <AppRoutes />
+                    <CoachCommandBar />
                   </BrowserRouter>
-                  <CoachCommandBar />
                   <Analytics />
                   <SpeedInsights />
                 </CoachCommandBarProvider>
