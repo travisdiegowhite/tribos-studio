@@ -52,7 +52,7 @@ export default function AddGearForm({ opened, onCancel, onSave }) {
   };
 
   const handleSubmit = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || !purchaseDate) return;
     setSaving(true);
     try {
       await onSave({
@@ -60,7 +60,9 @@ export default function AddGearForm({ opened, onCancel, onSave }) {
         sportType,
         brand: brand.trim() || undefined,
         model: model.trim() || undefined,
-        purchaseDate: purchaseDate ? purchaseDate.toISOString().split('T')[0] : undefined,
+        purchaseDate: purchaseDate
+          ? (purchaseDate instanceof Date ? purchaseDate.toISOString().split('T')[0] : String(purchaseDate))
+          : undefined,
         purchasePrice: purchasePrice || undefined,
         notes: notes.trim() || undefined,
         isDefault,
@@ -116,10 +118,11 @@ export default function AddGearForm({ opened, onCancel, onSave }) {
           <Group grow>
             <DateInput
               label="Purchase Date"
-              placeholder="Optional"
+              placeholder="Select date"
               value={purchaseDate}
-              onChange={setPurchaseDate}
-              clearable
+              onChange={(v) => setPurchaseDate(v instanceof Date ? v : v ? new Date(v) : null)}
+              maxDate={new Date()}
+              required
             />
             <NumberInput
               label="Purchase Price"
@@ -171,7 +174,7 @@ export default function AddGearForm({ opened, onCancel, onSave }) {
             <Button
               onClick={handleSubmit}
               loading={saving}
-              disabled={!name.trim()}
+              disabled={!name.trim() || !purchaseDate}
             >
               Add {sportType === 'cycling' ? 'Bike' : 'Shoes'}
             </Button>
