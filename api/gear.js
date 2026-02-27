@@ -291,7 +291,7 @@ async function createComponent(req, res, userId) {
     return res.status(400).json({ error: 'gearItemId and componentType required' });
   }
 
-  // Get parent gear's current distance for distance_at_install snapshot
+  // Get parent gear's current distance
   const { data: gear } = await supabase
     .from('gear_items')
     .select('total_distance_logged')
@@ -300,6 +300,26 @@ async function createComponent(req, res, userId) {
     .single();
 
   if (!gear) return res.status(404).json({ error: 'Gear item not found' });
+
+  // Calculate distance_at_install: if backdated, sum only activities before install date
+  let distanceAtInstall = gear.total_distance_logged || 0;
+  const effectiveInstallDate = installedDate || new Date().toISOString().split('T')[0];
+
+  if (installedDate) {
+    const { data: linkedActivities } = await supabase
+      .from('activity_gear')
+      .select('activities(distance, start_date)')
+      .eq('gear_item_id', gearItemId);
+
+    if (linkedActivities) {
+      distanceAtInstall = linkedActivities.reduce((sum, ag) => {
+        if (ag.activities?.start_date && ag.activities.start_date < installedDate) {
+          return sum + (ag.activities?.distance || 0);
+        }
+        return sum;
+      }, 0);
+    }
+  }
 
   // Use custom thresholds or fall back to defaults
   const defaults = getDefaultThresholds(componentType);
@@ -312,8 +332,8 @@ async function createComponent(req, res, userId) {
       component_type: componentType,
       brand: brand || null,
       model: model || null,
-      installed_date: installedDate || new Date().toISOString().split('T')[0],
-      distance_at_install: gear.total_distance_logged || 0,
+      installed_date: effectiveInstallDate,
+      distance_at_install: distanceAtInstall,
       warning_threshold_meters: warningThreshold ?? defaults.warning,
       replace_threshold_meters: replaceThreshold ?? defaults.replace,
       notes: notes || null,
