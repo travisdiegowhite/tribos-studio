@@ -211,7 +211,7 @@ async function processActivityEvent(event) {
   if (event.activity_id) {
     const { data: existing } = await supabase
       .from('activities')
-      .select('id, map_summary_polyline, average_watts, normalized_power, power_curve_summary')
+      .select('id, map_summary_polyline, average_watts, normalized_power, power_curve_summary, activity_streams, ride_analytics')
       .eq('provider_activity_id', event.activity_id)
       .eq('user_id', integration.user_id)
       .eq('provider', 'garmin')
@@ -238,7 +238,9 @@ async function handleExistingActivity(event, existing, integration) {
   const needsGps = !existing.map_summary_polyline;
   const needsAvgPower = !existing.average_watts;
   const needsPowerMetrics = !existing.normalized_power && !existing.power_curve_summary;
-  const needsFitData = (needsGps || needsPowerMetrics || needsAvgPower) && fitFileUrl;
+  const needsStreams = !existing.activity_streams;
+  const needsAnalytics = !existing.ride_analytics;
+  const needsFitData = (needsGps || needsPowerMetrics || needsAvgPower || needsStreams || needsAnalytics) && fitFileUrl;
 
   if (!needsFitData) {
     await markEventProcessed(event.id, 'Already imported', existing.id);
