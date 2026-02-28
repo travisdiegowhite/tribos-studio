@@ -1009,6 +1009,26 @@ async function backfillGpsData(req, res, userId) {
       }
     }
 
+    // Clear stale file_urls so the webhook worker will accept fresh ones from Garmin
+    if (dateRangesToBackfill.size > 0) {
+      const staleProviderIds = activitiesWithoutGps
+        .filter(a => a.provider_activity_id)
+        .map(a => String(a.provider_activity_id));
+
+      if (staleProviderIds.length > 0) {
+        const { error: clearError } = await supabase
+          .from('garmin_webhook_events')
+          .update({ file_url: null, processed: false, process_error: null })
+          .in('activity_id', staleProviderIds)
+          .eq('garmin_user_id', integration.provider_user_id);
+        if (clearError) {
+          console.warn('⚠️ Failed to clear stale file_urls:', clearError.message);
+        } else {
+          console.log(`🧹 Cleared stale file_urls for ${staleProviderIds.length} activities`);
+        }
+      }
+    }
+
     // If we have dates that need backfill, request it from Garmin
     let backfillError = null;
     let skippedOldActivities = 0;
@@ -1385,6 +1405,26 @@ async function backfillPowerData(req, res, userId) {
       }
     }
 
+    // Clear stale file_urls so the webhook worker will accept fresh ones from Garmin
+    if (dateRangesToBackfill.size > 0) {
+      const staleProviderIds = activitiesToProcess
+        .filter(a => a.provider_activity_id)
+        .map(a => String(a.provider_activity_id));
+
+      if (staleProviderIds.length > 0) {
+        const { error: clearError } = await supabase
+          .from('garmin_webhook_events')
+          .update({ file_url: null, processed: false, process_error: null })
+          .in('activity_id', staleProviderIds)
+          .eq('garmin_user_id', integration.provider_user_id);
+        if (clearError) {
+          console.warn('⚠️ Failed to clear stale file_urls:', clearError.message);
+        } else {
+          console.log(`🧹 Cleared stale file_urls for ${staleProviderIds.length} activities`);
+        }
+      }
+    }
+
     // If we have dates that need backfill, request it from Garmin
     let backfillError = null;
     let skippedOldActivities = 0;
@@ -1675,6 +1715,26 @@ async function backfillStreamsData(req, res, userId) {
           status: 'error',
           error: err.message
         });
+      }
+    }
+
+    // Clear stale file_urls so the webhook worker will accept fresh ones from Garmin
+    if (dateRangesToBackfill.size > 0) {
+      const staleProviderIds = activitiesNeedingStreams
+        .filter(a => a.provider_activity_id)
+        .map(a => String(a.provider_activity_id));
+
+      if (staleProviderIds.length > 0) {
+        const { error: clearError } = await supabase
+          .from('garmin_webhook_events')
+          .update({ file_url: null, processed: false, process_error: null })
+          .in('activity_id', staleProviderIds)
+          .eq('garmin_user_id', integration.provider_user_id);
+        if (clearError) {
+          console.warn('⚠️ Failed to clear stale file_urls:', clearError.message);
+        } else {
+          console.log(`🧹 Cleared stale file_urls for ${staleProviderIds.length} activities`);
+        }
       }
     }
 
