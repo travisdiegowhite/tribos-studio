@@ -65,7 +65,7 @@ export default {
             .maybeSingle();
 
           if (existing) {
-            if (type === 'ACTIVITY_FILE_DATA' && fileUrl && !existing.file_url) {
+            if (type === 'ACTIVITY_FILE_DATA' && fileUrl) {
               await supabase.from('garmin_webhook_events')
                 .update({ file_url: fileUrl, processed: false, process_error: null, retry_count: 0, next_retry_at: null })
                 .eq('id', existing.id);

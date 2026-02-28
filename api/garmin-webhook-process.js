@@ -260,6 +260,7 @@ async function handleExistingActivity(event, existing, integration) {
 
   if (fitResult.activityStreams) {
     activityUpdate.activity_streams = fitResult.activityStreams;
+    updates.push('Activity streams');
   }
 
   if (fitResult.powerMetrics) {
