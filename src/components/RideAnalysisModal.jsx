@@ -38,6 +38,9 @@ import { PoweredByGarmin } from './GarminBranding';
 import { FuelCard } from './fueling';
 import ActivityPowerCurve from './ActivityPowerCurve';
 import ColoredRouteMap from './ColoredRouteMap';
+import RideStreamsChart from './RideStreamsChart';
+import RideZonesChart from './RideZonesChart';
+import RidePacingChart from './RidePacingChart';
 
 // FIT protocol uses 0xFFFF (65535) for "no data" - must filter before display
 const MAX_VALID_POWER_WATTS = 2500;
@@ -532,6 +535,30 @@ const RideAnalysisModal = ({
                 weight={weight}
               />
             )}
+          </>
+        )}
+
+        {/* Ride Analysis Charts — streams-based visualizations */}
+        {ride.activity_streams && (
+          <>
+            <Divider label="Ride Profile" labelPosition="center" />
+            <RideStreamsChart activity={ride} />
+          </>
+        )}
+
+        {/* Zone Distribution — HR and/or Power zones */}
+        {(ride.ride_analytics?.hr_zones || ride.activity_streams?.heartRate || ride.activity_streams?.power) && (
+          <>
+            <Divider label="Zone Distribution" labelPosition="center" />
+            <RideZonesChart activity={ride} ftp={ftp} maxHr={metrics.maxHR} />
+          </>
+        )}
+
+        {/* Pacing Analysis — quarter-by-quarter power */}
+        {ride.ride_analytics?.pacing && hasPowerData && (
+          <>
+            <Divider label="Pacing Analysis" labelPosition="center" />
+            <RidePacingChart activity={ride} ftp={ftp} />
           </>
         )}
 
