@@ -943,13 +943,29 @@ async function backfillGpsData(req, res, userId) {
           continue;
         }
 
-        // Update activity with GPS polyline and metric streams
+        // Update activity with GPS polyline, metric streams, and ride analytics
         const gpsUpdate = {
           map_summary_polyline: fitResult.polyline,
           updated_at: new Date().toISOString()
         };
         if (fitResult.activityStreams) {
           gpsUpdate.activity_streams = fitResult.activityStreams;
+        }
+        if (fitResult.rideAnalytics) {
+          gpsUpdate.ride_analytics = fitResult.rideAnalytics;
+        }
+        if (fitResult.powerMetrics) {
+          const pm = fitResult.powerMetrics;
+          if (pm.normalizedPower) gpsUpdate.normalized_power = pm.normalizedPower;
+          if (pm.maxPower) gpsUpdate.max_watts = pm.maxPower;
+          if (pm.trainingStressScore) gpsUpdate.tss = pm.trainingStressScore;
+          if (pm.intensityFactor) gpsUpdate.intensity_factor = pm.intensityFactor;
+          if (pm.powerCurveSummary) gpsUpdate.power_curve_summary = pm.powerCurveSummary;
+          if (pm.workKj) gpsUpdate.kilojoules = pm.workKj;
+          if (pm.avgPower && !activity.average_watts) {
+            gpsUpdate.average_watts = pm.avgPower;
+            gpsUpdate.device_watts = true;
+          }
         }
         const { error: updateError } = await supabase
           .from('activities')
@@ -1319,6 +1335,7 @@ async function backfillPowerData(req, res, userId) {
         if (pm.powerCurveSummary) updateData.power_curve_summary = pm.powerCurveSummary;
         if (pm.workKj) updateData.kilojoules = pm.workKj;
         if (fitResult.activityStreams) updateData.activity_streams = fitResult.activityStreams;
+        if (fitResult.rideAnalytics) updateData.ride_analytics = fitResult.rideAnalytics;
 
         // Update activity with power data
         const { error: updateError } = await supabase
