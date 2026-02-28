@@ -526,6 +526,47 @@ function buildActivityStreams(simplifiedPoints) {
 }
 
 /**
+ * Build metric streams from allDataPoints (no GPS required).
+ * Uses point index as implicit time axis.
+ * Fallback for indoor rides or when GPS simplification drops too many points.
+ */
+function buildActivityStreamsFromDataPoints(allDataPoints) {
+  if (!allDataPoints || allDataPoints.length < 2) return null;
+
+  const power = [];
+  const speed = [];
+  const heartRate = [];
+  const cadence = [];
+  const elevation = [];
+
+  let hasPower = false, hasSpeed = false, hasHeartRate = false, hasElevation = false;
+
+  for (const pt of allDataPoints) {
+    power.push(pt.power ?? null);
+    speed.push(pt.speed ?? null);
+    heartRate.push(pt.heartRate ?? null);
+    cadence.push(pt.cadence ?? null);
+    elevation.push(pt.elevation ?? null);
+
+    if (pt.power != null) hasPower = true;
+    if (pt.speed != null) hasSpeed = true;
+    if (pt.heartRate != null) hasHeartRate = true;
+    if (pt.elevation != null) hasElevation = true;
+  }
+
+  if (!hasPower && !hasSpeed && !hasHeartRate) return null;
+
+  const streams = {};
+  if (hasPower) streams.power = power;
+  if (hasSpeed) streams.speed = speed;
+  if (hasHeartRate) streams.heartRate = heartRate;
+  if (hasPower || hasHeartRate) streams.cadence = cadence;
+  if (hasElevation) streams.elevation = elevation;
+
+  return streams;
+}
+
+/**
  * Download and parse a FIT file from URL, returning encoded polyline
  * @param {string} url - URL to download FIT file from
  * @param {string} accessToken - Bearer token for authentication
@@ -576,25 +617,29 @@ export async function downloadAndParseFitFile(url, accessToken) {
 
     console.log(`📍 FIT file parsed: ${parsed.trackPoints.length} GPS points, ${parsed.recordCount} total records`);
 
-    if (!parsed.hasGpsData) {
+    let polyline = null;
+    let activityStreams = null;
+    let simplifiedCount = 0;
+
+    if (parsed.hasGpsData) {
+      // Simplify track to reduce polyline size (keeps ~10% of points typically)
+      const simplified = simplifyTrack(parsed.trackPoints);
+      simplifiedCount = simplified.length;
+      console.log(`📉 Track simplified: ${parsed.trackPoints.length} → ${simplified.length} points`);
+
+      polyline = encodePolyline(simplified);
+      activityStreams = buildActivityStreams(simplified);
+    } else {
       console.log('ℹ️ FIT file has no GPS data (indoor activity?)');
-      return {
-        polyline: null,
-        summary: parsed.summary,
-        error: null
-      };
     }
 
-    // Simplify track to reduce polyline size (keeps ~10% of points typically)
-    const simplified = simplifyTrack(parsed.trackPoints);
-    console.log(`📉 Track simplified: ${parsed.trackPoints.length} → ${simplified.length} points`);
-
-    // Encode as polyline
-    const polyline = encodePolyline(simplified);
-
-    // Build per-point metric streams from the simplified track
-    // These parallel arrays enable colored route rendering by speed/power/elevation/HR
-    const activityStreams = buildActivityStreams(simplified);
+    // Fallback: build metric streams from allDataPoints when GPS-based streams unavailable
+    if (!activityStreams && parsed.allDataPoints?.length >= 2) {
+      activityStreams = buildActivityStreamsFromDataPoints(parsed.allDataPoints);
+      if (activityStreams) {
+        console.log(`📊 Built metric streams from ${parsed.allDataPoints.length} data points (no GPS coords)`);
+      }
+    }
 
     return {
       polyline,
@@ -603,7 +648,7 @@ export async function downloadAndParseFitFile(url, accessToken) {
       powerMetrics: parsed.powerMetrics,
       rideAnalytics: parsed.rideAnalytics,
       pointCount: parsed.trackPoints.length,
-      simplifiedCount: simplified.length,
+      simplifiedCount,
       hasPowerData: parsed.hasPowerData,
       error: null
     };
