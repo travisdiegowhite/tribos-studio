@@ -121,6 +121,9 @@ export default async function handler(req, res) {
       case 'backfill_power':
         return await backfillPowerData(req, res, userId);
 
+      case 'backfill_streams':
+        return await backfillStreamsData(req, res, userId);
+
       case 'backfill_historical':
         const { yearsBack } = req.body;
         return await backfillHistorical(req, res, userId, yearsBack);
@@ -140,7 +143,7 @@ export default async function handler(req, res) {
       }
 
       default:
-        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, backfill_historical, backfill_status, backfill_reset_failed, get_activity, reprocess_failed, diagnose, backfill_gps, backfill_power, update_activity' });
+        return res.status(400).json({ error: 'Invalid action. Use: sync_activities, backfill_activities, backfill_historical, backfill_status, backfill_reset_failed, get_activity, reprocess_failed, diagnose, backfill_gps, backfill_power, backfill_streams, update_activity' });
     }
 
   } catch (error) {
@@ -1474,6 +1477,296 @@ async function backfillPowerData(req, res, userId) {
 
   } catch (error) {
     console.error('Power backfill error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Backfill activity streams and ride analytics for Garmin activities
+ *
+ * Strategy:
+ * 1. Find activities that HAVE GPS (FIT was processed) but are missing activity_streams or ride_analytics
+ * 2. Re-download and parse the FIT file to extract per-second streams and analytics
+ * 3. Update activity with streams, analytics, and any missing power metrics
+ *
+ * Note: FIT file URLs from webhooks expire after 24 hours.
+ * For expired URLs, this triggers a backfill request to Garmin
+ * which will send new webhooks with fresh FIT file URLs.
+ */
+async function backfillStreamsData(req, res, userId) {
+  try {
+    const { limit = 50 } = req.body;
+
+    console.log(`📊 Starting streams/analytics backfill for user ${userId}`);
+
+    // Get valid access token
+    const { accessToken, integration } = await getValidAccessToken(userId);
+
+    // Find activities with GPS but missing streams or analytics
+    const { data: activitiesNeedingStreams, error: queryError } = await supabase
+      .from('activities')
+      .select('id, provider_activity_id, name, type, start_date, distance, moving_time, raw_data, average_watts')
+      .eq('user_id', userId)
+      .eq('provider', 'garmin')
+      .not('map_summary_polyline', 'is', null)
+      .or('activity_streams.is.null,ride_analytics.is.null')
+      .order('start_date', { ascending: false })
+      .limit(limit);
+
+    if (queryError) {
+      console.error('Error querying activities:', queryError);
+      return res.status(500).json({ error: 'Failed to query activities' });
+    }
+
+    if (!activitiesNeedingStreams || activitiesNeedingStreams.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'All Garmin activities already have streams and analytics data',
+        stats: { total: 0, processed: 0, success: 0, failed: 0, noFitUrl: 0 }
+      });
+    }
+
+    console.log(`📊 Found ${activitiesNeedingStreams.length} activities missing streams/analytics`);
+
+    let processed = 0;
+    let success = 0;
+    let failed = 0;
+    let noFitUrl = 0;
+    let noStreamsInFit = 0;
+    let triggeredBackfill = false;
+    const results = [];
+    const dateRangesToBackfill = new Set();
+
+    for (const activity of activitiesNeedingStreams) {
+      try {
+        // Try to find a FIT file URL for this activity
+        let fitFileUrl = null;
+
+        // Check if raw_data has webhook info with file URL
+        const rawData = activity.raw_data || {};
+        if (rawData.webhook?.activityFiles?.[0]?.callbackURL) {
+          fitFileUrl = rawData.webhook.activityFiles[0].callbackURL;
+        } else if (rawData.webhook?.activities?.[0]?.callbackURL) {
+          fitFileUrl = rawData.webhook.activities[0].callbackURL;
+        }
+
+        // Check webhook events table for this activity
+        if (!fitFileUrl && activity.provider_activity_id) {
+          const { data: webhookEvent } = await supabase
+            .from('garmin_webhook_events')
+            .select('file_url, payload')
+            .eq('activity_id', activity.provider_activity_id)
+            .eq('garmin_user_id', integration.provider_user_id)
+            .maybeSingle();
+
+          if (webhookEvent) {
+            fitFileUrl = webhookEvent.file_url ||
+                         webhookEvent.payload?.activityFiles?.[0]?.callbackURL ||
+                         webhookEvent.payload?.activities?.[0]?.callbackURL;
+          }
+        }
+
+        if (!fitFileUrl) {
+          const activityDate = activity.start_date ? new Date(activity.start_date) : null;
+          if (activityDate) {
+            dateRangesToBackfill.add(activityDate.toISOString().split('T')[0]);
+          }
+          noFitUrl++;
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            status: 'no_fit_url',
+            message: 'No FIT file URL available, will request backfill'
+          });
+          continue;
+        }
+
+        // Try to download and parse FIT file
+        console.log(`📥 Processing ${activity.name} (${activity.id})...`);
+
+        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken);
+
+        if (fitResult.error) {
+          const activityDate = activity.start_date ? new Date(activity.start_date) : null;
+          if (activityDate) {
+            dateRangesToBackfill.add(activityDate.toISOString().split('T')[0]);
+          }
+          failed++;
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            status: 'failed',
+            error: fitResult.error
+          });
+          continue;
+        }
+
+        if (!fitResult.activityStreams && !fitResult.rideAnalytics) {
+          noStreamsInFit++;
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            status: 'no_streams',
+            message: 'FIT file has no stream data to extract'
+          });
+          processed++;
+          continue;
+        }
+
+        // Build update with streams, analytics, and any missing power metrics
+        const updateData = { updated_at: new Date().toISOString() };
+        const updates = [];
+
+        if (fitResult.activityStreams) {
+          updateData.activity_streams = fitResult.activityStreams;
+          updates.push('streams');
+        }
+        if (fitResult.rideAnalytics) {
+          updateData.ride_analytics = fitResult.rideAnalytics;
+          updates.push('analytics');
+        }
+        if (fitResult.powerMetrics) {
+          const pm = fitResult.powerMetrics;
+          if (pm.normalizedPower) updateData.normalized_power = pm.normalizedPower;
+          if (pm.maxPower) updateData.max_watts = pm.maxPower;
+          if (pm.trainingStressScore) updateData.tss = pm.trainingStressScore;
+          if (pm.intensityFactor) updateData.intensity_factor = pm.intensityFactor;
+          if (pm.powerCurveSummary) updateData.power_curve_summary = pm.powerCurveSummary;
+          if (pm.workKj) updateData.kilojoules = pm.workKj;
+          if (pm.avgPower && !activity.average_watts) {
+            updateData.average_watts = pm.avgPower;
+            updateData.device_watts = true;
+          }
+        }
+
+        const { error: updateError } = await supabase
+          .from('activities')
+          .update(updateData)
+          .eq('id', activity.id);
+
+        if (updateError) {
+          console.error(`❌ Failed to update activity ${activity.id}:`, updateError);
+          failed++;
+          results.push({
+            id: activity.id,
+            name: activity.name,
+            status: 'update_failed',
+            error: updateError.message
+          });
+          continue;
+        }
+
+        console.log(`✅ Streams saved for: ${activity.name} (${updates.join(', ')})`);
+        success++;
+        results.push({
+          id: activity.id,
+          name: activity.name,
+          status: 'success',
+          updates
+        });
+        processed++;
+
+      } catch (err) {
+        console.error(`❌ Error processing activity ${activity.id}:`, err);
+        failed++;
+        results.push({
+          id: activity.id,
+          name: activity.name,
+          status: 'error',
+          error: err.message
+        });
+      }
+    }
+
+    // If we have dates that need backfill, request it from Garmin
+    let backfillError = null;
+    let skippedOldActivities = 0;
+    if (dateRangesToBackfill.size > 0) {
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const recentDates = Array.from(dateRangesToBackfill).filter(dateStr => {
+        const date = new Date(dateStr);
+        return date >= thirtyDaysAgo;
+      });
+
+      skippedOldActivities = dateRangesToBackfill.size - recentDates.length;
+
+      if (recentDates.length === 0) {
+        console.log(`⚠️ All ${dateRangesToBackfill.size} activities are older than 30 days - cannot backfill`);
+        backfillError = `All activities are older than 30 days. Garmin only allows backfill for recent activities.`;
+      } else {
+        const sortedDates = recentDates.sort();
+        const oldestDate = new Date(sortedDates[0]);
+        const newestDate = new Date(sortedDates[sortedDates.length - 1]);
+
+        oldestDate.setDate(oldestDate.getDate() - 1);
+        newestDate.setDate(newestDate.getDate() + 1);
+
+        const startTimestamp = Math.floor(oldestDate.getTime() / 1000);
+        const endTimestamp = Math.floor(newestDate.getTime() / 1000);
+
+        console.log(`📤 Requesting backfill for ${recentDates.length} activities (${skippedOldActivities} too old)`);
+        console.log(`   Date range: ${oldestDate.toISOString()} to ${newestDate.toISOString()}`);
+
+        try {
+          const backfillUrl = `${GARMIN_API_BASE}/backfill/activities?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
+
+          const backfillResponse = await fetch(backfillUrl, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json'
+            }
+          });
+
+          if (backfillResponse.status === 202 || backfillResponse.status === 409 || backfillResponse.ok) {
+            console.log('✅ Backfill request accepted by Garmin');
+            triggeredBackfill = true;
+            if (skippedOldActivities > 0) {
+              backfillError = `${skippedOldActivities} activities are older than 30 days and cannot be backfilled.`;
+            }
+          } else {
+            const errorText = await backfillResponse.text();
+            console.warn('⚠️ Backfill request failed:', backfillResponse.status, errorText);
+            backfillError = `Garmin returned ${backfillResponse.status}: ${errorText.substring(0, 100)}`;
+          }
+        } catch (backfillErr) {
+          console.error('❌ Backfill request error:', backfillErr);
+          backfillError = backfillErr.message;
+        }
+      }
+    }
+
+    let note = undefined;
+    if (triggeredBackfill) {
+      note = 'Backfill requested from Garmin. New FIT files will arrive via webhooks. Run this again in a few minutes to process the new data.';
+    } else if (backfillError) {
+      note = backfillError;
+    } else if (noStreamsInFit > 0 && success === 0) {
+      note = 'Activities found but FIT files contain no stream data to extract.';
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Streams backfill complete. ${success} activities updated.`,
+      stats: {
+        total: activitiesNeedingStreams.length,
+        processed,
+        success,
+        failed,
+        noFitUrl,
+        noStreamsInFit,
+        triggeredBackfill: triggeredBackfill ? (dateRangesToBackfill.size - skippedOldActivities) : 0,
+        skippedTooOld: skippedOldActivities
+      },
+      note,
+      backfillError: backfillError || undefined,
+      results: results.slice(0, 20)
+    });
+
+  } catch (error) {
+    console.error('Streams backfill error:', error);
     return res.status(500).json({ error: error.message });
   }
 }

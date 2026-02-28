@@ -615,6 +615,45 @@ export class GarminService {
   }
 
   /**
+   * Backfill activity streams and ride analytics for activities that have GPS but are missing detailed data.
+   * Downloads FIT files and extracts per-second power/HR/cadence streams and advanced analytics.
+   * @param {number} limit - Maximum number of activities to process (default 50)
+   * @returns {Promise<{success: boolean, stats: object, results: array}>}
+   */
+  async backfillStreams(limit = 50) {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${getApiBaseUrl()}/api/garmin-activities`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'backfill_streams',
+          userId,
+          limit
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to backfill streams data');
+      }
+
+      const data = await response.json();
+      console.log(`📊 Streams backfill complete:`, data.stats);
+      return data;
+    } catch (error) {
+      console.error('Error backfilling streams data:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Backfill historical activities (2 years by default)
    * Breaks the request into 2-month chunks to avoid rate limiting.
    * Data is delivered asynchronously via webhooks over minutes/hours.
