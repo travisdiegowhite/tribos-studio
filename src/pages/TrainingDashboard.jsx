@@ -451,6 +451,25 @@ function TrainingDashboard() {
           // Silent fail - this is a background optimization
           console.log('ℹ️ Garmin GPS backfill check:', err.message);
         }
+
+        // Run streams backfill for activities missing ride analysis
+        try {
+          const streamsResult = await garminService.backfillStreams(10);
+          if (streamsResult.stats?.success > 0) {
+            console.log(`✅ Auto-backfilled streams for ${streamsResult.stats.success} activities`);
+            const { data: activityData } = await supabase
+              .from('activities')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('start_date', { ascending: false })
+              .limit(2000);
+            if (activityData) {
+              setActivities(activityData);
+            }
+          }
+        } catch (err) {
+          console.log('ℹ️ Garmin streams backfill check:', err.message);
+        }
       } catch (err) {
         // Silent fail - Garmin might not be set up
         console.log('ℹ️ Garmin auto-sync not available:', err.message);

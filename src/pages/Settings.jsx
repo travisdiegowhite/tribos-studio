@@ -91,6 +91,7 @@ function Settings() {
   const [garminRecovering, setGarminRecovering] = useState(false);
   const [garminDiagnosis, setGarminDiagnosis] = useState(null);
   const [garminBackfillingGps, setGarminBackfillingGps] = useState(false);
+  const [garminBackfillingStreams, setGarminBackfillingStreams] = useState(false);
   const [garminBackfillingHistory, setGarminBackfillingHistory] = useState(false);
   const [garminBackfillStatus, setGarminBackfillStatus] = useState(null);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
@@ -1100,6 +1101,66 @@ function Settings() {
     }
   };
 
+  const backfillGarminStreams = async () => {
+    setGarminBackfillingStreams(true);
+    try {
+      notifications.show({
+        id: 'garmin-streams',
+        title: 'Backfilling Ride Analysis',
+        message: 'Downloading detailed ride data from Garmin FIT files...',
+        loading: true,
+        autoClose: false
+      });
+
+      const result = await garminService.backfillStreams(50);
+
+      if (result.success) {
+        const { stats } = result;
+        let message = '';
+
+        if (stats.success > 0) {
+          message = `Updated ${stats.success} ${stats.success === 1 ? 'activity' : 'activities'} with ride analysis data.`;
+        } else if (stats.total === 0) {
+          message = 'All activities already have ride analysis data!';
+        } else if (stats.triggeredBackfill > 0) {
+          message = `Requested fresh data from Garmin for ${stats.triggeredBackfill} activities. Run again in 2-3 minutes.`;
+        } else {
+          message = result.note || 'No ride analysis data could be extracted.';
+        }
+
+        notifications.update({
+          id: 'garmin-streams',
+          title: stats.success > 0 ? 'Ride Analysis Complete!' : 'Ride Analysis',
+          message,
+          color: stats.success > 0 ? 'terracotta' : stats.triggeredBackfill > 0 ? 'teal' : 'gold',
+          loading: false,
+          autoClose: 8000
+        });
+      } else {
+        notifications.update({
+          id: 'garmin-streams',
+          title: 'Ride Analysis Failed',
+          message: result.error || 'Could not backfill ride analysis data.',
+          color: 'red',
+          loading: false,
+          autoClose: 5000
+        });
+      }
+    } catch (error) {
+      console.error('Error backfilling streams:', error);
+      notifications.update({
+        id: 'garmin-streams',
+        title: 'Ride Analysis Failed',
+        message: error.message || 'Failed to backfill ride analysis data',
+        color: 'red',
+        loading: false,
+        autoClose: 5000
+      });
+    } finally {
+      setGarminBackfillingStreams(false);
+    }
+  };
+
   const backfillGarminHistory = async () => {
     setGarminBackfillingHistory(true);
     try {
@@ -1929,6 +1990,8 @@ function Settings() {
                 diagnosis={garminDiagnosis}
                 onBackfillGps={backfillGarminGps}
                 backfillingGps={garminBackfillingGps}
+                onBackfillStreams={backfillGarminStreams}
+                backfillingStreams={garminBackfillingStreams}
                 onBackfillHistory={backfillGarminHistory}
                 backfillingHistory={garminBackfillingHistory}
                 backfillStatus={garminBackfillStatus}
@@ -2240,7 +2303,7 @@ function Settings() {
   );
 }
 
-function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis, onBackfillGps, backfillingGps, onBackfillHistory, backfillingHistory, backfillStatus, unitsPreference }) {
+function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis, onBackfillGps, backfillingGps, onBackfillStreams, backfillingStreams, onBackfillHistory, backfillingHistory, backfillStatus, unitsPreference }) {
   const isStrava = name === 'Strava';
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
@@ -2359,6 +2422,38 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
               loading={backfillingGps}
             >
               {backfillingGps ? 'Downloading...' : 'Backfill GPS'}
+            </Button>
+          </Group>
+        </Box>
+      )}
+
+      {/* Ride Analysis Backfill (for Garmin when connected) */}
+      {connected && onBackfillStreams && (
+        <Box
+          style={{
+            backgroundColor: 'var(--tribos-bg-tertiary)',
+            padding: tokens.spacing.sm,
+            borderRadius: tokens.radius.sm,
+            marginLeft: '2.5rem'
+          }}
+        >
+          <Group justify="space-between" align="flex-start">
+            <Box>
+              <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                Ride Analysis
+              </Text>
+              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                Generate detailed charts and analytics for activities missing ride data
+              </Text>
+            </Box>
+            <Button
+              size="xs"
+              color="grape"
+              variant="light"
+              onClick={onBackfillStreams}
+              loading={backfillingStreams}
+            >
+              {backfillingStreams ? 'Analyzing...' : 'Backfill Analysis'}
             </Button>
           </Group>
         </Box>
