@@ -776,6 +776,15 @@ async function getUserInsights(req, res, adminUser) {
     if (latest >= thirtyDaysAgo.getTime()) activeIn30d.add(u.id);
   });
 
+  // Event-only engagement (excludes sign-in — real page views and feature use)
+  const engagedIn7d = new Set();
+  const engagedIn30d = new Set();
+  allUsers.forEach(u => {
+    const lastEvent = lastEventByUser[u.id] || 0;
+    if (lastEvent >= sevenDaysAgo.getTime()) engagedIn7d.add(u.id);
+    if (lastEvent >= thirtyDaysAgo.getTime()) engagedIn30d.add(u.id);
+  });
+
   // Group users by signup week
   const cohorts = {};
   allUsers.forEach(u => {
@@ -818,12 +827,18 @@ async function getUserInsights(req, res, adminUser) {
       status = 'at_risk';
     }
 
+    const daysSinceEngaged = (lastEvent || 0) > 0
+      ? Math.floor((now.getTime() - lastEvent) / 86400000)
+      : null;
+
     if (status !== 'healthy') {
       staleUsers.push({
         email: u.email,
         created_at: u.created_at,
         last_active: latest > 0 ? new Date(latest).toISOString() : null,
         days_inactive: daysSinceActive,
+        last_engaged: (lastEvent || 0) > 0 ? new Date(lastEvent).toISOString() : null,
+        days_since_engaged: daysSinceEngaged,
         status,
         has_profile: hasProfile,
         has_integration: hasIntegration,
@@ -853,6 +868,8 @@ async function getUserInsights(req, res, adminUser) {
       summary: {
         active_7d: activeIn7d.size,
         active_30d: activeIn30d.size,
+        engaged_7d: engagedIn7d.size,
+        engaged_30d: engagedIn30d.size,
         never_activated: staleUsers.filter(u => u.status === 'never_activated').length,
         churned: staleUsers.filter(u => u.status === 'churned').length,
         at_risk: staleUsers.filter(u => u.status === 'at_risk').length
