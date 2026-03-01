@@ -38,6 +38,7 @@ import {
   IconChevronDown,
   IconSelector,
   IconTargetArrow,
+  IconHeartbeat,
 } from '@tabler/icons-react';
 import { getUserInsights } from '../../services/adminService';
 
@@ -195,6 +196,8 @@ export default function UserInsights() {
         return dir * (new Date(a.created_at || 0) - new Date(b.created_at || 0));
       case 'days_inactive':
         return dir * ((a.days_inactive || 9999) - (b.days_inactive || 9999));
+      case 'days_since_engaged':
+        return dir * ((a.days_since_engaged ?? 9999) - (b.days_since_engaged ?? 9999));
       default:
         return 0;
     }
@@ -203,7 +206,7 @@ export default function UserInsights() {
   return (
     <Stack gap="md">
       {/* Summary Cards */}
-      <SimpleGrid cols={{ base: 2, sm: 5 }}>
+      <SimpleGrid cols={{ base: 2, sm: 4, lg: 7 }}>
         <Card withBorder padding="md">
           <Group>
             <IconUsers size={24} color="var(--mantine-color-blue-6)" />
@@ -218,7 +221,16 @@ export default function UserInsights() {
             <IconActivity size={24} color="var(--mantine-color-green-6)" />
             <div>
               <Text size="xl" fw={700}>{summary.active_7d}</Text>
-              <Text size="xs" c="dimmed">Active (7d)</Text>
+              <Text size="xs" c="dimmed">Signed In (7d)</Text>
+            </div>
+          </Group>
+        </Card>
+        <Card withBorder padding="md">
+          <Group>
+            <IconHeartbeat size={24} color="var(--mantine-color-cyan-6)" />
+            <div>
+              <Text size="xl" fw={700}>{summary.engaged_7d ?? 0}</Text>
+              <Text size="xs" c="dimmed">Engaged (7d)</Text>
             </div>
           </Group>
         </Card>
@@ -226,8 +238,8 @@ export default function UserInsights() {
           <Group>
             <IconTrendingUp size={24} color="var(--mantine-color-teal-6)" />
             <div>
-              <Text size="xl" fw={700}>{summary.active_30d}</Text>
-              <Text size="xs" c="dimmed">Active (30d)</Text>
+              <Text size="xl" fw={700}>{summary.engaged_30d ?? 0}</Text>
+              <Text size="xs" c="dimmed">Engaged (30d)</Text>
             </div>
           </Group>
         </Card>
@@ -237,6 +249,15 @@ export default function UserInsights() {
             <div>
               <Text size="xl" fw={700}>{summary.never_activated}</Text>
               <Text size="xs" c="dimmed">Never Activated</Text>
+            </div>
+          </Group>
+        </Card>
+        <Card withBorder padding="md">
+          <Group>
+            <IconAlertCircle size={24} color="var(--mantine-color-orange-6)" />
+            <div>
+              <Text size="xl" fw={700}>{summary.churned}</Text>
+              <Text size="xs" c="dimmed">Churned</Text>
             </div>
           </Group>
         </Card>
@@ -616,6 +637,9 @@ export default function UserInsights() {
                   <Table.Th onClick={() => handleStaleSort('days_inactive')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                     <Group gap={4} wrap="nowrap">Days Inactive <StaleSortIcon column="days_inactive" /></Group>
                   </Table.Th>
+                  <Table.Th onClick={() => handleStaleSort('days_since_engaged')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <Group gap={4} wrap="nowrap">Last Engaged <StaleSortIcon column="days_since_engaged" /></Group>
+                  </Table.Th>
                   <Table.Th>Progress</Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -636,6 +660,16 @@ export default function UserInsights() {
                     <Table.Td>
                       <Text size="sm" fw={500} c={user.days_inactive > 30 ? 'red' : user.days_inactive > 14 ? 'yellow' : 'dimmed'}>
                         {user.days_inactive != null ? `${user.days_inactive}d` : 'Never active'}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" fw={500} c={
+                        user.days_since_engaged == null ? 'dimmed'
+                          : user.days_since_engaged > 30 ? 'red'
+                          : user.days_since_engaged > 14 ? 'yellow'
+                          : 'green'
+                      }>
+                        {user.days_since_engaged != null ? `${user.days_since_engaged}d ago` : 'Never'}
                       </Text>
                     </Table.Td>
                     <Table.Td>
