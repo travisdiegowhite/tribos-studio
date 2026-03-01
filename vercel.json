@@ -15,6 +15,10 @@
     {
       "path": "/api/proactive-insights-process",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/daily-morning-email",
+      "schedule": "0 13 * * *"
     }
   ],
   "rewrites": [
