@@ -585,7 +585,7 @@ async function getUserInsights(req, res, adminUser) {
     fetchAllRows('activities', 'user_id, start_date'),
     fetchAllRows('routes', 'user_id, created_at'),
     fetchAllRows('training_plans', 'user_id, created_at'),
-    fetchAllRows('accountability_coach_memories', 'user_id'),
+    fetchAllRows('coach_conversations', 'user_id'),
     fetchAllRows('user_activity_events', 'user_id, event_category, event_type, created_at')
   ]);
 
