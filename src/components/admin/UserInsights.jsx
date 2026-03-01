@@ -37,6 +37,7 @@ import {
   IconChevronUp,
   IconChevronDown,
   IconSelector,
+  IconTargetArrow,
 } from '@tabler/icons-react';
 import { getUserInsights } from '../../services/adminService';
 
@@ -48,6 +49,8 @@ export default function UserInsights() {
 
   // Sort state for stale users table
   const [staleSort, setStaleSort] = useState({ column: 'status', direction: 'asc' });
+  // Sort state for adherence table
+  const [adherenceSort, setAdherenceSort] = useState({ column: 'adherence_pct', direction: 'asc' });
 
   useEffect(() => {
     loadData();
@@ -127,7 +130,7 @@ export default function UserInsights() {
 
   if (!insights) return null;
 
-  const { funnel, feature_adoption, retention_cohorts, stale_users, summary, total_users } = insights;
+  const { funnel, feature_adoption, retention_cohorts, stale_users, plan_adherence, summary, total_users } = insights;
 
   // Funnel steps in order
   const funnelSteps = [
@@ -139,6 +142,45 @@ export default function UserInsights() {
     { key: 'training_plan', label: 'Training Plan', color: 'yellow' },
     { key: 'coach_used', label: 'AI Coach Used', color: 'orange' },
   ];
+
+  // Adherence sort helpers
+  function handleAdherenceSort(column) {
+    setAdherenceSort(prev => ({
+      column,
+      direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  }
+
+  function AdherenceSortIcon({ column }) {
+    if (adherenceSort.column !== column) return <IconSelector size={14} style={{ opacity: 0.3 }} />;
+    return adherenceSort.direction === 'asc'
+      ? <IconChevronUp size={14} />
+      : <IconChevronDown size={14} />;
+  }
+
+  function getAdherenceColor(pct) {
+    if (pct >= 80) return 'green';
+    if (pct >= 60) return 'yellow';
+    if (pct >= 40) return 'orange';
+    return 'red';
+  }
+
+  // Sorted adherence users
+  const sortedAdherenceUsers = plan_adherence ? [...plan_adherence.users].sort((a, b) => {
+    const dir = adherenceSort.direction === 'asc' ? 1 : -1;
+    switch (adherenceSort.column) {
+      case 'email':
+        return dir * (a.email || '').localeCompare(b.email || '');
+      case 'plan_status':
+        return dir * (a.plan_status || '').localeCompare(b.plan_status || '');
+      case 'adherence_pct':
+        return dir * ((a.adherence_pct ?? -1) - (b.adherence_pct ?? -1));
+      case 'workouts_due':
+        return dir * ((a.workouts_due || 0) - (b.workouts_due || 0));
+      default:
+        return 0;
+    }
+  }) : [];
 
   // Sorted stale users
   const sortedStaleUsers = [...stale_users].sort((a, b) => {
@@ -222,6 +264,9 @@ export default function UserInsights() {
           </Tabs.Tab>
           <Tabs.Tab value="stale" leftSection={<IconUserOff size={16} />}>
             Stale Users ({stale_users.length})
+          </Tabs.Tab>
+          <Tabs.Tab value="adherence" leftSection={<IconTargetArrow size={16} />}>
+            Plan Adherence ({plan_adherence?.summary?.users_with_plans || 0})
           </Tabs.Tab>
         </Tabs.List>
       </Tabs>
@@ -406,6 +451,129 @@ export default function UserInsights() {
             {retention_cohorts.length === 0 && (
               <Box p="xl" ta="center">
                 <Text c="dimmed">No cohort data available.</Text>
+              </Box>
+            )}
+          </ScrollArea>
+        </Paper>
+      )}
+
+      {/* Plan Adherence */}
+      {activeTab === 'adherence' && plan_adherence && (
+        <Paper withBorder>
+          <Group justify="space-between" p="md" style={{ borderBottom: '1px solid var(--mantine-color-dark-4)' }}>
+            <Group gap="xs">
+              <Text fw={600}>Training Plan Adherence</Text>
+              <Badge variant="light" color="blue">{plan_adherence.summary.avg_adherence}% avg</Badge>
+              <Badge variant="light" color="green">{plan_adherence.summary.excellent} excellent</Badge>
+              <Badge variant="light" color="yellow">{plan_adherence.summary.good} good</Badge>
+              <Badge variant="light" color="orange">{plan_adherence.summary.fair} fair</Badge>
+              <Badge variant="light" color="red">{plan_adherence.summary.poor} poor</Badge>
+              {plan_adherence.summary.no_data > 0 && (
+                <Badge variant="light" color="gray">{plan_adherence.summary.no_data} no data</Badge>
+              )}
+            </Group>
+            <Button
+              leftSection={<IconRefresh size={16} />}
+              variant="light"
+              size="xs"
+              onClick={loadData}
+              loading={loading}
+            >
+              Refresh
+            </Button>
+          </Group>
+          <ScrollArea h={500}>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th onClick={() => handleAdherenceSort('email')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <Group gap={4} wrap="nowrap">Email <AdherenceSortIcon column="email" /></Group>
+                  </Table.Th>
+                  <Table.Th>Plan</Table.Th>
+                  <Table.Th onClick={() => handleAdherenceSort('plan_status')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <Group gap={4} wrap="nowrap">Status <AdherenceSortIcon column="plan_status" /></Group>
+                  </Table.Th>
+                  <Table.Th>Week</Table.Th>
+                  <Table.Th onClick={() => handleAdherenceSort('workouts_due')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <Group gap={4} wrap="nowrap">Workouts <AdherenceSortIcon column="workouts_due" /></Group>
+                  </Table.Th>
+                  <Table.Th onClick={() => handleAdherenceSort('adherence_pct')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <Group gap={4} wrap="nowrap">Adherence <AdherenceSortIcon column="adherence_pct" /></Group>
+                  </Table.Th>
+                  <Table.Th>TSS Accuracy</Table.Th>
+                  <Table.Th>Duration Accuracy</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {sortedAdherenceUsers.map((user, idx) => (
+                  <Table.Tr key={idx}>
+                    <Table.Td>
+                      <Text size="sm" fw={500}>{user.email}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" lineClamp={1}>{user.plan_name || 'Unnamed'}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge
+                        variant="light"
+                        color={user.plan_status === 'active' ? 'green' : user.plan_status === 'completed' ? 'blue' : 'gray'}
+                      >
+                        {user.plan_status || 'unknown'}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm">
+                        {user.weeks_in}{user.total_weeks ? ` / ${user.total_weeks}` : ''}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" fw={500}>
+                        {user.workouts_completed} / {user.workouts_due}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {user.adherence_pct !== null ? (
+                        <Group gap={4}>
+                          <Progress
+                            value={user.adherence_pct}
+                            color={getAdherenceColor(user.adherence_pct)}
+                            size="sm"
+                            style={{ width: 60 }}
+                          />
+                          <Text size="xs" fw={500} c={getAdherenceColor(user.adherence_pct)}>
+                            {user.adherence_pct}%
+                          </Text>
+                        </Group>
+                      ) : (
+                        <Badge variant="light" color="gray" size="xs">No data</Badge>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      {user.avg_tss_accuracy !== null ? (
+                        <Text size="sm" fw={500} c={user.avg_tss_accuracy >= 85 ? 'green' : user.avg_tss_accuracy >= 70 ? 'yellow' : 'red'}>
+                          {user.avg_tss_accuracy}%
+                        </Text>
+                      ) : (
+                        <Text size="xs" c="dimmed">--</Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      {user.avg_duration_accuracy !== null ? (
+                        <Text size="sm" fw={500} c={user.avg_duration_accuracy >= 85 ? 'green' : user.avg_duration_accuracy >= 70 ? 'yellow' : 'red'}>
+                          {user.avg_duration_accuracy}%
+                        </Text>
+                      ) : (
+                        <Text size="xs" c="dimmed">--</Text>
+                      )}
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+
+            {sortedAdherenceUsers.length === 0 && (
+              <Box p="xl" ta="center">
+                <Text c="dimmed">No users with training plans found.</Text>
               </Box>
             )}
           </ScrollArea>
