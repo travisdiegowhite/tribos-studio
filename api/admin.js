@@ -585,7 +585,7 @@ async function getUserInsights(req, res, adminUser) {
     fetchAllRows('bike_computer_integrations', 'user_id, provider'),
     fetchAllRows('activities', 'user_id, start_date'),
     fetchAllRows('routes', 'user_id, created_at'),
-    fetchAllRows('training_plans', 'user_id, name, status, started_at, current_week, duration_weeks'),
+    fetchAllRows('training_plans', 'user_id, name, status, started_at, duration_weeks'),
     fetchAllRows('coach_conversations', 'user_id'),
     fetchAllRows('user_activity_events', 'user_id, event_category, event_type, created_at'),
     fetchAllRows('planned_workouts', 'user_id, plan_id, scheduled_date, workout_type, completed, target_tss, actual_tss, target_duration, actual_duration')
@@ -727,7 +727,12 @@ async function getUserInsights(req, res, adminUser) {
       email: userEmailMap[userId] || 'Unknown',
       plan_name: activePlan.name,
       plan_status: activePlan.status,
-      weeks_in: activePlan.current_week || 1,
+      weeks_in: activePlan.started_at
+        ? Math.max(1, Math.min(
+            Math.floor((Date.now() - new Date(activePlan.started_at).getTime()) / (7 * 86400000)) + 1,
+            activePlan.duration_weeks || 999
+          ))
+        : 1,
       total_weeks: activePlan.duration_weeks,
       workouts_due: due,
       workouts_completed: completed,
