@@ -578,15 +578,17 @@ async function getUserInsights(req, res, adminUser) {
     routes,
     plans,
     coachMemories,
-    activityEvents
+    activityEvents,
+    plannedWorkouts
   ] = await Promise.all([
     fetchAllRows('user_profiles', 'id, display_name, ftp, weight_kg'),
     fetchAllRows('bike_computer_integrations', 'user_id, provider'),
     fetchAllRows('activities', 'user_id, start_date'),
     fetchAllRows('routes', 'user_id, created_at'),
-    fetchAllRows('training_plans', 'user_id, created_at'),
+    fetchAllRows('training_plans', 'user_id, name, status, started_at, current_week, duration_weeks'),
     fetchAllRows('coach_conversations', 'user_id'),
-    fetchAllRows('user_activity_events', 'user_id, event_category, event_type, created_at')
+    fetchAllRows('user_activity_events', 'user_id, event_category, event_type, created_at'),
+    fetchAllRows('planned_workouts', 'user_id, plan_id, scheduled_date, workout_type, completed, target_tss, actual_tss, target_duration, actual_duration')
   ]);
 
   // Build per-user data sets
@@ -670,6 +672,88 @@ async function getUserInsights(req, res, adminUser) {
       featureAdoption.community.users++;
     }
   });
+
+  // ---- PLAN ADHERENCE ----
+  const today = new Date().toISOString().split('T')[0];
+  const userEmailMap = {};
+  allUsers.forEach(u => { userEmailMap[u.id] = u.email; });
+
+  // Group planned workouts by user, only past-due non-rest workouts
+  const adherenceByUser = {};
+  plannedWorkouts.forEach(w => {
+    if (w.workout_type === 'rest' || !w.scheduled_date || w.scheduled_date > today) return;
+    if (!adherenceByUser[w.user_id]) {
+      adherenceByUser[w.user_id] = { due: 0, completed: 0, tssHits: [], durationHits: [] };
+    }
+    adherenceByUser[w.user_id].due++;
+    if (w.completed) {
+      adherenceByUser[w.user_id].completed++;
+      if (w.target_tss && w.actual_tss) {
+        adherenceByUser[w.user_id].tssHits.push(
+          Math.min(w.actual_tss / w.target_tss, 1.5)
+        );
+      }
+      if (w.target_duration && w.actual_duration) {
+        adherenceByUser[w.user_id].durationHits.push(
+          Math.min(w.actual_duration / w.target_duration, 1.5)
+        );
+      }
+    }
+  });
+
+  // Build per-user adherence entries
+  const plansByUser = {};
+  plans.forEach(p => {
+    if (!plansByUser[p.user_id]) plansByUser[p.user_id] = [];
+    plansByUser[p.user_id].push(p);
+  });
+
+  const adherenceUsers = [];
+  Object.keys(plansByUser).forEach(userId => {
+    const userPlans = plansByUser[userId];
+    const activePlan = userPlans.find(p => p.status === 'active') || userPlans[0];
+    const adherence = adherenceByUser[userId];
+    const due = adherence ? adherence.due : 0;
+    const completed = adherence ? adherence.completed : 0;
+    const adherencePct = due > 0 ? Math.round((completed / due) * 100) : null;
+    const avgTssAccuracy = adherence && adherence.tssHits.length > 0
+      ? Math.round((adherence.tssHits.reduce((a, b) => a + b, 0) / adherence.tssHits.length) * 100)
+      : null;
+    const avgDurationAccuracy = adherence && adherence.durationHits.length > 0
+      ? Math.round((adherence.durationHits.reduce((a, b) => a + b, 0) / adherence.durationHits.length) * 100)
+      : null;
+
+    adherenceUsers.push({
+      email: userEmailMap[userId] || 'Unknown',
+      plan_name: activePlan.name,
+      plan_status: activePlan.status,
+      weeks_in: activePlan.current_week || 1,
+      total_weeks: activePlan.duration_weeks,
+      workouts_due: due,
+      workouts_completed: completed,
+      adherence_pct: adherencePct,
+      avg_tss_accuracy: avgTssAccuracy,
+      avg_duration_accuracy: avgDurationAccuracy,
+    });
+  });
+
+  adherenceUsers.sort((a, b) => (a.adherence_pct ?? -1) - (b.adherence_pct ?? -1));
+
+  const withAdherence = adherenceUsers.filter(u => u.adherence_pct !== null);
+  const planAdherence = {
+    summary: {
+      users_with_plans: adherenceUsers.length,
+      avg_adherence: withAdherence.length > 0
+        ? Math.round(withAdherence.reduce((s, u) => s + u.adherence_pct, 0) / withAdherence.length)
+        : 0,
+      excellent: withAdherence.filter(u => u.adherence_pct >= 80).length,
+      good: withAdherence.filter(u => u.adherence_pct >= 60 && u.adherence_pct < 80).length,
+      fair: withAdherence.filter(u => u.adherence_pct >= 40 && u.adherence_pct < 60).length,
+      poor: withAdherence.filter(u => u.adherence_pct < 40).length,
+      no_data: adherenceUsers.filter(u => u.adherence_pct === null).length,
+    },
+    users: adherenceUsers,
+  };
 
   // ---- RETENTION COHORTS (by signup week) ----
   const now = new Date();
@@ -760,6 +844,7 @@ async function getUserInsights(req, res, adminUser) {
       feature_adoption: featureAdoption,
       retention_cohorts: retentionCohorts,
       stale_users: staleUsers,
+      plan_adherence: planAdherence,
       summary: {
         active_7d: activeIn7d.size,
         active_30d: activeIn30d.size,
