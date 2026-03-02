@@ -14,6 +14,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { setCorsHeaders } from './utils/cors.js';
 import { analyzeActivitySegments, analyzeUnprocessedActivities } from './utils/segmentAnalysisPipeline.js';
+import { computeWorkoutSegmentMatches, computeAllMatchesForUser } from './utils/workoutSegmentMatcher.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -66,6 +67,9 @@ export default async function handler(req, res) {
 
       case 'get_matches':
         return await handleGetMatches(res, supabase, userId, params);
+
+      case 'compute_matches':
+        return await handleComputeMatches(res, supabase, userId, params);
 
       default:
         return res.status(400).json({ error: `Unknown action: ${action}` });
@@ -304,4 +308,28 @@ async function handleGetMatches(res, supabase, userId, params) {
   }
 
   return res.status(200).json({ matches: data || [] });
+}
+
+async function handleComputeMatches(res, supabase, userId, params) {
+  const { workoutId, workoutDef, computeAll = false, workoutDefs } = params;
+
+  // Fetch user's FTP
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('ftp')
+    .eq('user_id', userId)
+    .single();
+  const ftp = profile?.ftp || 0;
+
+  if (computeAll && workoutDefs) {
+    const result = await computeAllMatchesForUser(userId, workoutDefs, supabase);
+    return res.status(200).json({ success: true, ...result });
+  }
+
+  if (!workoutId || !workoutDef) {
+    return res.status(400).json({ error: 'workoutId and workoutDef required, or computeAll with workoutDefs' });
+  }
+
+  const result = await computeWorkoutSegmentMatches(userId, workoutId, workoutDef, supabase, ftp);
+  return res.status(200).json({ success: true, ...result });
 }
