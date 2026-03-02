@@ -457,6 +457,47 @@ export class StravaService {
       throw error;
     }
   }
+
+  /**
+   * Backfill activity streams for Strava activities missing per-point data.
+   * Fetches GPS/power/HR/elevation streams from Strava for up to `limit` most
+   * recent outdoor activities that have GPS but no activity_streams.
+   * @param {number} limit - Maximum number of activities to process (default 20)
+   * @returns {Promise<{success: boolean, filled: number, total: number, rateLimited: boolean}>}
+   */
+  async backfillStreams(limit = 20) {
+    const userId = await this.getCurrentUserId();
+    if (!userId) {
+      throw new Error('User must be authenticated');
+    }
+
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${getApiBaseUrl()}/api/strava-activities`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'backfill_streams',
+          userId,
+          limit
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to backfill streams');
+      }
+
+      const data = await response.json();
+      console.log(`📊 Strava streams backfill: ${data.filled}/${data.total} activities filled`);
+      return data;
+
+    } catch (error) {
+      console.error('Error backfilling Strava streams:', error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance
