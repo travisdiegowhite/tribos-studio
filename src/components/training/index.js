@@ -11,6 +11,7 @@ export { default as PlanCustomizationModal } from './PlanCustomizationModal';
 export { default as TrainingNotifications } from './TrainingNotifications';
 export { default as SupplementWorkoutModal } from './SupplementWorkoutModal';
 export { default as RouteAnalysisPanel } from './RouteAnalysisPanel';
+export { default as SegmentLibraryPanel } from './SegmentLibraryPanel';
 
 // Re-export types and utilities for convenience
 export * from '../../services/trainingTemplates';
