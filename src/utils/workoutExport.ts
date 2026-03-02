@@ -6,9 +6,10 @@
  * - MRC/ERG - Text format for TrainerRoad and other apps
  * - JSON - For custom integrations
  *
- * FIT file export requires a binary encoder and is handled separately
+ * FIT file export uses @garmin/fitsdk for binary encoding
  */
 
+import { encodeFitWorkout } from './fitWorkoutEncoder';
 import type {
   CyclingWorkoutStructure,
   CyclingIntervalStep,
@@ -369,7 +370,7 @@ export interface WorkoutExportOptions {
 }
 
 export interface WorkoutExportResult {
-  content: string;
+  content: string | Uint8Array;
   filename: string;
   mimeType: string;
 }
@@ -416,10 +417,17 @@ export function exportWorkout(
         mimeType: 'application/vnd.garmin.tcx+xml'
       };
 
-    case 'fit':
-      // FIT files require binary encoding - return placeholder
-      // Real FIT export would need a library like fit-file-writer
-      throw new Error('FIT file export requires binary encoding. Use Garmin Connect or a dedicated tool.');
+    case 'fit': {
+      const fitData = encodeFitWorkout(workout, {
+        workoutName,
+        description,
+      });
+      return {
+        content: fitData,
+        filename: `${cleanName}.fit`,
+        mimeType: 'application/octet-stream',
+      };
+    }
 
     default:
       throw new Error(`Unsupported export format: ${format}`);
@@ -430,7 +438,9 @@ export function exportWorkout(
  * Trigger download of exported workout file
  */
 export function downloadWorkout(result: WorkoutExportResult): void {
-  const blob = new Blob([result.content], { type: result.mimeType });
+  const blob = result.content instanceof Uint8Array
+    ? new Blob([new Uint8Array(result.content)], { type: result.mimeType })
+    : new Blob([result.content], { type: result.mimeType });
   const url = URL.createObjectURL(blob);
 
   const link = document.createElement('a');
