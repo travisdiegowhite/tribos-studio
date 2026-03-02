@@ -2175,6 +2175,32 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
                     Garmin (.tcx)
                   </Menu.Item>
                   <Menu.Item
+                    leftSection={<IconDeviceWatch size={16} />}
+                    onClick={() => {
+                      try {
+                        const result = exportWorkout(workout.cyclingStructure, {
+                          format: 'fit',
+                          workoutName: workout.name,
+                          description: workout.description
+                        });
+                        downloadWorkout(result);
+                        notifications.show({
+                          title: 'Workout Exported',
+                          message: `${workout.name}.fit downloaded — Transfer to device via USB`,
+                          color: 'green'
+                        });
+                      } catch (err) {
+                        notifications.show({
+                          title: 'Export Failed',
+                          message: err.message,
+                          color: 'red'
+                        });
+                      }
+                    }}
+                  >
+                    Garmin/Wahoo FIT (.fit)
+                  </Menu.Item>
+                  <Menu.Item
                     leftSection={<IconFileExport size={16} />}
                     onClick={() => {
                       try {
