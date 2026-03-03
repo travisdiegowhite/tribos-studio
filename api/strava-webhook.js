@@ -11,7 +11,6 @@ import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 import { completeActivationStep, enqueueProactiveInsight } from './utils/activation.js';
-import { fetchAndStoreStravaStreams } from './utils/stravaStreams.js';
 
 // Initialize Supabase (server-side with service key for webhook processing)
 const supabase = createClient(
@@ -403,17 +402,6 @@ async function handleActivityCreate(eventId, webhookData, integration) {
       distance: savedActivity.distance ? `${(savedActivity.distance / 1000).toFixed(2)} km` : 'N/A',
       hasGPS: !!savedActivity.map_summary_polyline
     });
-
-    // Fetch and store activity streams (GPS, power, HR, elevation)
-    if (savedActivity.map_summary_polyline && !savedActivity.trainer) {
-      try {
-        await fetchAndStoreStravaStreams(
-          supabase, savedActivity.id, activity.id, accessToken, activity.type
-        );
-      } catch (streamError) {
-        console.warn('⚠️ Stream fetch failed (non-critical):', streamError.message);
-      }
-    }
 
     // Auto-assign gear to activity
     try {
