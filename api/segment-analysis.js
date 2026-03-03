@@ -13,7 +13,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { setCorsHeaders } from './utils/cors.js';
-import { analyzeActivitySegments, analyzeUnprocessedActivities } from './utils/segmentAnalysisPipeline.js';
+import { analyzeActivitySegments, analyzeUnprocessedActivities, analyzePolylineActivities } from './utils/segmentAnalysisPipeline.js';
 import { computeWorkoutSegmentMatches, computeAllMatchesForUser } from './utils/workoutSegmentMatcher.js';
 
 export default async function handler(req, res) {
@@ -56,6 +56,9 @@ export default async function handler(req, res) {
       case 'analyze_all':
         return await handleAnalyzeAll(res, userId, params);
 
+      case 'analyze_polyline_activities':
+        return await handleAnalyzePolyline(res, userId, params);
+
       case 'get_segments':
         return await handleGetSegments(res, supabase, userId, params);
 
@@ -96,7 +99,35 @@ async function handleAnalyzeActivity(res, userId, params) {
 
 async function handleAnalyzeAll(res, userId, params) {
   const { limit = 20 } = params;
-  const result = await analyzeUnprocessedActivities(userId, Math.min(limit, 50));
+
+  // First, analyze activities with full streams (Garmin FIT data)
+  const streamResult = await analyzeUnprocessedActivities(userId, Math.min(limit, 50));
+
+  // Then, analyze activities with polylines but no streams (Strava data)
+  const polylineResult = await analyzePolylineActivities(userId, Math.min(limit, 50));
+
+  return res.status(200).json({
+    success: true,
+    processed: (streamResult.processed || 0) + (polylineResult.processed || 0),
+    totalActivities: (streamResult.totalActivities || 0) + (polylineResult.totalActivities || 0),
+    newSegments: (streamResult.newSegments || 0) + (polylineResult.newSegments || 0),
+    updatedSegments: (streamResult.updatedSegments || 0) + (polylineResult.updatedSegments || 0),
+    // Include breakdown for debugging
+    streamAnalysis: {
+      processed: streamResult.processed || 0,
+      newSegments: streamResult.newSegments || 0,
+    },
+    polylineAnalysis: {
+      processed: polylineResult.processed || 0,
+      newSegments: polylineResult.newSegments || 0,
+      skipped: polylineResult.skipped || 0,
+    },
+  });
+}
+
+async function handleAnalyzePolyline(res, userId, params) {
+  const { limit = 20 } = params;
+  const result = await analyzePolylineActivities(userId, Math.min(limit, 50));
   return res.status(200).json(result);
 }
 
