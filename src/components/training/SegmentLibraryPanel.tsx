@@ -754,7 +754,18 @@ export default function SegmentLibraryPanel({
     setAnalyzeResult(null);
     try {
       const result = await analyzeUnprocessed();
-      setAnalyzeResult(`Analyzed ${result.processed || 0} activities, found ${result.segmentsCreated || 0} new segments.`);
+
+      // Build result message with optional Strava backfill info
+      const parts: string[] = [];
+      if (result.stravaBackfill?.filled > 0) {
+        parts.push(`Fetched streams for ${result.stravaBackfill.filled} Strava ride${result.stravaBackfill.filled !== 1 ? 's' : ''}.`);
+      }
+      parts.push(`Analyzed ${result.processed || 0} activities, found ${result.segmentsCreated || 0} new segments.`);
+      if (result.stravaBackfill?.rateLimited) {
+        parts.push('(Strava rate limit reached — run again later for more)');
+      }
+
+      setAnalyzeResult(parts.join(' '));
       await fetchSegments({ terrainType: terrainFilter || undefined, sortBy });
     } catch (err) {
       setAnalyzeResult('Failed to analyze activities.');

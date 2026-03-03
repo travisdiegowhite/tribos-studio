@@ -15,7 +15,7 @@ import { createClient } from '@supabase/supabase-js';
 import { setCorsHeaders } from './utils/cors.js';
 import { analyzeActivitySegments, analyzeUnprocessedActivities } from './utils/segmentAnalysisPipeline.js';
 import { computeWorkoutSegmentMatches, computeAllMatchesForUser } from './utils/workoutSegmentMatcher.js';
-import { fetchAndStoreStravaStreams } from './utils/stravaStreams.js';
+import { fetchAndStoreStravaStreams, getValidStravaToken } from './utils/stravaStreams.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -117,6 +117,7 @@ async function handleAnalyzeAll(res, userId, params) {
  * Auto-backfill Strava activity streams before analysis.
  * Fetches streams for up to `limit` most recent Strava activities that
  * have GPS data but are missing activity_streams.
+ * Handles token refresh automatically (tokens expire every 6 hours).
  */
 async function autoBackfillStravaStreams(userId, limit) {
   const supabase = createClient(
@@ -140,30 +141,18 @@ async function autoBackfillStravaStreams(userId, limit) {
     return null;
   }
 
-  // Get Strava access token
-  const { data: integration } = await supabase
-    .from('bike_computer_integrations')
-    .select('access_token, refresh_token, token_expires_at')
-    .eq('user_id', userId)
-    .eq('provider', 'strava')
-    .maybeSingle();
-
-  if (!integration) {
-    return null; // No Strava connection
-  }
-
-  // Check token expiry (skip refresh — if expired, just skip backfill)
-  const expiresAt = new Date(integration.token_expires_at);
-  if (expiresAt < new Date()) {
-    console.log('⏭️ Strava token expired, skipping auto-backfill');
-    return null;
+  // Get valid Strava token (refreshes automatically if expired)
+  const accessToken = await getValidStravaToken(supabase, userId);
+  if (!accessToken) {
+    console.log('⏭️ No valid Strava token available, skipping auto-backfill');
+    return { filled: 0, total: activities.length, rateLimited: false, reason: 'no_token' };
   }
 
   let filled = 0;
   for (const activity of activities) {
     const result = await fetchAndStoreStravaStreams(
       supabase, activity.id, activity.provider_activity_id,
-      integration.access_token, activity.type
+      accessToken, activity.type
     );
 
     if (result.rateLimited) {
