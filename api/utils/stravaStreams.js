@@ -9,6 +9,77 @@ const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
 const VIRTUAL_TYPES = ['VirtualRide', 'VirtualRun'];
 
 /**
+ * Get a valid Strava access token for a user, refreshing if expired.
+ * Shared utility so any serverless function can get a fresh token without
+ * duplicating the refresh logic.
+ *
+ * @param {Object} supabase - Supabase client (service role)
+ * @param {string} userId - User UUID
+ * @returns {Promise<string|null>} Access token, or null if no integration / refresh fails
+ */
+export async function getValidStravaToken(supabase, userId) {
+  const { data: integration, error } = await supabase
+    .from('bike_computer_integrations')
+    .select('access_token, refresh_token, token_expires_at')
+    .eq('user_id', userId)
+    .eq('provider', 'strava')
+    .maybeSingle();
+
+  if (error || !integration) {
+    return null;
+  }
+
+  // If token is still valid (with 5-min buffer), use it
+  const expiresAt = new Date(integration.token_expires_at);
+  const fiveMinFromNow = new Date(Date.now() + 5 * 60 * 1000);
+  if (expiresAt > fiveMinFromNow) {
+    return integration.access_token;
+  }
+
+  // Refresh the token
+  console.log('🔄 Refreshing Strava access token for stream backfill...');
+
+  try {
+    const response = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: process.env.STRAVA_CLIENT_ID,
+        client_secret: process.env.STRAVA_CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token: integration.refresh_token,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('⚠️ Strava token refresh failed:', response.status);
+      return null;
+    }
+
+    const tokenData = await response.json();
+    const newExpiresAt = new Date(tokenData.expires_at * 1000).toISOString();
+
+    await supabase
+      .from('bike_computer_integrations')
+      .update({
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        token_expires_at: newExpiresAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .eq('provider', 'strava');
+
+    console.log('✅ Strava token refreshed for stream backfill');
+    return tokenData.access_token;
+
+  } catch (err) {
+    console.error('⚠️ Strava token refresh error:', err.message);
+    return null;
+  }
+}
+
+/**
  * Fetch raw stream data from Strava Streams API.
  * Returns normalized stream map { latlng, altitude, watts, heartrate, cadence, distance, time }
  * or null on error / no data.
