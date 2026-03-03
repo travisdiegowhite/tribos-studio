@@ -15,7 +15,6 @@ import { createClient } from '@supabase/supabase-js';
 import { setCorsHeaders } from './utils/cors.js';
 import { analyzeActivitySegments, analyzeUnprocessedActivities } from './utils/segmentAnalysisPipeline.js';
 import { computeWorkoutSegmentMatches, computeAllMatchesForUser } from './utils/workoutSegmentMatcher.js';
-import { fetchAndStoreStravaStreams, getValidStravaToken } from './utils/stravaStreams.js';
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -97,77 +96,8 @@ async function handleAnalyzeActivity(res, userId, params) {
 
 async function handleAnalyzeAll(res, userId, params) {
   const { limit = 20 } = params;
-
-  // Auto-backfill: fetch Strava streams for recent activities missing them
-  let backfillResult = null;
-  try {
-    backfillResult = await autoBackfillStravaStreams(userId, Math.min(limit, 20));
-  } catch (err) {
-    console.warn('⚠️ Strava stream auto-backfill failed (non-critical):', err.message);
-  }
-
   const result = await analyzeUnprocessedActivities(userId, Math.min(limit, 50));
-  return res.status(200).json({
-    ...result,
-    ...(backfillResult && { stravaBackfill: backfillResult }),
-  });
-}
-
-/**
- * Auto-backfill Strava activity streams before analysis.
- * Fetches streams for up to `limit` most recent Strava activities that
- * have GPS data but are missing activity_streams.
- * Handles token refresh automatically (tokens expire every 6 hours).
- */
-async function autoBackfillStravaStreams(userId, limit) {
-  const supabase = createClient(
-    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
-
-  // Check if there are Strava activities needing streams
-  const { data: activities, error: queryError } = await supabase
-    .from('activities')
-    .select('id, provider_activity_id, type')
-    .eq('user_id', userId)
-    .eq('provider', 'strava')
-    .eq('trainer', false)
-    .is('activity_streams', null)
-    .not('map_summary_polyline', 'is', null)
-    .order('start_date', { ascending: false })
-    .limit(limit);
-
-  if (queryError || !activities || activities.length === 0) {
-    return null;
-  }
-
-  // Get valid Strava token (refreshes automatically if expired)
-  const accessToken = await getValidStravaToken(supabase, userId);
-  if (!accessToken) {
-    console.log('⏭️ No valid Strava token available, skipping auto-backfill');
-    return { filled: 0, total: activities.length, rateLimited: false, reason: 'no_token' };
-  }
-
-  let filled = 0;
-  for (const activity of activities) {
-    const result = await fetchAndStoreStravaStreams(
-      supabase, activity.id, activity.provider_activity_id,
-      accessToken, activity.type
-    );
-
-    if (result.rateLimited) {
-      return { filled, total: activities.length, rateLimited: true };
-    }
-    if (result.success) filled++;
-
-    // Small delay between requests
-    if (filled < activities.length) {
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-  }
-
-  console.log(`📊 Auto-backfilled ${filled}/${activities.length} Strava activity streams`);
-  return { filled, total: activities.length, rateLimited: false };
+  return res.status(200).json(result);
 }
 
 async function handleGetSegments(res, supabase, userId, params) {

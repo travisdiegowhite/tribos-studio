@@ -5,7 +5,6 @@ import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
-import { fetchAndStoreStravaStreams } from './utils/stravaStreams.js';
 
 // Initialize Supabase (server-side)
 const supabase = createClient(
@@ -96,9 +95,6 @@ export default async function handler(req, res) {
 
       case 'calculate_speed_profile':
         return await calculateSpeedProfile(req, res, userId);
-
-      case 'backfill_streams':
-        return await backfillStravaStreams(req, res, userId);
 
       default:
         return res.status(400).json({ error: 'Invalid action' });
@@ -643,83 +639,4 @@ async function calculateAndStoreSpeedProfile(userId) {
   }
 
   return speedProfile;
-}
-
-/**
- * Backfill activity streams for Strava activities missing them.
- * Fetches per-point GPS/power/HR/elevation from Strava Streams API
- * for up to `limit` most recent outdoor activities that have GPS but no streams.
- */
-async function backfillStravaStreams(req, res, userId) {
-  const { limit = 20 } = req.body;
-
-  try {
-    const accessToken = await getValidAccessToken(userId);
-
-    // Find Strava activities with GPS but missing streams
-    const { data: activities, error: queryError } = await supabase
-      .from('activities')
-      .select('id, provider_activity_id, name, type, start_date')
-      .eq('user_id', userId)
-      .eq('provider', 'strava')
-      .eq('trainer', false)
-      .is('activity_streams', null)
-      .not('map_summary_polyline', 'is', null)
-      .order('start_date', { ascending: false })
-      .limit(Math.min(limit, 20));
-
-    if (queryError) {
-      console.error('Error querying activities for stream backfill:', queryError);
-      return res.status(500).json({ error: 'Failed to query activities' });
-    }
-
-    if (!activities || activities.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: 'All Strava activities already have streams',
-        filled: 0,
-        total: 0,
-        rateLimited: false,
-      });
-    }
-
-    console.log(`📊 Backfilling streams for ${activities.length} Strava activities (user ${userId})`);
-
-    let filled = 0;
-    let rateLimited = false;
-
-    for (const activity of activities) {
-      const result = await fetchAndStoreStravaStreams(
-        supabase, activity.id, activity.provider_activity_id, accessToken, activity.type
-      );
-
-      if (result.rateLimited) {
-        rateLimited = true;
-        console.warn('⏳ Rate limited during stream backfill, stopping early');
-        break;
-      }
-
-      if (result.success) {
-        filled++;
-      }
-
-      // 200ms delay between requests to be respectful of rate limits
-      if (filled < activities.length) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-    }
-
-    console.log(`✅ Stream backfill complete: ${filled}/${activities.length} activities filled`);
-
-    return res.status(200).json({
-      success: true,
-      filled,
-      total: activities.length,
-      rateLimited,
-    });
-
-  } catch (error) {
-    console.error('Stream backfill error:', error);
-    return res.status(500).json({ error: error.message });
-  }
 }
