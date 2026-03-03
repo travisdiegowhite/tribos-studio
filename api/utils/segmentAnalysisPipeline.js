@@ -11,9 +11,15 @@
  * 3. Deduplicate against existing segment library
  * 4. Store new segments / update existing ones with ride data
  * 5. Update aggregate profiles (power, consistency, frequency)
+ *
+ * Also supports a polyline fallback path for activities without full streams
+ * (e.g. Strava activities): decodes the summary polyline, fetches elevation
+ * from OpenTopoData, and runs terrain-only segment detection. These segments
+ * are tagged with data_quality_tier = 'geometry_only'.
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { buildStreamsFromPolyline, calculatePolylineDistance } from './polylineStreamBuilder.js';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -180,6 +186,144 @@ export async function analyzeUnprocessedActivities(userId, limit = 20) {
     totalActivities: activities.length,
     newSegments: totalNew,
     updatedSegments: totalUpdated,
+  };
+}
+
+/**
+ * Analyze activities that have a polyline but no full streams.
+ * Builds synthetic streams from decoded polyline + elevation API,
+ * then runs terrain-only segment detection.
+ *
+ * @param {string} userId - User UUID
+ * @param {number} limit - Max activities to process
+ */
+export async function analyzePolylineActivities(userId, limit = 20) {
+  const supabase = getSupabase();
+
+  // Find activities with polyline but no streams and not yet polyline-analyzed
+  const { data: activities, error } = await supabase
+    .from('activities')
+    .select('id, map_summary_polyline, distance, moving_time, start_date, average_speed, average_watts, average_heartrate, max_heartrate, name')
+    .eq('user_id', userId)
+    .is('polyline_segments_analyzed_at', null)
+    .is('activity_streams', null)
+    .not('map_summary_polyline', 'is', null)
+    .order('start_date', { ascending: false })
+    .limit(limit);
+
+  if (error || !activities || activities.length === 0) {
+    return {
+      success: true,
+      processed: 0,
+      totalActivities: 0,
+      newSegments: 0,
+      updatedSegments: 0,
+      skipped: 0,
+      message: error?.message || 'No polyline activities to analyze',
+    };
+  }
+
+  let processed = 0;
+  let totalNew = 0;
+  let totalUpdated = 0;
+  let skipped = 0;
+
+  for (const activity of activities) {
+    try {
+      const result = await analyzeActivityFromPolyline(activity, userId, supabase);
+      if (result.success) {
+        processed++;
+        totalNew += result.newSegments || 0;
+        totalUpdated += result.updatedSegments || 0;
+      } else if (result.error === 'Skipped') {
+        skipped++;
+      }
+
+      // Mark as polyline-analyzed regardless of outcome
+      await supabase
+        .from('activities')
+        .update({ polyline_segments_analyzed_at: new Date().toISOString() })
+        .eq('id', activity.id);
+    } catch (err) {
+      console.error(`[SegmentPipeline] Polyline analysis error for ${activity.id}:`, err.message);
+      // Mark as analyzed to avoid retrying failures
+      await supabase
+        .from('activities')
+        .update({ polyline_segments_analyzed_at: new Date().toISOString() })
+        .eq('id', activity.id);
+    }
+  }
+
+  return {
+    success: true,
+    processed,
+    totalActivities: activities.length,
+    newSegments: totalNew,
+    updatedSegments: totalUpdated,
+    skipped,
+  };
+}
+
+/**
+ * Analyze a single activity using its polyline for terrain-only segments.
+ */
+async function analyzeActivityFromPolyline(activity, userId, supabase) {
+  const { id: activityId, map_summary_polyline, distance, moving_time } = activity;
+
+  if (!map_summary_polyline) {
+    return { success: false, error: 'No polyline', segments: 0 };
+  }
+
+  // Validate minimum requirements
+  const activityDistance = distance || 0;
+  const activityDuration = moving_time || 0;
+  if (activityDistance < CONFIG.MIN_DISTANCE_METERS || activityDuration < CONFIG.MIN_DURATION_SECONDS) {
+    return { success: false, error: 'Skipped', segments: 0 };
+  }
+
+  // Build synthetic streams from polyline
+  const streams = await buildStreamsFromPolyline(map_summary_polyline);
+  if (!streams) {
+    return { success: false, error: 'Failed to build streams from polyline', segments: 0 };
+  }
+
+  if (streams.coords.length < CONFIG.MIN_STREAM_POINTS) {
+    return { success: false, error: 'Skipped', segments: 0 };
+  }
+
+  // Detect segments (terrain-only — no speed/power/HR)
+  const detected = detectSegmentsFromStreams(streams);
+  if (detected.segments.length === 0) {
+    return { success: true, segments: 0, message: 'No trainable segments detected' };
+  }
+
+  // Process each detected segment with geometry_only tier
+  const results = {
+    newSegments: 0,
+    updatedSegments: 0,
+    totalSegments: detected.segments.length,
+  };
+
+  const ftp = await fetchUserFTP(supabase, userId);
+
+  for (const segment of detected.segments) {
+    const result = await processDetectedSegment(
+      supabase,
+      segment,
+      activityId,
+      userId,
+      activity,
+      ftp,
+      'geometry_only' // data quality tier
+    );
+
+    if (result.isNew) results.newSegments++;
+    else results.updatedSegments++;
+  }
+
+  return {
+    success: true,
+    ...results,
   };
 }
 
@@ -514,7 +658,7 @@ function characterizeSegment(points, startIdx, endIdx, allStops) {
 // SEGMENT PROCESSING (DEDUP + STORE)
 // ============================================================================
 
-async function processDetectedSegment(supabase, segment, activityId, userId, activity, ftp) {
+async function processDetectedSegment(supabase, segment, activityId, userId, activity, ftp, dataQualityTier = 'measured') {
   // Try to find matching existing segment
   const existingMatch = await findMatchingExistingSegment(supabase, userId, segment);
 
@@ -523,11 +667,20 @@ async function processDetectedSegment(supabase, segment, activityId, userId, act
     await addRideToSegment(supabase, existingMatch.id, activityId, userId, segment, activity, ftp);
     await updateSegmentMetadata(supabase, existingMatch.id, segment);
     await updateSegmentProfile(supabase, existingMatch.id, ftp);
+
+    // If existing segment is geometry_only and new data is measured, upgrade the tier
+    if (existingMatch.data_quality_tier === 'geometry_only' && dataQualityTier === 'measured') {
+      await supabase
+        .from('training_segments')
+        .update({ data_quality_tier: 'measured' })
+        .eq('id', existingMatch.id);
+    }
+
     return { isNew: false, segmentId: existingMatch.id };
   }
 
   // Create new segment
-  const newSegmentId = await createNewSegment(supabase, userId, segment);
+  const newSegmentId = await createNewSegment(supabase, userId, segment, dataQualityTier);
   await addRideToSegment(supabase, newSegmentId, activityId, userId, segment, activity, ftp);
   await createSegmentProfile(supabase, newSegmentId);
   return { isNew: true, segmentId: newSegmentId };
@@ -545,7 +698,7 @@ async function findMatchingExistingSegment(supabase, userId, segment) {
 
   const { data: candidates } = await supabase
     .from('training_segments')
-    .select('id, start_lat, start_lng, end_lat, end_lng, distance_meters, geojson')
+    .select('id, start_lat, start_lng, end_lat, end_lng, distance_meters, geojson, data_quality_tier')
     .eq('user_id', userId)
     .gte('start_lat', minLat)
     .lte('start_lat', maxLat)
@@ -636,7 +789,7 @@ function samplePath(coords, intervalMeters) {
 // DATABASE OPERATIONS
 // ============================================================================
 
-async function createNewSegment(supabase, userId, segment) {
+async function createNewSegment(supabase, userId, segment, dataQualityTier = 'measured') {
   // Classify topology
   const topology = classifyTopologyFromSegment(segment);
 
@@ -680,7 +833,8 @@ async function createNewSegment(supabase, userId, segment) {
       ride_count: 1,
       first_ridden_at: new Date().toISOString(),
       last_ridden_at: new Date().toISOString(),
-      confidence_score: 20, // low confidence with 1 ride
+      confidence_score: dataQualityTier === 'geometry_only' ? 15 : 20,
+      data_quality_tier: dataQualityTier,
     })
     .select('id')
     .single();
@@ -863,7 +1017,7 @@ async function updateSegmentProfile(supabase, segmentId, ftp) {
   // Training suitability flags
   const { data: segmentData } = await supabase
     .from('training_segments')
-    .select('obstruction_score, max_uninterrupted_seconds, terrain_type')
+    .select('obstruction_score, max_uninterrupted_seconds, terrain_type, data_quality_tier')
     .eq('id', segmentId)
     .single();
 
@@ -905,9 +1059,22 @@ async function updateSegmentProfile(supabase, segmentId, ftp) {
   // Update confidence score on main segment
   const lastRidden = rides[0]?.ridden_at ? new Date(rides[0].ridden_at) : null;
   const daysSince = lastRidden ? (now - lastRidden) / (86400000) : 999;
+  const qualityTier = segmentData?.data_quality_tier || 'measured';
 
+  // Base confidence from ride count
   let confidence = rides.length >= 15 ? 95 : rides.length >= 8 ? 85 : rides.length >= 5 ? 70
     : rides.length >= 3 ? 50 : rides.length >= 2 ? 35 : 20;
+
+  // Data quality modifier: measured rides boost confidence, geometry-only stays at base
+  const hasMeasuredRides = powerRides.length > 0;
+  if (hasMeasuredRides) {
+    confidence += 15; // measured data available
+  } else if (qualityTier === 'geometry_only') {
+    // geometry_only with no measured rides — cap confidence lower
+    confidence = Math.min(confidence, 60);
+  }
+
+  // Recency modifier
   if (daysSince < 14) confidence += 5;
   else if (daysSince >= 30 && daysSince < 90) confidence -= 10;
   else if (daysSince >= 90) confidence -= 20;

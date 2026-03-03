@@ -198,6 +198,13 @@ function SegmentCard({
               {tierInfo.label}
             </Badge>
           )}
+          {(segment as any).data_quality_tier === 'geometry_only' && (
+            <Tooltip label="Terrain detected from GPS track. Power data will be added when you ride this segment with a power meter." withArrow>
+              <Badge size="xs" variant="light" color="gold" style={{ borderRadius: 0 }}>
+                Building Profile
+              </Badge>
+            </Tooltip>
+          )}
         </Group>
 
         {/* Row 4: Power zone + obstruction */}
@@ -498,9 +505,31 @@ function SegmentDetailModal({
             </Paper>
             <Paper withBorder p="xs" style={{ borderRadius: 0 }}>
               <Text size="xs" c="dimmed">Confidence</Text>
-              <Text fw={600} size="sm">{segment.confidence_score}/100</Text>
+              <Group gap={4}>
+                <Text fw={600} size="sm">{segment.confidence_score}/100</Text>
+                {(segment as any).data_quality_tier === 'geometry_only' && (
+                  <Badge size="xs" variant="light" color="gold" style={{ borderRadius: 0 }}>
+                    Terrain Only
+                  </Badge>
+                )}
+              </Group>
             </Paper>
           </SimpleGrid>
+
+          {/* Data quality notice for geometry-only segments */}
+          {(segment as any).data_quality_tier === 'geometry_only' && (
+            <Alert
+              icon={<IconMap size={16} />}
+              color="gold"
+              style={{ borderRadius: 0 }}
+            >
+              <Text size="xs">
+                This segment was detected from GPS tracks and elevation data. Terrain, gradient, and distance
+                are available. Power and heart rate profiles will be added automatically when you ride this
+                segment with a connected device.
+              </Text>
+            </Alert>
+          )}
 
           {/* Power profile */}
           {profile && profile.mean_avg_power != null && (
@@ -754,7 +783,14 @@ export default function SegmentLibraryPanel({
     setAnalyzeResult(null);
     try {
       const result = await analyzeUnprocessed();
-      setAnalyzeResult(`Analyzed ${result.processed || 0} activities, found ${result.segmentsCreated || 0} new segments.`);
+      const totalProcessed = result.processed || 0;
+      const totalNew = result.newSegments || 0;
+      const polylineInfo = result.polylineAnalysis
+        ? ` (${result.polylineAnalysis.processed || 0} from GPS tracks)`
+        : '';
+      setAnalyzeResult(
+        `Analyzed ${totalProcessed} activities${polylineInfo}, found ${totalNew} new segments.`
+      );
       await fetchSegments({ terrainType: terrainFilter || undefined, sortBy });
     } catch (err) {
       setAnalyzeResult('Failed to analyze activities.');
