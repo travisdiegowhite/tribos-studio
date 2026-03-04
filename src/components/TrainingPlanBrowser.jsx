@@ -877,16 +877,24 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           fetchedPreferences
         );
 
-        // Apply redistributions: update scheduled_date and day_of_week
+        // Apply redistributions: swap dates between moved workouts and displaced entries
+        // This prevents UNIQUE(plan_id, scheduled_date) violations by ensuring
+        // rest days on the target date get moved to the blocked day's slot
         for (const r of redistributions) {
           if (r.originalDate !== r.newDate) {
-            const workout = workouts.find(
+            const movedWorkout = workouts.find(
               w => w.scheduled_date === r.originalDate && w.workout_id === r.workoutId
             );
-            if (workout) {
-              const newDateObj = new Date(r.newDate + 'T12:00:00');
-              workout.scheduled_date = r.newDate;
-              workout.day_of_week = newDateObj.getDay();
+            const displacedEntry = workouts.find(
+              w => w.scheduled_date === r.newDate && w !== movedWorkout
+            );
+            if (movedWorkout) {
+              movedWorkout.scheduled_date = r.newDate;
+              movedWorkout.day_of_week = new Date(r.newDate + 'T12:00:00').getDay();
+            }
+            if (displacedEntry) {
+              displacedEntry.scheduled_date = r.originalDate;
+              displacedEntry.day_of_week = new Date(r.originalDate + 'T12:00:00').getDay();
             }
           }
         }
