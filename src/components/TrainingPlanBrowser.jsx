@@ -44,11 +44,12 @@ import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { getAllPlans, getPlansByGoal, getPlansByFitnessLevel, getPlansByCategory } from '../data/trainingPlanTemplates';
 import { getAllRunningPlans, getRunningPlansByCategory } from '../data/runningPlanTemplates';
-import { TRAINING_PHASES, GOAL_TYPES, FITNESS_LEVELS, WORKOUT_TYPES, PLAN_CATEGORIES } from '../utils/trainingPlans';
+import { TRAINING_PHASES, GOAL_TYPES, FITNESS_LEVELS, WORKOUT_TYPES, PLAN_CATEGORIES, redistributeWorkouts } from '../utils/trainingPlans';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { RUNNING_WORKOUT_LIBRARY } from '../data/runningWorkoutLibrary';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useUserAvailability } from '../hooks/useUserAvailability';
 import { trackFeature, EventType } from '../utils/activityTracking';
 
 /**
@@ -57,6 +58,11 @@ import { trackFeature, EventType } from '../utils/activityTracking';
  */
 const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) => {
   const { user } = useAuth();
+  const {
+    weeklyAvailability,
+    dateOverrides,
+    preferences: availabilityPreferences,
+  } = useUserAvailability({ userId: user?.id, autoLoad: true });
   const [sportFilter, setSportFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [filter, setFilter] = useState('all');
@@ -795,6 +801,45 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               target_duration: workoutInfo?.duration || 0,
               completed: false,
             });
+          }
+        }
+      }
+
+      // Redistribute workouts based on user availability
+      if (weeklyAvailability && weeklyAvailability.length > 0) {
+        const workoutsForRedistribution = workouts
+          .filter(w => w.workout_id)
+          .map(w => ({
+            originalDate: w.scheduled_date,
+            dayOfWeek: w.day_of_week,
+            weekNumber: w.week_number,
+            workoutId: w.workout_id,
+            workoutType: w.workout_type,
+            targetTSS: w.target_tss || null,
+            targetDuration: w.target_duration || null,
+          }));
+
+        const redistributions = redistributeWorkouts(
+          workoutsForRedistribution,
+          weeklyAvailability,
+          dateOverrides || new Map(),
+          {
+            maxWorkoutsPerWeek: availabilityPreferences?.maxWorkoutsPerWeek ?? null,
+            preferWeekendLongRides: availabilityPreferences?.preferWeekendLongRides ?? true,
+          }
+        );
+
+        // Apply redistributions: update scheduled_date and day_of_week
+        for (const r of redistributions) {
+          if (r.originalDate !== r.newDate) {
+            const workout = workouts.find(
+              w => w.scheduled_date === r.originalDate && w.workout_id === r.workoutId
+            );
+            if (workout) {
+              const newDateObj = new Date(r.newDate + 'T12:00:00');
+              workout.scheduled_date = r.newDate;
+              workout.day_of_week = newDateObj.getDay();
+            }
           }
         }
       }

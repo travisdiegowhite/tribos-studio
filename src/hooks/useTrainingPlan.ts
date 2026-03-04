@@ -119,7 +119,7 @@ export function useTrainingPlan({
 }: UseTrainingPlanOptions): UseTrainingPlanReturn {
   const [activePlan, setActivePlan] = useState<ActivePlan | null>(null);
   const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkoutWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(autoLoad);
   const [error, setError] = useState<string | null>(null);
 
   // ============================================================
