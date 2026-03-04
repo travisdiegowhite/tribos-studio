@@ -204,8 +204,8 @@ export function TrainingPlanner({
   // Training plan hook for reshuffle capability
   const {
     reshufflePlan,
-    loading: reshuffleLoading,
-  } = useTrainingPlan({ userId, autoLoad: false });
+  } = useTrainingPlan({ userId, autoLoad: true });
+  const [isReshuffling, setIsReshuffling] = useState(false);
 
   // Reshuffle confirmation state
   const [reshufflePromptOpen, setReshufflePromptOpen] = useState(false);
@@ -1210,40 +1210,45 @@ export function TrainingPlanner({
                   variant="filled"
                   size="xs"
                   color="terracotta"
-                  loading={reshuffleLoading}
+                  loading={isReshuffling}
                   onClick={async () => {
-                    const result = await reshufflePlan({
-                      weeklyAvailability,
-                      dateOverrides,
-                      preferences: {
-                        maxWorkoutsPerWeek: availabilityPreferences?.maxWorkoutsPerWeek ?? null,
-                        preferWeekendLongRides: availabilityPreferences?.preferWeekendLongRides ?? true,
-                      },
-                    });
+                    setIsReshuffling(true);
+                    try {
+                      const result = await reshufflePlan({
+                        weeklyAvailability,
+                        dateOverrides,
+                        preferences: {
+                          maxWorkoutsPerWeek: availabilityPreferences?.maxWorkoutsPerWeek ?? null,
+                          preferWeekendLongRides: availabilityPreferences?.preferWeekendLongRides ?? true,
+                        },
+                      });
 
-                    setReshufflePromptOpen(false);
+                      setReshufflePromptOpen(false);
 
-                    if (result.success && result.redistributions.length > 0) {
-                      notifications.show({
-                        title: 'Plan Updated',
-                        message: `${result.redistributions.length} workout${result.redistributions.length > 1 ? 's' : ''} moved to fit your schedule`,
-                        color: 'terracotta',
-                      });
-                      // Refresh the planner store to reflect changes
-                      store.syncWithDatabase();
-                      onPlanUpdated?.();
-                    } else if (result.success) {
-                      notifications.show({
-                        title: 'No Changes Needed',
-                        message: 'All your workouts already fit your schedule',
-                        color: 'blue',
-                      });
-                    } else {
-                      notifications.show({
-                        title: 'Reshuffle Failed',
-                        message: 'Could not update your plan. Please try again.',
-                        color: 'red',
-                      });
+                      if (result.success && result.redistributions.length > 0) {
+                        notifications.show({
+                          title: 'Plan Updated',
+                          message: `${result.redistributions.length} workout${result.redistributions.length > 1 ? 's' : ''} moved to fit your schedule`,
+                          color: 'terracotta',
+                        });
+                        // Refresh the planner store to reflect changes
+                        store.syncWithDatabase();
+                        onPlanUpdated?.();
+                      } else if (result.success) {
+                        notifications.show({
+                          title: 'No Changes Needed',
+                          message: 'All your workouts already fit your schedule',
+                          color: 'blue',
+                        });
+                      } else {
+                        notifications.show({
+                          title: 'Reshuffle Failed',
+                          message: 'Could not update your plan. Please try again.',
+                          color: 'red',
+                        });
+                      }
+                    } finally {
+                      setIsReshuffling(false);
                     }
                   }}
                 >

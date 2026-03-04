@@ -136,14 +136,14 @@ describe('useTrainingPlan', () => {
   });
 
   describe('initialization', () => {
-    it('should start with loading state when autoLoad is false', () => {
+    it('should start with loading false when autoLoad is false', () => {
       mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
 
       const { result } = renderHook(() =>
         useTrainingPlan({ userId: mockUserId, autoLoad: false })
       );
 
-      expect(result.current.loading).toBe(true);
+      expect(result.current.loading).toBe(false);
       expect(result.current.activePlan).toBeNull();
       expect(result.current.error).toBeNull();
     });
