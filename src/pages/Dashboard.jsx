@@ -47,6 +47,7 @@ import { useGear } from '../hooks/useGear.ts';
 import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
 import GetStartedGuide from '../components/activation/GetStartedGuide.jsx';
 import ProactiveInsightCard from '../components/activation/ProactiveInsightCard.jsx';
+import RouteAnalysisSummaryWidget from '../components/training/RouteAnalysisSummaryWidget.tsx';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -66,6 +67,7 @@ function Dashboard() {
   const [importNudgeDismissed, setImportNudgeDismissed] = useState(
     () => localStorage.getItem(`tribos_import_nudge_dismissed_${user?.id}`) === 'true'
   );
+  const [todayRouteMatch, setTodayRouteMatch] = useState(null);
 
   // Community hook
   const {
@@ -217,6 +219,43 @@ function Dashboard() {
     fetchData();
   }, [user]);
 
+  // Fetch best route match for today's workout
+  useEffect(() => {
+    if (!todayWorkout || !user?.id) return;
+    let cancelled = false;
+    async function fetchRouteMatch() {
+      try {
+        const workoutCategory = todayWorkout.workout_type || todayWorkout.category || 'endurance';
+        const workoutId = todayWorkout.id || 'today';
+        const res = await fetch('/api/route-analysis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'get_matches',
+            workouts: [{
+              id: workoutId,
+              name: todayWorkout.title || todayWorkout.workout_type || 'Workout',
+              category: workoutCategory,
+              duration: todayWorkout.duration_minutes || 60,
+            }],
+          }),
+        });
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          const matches = data.matches?.[workoutId] || [];
+          if (matches.length > 0) {
+            setTodayRouteMatch(matches[0]);
+          }
+        }
+      } catch (err) {
+        // Non-blocking — silently fail
+      }
+    }
+    fetchRouteMatch();
+    return () => { cancelled = true; };
+  }, [todayWorkout, user?.id]);
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -302,6 +341,7 @@ function Dashboard() {
             workout={todayWorkout}
             plan={activePlan}
             loading={loading}
+            routeMatch={todayRouteMatch}
           />
 
           {/* Main Content: Map + Stats */}
@@ -371,6 +411,13 @@ function Dashboard() {
                 </Group>
                 <FitnessMetrics activities={activities} loading={loading} />
               </Card>
+
+              {/* Route Analysis Summary */}
+              <RouteAnalysisSummaryWidget
+                userId={user?.id}
+                todayWorkout={todayWorkout}
+                loading={loading}
+              />
 
               {/* Gear Alerts */}
               {gearAlerts.length > 0 && (
@@ -459,13 +506,13 @@ function Dashboard() {
               </Button>
               <Button
                 component={Link}
-                to="/training"
+                to="/training?tab=routes"
                 variant="light"
                 color="gray"
                 size="sm"
                 leftSection={<IconChartBar size={16} />}
               >
-                Analysis
+                Find Routes
               </Button>
             </Group>
           </Card>
@@ -561,7 +608,7 @@ function Dashboard() {
 }
 
 // Today's Focus Card
-function TodayFocusCard({ workout, plan, loading }) {
+function TodayFocusCard({ workout, plan, loading, routeMatch }) {
   if (loading) {
     return (
       <Card>
@@ -659,6 +706,26 @@ function TodayFocusCard({ workout, plan, loading }) {
               </Badge>
             )}
           </Group>
+          {routeMatch && (
+            <Group gap="xs" mt="sm">
+              <IconRoute size={14} style={{ color: 'var(--tribos-terracotta-500)' }} />
+              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }} truncate>
+                Best route: {routeMatch.activity?.name}
+              </Text>
+              <Badge size="xs" color="terracotta" variant="light">
+                {routeMatch.matchScore}% match
+              </Badge>
+              <Button
+                component={Link}
+                to="/training?tab=routes"
+                size="xs"
+                variant="subtle"
+                color="terracotta"
+              >
+                View
+              </Button>
+            </Group>
+          )}
         </Box>
         <Group gap="sm">
           <Button

@@ -319,6 +319,187 @@ function ZoneDistribution({ animate }) {
   );
 }
 
+// Route suitability mock data — matches app's scoring system (0-100 per workout type)
+const routeSuitability = [
+  { label: 'Endurance', score: 95, color: COLORS.zone2 },
+  { label: 'Tempo', score: 82, color: COLORS.zone3 },
+  { label: 'Threshold', score: 71, color: COLORS.zone4 },
+  { label: 'VO2max', score: 58, color: COLORS.zone5 },
+  { label: 'Climbing', score: 34, color: COLORS.zone6 },
+];
+
+// Simplified route profile — elevation over distance (mock 50km rolling ride)
+const routeProfile = [
+  { km: 0, elev: 120 }, { km: 3, elev: 125 }, { km: 6, elev: 155 },
+  { km: 9, elev: 180 }, { km: 12, elev: 160 }, { km: 15, elev: 140 },
+  { km: 18, elev: 135 }, { km: 21, elev: 130 }, { km: 24, elev: 165 },
+  { km: 27, elev: 210 }, { km: 30, elev: 250 }, { km: 33, elev: 220 },
+  { km: 36, elev: 170 }, { km: 39, elev: 145 }, { km: 42, elev: 140 },
+  { km: 45, elev: 130 }, { km: 48, elev: 125 }, { km: 50, elev: 120 },
+];
+
+// Terrain segment ranges (km start, km end, type)
+const terrainSegments = [
+  { start: 0, end: 6, type: 'flat', color: COLORS.zone2 },
+  { start: 6, end: 12, type: 'rolling', color: COLORS.zone3 },
+  { start: 12, end: 21, type: 'flat', color: COLORS.zone2 },
+  { start: 21, end: 36, type: 'climb', color: COLORS.zone4 },
+  { start: 36, end: 45, type: 'descent', color: '#6B8C72' },
+  { start: 45, end: 50, type: 'flat', color: COLORS.zone2 },
+];
+
+function RouteIntelligence({ animate }) {
+  const width = 400;
+  const height = 120;
+  const padding = { top: 15, right: 15, bottom: 25, left: 40 };
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+
+  const maxKm = 50;
+  const maxElev = 270;
+  const minElev = 100;
+
+  const toX = (km) => padding.left + (km / maxKm) * chartW;
+  const toY = (elev) => padding.top + ((maxElev - elev) / (maxElev - minElev)) * chartH;
+
+  // Build elevation profile path
+  const profilePath = routeProfile.map((d, i) =>
+    `${i === 0 ? 'M' : 'L'}${toX(d.km)},${toY(d.elev)}`
+  ).join(' ');
+
+  const profileRef = useRef(null);
+  const [profileLength, setProfileLength] = useState(800);
+
+  useEffect(() => {
+    if (profileRef.current) setProfileLength(profileRef.current.getTotalLength());
+  }, []);
+
+  // Bar chart dimensions for suitability scores
+  const barH = 12;
+  const barGap = 6;
+  const barMaxW = 130;
+
+  return (
+    <Paper p="sm" style={{ overflow: 'hidden' }}>
+      <Text size="xs" fw={600} mb="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        Route Intelligence
+      </Text>
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+        {/* Left: Elevation profile with colored terrain segments */}
+        <Box>
+          <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto' }}>
+            {/* Grid lines */}
+            {[150, 200, 250].map(v => (
+              <g key={v}>
+                <line x1={padding.left} y1={toY(v)} x2={width - padding.right} y2={toY(v)}
+                  stroke="var(--tribos-border-default)" strokeWidth="0.5" strokeDasharray="4,4" opacity="0.4" />
+                <text x={padding.left - 6} y={toY(v) + 3} textAnchor="end"
+                  style={{ fontSize: 8, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-muted)' }}>
+                  {v}m
+                </text>
+              </g>
+            ))}
+
+            {/* Colored terrain segment fills under the profile */}
+            {terrainSegments.map((seg, i) => {
+              const segPoints = routeProfile.filter(d => d.km >= seg.start && d.km <= seg.end);
+              if (segPoints.length < 2) return null;
+              const areaPath = segPoints.map((d, j) =>
+                `${j === 0 ? 'M' : 'L'}${toX(d.km)},${toY(d.elev)}`
+              ).join(' ')
+                + `L${toX(seg.end)},${padding.top + chartH}`
+                + `L${toX(seg.start)},${padding.top + chartH}Z`;
+              return (
+                <path key={i} d={areaPath} fill={seg.color}
+                  style={{
+                    opacity: animate ? 0.2 : 0,
+                    transition: `opacity 0.5s ease-out ${0.8 + i * 0.1}s`,
+                  }}
+                />
+              );
+            })}
+
+            {/* Elevation profile line */}
+            <path ref={profileRef} d={profilePath} fill="none" stroke="var(--tribos-text-secondary)" strokeWidth="1.5"
+              strokeLinecap="round" strokeLinejoin="round"
+              style={{
+                strokeDasharray: profileLength,
+                strokeDashoffset: animate ? 0 : profileLength,
+                transition: animate ? 'stroke-dashoffset 2s ease-out 0.3s' : 'none',
+              }}
+            />
+
+            {/* Distance labels */}
+            {[0, 10, 20, 30, 40, 50].map(km => (
+              <text key={km} x={toX(km)} y={height - 6} textAnchor="middle"
+                style={{ fontSize: 8, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-muted)' }}>
+                {km}km
+              </text>
+            ))}
+          </svg>
+
+          {/* Terrain legend */}
+          <Group gap="xs" mt={4} justify="center">
+            {[
+              { label: 'Flat', color: COLORS.zone2 },
+              { label: 'Rolling', color: COLORS.zone3 },
+              { label: 'Climb', color: COLORS.zone4 },
+              { label: 'Descent', color: '#6B8C72' },
+            ].map(t => (
+              <Group key={t.label} gap={3}>
+                <Box style={{ width: 8, height: 8, background: t.color, opacity: 0.6 }} />
+                <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: 'var(--tribos-text-muted)' }}>
+                  {t.label}
+                </Text>
+              </Group>
+            ))}
+          </Group>
+        </Box>
+
+        {/* Right: Suitability scores as horizontal bars */}
+        <Box>
+          <svg viewBox={`0 0 240 ${routeSuitability.length * (barH + barGap) + 10}`} style={{ width: '100%', height: 'auto' }}>
+            {routeSuitability.map((d, i) => {
+              const y = i * (barH + barGap) + 5;
+              const barW = (d.score / 100) * barMaxW;
+              return (
+                <g key={d.label}>
+                  {/* Label */}
+                  <text x={0} y={y + barH - 2}
+                    style={{ fontSize: 10, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-secondary)' }}>
+                    {d.label}
+                  </text>
+                  {/* Background bar */}
+                  <rect x={75} y={y} width={barMaxW} height={barH} rx={0}
+                    fill="var(--tribos-border-default)" opacity="0.3" />
+                  {/* Score bar */}
+                  <rect x={75} y={y} width={barW} height={barH} rx={0}
+                    fill={d.color} opacity="0.7"
+                    style={{
+                      transformOrigin: `75px ${y + barH / 2}px`,
+                      transform: animate ? 'scaleX(1)' : 'scaleX(0)',
+                      transition: `transform 0.6s ease-out ${0.6 + i * 0.1}s`,
+                    }}
+                  />
+                  {/* Score text */}
+                  <text x={75 + barMaxW + 8} y={y + barH - 2}
+                    style={{
+                      fontSize: 10, fontFamily: "'DM Mono', monospace", fontWeight: 600, fill: d.color,
+                      opacity: animate ? 1 : 0,
+                      transition: `opacity 0.3s ease-out ${1 + i * 0.1}s`,
+                    }}>
+                    {d.score}%
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </Box>
+      </SimpleGrid>
+    </Paper>
+  );
+}
+
 // ===== Main AnalyzeStep Component =====
 
 export default function AnalyzeStep() {
@@ -378,6 +559,9 @@ export default function AnalyzeStep() {
               </Box>
               <PowerDurationCurve animate={animate} />
               <ZoneDistribution animate={animate} />
+              <Box style={{ gridColumn: '1 / -1' }}>
+                <RouteIntelligence animate={animate} />
+              </Box>
             </SimpleGrid>
           </Stack>
         </div>

@@ -736,7 +736,7 @@ export default function SegmentLibraryPanel({
     computeMatches,
   } = useSegmentLibrary(userId);
 
-  const [viewMode, setViewMode] = useState('segments');
+  const [viewMode, setViewMode] = useState('routes');
   const [terrainFilter, setTerrainFilter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState('relevance');
   const [analyzing, setAnalyzing] = useState(false);
