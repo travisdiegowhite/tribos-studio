@@ -660,40 +660,37 @@ export function useTrainingPlan({
             const workoutToUpdate = plannedWorkouts.find(
               (w) => w.scheduled_date === r.originalDate && w.workout_id === r.workoutId
             );
+            if (!workoutToUpdate) continue;
 
-            if (workoutToUpdate) {
-              const newDateObj = new Date(r.newDate + 'T12:00:00');
-              const origDateObj = new Date(r.originalDate + 'T12:00:00');
+            const newDateObj = new Date(r.newDate + 'T12:00:00');
 
-              // Swap: move any existing row at the target date to the original (blocked) date first
-              // This prevents UNIQUE(plan_id, scheduled_date) constraint violations
-              const displacedWorkout = plannedWorkouts.find(
-                (w) => w.scheduled_date === r.newDate && w.id !== workoutToUpdate.id
-              );
+            // Query DB live for any row at the target date (in-memory state goes stale after first update)
+            const { data: displacedRows } = await supabase
+              .from('planned_workouts')
+              .select('id')
+              .eq('plan_id', activePlan.id)
+              .eq('scheduled_date', r.newDate);
 
-              if (displacedWorkout) {
-                await supabase
-                  .from('planned_workouts')
-                  .update({
-                    scheduled_date: r.originalDate,
-                    day_of_week: origDateObj.getDay(),
-                  })
-                  .eq('id', displacedWorkout.id);
-              }
-
-              // Now move the actual workout to the target date
-              const { error: updateError } = await supabase
+            // Delete displaced row (typically a rest day with no meaningful data) to clear the target date
+            if (displacedRows && displacedRows.length > 0) {
+              await supabase
                 .from('planned_workouts')
-                .update({
-                  scheduled_date: r.newDate,
-                  day_of_week: newDateObj.getDay(),
-                  notes: `${workoutToUpdate.notes || ''}\nMoved from ${r.originalDate} (availability change)`.trim(),
-                })
-                .eq('id', workoutToUpdate.id);
+                .delete()
+                .eq('id', displacedRows[0].id);
+            }
 
-              if (updateError) {
-                console.error('Error updating workout:', updateError);
-              }
+            // Move the workout to the now-vacant target date
+            const { error: updateError } = await supabase
+              .from('planned_workouts')
+              .update({
+                scheduled_date: r.newDate,
+                day_of_week: newDateObj.getDay(),
+                notes: `${workoutToUpdate.notes || ''}\nMoved from ${r.originalDate} (availability change)`.trim(),
+              })
+              .eq('id', workoutToUpdate.id);
+
+            if (updateError) {
+              console.error('Error updating workout:', updateError);
             }
           }
         }
