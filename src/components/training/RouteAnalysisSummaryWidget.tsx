@@ -14,6 +14,7 @@ import {
   Button,
   Box,
   Skeleton,
+  ThemeIcon,
 } from '@mantine/core';
 import {
   IconRoute,
@@ -57,11 +58,24 @@ interface RouteAnalysisSummaryWidgetProps {
   loading?: boolean;
 }
 
-const TERRAIN_ICONS: Record<string, string> = {
+const TERRAIN_LABELS: Record<string, string> = {
   flat: 'Flat',
   rolling: 'Rolling',
   hilly: 'Hilly',
   mountainous: 'Mountainous',
+};
+
+// Shared card style — gradient bg + terracotta accent border
+const cardStyle = {
+  background: 'linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)',
+  border: '1px solid var(--tribos-terracotta-500)30',
+};
+
+const monoStyle = {
+  fontFamily: "'DM Mono', monospace",
+  letterSpacing: '1.5px',
+  textTransform: 'uppercase' as const,
+  color: 'var(--tribos-text-muted)',
 };
 
 function getMatchColor(score: number): string {
@@ -122,12 +136,21 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
 
         // If there's a today's workout, get matches
         if (todayWorkout) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) {
+            setWidgetLoading(false);
+            return;
+          }
+
           const workoutCategory = todayWorkout.workout_type || todayWorkout.category || 'endurance';
           const workoutId = todayWorkout.id || 'today';
 
           const res = await fetch('/api/route-analysis', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
               action: 'get_matches',
               workouts: [{
@@ -160,14 +183,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
 
   if (loading || widgetLoading) {
     return (
-      <Card
-        padding="md"
-        radius="md"
-        style={{
-          backgroundColor: 'var(--tribos-bg-secondary)',
-          border: '1px solid var(--tribos-bg-tertiary)',
-        }}
-      >
+      <Card padding="md" radius="md" style={cardStyle}>
         <Stack gap="sm">
           <Skeleton height={20} width="60%" />
           <Skeleton height={40} />
@@ -180,34 +196,29 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
   // No analyses — CTA state
   if (!analysisSummary) {
     return (
-      <Card
-        padding="md"
-        radius="md"
-        style={{
-          backgroundColor: 'var(--tribos-bg-secondary)',
-          border: '1px solid var(--tribos-bg-tertiary)',
-        }}
-      >
+      <Card padding="md" radius="md" style={cardStyle}>
         <Stack gap="sm">
           <Group gap="xs">
-            <IconRoute size={18} color="var(--tribos-text-secondary)" />
-            <Text size="sm" fw={500} c="dimmed">
+            <ThemeIcon size="sm" variant="light" color="terracotta">
+              <IconRoute size={14} />
+            </ThemeIcon>
+            <Text size="sm" fw={600}>
               Route Intelligence
             </Text>
           </Group>
+          <Text size="xs" style={monoStyle}>
+            Your training roads
+          </Text>
           <Text size="sm" c="dimmed">
             Discover which of your past rides are best for each type of workout.
           </Text>
           <Button
             component={Link}
             to="/training?tab=routes"
-            variant="light"
+            variant="filled"
+            color="terracotta"
             size="sm"
             leftSection={<IconTarget size={16} />}
-            style={{
-              backgroundColor: 'var(--tribos-bg-tertiary)',
-              color: 'var(--tribos-text-primary)',
-            }}
           >
             Analyze Routes
           </Button>
@@ -219,19 +230,14 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
   // Has today's workout matches
   if (todayWorkout && topMatches.length > 0) {
     return (
-      <Card
-        padding="md"
-        radius="md"
-        style={{
-          backgroundColor: 'var(--tribos-bg-secondary)',
-          border: '1px solid var(--tribos-bg-tertiary)',
-        }}
-      >
+      <Card padding="md" radius="md" style={cardStyle}>
         <Stack gap="sm">
           <Group justify="space-between" align="flex-start">
             <Group gap="xs">
-              <IconRoute size={18} color="var(--tribos-terracotta-500)" />
-              <Text size="sm" fw={500}>
+              <ThemeIcon size="sm" variant="light" color="terracotta">
+                <IconRoute size={14} />
+              </ThemeIcon>
+              <Text size="sm" fw={600}>
                 Routes for Today
               </Text>
             </Group>
@@ -239,6 +245,9 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
               {analysisSummary.count} analyzed
             </Badge>
           </Group>
+          <Text size="xs" style={monoStyle}>
+            Matched to your workout
+          </Text>
 
           <Stack gap={6}>
             {topMatches.map((match, i) => (
@@ -247,9 +256,10 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
                 justify="space-between"
                 gap="xs"
                 style={{
-                  padding: '4px 6px',
+                  padding: '6px 8px',
                   borderRadius: 0,
                   backgroundColor: i === 0 ? 'var(--tribos-bg-tertiary)' : 'transparent',
+                  borderLeft: i === 0 ? '3px solid var(--tribos-terracotta-500)' : '3px solid transparent',
                 }}
               >
                 <Box style={{ flex: 1, minWidth: 0 }}>
@@ -268,14 +278,14 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
                     )}
                     {match.analysis?.terrain_type && (
                       <Text size="xs" c="dimmed">
-                        {TERRAIN_ICONS[match.analysis.terrain_type] || match.analysis.terrain_type}
+                        {TERRAIN_LABELS[match.analysis.terrain_type] || match.analysis.terrain_type}
                       </Text>
                     )}
                   </Group>
                 </Box>
                 <Badge
                   size="sm"
-                  variant="light"
+                  variant={i === 0 ? 'filled' : 'light'}
                   color={getMatchColor(match.matchScore)}
                 >
                   {match.matchScore}%
@@ -301,26 +311,24 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
 
   // Has analyses but no today's workout — summary stats
   return (
-    <Card
-      padding="md"
-      radius="md"
-      style={{
-        backgroundColor: 'var(--tribos-bg-secondary)',
-        border: '1px solid var(--tribos-bg-tertiary)',
-      }}
-    >
+    <Card padding="md" radius="md" style={cardStyle}>
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start">
           <Group gap="xs">
-            <IconRoute size={18} color="var(--tribos-terracotta-500)" />
-            <Text size="sm" fw={500}>
+            <ThemeIcon size="sm" variant="light" color="terracotta">
+              <IconRoute size={14} />
+            </ThemeIcon>
+            <Text size="sm" fw={600}>
               Route Intelligence
             </Text>
           </Group>
-          <Badge size="xs" variant="light" color="gray">
+          <Badge size="xs" variant="light" color="terracotta">
             {analysisSummary.count} routes
           </Badge>
         </Group>
+        <Text size="xs" style={monoStyle}>
+          Your training roads
+        </Text>
 
         {analysisSummary.topCategories.length > 0 && (
           <Box>

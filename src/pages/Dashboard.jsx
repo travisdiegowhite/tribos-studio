@@ -225,11 +225,16 @@ function Dashboard() {
     let cancelled = false;
     async function fetchRouteMatch() {
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
         const workoutCategory = todayWorkout.workout_type || todayWorkout.category || 'endurance';
         const workoutId = todayWorkout.id || 'today';
         const res = await fetch('/api/route-analysis', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify({
             action: 'get_matches',
             workouts: [{
