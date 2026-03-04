@@ -663,7 +663,25 @@ export function useTrainingPlan({
 
             if (workoutToUpdate) {
               const newDateObj = new Date(r.newDate + 'T12:00:00');
+              const origDateObj = new Date(r.originalDate + 'T12:00:00');
 
+              // Swap: move any existing row at the target date to the original (blocked) date first
+              // This prevents UNIQUE(plan_id, scheduled_date) constraint violations
+              const displacedWorkout = plannedWorkouts.find(
+                (w) => w.scheduled_date === r.newDate && w.id !== workoutToUpdate.id
+              );
+
+              if (displacedWorkout) {
+                await supabase
+                  .from('planned_workouts')
+                  .update({
+                    scheduled_date: r.originalDate,
+                    day_of_week: origDateObj.getDay(),
+                  })
+                  .eq('id', displacedWorkout.id);
+              }
+
+              // Now move the actual workout to the target date
               const { error: updateError } = await supabase
                 .from('planned_workouts')
                 .update({
