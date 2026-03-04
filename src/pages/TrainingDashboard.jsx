@@ -887,6 +887,12 @@ function TrainingDashboard() {
                   {!isMobile && 'Today'}
                 </Tabs.Tab>
                 <Tabs.Tab
+                  value="routes"
+                  leftSection={<IconRoute size={isMobile ? 20 : 18} />}
+                >
+                  {!isMobile && 'Routes'}
+                </Tabs.Tab>
+                <Tabs.Tab
                   value="trends"
                   leftSection={<IconTrendingUp size={isMobile ? 20 : 18} />}
                 >
@@ -897,12 +903,6 @@ function TrainingDashboard() {
                   leftSection={<IconBolt size={isMobile ? 20 : 18} />}
                 >
                   {!isMobile && 'Power'}
-                </Tabs.Tab>
-                <Tabs.Tab
-                  value="routes"
-                  leftSection={<IconRoute size={isMobile ? 20 : 18} />}
-                >
-                  {!isMobile && 'Routes'}
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="history"
@@ -1021,6 +1021,15 @@ function TrainingDashboard() {
                 </Stack>
               </Tabs.Panel>
 
+              {/* ROUTES TAB - Segment Library + Route Analysis */}
+              <Tabs.Panel value="routes">
+                <SegmentLibraryPanel
+                  plannedWorkouts={plannedWorkouts}
+                  formatDist={formatDist}
+                  formatElev={formatElev}
+                />
+              </Tabs.Panel>
+
               {/* TRENDS TAB */}
               <Tabs.Panel value="trends">
                 <TrendsTab
@@ -1046,15 +1055,6 @@ function TrainingDashboard() {
                   navigate={navigate}
                   activities={visibleActivities}
                   weight={userWeight}
-                />
-              </Tabs.Panel>
-
-              {/* ROUTES TAB - Segment Library + Route Analysis */}
-              <Tabs.Panel value="routes">
-                <SegmentLibraryPanel
-                  plannedWorkouts={plannedWorkouts}
-                  formatDist={formatDist}
-                  formatElev={formatElev}
                 />
               </Tabs.Panel>
 
