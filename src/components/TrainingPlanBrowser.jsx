@@ -49,7 +49,6 @@ import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { RUNNING_WORKOUT_LIBRARY } from '../data/runningWorkoutLibrary';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useUserAvailability } from '../hooks/useUserAvailability';
 import { trackFeature, EventType } from '../utils/activityTracking';
 
 /**
@@ -58,11 +57,6 @@ import { trackFeature, EventType } from '../utils/activityTracking';
  */
 const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) => {
   const { user } = useAuth();
-  const {
-    weeklyAvailability,
-    dateOverrides,
-    preferences: availabilityPreferences,
-  } = useUserAvailability({ userId: user?.id, autoLoad: true });
   const [sportFilter, setSportFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [filter, setFilter] = useState('all');
@@ -805,8 +799,65 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         }
       }
 
+      // Fetch user availability directly (not from hook state, which may not be loaded yet)
+      const [dayAvailResult, overridesResult, prefsResult] = await Promise.all([
+        supabase
+          .from('user_day_availability')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('day_of_week', { ascending: true }),
+        supabase
+          .from('user_date_overrides')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('specific_date', { ascending: true }),
+        supabase
+          .from('user_training_preferences')
+          .select('*')
+          .eq('user_id', user.id)
+          .single(),
+      ]);
+
+      // Build weekly availability array
+      const availDayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const dayAvailData = dayAvailResult.data || [];
+      const dayAvailMap = new Map(dayAvailData.map(d => [d.day_of_week, d]));
+      const fetchedAvailability = [];
+      for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+        const dbEntry = dayAvailMap.get(dayIndex);
+        fetchedAvailability.push({
+          dayOfWeek: dayIndex,
+          dayName: availDayNames[dayIndex],
+          status: dbEntry
+            ? dbEntry.is_blocked ? 'blocked' : dbEntry.is_preferred ? 'preferred' : 'available'
+            : 'available',
+          maxDurationMinutes: dbEntry?.max_duration_minutes || null,
+          notes: dbEntry?.notes || null,
+        });
+      }
+
+      // Build date overrides map
+      const overridesData = overridesResult.data || [];
+      const fetchedOverrides = new Map();
+      for (const override of overridesData) {
+        fetchedOverrides.set(override.specific_date, {
+          date: override.specific_date,
+          status: override.is_blocked ? 'blocked' : override.is_preferred ? 'preferred' : 'available',
+          isOverride: true,
+          maxDurationMinutes: override.max_duration_minutes,
+          notes: override.notes,
+        });
+      }
+
+      // Get preferences
+      const prefsData = prefsResult.data;
+      const fetchedPreferences = {
+        maxWorkoutsPerWeek: prefsData?.max_workouts_per_week ?? null,
+        preferWeekendLongRides: prefsData?.prefer_weekend_long_rides ?? true,
+      };
+
       // Redistribute workouts based on user availability
-      if (weeklyAvailability && weeklyAvailability.length > 0) {
+      if (fetchedAvailability.some(d => d.status === 'blocked')) {
         const workoutsForRedistribution = workouts
           .filter(w => w.workout_id)
           .map(w => ({
@@ -821,12 +872,9 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
         const redistributions = redistributeWorkouts(
           workoutsForRedistribution,
-          weeklyAvailability,
-          dateOverrides || new Map(),
-          {
-            maxWorkoutsPerWeek: availabilityPreferences?.maxWorkoutsPerWeek ?? null,
-            preferWeekendLongRides: availabilityPreferences?.preferWeekendLongRides ?? true,
-          }
+          fetchedAvailability,
+          fetchedOverrides,
+          fetchedPreferences
         );
 
         // Apply redistributions: update scheduled_date and day_of_week
