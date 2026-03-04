@@ -1,21 +1,18 @@
 /**
  * PlannerPage - Top-level page for the Training Planner
  * "Plan Your Training" - drag-and-drop workout scheduling
- * Now includes plan browsing and training calendar (moved from Analysis page)
+ * Browse Plans opens as a modal overlay
  */
 
 import { useState, useEffect } from 'react';
-import { Container, Loader, Box, Alert, Tabs, Group, Text, ThemeIcon, Stack, Card, Button } from '@mantine/core';
-import { IconAlertCircle, IconCalendarEvent, IconList, IconHistory, IconTarget, IconBrain } from '@tabler/icons-react';
-import { useSearchParams } from 'react-router-dom';
+import { Container, Loader, Box, Alert, Group, Text, ThemeIcon, Stack, Card, Button, Modal } from '@mantine/core';
+import { IconAlertCircle, IconTarget, IconList } from '@tabler/icons-react';
 import AppShell from '../components/AppShell.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import { TrainingPlanner } from '../components/planner';
 import TrainingPlanBrowser from '../components/TrainingPlanBrowser.jsx';
-import TrainingCalendar from '../components/TrainingCalendar.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
-import { tokens } from '../theme';
 import { formatDistance } from '../utils/units';
 
 // Activity type - matches the activities table schema
@@ -45,24 +42,13 @@ interface TrainingPlan {
 
 export default function PlannerPage() {
   const { user } = useAuth() as { user: { id: string } | null };
-  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [ftp, setFtp] = useState<number | null>(null);
   const [activePlan, setActivePlan] = useState<TrainingPlan | null>(null);
   const [unitsPreference, setUnitsPreference] = useState<string>('imperial');
-  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
-
-  // Tab state - default to 'planner' unless specified
-  const urlTab = searchParams.get('tab');
-  const validTabs = ['planner', 'browse', 'history'];
-  const [activeTab, setActiveTab] = useState<string>(
-    validTabs.includes(urlTab || '') ? urlTab! : 'planner'
-  );
-
-  const isImperial = unitsPreference === 'imperial';
-  const formatDist = (meters: number) => formatDistance(meters, isImperial);
+  const [browseOpen, setBrowseOpen] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -184,12 +170,23 @@ export default function PlannerPage() {
   }
 
   return (
-    <AppShell fullWidth={activeTab === 'planner'}>
+    <AppShell fullWidth>
       <Container size="xl" py="lg">
         <Stack gap="lg">
           <PageHeader
             title="Plan"
             subtitle={activePlan ? `Active: ${activePlan.name}` : 'Schedule and manage your training'}
+            actions={
+              <Button
+                variant="light"
+                color="terracotta"
+                size="compact-sm"
+                leftSection={<IconList size={14} />}
+                onClick={() => setBrowseOpen(true)}
+              >
+                Browse Plans
+              </Button>
+            }
           />
 
           {/* Nudge for users without an active plan */}
@@ -212,7 +209,7 @@ export default function PlannerPage() {
                     variant="light"
                     color="terracotta"
                     size="compact-sm"
-                    onClick={() => setActiveTab('browse')}
+                    onClick={() => setBrowseOpen(true)}
                   >
                     Browse plans
                   </Button>
@@ -221,84 +218,36 @@ export default function PlannerPage() {
             </Card>
           )}
 
-          <Tabs
-            value={activeTab}
-            onChange={(value) => setActiveTab(value || 'planner')}
-            color="terracotta"
-          >
-            <Tabs.List mb="md">
-            <Tabs.Tab
-              value="planner"
-              leftSection={<IconCalendarEvent size={16} />}
-            >
-              Planner
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="history"
-              leftSection={<IconHistory size={16} />}
-            >
-              History
-            </Tabs.Tab>
-            <Tabs.Tab
-              value="browse"
-              leftSection={<IconList size={16} />}
-            >
-              Browse Plans
-            </Tabs.Tab>
-          </Tabs.List>
-
-          <Tabs.Panel value="planner">
-            <Box mx="-md">
-              <TrainingPlanner
-                userId={user?.id ?? ''}
-                activePlanId={activePlan?.id}
-                activities={activities}
-                ftp={ftp}
-                onPlanUpdated={handlePlanUpdated}
-              />
-            </Box>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="history">
-            <TrainingCalendar
-              activePlan={activePlan}
-              // @ts-expect-error TrainingCalendar JSX component lacks type definitions
-              rides={activities}
-              formatDistance={formatDist}
+          <Box mx="-md">
+            <TrainingPlanner
+              userId={user?.id ?? ''}
+              activePlanId={activePlan?.id}
+              activities={activities}
               ftp={ftp}
-              isImperial={isImperial}
-              refreshKey={calendarRefreshKey}
-              onPlanUpdated={async () => {
-                // Reload the active plan to get updated compliance stats
-                await handlePlanUpdated();
-                setCalendarRefreshKey(prev => prev + 1);
-              }}
+              onPlanUpdated={handlePlanUpdated}
             />
-          </Tabs.Panel>
-
-          <Tabs.Panel value="browse">
-            <TrainingPlanBrowser
-              activePlan={activePlan}
-              onPlanActivated={async (plan: TrainingPlan | null) => {
-                setActivePlan(plan);
-                // Reload activities after plan activation
-                if (plan?.id && user?.id) {
-                  const { data: workoutsData } = await supabase
-                    .from('planned_workouts')
-                    .select('*')
-                    .eq('plan_id', plan.id)
-                    .order('scheduled_date', { ascending: true });
-                  if (workoutsData) {
-                    // Switch to planner view to show the new plan
-                    setActiveTab('planner');
-                  }
-                }
-              }}
-            />
-          </Tabs.Panel>
-        </Tabs>
+          </Box>
         </Stack>
       </Container>
+
+      {/* Browse Plans Modal */}
+      <Modal
+        opened={browseOpen}
+        onClose={() => setBrowseOpen(false)}
+        size="xl"
+        title="Browse Training Plans"
+        styles={{
+          title: { fontWeight: 600 },
+        }}
+      >
+        <TrainingPlanBrowser
+          activePlan={activePlan}
+          onPlanActivated={async (plan: TrainingPlan | null) => {
+            setActivePlan(plan);
+            setBrowseOpen(false);
+          }}
+        />
+      </Modal>
     </AppShell>
   );
 }

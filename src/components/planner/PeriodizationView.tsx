@@ -3,9 +3,9 @@
  * Long-range 8-12 week overview showing training phases and weekly TSS
  */
 
-import { useMemo } from 'react';
-import { Box, Group, Text, Badge, Tooltip, Progress, Paper } from '@mantine/core';
-import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+import { useMemo, useState } from 'react';
+import { Box, Group, Text, Badge, Tooltip, Paper } from '@mantine/core';
+import { IconTrophy } from '@tabler/icons-react';
 import type { PlannerWorkout } from '../../types/planner';
 
 // Training phases
@@ -20,6 +20,14 @@ interface WeekSummary {
   workoutCount: number;
   isCurrentWeek: boolean;
   isFocused: boolean;
+  hasRaceGoal: boolean;
+}
+
+interface RaceGoalInfo {
+  race_date?: string;
+  targetDate?: string;
+  name: string;
+  priority: 'A' | 'B' | 'C';
 }
 
 interface PeriodizationViewProps {
@@ -30,6 +38,7 @@ interface PeriodizationViewProps {
   activities?: Record<string, { tss: number | null }>;
   onWeekClick: (weekStart: string) => void;
   onNavigate?: (direction: 'prev' | 'next') => void;
+  raceGoals?: RaceGoalInfo[];
 }
 
 // Phase colors
@@ -55,7 +64,7 @@ const PHASE_LABELS: Record<TrainingPhase, string> = {
 /**
  * Calculate training phase based on week position in plan
  */
-function calculatePhase(
+export function calculatePhase(
   weekNumber: number,
   totalWeeks: number,
   raceWeek?: number
@@ -69,16 +78,12 @@ function calculatePhase(
   const percentComplete = weekNumber / totalWeeks;
 
   if (percentComplete <= 0.4) {
-    // First 40% is base
     return 'base';
   } else if (percentComplete <= 0.7) {
-    // Next 30% is build
     return 'build';
   } else if (percentComplete <= 0.85) {
-    // Next 15% is peak
     return 'peak';
   } else {
-    // Final 15% is taper
     return 'taper';
   }
 }
@@ -86,7 +91,7 @@ function calculatePhase(
 /**
  * Format date as YYYY-MM-DD in local timezone
  */
-function formatLocalDate(date: Date): string {
+export function formatLocalDate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -96,7 +101,7 @@ function formatLocalDate(date: Date): string {
 /**
  * Parse YYYY-MM-DD string as local date (not UTC)
  */
-function parseLocalDate(dateStr: string): Date {
+export function parseLocalDate(dateStr: string): Date {
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
 }
@@ -115,7 +120,7 @@ function getWeekStart(dateStr: string): string {
 /**
  * Add days to a date string (local timezone)
  */
-function addDays(dateStr: string, days: number): string {
+export function addDays(dateStr: string, days: number): string {
   const date = parseLocalDate(dateStr);
   date.setDate(date.getDate() + days);
   return formatLocalDate(date);
@@ -136,25 +141,37 @@ export function PeriodizationView({
   plannedWorkouts,
   activities = {},
   onWeekClick,
+  raceGoals = [],
 }: PeriodizationViewProps) {
+  const [hasClicked, setHasClicked] = useState(false);
+
   // Calculate current week (using local timezone)
   const currentWeekStart = useMemo(() => {
     return getWeekStart(formatLocalDate(new Date()));
   }, []);
 
+  // Build a set of week starts that contain a race goal
+  const raceWeekStarts = useMemo(() => {
+    const set = new Set<string>();
+    for (const goal of raceGoals) {
+      const raceDate = goal.race_date || goal.targetDate;
+      if (raceDate) {
+        set.add(getWeekStart(raceDate));
+      }
+    }
+    return set;
+  }, [raceGoals]);
+
   // Generate week summaries
   const weeks = useMemo(() => {
     const result: WeekSummary[] = [];
 
-    // Determine the range of weeks to show
-    // If we have a plan, use that; otherwise show 12 weeks from current
     const startDate = planStartDate || currentWeekStart;
     const numWeeks = planDurationWeeks || 12;
 
     for (let i = 0; i < numWeeks; i++) {
       const weekStart = addDays(startDate, i * 7);
 
-      // Calculate TSS for the week
       let plannedTSS = 0;
       let actualTSS = 0;
       let workoutCount = 0;
@@ -181,22 +198,23 @@ export function PeriodizationView({
         workoutCount,
         isCurrentWeek: weekStart === currentWeekStart,
         isFocused: weekStart === focusedWeekStart || addDays(weekStart, 7) === addDays(focusedWeekStart, 7),
+        hasRaceGoal: raceWeekStarts.has(weekStart),
       });
     }
 
     return result;
-  }, [planStartDate, planDurationWeeks, plannedWorkouts, activities, currentWeekStart, focusedWeekStart]);
+  }, [planStartDate, planDurationWeeks, plannedWorkouts, activities, currentWeekStart, focusedWeekStart, raceWeekStarts]);
 
   // Calculate max TSS for scaling
   const maxTSS = useMemo(() => {
     const allTSS = weeks.map((w) => Math.max(w.plannedTSS, w.actualTSS));
-    return Math.max(500, ...allTSS); // Minimum 500 for scale
+    return Math.max(500, ...allTSS);
   }, [weeks]);
 
-  // Check if focused week is visible in current view
-  const focusedWeekIndex = weeks.findIndex(
-    (w) => w.weekStart === focusedWeekStart || w.weekStart === addDays(focusedWeekStart, -7)
-  );
+  const handleWeekClick = (weekStart: string) => {
+    setHasClicked(true);
+    onWeekClick(weekStart);
+  };
 
   return (
     <Paper
@@ -243,12 +261,15 @@ export function PeriodizationView({
                   <Text size="xs">Actual: {week.actualTSS} TSS</Text>
                 )}
                 <Text size="xs">{week.workoutCount} workouts</Text>
+                {!hasClicked && (
+                  <Text size="xs" c="dimmed" fs="italic" mt={4}>Click to view week details</Text>
+                )}
               </Box>
             }
             position="top"
           >
             <Box
-              onClick={() => onWeekClick(week.weekStart)}
+              onClick={() => handleWeekClick(week.weekStart)}
               style={{
                 minWidth: 48,
                 maxWidth: 60,
@@ -256,30 +277,49 @@ export function PeriodizationView({
                 cursor: 'pointer',
                 padding: 4,
                 borderRadius: 6,
+                position: 'relative',
                 backgroundColor: week.isFocused
-                  ? 'rgba(163, 230, 53, 0.15)'
+                  ? 'rgba(158, 90, 60, 0.2)'
                   : 'var(--mantine-color-dark-6)',
-                border: week.isCurrentWeek
-                  ? '2px solid var(--mantine-color-terracotta-6)'
-                  : week.isFocused
-                  ? '2px solid var(--mantine-color-terracotta-4)'
+                border: week.isFocused
+                  ? '2px solid var(--mantine-color-terracotta-5)'
+                  : week.isCurrentWeek
+                  ? '2px solid var(--mantine-color-terracotta-7)'
                   : '1px solid var(--mantine-color-dark-4)',
                 transition: 'all 0.15s ease',
               }}
               onMouseEnter={(e) => {
                 if (!week.isFocused) {
                   e.currentTarget.style.backgroundColor = 'var(--mantine-color-dark-5)';
+                  e.currentTarget.style.borderColor = 'var(--mantine-color-terracotta-8)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!week.isFocused) {
                   e.currentTarget.style.backgroundColor = 'var(--mantine-color-dark-6)';
+                  e.currentTarget.style.borderColor = week.isCurrentWeek
+                    ? 'var(--mantine-color-terracotta-7)'
+                    : 'var(--mantine-color-dark-4)';
                 }
               }}
             >
+              {/* Race goal indicator */}
+              {week.hasRaceGoal && (
+                <Box
+                  style={{
+                    position: 'absolute',
+                    top: 2,
+                    right: 2,
+                    zIndex: 1,
+                  }}
+                >
+                  <IconTrophy size={10} color="var(--mantine-color-yellow-5)" />
+                </Box>
+              )}
+
               {/* Week number and phase */}
               <Group justify="space-between" gap={2} mb={4}>
-                <Text size="xs" fw={week.isCurrentWeek ? 700 : 500} c={week.isCurrentWeek ? 'terracotta' : undefined}>
+                <Text size="xs" fw={week.isCurrentWeek || week.isFocused ? 700 : 500} c={week.isFocused ? 'terracotta' : week.isCurrentWeek ? 'terracotta' : undefined}>
                   W{week.weekNumber}
                 </Text>
                 <Box
@@ -334,6 +374,13 @@ export function PeriodizationView({
         ))}
       </Box>
 
+      {/* Helper text - shown until user clicks a week */}
+      {!hasClicked && (
+        <Text size="xs" c="dimmed" ta="center" fs="italic" mt={4}>
+          Click a week to view details below
+        </Text>
+      )}
+
       {/* Legend */}
       <Group justify="center" gap="md" mt="xs">
         <Group gap={4}>
@@ -362,6 +409,14 @@ export function PeriodizationView({
             Actual TSS
           </Text>
         </Group>
+        {raceGoals.length > 0 && (
+          <Group gap={4}>
+            <IconTrophy size={12} color="var(--mantine-color-yellow-5)" />
+            <Text size="xs" c="dimmed">
+              Race
+            </Text>
+          </Group>
+        )}
       </Group>
     </Paper>
   );

@@ -20,16 +20,18 @@ import {
   IconSettings,
   IconSun,
   IconMoon,
+  IconCalendarEvent,
 } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
 
-// Flat navigation - 5 direct links, no dropdowns
+// Flat navigation - 6 direct links, no dropdowns
 const navItems = [
   { path: '/dashboard', label: 'Home', icon: IconHome },
   { path: '/routes/new', label: 'Routes', icon: IconMap },
   { path: '/training', label: 'Training', icon: IconActivity },
+  { path: '/planner', label: 'Planner', icon: IconCalendarEvent },
   { path: '/community', label: 'Cafe', icon: IconUsers },
   { path: '/settings', label: 'Settings', icon: IconSettings },
 ];
@@ -65,9 +67,13 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
     if (item.path === '/routes/new') {
       return location.pathname.startsWith('/routes');
     }
-    // Special handling for training - match /training and /planner
+    // Training matches /training paths only
     if (item.path === '/training') {
-      return location.pathname.startsWith('/training') || location.pathname.startsWith('/planner');
+      return location.pathname.startsWith('/training');
+    }
+    // Planner matches /planner paths
+    if (item.path === '/planner') {
+      return location.pathname.startsWith('/planner');
     }
     // Special handling for settings - also match /gear paths
     if (item.path === '/settings') {
