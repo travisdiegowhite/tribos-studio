@@ -5,30 +5,30 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Box, Group, Text, Paper, ActionIcon, Tooltip, Badge } from '@mantine/core';
+import { Box, Group, Text, Paper, ActionIcon, Tooltip } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { IconChevronLeft, IconChevronRight, IconTrophy, IconCheck, IconX } from '@tabler/icons-react';
 import type { PlannerWorkout } from '../../types/planner';
 import { calculatePhase, formatLocalDate, parseLocalDate, addDays } from './PeriodizationView';
 
-// Workout category colors — matches existing planner components
+// Workout category colors — matches WorkoutCard.tsx
 const CATEGORY_COLORS: Record<string, string> = {
   recovery: 'green',
   endurance: 'blue',
-  tempo: 'cyan',
-  sweet_spot: 'teal',
-  threshold: 'orange',
-  vo2max: 'red',
-  anaerobic: 'grape',
-  climbing: 'yellow',
+  tempo: 'yellow',
+  sweet_spot: 'orange',
+  threshold: 'red',
+  vo2max: 'grape',
+  anaerobic: 'pink',
+  climbing: 'teal',
   racing: 'violet',
-  strength: 'pink',
-  core: 'indigo',
-  flexibility: 'lime',
+  strength: 'indigo',
+  core: 'cyan',
+  flexibility: 'terracotta',
   rest: 'gray',
 };
 
-// Short labels for badges
+// Short labels for cell badges
 const CATEGORY_SHORT_LABELS: Record<string, string> = {
   recovery: 'Recov',
   endurance: 'Endur',
@@ -42,6 +42,23 @@ const CATEGORY_SHORT_LABELS: Record<string, string> = {
   strength: 'Str',
   core: 'Core',
   flexibility: 'Flex',
+  rest: 'Rest',
+};
+
+// Full category names for legend
+const CATEGORY_FULL_LABELS: Record<string, string> = {
+  recovery: 'Recovery',
+  endurance: 'Endurance',
+  tempo: 'Tempo',
+  sweet_spot: 'Sweet Spot',
+  threshold: 'Threshold',
+  vo2max: 'VO2max',
+  anaerobic: 'Anaerobic',
+  climbing: 'Climbing',
+  racing: 'Racing',
+  strength: 'Strength',
+  core: 'Core',
+  flexibility: 'Flexibility',
   rest: 'Rest',
 };
 
@@ -218,6 +235,17 @@ export function PlanCalendarOverview({
     return result;
   }, [calendarDays]);
 
+  // Compute active categories for legend (only categories visible this month)
+  const activeCategories = useMemo(() => {
+    const cats = new Set<string>();
+    for (const day of calendarDays) {
+      if (day.workout?.workoutType && day.isCurrentMonth) {
+        cats.add(day.workout.workoutType);
+      }
+    }
+    return Array.from(cats).sort();
+  }, [calendarDays]);
+
   const monthLabel = new Date(viewYear, viewMonth).toLocaleDateString('en-US', {
     month: 'long',
     year: 'numeric',
@@ -303,29 +331,67 @@ export function PlanCalendarOverview({
         })}
       </Box>
 
-      {/* Legend */}
-      <Group justify="center" gap="lg" mt="md">
-        <Group gap={6}>
-          <Badge size="xs" color="blue" variant="light">Endur</Badge>
-          <Text size="xs" c="dimmed">Planned</Text>
+      {/* Legend — categories + status indicators */}
+      <Box mt="md" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+        {/* Category legend — only shows categories in current month */}
+        {activeCategories.length > 0 && (
+          <Group justify="center" gap="sm" mb="xs" wrap="wrap">
+            {activeCategories.map((cat) => (
+              <Group gap={4} key={cat}>
+                <Box
+                  style={{
+                    backgroundColor: `var(--mantine-color-${CATEGORY_COLORS[cat] || 'gray'}-9)`,
+                    borderLeft: `2px solid var(--mantine-color-${CATEGORY_COLORS[cat] || 'gray'}-5)`,
+                    borderRadius: 3,
+                    padding: '1px 6px',
+                  }}
+                >
+                  <Text size={10} fw={600} c="white">{CATEGORY_SHORT_LABELS[cat] || cat}</Text>
+                </Box>
+                <Text size="xs" c="dimmed">{CATEGORY_FULL_LABELS[cat] || cat}</Text>
+              </Group>
+            ))}
+          </Group>
+        )}
+
+        {/* Status legend */}
+        <Group justify="center" gap="md" wrap="wrap">
+          <Group gap={4}>
+            <Box style={{
+              backgroundColor: 'var(--mantine-color-green-9)',
+              borderLeft: '2px solid #51cf66',
+              borderRadius: 3,
+              padding: '0px 4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+            }}>
+              <IconCheck size={8} color="white" />
+              <Text size={10} fw={600} c="white">Done</Text>
+            </Box>
+            <Text size="xs" c="dimmed">Completed</Text>
+          </Group>
+          <Group gap={4}>
+            <Box style={{
+              backgroundColor: 'rgba(255, 107, 107, 0.3)',
+              borderLeft: '2px solid #ff6b6b',
+              borderRadius: 3,
+              padding: '0px 4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+            }}>
+              <IconX size={8} color="#ff6b6b" />
+              <Text size={10} fw={600} c="red.4">Miss</Text>
+            </Box>
+            <Text size="xs" c="dimmed">Missed</Text>
+          </Group>
+          <Group gap={4}>
+            <IconTrophy size={14} color="var(--mantine-color-yellow-5)" />
+            <Text size="xs" c="dimmed">Race Day</Text>
+          </Group>
         </Group>
-        <Group gap={6}>
-          <Badge size="xs" color="green" variant="filled">
-            <Group gap={2}><IconCheck size={8} />Done</Group>
-          </Badge>
-          <Text size="xs" c="dimmed">Completed</Text>
-        </Group>
-        <Group gap={6}>
-          <Box style={{ width: 14, height: 14, borderRadius: 2, backgroundColor: 'rgba(255, 107, 107, 0.15)', border: '1px solid rgba(255, 107, 107, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <IconX size={8} color="#ff6b6b" />
-          </Box>
-          <Text size="xs" c="dimmed">Missed</Text>
-        </Group>
-        <Group gap={6}>
-          <IconTrophy size={14} color="var(--mantine-color-yellow-5)" />
-          <Text size="xs" c="dimmed">Race</Text>
-        </Group>
-      </Group>
+      </Box>
 
       <Text size="xs" c="dimmed" ta="center" mt="xs" fs="italic">
         Click any day to edit in Week Detail view
@@ -334,7 +400,7 @@ export function PlanCalendarOverview({
   );
 }
 
-// Individual day cell
+// Individual day cell — uses WorkoutCard compact styling (color-9 bg + white text)
 function DayCell({
   day,
   onClick,
@@ -353,7 +419,7 @@ function DayCell({
   const categoryLabel = workoutType ? (CATEGORY_SHORT_LABELS[workoutType] || workoutType) : '';
   const tss = day.workout?.targetTSS || 0;
 
-  // Determine left border color
+  // Determine left border color for the cell
   let leftBorderColor = 'transparent';
   if (day.raceGoal) {
     leftBorderColor = 'var(--mantine-color-yellow-5)';
@@ -381,10 +447,10 @@ function DayCell({
     bgColor = 'var(--mantine-color-dark-7)';
   }
 
-  // Add TSS heat tint for workout days
+  // TSS heat tint
   const heatTint = day.workout && tss > 0 ? getTSSHeatTint(tss) : 'transparent';
 
-  // Is this an empty rest day within the plan?
+  // Empty rest day within the plan?
   const isRestDay = day.isInPlan && !day.workout && !day.raceGoal && day.isCurrentMonth;
 
   return (
@@ -490,25 +556,66 @@ function DayCell({
           </Group>
         )}
 
-        {/* Workout badge */}
+        {/* Workout label — matches WorkoutCard compact style */}
         {day.workout && !day.raceGoal && (
           <>
-            <Badge
-              size="xs"
-              color={hasCompleted ? 'green' : hasMissed ? 'red' : categoryColor}
-              variant={hasCompleted ? 'filled' : 'light'}
-              leftSection={
-                hasCompleted ? <IconCheck size={8} /> :
-                hasMissed ? <IconX size={8} /> :
-                null
-              }
-              styles={{
-                root: { padding: '0 4px', height: 18, maxWidth: '100%' },
-                label: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.3 },
-              }}
-            >
-              {isMobile ? categoryLabel.slice(0, 3) : categoryLabel}
-            </Badge>
+            {hasCompleted ? (
+              // Completed: green card with checkmark
+              <Box
+                style={{
+                  backgroundColor: 'var(--mantine-color-green-9)',
+                  borderLeft: '3px solid #51cf66',
+                  borderRadius: 4,
+                  padding: '2px 5px',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                }}
+              >
+                <IconCheck size={9} color="white" style={{ flexShrink: 0 }} />
+                <Text size={10} fw={600} c="white" lineClamp={1} lh={1.2}>
+                  {isMobile ? categoryLabel.slice(0, 3) : categoryLabel}
+                </Text>
+              </Box>
+            ) : hasMissed ? (
+              // Missed: red-tinted card with X
+              <Box
+                style={{
+                  backgroundColor: 'rgba(255, 107, 107, 0.3)',
+                  borderLeft: '3px solid #ff6b6b',
+                  borderRadius: 4,
+                  padding: '2px 5px',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                }}
+              >
+                <IconX size={9} color="#ff6b6b" style={{ flexShrink: 0 }} />
+                <Text size={10} fw={600} c="red.4" lineClamp={1} lh={1.2}>
+                  {isMobile ? categoryLabel.slice(0, 3) : categoryLabel}
+                </Text>
+              </Box>
+            ) : (
+              // Planned: category-colored card (WorkoutCard compact style)
+              <Box
+                style={{
+                  backgroundColor: `var(--mantine-color-${categoryColor}-9)`,
+                  borderLeft: `3px solid var(--mantine-color-${categoryColor}-5)`,
+                  borderRadius: 4,
+                  padding: '2px 5px',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                }}
+              >
+                <Text size={10} fw={600} c="white" lineClamp={1} lh={1.2}>
+                  {isMobile ? categoryLabel.slice(0, 3) : categoryLabel}
+                </Text>
+              </Box>
+            )}
 
             {/* TSS */}
             {tss > 0 && (
