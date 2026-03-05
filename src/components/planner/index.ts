@@ -9,4 +9,5 @@ export { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 export { CalendarDayCell } from './CalendarDayCell';
 export { WorkoutCard } from './WorkoutCard';
 export { PeriodizationView } from './PeriodizationView';
+export { PlanCalendarOverview } from './PlanCalendarOverview';
 export { GoalInput } from './GoalInput';

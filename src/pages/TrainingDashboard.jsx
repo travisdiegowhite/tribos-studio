@@ -938,6 +938,50 @@ function TrainingDashboard() {
                     previousMetrics={null}
                   />
 
+                  {/* Planner CTA */}
+                  {!activePlan ? (
+                    <Card style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #9E5A3C)' }}>
+                      <Group gap="sm" wrap="nowrap">
+                        <ThemeIcon size="lg" variant="light" color="terracotta" radius="xl">
+                          <IconCalendarEvent size={18} />
+                        </ThemeIcon>
+                        <Box style={{ flex: 1 }}>
+                          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                            Start a training plan
+                          </Text>
+                          <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                            Structure your training with a periodized plan tailored to your goals.
+                          </Text>
+                        </Box>
+                        <Button
+                          variant="light"
+                          color="terracotta"
+                          size="compact-sm"
+                          onClick={() => navigate('/planner')}
+                        >
+                          Get started
+                        </Button>
+                      </Group>
+                    </Card>
+                  ) : (
+                    <Card
+                      style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #9E5A3C)', cursor: 'pointer' }}
+                      onClick={() => navigate('/planner')}
+                    >
+                      <Group gap="sm" wrap="nowrap">
+                        <ThemeIcon size="sm" variant="light" color="terracotta" radius="xl">
+                          <IconCalendarEvent size={14} />
+                        </ThemeIcon>
+                        <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)', flex: 1 }}>
+                          {activePlan.name}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          View plan &rarr;
+                        </Text>
+                      </Group>
+                    </Card>
+                  )}
+
                   {/* Row 1: Today's Focus + AI Coach */}
                   <Grid gutter="md">
                     <Grid.Col span={{ base: 12, md: 7 }}>

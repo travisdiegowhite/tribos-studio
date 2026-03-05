@@ -21,6 +21,7 @@ import {
   Affix,
   Transition,
   Menu,
+  SegmentedControl,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
@@ -39,10 +40,14 @@ import {
   IconCalendarOff,
   IconSettings,
   IconLink,
+  IconTrophy,
+  IconCalendar,
+  IconLayoutList,
 } from '@tabler/icons-react';
 import { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 import { TwoWeekCalendar } from './TwoWeekCalendar';
 import { PeriodizationView } from './PeriodizationView';
+import { PlanCalendarOverview } from './PlanCalendarOverview';
 import { AvailabilitySettings } from '../settings/AvailabilitySettings';
 import { AdaptationFeedbackModal } from './AdaptationFeedbackModal';
 import { AdaptationInsightsPanel } from './AdaptationInsightsPanel';
@@ -165,6 +170,12 @@ export function TrainingPlanner({
   // Race goals state (synced with database)
   const [raceGoals, setRaceGoals] = useState<RaceGoal[]>([]);
   const [raceGoalsLoading, setRaceGoalsLoading] = useState(true);
+
+  // Race goals drawer state
+  const [raceGoalsDrawerOpen, setRaceGoalsDrawerOpen] = useState(false);
+
+  // Planner view toggle: 'week' for detail view, 'calendar' for monthly overview
+  const [plannerView, setPlannerView] = useState<'week' | 'calendar'>('week');
 
   // Adaptation feedback modal state
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
@@ -771,8 +782,8 @@ export function TrainingPlanner({
         minHeight: isMobile ? 'auto' : 600,
       }}
     >
-      {/* Workout Library Sidebar - Desktop */}
-      {!isMobile && (
+      {/* Workout Library Sidebar - Desktop (hidden in calendar overview) */}
+      {!isMobile && plannerView === 'week' && (
         <WorkoutLibrarySidebar
           filter={store.sidebarFilter}
           onFilterChange={store.setSidebarFilter}
@@ -828,6 +839,26 @@ export function TrainingPlanner({
         />
       </Drawer>
 
+      {/* Race Goals Drawer */}
+      <Drawer
+        opened={raceGoalsDrawerOpen}
+        onClose={() => setRaceGoalsDrawerOpen(false)}
+        title="Race Goals"
+        position={isMobile ? 'bottom' : 'right'}
+        size={isMobile ? '90%' : 'md'}
+        styles={{
+          body: { padding: 16, height: '100%', overflowY: 'auto' },
+          content: { backgroundColor: 'var(--mantine-color-dark-7)' },
+          header: { backgroundColor: 'var(--mantine-color-dark-7)' },
+        }}
+      >
+        <RaceGoalsPanel
+          isImperial={false}
+          onRaceGoalChange={loadRaceGoals}
+          compact={false}
+        />
+      </Drawer>
+
       {/* Main Content Area */}
       <Box style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Top Bar */}
@@ -836,22 +867,66 @@ export function TrainingPlanner({
           style={{ borderBottom: '1px solid var(--mantine-color-dark-4)' }}
         >
           <Group justify="space-between" wrap="nowrap">
-            <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+            <Group gap="xs" wrap="nowrap" style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
               {!isMobile && (
-                <Text size="lg" fw={600}>
+                <Text size="lg" fw={600} style={{ flexShrink: 0 }}>
                   Training Planner
                 </Text>
               )}
               {store.hasUnsavedChanges && (
-                <Badge color="yellow" variant="light" size="sm">
+                <Badge color="yellow" variant="light" size="sm" style={{ flexShrink: 0 }}>
                   {isMobile ? 'Unsaved' : 'Unsaved changes'}
                 </Badge>
+              )}
+              {/* Compact race goal badges */}
+              {raceGoals.length > 0 && (
+                <Group gap={4} wrap="nowrap" style={{ overflow: 'hidden' }}>
+                  {raceGoals.slice(0, isMobile ? 1 : 3).map((goal) => {
+                    const daysAway = Math.ceil((new Date(goal.race_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                    return (
+                      <Tooltip key={goal.id} label={`${goal.name} — ${goal.race_type} — ${new Date(goal.race_date).toLocaleDateString()}`}>
+                        <Badge
+                          size="sm"
+                          color={goal.priority === 'A' ? 'red' : goal.priority === 'B' ? 'orange' : 'gray'}
+                          variant="light"
+                          leftSection={<IconTrophy size={10} />}
+                          style={{ cursor: 'pointer', flexShrink: 0 }}
+                          onClick={() => setRaceGoalsDrawerOpen(true)}
+                        >
+                          {goal.name} ({daysAway}d)
+                        </Badge>
+                      </Tooltip>
+                    );
+                  })}
+                  {raceGoals.length > (isMobile ? 1 : 3) && (
+                    <Badge
+                      size="sm"
+                      color="gray"
+                      variant="light"
+                      style={{ cursor: 'pointer', flexShrink: 0 }}
+                      onClick={() => setRaceGoalsDrawerOpen(true)}
+                    >
+                      +{raceGoals.length - (isMobile ? 1 : 3)}
+                    </Badge>
+                  )}
+                </Group>
               )}
             </Group>
 
             {/* Desktop actions */}
             {!isMobile && (
               <Group gap="xs">
+                <Tooltip label="Manage race goals">
+                  <Button
+                    variant="subtle"
+                    size="xs"
+                    leftSection={<IconTrophy size={14} />}
+                    onClick={() => setRaceGoalsDrawerOpen(true)}
+                  >
+                    Races
+                  </Button>
+                </Tooltip>
+
                 <Tooltip label="Set your training availability">
                   <Button
                     variant="subtle"
@@ -919,6 +994,12 @@ export function TrainingPlanner({
                   </Menu.Target>
                   <Menu.Dropdown>
                     <Menu.Item
+                      leftSection={<IconTrophy size={14} />}
+                      onClick={() => setRaceGoalsDrawerOpen(true)}
+                    >
+                      Race Goals
+                    </Menu.Item>
+                    <Menu.Item
                       leftSection={<IconCalendarOff size={14} />}
                       onClick={() => setAvailabilitySettingsOpen(true)}
                     >
@@ -952,40 +1033,92 @@ export function TrainingPlanner({
             focusedWeekStart={store.focusedWeekStart}
             plannedWorkouts={store.plannedWorkouts}
             activities={activitiesByDate}
-            onWeekClick={handleWeekClick}
+            onWeekClick={(weekStart) => {
+              handleWeekClick(weekStart);
+              // If in calendar view, switch to week detail when clicking a week
+              if (plannerView === 'calendar') {
+                setPlannerView('week');
+              }
+            }}
+            raceGoals={raceGoals}
           />
 
-          {/* Race Goals - synced with database */}
-          <Box mt="md">
-            <RaceGoalsPanel
-              isImperial={false}
-              onRaceGoalChange={loadRaceGoals}
-              compact={false}
+          {/* View Toggle */}
+          <Group justify="center" mt="md" mb="xs">
+            <SegmentedControl
+              value={plannerView}
+              onChange={(v) => setPlannerView(v as 'week' | 'calendar')}
+              size="xs"
+              data={[
+                {
+                  label: (
+                    <Group gap={4} wrap="nowrap">
+                      <IconLayoutList size={14} />
+                      <span>Week Detail</span>
+                    </Group>
+                  ),
+                  value: 'week',
+                },
+                {
+                  label: (
+                    <Group gap={4} wrap="nowrap">
+                      <IconCalendar size={14} />
+                      <span>Calendar Overview</span>
+                    </Group>
+                  ),
+                  value: 'calendar',
+                },
+              ]}
             />
-          </Box>
+          </Group>
 
-          {/* Two-week Detail View */}
-          <Box mt="md">
-            <TwoWeekCalendar
-              startDate={store.focusedWeekStart}
-              workouts={store.plannedWorkouts}
-              activities={activitiesByDate}
-              raceGoals={raceGoalsByDate}
-              dropTargetDate={store.dropTargetDate}
-              availabilityByDate={availabilityByDate}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onRemoveWorkout={store.removeWorkout}
-              onDateClick={isMobile ? handleDateTap : store.selectDate}
-              onNavigate={store.navigateWeeks}
-              onSetAvailability={handleSetAvailability}
-              onLinkActivity={handleLinkActivity}
-              linkingWorkoutId={linkingWorkoutId}
-              isMobile={isMobile}
-              selectedWorkoutId={selectedWorkoutId}
-            />
-          </Box>
+          {/* Week Detail View (existing two-week calendar + sidebar) */}
+          {plannerView === 'week' && (
+            <Box mt="xs">
+              <TwoWeekCalendar
+                startDate={store.focusedWeekStart}
+                workouts={store.plannedWorkouts}
+                activities={activitiesByDate}
+                raceGoals={raceGoalsByDate}
+                dropTargetDate={store.dropTargetDate}
+                availabilityByDate={availabilityByDate}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onRemoveWorkout={store.removeWorkout}
+                onDateClick={isMobile ? handleDateTap : store.selectDate}
+                onNavigate={store.navigateWeeks}
+                onSetAvailability={handleSetAvailability}
+                onLinkActivity={handleLinkActivity}
+                linkingWorkoutId={linkingWorkoutId}
+                isMobile={isMobile}
+                selectedWorkoutId={selectedWorkoutId}
+              />
+            </Box>
+          )}
+
+          {/* Calendar Overview (full monthly grid) */}
+          {plannerView === 'calendar' && (
+            <Box mt="xs">
+              <PlanCalendarOverview
+                planStartDate={store.planStartDate}
+                planDurationWeeks={store.planDurationWeeks}
+                workouts={store.plannedWorkouts}
+                activities={activitiesByDate}
+                raceGoals={raceGoalsByDate}
+                onDayClick={(date) => {
+                  // Focus the week containing this date and switch to week detail
+                  const d = new Date(date + 'T12:00:00');
+                  const day = d.getDay();
+                  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                  d.setDate(diff);
+                  const weekStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                  store.setFocusedWeek(weekStart);
+                  setPlannerView('week');
+                }}
+              />
+            </Box>
+          )}
         </Box>
 
         {/* Mobile FAB to open workout library */}
