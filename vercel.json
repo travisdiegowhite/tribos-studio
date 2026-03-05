@@ -15,6 +15,14 @@
     {
       "path": "/api/proactive-insights-process",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/coros-webhook-process",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/coros-token-maintenance",
+      "schedule": "0 */6 * * *"
     }
   ],
   "rewrites": [

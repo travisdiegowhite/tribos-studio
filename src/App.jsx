@@ -29,6 +29,7 @@ import GearPage from './pages/GearPage.jsx';
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
 import GarminCallback from './pages/oauth/GarminCallback.jsx';
 import WahooCallback from './pages/oauth/WahooCallback.jsx';
+import CorosCallback from './pages/oauth/CorosCallback.jsx';
 import AuthCallback from './pages/oauth/AuthCallback.jsx';
 import GoogleCalendarCallback from './pages/oauth/GoogleCalendarCallback.jsx';
 
@@ -104,6 +105,7 @@ function AppRoutes() {
       <Route path="/oauth/garmin/callback" element={<GarminCallback />} />
       <Route path="/oauth/google/callback" element={<GoogleCalendarCallback />} />
       <Route path="/wahoo/callback" element={<WahooCallback />} />
+      <Route path="/oauth/coros/callback" element={<CorosCallback />} />
 
       {/* Protected routes */}
       <Route

@@ -5,8 +5,9 @@
 // PROVIDER PRIORITY (highest to lowest):
 // 1. Garmin - Has FIT files with power data, most accurate metrics
 // 2. Wahoo - Similar quality to Garmin
-// 3. Strava - Good for GPS/social but limited power data access
-// 4. Manual uploads
+// 3. COROS - Good native sensors, FIT file support
+// 4. Strava - Good for GPS/social but limited power data access
+// 5. Manual uploads
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -19,6 +20,7 @@ const supabase = createClient(
 export const PROVIDER_PRIORITY = {
   'garmin': 100,  // Highest priority - has FIT files with real power data
   'wahoo': 90,
+  'coros': 85,    // Good native sensors, FIT file support
   'strava': 50,   // Lower priority - limited power data access
   'manual': 10
 };
