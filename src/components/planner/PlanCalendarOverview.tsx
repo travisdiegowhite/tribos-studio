@@ -11,7 +11,7 @@ import { IconChevronLeft, IconChevronRight, IconTrophy, IconCheck, IconX } from 
 import type { PlannerWorkout } from '../../types/planner';
 import { calculatePhase, formatLocalDate, parseLocalDate, addDays } from './PeriodizationView';
 
-// Workout category colors for the dots
+// Workout category colors — matches existing planner components
 const CATEGORY_COLORS: Record<string, string> = {
   recovery: 'green',
   endurance: 'blue',
@@ -28,6 +28,23 @@ const CATEGORY_COLORS: Record<string, string> = {
   rest: 'gray',
 };
 
+// Short labels for badges
+const CATEGORY_SHORT_LABELS: Record<string, string> = {
+  recovery: 'Recov',
+  endurance: 'Endur',
+  tempo: 'Tempo',
+  sweet_spot: 'SS',
+  threshold: 'Thresh',
+  vo2max: 'VO2',
+  anaerobic: 'Anaer',
+  climbing: 'Climb',
+  racing: 'Race',
+  strength: 'Str',
+  core: 'Core',
+  flexibility: 'Flex',
+  rest: 'Rest',
+};
+
 // Phase colors for week row indicators
 const PHASE_COLORS: Record<string, string> = {
   base: 'blue',
@@ -37,6 +54,14 @@ const PHASE_COLORS: Record<string, string> = {
   recovery: 'gray',
   race: 'violet',
 };
+
+// Intensity heat tint based on TSS
+function getTSSHeatTint(tss: number): string {
+  if (tss >= 150) return 'rgba(250, 82, 82, 0.08)';
+  if (tss >= 100) return 'rgba(253, 126, 20, 0.08)';
+  if (tss >= 50) return 'rgba(59, 130, 246, 0.06)';
+  return 'transparent';
+}
 
 interface RaceGoalInfo {
   name: string;
@@ -64,10 +89,6 @@ interface CalendarDay {
   raceGoal: RaceGoalInfo | null;
   phase: string | null;
   weekNumber: number | null;
-}
-
-function getMonthStart(year: number, month: number): string {
-  return `${year}-${String(month + 1).padStart(2, '0')}-01`;
 }
 
 export function PlanCalendarOverview({
@@ -103,7 +124,6 @@ export function PlanCalendarOverview({
     return addDays(planStartDate, planDurationWeeks * 7 - 1);
   }, [planStartDate, planDurationWeeks]);
 
-  // Navigate months
   const goToPrevMonth = () => {
     if (viewMonth === 0) {
       setViewYear(viewYear - 1);
@@ -126,17 +146,14 @@ export function PlanCalendarOverview({
   const calendarDays = useMemo(() => {
     const result: CalendarDay[] = [];
 
-    // First day of the month
     const firstOfMonth = new Date(viewYear, viewMonth, 1);
-    // Day of week (0=Sun, adjust so Mon=0)
     let startDow = firstOfMonth.getDay() - 1;
     if (startDow < 0) startDow = 6;
 
-    // Last day of the month
     const lastOfMonth = new Date(viewYear, viewMonth + 1, 0);
     const daysInMonth = lastOfMonth.getDate();
 
-    // Fill leading days from previous month
+    // Leading days from previous month
     for (let i = startDow - 1; i >= 0; i--) {
       const d = new Date(viewYear, viewMonth, -i);
       const dateStr = formatLocalDate(d);
@@ -150,7 +167,7 @@ export function PlanCalendarOverview({
       result.push(makeDayEntry(dateStr, day, true));
     }
 
-    // Fill trailing days to complete last week
+    // Trailing days to complete last week
     const remaining = 7 - (result.length % 7);
     if (remaining < 7) {
       for (let i = 1; i <= remaining; i++) {
@@ -167,7 +184,6 @@ export function PlanCalendarOverview({
         ? dateStr >= planStartDate && dateStr <= planEndDate
         : false;
 
-      // Calculate week number and phase within plan
       let weekNumber: number | null = null;
       let phase: string | null = null;
       if (isInPlan && planStartDate) {
@@ -211,7 +227,7 @@ export function PlanCalendarOverview({
 
   return (
     <Paper
-      p="sm"
+      p="md"
       withBorder
       style={{
         backgroundColor: 'var(--mantine-color-dark-7)',
@@ -219,15 +235,15 @@ export function PlanCalendarOverview({
       }}
     >
       {/* Month Navigation */}
-      <Group justify="space-between" mb="sm">
-        <ActionIcon variant="subtle" onClick={goToPrevMonth}>
-          <IconChevronLeft size={18} />
+      <Group justify="space-between" mb="md">
+        <ActionIcon variant="subtle" size="lg" onClick={goToPrevMonth}>
+          <IconChevronLeft size={20} />
         </ActionIcon>
-        <Text size="sm" fw={600}>
+        <Text size="lg" fw={700} tt="uppercase" style={{ letterSpacing: 1 }}>
           {monthLabel}
         </Text>
-        <ActionIcon variant="subtle" onClick={goToNextMonth}>
-          <IconChevronRight size={18} />
+        <ActionIcon variant="subtle" size="lg" onClick={goToNextMonth}>
+          <IconChevronRight size={20} />
         </ActionIcon>
       </Group>
 
@@ -236,21 +252,20 @@ export function PlanCalendarOverview({
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, 1fr)',
-          gap: 1,
-          marginBottom: 4,
+          gap: 3,
+          marginBottom: 6,
         }}
       >
         {dayHeaders.map((day) => (
-          <Text key={day} size="xs" c="dimmed" ta="center" fw={500}>
-            {isMobile ? day[0] : day}
+          <Text key={day} size="sm" c="dimmed" ta="center" fw={600} tt="uppercase" style={{ letterSpacing: 0.5 }}>
+            {isMobile ? day.slice(0, 2) : day}
           </Text>
         ))}
       </Box>
 
       {/* Calendar Grid */}
-      <Box style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Box style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {weeks.map((week, weekIdx) => {
-          // Get the phase for this week row from the first in-plan day
           const planDay = week.find((d) => d.isInPlan);
           const weekPhase = planDay?.phase;
 
@@ -260,8 +275,9 @@ export function PlanCalendarOverview({
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(7, 1fr)',
-                gap: 1,
+                gap: 3,
                 position: 'relative',
+                paddingLeft: weekPhase ? 6 : 0,
               }}
             >
               {/* Phase indicator bar on the left edge */}
@@ -269,9 +285,9 @@ export function PlanCalendarOverview({
                 <Box
                   style={{
                     position: 'absolute',
-                    left: -4,
-                    top: 0,
-                    bottom: 0,
+                    left: 0,
+                    top: 2,
+                    bottom: 2,
                     width: 3,
                     backgroundColor: `var(--mantine-color-${PHASE_COLORS[weekPhase] || 'gray'}-6)`,
                     borderRadius: 2,
@@ -288,28 +304,25 @@ export function PlanCalendarOverview({
       </Box>
 
       {/* Legend */}
-      <Group justify="center" gap="md" mt="sm">
-        <Group gap={4}>
-          <Box
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              backgroundColor: 'var(--mantine-color-blue-6)',
-            }}
-          />
+      <Group justify="center" gap="lg" mt="md">
+        <Group gap={6}>
+          <Badge size="xs" color="blue" variant="light">Endur</Badge>
           <Text size="xs" c="dimmed">Planned</Text>
         </Group>
-        <Group gap={4}>
-          <IconCheck size={10} color="var(--mantine-color-green-5)" />
+        <Group gap={6}>
+          <Badge size="xs" color="green" variant="filled">
+            <Group gap={2}><IconCheck size={8} />Done</Group>
+          </Badge>
           <Text size="xs" c="dimmed">Completed</Text>
         </Group>
-        <Group gap={4}>
-          <IconX size={10} color="var(--mantine-color-red-5)" />
+        <Group gap={6}>
+          <Box style={{ width: 14, height: 14, borderRadius: 2, backgroundColor: 'rgba(255, 107, 107, 0.15)', border: '1px solid rgba(255, 107, 107, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconX size={8} color="#ff6b6b" />
+          </Box>
           <Text size="xs" c="dimmed">Missed</Text>
         </Group>
-        <Group gap={4}>
-          <IconTrophy size={10} color="var(--mantine-color-yellow-5)" />
+        <Group gap={6}>
+          <IconTrophy size={14} color="var(--mantine-color-yellow-5)" />
           <Text size="xs" c="dimmed">Race</Text>
         </Group>
       </Group>
@@ -321,7 +334,7 @@ export function PlanCalendarOverview({
   );
 }
 
-// Individual day cell for the calendar overview
+// Individual day cell
 function DayCell({
   day,
   onClick,
@@ -335,41 +348,77 @@ function DayCell({
   const hasMissed = isPast && day.workout && !day.workout.completed && !day.activity;
   const hasCompleted = day.workout?.completed || (day.workout && day.activity);
 
-  const categoryColor = day.workout?.workoutType
-    ? CATEGORY_COLORS[day.workout.workoutType] || 'blue'
-    : 'blue';
+  const workoutType = day.workout?.workoutType || null;
+  const categoryColor = workoutType ? (CATEGORY_COLORS[workoutType] || 'blue') : 'blue';
+  const categoryLabel = workoutType ? (CATEGORY_SHORT_LABELS[workoutType] || workoutType) : '';
+  const tss = day.workout?.targetTSS || 0;
+
+  // Determine left border color
+  let leftBorderColor = 'transparent';
+  if (day.raceGoal) {
+    leftBorderColor = 'var(--mantine-color-yellow-5)';
+  } else if (hasCompleted) {
+    leftBorderColor = '#51cf66';
+  } else if (hasMissed) {
+    leftBorderColor = '#ff6b6b';
+  } else if (day.workout) {
+    leftBorderColor = `var(--mantine-color-${categoryColor}-5)`;
+  }
+
+  // Determine background
+  let bgColor: string;
+  if (!day.isCurrentMonth) {
+    bgColor = 'var(--mantine-color-dark-8)';
+  } else if (day.isToday) {
+    bgColor = 'rgba(158, 90, 60, 0.2)';
+  } else if (hasMissed) {
+    bgColor = 'rgba(255, 107, 107, 0.1)';
+  } else if (hasCompleted) {
+    bgColor = 'rgba(81, 207, 102, 0.08)';
+  } else if (day.isInPlan) {
+    bgColor = 'var(--mantine-color-dark-5)';
+  } else {
+    bgColor = 'var(--mantine-color-dark-7)';
+  }
+
+  // Add TSS heat tint for workout days
+  const heatTint = day.workout && tss > 0 ? getTSSHeatTint(tss) : 'transparent';
+
+  // Is this an empty rest day within the plan?
+  const isRestDay = day.isInPlan && !day.workout && !day.raceGoal && day.isCurrentMonth;
 
   return (
     <Tooltip
       label={
         <Box>
-          <Text size="xs" fw={500}>
+          <Text size="xs" fw={600}>
             {parseLocalDate(day.date).toLocaleDateString('en-US', {
-              weekday: 'short',
+              weekday: 'long',
               month: 'short',
               day: 'numeric',
             })}
           </Text>
           {day.raceGoal && (
-            <Text size="xs" c="yellow">
+            <Text size="xs" c="yellow" fw={500} mt={2}>
               Race: {day.raceGoal.name}
             </Text>
           )}
           {day.workout && (
-            <>
+            <Box mt={2}>
               <Text size="xs">
-                {day.workout.workout?.name || day.workout.workoutType || 'Workout'}
+                {day.workout.workout?.name || workoutType || 'Workout'}
               </Text>
-              {day.workout.targetTSS > 0 && (
-                <Text size="xs">Target: {day.workout.targetTSS} TSS</Text>
+              {tss > 0 && <Text size="xs">Target: {tss} TSS</Text>}
+              {day.workout.targetDuration > 0 && (
+                <Text size="xs">{day.workout.targetDuration}min</Text>
               )}
-            </>
+            </Box>
           )}
-          {day.activity && day.activity.tss && (
-            <Text size="xs">Actual: {day.activity.tss} TSS</Text>
+          {day.activity?.tss && (
+            <Text size="xs" mt={2}>Actual: {Math.round(day.activity.tss)} TSS</Text>
           )}
-          {hasMissed && <Text size="xs" c="red">Missed</Text>}
-          {hasCompleted && <Text size="xs" c="green">Completed</Text>}
+          {hasMissed && <Text size="xs" c="red" fw={500} mt={2}>Missed</Text>}
+          {hasCompleted && <Text size="xs" c="green" fw={500} mt={2}>Completed</Text>}
         </Box>
       }
       position="top"
@@ -378,78 +427,102 @@ function DayCell({
       <Box
         onClick={onClick}
         style={{
-          padding: isMobile ? 2 : 4,
-          minHeight: isMobile ? 36 : 48,
+          padding: isMobile ? '4px 3px' : '6px 5px',
+          minHeight: isMobile ? 56 : 72,
           cursor: 'pointer',
           borderRadius: 4,
-          backgroundColor: day.isToday
-            ? 'rgba(158, 90, 60, 0.15)'
-            : day.isInPlan && day.isCurrentMonth
-            ? 'var(--mantine-color-dark-6)'
-            : 'var(--mantine-color-dark-8)',
+          backgroundColor: bgColor,
+          backgroundImage: heatTint !== 'transparent'
+            ? `linear-gradient(${heatTint}, ${heatTint})`
+            : undefined,
+          borderLeft: leftBorderColor !== 'transparent'
+            ? `3px solid ${leftBorderColor}`
+            : undefined,
           border: day.isToday
-            ? '1px solid var(--mantine-color-terracotta-6)'
-            : '1px solid transparent',
-          opacity: day.isCurrentMonth ? 1 : 0.35,
-          transition: 'background-color 0.1s ease',
+            ? '2px solid var(--mantine-color-terracotta-5)'
+            : isRestDay
+            ? '1px dashed var(--mantine-color-dark-3)'
+            : '1px solid var(--mantine-color-dark-4)',
+          opacity: day.isCurrentMonth ? 1 : 0.3,
+          transition: 'all 0.15s ease',
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
-          gap: 2,
+          gap: 3,
         }}
         onMouseEnter={(e) => {
           if (day.isCurrentMonth) {
-            e.currentTarget.style.backgroundColor = 'var(--mantine-color-dark-5)';
+            e.currentTarget.style.borderColor = 'var(--mantine-color-terracotta-6)';
+            if (!day.isToday) {
+              e.currentTarget.style.backgroundColor = 'var(--mantine-color-dark-4)';
+            }
           }
         }}
         onMouseLeave={(e) => {
           if (day.isCurrentMonth) {
-            e.currentTarget.style.backgroundColor = day.isToday
-              ? 'rgba(158, 90, 60, 0.15)'
-              : day.isInPlan
-              ? 'var(--mantine-color-dark-6)'
-              : 'var(--mantine-color-dark-8)';
+            e.currentTarget.style.borderColor = day.isToday
+              ? 'var(--mantine-color-terracotta-5)'
+              : isRestDay
+              ? 'var(--mantine-color-dark-3)'
+              : 'var(--mantine-color-dark-4)';
+            if (!day.isToday) {
+              e.currentTarget.style.backgroundColor = bgColor;
+            }
           }
         }}
       >
         {/* Day number */}
         <Text
-          size="xs"
-          fw={day.isToday ? 700 : 400}
-          c={day.isToday ? 'terracotta' : day.isCurrentMonth ? undefined : 'dimmed'}
+          size="sm"
+          fw={day.isToday ? 800 : 600}
+          c={day.isToday ? 'terracotta' : day.isCurrentMonth ? 'white' : 'dimmed'}
+          lh={1}
         >
           {day.dayNumber}
         </Text>
 
-        {/* Race goal indicator */}
+        {/* Race goal */}
         {day.raceGoal && (
-          <IconTrophy size={isMobile ? 10 : 12} color="var(--mantine-color-yellow-5)" />
+          <Group gap={3} wrap="nowrap" style={{ overflow: 'hidden' }}>
+            <IconTrophy size={12} color="var(--mantine-color-yellow-5)" style={{ flexShrink: 0 }} />
+            <Text size={10} c="yellow" fw={600} lineClamp={1} lh={1}>
+              {day.raceGoal.name}
+            </Text>
+          </Group>
         )}
 
-        {/* Workout indicator */}
+        {/* Workout badge */}
         {day.workout && !day.raceGoal && (
-          <Box style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            {hasCompleted ? (
-              <IconCheck size={isMobile ? 10 : 12} color="var(--mantine-color-green-5)" />
-            ) : hasMissed ? (
-              <IconX size={isMobile ? 10 : 12} color="var(--mantine-color-red-5)" />
-            ) : (
-              <Box
-                style={{
-                  width: isMobile ? 6 : 8,
-                  height: isMobile ? 6 : 8,
-                  borderRadius: '50%',
-                  backgroundColor: `var(--mantine-color-${categoryColor}-6)`,
-                }}
-              />
+          <>
+            <Badge
+              size="xs"
+              color={hasCompleted ? 'green' : hasMissed ? 'red' : categoryColor}
+              variant={hasCompleted ? 'filled' : 'light'}
+              leftSection={
+                hasCompleted ? <IconCheck size={8} /> :
+                hasMissed ? <IconX size={8} /> :
+                null
+              }
+              styles={{
+                root: { padding: '0 4px', height: 18, maxWidth: '100%' },
+                label: { fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.3 },
+              }}
+            >
+              {isMobile ? categoryLabel.slice(0, 3) : categoryLabel}
+            </Badge>
+
+            {/* TSS */}
+            {tss > 0 && (
+              <Text size={11} c="orange" fw={600} lh={1}>
+                {tss} TSS
+              </Text>
             )}
-          </Box>
+          </>
         )}
 
-        {/* TSS label (desktop only) */}
-        {!isMobile && day.workout && day.workout.targetTSS > 0 && (
-          <Text size={10} c="dimmed" lh={1}>
-            {day.workout.targetTSS}
+        {/* Rest day indicator */}
+        {isRestDay && !day.activity && (
+          <Text size={10} c="dimmed" fs="italic" lh={1}>
+            Rest
           </Text>
         )}
       </Box>
