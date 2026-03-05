@@ -217,5 +217,10 @@ export const RATE_LIMITS = {
     limit: 100,
     windowMinutes: 1,
     name: 'garmin-webhook'
+  },
+  COROS_WEBHOOK: {
+    limit: 100,
+    windowMinutes: 1,
+    name: 'coros-webhook'
   }
 };
