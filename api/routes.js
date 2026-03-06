@@ -246,7 +246,15 @@ async function getRoute(req, res, userId, routeId) {
   try {
     const { data: route, error } = await supabase
       .from('routes')
-      .select('*')
+      .select(`
+        id, name, description,
+        distance_km, elevation_gain_m, elevation_loss_m, estimated_duration_minutes,
+        geometry, waypoints,
+        start_latitude, start_longitude, end_latitude, end_longitude,
+        route_type, difficulty_rating, training_goal, surface_type,
+        generated_by, is_private, visibility,
+        created_at, updated_at
+      `)
       .eq('id', routeId)
       .eq('user_id', userId)
       .single();

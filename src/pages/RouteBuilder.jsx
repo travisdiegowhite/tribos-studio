@@ -675,15 +675,20 @@ function RouteBuilder() {
       try {
         const route = await getRoute(routeId);
         if (route) {
-          setRouteName(route.name);
+          // Clear stale AI suggestions from previous session
+          setAiSuggestions([]);
+          setRoutingSource(route.generated_by || null);
+
+          // Coerce database values to ensure correct types (Supabase NUMERIC can return strings)
+          setRouteName(String(route.name || 'Untitled Route'));
           setRouteGeometry(route.geometry);
           setRouteStats({
-            distance: route.distance_km || 0,
-            elevation: route.elevation_gain_m || 0,
-            duration: route.estimated_duration_minutes || 0
+            distance: Number(route.distance_km) || 0,
+            elevation: Number(route.elevation_gain_m) || 0,
+            duration: Number(route.estimated_duration_minutes) || 0
           });
-          setRouteType(route.route_type || 'loop');
-          setTrainingGoal(route.training_goal || 'endurance');
+          setRouteType(String(route.route_type || 'loop'));
+          setTrainingGoal(String(route.training_goal || 'endurance'));
           setSavedRouteId(route.id);
 
           // Center map on route start
@@ -2268,20 +2273,6 @@ function RouteBuilder() {
     );
   }, []);
 
-  // Show loading state when loading existing route
-  if (loadingRoute) {
-    return (
-      <AppShell fullWidth>
-        <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100dvh - 60px)', minHeight: 'calc(100vh - 60px)' }}>
-          <Stack align="center" gap="md">
-            <Loader color="terracotta" size="lg" />
-            <Text style={{ color: 'var(--tribos-text-secondary)' }}>Loading route...</Text>
-          </Stack>
-        </Box>
-      </AppShell>
-    );
-  }
-
   // Render route stats for the bottom sheet peek content
   const safeStats = useMemo(() => routeStats || { distance: 0, elevation: 0, duration: 0 }, [routeStats]);
   const peekContentElement = useMemo(() => (
@@ -2957,6 +2948,22 @@ function RouteBuilder() {
     // handleClearSession, exitAltMode, clearRoute, formatDist, formatElev, formatSpd,
     // getUserSpeedForProfile, and all setState/Zustand setters are stable references.
   ]);
+
+  // Show loading state when loading existing route
+  // NOTE: This check must be AFTER all useMemo/useCallback hooks above
+  // to avoid violating React's Rules of Hooks (hooks cannot be called conditionally).
+  if (loadingRoute) {
+    return (
+      <AppShell fullWidth>
+        <Box style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100dvh - 60px)', minHeight: 'calc(100vh - 60px)' }}>
+          <Stack align="center" gap="md">
+            <Loader color="terracotta" size="lg" />
+            <Text style={{ color: 'var(--tribos-text-secondary)' }}>Loading route...</Text>
+          </Stack>
+        </Box>
+      </AppShell>
+    );
+  }
 
   // Mobile layout
   if (isMobile) {
