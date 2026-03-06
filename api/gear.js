@@ -336,7 +336,7 @@ async function deleteGear(req, res, userId) {
 // ── Create component ─────────────────────────────────────────
 
 async function createComponent(req, res, userId) {
-  const { gearItemId, componentType, brand, model, installedDate, warningThreshold, replaceThreshold, notes } = req.body;
+  const { gearItemId, componentType, brand, model, installedDate, warningThreshold, replaceThreshold, notes, metadata } = req.body;
 
   if (!gearItemId || !componentType) {
     return res.status(400).json({ error: 'gearItemId and componentType required' });
@@ -388,6 +388,7 @@ async function createComponent(req, res, userId) {
       warning_threshold_meters: warningThreshold ?? defaults.warning,
       replace_threshold_meters: replaceThreshold ?? defaults.replace,
       notes: notes || null,
+      ...(metadata && typeof metadata === 'object' ? { metadata } : {}),
     })
     .select()
     .single();
@@ -400,7 +401,7 @@ async function createComponent(req, res, userId) {
 // ── Update component ─────────────────────────────────────────
 
 async function updateComponent(req, res, userId) {
-  const { componentId, brand, model, warningThreshold, replaceThreshold, notes } = req.body;
+  const { componentId, brand, model, warningThreshold, replaceThreshold, notes, metadata } = req.body;
   if (!componentId) return res.status(400).json({ error: 'componentId required' });
 
   const updates = { updated_at: new Date().toISOString() };
@@ -409,6 +410,7 @@ async function updateComponent(req, res, userId) {
   if (warningThreshold !== undefined) updates.warning_threshold_meters = warningThreshold;
   if (replaceThreshold !== undefined) updates.replace_threshold_meters = replaceThreshold;
   if (notes !== undefined) updates.notes = notes;
+  if (metadata !== undefined && typeof metadata === 'object') updates.metadata = metadata;
 
   const { data, error } = await supabase
     .from('gear_components')

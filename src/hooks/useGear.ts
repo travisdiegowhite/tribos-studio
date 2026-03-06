@@ -29,6 +29,17 @@ export interface GearItem {
   gear_components?: GearComponent[];
 }
 
+export interface TireMetadata {
+  width_mm: number;
+  tubeless: boolean;
+  max_pressure_psi?: number;
+}
+
+export interface WheelMetadata {
+  rim_width_mm: number;
+  hookless: boolean;
+}
+
 export interface GearComponent {
   id: string;
   gear_item_id: string;
@@ -43,6 +54,7 @@ export interface GearComponent {
   notes: string | null;
   status: 'active' | 'replaced';
   replaced_date: string | null;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -202,6 +214,7 @@ export function useGear({ userId, alertsOnly = false }: UseGearOptions = {}) {
     warningThreshold?: number;
     replaceThreshold?: number;
     notes?: string;
+    metadata?: Record<string, unknown>;
   }) => {
     const data = await gearApi('create_component', params);
     await fetchAlerts();
@@ -259,6 +272,44 @@ export function useGear({ userId, alertsOnly = false }: UseGearOptions = {}) {
     };
   }, []);
 
+  // ── Tire/Wheel convenience methods ────────────────────────
+
+  const getActiveTiresForBike = useCallback(async (bikeId: string): Promise<GearComponent | null> => {
+    const detail = await getGearDetail(bikeId);
+    return detail.components.find(
+      (c) => c.status === 'active' && (c.component_type === 'tires_road' || c.component_type === 'tires_gravel')
+    ) || null;
+  }, [getGearDetail]);
+
+  const getActiveWheelsForBike = useCallback(async (bikeId: string): Promise<GearComponent | null> => {
+    const detail = await getGearDetail(bikeId);
+    return detail.components.find(
+      (c) => c.status === 'active' && (c.component_type === 'wheels_road' || c.component_type === 'wheels_gravel')
+    ) || null;
+  }, [getGearDetail]);
+
+  const getDefaultBikeSetup = useCallback(async (): Promise<{
+    bike: GearItem;
+    tires: GearComponent | null;
+    wheels: GearComponent | null;
+    components: GearComponent[];
+  } | null> => {
+    const defaultBike = gearItems.find(
+      (g) => g.sport_type === 'cycling' && g.status === 'active' && g.is_default
+    );
+    if (!defaultBike) return null;
+
+    const detail = await getGearDetail(defaultBike.id);
+    const tires = detail.components.find(
+      (c) => c.status === 'active' && (c.component_type === 'tires_road' || c.component_type === 'tires_gravel')
+    ) || null;
+    const wheels = detail.components.find(
+      (c) => c.status === 'active' && (c.component_type === 'wheels_road' || c.component_type === 'wheels_gravel')
+    ) || null;
+
+    return { bike: defaultBike, tires, wheels, components: detail.components };
+  }, [gearItems, getGearDetail]);
+
   return {
     gearItems,
     alerts,
@@ -276,6 +327,9 @@ export function useGear({ userId, alertsOnly = false }: UseGearOptions = {}) {
     dismissAlert,
     recalculateMileage,
     getGearDetail,
+    getActiveTiresForBike,
+    getActiveWheelsForBike,
+    getDefaultBikeSetup,
     refresh: fetchGear,
     refreshAlerts: fetchAlerts,
   };

@@ -45,7 +45,7 @@ import { fetchBikeInfrastructure } from '../utils/bikeInfrastructureService';
 import RouteExportMenu from '../components/RouteExportMenu.jsx';
 import MapControls from '../components/MapControls.jsx';
 import { FuelCard } from '../components/fueling';
-import TirePressureCalculator from '../components/TirePressureCalculator.jsx';
+import { TirePressureCard } from '../components/tire-pressure';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import SavedRoutesDrawer from '../components/SavedRoutesDrawer.jsx';
 import ModeSelector from '../components/RouteBuilder/ModeSelector.jsx';
@@ -4130,14 +4130,23 @@ function RouteBuilder() {
                 </CollapsibleSection>
               )}
 
-              {/* Tools Section - Collapsible */}
+              {/* Tire Pressure Section - Collapsible */}
               <CollapsibleSection
-                title="Tools"
+                title="Tire Pressure"
                 icon={<Text size="sm">🔧</Text>}
                 defaultExpanded={false}
               >
                 <Box mt="sm">
-                  <TirePressureCalculator />
+                  <TirePressureCard
+                    route={{
+                      surfaceType: routeProfile,
+                    }}
+                    weather={weatherData ? {
+                      temperatureCelsius: weatherData.temperature,
+                    } : undefined}
+                    compact={true}
+                    useImperial={isImperial}
+                  />
                 </Box>
               </CollapsibleSection>
 

@@ -7,11 +7,12 @@ import {
   Group,
   Button,
   Select,
+  Switch,
   Text,
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
-import { COMPONENT_TYPES, METERS_PER_MILE } from './gearConstants';
+import { COMPONENT_TYPES, TIRE_COMPONENT_TYPES, WHEEL_COMPONENT_TYPES, METERS_PER_MILE } from './gearConstants';
 
 // Default thresholds in miles for display (matching api/utils/gearDefaults.js)
 const DEFAULT_THRESHOLDS_MILES = {
@@ -19,11 +20,26 @@ const DEFAULT_THRESHOLDS_MILES = {
   cassette: { warning: 2400, replace: 3000 },
   tires_road: { warning: 2000, replace: 2500 },
   tires_gravel: { warning: 1200, replace: 1500 },
+  wheels_road: { warning: null, replace: null },
+  wheels_gravel: { warning: null, replace: null },
   brake_pads_rim: { warning: 1200, replace: 1500 },
   brake_pads_disc: { warning: 1600, replace: 2000 },
   bar_tape: { warning: null, replace: null },
   cables: { warning: 2400, replace: 3000 },
 };
+
+const TIRE_WIDTH_OPTIONS = [
+  { value: '23', label: '23c' },
+  { value: '25', label: '25c' },
+  { value: '28', label: '28c' },
+  { value: '30', label: '30c' },
+  { value: '32', label: '32c' },
+  { value: '35', label: '35c' },
+  { value: '38', label: '38c' },
+  { value: '40', label: '40c' },
+  { value: '45', label: '45c' },
+  { value: '50', label: '50c' },
+];
 
 /**
  * Inline collapsible form for adding a component to a bike.
@@ -39,7 +55,16 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Auto-populate thresholds when component type changes
+  // Tire metadata
+  const [tireWidthMm, setTireWidthMm] = useState('28');
+  const [tubeless, setTubeless] = useState(false);
+  const [maxPressurePsi, setMaxPressurePsi] = useState(null);
+
+  // Wheel metadata
+  const [rimWidthMm, setRimWidthMm] = useState(21);
+  const [hookless, setHookless] = useState(false);
+
+  // Auto-populate thresholds and metadata defaults when component type changes
   useEffect(() => {
     if (componentType) {
       const defaults = DEFAULT_THRESHOLDS_MILES[componentType];
@@ -50,8 +75,29 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
         setWarningMiles(null);
         setReplaceMiles(null);
       }
+      // Set sensible tire defaults based on type
+      if (componentType === 'tires_road') {
+        setTireWidthMm('28');
+        setTubeless(false);
+        setMaxPressurePsi(100);
+      } else if (componentType === 'tires_gravel') {
+        setTireWidthMm('40');
+        setTubeless(true);
+        setMaxPressurePsi(60);
+      }
+      // Set sensible wheel defaults based on type
+      if (componentType === 'wheels_road') {
+        setRimWidthMm(21);
+        setHookless(false);
+      } else if (componentType === 'wheels_gravel') {
+        setRimWidthMm(25);
+        setHookless(false);
+      }
     }
   }, [componentType]);
+
+  const isTire = TIRE_COMPONENT_TYPES.includes(componentType);
+  const isWheel = WHEEL_COMPONENT_TYPES.includes(componentType);
 
   const reset = () => {
     setComponentType('');
@@ -61,6 +107,11 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
     setWarningMiles(null);
     setReplaceMiles(null);
     setNotes('');
+    setTireWidthMm('28');
+    setTubeless(false);
+    setMaxPressurePsi(null);
+    setRimWidthMm(21);
+    setHookless(false);
   };
 
   const handleCancel = () => {
@@ -72,6 +123,21 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
     if (!componentType || !gearItemId) return;
     setSaving(true);
     try {
+      // Build metadata for tire/wheel components
+      let componentMetadata;
+      if (isTire) {
+        componentMetadata = {
+          width_mm: parseInt(tireWidthMm),
+          tubeless,
+          ...(maxPressurePsi ? { max_pressure_psi: maxPressurePsi } : {}),
+        };
+      } else if (isWheel) {
+        componentMetadata = {
+          rim_width_mm: rimWidthMm,
+          hookless,
+        };
+      }
+
       await onSave({
         gearItemId,
         componentType,
@@ -84,6 +150,7 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
         warningThreshold: warningMiles ? warningMiles * METERS_PER_MILE : undefined,
         replaceThreshold: replaceMiles ? replaceMiles * METERS_PER_MILE : undefined,
         notes: notes.trim() || undefined,
+        ...(componentMetadata ? { metadata: componentMetadata } : {}),
       });
       reset();
     } catch (err) {
@@ -137,6 +204,55 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
           onChange={(v) => setInstalledDate(v instanceof Date ? v : v ? new Date(v) : null)}
           popoverProps={{ withinPortal: false }}
         />
+
+        {/* Tire-specific metadata fields */}
+        {isTire && (
+          <>
+            <Group grow>
+              <Select
+                label="Tire Width"
+                data={TIRE_WIDTH_OPTIONS}
+                value={tireWidthMm}
+                onChange={(v) => setTireWidthMm(v || '28')}
+                comboboxProps={{ withinPortal: false }}
+              />
+              <NumberInput
+                label="Max Pressure (PSI)"
+                placeholder="Optional"
+                value={maxPressurePsi}
+                onChange={setMaxPressurePsi}
+                min={20}
+                max={160}
+              />
+            </Group>
+            <Switch
+              label="Tubeless"
+              description="Tubeless tires allow ~8% lower pressure"
+              checked={tubeless}
+              onChange={(e) => setTubeless(e.currentTarget.checked)}
+            />
+          </>
+        )}
+
+        {/* Wheel-specific metadata fields */}
+        {isWheel && (
+          <>
+            <NumberInput
+              label="Internal Rim Width (mm)"
+              description="Affects optimal tire pressure range"
+              value={rimWidthMm}
+              onChange={(v) => setRimWidthMm(v || 21)}
+              min={13}
+              max={50}
+            />
+            <Switch
+              label="Hookless"
+              description="Hookless rims have lower max pressure limits"
+              checked={hookless}
+              onChange={(e) => setHookless(e.currentTarget.checked)}
+            />
+          </>
+        )}
 
         {isBarTape ? (
           <Text size="sm" c="dimmed">
