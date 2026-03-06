@@ -81,8 +81,12 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid webhook token' });
     }
   } else {
-    // Log warning if no token is configured - this is a security risk
-    console.warn('⚠️ WAHOO_WEBHOOK_TOKEN not configured - webhook endpoint is unprotected');
+    // In production, reject requests when no token is configured
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+      console.error('⚠️ WAHOO_WEBHOOK_TOKEN not configured in production — rejecting request');
+      return res.status(401).json({ error: 'Webhook token not configured' });
+    }
+    console.warn('⚠️ WAHOO_WEBHOOK_TOKEN not configured — skipping verification (non-production)');
   }
 
   try {
@@ -167,7 +171,7 @@ export default async function handler(req, res) {
     } catch (processingError) {
       console.error('❌ Wahoo processing error:', {
         error: processingError.message,
-        stack: processingError.stack,
+        ...(process.env.NODE_ENV !== 'production' && { stack: processingError.stack }),
         userId: integration.user_id,
         workoutId: workout?.id,
         timestamp: new Date().toISOString()
@@ -182,7 +186,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('❌ Wahoo webhook handler error:', {
       error: error.message,
-      stack: error.stack,
+      ...(process.env.NODE_ENV !== 'production' && { stack: error.stack }),
       timestamp: new Date().toISOString()
     });
     return res.status(500).json({ error: 'Webhook processing failed' });

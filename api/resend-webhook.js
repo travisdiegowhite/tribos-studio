@@ -40,9 +40,13 @@ function getRawBody(req) {
 function verifyWebhookSignature(payload, headers) {
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
 
-  // Skip verification if no secret configured (not recommended for production)
+  // In production, reject when no secret is configured
   if (!webhookSecret) {
-    console.warn('RESEND_WEBHOOK_SECRET not configured - skipping signature verification');
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+      console.error('RESEND_WEBHOOK_SECRET not configured in production — rejecting request');
+      return false;
+    }
+    console.warn('RESEND_WEBHOOK_SECRET not configured — skipping verification (non-production)');
     return true;
   }
 
@@ -81,11 +85,15 @@ function verifyWebhookSignature(payload, headers) {
     .update(signedContent)
     .digest('base64');
 
-  // Check if any of the expected signatures match
+  // Check if any of the expected signatures match (timing-safe)
   for (const sig of expectedSignatures) {
     const [version, signature] = sig.split(',');
-    if (version === 'v1' && signature === computedSignature) {
-      return true;
+    if (version === 'v1' && signature) {
+      const sigBuf = Buffer.from(signature);
+      const computedBuf = Buffer.from(computedSignature);
+      if (sigBuf.length === computedBuf.length && crypto.timingSafeEqual(sigBuf, computedBuf)) {
+        return true;
+      }
     }
   }
 

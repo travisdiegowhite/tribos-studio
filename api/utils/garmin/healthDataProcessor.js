@@ -67,7 +67,7 @@ export async function processHealthPushData(dataType, dataArray, supabase) {
         garminUserId: record.userId,
         calendarDate: record.calendarDate,
         error: err.message,
-        stack: err.stack
+        ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
       });
       summary.results.push(`error: ${err.message}`);
     }

@@ -28,12 +28,9 @@ const MAX_RETRIES = 6;
 const BATCH_SIZE = 10;
 
 export default async function handler(req, res) {
-  // Verify cron authorization
-  const isVercelCron = req.headers['x-vercel-cron'] === '1';
-  const cronSecret = process.env.CRON_SECRET;
-  const isValidSecret = cronSecret && req.headers.authorization === `Bearer ${cronSecret}`;
-
-  if (!isVercelCron && !isValidSecret) {
+  // Verify cron authorization (timing-safe)
+  const { verifyCronAuth } = await import('./utils/verifyCronAuth.js');
+  if (!verifyCronAuth(req).authorized) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
