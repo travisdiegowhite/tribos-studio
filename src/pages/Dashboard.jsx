@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Container,
@@ -317,6 +317,21 @@ function Dashboard() {
     window.location.href = '/community';
   };
 
+  // Memoize weekly hours/TSS to avoid recalculating on every render
+  const weeklyCheckInStats = useMemo(() => {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    let hours = 0;
+    let tss = 0;
+    for (const a of activities) {
+      if (new Date(a.start_date) >= weekAgo) {
+        hours += (a.duration_seconds || a.moving_time || 0) / 3600;
+        tss += a.tss || 0;
+      }
+    }
+    return { hours, tss };
+  }, [activities]);
+
   return (
     <AppShell>
       <OnboardingModal
@@ -454,22 +469,8 @@ function Dashboard() {
               hasCheckedIn={hasCheckedInThisWeek}
               weekStats={{
                 rides: weekStats.rides,
-                hours: activities.reduce((sum, a) => {
-                  const weekAgo = new Date();
-                  weekAgo.setDate(weekAgo.getDate() - 7);
-                  if (new Date(a.start_date) >= weekAgo) {
-                    return sum + ((a.duration_seconds || a.moving_time || 0) / 3600);
-                  }
-                  return sum;
-                }, 0),
-                tss: activities.reduce((sum, a) => {
-                  const weekAgo = new Date();
-                  weekAgo.setDate(weekAgo.getDate() - 7);
-                  if (new Date(a.start_date) >= weekAgo) {
-                    return sum + (a.tss || 0);
-                  }
-                  return sum;
-                }, 0),
+                hours: weeklyCheckInStats.hours,
+                tss: weeklyCheckInStats.tss,
               }}
               onSubmit={handleCheckInSubmit}
               onDismiss={() => setCheckInDismissed(true)}

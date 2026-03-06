@@ -569,4 +569,4 @@ const RideHistoryTable = ({
   );
 };
 
-export default RideHistoryTable;
+export default React.memo(RideHistoryTable);

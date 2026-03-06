@@ -383,6 +383,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
                 <Box
                   key={route.id}
                   p="sm"
+                  className="tribos-route-list-item"
                   style={{
                     backgroundColor: 'var(--tribos-bg-tertiary)',
                     borderRadius: 8,
@@ -390,12 +391,6 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
                     transition: 'background-color 0.15s ease',
                   }}
                   onClick={() => handleRouteClick(route.id)}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--tribos-bg-tertiary-hover, rgba(255,255,255,0.08))';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--tribos-bg-tertiary)';
-                  }}
                 >
                   <Group justify="space-between" align="flex-start" wrap="nowrap">
                     <Box style={{ flex: 1, minWidth: 0 }}>

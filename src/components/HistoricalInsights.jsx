@@ -2,7 +2,7 @@
  * Historical Insights Component
  * Visualizations for historical fitness data comparisons
  */
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card,
   Text,
@@ -532,7 +532,7 @@ function QuickStats({ snapshots, activities }) {
 /**
  * Main Historical Insights Component
  */
-export default function HistoricalInsights({ userId, activities }) {
+function HistoricalInsights({ userId, activities }) {
   const [snapshots, setSnapshots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -648,3 +648,5 @@ function avg(arr) {
   if (!arr || arr.length === 0) return 0;
   return arr.reduce((a, b) => a + (b || 0), 0) / arr.length;
 }
+
+export default React.memo(HistoricalInsights);

@@ -28,13 +28,12 @@ export default function GearItemCard({ gear, onClick, useImperial = true }) {
       padding="md"
       withBorder
       onClick={onClick}
+      className="tribos-gear-card"
       style={{
         cursor: 'pointer',
         opacity: isRetired ? 0.6 : 1,
         transition: 'box-shadow 0.15s ease',
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ''; }}
     >
       <Stack gap="sm">
         <Group justify="space-between" wrap="nowrap">
