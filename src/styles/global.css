@@ -807,3 +807,25 @@ button {
     border: 1px solid #ddd !important;
   }
 }
+
+/* ===== Interactive Component Hover States ===== */
+/* Replaces JS onMouseEnter/onMouseLeave DOM manipulation with CSS */
+
+.tribos-gpx-import-btn:hover {
+  border-color: var(--tribos-text-muted) !important;
+  background-color: var(--tribos-bg-tertiary) !important;
+}
+
+.tribos-mode-card:hover {
+  background-color: color-mix(in srgb, var(--mode-accent) 8%, transparent) !important;
+  border-color: color-mix(in srgb, var(--mode-accent) 31%, transparent) !important;
+  transform: translateY(-1px);
+}
+
+.tribos-route-list-item:hover {
+  background-color: var(--tribos-bg-tertiary-hover, rgba(255, 255, 255, 0.08)) !important;
+}
+
+.tribos-gear-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}

@@ -6,7 +6,7 @@
  *   - "Route Analysis": existing RouteAnalysisPanel pass-through
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Card,
   Text,
@@ -716,7 +716,7 @@ interface SegmentLibraryPanelProps {
   formatElev?: (m: number) => string;
 }
 
-export default function SegmentLibraryPanel({
+function SegmentLibraryPanel({
   plannedWorkouts = [],
   formatDist,
   formatElev,
@@ -1000,3 +1000,5 @@ export default function SegmentLibraryPanel({
     </Stack>
   );
 }
+
+export default React.memo(SegmentLibraryPanel);

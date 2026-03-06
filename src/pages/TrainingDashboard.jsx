@@ -1,5 +1,5 @@
 // Training Dashboard - Updated Dec 2024
-import { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Container,
   Text,
@@ -625,19 +625,60 @@ function TrainingDashboard() {
 
   const suggestedWorkout = recommendation.primary?.workout || null;
 
-  const handleViewWorkout = (workout) => {
+  // Memoize trainingContext to avoid recreating on every render
+  const trainingContext = useMemo(() =>
+    buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts),
+    [trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts]
+  );
+
+  const handleAddWorkout = useCallback(async (workout) => {
+    notifications.show({
+      title: 'Workout Added',
+      message: `${workout.name || workout.workout_id} scheduled`,
+      color: 'terracotta'
+    });
+    setCalendarRefreshKey(prev => prev + 1);
+  }, []);
+
+  const handleOpenCheckIn = useCallback(() => setHealthCheckInOpen(true), []);
+
+  const handlePlanUpdated = useCallback(async () => {
+    if (user?.id) {
+      const { data: planData } = await supabase
+        .from('training_plans')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (planData) {
+        setActivePlan(planData);
+        const { data: workoutsData } = await supabase
+          .from('planned_workouts')
+          .select('*')
+          .eq('plan_id', planData.id)
+          .order('scheduled_date', { ascending: true });
+        if (workoutsData) {
+          setPlannedWorkouts(workoutsData);
+        }
+      }
+    }
+  }, [user?.id]);
+
+  const handleViewWorkout = useCallback((workout) => {
     setSelectedWorkout(workout);
     setWorkoutModalOpen(true);
-  };
+  }, []);
 
   // Handle viewing ride details
-  const handleViewRide = (ride) => {
+  const handleViewRide = useCallback((ride) => {
     setSelectedRide(ride);
     setRideAnalysisModalOpen(true);
-  };
+  }, []);
 
   // Handle hiding/showing a ride
-  const handleHideRide = async (ride) => {
+  const handleHideRide = useCallback(async (ride) => {
     if (!user) return;
 
     try {
@@ -680,7 +721,7 @@ function TrainingDashboard() {
         color: 'red'
       });
     }
-  };
+  }, [user]);
 
   // Handle adding supplement workout to plan
   const handleAddSupplementWorkout = async (workoutId, scheduledDate) => {
@@ -1006,16 +1047,9 @@ function TrainingDashboard() {
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, md: 5 }}>
                       <CoachCard
-                        trainingContext={buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts)}
+                        trainingContext={trainingContext}
                         workoutRecommendation={recommendation}
-                        onAddWorkout={async (workout) => {
-                          notifications.show({
-                            title: 'Workout Added',
-                            message: `${workout.name || workout.workout_id} scheduled`,
-                            color: 'terracotta'
-                          });
-                          setCalendarRefreshKey(prev => prev + 1);
-                        }}
+                        onAddWorkout={handleAddWorkout}
                       />
                     </Grid.Col>
                   </Grid>
@@ -1067,56 +1101,66 @@ function TrainingDashboard() {
 
               {/* ROUTES TAB - Segment Library + Route Analysis */}
               <Tabs.Panel value="routes">
-                <SegmentLibraryPanel
-                  plannedWorkouts={plannedWorkouts}
-                  formatDist={formatDist}
-                  formatElev={formatElev}
-                />
+                {activeTab === 'routes' && (
+                  <SegmentLibraryPanel
+                    plannedWorkouts={plannedWorkouts}
+                    formatDist={formatDist}
+                    formatElev={formatElev}
+                  />
+                )}
               </Tabs.Panel>
 
               {/* TRENDS TAB */}
               <Tabs.Panel value="trends">
-                <TrendsTab
-                  dailyTSSData={dailyTSSData}
-                  trainingMetrics={trainingMetrics}
-                  activities={visibleActivities}
-                  speedProfile={speedProfile}
-                  formatDist={formatDist}
-                  formatElev={formatElev}
-                  isImperial={isImperial}
-                  ftp={ftp}
-                  weight={userWeight}
-                  healthHistory={healthHistory}
-                  onOpenCheckIn={() => setHealthCheckInOpen(true)}
-                />
+                {activeTab === 'trends' && (
+                  <TrendsTab
+                    dailyTSSData={dailyTSSData}
+                    trainingMetrics={trainingMetrics}
+                    activities={visibleActivities}
+                    speedProfile={speedProfile}
+                    formatDist={formatDist}
+                    formatElev={formatElev}
+                    isImperial={isImperial}
+                    ftp={ftp}
+                    weight={userWeight}
+                    healthHistory={healthHistory}
+                    onOpenCheckIn={handleOpenCheckIn}
+                  />
+                )}
               </Tabs.Panel>
 
               {/* POWER TAB */}
               <Tabs.Panel value="power">
-                <PowerTab
-                  ftp={ftp}
-                  powerZones={powerZones}
-                  navigate={navigate}
-                  activities={visibleActivities}
-                  weight={userWeight}
-                />
+                {activeTab === 'power' && (
+                  <PowerTab
+                    ftp={ftp}
+                    powerZones={powerZones}
+                    navigate={navigate}
+                    activities={visibleActivities}
+                    weight={userWeight}
+                  />
+                )}
               </Tabs.Panel>
 
               {/* HISTORY TAB */}
               <Tabs.Panel value="history">
-                <RideHistoryTable
-                  rides={activities}
-                  formatDistance={formatDist}
-                  formatElevation={formatElev}
-                  maxRows={Infinity}
-                  onViewRide={handleViewRide}
-                  onHideRide={handleHideRide}
-                />
+                {activeTab === 'history' && (
+                  <RideHistoryTable
+                    rides={activities}
+                    formatDistance={formatDist}
+                    formatElevation={formatElev}
+                    maxRows={Infinity}
+                    onViewRide={handleViewRide}
+                    onHideRide={handleHideRide}
+                  />
+                )}
               </Tabs.Panel>
 
               {/* HISTORICAL INSIGHTS TAB */}
               <Tabs.Panel value="insights">
-                <HistoricalInsights userId={user?.id} activities={visibleActivities} />
+                {activeTab === 'insights' && (
+                  <HistoricalInsights userId={user?.id} activities={visibleActivities} />
+                )}
               </Tabs.Panel>
 
               {/* CALENDAR TAB */}
@@ -1128,31 +1172,7 @@ function TrainingDashboard() {
                   ftp={ftp}
                   isImperial={isImperial}
                   refreshKey={calendarRefreshKey}
-                  onPlanUpdated={async () => {
-                    // Reload the active plan to get updated compliance stats
-                    if (user?.id) {
-                      const { data: planData } = await supabase
-                        .from('training_plans')
-                        .select('*')
-                        .eq('user_id', user.id)
-                        .eq('status', 'active')
-                        .order('started_at', { ascending: false })
-                        .limit(1)
-                        .maybeSingle();
-                      if (planData) {
-                        setActivePlan(planData);
-                        // Also reload planned workouts to keep dashboard state in sync
-                        const { data: workoutsData } = await supabase
-                          .from('planned_workouts')
-                          .select('*')
-                          .eq('plan_id', planData.id)
-                          .order('scheduled_date', { ascending: true });
-                        if (workoutsData) {
-                          setPlannedWorkouts(workoutsData);
-                        }
-                      }
-                    }
-                  }}
+                  onPlanUpdated={handlePlanUpdated}
                 />
               </Tabs.Panel>
             </Box>
@@ -1546,7 +1566,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
 // ============================================================================
 // TRENDS TAB
 // ============================================================================
-function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, formatDist, formatElev, isImperial, ftp, weight, healthHistory, onOpenCheckIn }) {
+const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, formatDist, formatElev, isImperial, ftp, weight, healthHistory, onOpenCheckIn }) {
   // Check if any activities are from Strava/Garmin for attribution
   const hasStravaActivities = activities?.some(a => a.provider === 'strava');
   const hasGarminActivities = activities?.some(a => a.provider === 'garmin');
@@ -1698,12 +1718,12 @@ function TrendsTab({ dailyTSSData, trainingMetrics, activities, speedProfile, fo
       )}
     </Stack>
   );
-}
+});
 
 // ============================================================================
 // POWER TAB
 // ============================================================================
-function PowerTab({ ftp, powerZones, navigate, activities, weight }) {
+const PowerTab = React.memo(function PowerTab({ ftp, powerZones, navigate, activities, weight }) {
   const zones = [
     { zone: 1, name: 'Recovery', range: '< 55%', color: '#51cf66' },
     { zone: 2, name: 'Endurance', range: '55-75%', color: '#4dabf7' },
@@ -1831,7 +1851,7 @@ function PowerTab({ ftp, powerZones, navigate, activities, weight }) {
       />
     </Stack>
   );
-}
+});
 
 // ============================================================================
 // HELPER COMPONENTS

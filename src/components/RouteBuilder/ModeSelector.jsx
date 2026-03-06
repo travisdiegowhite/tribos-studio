@@ -39,19 +39,12 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
       {onImportGPX && (
         <UnstyledButton
           onClick={onImportGPX}
+          className="tribos-gpx-import-btn"
           style={{
             padding: `${tokens.spacing.sm} ${tokens.spacing.md}`,
             borderRadius: tokens.radius.md,
             border: '1px dashed var(--tribos-border)',
             transition: 'border-color 0.15s ease, background-color 0.15s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = 'var(--tribos-text-muted)';
-            e.currentTarget.style.backgroundColor = 'var(--tribos-bg-tertiary)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = 'var(--tribos-border)';
-            e.currentTarget.style.backgroundColor = 'transparent';
           }}
         >
           <Group gap="sm">
@@ -70,22 +63,14 @@ function ModeCard({ icon, title, description, accentColor, onClick }) {
   return (
     <UnstyledButton
       onClick={onClick}
+      className="tribos-mode-card"
       style={{
+        '--mode-accent': accentColor,
         padding: tokens.spacing.md,
         borderRadius: tokens.radius.md,
         border: `1px solid ${accentColor}25`,
         backgroundColor: `${accentColor}08`,
         transition: 'all 0.15s ease',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = `${accentColor}15`;
-        e.currentTarget.style.borderColor = `${accentColor}50`;
-        e.currentTarget.style.transform = 'translateY(-1px)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = `${accentColor}08`;
-        e.currentTarget.style.borderColor = `${accentColor}25`;
-        e.currentTarget.style.transform = 'translateY(0)';
       }}
     >
       <Group gap="md" align="flex-start">
