@@ -16,9 +16,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// SECURITY: Hardcoded admin email - this is the ONLY account with admin access
-// DO NOT add other emails here without careful consideration
-const ADMIN_EMAIL = 'travis@tribos.studio';
+// SECURITY: Admin email - this is the ONLY account with admin access
+// Set ADMIN_EMAIL env var in Vercel, or falls back to default
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'travis@tribos.studio';
 
 /**
  * Verify the user from JWT token and check admin authorization

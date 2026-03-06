@@ -19,14 +19,8 @@ const REFRESH_TOKEN_REFRESH_THRESHOLD_DAYS = 30;
 
 export default async function handler(req, res) {
   // Verify this is a legitimate cron request or admin request
-  const authHeader = req.headers.authorization;
-  const cronSecret = process.env.CRON_SECRET;
-
-  // Allow: Vercel cron (no auth needed from same origin), or Bearer token match
-  const isVercelCron = req.headers['x-vercel-cron'] === '1';
-  const isValidSecret = cronSecret && authHeader === `Bearer ${cronSecret}`;
-
-  if (!isVercelCron && !isValidSecret) {
+  const { verifyCronAuth } = await import('./utils/verifyCronAuth.js');
+  if (!verifyCronAuth(req).authorized) {
     console.log('Unauthorized token maintenance request');
     return res.status(401).json({ error: 'Unauthorized' });
   }

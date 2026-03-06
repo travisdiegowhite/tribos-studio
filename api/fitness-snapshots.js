@@ -198,9 +198,9 @@ async function handleQuery(req, res) {
  * Configured in vercel.json as: "0 3 * * 1" (Monday 3am)
  */
 async function handleWeeklyCompute(req, res) {
-  // Verify cron authorization (Vercel sends this header)
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Verify cron authorization (timing-safe)
+  const { verifyCronAuth } = await import('./utils/verifyCronAuth.js');
+  if (!verifyCronAuth(req).authorized) {
     // Also allow service role for manual triggers
     const user = await getUserFromAuthHeader(req);
     if (!user) {

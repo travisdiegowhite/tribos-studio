@@ -19,6 +19,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Verify cron authorization (timing-safe)
+  const { verifyCronAuth } = await import('./utils/verifyCronAuth.js');
+  if (!verifyCronAuth(req).authorized) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   try {
     // Fetch pending insights
     const { data: pendingInsights, error: fetchError } = await supabase
