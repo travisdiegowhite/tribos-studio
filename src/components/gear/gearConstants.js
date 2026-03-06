@@ -15,11 +15,16 @@ export const COMPONENT_TYPES = [
   { value: 'cassette', label: 'Cassette' },
   { value: 'tires_road', label: 'Tires (Road)' },
   { value: 'tires_gravel', label: 'Tires (Gravel/MTB)' },
+  { value: 'wheels_road', label: 'Wheels (Road)' },
+  { value: 'wheels_gravel', label: 'Wheels (Gravel/MTB)' },
   { value: 'brake_pads_rim', label: 'Brake Pads (Rim)' },
   { value: 'brake_pads_disc', label: 'Brake Pads (Disc)' },
   { value: 'bar_tape', label: 'Bar Tape' },
   { value: 'cables', label: 'Cables/Housing' },
 ];
+
+export const TIRE_COMPONENT_TYPES = ['tires_road', 'tires_gravel'];
+export const WHEEL_COMPONENT_TYPES = ['wheels_road', 'wheels_gravel'];
 
 export function getComponentLabel(componentType) {
   const found = COMPONENT_TYPES.find(c => c.value === componentType);

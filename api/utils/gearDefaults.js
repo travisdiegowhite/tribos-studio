@@ -45,6 +45,15 @@ export const DEFAULT_COMPONENT_THRESHOLDS = {
     warning: 2400 * METERS_PER_MILE,
     replace: 3000 * METERS_PER_MILE,
   },
+  wheels_road: {
+    // Wheels are not consumables — no mileage thresholds
+    warning: null,
+    replace: null,
+  },
+  wheels_gravel: {
+    warning: null,
+    replace: null,
+  },
 };
 
 /**
@@ -63,11 +72,27 @@ export const COMPONENT_TYPES = [
   { value: 'cassette', label: 'Cassette' },
   { value: 'tires_road', label: 'Tires (Road)' },
   { value: 'tires_gravel', label: 'Tires (Gravel/MTB)' },
+  { value: 'wheels_road', label: 'Wheels (Road)' },
+  { value: 'wheels_gravel', label: 'Wheels (Gravel/MTB)' },
   { value: 'brake_pads_rim', label: 'Brake Pads (Rim)' },
   { value: 'brake_pads_disc', label: 'Brake Pads (Disc)' },
   { value: 'bar_tape', label: 'Bar Tape' },
   { value: 'cables', label: 'Cables/Housing' },
 ];
+
+/**
+ * Default metadata for tire and wheel components.
+ * Used as sensible defaults when no user-specified values exist.
+ */
+export const DEFAULT_TIRE_METADATA = {
+  tires_road: { width_mm: 28, tubeless: false, max_pressure_psi: 100 },
+  tires_gravel: { width_mm: 40, tubeless: true, max_pressure_psi: 60 },
+};
+
+export const DEFAULT_WHEEL_METADATA = {
+  wheels_road: { rim_width_mm: 21, hookless: false },
+  wheels_gravel: { rim_width_mm: 25, hookless: false },
+};
 
 /**
  * Get default thresholds for a component type.
