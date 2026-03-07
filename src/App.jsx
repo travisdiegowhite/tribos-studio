@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { MantineProvider, ColorSchemeScript } from '@mantine/core';
+import { lazy, Suspense } from 'react';
+import { MantineProvider, ColorSchemeScript, Center, Loader } from '@mantine/core';
 import { DatesProvider } from '@mantine/dates';
 import { Notifications } from '@mantine/notifications';
 import { Analytics } from '@vercel/analytics/react';
@@ -8,22 +9,22 @@ import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { UserPreferencesProvider } from './contexts/UserPreferencesContext.jsx';
 import { theme } from './theme';
 
-// Pages
+// Pages — eagerly loaded (critical path)
 import Landing from './pages/Landing.jsx';
 import Auth from './pages/Auth.jsx';
-import Dashboard from './pages/Dashboard.jsx';
-import RouteBuilder from './pages/RouteBuilder.jsx';
-// ManualRouteBuilder and MyRoutes deprecated — functionality merged into RouteBuilder
-import TrainingDashboard from './pages/TrainingDashboard.jsx';
-import PlannerPage from './pages/PlannerPage.tsx';
-import Settings from './pages/Settings.jsx';
-// Updates page removed - content moved to Settings
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 import Terms from './pages/Terms.jsx';
 import NotFound from './pages/NotFound.jsx';
-import Admin from './pages/Admin.jsx';
-import CommunityPage from './pages/CommunityPage.jsx';
-import GearPage from './pages/GearPage.jsx';
+
+// Pages — lazy loaded (protected, heavy)
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
+const RouteBuilder = lazy(() => import('./pages/RouteBuilder.jsx'));
+const TrainingDashboard = lazy(() => import('./pages/TrainingDashboard.jsx'));
+const PlannerPage = lazy(() => import('./pages/PlannerPage.tsx'));
+const Settings = lazy(() => import('./pages/Settings.jsx'));
+const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'));
+const GearPage = lazy(() => import('./pages/GearPage.jsx'));
+const Admin = lazy(() => import('./pages/Admin.jsx'));
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
@@ -83,8 +84,17 @@ function PublicRoute({ children }) {
   return children;
 }
 
+function PageLoader() {
+  return (
+    <Center style={{ height: '100vh' }}>
+      <Loader size="lg" color="var(--tribos-terracotta-500)" />
+    </Center>
+  );
+}
+
 function AppRoutes() {
   return (
+    <Suspense fallback={<PageLoader />}>
     <Routes>
       {/* Public routes */}
       <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
@@ -228,6 +238,7 @@ function AppRoutes() {
       {/* Catch all - 404 page */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </Suspense>
   );
 }
 

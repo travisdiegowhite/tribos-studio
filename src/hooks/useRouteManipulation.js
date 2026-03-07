@@ -31,7 +31,7 @@ export const useRouteManipulation = ({
   const pushToHistory = useCallback((waypointState) => {
     // Truncate any future history if we're not at the end
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
-    historyRef.current.push(JSON.parse(JSON.stringify(waypointState)));
+    historyRef.current.push(structuredClone(waypointState));
     historyIndexRef.current = historyRef.current.length - 1;
     // Sync reactive state for canUndo/canRedo
     setHistoryIndex(historyIndexRef.current);
@@ -166,7 +166,7 @@ export const useRouteManipulation = ({
       historyIndexRef.current -= 1;
       setHistoryIndex(historyIndexRef.current);
       const previousState = historyRef.current[historyIndexRef.current];
-      setWaypoints(JSON.parse(JSON.stringify(previousState)));
+      setWaypoints(structuredClone(previousState));
 
       notifications.show({
         title: 'Undo',
@@ -191,7 +191,7 @@ export const useRouteManipulation = ({
       historyIndexRef.current += 1;
       setHistoryIndex(historyIndexRef.current);
       const nextState = historyRef.current[historyIndexRef.current];
-      setWaypoints(JSON.parse(JSON.stringify(nextState)));
+      setWaypoints(structuredClone(nextState));
 
       notifications.show({
         title: 'Redo',

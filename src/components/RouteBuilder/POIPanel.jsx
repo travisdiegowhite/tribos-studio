@@ -148,8 +148,7 @@ export default function POIPanel({
                       border: isSelected ? `1px solid ${cat.color}40` : '1px solid transparent',
                       transition: 'background-color 0.1s',
                     }}
-                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--tribos-bg-tertiary)'; }}
-                    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    className={!isSelected ? 'tribos-poi-category' : undefined}
                   >
                     <Group gap={8} wrap="nowrap">
                       <Box style={{ color: cat.color, flexShrink: 0 }}>

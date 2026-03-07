@@ -48,16 +48,7 @@ const BreadcrumbNav = ({ items = [] }) => {
               textDecoration: 'none',
               transition: 'color 0.2s ease',
             }}
-            onMouseEnter={(e) => {
-              if (item.path) {
-                e.currentTarget.style.color = 'var(--mantine-color-text)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (item.path) {
-                e.currentTarget.style.color = 'var(--mantine-color-dimmed)';
-              }
-            }}
+            className={item.path ? 'tribos-breadcrumb-link' : undefined}
           >
             {item.label}
           </Anchor>

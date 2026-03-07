@@ -111,12 +111,7 @@ function DiscussionCard({ discussion, onClick }) {
         transition: 'border-color 0.15s',
       }}
       onClick={onClick}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'var(--tribos-terracotta-500)' + '60';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'var(--tribos-bg-tertiary)';
-      }}
+      className="tribos-discussion-item"
     >
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Box style={{ flex: 1, minWidth: 0 }}>

@@ -52,16 +52,7 @@ export function ConnectWithStravaButton({ onClick, disabled = false, variant = '
         minWidth: '193px',
         height: '48px',
       }}
-      onMouseEnter={(e) => {
-        if (!disabled) {
-          e.currentTarget.style.opacity = '0.9';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!disabled) {
-          e.currentTarget.style.opacity = '1';
-        }
-      }}
+      className={!disabled ? 'tribos-strava-btn' : undefined}
     >
       <StravaLogo size={20} color={isOrange ? 'white' : STRAVA_ORANGE} />
       <span>Connect with Strava</span>
@@ -170,12 +161,7 @@ export function ViewOnStravaLink({ activityId, variant = 'inline' }) {
           textDecoration: 'none',
           transition: 'background-color 0.2s',
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = `${STRAVA_ORANGE}10`;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'transparent';
-        }}
+        className="tribos-strava-link"
       >
         <StravaLogo size={14} color={STRAVA_ORANGE} />
         View on Strava

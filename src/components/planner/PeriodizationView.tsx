@@ -288,20 +288,8 @@ export function PeriodizationView({
                   : '1px solid var(--mantine-color-dark-4)',
                 transition: 'all 0.15s ease',
               }}
-              onMouseEnter={(e) => {
-                if (!week.isFocused) {
-                  e.currentTarget.style.backgroundColor = 'var(--mantine-color-dark-5)';
-                  e.currentTarget.style.borderColor = 'var(--mantine-color-terracotta-8)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!week.isFocused) {
-                  e.currentTarget.style.backgroundColor = 'var(--mantine-color-dark-6)';
-                  e.currentTarget.style.borderColor = week.isCurrentWeek
-                    ? 'var(--mantine-color-terracotta-7)'
-                    : 'var(--mantine-color-dark-4)';
-                }
-              }}
+              className={!week.isFocused ? 'tribos-period-block' : undefined}
+              data-current-week={week.isCurrentWeek || undefined}
             >
               {/* Race goal indicator */}
               {week.hasRaceGoal && (

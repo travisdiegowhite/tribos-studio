@@ -52,18 +52,7 @@ function AISuggestionCard({
         transform: isConverting ? 'scale(1.01)' : 'scale(1)',
       }}
       onClick={handleClick}
-      onMouseEnter={(e) => {
-        if (!isDisabled) {
-          e.currentTarget.style.transform = 'scale(1.01)';
-          e.currentTarget.style.borderColor = 'var(--mantine-color-dark-4)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!isConverting) {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.borderColor = 'var(--mantine-color-dark-5)';
-        }
-      }}
+      className={!isDisabled ? 'tribos-ai-suggestion-card' : undefined}
     >
       <Stack gap="sm">
         {/* Header with name and difficulty */}

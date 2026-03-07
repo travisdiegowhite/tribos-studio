@@ -153,14 +153,7 @@ export function WorkoutCard({
         opacity: isDragging ? 0.5 : 1,
         transition: 'transform 0.1s, box-shadow 0.1s',
       }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
-      }}
+      className="tribos-workout-card"
     >
       <Group gap={8} wrap="nowrap" mb={6}>
         <IconGripVertical size={14} style={{ opacity: 0.5, flexShrink: 0, color: 'var(--mantine-color-gray-5)' }} />

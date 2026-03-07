@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Container,
@@ -332,15 +332,19 @@ function Dashboard() {
     return { hours, tss };
   }, [activities]);
 
+  const handleCloseOnboarding = useCallback(() => setShowOnboarding(false), []);
+  const handleCloseWhatsNew = useCallback(() => setShowWhatsNew(false), []);
+  const handleDismissCheckIn = useCallback(() => setCheckInDismissed(true), []);
+
   return (
     <AppShell>
       <OnboardingModal
         opened={showOnboarding}
-        onClose={() => setShowOnboarding(false)}
+        onClose={handleCloseOnboarding}
       />
       <WhatsNewModal
         opened={showWhatsNew}
-        onClose={() => setShowWhatsNew(false)}
+        onClose={handleCloseWhatsNew}
         userId={user?.id}
       />
       <Container size="xl" py="lg">
@@ -473,7 +477,7 @@ function Dashboard() {
                 tss: weeklyCheckInStats.tss,
               }}
               onSubmit={handleCheckInSubmit}
-              onDismiss={() => setCheckInDismissed(true)}
+              onDismiss={handleDismissCheckIn}
             />
           )}
 
