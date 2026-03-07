@@ -89,14 +89,26 @@ function Landing() {
               tribos.studio
             </Text>
           </Group>
-          <Button
-            component={Link}
-            to="/auth"
-            size="sm"
-            color="terracotta"
-          >
-            Create Free Account
-          </Button>
+          <Group gap="sm">
+            <Button
+              component={Link}
+              to="/auth"
+              size="sm"
+              variant="subtle"
+              color="terracotta"
+            >
+              Log in
+            </Button>
+            <Button
+              component={Link}
+              to="/auth"
+              state={{ fromBetaSignup: true }}
+              size="sm"
+              color="terracotta"
+            >
+              Create Free Account
+            </Button>
+          </Group>
         </Group>
       </Box>
 

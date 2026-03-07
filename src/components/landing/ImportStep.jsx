@@ -3,21 +3,21 @@ import { Container, Text, Paper, Group, Box, Stack } from '@mantine/core';
 import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
 
 // Realistic rides from the Boulder/Longmont/Hygiene CO area
-// Power numbers calibrated to FTP ~245W
+// Power numbers calibrated to FTP ~295W (Cat 2 racer)
 const rides = [
-  { date: 'Feb 16', name: 'Hygiene Loop', distance: '42.1 mi', power: '198w' },
-  { date: 'Feb 14', name: 'Erie Gravel/Unpaved', distance: '50.6 mi', power: '196w' },
-  { date: 'Feb 12', name: 'Lyons Loop', distance: '52.3 mi', power: '188w' },
-  { date: 'Feb 10', name: 'Diagonal Highway Tempo', distance: '31.7 mi', power: '215w' },
-  { date: 'Feb 8', name: 'Boulder Creek Path', distance: '22.3 mi', power: '162w' },
-  { date: 'Feb 5', name: 'Niwot Back Roads', distance: '44.8 mi', power: '196w' },
-  { date: 'Feb 3', name: 'Left Hand Canyon Climb', distance: '35.6 mi', power: '224w' },
-  { date: 'Feb 1', name: 'St Vrain Greenway', distance: '18.9 mi', power: '148w' },
-  { date: 'Jan 30', name: 'US-36 Tempo', distance: '46.2 mi', power: '208w' },
-  { date: 'Jan 28', name: 'Heil Valley Ranch', distance: '26.5 mi', power: '178w' },
+  { date: 'Feb 16', name: 'Hygiene Loop', distance: '42.1 mi', power: '238w' },
+  { date: 'Feb 14', name: 'Erie Gravel/Unpaved', distance: '50.6 mi', power: '232w' },
+  { date: 'Feb 12', name: 'Lyons Loop', distance: '52.3 mi', power: '225w' },
+  { date: 'Feb 10', name: 'Diagonal Highway Tempo', distance: '31.7 mi', power: '272w' },
+  { date: 'Feb 8', name: 'Boulder Creek Path', distance: '22.3 mi', power: '192w' },
+  { date: 'Feb 5', name: 'Niwot Back Roads', distance: '44.8 mi', power: '241w' },
+  { date: 'Feb 3', name: 'Left Hand Canyon Climb', distance: '35.6 mi', power: '285w' },
+  { date: 'Feb 1', name: 'St Vrain Greenway', distance: '18.9 mi', power: '185w' },
+  { date: 'Jan 30', name: 'US-36 Tempo', distance: '46.2 mi', power: '265w' },
+  { date: 'Jan 28', name: 'Heil Valley Ranch', distance: '26.5 mi', power: '248w' },
 ];
 
-const TOTAL_RIDES = 347;
+const TOTAL_RIDES = 523;
 const ROW_DELAY = 280;
 
 export default function ImportStep() {
