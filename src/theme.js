@@ -35,57 +35,57 @@ export const depth = {
   },
 };
 
-// Light theme tokens (default — bone/ink)
+// Light theme tokens (default — warmer cool)
 export const lightTokens = {
   colors: {
-    // Primary accent: Sienna (via terracotta token)
-    terracotta: '#9E5A3C',
-    terracottaLight: '#BD7C58',
-    terracottaDark: '#864D33',
+    // Primary accent: Green (via terracotta token)
+    terracotta: '#6B8C72',
+    terracottaLight: '#82A98A',
+    terracottaDark: '#5A7760',
 
-    // Brand accents — geological, earthy
+    // Brand accents
     mauve: '#6B7F94',      // Slate (informational, Z5)
     teal: '#5C7A5E',       // Moss (Z2 endurance)
     sage: '#6B8C72',       // Forest (Z1 recovery)
-    gold: '#B89040',       // Ochre (Z3 tempo)
+    gold: '#B8860B',       // Amber (Z3 tempo)
     dustyRose: '#8B6B5A',  // Iron (warm brown)
     skyPale: '#8B6B5A',    // Iron
 
-    // Backgrounds — cool gray-green bone
-    bgPrimary: '#EDEDE8',     // Bone (page background)
-    bgSecondary: '#F5F5F1',   // Surface (cards)
-    bgTertiary: '#E0E0D9',    // Sunken (recessed areas)
-    bgElevated: '#FBFBF9',    // Elevated (modals/inputs)
+    // Backgrounds — warmer cool
+    bgPrimary: '#F7F7F6',     // Page background
+    bgSecondary: '#EFEFED',   // Surface (nav)
+    bgTertiary: '#E3E3E0',    // Sunken (recessed areas)
+    bgElevated: '#FAFAF9',    // Elevated (modals/inputs)
 
     // Borders
-    border: '#C8C8BE',
-    borderLight: '#E0E0D9',
-    borderFocus: 'rgba(158, 90, 60, 0.5)',
+    border: '#E3E3E0',
+    borderLight: '#E3E3E0',
+    borderFocus: 'rgba(107, 140, 114, 0.5)',
 
-    // Text — green-black ink
-    textPrimary: '#24261F',
-    textSecondary: '#5E6054',
-    textMuted: '#84867A',
+    // Text
+    textPrimary: '#111110',
+    textSecondary: '#4E4E4A',
+    textMuted: '#909088',
 
     // Semantic — mapped to palette
-    success: '#6B8C72',  // Forest (sage token)
-    warning: '#B89040',  // Ochre (gold token)
-    error: '#9E5A3C',    // Sienna (terracotta token)
+    success: '#6B8C72',  // Green
+    warning: '#B8860B',  // Amber
+    error: '#6B8C72',    // Green (primary accent)
     info: '#6B7F94',     // Slate (mauve token)
 
     // Training Zone Colors — 5 spec zones + 2 extensions
     zone1: '#6B8C72', // Recovery — Forest
     zone2: '#5C7A5E', // Endurance — Moss
-    zone3: '#B89040', // Tempo — Ochre
-    zone4: '#9E5A3C', // Threshold — Sienna
+    zone3: '#B8860B', // Tempo — Amber
+    zone4: '#6B8C72', // Threshold — Green
     zone5: '#6B7F94', // VO2max — Slate
     zone6: '#8B6B5A', // Anaerobic — Iron
-    zone7: '#C8C8BE', // Rest/Neuromuscular — Border gray
+    zone7: '#E3E3E0', // Rest/Neuromuscular — Border gray
 
     // Legacy aliases (backward compat)
-    electricLime: '#9E5A3C',
-    electricLimeLight: '#BD7C58',
-    electricLimeDark: '#864D33',
+    electricLime: '#6B8C72',
+    electricLimeLight: '#82A98A',
+    electricLimeDark: '#5A7760',
   },
 
   shadows: {
@@ -95,17 +95,17 @@ export const lightTokens = {
     lg: '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',
     card: '0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
     cardHover: '0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
-    focus: '0 0 0 2px rgba(158, 90, 60, 0.25)',
+    focus: '0 0 0 2px rgba(107, 140, 114, 0.25)',
   },
 };
 
-// Dark theme tokens (cool green-black)
+// Dark theme tokens (dark slate)
 export const darkTokens = {
   colors: {
-    // Primary accent: Sienna (same hue, both themes)
-    terracotta: '#9E5A3C',
-    terracottaLight: '#BD7C58',
-    terracottaDark: '#864D33',
+    // Primary accent: Green (dark-adapted)
+    terracotta: '#7FA887',
+    terracottaLight: '#98BDA0',
+    terracottaDark: '#6A9072',
 
     // Brand accents — slightly muted for dark
     mauve: '#6B7F94',      // Slate
@@ -113,47 +113,47 @@ export const darkTokens = {
     teal: '#507052',       // Moss (dark)
     tealDim: '#405643',
     sage: '#5E8068',       // Forest (dark)
-    gold: '#B89040',       // Ochre (same)
-    goldDim: '#9B7936',
+    gold: '#D49820',       // Amber (dark)
+    goldDim: '#B8860B',
     dustyRose: '#7A5E4E',  // Iron (dark)
     skyMuted: '#7A5E4E',   // Iron (dark)
 
-    // Backgrounds — cool green-black
-    bgPrimary: '#111210',     // Deep (page background)
-    bgSecondary: '#191A17',   // Surface (cards)
-    bgTertiary: '#1D1E1B',    // Card bg
-    bgElevated: '#222320',    // Elevated (modals)
+    // Backgrounds — dark slate
+    bgPrimary: '#141820',     // Deep (page background)
+    bgSecondary: '#1C2230',   // Surface (cards)
+    bgTertiary: '#242D3E',    // Elevated
+    bgElevated: '#242D3E',    // Elevated (modals)
 
     // Borders
-    border: '#2C2D28',
-    borderLight: '#232420',
-    borderFocus: 'rgba(158, 90, 60, 0.5)',
+    border: '#242D3E',
+    borderLight: '#1C2230',
+    borderFocus: 'rgba(127, 168, 135, 0.5)',
 
-    // Text — cool cream hierarchy
-    textPrimary: '#E5E5DF',
-    textSecondary: '#ADADA3',
-    textMuted: '#84857C',
-    textDim: '#6E6F66',
+    // Text — cool slate hierarchy
+    textPrimary: '#E8EBF2',
+    textSecondary: '#C8D0E0',
+    textMuted: '#8A90A5',
+    textDim: '#5A6175',
 
     // Semantic
-    success: '#5E8068',
-    warning: '#B89040',
-    error: '#9E5A3C',
+    success: '#7FA887',
+    warning: '#D49820',
+    error: '#7FA887',
     info: '#6B7F94',
 
     // Training Zone Colors — dark adapted
     zone1: '#5E8068', // Recovery — Forest (dark)
     zone2: '#507052', // Endurance — Moss (dark)
-    zone3: '#B89040', // Tempo — Ochre
-    zone4: '#9E5A3C', // Threshold — Sienna
+    zone3: '#D49820', // Tempo — Amber
+    zone4: '#7FA887', // Threshold — Green
     zone5: '#6B7F94', // VO2max — Slate
     zone6: '#7A5E4E', // Anaerobic — Iron (dark)
-    zone7: '#2C2D28', // Rest — Border gray (dark)
+    zone7: '#242D3E', // Rest — Border gray (dark)
 
     // Legacy aliases
-    electricLime: '#9E5A3C',
-    electricLimeLight: '#BD7C58',
-    electricLimeDark: '#864D33',
+    electricLime: '#7FA887',
+    electricLimeLight: '#98BDA0',
+    electricLimeDark: '#6A9072',
   },
 
   shadows: {
@@ -163,7 +163,7 @@ export const darkTokens = {
     lg: '0 4px 16px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.2)',
     card: '0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15)',
     cardHover: '0 4px 12px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2)',
-    focus: '0 0 0 2px rgba(158, 90, 60, 0.3)',
+    focus: '0 0 0 2px rgba(127, 168, 135, 0.3)',
   },
 };
 
@@ -228,9 +228,9 @@ export const theme = createTheme({
 
   colors: {
     terracotta: [
-      '#F9F2EE', '#EEDBD0', '#DDB9A4', '#CC9778',
-      '#BD7C58', '#9E5A3C', '#864D33', '#6E402A',
-      '#563322', '#40271A',
+      '#F0F5F1', '#D8E6DB', '#BCD4C1', '#9CC1A4',
+      '#82A98A', '#6B8C72', '#5A7760', '#4A624F',
+      '#3B4E3F', '#2D3B30',
     ],
     sage: [
       '#F0F5F1', '#D8E6DB', '#BCD4C1', '#9CC1A4',
@@ -248,9 +248,9 @@ export const theme = createTheme({
       '#3C4752', '#2E363E',
     ],
     gold: [
-      '#FAF5EA', '#F1E4C4', '#E6CF96', '#D9B96A',
-      '#CCA450', '#B89040', '#9B7936', '#7E632C',
-      '#624D23', '#48391A',
+      '#FBF6E8', '#F2E3B8', '#E7CC80', '#DBB44A',
+      '#D4A020', '#B8860B', '#9A7009', '#7C5A07',
+      '#604506', '#463204',
     ],
     sky: [
       '#F5F0ED', '#E5DCD6', '#D1C1B6', '#BCA495',
@@ -258,28 +258,28 @@ export const theme = createTheme({
       '#4E3C32', '#3B2E26',
     ],
     dark: [
-      '#E5E5DF',  // 0 — lightest text
-      '#959588',  // 1 — secondary text
-      '#636358',  // 2 — tertiary text
-      '#444439',  // 3 — dim text
-      '#2C2D28',  // 4 — borders
-      '#222320',  // 5 — elevated
-      '#1D1E1B',  // 6 — card
-      '#191A17',  // 7 — surface
-      '#131410',  // 8 — panel
-      '#111210',  // 9 — deep
+      '#E8EBF2',  // 0 — lightest text
+      '#C8D0E0',  // 1 — secondary text
+      '#8A90A5',  // 2 — tertiary text
+      '#5A6175',  // 3 — dim text
+      '#242D3E',  // 4 — borders
+      '#242D3E',  // 5 — elevated
+      '#1C2230',  // 6 — card
+      '#1C2230',  // 7 — surface
+      '#141820',  // 8 — panel
+      '#141820',  // 9 — deep
     ],
     gray: [
-      '#FBFBF9',  // 0 — elevated
-      '#F5F5F1',  // 1 — surface
-      '#EDEDE8',  // 2 — bone (base)
-      '#E0E0D9',  // 3 — sunken
-      '#C8C8BE',  // 4 — border default
-      '#74766A',  // 5 — tertiary text
-      '#44463C',  // 6 — secondary text
-      '#24261F',  // 7 — primary text
-      '#1A1C16',  // 8 — deep ink
-      '#111210',  // 9 — darkest
+      '#FAFAF9',  // 0 — elevated
+      '#F7F7F6',  // 1 — surface
+      '#EFEFED',  // 2 — base
+      '#E3E3E0',  // 3 — sunken
+      '#E3E3E0',  // 4 — border default
+      '#909088',  // 5 — muted text
+      '#4E4E4A',  // 6 — secondary text
+      '#111110',  // 7 — primary text
+      '#0A0A09',  // 8 — deep ink
+      '#050504',  // 9 — darkest
     ],
     green: [
       '#F0F5F1', '#D8E6DB', '#BCD4C1', '#9CC1A4',
