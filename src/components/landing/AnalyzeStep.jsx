@@ -1,333 +1,129 @@
 import { useState, useEffect, useRef } from 'react';
-import { Container, Text, Paper, SimpleGrid, Box, Stack, Group } from '@mantine/core';
+import {
+  Container, Text, Paper, SimpleGrid, Box, Stack, Group,
+  Badge, SegmentedControl, Progress, Card,
+} from '@mantine/core';
+import {
+  LineChart, Line, Area, AreaChart, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
+  ResponsiveContainer, ReferenceLine, Cell, Legend,
+} from 'recharts';
+import { IconBolt, IconChartPie, IconClock, IconFlame, IconTrophy } from '@tabler/icons-react';
+import { tokens } from '../../theme';
 import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
 
-// ===== Chart colors — match actual app components =====
-// From TrainingLoadChart.jsx: CTL=#3A5A8C, ATL=#D4820A, TSB=#3D8B50
-// From PowerDurationCurve.jsx: current line=#D4820A, FTP ref=#3A5A8C
-const COLORS = {
-  ctl: '#3A5A8C',    // Steel blue — Chronic Training Load (Fitness)
-  atl: '#D4820A',    // Amber — Acute Training Load (Fatigue)
-  tsb: '#3D8B50',    // Green — Training Stress Balance (Form)
-  pdc: '#D4820A',    // Amber — Power curve primary
-  pdcFill: '#D4820A',
-  zone1: '#3D8B50',  // Recovery — Green
-  zone2: '#3D8B50',  // Endurance — Green
-  zone3: '#D4820A',  // Tempo — Amber
-  zone4: '#3A5A8C',  // Threshold — Steel blue
-  zone5: '#6B7F94',  // VO2max — Slate
-  zone6: '#8B6B5A',  // Anaerobic — Iron
-};
+// ===== Cat 3 Racer Profile =====
+// FTP: 250W | Weight: 76kg | W/kg: 3.3 | Rider type: All-Rounder
+// 90-day training block with 3:1 build/recovery periodization
 
-// ===== Realistic data — FTP ~295W rider (~4.0 W/kg), 90-day training block =====
-// Above-average Cat 2-3, 3:1 build/recovery periodization
+const FTP = 250;
+const WEIGHT = 76;
 
-// CTL/ATL over 30 data points (~90 days, sampled every 3 days)
-// 3-week build + 1-week recovery × 3 cycles, ending with taper
-const fitnessData = [
-  // Block 1 — base build (CTL 72→83)
-  { ctl: 72, atl: 68 }, { ctl: 74, atl: 90 }, { ctl: 76, atl: 96 },
-  { ctl: 78, atl: 102 }, { ctl: 80, atl: 95 }, { ctl: 83, atl: 108 },
-  { ctl: 82, atl: 98 }, { ctl: 80, atl: 62 }, // Recovery week — ATL crashes
-  // Block 2 — threshold build (CTL 81→95)
-  { ctl: 81, atl: 72 }, { ctl: 83, atl: 94 }, { ctl: 86, atl: 102 },
-  { ctl: 88, atl: 110 }, { ctl: 91, atl: 105 }, { ctl: 93, atl: 118 },
-  { ctl: 95, atl: 112 }, { ctl: 93, atl: 65 }, // Recovery week
-  // Block 3 — race-specificity build (CTL 93→105) + taper
-  { ctl: 93, atl: 78 }, { ctl: 95, atl: 98 }, { ctl: 97, atl: 110 },
-  { ctl: 99, atl: 118 }, { ctl: 101, atl: 122 }, { ctl: 103, atl: 128 },
-  { ctl: 105, atl: 120 }, { ctl: 104, atl: 95 }, // Start taper
-  // Taper — CTL holds, ATL drops, TSB goes positive
-  { ctl: 103, atl: 82 }, { ctl: 102, atl: 75 }, { ctl: 101, atl: 80 },
-  { ctl: 100, atl: 72 }, { ctl: 99, atl: 78 }, { ctl: 98, atl: 74 },
-];
-
-// Power duration curve — FTP ~295W, weight ~74kg (4.0 W/kg)
-// Best efforts from 90-day window, above-average Cat 2-3
-const pdcData = [
-  { sec: 1, watts: 1280 },
-  { sec: 5, watts: 1120 },
-  { sec: 15, watts: 820 },
-  { sec: 30, watts: 630 },
-  { sec: 60, watts: 465 },
-  { sec: 120, watts: 385 },
-  { sec: 300, watts: 345 },
-  { sec: 480, watts: 320 },
-  { sec: 600, watts: 310 },
-  { sec: 1200, watts: 300 },
-  { sec: 1800, watts: 295 },
-  { sec: 3600, watts: 280 },
-  { sec: 5400, watts: 260 },
-  { sec: 7200, watts: 245 },
-];
-
-// Zone distribution — 90-day, polarized training (Cat 2-3 racer)
-// Heavy Z2 base, limited Z3 "junk miles", targeted high-intensity
-const zoneData = [
-  { zone: 'Z1', label: 'Recovery', pct: 10, color: COLORS.zone1 },
-  { zone: 'Z2', label: 'Endurance', pct: 50, color: COLORS.zone2 },
-  { zone: 'Z3', label: 'Tempo', pct: 10, color: COLORS.zone3 },
-  { zone: 'Z4', label: 'Threshold', pct: 15, color: COLORS.zone4 },
-  { zone: 'Z5', label: 'VO2max', pct: 11, color: COLORS.zone5 },
-  { zone: 'Z6', label: 'Anaerobic', pct: 4, color: COLORS.zone6 },
-];
-
-// ===== SVG Chart Components =====
-
-function FitnessChart({ animate }) {
-  const width = 400;
-  const height = 180;
-  const padding = { top: 20, right: 10, bottom: 30, left: 40 };
-  const chartW = width - padding.left - padding.right;
-  const chartH = height - padding.top - padding.bottom;
-
-  const maxVal = 138;
-  const minVal = 52;
-
-  const toX = (i) => padding.left + (i / (fitnessData.length - 1)) * chartW;
-  const toY = (val) => padding.top + ((maxVal - val) / (maxVal - minVal)) * chartH;
-
-  const ctlPath = fitnessData.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(d.ctl)}`).join(' ');
-  const atlPath = fitnessData.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(d.atl)}`).join(' ');
-
-  // TSB shaded area between CTL and ATL
-  const tsbPath = fitnessData.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(d.ctl)}`).join(' ')
-    + fitnessData.slice().reverse().map((d, i) => `L${toX(fitnessData.length - 1 - i)},${toY(d.atl)}`).join(' ')
-    + 'Z';
-
-  const ctlRef = useRef(null);
-  const atlRef = useRef(null);
-  const [ctlLength, setCtlLength] = useState(1000);
-  const [atlLength, setAtlLength] = useState(1000);
-
-  useEffect(() => {
-    if (ctlRef.current) setCtlLength(ctlRef.current.getTotalLength());
-    if (atlRef.current) setAtlLength(atlRef.current.getTotalLength());
-  }, []);
-
-  return (
-    <Paper p="sm" style={{ overflow: 'hidden' }}>
-      <Group justify="space-between" mb="xs">
-        <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-          Training Load
-        </Text>
-        <Group gap="md">
-          <Group gap={4}>
-            <Box style={{ width: 10, height: 2, background: COLORS.ctl }} />
-            <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)' }}>CTL</Text>
-          </Group>
-          <Group gap={4}>
-            <Box style={{ width: 10, height: 2, background: COLORS.atl }} />
-            <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)' }}>ATL</Text>
-          </Group>
-          <Group gap={4}>
-            <Box style={{ width: 10, height: 2, background: COLORS.tsb, opacity: 0.3 }} />
-            <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)' }}>TSB</Text>
-          </Group>
-        </Group>
-      </Group>
-      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto' }}>
-        {/* Grid lines */}
-        {[60, 80, 100, 120].map(v => (
-          <g key={v}>
-            <line x1={padding.left} y1={toY(v)} x2={width - padding.right} y2={toY(v)}
-              stroke="var(--tribos-border-default)" strokeWidth="0.5" strokeDasharray="4,4" opacity="0.5" />
-            <text x={padding.left - 6} y={toY(v) + 3} textAnchor="end"
-              style={{ fontSize: 9, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-muted)' }}>
-              {v}
-            </text>
-          </g>
-        ))}
-
-        {/* TSB fill area */}
-        <path d={tsbPath} fill={COLORS.tsb} className={`chart-area-fill ${animate ? 'animate' : ''}`}
-          opacity="0.08" />
-
-        {/* CTL line (Fitness) */}
-        <path ref={ctlRef} d={ctlPath} fill="none" stroke={COLORS.ctl} strokeWidth="2"
-          strokeLinecap="round" strokeLinejoin="round"
-          style={{
-            strokeDasharray: ctlLength,
-            strokeDashoffset: animate ? 0 : ctlLength,
-            transition: animate ? 'stroke-dashoffset 2s ease-out' : 'none',
-          }}
-        />
-
-        {/* ATL line (Fatigue) */}
-        <path ref={atlRef} d={atlPath} fill="none" stroke={COLORS.atl} strokeWidth="2"
-          strokeLinecap="round" strokeLinejoin="round"
-          style={{
-            strokeDasharray: atlLength,
-            strokeDashoffset: animate ? 0 : atlLength,
-            transition: animate ? 'stroke-dashoffset 2s ease-out 0.3s' : 'none',
-          }}
-        />
-      </svg>
-    </Paper>
-  );
-}
-
-function PowerDurationCurve({ animate }) {
-  const width = 400;
-  const height = 180;
-  const padding = { top: 20, right: 10, bottom: 30, left: 40 };
-  const chartW = width - padding.left - padding.right;
-  const chartH = height - padding.top - padding.bottom;
-
-  const maxWatts = 1400;
-  const minWatts = 180;
-  const ftp = 295;
-
-  // Log scale for x-axis
-  const logMin = Math.log10(1);
-  const logMax = Math.log10(7200);
-  const toX = (sec) => padding.left + ((Math.log10(sec) - logMin) / (logMax - logMin)) * chartW;
-  const toY = (watts) => padding.top + ((maxWatts - watts) / (maxWatts - minWatts)) * chartH;
-
-  const linePath = pdcData.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(d.sec)},${toY(d.watts)}`).join(' ');
-  const areaPath = linePath
-    + `L${toX(pdcData[pdcData.length - 1].sec)},${padding.top + chartH}`
-    + `L${toX(pdcData[0].sec)},${padding.top + chartH}Z`;
-
-  const pathRef = useRef(null);
-  const [pathLength, setPathLength] = useState(1000);
-
-  useEffect(() => {
-    if (pathRef.current) setPathLength(pathRef.current.getTotalLength());
-  }, []);
-
-  const xLabels = [
-    { sec: 1, label: '1s' }, { sec: 60, label: '1m' }, { sec: 300, label: '5m' },
-    { sec: 1200, label: '20m' }, { sec: 3600, label: '1h' },
+// ===== Training Load Data (90 days, daily) =====
+// Generates realistic CTL/ATL/TSB for a Cat 3 racer in a build phase
+const trainingLoadData = (() => {
+  // Daily TSS values for 90 days — 3:1 periodization
+  // Cat 3: ~8-10h/week, lower TSS per session
+  const dailyTSS = [
+    // Week 1 (Build 1.1) - moderate
+    60, 0, 80, 45, 0, 100, 40,
+    // Week 2 (Build 1.2) - increasing
+    65, 0, 85, 50, 0, 110, 45,
+    // Week 3 (Build 1.3) - peak
+    75, 0, 95, 55, 0, 120, 50,
+    // Week 4 (Recovery 1)
+    35, 0, 40, 30, 0, 50, 0,
+    // Week 5 (Build 2.1)
+    70, 0, 90, 50, 0, 110, 45,
+    // Week 6 (Build 2.2)
+    75, 0, 100, 60, 0, 125, 50,
+    // Week 7 (Build 2.3) - peak
+    85, 0, 110, 65, 0, 135, 55,
+    // Week 8 (Recovery 2)
+    35, 0, 45, 30, 0, 55, 0,
+    // Week 9 (Build 3.1)
+    80, 0, 105, 60, 0, 120, 50,
+    // Week 10 (Build 3.2)
+    85, 0, 115, 65, 0, 130, 55,
+    // Week 11 (Build 3.3) - peak
+    90, 0, 120, 70, 0, 140, 55,
+    // Week 12 (Taper)
+    50, 0, 60, 40, 0, 65, 35,
+    // Week 13 (Race week taper)
+    40, 0, 50, 30, 0, 40, 25,
   ];
 
-  return (
-    <Paper p="sm" style={{ overflow: 'hidden' }}>
-      <Text size="xs" fw={600} mb="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-        Power Duration Curve
-      </Text>
-      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto' }}>
-        {/* Grid lines */}
-        {[400, 600, 800, 1000, 1200].map(v => (
-          <g key={v}>
-            <line x1={padding.left} y1={toY(v)} x2={width - padding.right} y2={toY(v)}
-              stroke="var(--tribos-border-default)" strokeWidth="0.5" strokeDasharray="4,4" opacity="0.5" />
-            <text x={padding.left - 6} y={toY(v) + 3} textAnchor="end"
-              style={{ fontSize: 9, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-muted)' }}>
-              {v}w
-            </text>
-          </g>
-        ))}
+  // Calculate CTL (42-day EMA) and ATL (7-day EMA)
+  let ctl = 52; // Starting CTL
+  let atl = 48; // Starting ATL
+  const data = [];
 
-        {/* FTP reference line — matches actual PowerDurationCurve.jsx */}
-        <line
-          x1={padding.left} y1={toY(ftp)} x2={width - padding.right} y2={toY(ftp)}
-          stroke={COLORS.zone4} strokeWidth="1" strokeDasharray="5,5" opacity="0.6"
-        />
-        <text x={width - padding.right + 2} y={toY(ftp) + 3}
-          style={{ fontSize: 8, fontFamily: "'DM Mono', monospace", fill: COLORS.zone4 }}>
-          FTP
-        </text>
+  for (let i = 0; i < 90; i++) {
+    const tss = dailyTSS[i] || 0;
+    ctl = ctl + (tss - ctl) / 42;
+    atl = atl + (tss - atl) / 7;
+    const tsb = Math.round(ctl - atl);
 
-        {/* X-axis labels */}
-        {xLabels.map(({ sec, label }) => (
-          <text key={sec} x={toX(sec)} y={height - 6} textAnchor="middle"
-            style={{ fontSize: 9, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-muted)' }}>
-            {label}
-          </text>
-        ))}
+    const date = new Date(2026, 0, 7 + i); // Starting Jan 7
+    data.push({
+      date: date.toISOString().split('T')[0],
+      formattedDate: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      tss: Math.round(tss),
+      ctl: Math.round(ctl),
+      atl: Math.round(atl),
+      tsb,
+    });
+  }
 
-        {/* Area fill */}
-        <path d={areaPath} fill={COLORS.pdcFill} className={`chart-area-fill ${animate ? 'animate' : ''}`}
-          opacity="0.08" />
+  return data;
+})();
 
-        {/* Line */}
-        <path ref={pathRef} d={linePath} fill="none" stroke={COLORS.pdc} strokeWidth="2"
-          strokeLinecap="round" strokeLinejoin="round"
-          style={{
-            strokeDasharray: pathLength,
-            strokeDashoffset: animate ? 0 : pathLength,
-            transition: animate ? 'stroke-dashoffset 2.5s ease-out' : 'none',
-          }}
-        />
-      </svg>
-    </Paper>
-  );
-}
-
-function ZoneDistribution({ animate }) {
-  const width = 400;
-  const height = 180;
-  const padding = { top: 10, right: 10, bottom: 40, left: 10 };
-  const chartH = height - padding.top - padding.bottom;
-  const barWidth = 44;
-  const gap = 14;
-  const totalWidth = zoneData.length * barWidth + (zoneData.length - 1) * gap;
-  const startX = (width - totalWidth) / 2;
-
-  const maxPct = 58;
-
-  return (
-    <Paper p="sm" style={{ overflow: 'hidden' }}>
-      <Text size="xs" fw={600} mb="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-        Zone Distribution
-      </Text>
-      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto' }}>
-        {zoneData.map((d, i) => {
-          const x = startX + i * (barWidth + gap);
-          const barH = (d.pct / maxPct) * chartH;
-          const y = padding.top + chartH - barH;
-
-          return (
-            <g key={d.zone}>
-              {/* Bar */}
-              <rect
-                x={x} y={y} width={barWidth} height={barH}
-                fill={d.color}
-                opacity="0.8"
-                style={{
-                  transformOrigin: `${x + barWidth / 2}px ${padding.top + chartH}px`,
-                  transform: animate ? 'scaleY(1)' : 'scaleY(0)',
-                  transition: `transform 0.6s ease-out ${0.1 + i * 0.1}s`,
-                }}
-              />
-              {/* Percentage label */}
-              <text x={x + barWidth / 2} y={y - 6} textAnchor="middle"
-                style={{
-                  fontSize: 10, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-secondary)',
-                  opacity: animate ? 1 : 0,
-                  transition: `opacity 0.3s ease-out ${0.4 + i * 0.1}s`,
-                }}>
-                {d.pct}%
-              </text>
-              {/* Zone label */}
-              <text x={x + barWidth / 2} y={height - 22} textAnchor="middle"
-                style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", fontWeight: 600, fill: d.color }}>
-                {d.zone}
-              </text>
-              {/* Zone name */}
-              <text x={x + barWidth / 2} y={height - 8} textAnchor="middle"
-                style={{ fontSize: 8, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-muted)' }}>
-                {d.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </Paper>
-  );
-}
-
-// Route suitability mock data — matches app's scoring system (0-100 per workout type)
-const routeSuitability = [
-  { label: 'Endurance', score: 95, color: COLORS.zone2 },
-  { label: 'Tempo', score: 82, color: COLORS.zone3 },
-  { label: 'Threshold', score: 71, color: COLORS.zone4 },
-  { label: 'VO2max', score: 58, color: COLORS.zone5 },
-  { label: 'Climbing', score: 34, color: COLORS.zone6 },
+// ===== Power Duration Curve Data =====
+// Cat 3 all-rounder, 90-day bests
+const pdcData = [
+  { duration: '5s', durationSeconds: 5, name: 'Peak Sprint', current: 980, previous: 940, currentWkg: '12.89', previousWkg: '12.37' },
+  { duration: '15s', durationSeconds: 15, name: 'Sprint', current: 720, previous: 690, currentWkg: '9.47', previousWkg: '9.08' },
+  { duration: '30s', durationSeconds: 30, name: 'Anaerobic', current: 530, previous: 505, currentWkg: '6.97', previousWkg: '6.64' },
+  { duration: '1m', durationSeconds: 60, name: '1 Minute', current: 390, previous: 370, currentWkg: '5.13', previousWkg: '4.87' },
+  { duration: '2m', durationSeconds: 120, name: '2 Minutes', current: 330, previous: 315, currentWkg: '4.34', previousWkg: '4.14' },
+  { duration: '5m', durationSeconds: 300, name: '5 Minutes', current: 290, previous: 275, currentWkg: '3.82', previousWkg: '3.62' },
+  { duration: '8m', durationSeconds: 480, name: '8 Minutes', current: 275, previous: 260, currentWkg: '3.62', previousWkg: '3.42' },
+  { duration: '10m', durationSeconds: 600, name: '10 Minutes', current: 268, previous: 254, currentWkg: '3.53', previousWkg: '3.34' },
+  { duration: '20m', durationSeconds: 1200, name: '20 Minutes', current: 258, previous: 245, currentWkg: '3.39', previousWkg: '3.22' },
+  { duration: '30m', durationSeconds: 1800, name: '30 Minutes', current: 250, previous: 238, currentWkg: '3.29', previousWkg: '3.13' },
+  { duration: '60m', durationSeconds: 3600, name: '60 Minutes', current: 235, previous: 222, currentWkg: '3.09', previousWkg: '2.92' },
+  { duration: '90m', durationSeconds: 5400, name: '90 Minutes', current: 218, previous: 206, currentWkg: '2.87', previousWkg: '2.71' },
+  { duration: '2h', durationSeconds: 7200, name: '2 Hours', current: 205, previous: 195, currentWkg: '2.70', previousWkg: '2.57' },
 ];
 
-// Simplified route profile — elevation over distance (mock 50km rolling ride)
+const powerBests = {
+  sprint5s: 980,
+  oneMin: 390,
+  fiveMin: 290,
+  twentyMin: 258,
+  sixtyMin: 235,
+};
+
+// ===== Zone Distribution Data =====
+// 90-day, pyramidal training (Cat 3 racer — more tempo than polarized)
+const zoneChartData = [
+  { zone: 1, name: 'Recovery', time: 10800, percentage: 12, hours: '3.0', color: tokens.colors.zone1 },
+  { zone: 2, name: 'Endurance', time: 39600, percentage: 44, hours: '11.0', color: tokens.colors.zone2 },
+  { zone: 3, name: 'Tempo', time: 14400, percentage: 16, hours: '4.0', color: tokens.colors.zone3 },
+  { zone: 4, name: 'Threshold', time: 12600, percentage: 14, hours: '3.5', color: tokens.colors.zone4 },
+  { zone: 5, name: 'VO2max', time: 9000, percentage: 10, hours: '2.5', color: tokens.colors.zone5 },
+  { zone: 6, name: 'Anaerobic', time: 3600, percentage: 4, hours: '1.0', color: tokens.colors.zone6 },
+];
+
+// ===== Route Intelligence Data =====
+const routeSuitability = [
+  { label: 'Endurance', score: 95, color: tokens.colors.zone2 },
+  { label: 'Tempo', score: 82, color: tokens.colors.zone3 },
+  { label: 'Threshold', score: 71, color: tokens.colors.zone4 },
+  { label: 'VO2max', score: 58, color: tokens.colors.zone5 },
+  { label: 'Climbing', score: 34, color: tokens.colors.zone6 },
+];
+
 const routeProfile = [
   { km: 0, elev: 120 }, { km: 3, elev: 125 }, { km: 6, elev: 155 },
   { km: 9, elev: 180 }, { km: 12, elev: 160 }, { km: 15, elev: 140 },
@@ -337,16 +133,424 @@ const routeProfile = [
   { km: 45, elev: 130 }, { km: 48, elev: 125 }, { km: 50, elev: 120 },
 ];
 
-// Terrain segment ranges (km start, km end, type)
 const terrainSegments = [
-  { start: 0, end: 6, type: 'flat', color: COLORS.zone2 },
-  { start: 6, end: 12, type: 'rolling', color: COLORS.zone3 },
-  { start: 12, end: 21, type: 'flat', color: COLORS.zone2 },
-  { start: 21, end: 36, type: 'climb', color: COLORS.zone4 },
-  { start: 36, end: 45, type: 'descent', color: '#3D8B50' },
-  { start: 45, end: 50, type: 'flat', color: COLORS.zone2 },
+  { start: 0, end: 6, type: 'flat', color: tokens.colors.zone2 },
+  { start: 6, end: 12, type: 'rolling', color: tokens.colors.zone3 },
+  { start: 12, end: 21, type: 'flat', color: tokens.colors.zone2 },
+  { start: 21, end: 36, type: 'climb', color: tokens.colors.zone4 },
+  { start: 36, end: 45, type: 'descent', color: tokens.colors.zone1 },
+  { start: 45, end: 50, type: 'flat', color: tokens.colors.zone2 },
 ];
 
+
+// ===== Custom Tooltip (shared) =====
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload || payload.length === 0) return null;
+  return (
+    <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+      <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>{label}</Text>
+      {payload.map((entry, index) => (
+        <Group key={index} justify="space-between" gap="md">
+          <Text size="xs" style={{ color: entry.color }}>{entry.name}:</Text>
+          <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>{entry.value}</Text>
+        </Group>
+      ))}
+    </Card>
+  );
+}
+
+
+// ===== Training Load Chart (Recharts — matches TrainingLoadChart.jsx) =====
+function TrainingLoadSection() {
+  // Show last 30 days by default, matching app
+  const displayData = trainingLoadData.slice(-30);
+
+  return (
+    <Card>
+      <Group justify="space-between" mb="md" wrap="wrap">
+        <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          Training Load Over Time
+        </Text>
+        <SegmentedControl
+          size="xs"
+          value="30"
+          readOnly
+          data={[
+            { label: '7 days', value: '7' },
+            { label: '30 days', value: '30' },
+            { label: '90 days', value: '90' },
+          ]}
+        />
+      </Group>
+
+      {/* Legend badges — matches app */}
+      <Group gap="xs" mb="md">
+        <Badge color="blue" variant="light" size="sm">CTL (Fitness)</Badge>
+        <Badge color="orange" variant="light" size="sm">ATL (Fatigue)</Badge>
+        <Badge color="green" variant="light" size="sm">TSB (Form)</Badge>
+      </Group>
+
+      {/* Daily TSS Area Chart */}
+      <ResponsiveContainer width="100%" height={120}>
+        <AreaChart data={displayData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--tribos-bg-tertiary)" />
+          <XAxis
+            dataKey="formattedDate"
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            interval="preserveStartEnd"
+          />
+          <YAxis tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }} />
+          <RechartsTooltip content={<ChartTooltip />} />
+          <Area
+            type="monotone"
+            dataKey="tss"
+            stroke="#3D8B50"
+            fill="#3D8B50"
+            fillOpacity={0.3}
+            name="Daily TSS"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+
+      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="lg" mt="xs">
+        Daily Training Stress Score
+      </Text>
+
+      {/* CTL/ATL/TSB Line Chart */}
+      <ResponsiveContainer width="100%" height={220}>
+        <LineChart data={displayData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--tribos-bg-tertiary)" />
+          <XAxis
+            dataKey="formattedDate"
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            interval="preserveStartEnd"
+          />
+          <YAxis tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }} />
+          <RechartsTooltip content={<ChartTooltip />} />
+          <Legend wrapperStyle={{ fontSize: 13 }} />
+          <ReferenceLine y={0} stroke="var(--tribos-text-muted)" strokeDasharray="3 3" />
+          <Line type="monotone" dataKey="ctl" stroke="#3A5A8C" strokeWidth={2} dot={false} name="CTL (Fitness)" />
+          <Line type="monotone" dataKey="atl" stroke="#D4820A" strokeWidth={2} dot={false} name="ATL (Fatigue)" />
+          <Line type="monotone" dataKey="tsb" stroke="#3D8B50" strokeWidth={2} dot={false} name="TSB (Form)" />
+        </LineChart>
+      </ResponsiveContainer>
+
+      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt="xs">
+        CTL = Long-term fitness (42-day) | ATL = Recent fatigue (7-day) | TSB = Freshness/Form (CTL - ATL)
+      </Text>
+    </Card>
+  );
+}
+
+
+// ===== Power Metric Card (matches PowerDurationCurve.jsx) =====
+function PowerMetricCard({ label, value, color, isFtp }) {
+  const wkg = (value / WEIGHT).toFixed(2);
+  return (
+    <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+      <Text size="xs" c="dimmed">{label}</Text>
+      <Text size="sm" fw={700} c={color}>{value}W</Text>
+      <Text size="xs" c="dimmed">{wkg}</Text>
+    </Paper>
+  );
+}
+
+
+// ===== Power Duration Curve (Recharts — matches PowerDurationCurve.jsx) =====
+function PowerDurationSection() {
+  const PDCTooltip = ({ active, payload }) => {
+    if (!active || !payload || payload.length === 0) return null;
+    const data = payload[0].payload;
+    return (
+      <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+        <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+          {data.name}
+        </Text>
+        {data.current && (
+          <Group justify="space-between" gap="md">
+            <Text size="xs" c="yellow">Current:</Text>
+            <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+              {data.current}W ({data.currentWkg} W/kg)
+            </Text>
+          </Group>
+        )}
+        {data.previous && (
+          <Group justify="space-between" gap="md">
+            <Text size="xs" c="dimmed">Previous:</Text>
+            <Text size="xs" c="dimmed">{data.previous}W</Text>
+          </Group>
+        )}
+        {data.current && data.previous && (
+          <Group justify="space-between" gap="md">
+            <Text size="xs" c="green">
+              +{data.current - data.previous}W
+            </Text>
+          </Group>
+        )}
+      </Card>
+    );
+  };
+
+  return (
+    <Card>
+      <Group justify="space-between" mb="md" wrap="wrap">
+        <Group gap="sm">
+          <IconBolt size={20} color={tokens.colors.zone4} />
+          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            Power Duration Curve
+          </Text>
+          <Badge color="grape" variant="light" size="sm">All-Rounder</Badge>
+        </Group>
+        <SegmentedControl
+          size="xs"
+          value="90"
+          readOnly
+          data={[
+            { label: '42 days', value: '42' },
+            { label: '90 days', value: '90' },
+            { label: '1 year', value: '365' },
+            { label: 'All time', value: 'all' },
+          ]}
+        />
+      </Group>
+
+      {/* Key Power Metrics */}
+      <SimpleGrid cols={{ base: 3, sm: 6 }} spacing="xs" mb="md">
+        <PowerMetricCard label="5s" value={powerBests.sprint5s} color="pink" />
+        <PowerMetricCard label="1m" value={powerBests.oneMin} color="red" />
+        <PowerMetricCard label="5m" value={powerBests.fiveMin} color="orange" />
+        <PowerMetricCard label="20m" value={powerBests.twentyMin} color="yellow" />
+        <PowerMetricCard label="60m" value={powerBests.sixtyMin} color="green" />
+        <PowerMetricCard label="FTP" value={FTP} color="blue" isFtp />
+      </SimpleGrid>
+
+      {/* Power Curve Chart */}
+      <ResponsiveContainer width="100%" height={280}>
+        <LineChart data={pdcData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--tribos-bg-tertiary)" />
+          <XAxis dataKey="duration" tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }} />
+          <YAxis
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            label={{
+              value: 'Watts',
+              angle: -90,
+              position: 'insideLeft',
+              style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 12 },
+            }}
+          />
+          <RechartsTooltip content={<PDCTooltip />} />
+          <ReferenceLine
+            y={FTP}
+            stroke={tokens.colors.zone4}
+            strokeDasharray="5 5"
+            label={{
+              value: 'FTP: 250W',
+              position: 'right',
+              fill: tokens.colors.zone4,
+              fontSize: 11,
+            }}
+          />
+          <Line
+            type="monotone"
+            dataKey="previous"
+            stroke="var(--tribos-text-muted)"
+            strokeWidth={1}
+            strokeDasharray="3 3"
+            dot={false}
+            name="Previous"
+          />
+          <Line
+            type="monotone"
+            dataKey="current"
+            stroke="#D4820A"
+            strokeWidth={2}
+            dot={{ fill: '#D4820A', r: 3 }}
+            activeDot={{ r: 5, fill: '#D4820A' }}
+            name="Current"
+          />
+        </LineChart>
+      </ResponsiveContainer>
+
+      {/* Rider type description */}
+      <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Group gap="xs">
+          <IconTrophy size={16} color="var(--tribos-terracotta-500)" />
+          <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text span fw={600} c="grape">All-Rounder</Text>
+            {' - '}Balanced power profile
+          </Text>
+        </Group>
+      </Paper>
+
+      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt="md">
+        Power curve shows best efforts at each duration. Dashed line shows previous period for comparison.
+      </Text>
+    </Card>
+  );
+}
+
+
+// ===== Zone Distribution (Recharts — matches ZoneDistributionChart.jsx) =====
+function ZoneDistributionSection() {
+  const totalTimeSeconds = 90000; // ~25 hours
+  const z2Pct = 44;
+  const highIntensityPct = 28;
+
+  const ZoneTooltip = ({ active, payload }) => {
+    if (!active || !payload || payload.length === 0) return null;
+    const data = payload[0].payload;
+    return (
+      <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+        <Group gap="xs" mb="xs">
+          <Box w={12} h={12} style={{ backgroundColor: data.color, borderRadius: 2 }} />
+          <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            Zone {data.zone}: {data.name}
+          </Text>
+        </Group>
+        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+          {data.hours}h ({data.percentage}%)
+        </Text>
+      </Card>
+    );
+  };
+
+  return (
+    <Card>
+      <Group justify="space-between" mb="md" wrap="wrap">
+        <Group gap="sm">
+          <IconChartPie size={20} color="var(--tribos-terracotta-500)" />
+          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            Training Zone Distribution
+          </Text>
+          <Badge color="blue" variant="light" size="sm">Pyramidal</Badge>
+        </Group>
+        <Group gap="xs">
+          <SegmentedControl
+            size="xs"
+            value="90"
+            readOnly
+            data={[
+              { label: '7d', value: '7' },
+              { label: '30d', value: '30' },
+              { label: '90d', value: '90' },
+            ]}
+          />
+          <SegmentedControl
+            size="xs"
+            value="bar"
+            readOnly
+            data={[
+              { label: 'Bar', value: 'bar' },
+              { label: 'Pie', value: 'pie' },
+            ]}
+          />
+        </Group>
+      </Group>
+
+      {/* Summary Stats */}
+      <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs" mb="md">
+        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+          <Group gap="xs">
+            <IconClock size={14} color="var(--tribos-text-muted)" />
+            <Text size="xs" c="dimmed">Total Time</Text>
+          </Group>
+          <Text size="sm" fw={600}>25h 0m</Text>
+        </Paper>
+        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+          <Group gap="xs">
+            <Box w={8} h={8} style={{ backgroundColor: tokens.colors.zone2, borderRadius: '50%' }} />
+            <Text size="xs" c="dimmed">Zone 2</Text>
+          </Group>
+          <Text size="sm" fw={600}>{z2Pct}%</Text>
+        </Paper>
+        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+          <Group gap="xs">
+            <IconFlame size={14} color={tokens.colors.zone5} />
+            <Text size="xs" c="dimmed">High Intensity</Text>
+          </Group>
+          <Text size="sm" fw={600}>{highIntensityPct}%</Text>
+        </Paper>
+        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+          <Text size="xs" c="dimmed">Activities</Text>
+          <Text size="sm" fw={600}>32</Text>
+        </Paper>
+      </SimpleGrid>
+
+      {/* Bar Chart */}
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={zoneChartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--tribos-bg-tertiary)" />
+          <XAxis
+            dataKey="name"
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            angle={-20}
+            textAnchor="end"
+            height={50}
+          />
+          <YAxis
+            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            label={{
+              value: '%',
+              angle: -90,
+              position: 'insideLeft',
+              style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 12 },
+            }}
+          />
+          <RechartsTooltip content={<ZoneTooltip />} />
+          <Bar dataKey="percentage" radius={[4, 4, 0, 0]}>
+            {zoneChartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.color} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+
+      {/* Zone Breakdown with Progress Bars */}
+      <Stack gap="xs" mt="md">
+        {zoneChartData.map((zone) => (
+          <Group key={zone.zone} gap="sm" align="center">
+            <Badge
+              w={25}
+              h={25}
+              p={0}
+              style={{ backgroundColor: zone.color }}
+              variant="filled"
+            >
+              <Text size="xs" fw={700}>{zone.zone}</Text>
+            </Badge>
+            <Box style={{ flex: 1 }}>
+              <Group justify="space-between" mb={2}>
+                <Text size="xs">{zone.name}</Text>
+                <Text size="xs" c="dimmed">{zone.hours}h ({zone.percentage}%)</Text>
+              </Group>
+              <Progress
+                value={zone.percentage}
+                color={zone.color}
+                size="xs"
+                radius="xl"
+              />
+            </Box>
+          </Group>
+        ))}
+      </Stack>
+
+      {/* Distribution insight */}
+      <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+          <Text span fw={600} c="blue">Pyramidal Distribution:</Text>
+          {' '}Good mix of endurance and intensity
+        </Text>
+      </Paper>
+
+      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt="md">
+        Zone distribution estimated from average power/HR. 80/20 polarized training is optimal for most athletes.
+      </Text>
+    </Card>
+  );
+}
+
+
+// ===== Route Intelligence (SVG — no direct Recharts equivalent in app) =====
 function RouteIntelligence({ animate }) {
   const width = 400;
   const height = 120;
@@ -361,7 +565,6 @@ function RouteIntelligence({ animate }) {
   const toX = (km) => padding.left + (km / maxKm) * chartW;
   const toY = (elev) => padding.top + ((maxElev - elev) / (maxElev - minElev)) * chartH;
 
-  // Build elevation profile path
   const profilePath = routeProfile.map((d, i) =>
     `${i === 0 ? 'M' : 'L'}${toX(d.km)},${toY(d.elev)}`
   ).join(' ');
@@ -373,7 +576,6 @@ function RouteIntelligence({ animate }) {
     if (profileRef.current) setProfileLength(profileRef.current.getTotalLength());
   }, []);
 
-  // Bar chart dimensions for suitability scores
   const barH = 12;
   const barGap = 6;
   const barMaxW = 130;
@@ -384,10 +586,8 @@ function RouteIntelligence({ animate }) {
         Route Intelligence
       </Text>
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-        {/* Left: Elevation profile with colored terrain segments */}
         <Box>
           <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto' }}>
-            {/* Grid lines */}
             {[150, 200, 250].map(v => (
               <g key={v}>
                 <line x1={padding.left} y1={toY(v)} x2={width - padding.right} y2={toY(v)}
@@ -399,7 +599,6 @@ function RouteIntelligence({ animate }) {
               </g>
             ))}
 
-            {/* Colored terrain segment fills under the profile */}
             {terrainSegments.map((seg, i) => {
               const segPoints = routeProfile.filter(d => d.km >= seg.start && d.km <= seg.end);
               if (segPoints.length < 2) return null;
@@ -418,7 +617,6 @@ function RouteIntelligence({ animate }) {
               );
             })}
 
-            {/* Elevation profile line */}
             <path ref={profileRef} d={profilePath} fill="none" stroke="var(--tribos-text-secondary)" strokeWidth="1.5"
               strokeLinecap="round" strokeLinejoin="round"
               style={{
@@ -428,7 +626,6 @@ function RouteIntelligence({ animate }) {
               }}
             />
 
-            {/* Distance labels */}
             {[0, 10, 20, 30, 40, 50].map(km => (
               <text key={km} x={toX(km)} y={height - 6} textAnchor="middle"
                 style={{ fontSize: 8, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-muted)' }}>
@@ -437,13 +634,12 @@ function RouteIntelligence({ animate }) {
             ))}
           </svg>
 
-          {/* Terrain legend */}
           <Group gap="xs" mt={4} justify="center">
             {[
-              { label: 'Flat', color: COLORS.zone2 },
-              { label: 'Rolling', color: COLORS.zone3 },
-              { label: 'Climb', color: COLORS.zone4 },
-              { label: 'Descent', color: '#3D8B50' },
+              { label: 'Flat', color: tokens.colors.zone2 },
+              { label: 'Rolling', color: tokens.colors.zone3 },
+              { label: 'Climb', color: tokens.colors.zone4 },
+              { label: 'Descent', color: tokens.colors.zone1 },
             ].map(t => (
               <Group key={t.label} gap={3}>
                 <Box style={{ width: 8, height: 8, background: t.color, opacity: 0.6 }} />
@@ -455,7 +651,6 @@ function RouteIntelligence({ animate }) {
           </Group>
         </Box>
 
-        {/* Right: Suitability scores as horizontal bars */}
         <Box>
           <svg viewBox={`0 0 240 ${routeSuitability.length * (barH + barGap) + 10}`} style={{ width: '100%', height: 'auto' }}>
             {routeSuitability.map((d, i) => {
@@ -463,15 +658,12 @@ function RouteIntelligence({ animate }) {
               const barW = (d.score / 100) * barMaxW;
               return (
                 <g key={d.label}>
-                  {/* Label */}
                   <text x={0} y={y + barH - 2}
                     style={{ fontSize: 10, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-secondary)' }}>
                     {d.label}
                   </text>
-                  {/* Background bar */}
                   <rect x={75} y={y} width={barMaxW} height={barH} rx={0}
                     fill="var(--tribos-border-default)" opacity="0.3" />
-                  {/* Score bar */}
                   <rect x={75} y={y} width={barW} height={barH} rx={0}
                     fill={d.color} opacity="0.7"
                     style={{
@@ -480,7 +672,6 @@ function RouteIntelligence({ animate }) {
                       transition: `transform 0.6s ease-out ${0.6 + i * 0.1}s`,
                     }}
                   />
-                  {/* Score text */}
                   <text x={75 + barMaxW + 8} y={y + barH - 2}
                     style={{
                       fontSize: 10, fontFamily: "'DM Mono', monospace", fontWeight: 600, fill: d.color,
@@ -499,8 +690,8 @@ function RouteIntelligence({ animate }) {
   );
 }
 
-// ===== Main AnalyzeStep Component =====
 
+// ===== Main AnalyzeStep Component =====
 export default function AnalyzeStep() {
   const { ref, isVisible } = useScrollReveal({ threshold: 0.15 });
   const reducedMotion = usePrefersReducedMotion();
@@ -511,7 +702,6 @@ export default function AnalyzeStep() {
       if (reducedMotion) {
         setAnimate(true);
       } else {
-        // Small delay so the section reveals first, then charts animate
         const timer = setTimeout(() => setAnimate(true), 400);
         return () => clearTimeout(timer);
       }
@@ -554,10 +744,10 @@ export default function AnalyzeStep() {
 
             <SimpleGrid className="step-content" cols={{ base: 1, md: 2 }} spacing="lg" style={{ width: '100%' }}>
               <Box style={{ gridColumn: '1 / -1' }}>
-                <FitnessChart animate={animate} />
+                <TrainingLoadSection />
               </Box>
-              <PowerDurationCurve animate={animate} />
-              <ZoneDistribution animate={animate} />
+              <PowerDurationSection />
+              <ZoneDistributionSection />
               <Box style={{ gridColumn: '1 / -1' }}>
                 <RouteIntelligence animate={animate} />
               </Box>
