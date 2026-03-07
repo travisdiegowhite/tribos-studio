@@ -3810,10 +3810,10 @@ function RouteBuilder() {
                   styles={{
                     root: {
                       backgroundColor: 'var(--tribos-bg-tertiary)',
-                      border: '1px solid var(--tribos-terracotta-500)',
+                      border: '1px solid #6B7F94',
                     },
                     indicator: {
-                      backgroundColor: 'var(--tribos-terracotta-500)',
+                      backgroundColor: '#6B7F94',
                     },
                     label: {
                       fontWeight: 600,
