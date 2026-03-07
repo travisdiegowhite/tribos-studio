@@ -7,33 +7,33 @@
 
 /* ===== CSS Variables for Theme Switching ===== */
 
-/* Light theme (default) — cooler base system */
+/* Light theme (default) — neutral system */
 :root,
 :root[data-mantine-color-scheme='light'] {
-  /* ===== SURFACES (cooler base) ===== */
-  --tribos-void: #F7F7F9;
-  --tribos-nav: #EEEEF1;
-  --tribos-panel: #E2E2E7;
-  --tribos-card: #F9F9FB;
-  --tribos-card-top: #F9F9FB;
-  --tribos-card-bottom: #F9F9FB;
-  --tribos-card-hover: #F7F7F9;
-  --tribos-elevated: #F9F9FB;
-  --tribos-input: #F7F7F9;
+  /* ===== SURFACES ===== */
+  --tribos-void: #F4F4F4;
+  --tribos-nav: #ECECEC;
+  --tribos-panel: #E0E0E0;
+  --tribos-card: #FFFFFF;
+  --tribos-card-top: #FFFFFF;
+  --tribos-card-bottom: #FFFFFF;
+  --tribos-card-hover: #F4F4F4;
+  --tribos-elevated: #FFFFFF;
+  --tribos-input: #F4F4F4;
 
   /* ===== BORDERS ===== */
-  --tribos-border-subtle: #E2E2E7;
-  --tribos-border-default: #E2E2E7;
-  --tribos-border-hover: #0F0F12;
+  --tribos-border-subtle: #E0E0E0;
+  --tribos-border-default: #E0E0E0;
+  --tribos-border-hover: #0A0A0A;
 
   /* ===== SHADOWS ===== */
-  --tribos-shadow-xs: 0 1px 2px rgba(10, 10, 12, 0.04);
+  --tribos-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
   --tribos-shadow-card:
-    0 1px 3px rgba(10, 10, 12, 0.07),
-    0 4px 12px rgba(10, 10, 12, 0.04);
+    0 1px 3px rgba(0, 0, 0, 0.07),
+    0 4px 12px rgba(0, 0, 0, 0.05);
   --tribos-shadow-card-hover:
-    0 4px 12px rgba(10, 10, 12, 0.1),
-    0 2px 4px rgba(10, 10, 12, 0.06);
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.06);
   --tribos-shadow-panel: none;
   --tribos-shadow-inset: none;
 
@@ -56,15 +56,15 @@
   --tribos-teal-surface: rgba(92, 122, 94, 0.1);
   --tribos-teal-border: rgba(92, 122, 94, 0.25);
 
-  /* ===== SAGE (now forest — Z1 recovery) ===== */
-  --tribos-sage-500: #6B8C72;
-  --tribos-sage-surface: rgba(107, 140, 114, 0.1);
-  --tribos-sage-border: rgba(107, 140, 114, 0.25);
+  /* ===== SAGE (green — success, positive metrics) ===== */
+  --tribos-sage-500: #3D8B50;
+  --tribos-sage-surface: rgba(61, 139, 80, 0.11);
+  --tribos-sage-border: rgba(61, 139, 80, 0.25);
 
-  /* ===== GOLD (now amber — Z3 tempo) ===== */
-  --tribos-gold-500: #B8860B;
-  --tribos-gold-surface: rgba(184, 134, 11, 0.09);
-  --tribos-gold-border: rgba(184, 134, 11, 0.25);
+  /* ===== GOLD (amber — warnings, load alerts) ===== */
+  --tribos-gold-500: #D4820A;
+  --tribos-gold-surface: rgba(212, 130, 10, 0.09);
+  --tribos-gold-border: rgba(212, 130, 10, 0.25);
 
   /* ===== SKY (now iron — warm brown accent) ===== */
   --tribos-sky-500: #8B6B5A;
@@ -75,12 +75,12 @@
   --tribos-dustyrose-500: #8B6B5A;
 
   /* ===== TEXT ===== */
-  --tribos-text-100: #0F0F12;
-  --tribos-text-200: #2A2A30;
-  --tribos-text-300: #38383F;
-  --tribos-text-400: #72727E;
-  --tribos-text-500: #B8B8C0;
-  --tribos-text-600: #E2E2E7;
+  --tribos-text-100: #0A0A0A;
+  --tribos-text-200: #232323;
+  --tribos-text-300: #383838;
+  --tribos-text-400: #717171;
+  --tribos-text-500: #B0B0B0;
+  --tribos-text-600: #E0E0E0;
 
   /* ===== BACKWARD-COMPATIBLE ALIASES ===== */
   --tribos-bg-primary: var(--tribos-void);
@@ -116,7 +116,7 @@
 
   /* Legacy color aliases */
   --tribos-amber-500: var(--tribos-gold-500);
-  --tribos-amber-400: #D4A020;
+  --tribos-amber-400: #E09A20;
   --tribos-amber-surface: var(--tribos-gold-surface);
   --tribos-amber-border: var(--tribos-gold-border);
   --tribos-blue-500: var(--tribos-mauve-500);
@@ -140,7 +140,7 @@
 
   /* Selection */
   --tribos-selection-bg: rgba(58, 90, 140, 0.2);
-  --tribos-selection-color: #0F0F12;
+  --tribos-selection-color: #0A0A0A;
 
   /* Overlay */
   --tribos-overlay: rgba(0, 0, 0, 0.4);
@@ -170,8 +170,8 @@
   /* Shadows */
   --tribos-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
   --tribos-shadow-card:
-    0 1px 3px rgba(0, 0, 0, 0.3),
-    0 4px 12px rgba(0, 0, 0, 0.2);
+    0 1px 3px rgba(0, 0, 0, 0.30),
+    0 4px 12px rgba(0, 0, 0, 0.20);
   --tribos-shadow-card-hover:
     0 4px 12px rgba(0, 0, 0, 0.35),
     0 2px 4px rgba(0, 0, 0, 0.2);
@@ -196,20 +196,20 @@
   --tribos-mauve-surface: rgba(107, 127, 148, 0.1);
   --tribos-mauve-border: rgba(107, 127, 148, 0.25);
 
-  /* Teal (now moss) */
-  --tribos-teal-500: #507052;
-  --tribos-teal-surface: rgba(80, 112, 82, 0.1);
-  --tribos-teal-border: rgba(80, 112, 82, 0.25);
+  /* Teal (moss) */
+  --tribos-teal-500: #407045;
+  --tribos-teal-surface: rgba(64, 112, 69, 0.1);
+  --tribos-teal-border: rgba(64, 112, 69, 0.25);
 
-  /* Sage (now forest) */
-  --tribos-sage-500: #5E8068;
-  --tribos-sage-surface: rgba(94, 128, 104, 0.1);
-  --tribos-sage-border: rgba(94, 128, 104, 0.25);
+  /* Sage (green — success, lifted for dark) */
+  --tribos-sage-500: #52B068;
+  --tribos-sage-surface: rgba(82, 176, 104, 0.15);
+  --tribos-sage-border: rgba(82, 176, 104, 0.25);
 
-  /* Gold (now amber) */
-  --tribos-gold-500: #D49820;
-  --tribos-gold-surface: rgba(212, 152, 32, 0.12);
-  --tribos-gold-border: rgba(212, 152, 32, 0.25);
+  /* Gold (amber — warnings, lifted for dark) */
+  --tribos-gold-500: #F0960C;
+  --tribos-gold-surface: rgba(240, 150, 12, 0.12);
+  --tribos-gold-border: rgba(240, 150, 12, 0.25);
 
   /* Sky (now iron) */
   --tribos-sky-500: #7A5E4E;
@@ -249,7 +249,7 @@
 
   /* Legacy color aliases */
   --tribos-amber-500: var(--tribos-gold-500);
-  --tribos-amber-400: #E0AA30;
+  --tribos-amber-400: #F5A820;
   --tribos-amber-surface: var(--tribos-gold-surface);
   --tribos-amber-border: var(--tribos-gold-border);
   --tribos-blue-500: var(--tribos-mauve-500);
