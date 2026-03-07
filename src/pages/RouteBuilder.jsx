@@ -2314,12 +2314,16 @@ function RouteBuilder() {
     <Stack gap="md">
       {/* My Routes button (mobile) */}
       <Button
-        variant="light"
-        color="gray"
+        variant="outline"
+        color="terracotta"
         size="xs"
         leftSection={<IconFolderOpen size={14} />}
         onClick={() => setSavedRoutesOpen(true)}
         fullWidth
+        style={{
+          borderColor: 'var(--tribos-terracotta-500)',
+          color: 'var(--tribos-terracotta-500)',
+        }}
       >
         My Routes
       </Button>
@@ -2336,7 +2340,19 @@ function RouteBuilder() {
             { label: 'Ride Tools', value: 'tools' },
           ]}
           styles={{
-            root: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+            root: {
+              backgroundColor: 'var(--tribos-bg-tertiary)',
+              border: '1px solid var(--tribos-terracotta-500)',
+            },
+            indicator: {
+              backgroundColor: 'var(--tribos-terracotta-500)',
+            },
+            label: {
+              fontWeight: 600,
+              '&[data-active]': {
+                color: '#fff',
+              },
+            },
           }}
         />
       )}
@@ -3766,12 +3782,16 @@ function RouteBuilder() {
             <Stack gap="md">
               {/* My Routes button - always visible */}
               <Button
-                variant="light"
-                color="gray"
+                variant="outline"
+                color="terracotta"
                 size="xs"
                 leftSection={<IconFolderOpen size={14} />}
                 onClick={() => setSavedRoutesOpen(true)}
                 fullWidth
+                style={{
+                  borderColor: 'var(--tribos-terracotta-500)',
+                  color: 'var(--tribos-terracotta-500)',
+                }}
               >
                 My Routes
               </Button>
@@ -3790,6 +3810,16 @@ function RouteBuilder() {
                   styles={{
                     root: {
                       backgroundColor: 'var(--tribos-bg-tertiary)',
+                      border: '1px solid var(--tribos-terracotta-500)',
+                    },
+                    indicator: {
+                      backgroundColor: 'var(--tribos-terracotta-500)',
+                    },
+                    label: {
+                      fontWeight: 600,
+                      '&[data-active]': {
+                        color: '#fff',
+                      },
                     },
                   }}
                 />
