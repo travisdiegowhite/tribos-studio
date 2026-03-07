@@ -59,7 +59,7 @@ import POIPanel from '../components/RouteBuilder/POIPanel.jsx';
 import { generateSegmentAlternatives } from '../utils/segmentAlternatives';
 import SegmentAlternativesPanel from '../components/RouteBuilder/SegmentAlternativesPanel.jsx';
 import AlternativeRouteLayers from '../components/RouteBuilder/AlternativeRouteLayers.jsx';
-import { IconArrowsExchange, IconWand } from '@tabler/icons-react';
+import { IconArrowsExchange, IconWand, IconToolsKitchen2, IconGauge } from '@tabler/icons-react';
 import { applyRouteEdit, classifyEditIntent } from '../utils/aiRouteEditService';
 import AIEditPanel from '../components/RouteBuilder/AIEditPanel.jsx';
 import RunReachLayer from '../components/RunReachLayer.jsx';
@@ -111,6 +111,9 @@ function RouteBuilder() {
 
   // Check if store has been hydrated from localStorage
   const storeHydrated = useRouteBuilderHydrated();
+
+  // Sidebar tab state: 'route' for route creation, 'tools' for ride tools
+  const [sidebarTab, setSidebarTab] = useState('route');
 
   // Auto-detect builder mode on mount: if loading a saved route, go to editing;
   // if there's already a route geometry from a previous session, go to editing.
@@ -2321,6 +2324,23 @@ function RouteBuilder() {
         My Routes
       </Button>
 
+      {/* Sidebar Tab Switcher (mobile) */}
+      {builderMode !== 'ready' && (
+        <SegmentedControl
+          value={sidebarTab}
+          onChange={setSidebarTab}
+          fullWidth
+          size="sm"
+          data={[
+            { label: 'Route', value: 'route' },
+            { label: 'Ride Tools', value: 'tools' },
+          ]}
+          styles={{
+            root: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+          }}
+        />
+      )}
+
       {/* Mode selector (mobile - ready mode) */}
       {builderMode === 'ready' && (
         <ModeSelector
@@ -2330,7 +2350,7 @@ function RouteBuilder() {
       )}
 
       {/* AI / Editing controls (mobile) */}
-      {(builderMode === 'ai' || builderMode === 'editing') && (
+      {sidebarTab === 'route' && (builderMode === 'ai' || builderMode === 'editing') && (
       <>
 
       {/* Back to mode selection (mobile) */}
@@ -2692,19 +2712,6 @@ function RouteBuilder() {
         </Box>
       )}
 
-      {/* Weather Widget (compact for mobile) */}
-      {userLocation && (
-        <WeatherWidget
-          latitude={userLocation.latitude}
-          longitude={userLocation.longitude}
-          coordinates={routeGeometry?.coordinates}
-          isImperial={isImperial}
-          compact={true}
-          showWindAnalysis={false}
-          onWeatherUpdate={setWeatherData}
-        />
-      )}
-
       {/* Actions */}
       <Stack gap="sm">
         <Button
@@ -2882,7 +2889,7 @@ function RouteBuilder() {
       )}
 
       {/* Manual mode controls (mobile) */}
-      {builderMode === 'manual' && (
+      {sidebarTab === 'route' && builderMode === 'manual' && (
       <>
         {!routeGeometry && (
           <Button variant="subtle" color="gray" size="xs" onClick={() => setBuilderMode('ready')}>
@@ -2927,11 +2934,87 @@ function RouteBuilder() {
         </Button>
       </>
       )}
+
+      {/* === RIDE TOOLS TAB (mobile) === */}
+      {sidebarTab === 'tools' && builderMode !== 'ready' && (
+      <>
+        {/* Weather */}
+        {userLocation && (
+          <Paper p="md" withBorder style={{ borderColor: 'var(--tribos-bg-tertiary)', backgroundColor: 'var(--tribos-bg-primary)' }} radius={0}>
+            <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }} mb="sm">
+              Weather & Conditions
+            </Text>
+            <WeatherWidget
+              latitude={userLocation.latitude}
+              longitude={userLocation.longitude}
+              coordinates={routeGeometry?.coordinates}
+              isImperial={isImperial}
+              compact={true}
+              showWindAnalysis={false}
+              onWeatherUpdate={setWeatherData}
+            />
+          </Paper>
+        )}
+
+        {/* Fuel Plan */}
+        <Paper p="md" withBorder style={{ borderColor: 'var(--tribos-bg-tertiary)', backgroundColor: 'var(--tribos-bg-primary)' }} radius={0}>
+          <Group gap="xs" mb="sm">
+            <IconToolsKitchen2 size={18} style={{ color: 'var(--tribos-terracotta-500)' }} />
+            <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Fuel Plan</Text>
+            {routeStats.duration >= 45 && routeGeometry && (
+              <Badge size="xs" variant="light" color="green">Active</Badge>
+            )}
+          </Group>
+          {routeStats.duration >= 45 && routeGeometry ? (
+            <FuelCard
+              route={{ estimatedDurationMinutes: routeStats.duration, elevationGainMeters: routeStats.elevation || 0 }}
+              weather={weatherData ? { temperatureCelsius: weatherData.temperature, humidity: weatherData.humidity } : undefined}
+              compact={true}
+              useImperial={isImperial}
+            />
+          ) : (
+            <Text size="xs" c="dimmed">
+              {!routeGeometry ? 'Create a route to see your fuel plan.' : 'Fuel plan activates for rides over 45 minutes.'}
+            </Text>
+          )}
+        </Paper>
+
+        {/* Workout Structure */}
+        <Paper p="md" withBorder style={{ borderColor: 'var(--tribos-bg-tertiary)', backgroundColor: 'var(--tribos-bg-primary)' }} radius={0}>
+          <Group gap="xs" mb="sm">
+            <IconHeartRateMonitor size={18} style={{ color: 'var(--tribos-terracotta-500)' }} />
+            <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Workout Structure</Text>
+            {intervalCues && intervalCues.length > 0 && (
+              <Badge size="xs" variant="filled" color="terracotta">{intervalCues.length}</Badge>
+            )}
+          </Group>
+          {intervalCues && intervalCues.length > 0 ? (
+            <IntervalCues cues={intervalCues} formatDistance={formatDist} />
+          ) : (
+            <Text size="xs" c="dimmed">Select a workout in route configuration to see interval structure here.</Text>
+          )}
+        </Paper>
+
+        {/* Tire Pressure */}
+        <Paper p="md" withBorder style={{ borderColor: 'var(--tribos-bg-tertiary)', backgroundColor: 'var(--tribos-bg-primary)' }} radius={0}>
+          <Group gap="xs" mb="sm">
+            <IconGauge size={18} style={{ color: 'var(--tribos-terracotta-500)' }} />
+            <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>Tire Pressure</Text>
+          </Group>
+          <TirePressureCard
+            route={{ surfaceType: routeProfile }}
+            weather={weatherData ? { temperatureCelsius: weatherData.temperature } : undefined}
+            compact={true}
+            useImperial={isImperial}
+          />
+        </Paper>
+      </>
+      )}
     </Stack>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [
     // State values that affect the rendered output
-    builderMode, routeName, naturalLanguageInput, generatingAI,
+    sidebarTab, builderMode, routeName, naturalLanguageInput, generatingAI,
     calendarContext, useIterativeBuilder, routeProfile, trainingGoal,
     timeAvailable, routeType, selectedWorkout, showWorkoutOverlay,
     workoutOptions, aiSuggestions, convertingRoute, userLocation,
@@ -2940,7 +3023,7 @@ function RouteBuilder() {
     altData, altLoading, altHovered, altWaypoints, currentSegmentStats,
     aiEditMode, aiEditLoading, aiEditResult, routeStats, speedProfile,
     routingSource, routeDataForExport, personalizedETA, isMobile,
-    isImperial,
+    isImperial, weatherData, intervalCues,
     // Stable callbacks (useCallback/Zustand): handleSaveRoute, handleGenerateAIRoutes,
     // handleNaturalLanguageGenerate, handleSelectAISuggestion, handleImportGPX,
     // handleRemoveSegment, handleSelectAltSegment, handleApplyAlternative,
@@ -3693,6 +3776,25 @@ function RouteBuilder() {
                 My Routes
               </Button>
 
+              {/* Sidebar Tab Switcher */}
+              {builderMode !== 'ready' && (
+                <SegmentedControl
+                  value={sidebarTab}
+                  onChange={setSidebarTab}
+                  fullWidth
+                  size="sm"
+                  data={[
+                    { label: 'Route', value: 'route' },
+                    { label: 'Ride Tools', value: 'tools' },
+                  ]}
+                  styles={{
+                    root: {
+                      backgroundColor: 'var(--tribos-bg-tertiary)',
+                    },
+                  }}
+                />
+              )}
+
               {/* === READY MODE: Mode selector === */}
               {builderMode === 'ready' && (
                 <ModeSelector
@@ -3702,7 +3804,7 @@ function RouteBuilder() {
               )}
 
               {/* === AI / EDITING MODE: Full AI builder controls === */}
-              {(builderMode === 'ai' || builderMode === 'editing') && (
+              {sidebarTab === 'route' && (builderMode === 'ai' || builderMode === 'editing') && (
               <>
               {/* Back to mode selection (only if no route yet) */}
               {builderMode === 'ai' && !routeGeometry && (
@@ -4079,84 +4181,6 @@ function RouteBuilder() {
                 </Box>
               </CollapsibleSection>
 
-              {/* Weather Section - Collapsible */}
-              {userLocation && (
-                <CollapsibleSection
-                  title="Weather & Conditions"
-                  icon={<Text size="sm">🌤️</Text>}
-                  defaultExpanded={false}
-                >
-                  <Box mt="sm">
-                    <WeatherWidget
-                      latitude={userLocation.latitude}
-                      longitude={userLocation.longitude}
-                      coordinates={routeGeometry?.coordinates}
-                      isImperial={isImperial}
-                      showWindAnalysis={routeGeometry?.coordinates?.length >= 2}
-                      onWeatherUpdate={setWeatherData}
-                    />
-                  </Box>
-                </CollapsibleSection>
-              )}
-
-              {/* Fuel Plan Section - Collapsible */}
-              {routeStats.duration >= 45 && routeGeometry && (
-                <CollapsibleSection
-                  title="Fuel Plan"
-                  icon={<Text size="sm">🍌</Text>}
-                  defaultExpanded={routeStats.duration >= 60}
-                >
-                  <Box mt="sm">
-                    <FuelCard
-                      route={{
-                        estimatedDurationMinutes: routeStats.duration,
-                        elevationGainMeters: routeStats.elevation || 0,
-                      }}
-                      weather={weatherData ? {
-                        temperatureCelsius: weatherData.temperature,
-                        humidity: weatherData.humidity,
-                      } : undefined}
-                      compact={true}
-                      useImperial={isImperial}
-                    />
-                  </Box>
-                </CollapsibleSection>
-              )}
-
-              {/* Workout Structure Section - Collapsible */}
-              {intervalCues && intervalCues.length > 0 && (
-                <CollapsibleSection
-                  title="Workout Structure"
-                  icon={<Text size="sm">🏋️</Text>}
-                  badge={`${intervalCues.length}`}
-                  defaultExpanded={false}
-                >
-                  <Box mt="sm">
-                    <IntervalCues cues={intervalCues} formatDistance={formatDist} />
-                  </Box>
-                </CollapsibleSection>
-              )}
-
-              {/* Tire Pressure Section - Collapsible */}
-              <CollapsibleSection
-                title="Tire Pressure"
-                icon={<Text size="sm">🔧</Text>}
-                defaultExpanded={false}
-              >
-                <Box mt="sm">
-                  <TirePressureCard
-                    route={{
-                      surfaceType: routeProfile,
-                    }}
-                    weather={weatherData ? {
-                      temperatureCelsius: weatherData.temperature,
-                    } : undefined}
-                    compact={true}
-                    useImperial={isImperial}
-                  />
-                </Box>
-              </CollapsibleSection>
-
               {/* Map Instructions */}
               <Box
                 style={{
@@ -4181,7 +4205,7 @@ function RouteBuilder() {
               )}
 
               {/* === MANUAL MODE: Manual builder controls === */}
-              {builderMode === 'manual' && (
+              {sidebarTab === 'route' && builderMode === 'manual' && (
               <>
                 {/* Back to mode selection (only if no route yet) */}
                 {!routeGeometry && (
@@ -4357,6 +4381,148 @@ function RouteBuilder() {
                 </Button>
               </>
               )}
+
+              {/* === RIDE TOOLS TAB === */}
+              {sidebarTab === 'tools' && builderMode !== 'ready' && (
+              <>
+                {/* Route Stats Summary (always show on tools tab for context) */}
+                {routeGeometry && routeStats && (
+                  <RouteStatsPanel
+                    stats={routeStats}
+                    routingSource={routingSource}
+                    speedProfile={speedProfile}
+                    formatDist={formatDist}
+                    formatElev={formatElev}
+                    formatSpd={formatSpd}
+                    getUserSpeedForProfile={getUserSpeedForProfile}
+                    routeProfile={routeProfile}
+                    personalizedETA={personalizedETA}
+                  />
+                )}
+
+                {/* Weather & Conditions */}
+                {userLocation && (
+                  <Paper
+                    p="md"
+                    withBorder
+                    style={{
+                      borderColor: 'var(--tribos-bg-tertiary)',
+                      backgroundColor: 'var(--tribos-bg-primary)',
+                    }}
+                    radius={0}
+                  >
+                    <Group gap="xs" mb="sm">
+                      <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                        Weather & Conditions
+                      </Text>
+                    </Group>
+                    <WeatherWidget
+                      latitude={userLocation.latitude}
+                      longitude={userLocation.longitude}
+                      coordinates={routeGeometry?.coordinates}
+                      isImperial={isImperial}
+                      showWindAnalysis={routeGeometry?.coordinates?.length >= 2}
+                      onWeatherUpdate={setWeatherData}
+                    />
+                  </Paper>
+                )}
+
+                {/* Fuel Plan */}
+                <Paper
+                  p="md"
+                  withBorder
+                  style={{
+                    borderColor: 'var(--tribos-bg-tertiary)',
+                    backgroundColor: 'var(--tribos-bg-primary)',
+                  }}
+                  radius={0}
+                >
+                  <Group gap="xs" mb="sm">
+                    <IconToolsKitchen2 size={18} style={{ color: 'var(--tribos-terracotta-500)' }} />
+                    <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                      Fuel Plan
+                    </Text>
+                    {routeStats.duration >= 45 && routeGeometry && (
+                      <Badge size="xs" variant="light" color="green">Active</Badge>
+                    )}
+                  </Group>
+                  {routeStats.duration >= 45 && routeGeometry ? (
+                    <FuelCard
+                      route={{
+                        estimatedDurationMinutes: routeStats.duration,
+                        elevationGainMeters: routeStats.elevation || 0,
+                      }}
+                      weather={weatherData ? {
+                        temperatureCelsius: weatherData.temperature,
+                        humidity: weatherData.humidity,
+                      } : undefined}
+                      compact={true}
+                      useImperial={isImperial}
+                    />
+                  ) : (
+                    <Text size="xs" c="dimmed">
+                      {!routeGeometry ? 'Create a route to see your fuel plan.' : 'Fuel plan activates for rides over 45 minutes.'}
+                    </Text>
+                  )}
+                </Paper>
+
+                {/* Workout Structure */}
+                <Paper
+                  p="md"
+                  withBorder
+                  style={{
+                    borderColor: 'var(--tribos-bg-tertiary)',
+                    backgroundColor: 'var(--tribos-bg-primary)',
+                  }}
+                  radius={0}
+                >
+                  <Group gap="xs" mb="sm">
+                    <IconHeartRateMonitor size={18} style={{ color: 'var(--tribos-terracotta-500)' }} />
+                    <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                      Workout Structure
+                    </Text>
+                    {intervalCues && intervalCues.length > 0 && (
+                      <Badge size="xs" variant="filled" color="terracotta">{intervalCues.length}</Badge>
+                    )}
+                  </Group>
+                  {intervalCues && intervalCues.length > 0 ? (
+                    <IntervalCues cues={intervalCues} formatDistance={formatDist} />
+                  ) : (
+                    <Text size="xs" c="dimmed">
+                      Select a workout in route configuration to see interval structure here.
+                    </Text>
+                  )}
+                </Paper>
+
+                {/* Tire Pressure */}
+                <Paper
+                  p="md"
+                  withBorder
+                  style={{
+                    borderColor: 'var(--tribos-bg-tertiary)',
+                    backgroundColor: 'var(--tribos-bg-primary)',
+                  }}
+                  radius={0}
+                >
+                  <Group gap="xs" mb="sm">
+                    <IconGauge size={18} style={{ color: 'var(--tribos-terracotta-500)' }} />
+                    <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                      Tire Pressure
+                    </Text>
+                  </Group>
+                  <TirePressureCard
+                    route={{
+                      surfaceType: routeProfile,
+                    }}
+                    weather={weatherData ? {
+                      temperatureCelsius: weatherData.temperature,
+                    } : undefined}
+                    compact={true}
+                    useImperial={isImperial}
+                  />
+                </Paper>
+              </>
+              )}
             </Stack>
           </Box>
 
@@ -4368,87 +4534,98 @@ function RouteBuilder() {
               backgroundColor: 'var(--tribos-bg-secondary)',
             }}
           >
-            <Stack gap="sm">
-              <Button
-                color="terracotta"
-                fullWidth
-                size="md"
-                disabled={!routeGeometry}
-                onClick={handleSaveRoute}
-                loading={isSaving}
-                leftSection={<IconDeviceFloppy size={20} />}
-                style={{
-                  height: 48,
-                  fontWeight: 600,
-                  fontSize: '15px',
-                }}
-              >
-                {savedRouteId ? 'Update Route' : 'Save Route'}
-              </Button>
-              <Group grow>
+            <Stack gap="xs">
+              {/* Primary: Save + Export */}
+              <Group grow gap="xs">
+                <Button
+                  color="terracotta"
+                  size="md"
+                  disabled={!routeGeometry}
+                  onClick={handleSaveRoute}
+                  loading={isSaving}
+                  leftSection={<IconDeviceFloppy size={18} />}
+                  style={{
+                    height: 44,
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    flex: 2,
+                  }}
+                >
+                  {savedRouteId ? 'Update Route' : 'Save Route'}
+                </Button>
                 <RouteExportMenu
                   route={routeDataForExport}
                   variant="light"
                   size="sm"
                   disabled={!routeGeometry}
                 />
-                <Button
-                  variant="outline"
-                  color="gray"
-                  size="sm"
-                  disabled={!routeGeometry && waypoints.length === 0}
-                  onClick={clearRoute}
-                  leftSection={<IconTrash size={16} />}
-                  style={{ height: 40 }}
-                >
-                  Clear Route
-                </Button>
               </Group>
 
-              {/* Edit and Manual Mode Toggles */}
+              {/* Edit Actions */}
               {routeGeometry && (
-                <Group grow>
-                  <Button
-                    variant={editMode ? 'filled' : 'light'}
-                    color={editMode ? 'red' : 'gray'}
-                    size="sm"
-                    onClick={() => {
-                      setEditMode(!editMode);
-                      setSelectedSegment(null);
-                    }}
-                    leftSection={<IconScissors size={16} />}
-                  >
-                    {editMode ? 'Exit Edit' : 'Edit Route'}
-                  </Button>
-                  {builderMode !== 'manual' && (
+                <>
+                  <Divider
+                    label={<Text size="xs" c="dimmed" tt="uppercase" fw={500}>Edit</Text>}
+                    labelPosition="center"
+                    color="var(--tribos-bg-tertiary)"
+                  />
+                  <Group grow gap="xs">
                     <Button
-                      variant="light"
-                      color="blue"
-                      size="sm"
-                      onClick={() => setBuilderMode('manual')}
-                      leftSection={<IconHandClick size={16} />}
+                      variant={editMode ? 'filled' : 'light'}
+                      color={editMode ? 'red' : 'gray'}
+                      size="xs"
+                      onClick={() => {
+                        setEditMode(!editMode);
+                        setSelectedSegment(null);
+                      }}
+                      leftSection={<IconScissors size={14} />}
                     >
-                      Manual Edit
+                      {editMode ? 'Exit Edit' : 'Edit'}
+                    </Button>
+                    {builderMode !== 'manual' && (
+                      <Button
+                        variant="light"
+                        color="blue"
+                        size="xs"
+                        onClick={() => { setBuilderMode('manual'); setSidebarTab('route'); }}
+                        leftSection={<IconHandClick size={14} />}
+                      >
+                        Manual
+                      </Button>
+                    )}
+                    {!editMode && !altMode && (
+                      <Button
+                        variant={aiEditMode ? 'filled' : 'light'}
+                        color={aiEditMode ? 'terracotta' : 'gray'}
+                        size="xs"
+                        onClick={() => {
+                          setAiEditMode(!aiEditMode);
+                          if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
+                        }}
+                        leftSection={<IconWand size={14} />}
+                      >
+                        {aiEditMode ? 'Close AI' : 'AI Edit'}
+                      </Button>
+                    )}
+                  </Group>
+
+                  {/* Segment Alternatives */}
+                  {altWaypoints.length >= 2 && !editMode && (
+                    <Button
+                      variant={altMode ? 'filled' : 'light'}
+                      color={altMode ? 'violet' : 'gray'}
+                      size="xs"
+                      fullWidth
+                      onClick={() => altMode ? exitAltMode() : setAltMode(true)}
+                      leftSection={<IconArrowsExchange size={14} />}
+                    >
+                      {altMode ? 'Exit Alternatives' : 'Compare Segments'}
                     </Button>
                   )}
-                </Group>
+                </>
               )}
 
-              {/* Segment Alternatives Toggle (desktop sidebar) */}
-              {routeGeometry && altWaypoints.length >= 2 && !editMode && (
-                <Button
-                  variant={altMode ? 'filled' : 'light'}
-                  color={altMode ? 'violet' : 'gray'}
-                  size="sm"
-                  fullWidth
-                  onClick={() => altMode ? exitAltMode() : setAltMode(true)}
-                  leftSection={<IconArrowsExchange size={16} />}
-                >
-                  {altMode ? 'Exit Alternatives' : 'Compare Segment Routes'}
-                </Button>
-              )}
-
-              {/* Selected Segment Actions (desktop sidebar) */}
+              {/* Selected Segment Actions */}
               {editMode && selectedSegment && (
                 <Paper p="sm" withBorder style={{ backgroundColor: 'rgba(158, 90, 60, 0.1)', borderColor: '#9E5A3C' }}>
                   <Stack gap="xs">
@@ -4457,20 +4634,10 @@ function RouteBuilder() {
                       ~{selectedSegment.stats?.distanceSaved || 0}m shorter after removal
                     </Text>
                     <Group grow>
-                      <Button
-                        size="xs"
-                        color="red"
-                        onClick={handleRemoveSegment}
-                        loading={isRemovingSegment}
-                      >
+                      <Button size="xs" color="red" onClick={handleRemoveSegment} loading={isRemovingSegment}>
                         Remove
                       </Button>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        color="gray"
-                        onClick={() => setSelectedSegment(null)}
-                      >
+                      <Button size="xs" variant="outline" color="gray" onClick={() => setSelectedSegment(null)}>
                         Cancel
                       </Button>
                     </Group>
@@ -4478,24 +4645,7 @@ function RouteBuilder() {
                 </Paper>
               )}
 
-              {/* AI Edit Toggle (desktop sidebar) */}
-              {routeGeometry && !editMode && !altMode && (
-                <Button
-                  variant={aiEditMode ? 'filled' : 'light'}
-                  color={aiEditMode ? 'terracotta' : 'gray'}
-                  size="sm"
-                  fullWidth
-                  onClick={() => {
-                    setAiEditMode(!aiEditMode);
-                    if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
-                  }}
-                  leftSection={<IconWand size={16} />}
-                >
-                  {aiEditMode ? 'Close AI Edit' : 'AI Edit Route'}
-                </Button>
-              )}
-
-              {/* AI Edit Panel (desktop sidebar) */}
+              {/* AI Edit Panel */}
               {aiEditMode && (
                 <AIEditPanel
                   loading={aiEditLoading}
@@ -4508,16 +4658,29 @@ function RouteBuilder() {
                 />
               )}
 
-              <Button
-                variant="subtle"
-                color="gray"
-                size="xs"
-                onClick={handleClearSession}
-                leftSection={<IconRefresh size={14} />}
-                fullWidth
-              >
-                New Route (Clear Session)
-              </Button>
+              {/* Danger Zone */}
+              <Divider color="var(--tribos-bg-tertiary)" />
+              <Group grow gap="xs">
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  size="xs"
+                  disabled={!routeGeometry && waypoints.length === 0}
+                  onClick={clearRoute}
+                  leftSection={<IconTrash size={14} />}
+                >
+                  Clear Route
+                </Button>
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  size="xs"
+                  onClick={handleClearSession}
+                  leftSection={<IconRefresh size={14} />}
+                >
+                  New Session
+                </Button>
+              </Group>
             </Stack>
           </Box>
         </Paper>
