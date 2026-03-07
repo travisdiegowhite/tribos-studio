@@ -88,12 +88,7 @@ export function ViewOnGarminLink({ activityId, variant = 'inline' }) {
           textDecoration: 'none',
           transition: 'background-color 0.2s',
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = `${GARMIN_BLUE}10`;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'transparent';
-        }}
+        className="tribos-garmin-link"
       >
         View on Garmin Connect
       </Anchor>

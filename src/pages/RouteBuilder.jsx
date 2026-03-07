@@ -4598,12 +4598,7 @@ function RouteBuilder() {
                           borderBottom: `1px solid ${'var(--tribos-bg-tertiary)'}`,
                           transition: 'background-color 0.15s',
                         }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = 'var(--tribos-bg-tertiary)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
+                        className="tribos-search-result"
                       >
                         <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
                           {result.name}

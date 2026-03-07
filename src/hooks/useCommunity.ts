@@ -242,31 +242,32 @@ export function useCommunity({
       const weekEnd = new Date();
       const weekStart = new Date(currentWeekStart);
 
-      const { data: activities, error: activityError } = await supabase
-        .from('activities')
-        .select('duration_seconds, tss')
-        .eq('user_id', userId)
-        .is('duplicate_of', null)
-        .gte('start_date', weekStart.toISOString())
-        .lte('start_date', weekEnd.toISOString());
+      // Fetch activities and planned workouts in parallel
+      const [activitiesResult, plannedResult] = await Promise.all([
+        supabase
+          .from('activities')
+          .select('duration_seconds, tss')
+          .eq('user_id', userId)
+          .is('duplicate_of', null)
+          .gte('start_date', weekStart.toISOString())
+          .lte('start_date', weekEnd.toISOString()),
+        supabase
+          .from('planned_workouts')
+          .select('id')
+          .eq('user_id', userId)
+          .gte('scheduled_date', currentWeekStart)
+          .lt('scheduled_date', weekEnd.toISOString().split('T')[0]),
+      ]);
 
-      if (activityError) {
-        console.warn('Could not fetch activity stats:', activityError);
+      if (activitiesResult.error) {
+        console.warn('Could not fetch activity stats:', activitiesResult.error);
       }
 
+      const activities = activitiesResult.data;
       const ridesCompleted = activities?.length || 0;
-      const totalHours = activities?.reduce((sum, a) => sum + (a.duration_seconds || 0), 0) / 3600 || 0;
-      const totalTss = activities?.reduce((sum, a) => sum + (a.tss || 0), 0) || 0;
-
-      // Get planned workouts count if user has an active plan
-      const { data: plannedData } = await supabase
-        .from('planned_workouts')
-        .select('id')
-        .eq('user_id', userId)
-        .gte('scheduled_date', currentWeekStart)
-        .lt('scheduled_date', weekEnd.toISOString().split('T')[0]);
-
-      const ridesPlanned = plannedData?.length || null;
+      const totalHours = activities?.reduce((sum: number, a: any) => sum + (a.duration_seconds || 0), 0) / 3600 || 0;
+      const totalTss = activities?.reduce((sum: number, a: any) => sum + (a.tss || 0), 0) || 0;
+      const ridesPlanned = plannedResult.data?.length || null;
 
       const { error: insertError } = await supabase
         .from('cafe_check_ins')

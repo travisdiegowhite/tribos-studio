@@ -215,16 +215,7 @@ function DesktopNavLink({ to, label, icon: Icon, active }) {
         backgroundColor: active ? 'var(--tribos-bg-tertiary)' : 'transparent',
         transition: 'background-color 0.15s ease',
       }}
-      onMouseEnter={(e) => {
-        if (!active) {
-          e.currentTarget.style.backgroundColor = 'var(--tribos-bg-secondary)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!active) {
-          e.currentTarget.style.backgroundColor = 'transparent';
-        }
-      }}
+      className={!active ? 'tribos-nav-link' : undefined}
     >
       <Group gap={6}>
         <Icon

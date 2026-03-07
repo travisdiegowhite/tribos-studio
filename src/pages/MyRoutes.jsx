@@ -489,14 +489,7 @@ function MyRoutes() {
                     transition: 'transform 0.2s, box-shadow 0.2s',
                   }}
                   onClick={() => navigate(`/routes/${route.id}`)}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
+                  className="tribos-route-card"
                 >
                   <Stack gap="sm">
                     {/* Header with menu */}

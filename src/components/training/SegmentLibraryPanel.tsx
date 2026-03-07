@@ -147,12 +147,7 @@ function SegmentCard({
         transition: 'box-shadow 150ms ease',
       }}
       onClick={onClick}
-      onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
-        (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--tribos-shadow-card-hover)';
-      }}
-      onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
-        (e.currentTarget as HTMLDivElement).style.boxShadow = '';
-      }}
+      className="tribos-segment-card"
     >
       <Stack gap={8}>
         {/* Row 1: Name + terrain badge */}

@@ -829,3 +829,59 @@ button {
 .tribos-gear-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
+
+.tribos-ai-suggestion-card:hover {
+  transform: scale(1.01) !important;
+  border-color: var(--mantine-color-dark-4) !important;
+}
+
+.tribos-nav-link:hover {
+  background-color: var(--tribos-bg-secondary) !important;
+}
+
+.tribos-breadcrumb-link:hover {
+  color: var(--mantine-color-text) !important;
+}
+
+.tribos-garmin-link:hover {
+  background-color: rgba(0, 115, 207, 0.06) !important;
+}
+
+.tribos-strava-btn:hover {
+  opacity: 0.9 !important;
+}
+
+.tribos-strava-link:hover {
+  background-color: rgba(252, 76, 2, 0.06) !important;
+}
+
+.tribos-poi-category:hover {
+  background-color: var(--tribos-bg-tertiary) !important;
+}
+
+.tribos-discussion-item:hover {
+  border-color: rgba(158, 90, 60, 0.38) !important;
+}
+
+.tribos-segment-card:hover {
+  box-shadow: var(--tribos-shadow-card-hover) !important;
+}
+
+.tribos-period-block:hover {
+  background-color: var(--mantine-color-dark-5) !important;
+  border-color: var(--mantine-color-terracotta-8) !important;
+}
+
+.tribos-workout-card:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.tribos-route-card:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.tribos-search-result:hover {
+  background-color: var(--tribos-bg-tertiary) !important;
+}

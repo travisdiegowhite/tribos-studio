@@ -712,7 +712,8 @@ export function useWorkoutAdaptations({
         .from('workout_adaptations')
         .select('*')
         .eq('user_id', userId)
-        .order('detected_at', { ascending: false });
+        .order('detected_at', { ascending: false })
+        .limit(500);
 
       if (fetchError) throw fetchError;
 

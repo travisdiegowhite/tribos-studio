@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Container,
   Title,
@@ -96,14 +96,16 @@ function Settings() {
   const [garminBackfillStatus, setGarminBackfillStatus] = useState(null);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
   const [googleCalendarStatus, setGoogleCalendarStatus] = useState({ connected: false, loading: true, email: null });
-  const [showImportWizard, setShowImportWizard] = useState(false);
-  const [showStravaDisconnectModal, setShowStravaDisconnectModal] = useState(false);
-  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
-  const [showGarminReconnectModal, setShowGarminReconnectModal] = useState(false);
-  const [showGarminConsentModal, setShowGarminConsentModal] = useState(false);
+  // Consolidated modal state — only one modal open at a time
+  const [openModal, setOpenModal] = useState(null);
+  const showImportWizard = openModal === 'importWizard';
+  const showStravaDisconnectModal = openModal === 'stravaDisconnect';
+  const showBulkUploadModal = openModal === 'bulkUpload';
+  const showGarminReconnectModal = openModal === 'garminReconnect';
+  const showGarminConsentModal = openModal === 'garminConsent';
+  const showDeleteAccountModal = openModal === 'deleteAccount';
   const [aiConsentEnabled, setAiConsentEnabled] = useState(false);
   const [aiConsentLoading, setAiConsentLoading] = useState(false);
-  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [exportingData, setExportingData] = useState(false);
@@ -123,8 +125,8 @@ function Settings() {
   const [showRetired, setShowRetired] = useState(false);
   const useImperial = true; // TODO: Get from user preferences context
 
-  const activeGear = gearItems.filter(g => g.status === 'active' && g.sport_type === activeSport);
-  const retiredGear = gearItems.filter(g => g.status === 'retired' && g.sport_type === activeSport);
+  const activeGear = useMemo(() => gearItems.filter(g => g.status === 'active' && g.sport_type === activeSport), [gearItems, activeSport]);
+  const retiredGear = useMemo(() => gearItems.filter(g => g.status === 'retired' && g.sport_type === activeSport), [gearItems, activeSport]);
 
   const handleCreateGear = async (params) => {
     try {
@@ -296,7 +298,7 @@ function Settings() {
   // Handle reconnect query parameter (from IntegrationAlert)
   useEffect(() => {
     if (searchParams.get('reconnect') === 'garmin') {
-      setShowGarminReconnectModal(true);
+      setOpenModal('garminReconnect');
       // Clear the query parameter
       searchParams.delete('reconnect');
       setSearchParams(searchParams, { replace: true });
@@ -480,11 +482,11 @@ function Settings() {
   };
 
   const handleStravaDisconnectClick = () => {
-    setShowStravaDisconnectModal(true);
+    setOpenModal('stravaDisconnect');
   };
 
   const confirmStravaDisconnect = async () => {
-    setShowStravaDisconnectModal(false);
+    setOpenModal(null);
     try {
       await stravaService.disconnect();
       setStravaStatus({ connected: false, loading: false });
@@ -777,11 +779,11 @@ function Settings() {
       return;
     }
     // Show consent modal before proceeding with OAuth
-    setShowGarminConsentModal(true);
+    setOpenModal('garminConsent');
   };
 
   const handleGarminConsentConfirmed = async () => {
-    setShowGarminConsentModal(false);
+    setOpenModal(null);
     try {
       // Record consent timestamp
       if (user?.id) {
@@ -1317,10 +1319,10 @@ function Settings() {
 
   return (
     <AppShell>
-      <ImportWizard opened={showImportWizard} onClose={() => setShowImportWizard(false)} />
+      <ImportWizard opened={showImportWizard} onClose={() => setOpenModal(null)} />
       <BulkGpxUploadModal
         opened={showBulkUploadModal}
-        onClose={() => setShowBulkUploadModal(false)}
+        onClose={() => setOpenModal(null)}
         onUploadComplete={(results) => {
           if (results.success?.length > 0) {
             notifications.show({
@@ -1335,7 +1337,7 @@ function Settings() {
       {/* Strava Disconnect Confirmation Modal */}
       <Modal
         opened={showStravaDisconnectModal}
-        onClose={() => setShowStravaDisconnectModal(false)}
+        onClose={() => setOpenModal(null)}
         title={
           <Group gap="sm">
             <IconAlertTriangle size={24} color="terracotta" />
@@ -1376,8 +1378,8 @@ function Settings() {
                 component="span"
                 style={{ color: 'var(--tribos-terracotta-500)', cursor: 'pointer' }}
                 onClick={() => {
-                  setShowStravaDisconnectModal(false);
-                  setShowBulkUploadModal(true);
+                  setOpenModal(null);
+                  setOpenModal('bulkUpload');
                 }}
               >
                 Bulk Import
@@ -1390,7 +1392,7 @@ function Settings() {
             <Button
               variant="subtle"
               color="gray"
-              onClick={() => setShowStravaDisconnectModal(false)}
+              onClick={() => setOpenModal(null)}
             >
               Cancel
             </Button>
@@ -1407,7 +1409,7 @@ function Settings() {
       {/* Delete Account Confirmation Modal */}
       <Modal
         opened={showDeleteAccountModal}
-        onClose={() => { setShowDeleteAccountModal(false); setDeleteConfirmText(''); }}
+        onClose={() => { setOpenModal(null); setDeleteConfirmText(''); }}
         title="Delete Your Account"
         centered
         size="md"
@@ -1436,7 +1438,7 @@ function Settings() {
             onChange={(e) => setDeleteConfirmText(e.target.value)}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" color="gray" onClick={() => { setShowDeleteAccountModal(false); setDeleteConfirmText(''); }}>
+            <Button variant="subtle" color="gray" onClick={() => { setOpenModal(null); setDeleteConfirmText(''); }}>
               Cancel
             </Button>
             <Button
@@ -1454,14 +1456,14 @@ function Settings() {
       {/* Garmin Data Transfer Consent Modal */}
       <GarminConsentModal
         opened={showGarminConsentModal}
-        onClose={() => setShowGarminConsentModal(false)}
+        onClose={() => setOpenModal(null)}
         onConsent={handleGarminConsentConfirmed}
       />
 
       {/* Garmin Reconnect Modal */}
       <Modal
         opened={showGarminReconnectModal}
-        onClose={() => setShowGarminReconnectModal(false)}
+        onClose={() => setOpenModal(null)}
         title={
           <Group gap="sm">
             <IconAlertTriangle size={24} color="terracotta" />
@@ -1496,7 +1498,7 @@ function Settings() {
             <Button
               variant="subtle"
               color="gray"
-              onClick={() => setShowGarminReconnectModal(false)}
+              onClick={() => setOpenModal(null)}
             >
               Later
             </Button>
@@ -1504,7 +1506,7 @@ function Settings() {
               <Button
                 color="terracotta"
                 onClick={async () => {
-                  setShowGarminReconnectModal(false);
+                  setOpenModal(null);
                   await disconnectGarmin();
                   // Small delay then start connection
                   setTimeout(() => connectGarmin(), 500);
@@ -1516,7 +1518,7 @@ function Settings() {
               <Button
                 color="sage"
                 onClick={() => {
-                  setShowGarminReconnectModal(false);
+                  setOpenModal(null);
                   connectGarmin();
                 }}
               >
@@ -1536,7 +1538,7 @@ function Settings() {
               <Button
                 variant="gradient"
                 gradient={{ from: 'terracotta', to: 'teal', deg: 90 }}
-                onClick={() => setShowImportWizard(true)}
+                onClick={() => setOpenModal('importWizard')}
               >
                 Import Wizard
               </Button>
@@ -1946,7 +1948,7 @@ function Settings() {
                     color="terracotta"
                     size="sm"
                     leftSection={<IconUpload size={16} />}
-                    onClick={() => setShowBulkUploadModal(true)}
+                    onClick={() => setOpenModal('bulkUpload')}
                     mt="xs"
                   >
                     Bulk Import from Strava Export
@@ -2286,7 +2288,7 @@ function Settings() {
                 variant="outline"
                 color="red"
                 leftSection={<IconTrash size={16} />}
-                onClick={() => setShowDeleteAccountModal(true)}
+                onClick={() => setOpenModal('deleteAccount')}
               >
                 Delete My Account
               </Button>
