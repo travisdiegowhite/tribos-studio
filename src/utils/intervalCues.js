@@ -844,12 +844,12 @@ export function getZoneColor(zone) {
   }
 
   const colors = {
-    1: '#6B8C72',   // sage - recovery
-    2: '#5C7A5E',   // teal - endurance
-    3: '#B89040',   // gold - tempo
-    3.5: '#B89040', // gold - sweet spot
-    4: '#9E5A3C',   // terracotta - threshold
-    5: '#9E5A3C',   // terracotta - VO2 max
+    1: '#3D8B50',   // sage - recovery
+    2: '#3D8B50',   // teal - endurance
+    3: '#D4820A',   // gold - tempo
+    3.5: '#D4820A', // gold - sweet spot
+    4: '#3A5A8C',   // terracotta - threshold
+    5: '#3A5A8C',   // terracotta - VO2 max
     6: '#6B7F94',   // mauve - anaerobic
     7: '#8B6B5A',   // dusty rose - neuromuscular/sprint
   };

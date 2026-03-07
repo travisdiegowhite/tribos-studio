@@ -37,32 +37,32 @@ const COLOR_MODES = {
  */
 const COLOR_SCALES = {
   speed: [
-    [0.0, '#5C7A5E'],  // teal - slow
-    [0.25, '#6B8C72'], // sage
-    [0.5, '#B89040'],  // gold
-    [0.75, '#9E5A3C'], // terracotta
-    [1.0, '#9E5A3C'],  // terracotta - fast
+    [0.0, '#3D8B50'],  // teal - slow
+    [0.25, '#3D8B50'], // sage
+    [0.5, '#D4820A'],  // gold
+    [0.75, '#3A5A8C'], // terracotta
+    [1.0, '#3A5A8C'],  // terracotta - fast
   ],
   power: [
-    [0.0, '#5C7A5E'],  // teal - easy (zone 1-2)
-    [0.25, '#6B8C72'], // sage (zone 2-3)
-    [0.5, '#B89040'],  // gold (zone 3-4)
-    [0.75, '#9E5A3C'], // terracotta (zone 4-5)
-    [1.0, '#9E5A3C'],  // terracotta (zone 5+)
+    [0.0, '#3D8B50'],  // teal - easy (zone 1-2)
+    [0.25, '#3D8B50'], // sage (zone 2-3)
+    [0.5, '#D4820A'],  // gold (zone 3-4)
+    [0.75, '#3A5A8C'], // terracotta (zone 4-5)
+    [1.0, '#3A5A8C'],  // terracotta (zone 5+)
   ],
   elevation: [
-    [0.0, '#6B8C72'],  // sage - low
+    [0.0, '#3D8B50'],  // sage - low
     [0.25, '#8B6B5A'], // sky
-    [0.5, '#B89040'],  // gold
-    [0.75, '#9E5A3C'], // terracotta
-    [1.0, '#9E5A3C'],  // terracotta - high
+    [0.5, '#D4820A'],  // gold
+    [0.75, '#3A5A8C'], // terracotta
+    [1.0, '#3A5A8C'],  // terracotta - high
   ],
   heartRate: [
-    [0.0, '#5C7A5E'],  // teal - low HR
-    [0.25, '#6B8C72'], // sage
-    [0.5, '#B89040'],  // gold
-    [0.75, '#9E5A3C'], // terracotta
-    [1.0, '#9E5A3C'],  // terracotta - high HR
+    [0.0, '#3D8B50'],  // teal - low HR
+    [0.25, '#3D8B50'], // sage
+    [0.5, '#D4820A'],  // gold
+    [0.75, '#3A5A8C'], // terracotta
+    [1.0, '#3A5A8C'],  // terracotta - high HR
   ],
 };
 
@@ -283,7 +283,7 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, routeGeoJSON, bounds })
                 id="route-line"
                 type="line"
                 paint={{
-                  'line-color': showColoredRoute ? '#9A9C90' : '#9E5A3C',
+                  'line-color': showColoredRoute ? '#9A9C90' : '#3A5A8C',
                   'line-width': showColoredRoute ? 5 : 3,
                   'line-opacity': showColoredRoute ? 0.4 : 0.9,
                 }}

@@ -3,19 +3,19 @@ import { Container, Text, Paper, SimpleGrid, Box, Stack, Group } from '@mantine/
 import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
 
 // ===== Chart colors — match actual app components =====
-// From TrainingLoadChart.jsx: CTL=#5C7A5E, ATL=#B89040, TSB=#6B8C72
-// From PowerDurationCurve.jsx: current line=#fbbf24, FTP ref=#9E5A3C
-// From zoneColors.js: Z1=#6B8C72, Z2=#5C7A5E, Z3=#B89040, Z4=#9E5A3C, Z5=#6B7F94, Z6=#8B6B5A
+// From TrainingLoadChart.jsx: CTL=#3D8B50, ATL=#D4820A, TSB=#3D8B50
+// From PowerDurationCurve.jsx: current line=#fbbf24, FTP ref=#3A5A8C
+// From zoneColors.js: Z1=#3D8B50, Z2=#3D8B50, Z3=#D4820A, Z4=#3A5A8C, Z5=#6B7F94, Z6=#8B6B5A
 const COLORS = {
-  ctl: '#5C7A5E',    // Moss — Chronic Training Load (Fitness)
-  atl: '#B89040',    // Ochre — Acute Training Load (Fatigue)
-  tsb: '#6B8C72',    // Sage — Training Stress Balance (Form)
-  pdc: '#9E5A3C',    // Terracotta — Power curve primary
-  pdcFill: '#9E5A3C',
-  zone1: '#6B8C72',  // Recovery — Forest
-  zone2: '#5C7A5E',  // Endurance — Moss
-  zone3: '#B89040',  // Tempo — Ochre
-  zone4: '#9E5A3C',  // Threshold — Sienna
+  ctl: '#3D8B50',    // Moss — Chronic Training Load (Fitness)
+  atl: '#D4820A',    // Ochre — Acute Training Load (Fatigue)
+  tsb: '#3D8B50',    // Sage — Training Stress Balance (Form)
+  pdc: '#3A5A8C',    // Terracotta — Power curve primary
+  pdcFill: '#3A5A8C',
+  zone1: '#3D8B50',  // Recovery — Forest
+  zone2: '#3D8B50',  // Endurance — Moss
+  zone3: '#D4820A',  // Tempo — Ochre
+  zone4: '#3A5A8C',  // Threshold — Sienna
   zone5: '#6B7F94',  // VO2max — Slate
   zone6: '#8B6B5A',  // Anaerobic — Iron
 };
@@ -344,7 +344,7 @@ const terrainSegments = [
   { start: 6, end: 12, type: 'rolling', color: COLORS.zone3 },
   { start: 12, end: 21, type: 'flat', color: COLORS.zone2 },
   { start: 21, end: 36, type: 'climb', color: COLORS.zone4 },
-  { start: 36, end: 45, type: 'descent', color: '#6B8C72' },
+  { start: 36, end: 45, type: 'descent', color: '#3D8B50' },
   { start: 45, end: 50, type: 'flat', color: COLORS.zone2 },
 ];
 
@@ -444,7 +444,7 @@ function RouteIntelligence({ animate }) {
               { label: 'Flat', color: COLORS.zone2 },
               { label: 'Rolling', color: COLORS.zone3 },
               { label: 'Climb', color: COLORS.zone4 },
-              { label: 'Descent', color: '#6B8C72' },
+              { label: 'Descent', color: '#3D8B50' },
             ].map(t => (
               <Group key={t.label} gap={3}>
                 <Box style={{ width: 8, height: 8, background: t.color, opacity: 0.6 }} />

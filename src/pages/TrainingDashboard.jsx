@@ -981,7 +981,7 @@ function TrainingDashboard() {
 
                   {/* Planner CTA */}
                   {!activePlan ? (
-                    <Card style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #9E5A3C)' }}>
+                    <Card style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #3A5A8C)' }}>
                       <Group gap="sm" wrap="nowrap">
                         <ThemeIcon size="lg" variant="light" color="terracotta" radius="xl">
                           <IconCalendarEvent size={18} />
@@ -1006,7 +1006,7 @@ function TrainingDashboard() {
                     </Card>
                   ) : (
                     <Card
-                      style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #9E5A3C)', cursor: 'pointer' }}
+                      style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #3A5A8C)', cursor: 'pointer' }}
                       onClick={() => navigate('/planner')}
                     >
                       <Group gap="sm" wrap="nowrap">
@@ -1641,17 +1641,17 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
       <Card withBorder p="md">
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconTrendingUp size={24} color="#6B8C72" style={{ marginBottom: 8 }} />
+            <IconTrendingUp size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="teal">+{Math.round(trainingMetrics.ctl * 0.12)}%</Text>
             <Text size="sm" c="dimmed">Fitness vs 90 days ago</Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconRoute size={24} color="#5C7A5E" style={{ marginBottom: 8 }} />
+            <IconRoute size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="blue">{activities.length}</Text>
             <Text size="sm" c="dimmed">Rides in 90 days</Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconAward size={24} color="#B89040" style={{ marginBottom: 8 }} />
+            <IconAward size={24} color="#D4820A" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="yellow">
               {speedProfile ? `${(speedProfile.average_speed * (isImperial ? 0.621371 : 1)).toFixed(1)}` : '--'}
             </Text>
@@ -1775,7 +1775,7 @@ const PowerTab = React.memo(function PowerTab({ ftp, powerZones, navigate, activ
           <Box>
             <Text size="sm" c="dimmed">Current FTP</Text>
             <Group gap="sm" align="baseline">
-              <Text size="3rem" fw={700} style={{ color: '#B89040' }}>
+              <Text size="3rem" fw={700} style={{ color: '#D4820A' }}>
                 {ftp}W
               </Text>
               {weight && (
