@@ -3,7 +3,7 @@ import { createTheme } from '@mantine/core';
 // Design tokens for tribos.studio
 // "Department of Cycling Intelligence" — retro-futuristic field guide
 // Anybody / Familjen Grotesk / DM Mono
-// Light: parchment-to-bone, Dark: cool green-black
+// Light: cooler base, Dark: dark slate
 
 // ===== Depth Presets =====
 // Flat surfaces with sharp borders — no gradients, no edge lighting
@@ -35,85 +35,85 @@ export const depth = {
   },
 };
 
-// Light theme tokens (default — warmer cool)
+// Light theme tokens (default — cooler base)
 export const lightTokens = {
   colors: {
-    // Primary accent: Green (via terracotta token)
-    terracotta: '#6B8C72',
-    terracottaLight: '#82A98A',
-    terracottaDark: '#5A7760',
+    // Primary accent: Steel blue (via terracotta token)
+    terracotta: '#3A5A8C',
+    terracottaLight: '#5A7AAC',
+    terracottaDark: '#2E4870',
 
     // Brand accents
     mauve: '#6B7F94',      // Slate (informational, Z5)
     teal: '#5C7A5E',       // Moss (Z2 endurance)
-    sage: '#6B8C72',       // Forest (Z1 recovery)
-    gold: '#B8860B',       // Amber (Z3 tempo)
+    sage: '#6B8C72',       // Forest (Z1 recovery, success)
+    gold: '#B8860B',       // Amber (Z3 tempo, warnings)
     dustyRose: '#8B6B5A',  // Iron (warm brown)
     skyPale: '#8B6B5A',    // Iron
 
-    // Backgrounds — warmer cool
-    bgPrimary: '#F7F7F6',     // Page background
-    bgSecondary: '#EFEFED',   // Surface (nav)
-    bgTertiary: '#E3E3E0',    // Sunken (recessed areas)
-    bgElevated: '#FAFAF9',    // Elevated (modals/inputs)
+    // Backgrounds — cooler base
+    bgPrimary: '#F7F7F9',     // Page background
+    bgSecondary: '#EEEEF1',   // Surface (nav)
+    bgTertiary: '#E2E2E7',    // Sunken (recessed areas)
+    bgElevated: '#F9F9FB',    // Elevated (modals/inputs)
 
     // Borders
-    border: '#E3E3E0',
-    borderLight: '#E3E3E0',
-    borderFocus: 'rgba(107, 140, 114, 0.5)',
+    border: '#E2E2E7',
+    borderLight: '#E2E2E7',
+    borderFocus: 'rgba(58, 90, 140, 0.5)',
 
     // Text
-    textPrimary: '#111110',
-    textSecondary: '#4E4E4A',
-    textMuted: '#909088',
+    textPrimary: '#0F0F12',
+    textSecondary: '#38383F',
+    textMuted: '#72727E',
 
     // Semantic — mapped to palette
     success: '#6B8C72',  // Green
     warning: '#B8860B',  // Amber
-    error: '#6B8C72',    // Green (primary accent)
+    error: '#3A5A8C',    // Primary (steel blue)
     info: '#6B7F94',     // Slate (mauve token)
 
     // Training Zone Colors — 5 spec zones + 2 extensions
     zone1: '#6B8C72', // Recovery — Forest
     zone2: '#5C7A5E', // Endurance — Moss
     zone3: '#B8860B', // Tempo — Amber
-    zone4: '#6B8C72', // Threshold — Green
+    zone4: '#3A5A8C', // Threshold — Steel blue
     zone5: '#6B7F94', // VO2max — Slate
     zone6: '#8B6B5A', // Anaerobic — Iron
-    zone7: '#E3E3E0', // Rest/Neuromuscular — Border gray
+    zone7: '#E2E2E7', // Rest/Neuromuscular — Border gray
 
     // Legacy aliases (backward compat)
-    electricLime: '#6B8C72',
-    electricLimeLight: '#82A98A',
-    electricLimeDark: '#5A7760',
+    electricLime: '#3A5A8C',
+    electricLimeLight: '#5A7AAC',
+    electricLimeDark: '#2E4870',
   },
 
   shadows: {
-    xs: '0 1px 2px rgba(0, 0, 0, 0.04)',
-    sm: '0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
-    md: '0 2px 6px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04)',
-    lg: '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)',
-    card: '0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
-    cardHover: '0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
-    focus: '0 0 0 2px rgba(107, 140, 114, 0.25)',
+    xs: '0 1px 2px rgba(10, 10, 12, 0.04)',
+    sm: '0 1px 3px rgba(10, 10, 12, 0.07), 0 4px 12px rgba(10, 10, 12, 0.04)',
+    md: '0 2px 6px rgba(10, 10, 12, 0.07), 0 4px 12px rgba(10, 10, 12, 0.04)',
+    lg: '0 4px 12px rgba(10, 10, 12, 0.1), 0 2px 4px rgba(10, 10, 12, 0.06)',
+    card: '0 1px 3px rgba(10, 10, 12, 0.07), 0 4px 12px rgba(10, 10, 12, 0.04)',
+    cardHover: '0 4px 12px rgba(10, 10, 12, 0.1), 0 2px 4px rgba(10, 10, 12, 0.06)',
+    focus: '0 0 0 2px rgba(58, 90, 140, 0.25)',
   },
 };
 
 // Dark theme tokens (dark slate)
 export const darkTokens = {
   colors: {
-    // Primary accent: Green (dark-adapted)
-    terracotta: '#7FA887',
-    terracottaLight: '#98BDA0',
-    terracottaDark: '#6A9072',
+    // Primary accent: Steel blue (dark-adapted)
+    terracotta: '#5A7AAC',
+    terracottaLight: '#7A9AC4',
+    terracottaDark: '#4A6890',
 
     // Brand accents — slightly muted for dark
     mauve: '#6B7F94',      // Slate
     mauveDim: '#5B6C7D',
     teal: '#507052',       // Moss (dark)
     tealDim: '#405643',
-    sage: '#5E8068',       // Forest (dark)
-    gold: '#D49820',       // Amber (dark)
+    sage: '#5E8068',       // Forest (dark, success)
+    gold: '#D49820',       // Amber (dark, warnings)
     goldDim: '#B8860B',
     dustyRose: '#7A5E4E',  // Iron (dark)
     skyMuted: '#7A5E4E',   // Iron (dark)
@@ -127,7 +127,7 @@ export const darkTokens = {
     // Borders
     border: '#242D3E',
     borderLight: '#1C2230',
-    borderFocus: 'rgba(127, 168, 135, 0.5)',
+    borderFocus: 'rgba(90, 122, 172, 0.5)',
 
     // Text — cool slate hierarchy
     textPrimary: '#E8EBF2',
@@ -138,32 +138,32 @@ export const darkTokens = {
     // Semantic
     success: '#7FA887',
     warning: '#D49820',
-    error: '#7FA887',
+    error: '#5A7AAC',
     info: '#6B7F94',
 
     // Training Zone Colors — dark adapted
     zone1: '#5E8068', // Recovery — Forest (dark)
     zone2: '#507052', // Endurance — Moss (dark)
     zone3: '#D49820', // Tempo — Amber
-    zone4: '#7FA887', // Threshold — Green
+    zone4: '#5A7AAC', // Threshold — Steel blue
     zone5: '#6B7F94', // VO2max — Slate
     zone6: '#7A5E4E', // Anaerobic — Iron (dark)
     zone7: '#242D3E', // Rest — Border gray (dark)
 
     // Legacy aliases
-    electricLime: '#7FA887',
-    electricLimeLight: '#98BDA0',
-    electricLimeDark: '#6A9072',
+    electricLime: '#5A7AAC',
+    electricLimeLight: '#7A9AC4',
+    electricLimeDark: '#4A6890',
   },
 
   shadows: {
     xs: '0 1px 2px rgba(0, 0, 0, 0.2)',
-    sm: '0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15)',
-    md: '0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2)',
+    sm: '0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2)',
+    md: '0 2px 8px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2)',
     lg: '0 4px 16px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.2)',
-    card: '0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15)',
+    card: '0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2)',
     cardHover: '0 4px 12px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2)',
-    focus: '0 0 0 2px rgba(127, 168, 135, 0.3)',
+    focus: '0 0 0 2px rgba(90, 122, 172, 0.3)',
   },
 };
 
@@ -228,9 +228,9 @@ export const theme = createTheme({
 
   colors: {
     terracotta: [
-      '#F0F5F1', '#D8E6DB', '#BCD4C1', '#9CC1A4',
-      '#82A98A', '#6B8C72', '#5A7760', '#4A624F',
-      '#3B4E3F', '#2D3B30',
+      '#EFF3F8', '#D4DFED', '#B0C5DD', '#8AAACE',
+      '#5A7AAC', '#3A5A8C', '#2E4870', '#233858',
+      '#1A2A42', '#121E30',
     ],
     sage: [
       '#F0F5F1', '#D8E6DB', '#BCD4C1', '#9CC1A4',
@@ -270,16 +270,16 @@ export const theme = createTheme({
       '#141820',  // 9 — deep
     ],
     gray: [
-      '#FAFAF9',  // 0 — elevated
-      '#F7F7F6',  // 1 — surface
-      '#EFEFED',  // 2 — base
-      '#E3E3E0',  // 3 — sunken
-      '#E3E3E0',  // 4 — border default
-      '#909088',  // 5 — muted text
-      '#4E4E4A',  // 6 — secondary text
-      '#111110',  // 7 — primary text
-      '#0A0A09',  // 8 — deep ink
-      '#050504',  // 9 — darkest
+      '#F9F9FB',  // 0 — elevated
+      '#F7F7F9',  // 1 — surface
+      '#EEEEF1',  // 2 — base
+      '#E2E2E7',  // 3 — sunken
+      '#E2E2E7',  // 4 — border default
+      '#72727E',  // 5 — muted text
+      '#38383F',  // 6 — secondary text
+      '#0F0F12',  // 7 — primary text
+      '#0A0A0D',  // 8 — deep ink
+      '#050507',  // 9 — darkest
     ],
     green: [
       '#F0F5F1', '#D8E6DB', '#BCD4C1', '#9CC1A4',
@@ -313,11 +313,11 @@ export const theme = createTheme({
   defaultRadius: 0,
 
   shadows: {
-    xs: '0 1px 2px rgba(0,0,0,0.04)',
-    sm: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
-    md: '0 2px 6px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)',
-    lg: '0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',
-    xl: '0 8px 24px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.06)',
+    xs: '0 1px 2px rgba(10,10,12,0.04)',
+    sm: '0 1px 3px rgba(10,10,12,0.07), 0 4px 12px rgba(10,10,12,0.04)',
+    md: '0 2px 6px rgba(10,10,12,0.07), 0 4px 12px rgba(10,10,12,0.04)',
+    lg: '0 4px 12px rgba(10,10,12,0.1), 0 2px 4px rgba(10,10,12,0.06)',
+    xl: '0 8px 24px rgba(10,10,12,0.1), 0 4px 8px rgba(10,10,12,0.06)',
   },
 
   other: {
