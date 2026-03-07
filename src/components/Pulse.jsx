@@ -39,8 +39,8 @@ import ThreadLinkBadge from './conversations/ThreadLinkBadge';
 
 // Pulse theme colors
 const PULSE_THEME = {
-  primary: '#9E5A3C', // Terracotta
-  primaryLight: '#9E5A3C33',
+  primary: '#3A5A8C', // Terracotta
+  primaryLight: '#3A5A8C33',
   icon: IconActivity,
   name: 'Pulse',
   coachType: 'pulse',

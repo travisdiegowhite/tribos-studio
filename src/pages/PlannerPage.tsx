@@ -191,7 +191,7 @@ export default function PlannerPage() {
 
           {/* Nudge for users without an active plan */}
           {!activePlan && activities.length > 0 && (
-            <Card style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #9E5A3C)' }}>
+            <Card style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #3A5A8C)' }}>
               <Group gap="sm" wrap="nowrap">
                 <ThemeIcon size="lg" variant="light" color="terracotta" radius="xl">
                   <IconTarget size={18} />

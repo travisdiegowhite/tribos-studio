@@ -22,13 +22,13 @@ const METRIC_CONFIG = {
   power: {
     label: 'Power',
     unit: 'W',
-    color: '#9E5A3C',
+    color: '#3A5A8C',
     yAxisId: 'left',
   },
   heartRate: {
     label: 'Heart Rate',
     unit: 'bpm',
-    color: '#B89040',
+    color: '#D4820A',
     yAxisId: 'right',
   },
   speed: {
@@ -46,7 +46,7 @@ const METRIC_CONFIG = {
   elevation: {
     label: 'Elevation',
     unit: 'm',
-    color: '#6B8C72',
+    color: '#3D8B50',
     yAxisId: 'right',
   },
 };

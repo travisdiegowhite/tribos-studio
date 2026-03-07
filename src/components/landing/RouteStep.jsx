@@ -463,7 +463,7 @@ export default function RouteStep() {
                           id="route-shadow"
                           type="line"
                           paint={{
-                            'line-color': '#9E5A3C',
+                            'line-color': '#3A5A8C',
                             'line-width': 8,
                             'line-opacity': 0.15,
                             'line-blur': 6,
@@ -474,7 +474,7 @@ export default function RouteStep() {
                           id="route-line"
                           type="line"
                           paint={{
-                            'line-color': '#9E5A3C',
+                            'line-color': '#3A5A8C',
                             'line-width': 3,
                             'line-opacity': 0.9,
                           }}

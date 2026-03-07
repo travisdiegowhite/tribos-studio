@@ -84,9 +84,9 @@ export interface CrossTrainingStats {
 
 // Category display info
 export const ACTIVITY_CATEGORIES = {
-  strength: { label: 'Strength', color: '#9E5A3C', icon: 'barbell' },
+  strength: { label: 'Strength', color: '#3A5A8C', icon: 'barbell' },
   flexibility: { label: 'Flexibility', color: '#6B7F94', icon: 'yoga' },
-  cardio: { label: 'Cardio', color: '#6B8C72', icon: 'run' },
+  cardio: { label: 'Cardio', color: '#3D8B50', icon: 'run' },
   recovery: { label: 'Recovery', color: '#64748b', icon: 'bed' },
   mind_body: { label: 'Mind & Body', color: '#6366f1', icon: 'brain' },
   other: { label: 'Other', color: '#9ca3af', icon: 'activity' },

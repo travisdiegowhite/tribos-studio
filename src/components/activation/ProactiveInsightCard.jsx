@@ -100,7 +100,7 @@ export default function ProactiveInsightCard() {
     <Card
       id="insight-card"
       style={{
-        borderLeft: '3px solid var(--tribos-sage-500, #6B8C72)',
+        borderLeft: '3px solid var(--tribos-sage-500, #3D8B50)',
       }}
     >
       <Group gap="sm" mb="xs" wrap="nowrap">
@@ -114,7 +114,7 @@ export default function ProactiveInsightCard() {
             tt="uppercase"
             ff="'DM Mono', monospace"
             lts={1}
-            style={{ color: 'var(--tribos-sage-500, #6B8C72)' }}
+            style={{ color: 'var(--tribos-sage-500, #3D8B50)' }}
           >
             Your coach noticed something
           </Text>

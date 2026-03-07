@@ -33,13 +33,13 @@ const COACH_CONFIGS = {
     color: 'teal',
     icon: IconChartLine,
     name: 'Training Strategist',
-    primary: '#5C7A5E',
+    primary: '#3D8B50',
   },
   pulse: {
     color: 'terracotta',
     icon: IconActivity,
     name: 'Pulse',
-    primary: '#9E5A3C',
+    primary: '#3A5A8C',
   },
 };
 

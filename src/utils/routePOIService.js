@@ -30,7 +30,7 @@ export const POI_CATEGORIES = {
     id: 'water',
     label: 'Water',
     icon: 'droplet',      // maps to IconDroplet in the UI
-    color: '#5C7A5E',     // teal
+    color: '#3D8B50',     // teal
     overpassTags: [
       'node[amenity=drinking_water]',
       'node[man_made=water_tap]',
@@ -41,7 +41,7 @@ export const POI_CATEGORIES = {
     id: 'food',
     label: 'Food & Drink',
     icon: 'coffee',       // IconCoffee
-    color: '#B89040',     // gold
+    color: '#D4820A',     // gold
     overpassTags: [
       'node[amenity=cafe]',
       'node[amenity=restaurant]',
@@ -54,7 +54,7 @@ export const POI_CATEGORIES = {
     id: 'bike_shop',
     label: 'Bike Shop',
     icon: 'tool',         // IconTool
-    color: '#6B8C72',     // sage
+    color: '#3D8B50',     // sage
     overpassTags: [
       'node[shop=bicycle]',
       'node[amenity=bicycle_repair_station]',

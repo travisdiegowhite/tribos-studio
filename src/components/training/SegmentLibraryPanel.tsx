@@ -60,10 +60,10 @@ const MAPBOX_TOKEN = (import.meta as any).env.VITE_MAPBOX_TOKEN;
 
 // Segment type colors (reused from RouteAnalysisPanel)
 const SEGMENT_COLORS: Record<string, string> = {
-  flat: '#5C7A5E',
-  climb: '#9E5A3C',
-  descent: '#6B8C72',
-  rolling: '#B89040',
+  flat: '#3D8B50',
+  climb: '#3A5A8C',
+  descent: '#3D8B50',
+  rolling: '#D4820A',
 };
 
 // Power zone display names and colors
@@ -417,7 +417,7 @@ function SegmentDetailModal({
               {coords.length > 0 && (
                 <Marker longitude={coords[0][0]} latitude={coords[0][1]} anchor="bottom">
                   <div style={{
-                    backgroundColor: '#6B8C72',
+                    backgroundColor: '#3D8B50',
                     color: 'white',
                     width: 24,
                     height: 24,
@@ -439,7 +439,7 @@ function SegmentDetailModal({
               {coords.length > 1 && (
                 <Marker longitude={coords[coords.length - 1][0]} latitude={coords[coords.length - 1][1]} anchor="bottom">
                   <div style={{
-                    backgroundColor: '#9E5A3C',
+                    backgroundColor: '#3A5A8C',
                     color: 'white',
                     width: 24,
                     height: 24,

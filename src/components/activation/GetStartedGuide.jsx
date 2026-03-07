@@ -136,7 +136,7 @@ export default function GetStartedGuide() {
   return (
     <Card
       style={{
-        borderLeft: '3px solid var(--tribos-terracotta-500, #9E5A3C)',
+        borderLeft: '3px solid var(--tribos-terracotta-500, #3A5A8C)',
       }}
     >
       <Group justify="space-between" mb="sm">

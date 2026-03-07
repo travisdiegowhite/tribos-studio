@@ -594,7 +594,7 @@ export default function CafeSettingsModal({
               >
                 <Stack gap="sm">
                   <Group>
-                    <IconTrash size={20} color="#9E5A3C" />
+                    <IconTrash size={20} color="#3A5A8C" />
                     <Text fw={500} c="red">
                       Delete Cafe
                     </Text>

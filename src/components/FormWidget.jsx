@@ -239,7 +239,7 @@ const FormWidget = ({ activities = [], loading = false }) => {
             <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
               Fitness (CTL)
             </Text>
-            <Text fw={600} style={{ color: '#5C7A5E' }}>
+            <Text fw={600} style={{ color: '#3D8B50' }}>
               {ctl}
             </Text>
           </Box>
@@ -253,7 +253,7 @@ const FormWidget = ({ activities = [], loading = false }) => {
             <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
               Fatigue (ATL)
             </Text>
-            <Text fw={600} style={{ color: '#B89040' }}>
+            <Text fw={600} style={{ color: '#D4820A' }}>
               {atl}
             </Text>
           </Box>

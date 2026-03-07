@@ -7,8 +7,8 @@
 
 // Surface type colors (solid = paved, semi-transparent for visual distinction)
 export const SURFACE_COLORS = {
-  paved:   '#5C7A5E', // teal
-  gravel:  '#B89040', // gold
+  paved:   '#3D8B50', // teal
+  gravel:  '#D4820A', // gold
   unpaved: '#C17C60', // terracotta
   mixed:   '#B8A0C4', // mauve
   unknown: '#9A9C90', // text muted
