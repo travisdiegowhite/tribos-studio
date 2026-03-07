@@ -6,33 +6,9 @@ import {
 } from '@mantine/core';
 import { IconChevronRight, IconChevronDown, IconSparkles, IconRobot } from '@tabler/icons-react';
 import Map, { Source, Layer } from 'react-map-gl';
+import { fullRoute, routeBounds } from './routeData';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-
-// Sampled route (~47 points from the full Erie Gravel/Unpaved loop)
-const heroRoute = [
-  [-105.05817,40.02936],[-105.04383,40.02514],[-105.04568,40.02064],
-  [-105.04594,40.01993],[-105.05249,40.01763],[-105.05162,40.01216],
-  [-105.05359,40.00803],[-105.05764,40.00188],[-105.05639,39.99803],
-  [-105.05517,39.99476],[-105.05989,39.98932],[-105.06281,39.98520],
-  [-105.06680,39.98401],[-105.07064,39.98021],[-105.07534,39.97632],
-  [-105.07846,39.97367],[-105.08302,39.96802],[-105.08600,39.96009],
-  [-105.08585,39.95441],[-105.08855,39.94850],[-105.08685,39.94370],
-  [-105.08748,39.93981],[-105.08639,39.93712],[-105.08838,39.93490],
-  [-105.09879,39.93539],[-105.10998,39.93830],[-105.11824,39.93515],
-  [-105.12223,39.93326],[-105.12363,39.93263],[-105.12904,39.93372],
-  [-105.14747,39.94638],[-105.15310,39.95041],[-105.16024,39.95546],
-  [-105.16539,39.95798],[-105.18435,39.96779],[-105.17646,39.97649],
-  [-105.17657,39.98370],[-105.17561,39.98676],[-105.17794,40.01549],
-  [-105.20435,40.07259],[-105.24911,40.10178],[-105.25885,40.11609],
-  [-105.17390,40.11256],[-105.15995,40.11621],[-105.13080,40.07277],
-  [-105.07471,40.03676],[-105.06148,40.02941],
-];
-
-const routeBounds = [
-  [Math.min(...heroRoute.map(c => c[0])) - 0.015, Math.min(...heroRoute.map(c => c[1])) - 0.015],
-  [Math.max(...heroRoute.map(c => c[0])) + 0.015, Math.max(...heroRoute.map(c => c[1])) + 0.015],
-];
 
 export default function HeroSection() {
   const [hasScrolled, setHasScrolled] = useState(false);
@@ -52,11 +28,11 @@ export default function HeroSection() {
   const animateRoute = useCallback(() => {
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReduced) {
-      setAnimatedCoords(heroRoute);
+      setAnimatedCoords(fullRoute);
       return;
     }
 
-    const totalPoints = heroRoute.length;
+    const totalPoints = fullRoute.length;
     const duration = 2500;
     const startTime = performance.now();
 
@@ -65,12 +41,12 @@ export default function HeroSection() {
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 2);
       const pointCount = Math.max(2, Math.round(eased * totalPoints));
-      setAnimatedCoords(heroRoute.slice(0, pointCount));
+      setAnimatedCoords(fullRoute.slice(0, pointCount));
 
       if (progress < 1) {
         animFrameRef.current = requestAnimationFrame(step);
       } else {
-        setAnimatedCoords(heroRoute);
+        setAnimatedCoords(fullRoute);
       }
     };
 
@@ -88,7 +64,7 @@ export default function HeroSection() {
     type: 'Feature',
     geometry: {
       type: 'LineString',
-      coordinates: animatedCoords.length >= 2 ? animatedCoords : heroRoute.slice(0, 2),
+      coordinates: animatedCoords.length >= 2 ? animatedCoords : fullRoute.slice(0, 2),
     },
   };
 
