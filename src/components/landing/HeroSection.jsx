@@ -75,33 +75,46 @@ export default function HeroSection() {
             Create Free Account
           </Button>
 
-          {/* Scroll prompt */}
+          {/* Secondary scroll CTA */}
           <Box
-            className={`scroll-prompt ${hasScrolled ? 'hidden' : ''}`}
-            style={{
-              position: 'absolute',
-              bottom: 40,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              textAlign: 'center',
+            component="a"
+            href="#connect"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById('connect')?.scrollIntoView({ behavior: 'smooth' });
             }}
+            style={{ textDecoration: 'none', cursor: 'pointer' }}
           >
             <Text
-              size="xs"
+              size="sm"
               style={{
                 color: 'var(--tribos-text-muted)',
                 fontFamily: "'DM Mono', monospace",
-                letterSpacing: '2px',
-                textTransform: 'uppercase',
-                marginBottom: 8,
+                letterSpacing: '1px',
               }}
             >
-              Scroll to begin
+              See how it works
             </Text>
-            <IconChevronDown size={20} color="var(--tribos-text-muted)" />
           </Box>
         </Stack>
       </Container>
+
+      {/* Scroll prompt — positioned relative to hero Box */}
+      <Box
+        className={`scroll-prompt ${hasScrolled ? 'hidden' : ''}`}
+        style={{
+          position: 'absolute',
+          bottom: 32,
+          left: '50%',
+          textAlign: 'center',
+          cursor: 'pointer',
+        }}
+        onClick={() => {
+          document.getElementById('connect')?.scrollIntoView({ behavior: 'smooth' });
+        }}
+      >
+        <IconChevronDown size={24} color="var(--tribos-text-muted)" />
+      </Box>
     </Box>
   );
 }

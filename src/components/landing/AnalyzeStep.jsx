@@ -12,49 +12,50 @@ import { IconBolt, IconChartPie, IconClock, IconFlame, IconTrophy } from '@table
 import { tokens } from '../../theme';
 import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
 
-// ===== Cat 2 Racer Profile =====
-// FTP: 295W | Weight: 74kg | W/kg: 4.0 | Rider type: All-Rounder
+// ===== Cat 3 Racer Profile =====
+// FTP: 250W | Weight: 76kg | W/kg: 3.3 | Rider type: All-Rounder
 // 90-day training block with 3:1 build/recovery periodization
 
-const FTP = 295;
-const WEIGHT = 74;
+const FTP = 250;
+const WEIGHT = 76;
 
 // ===== Training Load Data (90 days, daily) =====
-// Generates realistic CTL/ATL/TSB for a Cat 2 racer in a build phase
+// Generates realistic CTL/ATL/TSB for a Cat 3 racer in a build phase
 const trainingLoadData = (() => {
   // Daily TSS values for 90 days — 3:1 periodization
+  // Cat 3: ~8-10h/week, lower TSS per session
   const dailyTSS = [
     // Week 1 (Build 1.1) - moderate
-    85, 0, 110, 65, 0, 140, 55,
+    60, 0, 80, 45, 0, 100, 40,
     // Week 2 (Build 1.2) - increasing
-    95, 0, 120, 70, 0, 155, 60,
+    65, 0, 85, 50, 0, 110, 45,
     // Week 3 (Build 1.3) - peak
-    105, 0, 135, 80, 0, 165, 65,
+    75, 0, 95, 55, 0, 120, 50,
     // Week 4 (Recovery 1)
-    45, 0, 55, 40, 0, 65, 0,
+    35, 0, 40, 30, 0, 50, 0,
     // Week 5 (Build 2.1)
-    100, 0, 125, 75, 0, 150, 60,
+    70, 0, 90, 50, 0, 110, 45,
     // Week 6 (Build 2.2)
-    110, 0, 140, 85, 0, 170, 70,
+    75, 0, 100, 60, 0, 125, 50,
     // Week 7 (Build 2.3) - peak
-    120, 0, 150, 90, 0, 180, 75,
+    85, 0, 110, 65, 0, 135, 55,
     // Week 8 (Recovery 2)
-    50, 0, 60, 45, 0, 70, 0,
-    // Week 9 (Build 3.1) - race specificity
-    115, 0, 145, 85, 0, 165, 65,
+    35, 0, 45, 30, 0, 55, 0,
+    // Week 9 (Build 3.1)
+    80, 0, 105, 60, 0, 120, 50,
     // Week 10 (Build 3.2)
-    125, 0, 155, 95, 0, 175, 70,
+    85, 0, 115, 65, 0, 130, 55,
     // Week 11 (Build 3.3) - peak
-    130, 0, 160, 100, 0, 185, 75,
+    90, 0, 120, 70, 0, 140, 55,
     // Week 12 (Taper)
-    70, 0, 80, 50, 0, 90, 45,
+    50, 0, 60, 40, 0, 65, 35,
     // Week 13 (Race week taper)
-    55, 0, 65, 40, 0, 50, 35,
+    40, 0, 50, 30, 0, 40, 25,
   ];
 
   // Calculate CTL (42-day EMA) and ATL (7-day EMA)
-  let ctl = 72; // Starting CTL
-  let atl = 68; // Starting ATL
+  let ctl = 52; // Starting CTL
+  let atl = 48; // Starting ATL
   const data = [];
 
   for (let i = 0; i < 90; i++) {
@@ -78,40 +79,40 @@ const trainingLoadData = (() => {
 })();
 
 // ===== Power Duration Curve Data =====
-// Cat 2 all-rounder, 90-day bests
+// Cat 3 all-rounder, 90-day bests
 const pdcData = [
-  { duration: '5s', durationSeconds: 5, name: 'Peak Sprint', current: 1200, previous: 1140, currentWkg: '16.22', previousWkg: '15.41' },
-  { duration: '15s', durationSeconds: 15, name: 'Sprint', current: 880, previous: 840, currentWkg: '11.89', previousWkg: '11.35' },
-  { duration: '30s', durationSeconds: 30, name: 'Anaerobic', current: 650, previous: 620, currentWkg: '8.78', previousWkg: '8.38' },
-  { duration: '1m', durationSeconds: 60, name: '1 Minute', current: 465, previous: 445, currentWkg: '6.28', previousWkg: '6.01' },
-  { duration: '2m', durationSeconds: 120, name: '2 Minutes', current: 395, previous: 375, currentWkg: '5.34', previousWkg: '5.07' },
-  { duration: '5m', durationSeconds: 300, name: '5 Minutes', current: 345, previous: 330, currentWkg: '4.66', previousWkg: '4.46' },
-  { duration: '8m', durationSeconds: 480, name: '8 Minutes', current: 325, previous: 310, currentWkg: '4.39', previousWkg: '4.19' },
-  { duration: '10m', durationSeconds: 600, name: '10 Minutes', current: 315, previous: 300, currentWkg: '4.26', previousWkg: '4.05' },
-  { duration: '20m', durationSeconds: 1200, name: '20 Minutes', current: 305, previous: 290, currentWkg: '4.12', previousWkg: '3.92' },
-  { duration: '30m', durationSeconds: 1800, name: '30 Minutes', current: 295, previous: 280, currentWkg: '3.99', previousWkg: '3.78' },
-  { duration: '60m', durationSeconds: 3600, name: '60 Minutes', current: 278, previous: 265, currentWkg: '3.76', previousWkg: '3.58' },
-  { duration: '90m', durationSeconds: 5400, name: '90 Minutes', current: 262, previous: 248, currentWkg: '3.54', previousWkg: '3.35' },
-  { duration: '2h', durationSeconds: 7200, name: '2 Hours', current: 248, previous: 235, currentWkg: '3.35', previousWkg: '3.18' },
+  { duration: '5s', durationSeconds: 5, name: 'Peak Sprint', current: 980, previous: 940, currentWkg: '12.89', previousWkg: '12.37' },
+  { duration: '15s', durationSeconds: 15, name: 'Sprint', current: 720, previous: 690, currentWkg: '9.47', previousWkg: '9.08' },
+  { duration: '30s', durationSeconds: 30, name: 'Anaerobic', current: 530, previous: 505, currentWkg: '6.97', previousWkg: '6.64' },
+  { duration: '1m', durationSeconds: 60, name: '1 Minute', current: 390, previous: 370, currentWkg: '5.13', previousWkg: '4.87' },
+  { duration: '2m', durationSeconds: 120, name: '2 Minutes', current: 330, previous: 315, currentWkg: '4.34', previousWkg: '4.14' },
+  { duration: '5m', durationSeconds: 300, name: '5 Minutes', current: 290, previous: 275, currentWkg: '3.82', previousWkg: '3.62' },
+  { duration: '8m', durationSeconds: 480, name: '8 Minutes', current: 275, previous: 260, currentWkg: '3.62', previousWkg: '3.42' },
+  { duration: '10m', durationSeconds: 600, name: '10 Minutes', current: 268, previous: 254, currentWkg: '3.53', previousWkg: '3.34' },
+  { duration: '20m', durationSeconds: 1200, name: '20 Minutes', current: 258, previous: 245, currentWkg: '3.39', previousWkg: '3.22' },
+  { duration: '30m', durationSeconds: 1800, name: '30 Minutes', current: 250, previous: 238, currentWkg: '3.29', previousWkg: '3.13' },
+  { duration: '60m', durationSeconds: 3600, name: '60 Minutes', current: 235, previous: 222, currentWkg: '3.09', previousWkg: '2.92' },
+  { duration: '90m', durationSeconds: 5400, name: '90 Minutes', current: 218, previous: 206, currentWkg: '2.87', previousWkg: '2.71' },
+  { duration: '2h', durationSeconds: 7200, name: '2 Hours', current: 205, previous: 195, currentWkg: '2.70', previousWkg: '2.57' },
 ];
 
 const powerBests = {
-  sprint5s: 1200,
-  oneMin: 465,
-  fiveMin: 345,
-  twentyMin: 305,
-  sixtyMin: 278,
+  sprint5s: 980,
+  oneMin: 390,
+  fiveMin: 290,
+  twentyMin: 258,
+  sixtyMin: 235,
 };
 
 // ===== Zone Distribution Data =====
-// 90-day, polarized training (Cat 2 racer)
+// 90-day, pyramidal training (Cat 3 racer — more tempo than polarized)
 const zoneChartData = [
-  { zone: 1, name: 'Recovery', time: 15300, percentage: 10, hours: '4.3', color: tokens.colors.zone1 },
-  { zone: 2, name: 'Endurance', time: 76500, percentage: 50, hours: '21.3', color: tokens.colors.zone2 },
-  { zone: 3, name: 'Tempo', time: 15300, percentage: 10, hours: '4.3', color: tokens.colors.zone3 },
-  { zone: 4, name: 'Threshold', time: 22950, percentage: 15, hours: '6.4', color: tokens.colors.zone4 },
-  { zone: 5, name: 'VO2max', time: 16830, percentage: 11, hours: '4.7', color: tokens.colors.zone5 },
-  { zone: 6, name: 'Anaerobic', time: 6120, percentage: 4, hours: '1.7', color: tokens.colors.zone6 },
+  { zone: 1, name: 'Recovery', time: 10800, percentage: 12, hours: '3.0', color: tokens.colors.zone1 },
+  { zone: 2, name: 'Endurance', time: 39600, percentage: 44, hours: '11.0', color: tokens.colors.zone2 },
+  { zone: 3, name: 'Tempo', time: 14400, percentage: 16, hours: '4.0', color: tokens.colors.zone3 },
+  { zone: 4, name: 'Threshold', time: 12600, percentage: 14, hours: '3.5', color: tokens.colors.zone4 },
+  { zone: 5, name: 'VO2max', time: 9000, percentage: 10, hours: '2.5', color: tokens.colors.zone5 },
+  { zone: 6, name: 'Anaerobic', time: 3600, percentage: 4, hours: '1.0', color: tokens.colors.zone6 },
 ];
 
 // ===== Route Intelligence Data =====
@@ -343,7 +344,7 @@ function PowerDurationSection() {
             stroke={tokens.colors.zone4}
             strokeDasharray="5 5"
             label={{
-              value: `FTP: ${FTP}W`,
+              value: 'FTP: 250W',
               position: 'right',
               fill: tokens.colors.zone4,
               fontSize: 11,
@@ -391,9 +392,9 @@ function PowerDurationSection() {
 
 // ===== Zone Distribution (Recharts — matches ZoneDistributionChart.jsx) =====
 function ZoneDistributionSection() {
-  const totalTimeSeconds = 153000; // ~42.5 hours
-  const z2Pct = 50;
-  const highIntensityPct = 30;
+  const totalTimeSeconds = 90000; // ~25 hours
+  const z2Pct = 44;
+  const highIntensityPct = 28;
 
   const ZoneTooltip = ({ active, payload }) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -421,7 +422,7 @@ function ZoneDistributionSection() {
           <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
             Training Zone Distribution
           </Text>
-          <Badge color="green" variant="light" size="sm">Polarized</Badge>
+          <Badge color="blue" variant="light" size="sm">Pyramidal</Badge>
         </Group>
         <Group gap="xs">
           <SegmentedControl
@@ -453,7 +454,7 @@ function ZoneDistributionSection() {
             <IconClock size={14} color="var(--tribos-text-muted)" />
             <Text size="xs" c="dimmed">Total Time</Text>
           </Group>
-          <Text size="sm" fw={600}>42h 15m</Text>
+          <Text size="sm" fw={600}>25h 0m</Text>
         </Paper>
         <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Group gap="xs">
@@ -471,7 +472,7 @@ function ZoneDistributionSection() {
         </Paper>
         <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
           <Text size="xs" c="dimmed">Activities</Text>
-          <Text size="sm" fw={600}>47</Text>
+          <Text size="sm" fw={600}>32</Text>
         </Paper>
       </SimpleGrid>
 
@@ -536,8 +537,8 @@ function ZoneDistributionSection() {
       {/* Distribution insight */}
       <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
         <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
-          <Text span fw={600} c="green">Polarized Distribution:</Text>
-          {' '}80/20 distribution - optimal for endurance building
+          <Text span fw={600} c="blue">Pyramidal Distribution:</Text>
+          {' '}Good mix of endurance and intensity
         </Text>
       </Paper>
 

@@ -128,7 +128,7 @@ function Landing() {
         </div>
 
         {/* Section 1: Connect */}
-        <div ref={setSectionRef(1)}>
+        <div id="connect" ref={setSectionRef(1)}>
           <ConnectStep />
         </div>
 
