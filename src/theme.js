@@ -75,7 +75,7 @@ export const lightTokens = {
 
     // Training Zone Colors — 5 spec zones + 2 extensions
     zone1: '#3D8B50', // Recovery — Green
-    zone2: '#5C7A5E', // Endurance — Moss
+    zone2: '#4A7A5A', // Endurance — Sage green
     zone3: '#D4820A', // Tempo — Amber
     zone4: '#3A5A8C', // Threshold — Steel blue
     zone5: '#6B7F94', // VO2max — Slate

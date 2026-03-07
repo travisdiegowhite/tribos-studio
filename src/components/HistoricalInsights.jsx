@@ -78,7 +78,7 @@ function YearOverYearChart({ snapshots, selectedYears }) {
     return Array.from(uniqueYears).sort((a, b) => b - a);
   }, [snapshots]);
 
-  const colors = ['#4dabf7', '#69db7c', '#ffd43b', '#ff8787', '#da77f2'];
+  const colors = ['#3A5A8C', '#3D8B50', '#D4820A', '#6B7F94', '#8B6B5A'];
 
   if (chartData.length === 0) {
     return (
@@ -199,7 +199,7 @@ function SeasonalPatternChart({ snapshots }) {
               return [value, name];
             }}
           />
-          <Bar dataKey="avgCtl" fill="#4dabf7" name="avgCtl" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="avgCtl" fill="#3A5A8C" name="avgCtl" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
 
@@ -256,8 +256,8 @@ function FitnessProgressionChart({ snapshots }) {
         <AreaChart data={chartData}>
           <defs>
             <linearGradient id="ctlGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#4dabf7" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#4dabf7" stopOpacity={0}/>
+              <stop offset="5%" stopColor="#3A5A8C" stopOpacity={0.3}/>
+              <stop offset="95%" stopColor="#3A5A8C" stopOpacity={0}/>
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-border)'} />
@@ -287,7 +287,7 @@ function FitnessProgressionChart({ snapshots }) {
           <Area
             type="monotone"
             dataKey="ctl"
-            stroke="#4dabf7"
+            stroke="#3A5A8C"
             fill="url(#ctlGradient)"
             strokeWidth={2}
           />
@@ -446,14 +446,14 @@ function VolumeComparisonChart({ snapshots }) {
           <Bar
             yAxisId="hours"
             dataKey="totalHours"
-            fill="#69db7c"
+            fill="#3D8B50"
             name="Total Hours"
             radius={[4, 4, 0, 0]}
           />
           <Bar
             yAxisId="ctl"
             dataKey="peakCtl"
-            fill="#4dabf7"
+            fill="#3A5A8C"
             name="Peak CTL"
             radius={[4, 4, 0, 0]}
           />

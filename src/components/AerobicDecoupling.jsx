@@ -91,7 +91,7 @@ export function interpretDecoupling(decoupling) {
   } else if (decoupling < 5) {
     return {
       status: 'good',
-      color: 'terracotta',
+      color: 'blue',
       icon: IconCheck,
       message: 'Good aerobic fitness',
       description: 'Low decoupling shows solid aerobic conditioning.',
@@ -401,7 +401,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
           <Box style={{ position: 'relative', height: 8 }}>
             <Progress.Root size="lg" radius="xl">
               <Progress.Section value={15} color="green" />
-              <Progress.Section value={10} color="terracotta" />
+              <Progress.Section value={10} color="blue" />
               <Progress.Section value={25} color="yellow" />
               <Progress.Section value={25} color="orange" />
               <Progress.Section value={25} color="red" />

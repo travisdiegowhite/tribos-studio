@@ -3,19 +3,18 @@ import { Container, Text, Paper, SimpleGrid, Box, Stack, Group } from '@mantine/
 import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
 
 // ===== Chart colors — match actual app components =====
-// From TrainingLoadChart.jsx: CTL=#3D8B50, ATL=#D4820A, TSB=#3D8B50
-// From PowerDurationCurve.jsx: current line=#fbbf24, FTP ref=#3A5A8C
-// From zoneColors.js: Z1=#3D8B50, Z2=#3D8B50, Z3=#D4820A, Z4=#3A5A8C, Z5=#6B7F94, Z6=#8B6B5A
+// From TrainingLoadChart.jsx: CTL=#3A5A8C, ATL=#D4820A, TSB=#3D8B50
+// From PowerDurationCurve.jsx: current line=#D4820A, FTP ref=#3A5A8C
 const COLORS = {
-  ctl: '#3D8B50',    // Moss — Chronic Training Load (Fitness)
-  atl: '#D4820A',    // Ochre — Acute Training Load (Fatigue)
-  tsb: '#3D8B50',    // Sage — Training Stress Balance (Form)
-  pdc: '#3A5A8C',    // Terracotta — Power curve primary
-  pdcFill: '#3A5A8C',
-  zone1: '#3D8B50',  // Recovery — Forest
-  zone2: '#3D8B50',  // Endurance — Moss
-  zone3: '#D4820A',  // Tempo — Ochre
-  zone4: '#3A5A8C',  // Threshold — Sienna
+  ctl: '#3A5A8C',    // Steel blue — Chronic Training Load (Fitness)
+  atl: '#D4820A',    // Amber — Acute Training Load (Fatigue)
+  tsb: '#3D8B50',    // Green — Training Stress Balance (Form)
+  pdc: '#D4820A',    // Amber — Power curve primary
+  pdcFill: '#D4820A',
+  zone1: '#3D8B50',  // Recovery — Green
+  zone2: '#3D8B50',  // Endurance — Green
+  zone3: '#D4820A',  // Tempo — Amber
+  zone4: '#3A5A8C',  // Threshold — Steel blue
   zone5: '#6B7F94',  // VO2max — Slate
   zone6: '#8B6B5A',  // Anaerobic — Iron
 };
