@@ -229,7 +229,7 @@ function TrainingLoadSection() {
           <RechartsTooltip content={<ChartTooltip />} />
           <Legend wrapperStyle={{ fontSize: 13 }} />
           <ReferenceLine y={0} stroke="var(--tribos-text-muted)" strokeDasharray="3 3" />
-          <Line type="monotone" dataKey="ctl" stroke="#3D8B50" strokeWidth={2} dot={false} name="CTL (Fitness)" />
+          <Line type="monotone" dataKey="ctl" stroke="#3A5A8C" strokeWidth={2} dot={false} name="CTL (Fitness)" />
           <Line type="monotone" dataKey="atl" stroke="#D4820A" strokeWidth={2} dot={false} name="ATL (Fatigue)" />
           <Line type="monotone" dataKey="tsb" stroke="#3D8B50" strokeWidth={2} dot={false} name="TSB (Form)" />
         </LineChart>
@@ -362,10 +362,10 @@ function PowerDurationSection() {
           <Line
             type="monotone"
             dataKey="current"
-            stroke="#fbbf24"
+            stroke="#D4820A"
             strokeWidth={2}
-            dot={{ fill: '#fbbf24', r: 3 }}
-            activeDot={{ r: 5, fill: '#fbbf24' }}
+            dot={{ fill: '#D4820A', r: 3 }}
+            activeDot={{ r: 5, fill: '#D4820A' }}
             name="Current"
           />
         </LineChart>

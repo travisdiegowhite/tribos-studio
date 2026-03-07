@@ -319,10 +319,10 @@ export default function TrainingProgress({
                         ? tokens.colors.primary[500]
                         : entry.isPast
                         ? entry.compliance >= 80
-                          ? 'var(--tribos-success)'[500]
+                          ? '#3D8B50'
                           : entry.compliance >= 50
-                          ? 'var(--tribos-warning)'[500]
-                          : 'var(--tribos-error)'[400]
+                          ? '#D4820A'
+                          : '#C0392B'
                         : tokens.colors.neutral[300]
                     }
                   />
@@ -337,11 +337,11 @@ export default function TrainingProgress({
             <Text size="xs" c="dimmed">Planned</Text>
           </Group>
           <Group spacing={4}>
-            <Box w={12} h={12} bg={'var(--tribos-success)'[500]} style={{ borderRadius: 2 }} />
+            <Box w={12} h={12} bg="#3D8B50" style={{ borderRadius: 2 }} />
             <Text size="xs" c="dimmed">Completed (80%+)</Text>
           </Group>
           <Group spacing={4}>
-            <Box w={12} h={12} bg={'var(--tribos-warning)'[500]} style={{ borderRadius: 2 }} />
+            <Box w={12} h={12} bg="#D4820A" style={{ borderRadius: 2 }} />
             <Text size="xs" c="dimmed">Partial (50-80%)</Text>
           </Group>
         </Group>

@@ -324,10 +324,10 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
           <Line
             type="monotone"
             dataKey="current"
-            stroke="#fbbf24"
+            stroke="#D4820A"
             strokeWidth={2}
-            dot={{ fill: '#fbbf24', r: 3 }}
-            activeDot={{ r: 5, fill: '#fbbf24' }}
+            dot={{ fill: '#D4820A', r: 3 }}
+            activeDot={{ r: 5, fill: '#D4820A' }}
             name="Current"
           />
         </LineChart>

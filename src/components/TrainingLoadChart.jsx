@@ -176,7 +176,7 @@ const TrainingLoadChart = ({ data }) => {
           <Line
             type="monotone"
             dataKey="ctl"
-            stroke="#3D8B50"
+            stroke="#3A5A8C"
             strokeWidth={2}
             dot={false}
             name="CTL (Fitness)"
