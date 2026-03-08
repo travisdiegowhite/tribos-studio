@@ -529,7 +529,23 @@ body {
 
 /* Tab styling */
 .mantine-Tabs-tab {
+  color: var(--color-text-muted);
   transition: all 150ms ease !important;
+}
+
+.mantine-Tabs-tab:hover {
+  color: var(--color-text-primary);
+}
+
+.mantine-Tabs-tab[data-active] {
+  color: var(--color-text-primary);
+  border-bottom: 2px solid var(--color-teal);
+}
+
+/* Pills variant: active tab needs white text on filled background */
+.mantine-Tabs-tab[data-active][data-active][data-variant="pills"] {
+  color: #FFFFFF;
+  border-bottom: none;
 }
 
 .mantine-Tabs-tab:focus-visible {

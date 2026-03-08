@@ -505,7 +505,6 @@ export const theme = createTheme({
         },
         tab: {
           borderRadius: 0,
-          color: 'var(--tribos-text-400)',
           fontFamily: "'DM Mono', monospace",
           fontWeight: 500,
           fontSize: 12,
@@ -515,15 +514,6 @@ export const theme = createTheme({
           border: 'none',
           borderBottom: '2px solid transparent',
           transition: 'all 0.15s',
-          '&:hover': {
-            background: 'transparent',
-            color: 'var(--tribos-text-100)',
-          },
-          '&[data-active]': {
-            background: 'transparent',
-            color: 'var(--tab-color, var(--tribos-text-100))',
-            borderBottom: '2px solid var(--tribos-terracotta-500)',
-          },
         },
       }),
     },
