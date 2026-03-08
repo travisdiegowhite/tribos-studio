@@ -8,7 +8,7 @@ function NotFound() {
     <Box
       style={{
         minHeight: '100vh',
-        backgroundColor: 'var(--tribos-bg-primary)',
+        backgroundColor: 'var(--color-bg)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -17,13 +17,13 @@ function NotFound() {
       <Container size="sm">
         <Stack align="center" gap="xl">
           <Box style={{ textAlign: 'center' }}>
-            <IconRoute size={64} color={'var(--tribos-terracotta-500)'} style={{ marginBottom: 16 }} />
+            <IconRoute size={64} color={'var(--color-teal)'} style={{ marginBottom: 16 }} />
             <Title
               order={1}
               style={{
                 fontSize: '6rem',
                 fontWeight: 800,
-                color: 'var(--tribos-terracotta-500)',
+                color: 'var(--color-teal)',
                 lineHeight: 1,
               }}
             >
@@ -32,12 +32,12 @@ function NotFound() {
           </Box>
 
           <Stack align="center" gap="md">
-            <Title order={2} style={{ color: 'var(--tribos-text-primary)', textAlign: 'center' }}>
+            <Title order={2} style={{ color: 'var(--color-text-primary)', textAlign: 'center' }}>
               Route Not Found
             </Title>
             <Text
               size="lg"
-              style={{ color: 'var(--tribos-text-secondary)', textAlign: 'center', maxWidth: 400 }}
+              style={{ color: 'var(--color-text-secondary)', textAlign: 'center', maxWidth: 400 }}
             >
               Looks like you've gone off course. The page you're looking for doesn't exist or has been moved.
             </Text>
@@ -48,7 +48,7 @@ function NotFound() {
               component={Link}
               to="/"
               size="lg"
-              color="terracotta"
+              color="teal"
               leftSection={<IconHome size={20} />}
             >
               Back to Home
@@ -65,9 +65,9 @@ function NotFound() {
             </Button>
           </Group>
 
-          <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
+          <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
             Need help?{' '}
-            <a href="mailto:travis@tribos.studio" style={{ color: 'var(--tribos-terracotta-500)' }}>
+            <a href="mailto:travis@tribos.studio" style={{ color: 'var(--color-teal)' }}>
               Contact support
             </a>
           </Text>

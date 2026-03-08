@@ -183,12 +183,12 @@ export default function RunningProfileSettings() {
     <Card>
       <Stack gap="md">
         <Group gap="sm">
-          <IconRun size={24} style={{ color: 'var(--tribos-terracotta-500)' }} />
-          <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+          <IconRun size={24} style={{ color: 'var(--color-teal)' }} />
+          <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
             Running Profile
           </Title>
         </Group>
-        <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+        <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
           Set your threshold pace to calculate personalized running pace zones
         </Text>
 
@@ -220,12 +220,12 @@ export default function RunningProfileSettings() {
           <Box
             style={{
               padding: tokens.spacing.sm,
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               borderRadius: tokens.radius.sm,
             }}
           >
-            <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-              Threshold Pace: <Text component="span" fw={700} style={{ color: 'var(--tribos-terracotta-500)' }}>
+            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+              Threshold Pace: <Text component="span" fw={700} style={{ color: 'var(--color-teal)' }}>
                 {formatPace(thresholdPaceTotalSec)}
               </Text>
             </Text>
@@ -286,14 +286,14 @@ export default function RunningProfileSettings() {
           <Box
             style={{
               padding: tokens.spacing.sm,
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               borderRadius: tokens.radius.sm,
             }}
           >
             <Group gap="sm">
-              <IconTarget size={16} style={{ color: 'var(--tribos-terracotta-500)' }} />
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                Estimated VDOT: <Text component="span" fw={700} style={{ color: 'var(--tribos-terracotta-500)' }}>
+              <IconTarget size={16} style={{ color: 'var(--color-teal)' }} />
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+                Estimated VDOT: <Text component="span" fw={700} style={{ color: 'var(--color-teal)' }}>
                   {vdot}
                 </Text>
               </Text>
@@ -338,7 +338,7 @@ export default function RunningProfileSettings() {
           <>
             <Divider />
             <Box>
-              <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }} mb="xs">
+              <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }} mb="xs">
                 Your Pace Zones
               </Text>
               <Stack gap="xs">
@@ -350,10 +350,10 @@ export default function RunningProfileSettings() {
                     >
                       Z{index + 1}
                     </Badge>
-                    <Text size="sm" style={{ color: 'var(--tribos-text-primary)', minWidth: 130 }}>
+                    <Text size="sm" style={{ color: 'var(--color-text-primary)', minWidth: 130 }}>
                       {zone.name}
                     </Text>
-                    <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                    <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                       {formatPace(zone.min)} - {formatPace(zone.max)}
                     </Text>
                   </Group>
@@ -367,19 +367,19 @@ export default function RunningProfileSettings() {
           <Box
             style={{
               padding: tokens.spacing.md,
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               borderRadius: tokens.radius.md,
               textAlign: 'center',
             }}
           >
-            <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
               Enter your threshold pace above to see personalized pace zones, or use the race estimator.
               Your threshold pace is roughly the pace you can sustain for 60 minutes at maximum effort.
             </Text>
           </Box>
         )}
 
-        <Button color="terracotta" onClick={handleSave} loading={saving}>
+        <Button color="teal" onClick={handleSave} loading={saving}>
           Save Running Profile
         </Button>
       </Stack>

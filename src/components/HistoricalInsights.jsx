@@ -78,7 +78,7 @@ function YearOverYearChart({ snapshots, selectedYears }) {
     return Array.from(uniqueYears).sort((a, b) => b - a);
   }, [snapshots]);
 
-  const colors = ['#3A5A8C', '#3D8B50', '#D4820A', '#6B7F94', '#8B6B5A'];
+  const colors = ['#C49A0A', '#2A8C82', '#C43C2A', '#7A7970', '#D4600A'];
 
   if (chartData.length === 0) {
     return (
@@ -100,18 +100,18 @@ function YearOverYearChart({ snapshots, selectedYears }) {
           <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-border)'} />
           <XAxis
             dataKey="week"
-            stroke={'var(--tribos-text-muted)'}
+            stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
             label={{ value: 'Week of Year', position: 'insideBottom', offset: -5 }}
           />
           <YAxis
-            stroke={'var(--tribos-text-muted)'}
+            stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
             label={{ value: 'CTL', angle: -90, position: 'insideLeft' }}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'var(--tribos-bg-secondary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               border: `1px solid ${'var(--tribos-border)'}`,
               borderRadius: 8
             }}
@@ -180,16 +180,16 @@ function SeasonalPatternChart({ snapshots }) {
           <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-border)'} />
           <XAxis
             dataKey="month"
-            stroke={'var(--tribos-text-muted)'}
+            stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
           />
           <YAxis
-            stroke={'var(--tribos-text-muted)'}
+            stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'var(--tribos-bg-secondary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               border: `1px solid ${'var(--tribos-border)'}`,
               borderRadius: 8
             }}
@@ -199,7 +199,7 @@ function SeasonalPatternChart({ snapshots }) {
               return [value, name];
             }}
           />
-          <Bar dataKey="avgCtl" fill="#3A5A8C" name="avgCtl" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="avgCtl" fill="#C49A0A" name="avgCtl" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
 
@@ -256,14 +256,14 @@ function FitnessProgressionChart({ snapshots }) {
         <AreaChart data={chartData}>
           <defs>
             <linearGradient id="ctlGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3A5A8C" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#3A5A8C" stopOpacity={0}/>
+              <stop offset="5%" stopColor="#C49A0A" stopOpacity={0.3}/>
+              <stop offset="95%" stopColor="#C49A0A" stopOpacity={0}/>
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-border)'} />
           <XAxis
             dataKey="date"
-            stroke={'var(--tribos-text-muted)'}
+            stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
             tickFormatter={(date) => {
               const d = new Date(date);
@@ -272,12 +272,12 @@ function FitnessProgressionChart({ snapshots }) {
             interval="preserveStartEnd"
           />
           <YAxis
-            stroke={'var(--tribos-text-muted)'}
+            stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'var(--tribos-bg-secondary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               border: `1px solid ${'var(--tribos-border)'}`,
               borderRadius: 8
             }}
@@ -287,7 +287,7 @@ function FitnessProgressionChart({ snapshots }) {
           <Area
             type="monotone"
             dataKey="ctl"
-            stroke="#3A5A8C"
+            stroke="#C49A0A"
             fill="url(#ctlGradient)"
             strokeWidth={2}
           />
@@ -419,25 +419,25 @@ function VolumeComparisonChart({ snapshots }) {
           <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-border)'} />
           <XAxis
             dataKey="year"
-            stroke={'var(--tribos-text-muted)'}
+            stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
           />
           <YAxis
             yAxisId="hours"
-            stroke={'var(--tribos-text-muted)'}
+            stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
             label={{ value: 'Hours', angle: -90, position: 'insideLeft' }}
           />
           <YAxis
             yAxisId="ctl"
             orientation="right"
-            stroke={'var(--tribos-text-muted)'}
+            stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
             label={{ value: 'Peak CTL', angle: 90, position: 'insideRight' }}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'var(--tribos-bg-secondary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               border: `1px solid ${'var(--tribos-border)'}`,
               borderRadius: 8
             }}
@@ -446,14 +446,14 @@ function VolumeComparisonChart({ snapshots }) {
           <Bar
             yAxisId="hours"
             dataKey="totalHours"
-            fill="#3D8B50"
+            fill="#2A8C82"
             name="Total Hours"
             radius={[4, 4, 0, 0]}
           />
           <Bar
             yAxisId="ctl"
             dataKey="peakCtl"
-            fill="#3A5A8C"
+            fill="#C49A0A"
             name="Peak CTL"
             radius={[4, 4, 0, 0]}
           />

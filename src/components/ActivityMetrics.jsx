@@ -264,7 +264,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
 
   if (!metrics) {
     return (
-      <Paper p="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+      <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Text size="sm" c="dimmed" ta="center">
           No power or heart rate data available
         </Text>
@@ -273,7 +273,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
   }
 
   return (
-    <Paper p="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+    <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <Text size="sm" fw={600} mb="sm">Activity Metrics</Text>
 
       <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="sm">
@@ -336,7 +336,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
         {/* Heart Rate Metrics */}
         {metrics.avgHr && (
           <MetricCard
-            icon={<IconHeart size={16} color="#3A5A8C" />}
+            icon={<IconHeart size={16} color="#C43C2A" />}
             label="Avg HR"
             value={`${Math.round(metrics.avgHr)} bpm`}
             subValue={metrics.maxHr ? `Max: ${Math.round(metrics.maxHr)}` : null}

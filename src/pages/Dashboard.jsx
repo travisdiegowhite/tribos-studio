@@ -386,30 +386,30 @@ function Dashboard() {
               {/* This Week */}
               <Card>
                 <Group justify="space-between" mb="sm">
-                  <Text fw={600} size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text fw={600} size="sm" style={{ color: 'var(--color-text-primary)' }}>
                     This Week
                   </Text>
-                  <Badge variant="light" color="terracotta" size="sm">
+                  <Badge variant="light" color="teal" size="sm">
                     {weekStats.rides}/{weekStats.planned} rides
                   </Badge>
                 </Group>
                 <Progress
                   value={(weekStats.rides / Math.max(weekStats.planned, 1)) * 100}
-                  color="terracotta"
+                  color="teal"
                   size="sm"
                   radius="xl"
                   mb="sm"
                 />
                 <Group gap="xl">
                   <Box>
-                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Distance</Text>
-                    <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                    <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Distance</Text>
+                    <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
                       {formatDist(weekStats.distance)}
                     </Text>
                   </Box>
                   <Box>
-                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Elevation</Text>
-                    <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                    <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Elevation</Text>
+                    <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
                       {formatElev(weekStats.elevation)}
                     </Text>
                   </Box>
@@ -419,7 +419,7 @@ function Dashboard() {
               {/* Fitness Trend */}
               <Card>
                 <Group justify="space-between" mb="xs">
-                  <Text fw={600} size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text fw={600} size="sm" style={{ color: 'var(--color-text-primary)' }}>
                     Fitness
                   </Text>
                   <Button
@@ -447,7 +447,7 @@ function Dashboard() {
               {gearAlerts.length > 0 && (
                 <Card>
                   <Group justify="space-between" mb="sm">
-                    <Text fw={500} size="sm" style={{ color: 'var(--tribos-text-primary)' }}>Gear Alerts</Text>
+                    <Text fw={500} size="sm" style={{ color: 'var(--color-text-primary)' }}>Gear Alerts</Text>
                     <Button size="xs" variant="subtle" component={Link} to="/gear">View All</Button>
                   </Group>
                   <GearAlertBanner alerts={gearAlerts} onDismiss={dismissGearAlert} compact />
@@ -488,7 +488,7 @@ function Dashboard() {
                 component={Link}
                 to="/routes/new"
                 variant="light"
-                color="terracotta"
+                color="teal"
                 size="sm"
                 leftSection={<IconRoute size={16} />}
               >
@@ -531,27 +531,27 @@ function Dashboard() {
           {stravaConnected && !importNudgeDismissed && totalActivityCount !== null && totalActivityCount < 10 && (
             <Card
               style={{
-                background: 'linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)',
+                background: 'linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-secondary) 100%)',
                 border: '1px solid var(--tribos-border)',
               }}
             >
               <Group justify="space-between" align="flex-start" wrap="nowrap">
                 <Group gap="md" align="flex-start" wrap="nowrap">
-                  <ThemeIcon size="lg" variant="light" color="terracotta" mt={2}>
+                  <ThemeIcon size="lg" variant="light" color="teal" mt={2}>
                     <IconHistory size={20} />
                   </ThemeIcon>
                   <Box>
-                    <Text fw={600} size="sm" style={{ color: 'var(--tribos-text-primary)' }} mb={4}>
+                    <Text fw={600} size="sm" style={{ color: 'var(--color-text-primary)' }} mb={4}>
                       Import your ride history
                     </Text>
-                    <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }} mb="sm">
+                    <Text size="sm" style={{ color: 'var(--color-text-secondary)' }} mb="sm">
                       The Route Builder uses your past rides to suggest roads you already love, and the Training AI coach needs your history to build a plan that fits your fitness level.
                     </Text>
                     <Button
                       component={Link}
                       to="/settings"
                       variant="light"
-                      color="terracotta"
+                      color="teal"
                       size="xs"
                     >
                       Import from Strava
@@ -564,7 +564,7 @@ function Dashboard() {
                     setImportNudgeDismissed(true);
                     localStorage.setItem(`tribos_import_nudge_dismissed_${user?.id}`, 'true');
                   }}
-                  style={{ color: 'var(--tribos-text-muted)' }}
+                  style={{ color: 'var(--color-text-muted)' }}
                 />
               </Group>
             </Card>
@@ -573,7 +573,7 @@ function Dashboard() {
           {/* Recent Activities */}
           <Card>
             <Group justify="space-between" mb="md">
-              <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+              <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
                 Recent Activity
               </Text>
               {activities.length > 0 && (
@@ -631,19 +631,19 @@ function TodayFocusCard({ workout, plan, loading, routeMatch }) {
     return (
       <Card
         style={{
-          background: `linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)`,
+          background: `linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-secondary) 100%)`,
           border: `1px solid var(--tribos-border)`,
         }}
       >
         <Group justify="space-between" align="center">
           <Box>
-            <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--tribos-text-muted)' }} mb={4}>
+            <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--color-text-muted)' }} mb={4}>
               Today's Focus
             </Text>
-            <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
               No active training plan
             </Text>
-            <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
               Start a plan to get personalized workout recommendations
             </Text>
           </Box>
@@ -651,7 +651,7 @@ function TodayFocusCard({ workout, plan, loading, routeMatch }) {
             component={Link}
             to="/planner?tab=browse"
             variant="filled"
-            color="terracotta"
+            color="teal"
             leftSection={<IconCalendarEvent size={16} />}
           >
             Browse Plans
@@ -665,23 +665,23 @@ function TodayFocusCard({ workout, plan, loading, routeMatch }) {
     return (
       <Card
         style={{
-          background: `linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)`,
+          background: `linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-secondary) 100%)`,
           border: `1px solid var(--tribos-border)`,
         }}
       >
         <Group justify="space-between" align="center">
           <Box>
-            <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--tribos-text-muted)' }} mb={4}>
+            <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--color-text-muted)' }} mb={4}>
               Today's Focus
             </Text>
-            <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
               Rest Day
             </Text>
-            <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
               Recovery is part of the plan. Take it easy today.
             </Text>
           </Box>
-          <ThemeIcon size={48} radius="xl" variant="light" color="terracotta">
+          <ThemeIcon size={48} radius="xl" variant="light" color="teal">
             <IconTarget size={24} />
           </ThemeIcon>
         </Group>
@@ -692,21 +692,21 @@ function TodayFocusCard({ workout, plan, loading, routeMatch }) {
   return (
     <Card
       style={{
-        background: `linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)`,
-        border: `1px solid var(--tribos-terracotta-500)30`,
+        background: `linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-secondary) 100%)`,
+        border: `1px solid var(--color-teal)30`,
       }}
     >
       <Group justify="space-between" align="center">
         <Box>
-          <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--tribos-terracotta-500)' }} mb={4}>
+          <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--color-teal)' }} mb={4}>
             Today's Focus
           </Text>
-          <Text fw={600} size="lg" style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text fw={600} size="lg" style={{ color: 'var(--color-text-primary)' }}>
             {workout.title || workout.workout_type || 'Workout'}
           </Text>
           <Group gap="md" mt={4}>
             {workout.duration_minutes && (
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                 {workout.duration_minutes} min
               </Text>
             )}
@@ -718,11 +718,11 @@ function TodayFocusCard({ workout, plan, loading, routeMatch }) {
           </Group>
           {routeMatch && (
             <Group gap="xs" mt="sm">
-              <IconRoute size={14} style={{ color: 'var(--tribos-terracotta-500)' }} />
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }} truncate>
+              <IconRoute size={14} style={{ color: 'var(--color-teal)' }} />
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }} truncate>
                 Best route: {routeMatch.activity?.name}
               </Text>
-              <Badge size="xs" color="terracotta" variant="light">
+              <Badge size="xs" color="teal" variant="light">
                 {routeMatch.matchScore}% match
               </Badge>
               <Button
@@ -730,7 +730,7 @@ function TodayFocusCard({ workout, plan, loading, routeMatch }) {
                 to="/training?tab=routes"
                 size="xs"
                 variant="subtle"
-                color="terracotta"
+                color="teal"
               >
                 View
               </Button>
@@ -751,7 +751,7 @@ function TodayFocusCard({ workout, plan, loading, routeMatch }) {
             component={Link}
             to="/planner"
             variant="filled"
-            color="terracotta"
+            color="teal"
             leftSection={<IconPlayerPlay size={16} />}
           >
             Start
@@ -849,22 +849,22 @@ function FitnessMetrics({ activities, loading }) {
   return (
     <Group gap="xl">
       <Box>
-        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>CTL</Text>
+        <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>CTL</Text>
         <Group gap={4} align="baseline">
-          <Text fw={600} size="lg" style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text fw={600} size="lg" style={{ color: 'var(--color-text-primary)' }}>
             {ctl}
           </Text>
-          {ctl > 0 && <IconTrendingUp size={14} color="var(--tribos-terracotta-500)" />}
+          {ctl > 0 && <IconTrendingUp size={14} color="var(--color-teal)" />}
         </Group>
       </Box>
       <Box>
-        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>ATL</Text>
-        <Text fw={600} size="lg" style={{ color: 'var(--tribos-text-primary)' }}>
+        <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>ATL</Text>
+        <Text fw={600} size="lg" style={{ color: 'var(--color-text-primary)' }}>
           {atl}
         </Text>
       </Box>
       <Box>
-        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Form</Text>
+        <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Form</Text>
         <Text fw={600} size="lg" style={{ color: form >= 0 ? 'var(--tribos-success)' : 'var(--tribos-warning)' }}>
           {form > 0 ? '+' : ''}{form}
         </Text>
@@ -886,14 +886,14 @@ function EmptyState() {
       <Text size="lg" mb="sm">
         🚴
       </Text>
-      <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+      <Text style={{ color: 'var(--color-text-secondary)' }}>
         No recent activities yet
       </Text>
-      <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }} mb="md">
+      <Text size="sm" style={{ color: 'var(--color-text-muted)' }} mb="md">
         Connect your devices or upload a file to get started
       </Text>
       <Group justify="center" gap="sm">
-        <Button component={Link} to="/settings" variant="light" color="terracotta" size="sm">
+        <Button component={Link} to="/settings" variant="light" color="teal" size="sm">
           Connect Strava
         </Button>
         <Button component={Link} to="/training?tab=history" variant="outline" color="gray" size="sm">
@@ -936,14 +936,14 @@ function ActivityRow({ activity, formatDist, formatElev }) {
     <Box
       p="sm"
       style={{
-        backgroundColor: 'var(--tribos-bg-tertiary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         borderRadius: tokens.radius.md,
       }}
     >
       <Group justify="space-between" wrap="nowrap">
         <Box style={{ flex: 1, minWidth: 0 }}>
           <Group gap="sm" wrap="nowrap">
-            <Text fw={500} size="sm" lineClamp={1} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text fw={500} size="sm" lineClamp={1} style={{ color: 'var(--color-text-primary)' }}>
               {activity.name || 'Ride'}
             </Text>
             {power > 0 && (
@@ -953,17 +953,17 @@ function ActivityRow({ activity, formatDist, formatElev }) {
             )}
           </Group>
           <Group gap="xs">
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
               {formatDate(activity.start_date)}
             </Text>
             {stravaActivityId && <ViewOnStravaLink activityId={stravaActivityId} />}
           </Group>
         </Box>
         <Group gap="md" wrap="nowrap">
-          <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-secondary)' }}>
+          <Text size="sm" fw={500} style={{ color: 'var(--color-text-secondary)' }}>
             {formatDist(distanceKm)}
           </Text>
-          <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
+          <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
             {formatDuration(duration)}
           </Text>
         </Group>

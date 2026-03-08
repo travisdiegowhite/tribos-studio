@@ -222,7 +222,7 @@ export function GoalInput({
             Training Goals
           </Text>
           {goals.length > 0 && (
-            <Badge size="sm" variant="light" color="terracotta">
+            <Badge size="sm" variant="light" color="teal">
               {goals.length}
             </Badge>
           )}

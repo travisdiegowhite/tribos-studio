@@ -8,8 +8,8 @@ import { fullRoute, routeBounds } from './routeData';
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const routeStats = [
-  { icon: IconRuler, label: 'Distance', value: '50.6 mi', color: 'var(--tribos-terracotta-500)' },
-  { icon: IconMountain, label: 'Elevation', value: '1,840 ft', color: 'var(--tribos-gold-500)' },
+  { icon: IconRuler, label: 'Distance', value: '50.6 mi', color: 'var(--color-teal)' },
+  { icon: IconMountain, label: 'Elevation', value: '1,840 ft', color: 'var(--color-coral)' },
   { icon: IconClock, label: 'Est. Time', value: '2h 55m', color: 'var(--tribos-teal-500)' },
   { icon: IconActivity, label: 'Workout', value: 'SS 3\u00d715', color: 'var(--tribos-mauve-500)' },
 ];
@@ -88,7 +88,7 @@ export default function RouteStep() {
                   fontFamily: "'DM Mono', monospace",
                   letterSpacing: '3px',
                   textTransform: 'uppercase',
-                  color: 'var(--tribos-terracotta-500)',
+                  color: 'var(--color-teal)',
                   marginBottom: 8,
                 }}
               >
@@ -101,7 +101,7 @@ export default function RouteStep() {
                   fontSize: 'clamp(1.4rem, 3.5vw, 2.2rem)',
                   fontFamily: "'Anybody', sans-serif",
                   fontWeight: 800,
-                  color: 'var(--tribos-text-primary)',
+                  color: 'var(--color-text-primary)',
                 }}
               >
                 Route built. Sent to your Garmin.
@@ -132,7 +132,7 @@ export default function RouteStep() {
                           id="route-shadow"
                           type="line"
                           paint={{
-                            'line-color': '#3A5A8C',
+                            'line-color': '#2A8C82',
                             'line-width': 8,
                             'line-opacity': 0.15,
                             'line-blur': 6,
@@ -143,7 +143,7 @@ export default function RouteStep() {
                           id="route-line"
                           type="line"
                           paint={{
-                            'line-color': '#3A5A8C',
+                            'line-color': '#2A8C82',
                             'line-width': 3,
                             'line-opacity': 0.9,
                           }}
@@ -162,7 +162,7 @@ export default function RouteStep() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      backgroundColor: 'var(--tribos-bg-tertiary)',
+                      backgroundColor: 'var(--color-bg-secondary)',
                     }}
                   >
                     <Text size="sm" c="dimmed">Map preview</Text>
@@ -181,10 +181,10 @@ export default function RouteStep() {
                     >
                       <stat.icon size={16} color={stat.color} />
                       <div>
-                        <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
                           {stat.label}
                         </Text>
-                        <Text size="sm" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-primary)' }}>
+                        <Text size="sm" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-primary)' }}>
                           {stat.value}
                         </Text>
                       </div>
@@ -200,7 +200,7 @@ export default function RouteStep() {
                   style={{ transitionDelay: '0.2s' }}
                 >
                   <Button
-                    color="terracotta"
+                    color="teal"
                     size="sm"
                     leftSection={<IconDownload size={14} />}
                     style={{ pointerEvents: 'none' }}

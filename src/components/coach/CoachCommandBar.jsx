@@ -449,7 +449,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
               transform: isMobile ? 'none' : 'translateX(-50%)',
               width: isMobile ? 'auto' : 'min(600px, calc(100vw - 32px))',
               maxHeight: isMobile ? '85vh' : '70vh',
-              backgroundColor: 'var(--tribos-bg-secondary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               border: '1px solid var(--tribos-border)',
               borderRadius: 20,
               boxShadow:
@@ -477,7 +477,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                     width: 40,
                     height: 40,
                     borderRadius: 12,
-                    backgroundColor: 'var(--tribos-terracotta-500)',
+                    backgroundColor: 'var(--color-teal)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -512,7 +512,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                 {query.trim() && (
                   <Button
                     size="sm"
-                    color="terracotta"
+                    color="teal"
                     onClick={handleSubmit}
                     loading={isLoading}
                     rightSection={<IconSend size={16} />}
@@ -546,7 +546,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                 {aiConsentStatus === false && (
                   <Alert
                     variant="light"
-                    color="terracotta"
+                    color="teal"
                     icon={<IconShieldCheck size={20} />}
                     title="Enable AI Coach"
                   >
@@ -558,7 +558,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                       </Text>
                       <Text size="sm">
                         See our{' '}
-                        <Anchor component={Link} to="/privacy#ai" onClick={close} style={{ color: 'var(--tribos-terracotta-500)' }}>
+                        <Anchor component={Link} to="/privacy#ai" onClick={close} style={{ color: 'var(--color-teal)' }}>
                           Privacy Policy
                         </Anchor>{' '}
                         for full details. You can disable AI features anytime in Settings.
@@ -566,7 +566,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                       <Group gap="sm">
                         <Button
                           size="sm"
-                          color="terracotta"
+                          color="teal"
                           loading={consentGranting}
                           onClick={grantAiConsent}
                         >
@@ -622,7 +622,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
               p="sm"
               px="lg"
               style={{
-                backgroundColor: 'var(--tribos-bg-primary)',
+                backgroundColor: 'var(--color-bg)',
               }}
             >
               <Group gap="lg">
@@ -650,7 +650,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                   <Text size="xs" c="dimmed">
                     View full history
                   </Text>
-                  <IconArrowRight size={12} style={{ color: 'var(--tribos-text-muted)' }} />
+                  <IconArrowRight size={12} style={{ color: 'var(--color-text-muted)' }} />
                 </Group>
               </UnstyledButton>
             </Group>

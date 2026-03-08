@@ -383,18 +383,18 @@ export default function ManualRouteBuilder() {
           shadow="sm"
           p="sm"
           style={{
-            backgroundColor: 'var(--tribos-bg-secondary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             borderBottom: `1px solid ${'var(--tribos-border)'}`,
             zIndex: 100,
           }}
         >
           <Group justify="space-between">
             <Group>
-              <ThemeIcon size="lg" color="terracotta" variant="light">
+              <ThemeIcon size="lg" color="teal" variant="light">
                 <IconRoute size={20} />
               </ThemeIcon>
               <div>
-                <Title order={4} style={{ color: 'var(--tribos-text-primary)' }}>
+                <Title order={4} style={{ color: 'var(--color-text-primary)' }}>
                   Manual Route Builder
                 </Title>
                 <Text size="xs" c="dimmed">
@@ -468,7 +468,7 @@ export default function ManualRouteBuilder() {
               {/* Save */}
               <Button
                 leftSection={<IconDeviceFloppy size={16} />}
-                color="terracotta"
+                color="teal"
                 variant="filled"
                 loading={saving}
                 onClick={handleSave}
@@ -488,7 +488,7 @@ export default function ManualRouteBuilder() {
               shadow="sm"
               style={{
                 width: 320,
-                backgroundColor: 'var(--tribos-bg-secondary)',
+                backgroundColor: 'var(--color-bg-secondary)',
                 borderRight: `1px solid ${'var(--tribos-border)'}`,
                 display: 'flex',
                 flexDirection: 'column',
@@ -530,7 +530,7 @@ export default function ManualRouteBuilder() {
                       <Switch
                         checked={autoSnap}
                         onChange={(e) => setAutoSnap(e.currentTarget.checked)}
-                        color="terracotta"
+                        color="teal"
                       />
                     </Group>
 
@@ -539,7 +539,7 @@ export default function ManualRouteBuilder() {
                       <Switch
                         checked={showInfrastructure}
                         onChange={(e) => setShowInfrastructure(e.currentTarget.checked)}
-                        color="terracotta"
+                        color="teal"
                       />
                     </Group>
 
@@ -573,7 +573,7 @@ export default function ManualRouteBuilder() {
                           radius="sm"
                           style={{
                             backgroundColor: selectedWaypoint === wp.id
-                              ? 'var(--tribos-bg-tertiary)'
+                              ? 'var(--color-bg-secondary)'
                               : 'transparent',
                             border: `1px solid ${'var(--tribos-border)'}`,
                             cursor: 'pointer',
@@ -618,7 +618,7 @@ export default function ManualRouteBuilder() {
                     {waypoints.length >= 2 && !autoSnap && (
                       <Button
                         variant="light"
-                        color="terracotta"
+                        color="teal"
                         size="sm"
                         leftSection={<IconRefresh size={14} />}
                         onClick={handleCalculateRoute}
@@ -855,7 +855,7 @@ export default function ManualRouteBuilder() {
                   size="sm"
                   checked={autoSnap}
                   onChange={(e) => setAutoSnap(e.currentTarget.checked)}
-                  color="terracotta"
+                  color="teal"
                 />
               </Group>
 

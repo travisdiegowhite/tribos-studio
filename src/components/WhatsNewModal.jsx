@@ -67,7 +67,7 @@ function WhatsNewModal({ opened, onClose, userId }) {
       size="md"
       title={
         <Group gap="sm">
-          <ThemeIcon color="terracotta" variant="light" size="lg">
+          <ThemeIcon color="teal" variant="light" size="lg">
             <IconSparkles size={20} />
           </ThemeIcon>
           <Text fw={600} size="lg">What's New</Text>
@@ -75,7 +75,7 @@ function WhatsNewModal({ opened, onClose, userId }) {
       }
     >
       <Stack gap="md">
-        <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+        <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
           {updatesData.welcome?.subtitle || 'Latest updates and improvements'}
         </Text>
 
@@ -87,28 +87,28 @@ function WhatsNewModal({ opened, onClose, userId }) {
             <Paper
               key={update.id}
               p="md"
-              style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}
+              style={{ backgroundColor: 'var(--color-bg-secondary)' }}
             >
               <Group justify="space-between" mb="xs">
                 <Badge variant="light" color={update.type === 'new' ? 'terracotta' : 'blue'} size="sm">
                   {update.type === 'improvement' ? 'Improvement' : 'New'}
                 </Badge>
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                   {update.date}
                 </Text>
               </Group>
-              <Text fw={500} size="sm" style={{ color: 'var(--tribos-text-primary)' }} mb="xs">
+              <Text fw={500} size="sm" style={{ color: 'var(--color-text-primary)' }} mb="xs">
                 {update.title}
               </Text>
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                 {update.description}
               </Text>
               {update.details && update.details.length > 0 && (
                 <Stack gap={4} mt="xs">
                   {update.details.slice(0, 3).map((detail, idx) => (
                     <Group key={idx} gap="xs" wrap="nowrap">
-                      <IconArrowRight size={12} color={'var(--tribos-terracotta-500)'} style={{ flexShrink: 0 }} />
-                      <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                      <IconArrowRight size={12} color={'var(--color-teal)'} style={{ flexShrink: 0 }} />
+                      <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                         {detail}
                       </Text>
                     </Group>
@@ -124,7 +124,7 @@ function WhatsNewModal({ opened, onClose, userId }) {
           <>
             <Divider />
             <Box>
-              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} tt="uppercase" fw={500} mb="sm">
+              <Text size="xs" style={{ color: 'var(--color-text-muted)' }} tt="uppercase" fw={500} mb="sm">
                 Coming Soon
               </Text>
               <Group gap="xs">
@@ -141,7 +141,7 @@ function WhatsNewModal({ opened, onClose, userId }) {
         <Divider />
 
         <Group justify="flex-end">
-          <Button onClick={handleClose} color="terracotta">
+          <Button onClick={handleClose} color="teal">
             Got it!
           </Button>
         </Group>

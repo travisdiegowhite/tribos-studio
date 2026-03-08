@@ -119,8 +119,8 @@ function WeeklyCheckInWidget({
         padding="md"
         radius="md"
         style={{
-          backgroundColor: 'var(--tribos-bg-secondary)',
-          border: `1px solid ${'var(--tribos-terracotta-500)'}40`,
+          backgroundColor: 'var(--color-bg-secondary)',
+          border: `1px solid ${'var(--color-teal)'}40`,
           position: 'relative',
         }}
       >
@@ -134,7 +134,7 @@ function WeeklyCheckInWidget({
               position: 'absolute',
               top: 8,
               right: 8,
-              color: 'var(--tribos-text-muted)',
+              color: 'var(--color-text-muted)',
             }}
           >
             <IconX size={14} />
@@ -144,7 +144,7 @@ function WeeklyCheckInWidget({
         <Stack gap="sm">
           {/* Header */}
           <Group gap="xs">
-            <IconMessageCircle size={18} color={'var(--tribos-terracotta-500)'} />
+            <IconMessageCircle size={18} color={'var(--color-teal)'} />
             <Text size="sm" fw={500}>
               Weekly Check-In
             </Text>
@@ -159,20 +159,20 @@ function WeeklyCheckInWidget({
           {weekStats && (
             <Group gap="lg">
               <Box>
-                <Text size="xl" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                <Text size="xl" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                   {weekStats.rides}
                 </Text>
                 <Text size="xs" c="dimmed">rides</Text>
               </Box>
               <Box>
-                <Text size="xl" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                <Text size="xl" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                   {weekStats.hours?.toFixed(1) || '0'}
                 </Text>
                 <Text size="xs" c="dimmed">hours</Text>
               </Box>
               {weekStats.tss > 0 && (
                 <Box>
-                  <Text size="xl" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text size="xl" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                     {weekStats.tss}
                   </Text>
                   <Text size="xs" c="dimmed">TSS</Text>
@@ -207,15 +207,15 @@ function WeeklyCheckInWidget({
             fullWidth
             styles={{
               root: {
-                backgroundColor: 'var(--tribos-bg-tertiary)',
+                backgroundColor: 'var(--color-bg-secondary)',
               },
               indicator: {
-                backgroundColor: 'var(--tribos-terracotta-500)',
+                backgroundColor: 'var(--color-teal)',
               },
               label: {
-                color: 'var(--tribos-text-secondary)',
+                color: 'var(--color-text-secondary)',
                 '&[data-active]': {
-                  color: 'var(--tribos-bg-primary)',
+                  color: 'var(--color-bg)',
                 },
               },
             }}
@@ -232,14 +232,14 @@ function WeeklyCheckInWidget({
                 maxRows={4}
                 styles={{
                   input: {
-                    backgroundColor: 'var(--tribos-bg-tertiary)',
-                    border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
-                    color: 'var(--tribos-text-primary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    border: `1px solid ${'var(--color-bg-secondary)'}`,
+                    color: 'var(--color-text-primary)',
                     '&::placeholder': {
-                      color: 'var(--tribos-text-muted)',
+                      color: 'var(--color-text-muted)',
                     },
                     '&:focus': {
-                      borderColor: 'var(--tribos-terracotta-500)',
+                      borderColor: 'var(--color-teal)',
                     },
                   },
                 }}
@@ -253,14 +253,14 @@ function WeeklyCheckInWidget({
                 maxRows={2}
                 styles={{
                   input: {
-                    backgroundColor: 'var(--tribos-bg-tertiary)',
-                    border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
-                    color: 'var(--tribos-text-primary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    border: `1px solid ${'var(--color-bg-secondary)'}`,
+                    color: 'var(--color-text-primary)',
                     '&::placeholder': {
-                      color: 'var(--tribos-text-muted)',
+                      color: 'var(--color-text-muted)',
                     },
                     '&:focus': {
-                      borderColor: 'var(--tribos-terracotta-500)',
+                      borderColor: 'var(--color-teal)',
                     },
                   },
                 }}
@@ -274,7 +274,7 @@ function WeeklyCheckInWidget({
                   onClick={() => setShowFueling(!showFueling)}
                   leftSection={<IconFlame size={16} />}
                   rightSection={showFueling ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
-                  style={{ color: 'var(--tribos-text-secondary)' }}
+                  style={{ color: 'var(--color-text-secondary)' }}
                 >
                   Fueling Check (optional)
                 </Button>
@@ -295,10 +295,10 @@ function WeeklyCheckInWidget({
                         fullWidth
                         styles={{
                           root: {
-                            backgroundColor: 'var(--tribos-bg-tertiary)',
+                            backgroundColor: 'var(--color-bg-secondary)',
                           },
                           indicator: {
-                            backgroundColor: 'var(--tribos-terracotta-500)',
+                            backgroundColor: 'var(--color-teal)',
                           },
                         }}
                       />
@@ -317,10 +317,10 @@ function WeeklyCheckInWidget({
                         size="sm"
                         styles={{
                           root: {
-                            backgroundColor: 'var(--tribos-bg-tertiary)',
+                            backgroundColor: 'var(--color-bg-secondary)',
                           },
                           indicator: {
-                            backgroundColor: 'var(--tribos-terracotta-500)',
+                            backgroundColor: 'var(--color-teal)',
                           },
                         }}
                       />
@@ -362,8 +362,8 @@ function WeeklyCheckInWidget({
                   disabled={!mood}
                   leftSection={<IconCheck size={16} />}
                   style={{
-                    backgroundColor: 'var(--tribos-terracotta-500)',
-                    color: 'var(--tribos-bg-primary)',
+                    backgroundColor: 'var(--color-teal)',
+                    color: 'var(--color-bg)',
                   }}
                 >
                   Share with Cafe
@@ -380,7 +380,7 @@ function WeeklyCheckInWidget({
               onClick={() => setExpanded(!expanded)}
               rightSection={expanded ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
               style={{
-                color: 'var(--tribos-text-secondary)',
+                color: 'var(--color-text-secondary)',
               }}
             >
               {expanded ? 'Less' : 'Add reflection'}
@@ -397,14 +397,14 @@ function WeeklyCheckInWidget({
         centered
         styles={{
           header: {
-            backgroundColor: 'var(--tribos-bg-secondary)',
-            borderBottom: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+            backgroundColor: 'var(--color-bg-secondary)',
+            borderBottom: `1px solid ${'var(--color-bg-secondary)'}`,
           },
           content: {
-            backgroundColor: 'var(--tribos-bg-secondary)',
+            backgroundColor: 'var(--color-bg-secondary)',
           },
           title: {
-            color: 'var(--tribos-text-primary)',
+            color: 'var(--color-text-primary)',
             fontWeight: 600,
           },
         }}
@@ -420,7 +420,7 @@ function WeeklyCheckInWidget({
               padding="sm"
               radius="md"
               style={{
-                backgroundColor: 'var(--tribos-bg-tertiary)',
+                backgroundColor: 'var(--color-bg-secondary)',
               }}
             >
               <Group justify="space-around">
@@ -454,10 +454,10 @@ function WeeklyCheckInWidget({
               fullWidth
               styles={{
                 root: {
-                  backgroundColor: 'var(--tribos-bg-tertiary)',
+                  backgroundColor: 'var(--color-bg-secondary)',
                 },
                 indicator: {
-                  backgroundColor: 'var(--tribos-terracotta-500)',
+                  backgroundColor: 'var(--color-teal)',
                 },
               }}
             />
@@ -472,12 +472,12 @@ function WeeklyCheckInWidget({
             minRows={3}
             styles={{
               input: {
-                backgroundColor: 'var(--tribos-bg-tertiary)',
-                border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
-                color: 'var(--tribos-text-primary)',
+                backgroundColor: 'var(--color-bg-secondary)',
+                border: `1px solid ${'var(--color-bg-secondary)'}`,
+                color: 'var(--color-text-primary)',
               },
               label: {
-                color: 'var(--tribos-text-primary)',
+                color: 'var(--color-text-primary)',
               },
             }}
           />
@@ -490,7 +490,7 @@ function WeeklyCheckInWidget({
               onClick={() => setShowFueling(!showFueling)}
               leftSection={<IconFlame size={16} />}
               rightSection={showFueling ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
-              style={{ color: 'var(--tribos-text-secondary)' }}
+              style={{ color: 'var(--color-text-secondary)' }}
             >
               Fueling Check (optional)
             </Button>
@@ -511,10 +511,10 @@ function WeeklyCheckInWidget({
                     fullWidth
                     styles={{
                       root: {
-                        backgroundColor: 'var(--tribos-bg-tertiary)',
+                        backgroundColor: 'var(--color-bg-secondary)',
                       },
                       indicator: {
-                        backgroundColor: 'var(--tribos-terracotta-500)',
+                        backgroundColor: 'var(--color-teal)',
                       },
                     }}
                   />
@@ -533,10 +533,10 @@ function WeeklyCheckInWidget({
                     size="sm"
                     styles={{
                       root: {
-                        backgroundColor: 'var(--tribos-bg-tertiary)',
+                        backgroundColor: 'var(--color-bg-secondary)',
                       },
                       indicator: {
-                        backgroundColor: 'var(--tribos-terracotta-500)',
+                        backgroundColor: 'var(--color-teal)',
                       },
                     }}
                   />
@@ -579,12 +579,12 @@ function WeeklyCheckInWidget({
             minRows={2}
             styles={{
               input: {
-                backgroundColor: 'var(--tribos-bg-tertiary)',
-                border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
-                color: 'var(--tribos-text-primary)',
+                backgroundColor: 'var(--color-bg-secondary)',
+                border: `1px solid ${'var(--color-bg-secondary)'}`,
+                color: 'var(--color-text-primary)',
               },
               label: {
-                color: 'var(--tribos-text-primary)',
+                color: 'var(--color-text-primary)',
               },
             }}
           />
@@ -596,8 +596,8 @@ function WeeklyCheckInWidget({
               loading={submitting}
               disabled={!mood}
               style={{
-                backgroundColor: 'var(--tribos-terracotta-500)',
-                color: 'var(--tribos-bg-primary)',
+                backgroundColor: 'var(--color-teal)',
+                color: 'var(--color-bg)',
               }}
             >
               Share Check-In

@@ -33,13 +33,13 @@ const COACH_CONFIGS = {
     color: 'teal',
     icon: IconChartLine,
     name: 'Training Strategist',
-    primary: '#3D8B50',
+    primary: '#2A8C82',
   },
   pulse: {
-    color: 'terracotta',
+    color: 'teal',
     icon: IconActivity,
     name: 'Pulse',
-    primary: '#3A5A8C',
+    primary: '#2A8C82',
   },
 };
 
@@ -214,14 +214,14 @@ function ConversationThreadList({
         <Paper
           p="xs"
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             cursor: 'pointer',
-            border: `1px dashed ${'var(--tribos-text-muted)'}`,
+            border: `1px dashed ${'var(--color-text-muted)'}`,
           }}
           onClick={onNewThread}
         >
           <Group gap="xs" justify="center">
-            <IconPlus size={14} style={{ color: 'var(--tribos-text-muted)' }} />
+            <IconPlus size={14} style={{ color: 'var(--color-text-muted)' }} />
             <Text size="sm" c="dimmed">New Conversation</Text>
           </Group>
         </Paper>
@@ -250,7 +250,7 @@ function ConversationThreadList({
                     style={{
                       backgroundColor: isActive
                         ? `${config.primary}15`
-                        : 'var(--tribos-bg-tertiary)',
+                        : 'var(--color-bg-secondary)',
                       cursor: 'pointer',
                       border: isActive
                         ? `1px solid ${config.primary}`
@@ -286,7 +286,7 @@ function ConversationThreadList({
                           size="sm"
                           fw={isActive ? 600 : 500}
                           style={{
-                            color: 'var(--tribos-text-primary)',
+                            color: 'var(--color-text-primary)',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
@@ -299,7 +299,7 @@ function ConversationThreadList({
                       <Group gap="xs" wrap="nowrap">
                         {thread.status === 'archived' && (
                           <Tooltip label="Archived">
-                            <IconArchive size={12} style={{ color: 'var(--tribos-text-muted)' }} />
+                            <IconArchive size={12} style={{ color: 'var(--color-text-muted)' }} />
                           </Tooltip>
                         )}
 

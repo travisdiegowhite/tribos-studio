@@ -15,9 +15,9 @@ const WaypointList = ({ waypoints, onReorder, onRemove, onFocus }) => {
   if (!waypoints || waypoints.length === 0) return null;
 
   const getMarkerColor = (index) => {
-    if (index === 0) return '#3D8B50'; // sage — start
-    if (index === waypoints.length - 1) return '#3A5A8C'; // terracotta — end
-    return '#3D8B50'; // teal — intermediate
+    if (index === 0) return '#2A8C82'; // teal — start
+    if (index === waypoints.length - 1) return '#C43C2A'; // coral — end
+    return '#2A8C82'; // teal — intermediate
   };
 
   const getLabel = (index) => {
@@ -28,7 +28,7 @@ const WaypointList = ({ waypoints, onReorder, onRemove, onFocus }) => {
 
   return (
     <Stack gap={4}>
-      <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <Text size="xs" fw={600} style={{ color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
         Waypoints ({waypoints.length})
       </Text>
       {waypoints.map((wp, index) => (
@@ -36,7 +36,7 @@ const WaypointList = ({ waypoints, onReorder, onRemove, onFocus }) => {
           key={wp.id}
           p={6}
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             borderRadius: 6,
             border: '1px solid transparent',
           }}
@@ -66,7 +66,7 @@ const WaypointList = ({ waypoints, onReorder, onRemove, onFocus }) => {
               <Text
                 size="xs"
                 style={{
-                  color: 'var(--tribos-text-primary)',
+                  color: 'var(--color-text-primary)',
                   flex: 1,
                   cursor: 'pointer',
                   overflow: 'hidden',

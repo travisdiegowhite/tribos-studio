@@ -60,7 +60,7 @@ function CoachQuickActions({ onSelect, actions = QUICK_ACTIONS }) {
           }}
           sx={(theme) => ({
             '&:hover': {
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               transform: 'translateX(4px)',
             },
           })}
@@ -75,7 +75,7 @@ function CoachQuickActions({ onSelect, actions = QUICK_ACTIONS }) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: 'var(--tribos-bg-tertiary)',
+                  backgroundColor: 'var(--color-bg-secondary)',
                   borderRadius: 10,
                 }}
               >
@@ -85,7 +85,7 @@ function CoachQuickActions({ onSelect, actions = QUICK_ACTIONS }) {
                 <Text
                   size="sm"
                   fw={500}
-                  style={{ color: 'var(--tribos-text-primary)' }}
+                  style={{ color: 'var(--color-text-primary)' }}
                 >
                   {action.label}
                 </Text>

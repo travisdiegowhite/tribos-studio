@@ -111,9 +111,9 @@ const ZoneTooltip = ({ active, payload }) => {
   if (!data) return null;
 
   return (
-    <Paper p="xs" withBorder style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+    <Paper p="xs" withBorder style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <Text size="xs" fw={600}>{data.label}</Text>
-      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+      <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
         {data.percent}% of ride
       </Text>
     </Paper>
@@ -192,17 +192,17 @@ const RideZonesChart = ({ activity, ftp, maxHr }) => {
           layout="vertical"
           margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--tribos-bg-tertiary)" horizontal={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bg-secondary)" horizontal={false} />
           <XAxis
             type="number"
             domain={[0, 100]}
-            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
             tickFormatter={(v) => `${v}%`}
           />
           <YAxis
             type="category"
             dataKey="label"
-            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
             width={100}
           />
           <RechartsTooltip content={<ZoneTooltip />} />

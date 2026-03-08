@@ -92,7 +92,7 @@ export default function HeroSection() {
 
           {/* Left column: text + CTA */}
           <Stack gap="xl" ta={{ base: 'center', md: 'left' }} align={{ base: 'center', md: 'flex-start' }}>
-            <Badge color="terracotta" variant="light" size="lg">
+            <Badge color="teal" variant="light" size="lg">
               Now in Private Beta
             </Badge>
 
@@ -100,13 +100,13 @@ export default function HeroSection() {
               order={1}
               style={{
                 fontSize: 'clamp(1.8rem, 4vw, 3rem)',
-                color: 'var(--tribos-text-primary)',
+                color: 'var(--color-text-primary)',
                 lineHeight: 1.15,
                 maxWidth: 520,
               }}
             >
               You have the plan. You have the gear.{' '}
-              <span style={{ color: 'var(--tribos-terracotta-500)' }}>
+              <span style={{ color: 'var(--color-teal)' }}>
                 But who tells you what to ride today?
               </span>
             </Title>
@@ -114,7 +114,7 @@ export default function HeroSection() {
             <Text
               size="lg"
               style={{
-                color: 'var(--tribos-text-secondary)',
+                color: 'var(--color-text-secondary)',
                 maxWidth: 460,
                 lineHeight: 1.6,
               }}
@@ -127,7 +127,7 @@ export default function HeroSection() {
                 component={Link}
                 to="/auth"
                 size="lg"
-                color="terracotta"
+                color="teal"
                 rightSection={<IconChevronRight size={18} />}
               >
                 Create Free Account
@@ -146,7 +146,7 @@ export default function HeroSection() {
               <Text
                 size="sm"
                 style={{
-                  color: 'var(--tribos-text-muted)',
+                  color: 'var(--color-text-muted)',
                   fontFamily: "'DM Mono', monospace",
                   letterSpacing: '1px',
                 }}
@@ -163,7 +163,7 @@ export default function HeroSection() {
               style={{
                 overflow: 'hidden',
                 height: 420,
-                border: '1.5px solid var(--tribos-border-default)',
+                border: '1.5px solid var(--color-border)',
               }}
             >
               {MAPBOX_TOKEN ? (
@@ -185,7 +185,7 @@ export default function HeroSection() {
                         id="hero-route-shadow"
                         type="line"
                         paint={{
-                          'line-color': '#3A5A8C',
+                          'line-color': '#2A8C82',
                           'line-width': 8,
                           'line-opacity': 0.15,
                           'line-blur': 6,
@@ -195,7 +195,7 @@ export default function HeroSection() {
                         id="hero-route-line"
                         type="line"
                         paint={{
-                          'line-color': '#3A5A8C',
+                          'line-color': '#2A8C82',
                           'line-width': 3,
                           'line-opacity': 0.9,
                         }}
@@ -214,7 +214,7 @@ export default function HeroSection() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: 'var(--tribos-bg-tertiary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
                   }}
                 >
                   <Text size="sm" c="dimmed">Map preview</Text>
@@ -233,16 +233,16 @@ export default function HeroSection() {
                 maxWidth: 340,
                 backdropFilter: 'blur(16px)',
                 WebkitBackdropFilter: 'blur(16px)',
-                background: 'color-mix(in srgb, var(--tribos-bg-secondary) 88%, transparent)',
-                border: '1px solid var(--tribos-border-default)',
+                background: 'color-mix(in srgb, var(--color-bg-secondary) 88%, transparent)',
+                border: '1px solid var(--color-border)',
               }}
             >
               {/* Chat header */}
               <Group gap="sm" mb="xs">
-                <ThemeIcon color="terracotta" variant="light" size="xs">
+                <ThemeIcon color="teal" variant="light" size="xs">
                   <IconSparkles size={10} />
                 </ThemeIcon>
-                <Text fw={600} size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+                <Text fw={600} size="xs" style={{ color: 'var(--color-text-primary)' }}>
                   AI Coach
                 </Text>
                 <Box
@@ -250,7 +250,7 @@ export default function HeroSection() {
                     width: 6,
                     height: 6,
                     borderRadius: '50%',
-                    backgroundColor: 'var(--tribos-sage-500)',
+                    backgroundColor: 'var(--color-gold)',
                     marginLeft: -4,
                   }}
                 />
@@ -262,11 +262,11 @@ export default function HeroSection() {
                   px="xs"
                   py={6}
                   style={{
-                    backgroundColor: 'var(--tribos-input, var(--tribos-bg-tertiary))',
-                    border: '1px solid var(--tribos-border-default)',
+                    backgroundColor: 'var(--tribos-input, var(--color-bg-secondary))',
+                    border: '1px solid var(--color-border)',
                   }}
                 >
-                  <Text size="xs" style={{ color: 'var(--tribos-text-primary)', lineHeight: 1.4 }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-primary)', lineHeight: 1.4 }}>
                     I have 90 min before work. What should I ride?
                   </Text>
                 </Paper>
@@ -274,7 +274,7 @@ export default function HeroSection() {
 
               {/* Coach response */}
               <Group gap={6} align="flex-start">
-                <ThemeIcon color="terracotta" variant="light" size="xs" mt={2}>
+                <ThemeIcon color="teal" variant="light" size="xs" mt={2}>
                   <IconRobot size={10} />
                 </ThemeIcon>
                 <Paper
@@ -286,7 +286,7 @@ export default function HeroSection() {
                     border: '1px solid var(--tribos-terracotta-border)',
                   }}
                 >
-                  <Text size="xs" style={{ color: 'var(--tribos-text-primary)', lineHeight: 1.4 }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-primary)', lineHeight: 1.4 }}>
                     Your CTL is 62 and you rested yesterday — you're fresh. I'd suggest the Hygiene Loop at ~195W. Endurance pace, keep it easy.
                   </Text>
                 </Paper>
@@ -310,7 +310,7 @@ export default function HeroSection() {
           document.getElementById('connect')?.scrollIntoView({ behavior: 'smooth' });
         }}
       >
-        <IconChevronDown size={24} color="var(--tribos-text-muted)" />
+        <IconChevronDown size={24} color="var(--color-text-muted)" />
       </Box>
     </Box>
   );

@@ -167,14 +167,14 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
     const data = payload[0].payload;
 
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
-        <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+      <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+        <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--color-text-primary)' }}>
           {data.name}
         </Text>
         {data.current && (
           <Group justify="space-between" gap="md">
             <Text size="xs" c="yellow">Current:</Text>
-            <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>
               {data.current}W {data.currentWkg && `(${data.currentWkg} W/kg)`}
             </Text>
           </Group>
@@ -199,7 +199,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
   if (!powerCurveData.current || powerCurveData.current.length === 0) {
     return (
       <Card withBorder p="xl">
-        <Text style={{ color: 'var(--tribos-text-muted)' }} ta="center">
+        <Text style={{ color: 'var(--color-text-muted)' }} ta="center">
           No power data available. Connect a power meter to see your power duration curve.
         </Text>
       </Card>
@@ -211,7 +211,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
           <IconBolt size={20} color={tokens.colors.zone4} />
-          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Power Duration Curve
           </Text>
           {riderType && (
@@ -278,18 +278,18 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
       {/* Power Curve Chart */}
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={powerCurveData.current} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
+          <CartesianGrid strokeDasharray="3 3" stroke={'var(--color-bg-secondary)'} />
           <XAxis
             dataKey="duration"
-            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
           />
           <YAxis
-            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
             label={{
               value: 'Watts',
               angle: -90,
               position: 'insideLeft',
-              style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 12 }
+              style: { textAnchor: 'middle', fill: 'var(--color-text-muted)', fontSize: 12 }
             }}
           />
           <RechartsTooltip content={<CustomTooltip />} />
@@ -313,7 +313,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
           <Line
             type="monotone"
             dataKey="previous"
-            stroke={'var(--tribos-text-muted)'}
+            stroke={'var(--color-text-muted)'}
             strokeWidth={1}
             strokeDasharray="3 3"
             dot={false}
@@ -324,10 +324,10 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
           <Line
             type="monotone"
             dataKey="current"
-            stroke="#D4820A"
+            stroke="#D4600A"
             strokeWidth={2}
-            dot={{ fill: '#D4820A', r: 3 }}
-            activeDot={{ r: 5, fill: '#D4820A' }}
+            dot={{ fill: '#D4600A', r: 3 }}
+            activeDot={{ r: 5, fill: '#D4600A' }}
             name="Current"
           />
         </LineChart>
@@ -335,10 +335,10 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
 
       {/* Rider type description */}
       {riderType && (
-        <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs">
-            <IconTrophy size={16} color={'var(--tribos-terracotta-500)'} />
-            <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <IconTrophy size={16} color={'var(--color-teal)'} />
+            <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
               <Text span fw={600} c={riderType.color}>{riderType.type}</Text>
               {' - '}{riderType.description}
             </Text>
@@ -346,7 +346,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
         </Paper>
       )}
 
-      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt="md">
+      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt="md">
         Power curve shows best efforts at each duration. Dashed line shows previous period for comparison.
       </Text>
     </Card>
@@ -357,7 +357,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
 function PowerMetricCard({ label, value, weight, ftp, color, isFtp }) {
   if (!value) {
     return (
-      <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+      <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Text size="xs" c="dimmed">{label}</Text>
         <Text size="sm" fw={600} c="dimmed">--</Text>
       </Paper>
@@ -377,7 +377,7 @@ function PowerMetricCard({ label, value, weight, ftp, color, isFtp }) {
         </Stack>
       }
     >
-      <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+      <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Text size="xs" c="dimmed">{label}</Text>
         <Text size="sm" fw={700} c={color}>{value}W</Text>
         {wkg && <Text size="xs" c="dimmed">{wkg}</Text>}

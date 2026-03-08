@@ -7,140 +7,150 @@
 
 /* ===== CSS Variables for Theme Switching ===== */
 
-/* Light theme (default) — neutral system */
+/* Light theme (default) — Tribos brand system */
 :root,
 :root[data-mantine-color-scheme='light'] {
   /* ===== SURFACES ===== */
-  --tribos-void: #F4F4F4;
-  --tribos-nav: #ECECEC;
-  --tribos-panel: #E0E0E0;
-  --tribos-card: #FFFFFF;
-  --tribos-card-top: #FFFFFF;
-  --tribos-card-bottom: #FFFFFF;
-  --tribos-card-hover: #F4F4F4;
-  --tribos-elevated: #FFFFFF;
-  --tribos-input: #F4F4F4;
-
-  /* ===== BORDERS ===== */
-  --tribos-border-subtle: #E0E0E0;
-  --tribos-border-default: #E0E0E0;
-  --tribos-border-hover: #0A0A0A;
-
-  /* ===== SHADOWS ===== */
-  --tribos-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --tribos-shadow-card:
-    0 1px 3px rgba(0, 0, 0, 0.07),
-    0 4px 12px rgba(0, 0, 0, 0.05);
-  --tribos-shadow-card-hover:
-    0 4px 12px rgba(0, 0, 0, 0.1),
-    0 2px 4px rgba(0, 0, 0, 0.06);
-  --tribos-shadow-panel: none;
-  --tribos-shadow-inset: none;
-
-  /* ===== TERRACOTTA (Primary accent — steel blue) ===== */
-  --tribos-terracotta-500: #3A5A8C;
-  --tribos-terracotta-400: #5A7AAC;
-  --tribos-terracotta-600: #2E4870;
-  --tribos-terracotta-surface: rgba(58, 90, 140, 0.10);
-  --tribos-terracotta-surface-strong: rgba(58, 90, 140, 0.18);
-  --tribos-terracotta-border: rgba(58, 90, 140, 0.25);
-  --tribos-terracotta-border-strong: rgba(58, 90, 140, 0.4);
-
-  /* ===== MAUVE (now slate — informational, Z5) ===== */
-  --tribos-mauve-500: #6B7F94;
-  --tribos-mauve-surface: rgba(107, 127, 148, 0.1);
-  --tribos-mauve-border: rgba(107, 127, 148, 0.25);
-
-  /* ===== TEAL (now moss — Z2 endurance) ===== */
-  --tribos-teal-500: #5C7A5E;
-  --tribos-teal-surface: rgba(92, 122, 94, 0.1);
-  --tribos-teal-border: rgba(92, 122, 94, 0.25);
-
-  /* ===== SAGE (green — success, positive metrics) ===== */
-  --tribos-sage-500: #3D8B50;
-  --tribos-sage-surface: rgba(61, 139, 80, 0.11);
-  --tribos-sage-border: rgba(61, 139, 80, 0.25);
-
-  /* ===== GOLD (amber — warnings, load alerts) ===== */
-  --tribos-gold-500: #D4820A;
-  --tribos-gold-surface: rgba(212, 130, 10, 0.09);
-  --tribos-gold-border: rgba(212, 130, 10, 0.25);
-
-  /* ===== SKY (now iron — warm brown accent) ===== */
-  --tribos-sky-500: #8B6B5A;
-  --tribos-sky-surface: rgba(139, 107, 90, 0.12);
-  --tribos-sky-border: rgba(139, 107, 90, 0.25);
-
-  /* ===== DUSTY ROSE (now iron variant) ===== */
-  --tribos-dustyrose-500: #8B6B5A;
+  --color-bg: #F4F4F2;
+  --color-bg-secondary: #EBEBE8;
+  --color-card: #FFFFFF;
+  --color-border: #DDDDD8;
+  --color-nav-bg: #141410;
 
   /* ===== TEXT ===== */
-  --tribos-text-100: #0A0A0A;
-  --tribos-text-200: #232323;
-  --tribos-text-300: #383838;
-  --tribos-text-400: #717171;
-  --tribos-text-500: #B0B0B0;
-  --tribos-text-600: #E0E0E0;
+  --color-text-primary: #141410;
+  --color-text-secondary: #3D3C36;
+  --color-text-muted: #7A7970;
 
-  /* ===== BACKWARD-COMPATIBLE ALIASES ===== */
-  --tribos-bg-primary: var(--tribos-void);
-  --tribos-bg-secondary: var(--tribos-card);
-  --tribos-bg-tertiary: var(--tribos-panel);
-  --tribos-bg-elevated: var(--tribos-elevated);
-  --tribos-border: var(--tribos-border-default);
-  --tribos-border-light: var(--tribos-border-hover);
-  --tribos-border-focus: rgba(58, 90, 140, 0.5);
-  --tribos-text-primary: var(--tribos-text-100);
-  --tribos-text-secondary: var(--tribos-text-300);
-  --tribos-text-muted: var(--tribos-text-400);
+  /* ===== ACCENT: TEAL (Primary — CTAs, active states, links) ===== */
+  --color-teal: #2A8C82;
+  --color-teal-subtle: rgba(42, 140, 130, 0.10);
+  --color-teal-border: rgba(42, 140, 130, 0.22);
+  --color-teal-border-strong: rgba(42, 140, 130, 0.40);
 
-  /* Legacy green aliases → now primary blue */
-  --tribos-lime: var(--tribos-terracotta-500);
-  --tribos-lime-light: var(--tribos-terracotta-400);
-  --tribos-lime-dark: var(--tribos-terracotta-600);
-  --tribos-green-500: var(--tribos-terracotta-500);
-  --tribos-green-400: var(--tribos-terracotta-400);
-  --tribos-green-600: var(--tribos-terracotta-600);
-  --tribos-green-bright: var(--tribos-terracotta-400);
-  --tribos-green-surface: var(--tribos-terracotta-surface);
-  --tribos-green-surface-strong: var(--tribos-terracotta-surface-strong);
-  --tribos-green-border: var(--tribos-terracotta-border);
-  --tribos-green-border-strong: var(--tribos-terracotta-border-strong);
+  /* ===== ACCENT: ORANGE (Effort — power, workouts, intensity) ===== */
+  --color-orange: #D4600A;
+  --color-orange-subtle: rgba(212, 96, 10, 0.10);
+  --color-orange-border: rgba(212, 96, 10, 0.22);
+
+  /* ===== ACCENT: GOLD (Achievement — optimal, CTL, gains) ===== */
+  --color-gold: #C49A0A;
+  --color-gold-subtle: rgba(196, 154, 10, 0.10);
+  --color-gold-border: rgba(196, 154, 10, 0.22);
+
+  /* ===== ACCENT: CORAL (Warning — fatigue, errors, overtraining) ===== */
+  --color-coral: #C43C2A;
+  --color-coral-subtle: rgba(196, 60, 42, 0.10);
+  --color-coral-border: rgba(196, 60, 42, 0.22);
+
+  /* ===== SHADOWS ===== */
+  --shadow-sm: 0 1px 3px rgba(20, 16, 8, 0.07), 0 4px 12px rgba(20, 16, 8, 0.05);
+  --shadow-md: 0 2px 6px rgba(20, 16, 8, 0.08), 0 8px 24px rgba(20, 16, 8, 0.07);
+
+  /* ===== SEMANTIC ===== */
+  --color-success: var(--color-gold);
+  --color-warning: var(--color-coral);
+  --color-error: var(--color-coral);
+  --color-info: var(--color-teal);
+
+  /* ===== BACKWARD-COMPAT BRIDGE (old --tribos-* → new) ===== */
+  --tribos-void: var(--color-bg);
+  --tribos-nav: var(--color-bg-secondary);
+  --tribos-panel: var(--color-bg-secondary);
+  --tribos-card: var(--color-card);
+  --tribos-card-top: var(--color-card);
+  --tribos-card-bottom: var(--color-card);
+  --tribos-card-hover: var(--color-bg);
+  --tribos-elevated: var(--color-card);
+  --tribos-input: var(--color-bg);
+  --tribos-border-subtle: var(--color-border);
+  --tribos-border-default: var(--color-border);
+  --tribos-border-hover: var(--color-text-primary);
+  --tribos-shadow-xs: 0 1px 2px rgba(20, 16, 8, 0.04);
+  --tribos-shadow-card: var(--shadow-sm);
+  --tribos-shadow-card-hover: var(--shadow-md);
+  --tribos-shadow-panel: none;
+  --tribos-shadow-inset: none;
+  --tribos-shadow-sm: var(--shadow-sm);
+  --tribos-shadow-md: var(--shadow-md);
+  --tribos-shadow-lg: var(--shadow-md);
+  --tribos-shadow-focus: 0 0 0 2px rgba(42, 140, 130, 0.25);
+  --tribos-terracotta-500: var(--color-teal);
+  --tribos-terracotta-400: #3BA89D;
+  --tribos-terracotta-600: #1E6B63;
+  --tribos-terracotta-surface: var(--color-teal-subtle);
+  --tribos-terracotta-surface-strong: rgba(42, 140, 130, 0.18);
+  --tribos-terracotta-border: var(--color-teal-border);
+  --tribos-terracotta-border-strong: var(--color-teal-border-strong);
+  --tribos-mauve-500: var(--color-text-muted);
+  --tribos-mauve-surface: rgba(122, 121, 112, 0.10);
+  --tribos-mauve-border: rgba(122, 121, 112, 0.25);
+  --tribos-teal-500: var(--color-teal);
+  --tribos-teal-surface: var(--color-teal-subtle);
+  --tribos-teal-border: var(--color-teal-border);
+  --tribos-sage-500: var(--color-gold);
+  --tribos-sage-surface: var(--color-gold-subtle);
+  --tribos-sage-border: var(--color-gold-border);
+  --tribos-gold-500: var(--color-coral);
+  --tribos-gold-surface: var(--color-coral-subtle);
+  --tribos-gold-border: var(--color-coral-border);
+  --tribos-sky-500: var(--color-orange);
+  --tribos-sky-surface: var(--color-orange-subtle);
+  --tribos-sky-border: var(--color-orange-border);
+  --tribos-dustyrose-500: var(--color-orange);
+  --tribos-text-100: var(--color-text-primary);
+  --tribos-text-200: var(--color-text-secondary);
+  --tribos-text-300: var(--color-text-secondary);
+  --tribos-text-400: var(--color-text-muted);
+  --tribos-text-500: #B0B0A8;
+  --tribos-text-600: var(--color-border);
+  --tribos-bg-primary: var(--color-bg);
+  --tribos-bg-secondary: var(--color-card);
+  --tribos-bg-tertiary: var(--color-bg-secondary);
+  --tribos-bg-elevated: var(--color-card);
+  --tribos-border: var(--color-border);
+  --tribos-border-light: var(--color-text-primary);
+  --tribos-border-focus: rgba(42, 140, 130, 0.5);
+  --tribos-text-primary: var(--color-text-primary);
+  --tribos-text-secondary: var(--color-text-secondary);
+  --tribos-text-muted: var(--color-text-muted);
+  --tribos-lime: var(--color-teal);
+  --tribos-lime-light: #3BA89D;
+  --tribos-lime-dark: #1E6B63;
+  --tribos-green-500: var(--color-teal);
+  --tribos-green-400: #3BA89D;
+  --tribos-green-600: #1E6B63;
+  --tribos-green-bright: #3BA89D;
+  --tribos-green-surface: var(--color-teal-subtle);
+  --tribos-green-surface-strong: rgba(42, 140, 130, 0.18);
+  --tribos-green-border: var(--color-teal-border);
+  --tribos-green-border-strong: var(--color-teal-border-strong);
   --tribos-green-glow: none;
-
-  /* Semantic aliases */
-  --tribos-success: var(--tribos-sage-500);
-  --tribos-warning: var(--tribos-gold-500);
-  --tribos-error: var(--tribos-terracotta-500);
-  --tribos-info: var(--tribos-mauve-500);
-
-  /* Legacy color aliases */
-  --tribos-amber-500: var(--tribos-gold-500);
-  --tribos-amber-400: #E09A20;
-  --tribos-amber-surface: var(--tribos-gold-surface);
-  --tribos-amber-border: var(--tribos-gold-border);
-  --tribos-blue-500: var(--tribos-mauve-500);
-  --tribos-blue-400: #8497AA;
-  --tribos-blue-surface: var(--tribos-mauve-surface);
-  --tribos-blue-border: var(--tribos-mauve-border);
-  --tribos-purple-500: var(--tribos-mauve-500);
-  --tribos-purple-surface: var(--tribos-mauve-surface);
-  --tribos-purple-border: var(--tribos-mauve-border);
-  --tribos-red-500: var(--tribos-terracotta-500);
-  --tribos-red-surface: var(--tribos-terracotta-surface);
-
-  --tribos-shadow-sm: var(--tribos-shadow-card);
-  --tribos-shadow-md: var(--tribos-shadow-card);
-  --tribos-shadow-lg: var(--tribos-shadow-card-hover);
-  --tribos-shadow-focus: 0 0 0 2px rgba(58, 90, 140, 0.25);
+  --tribos-success: var(--color-gold);
+  --tribos-warning: var(--color-coral);
+  --tribos-error: var(--color-coral);
+  --tribos-info: var(--color-text-muted);
+  --tribos-amber-500: var(--color-coral);
+  --tribos-amber-400: #D45035;
+  --tribos-amber-surface: var(--color-coral-subtle);
+  --tribos-amber-border: var(--color-coral-border);
+  --tribos-blue-500: var(--color-text-muted);
+  --tribos-blue-400: #8E8D85;
+  --tribos-blue-surface: rgba(122, 121, 112, 0.10);
+  --tribos-blue-border: rgba(122, 121, 112, 0.25);
+  --tribos-purple-500: var(--color-text-muted);
+  --tribos-purple-surface: rgba(122, 121, 112, 0.10);
+  --tribos-purple-border: rgba(122, 121, 112, 0.25);
+  --tribos-red-500: var(--color-coral);
+  --tribos-red-surface: var(--color-coral-subtle);
 
   /* Scrollbar */
   --tribos-scrollbar-thumb: rgba(0, 0, 0, 0.12);
   --tribos-scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
 
   /* Selection */
-  --tribos-selection-bg: rgba(58, 90, 140, 0.2);
-  --tribos-selection-color: #0A0A0A;
+  --tribos-selection-bg: rgba(42, 140, 130, 0.2);
+  --tribos-selection-color: #141410;
 
   /* Overlay */
   --tribos-overlay: rgba(0, 0, 0, 0.4);
@@ -149,138 +159,143 @@
   --vh: 1vh;
 }
 
-/* Dark theme — dark slate system */
+/* Dark theme — warm dark system */
 :root[data-mantine-color-scheme='dark'] {
-  /* Surfaces */
-  --tribos-void: #141820;
-  --tribos-nav: #1C2230;
-  --tribos-panel: #141820;
-  --tribos-card: #1C2230;
-  --tribos-card-top: #1C2230;
-  --tribos-card-bottom: #1C2230;
-  --tribos-card-hover: #242D3E;
-  --tribos-elevated: #242D3E;
-  --tribos-input: #141820;
+  /* ===== SURFACES ===== */
+  --color-bg: #141410;
+  --color-bg-secondary: #1A1A16;
+  --color-card: #222220;
+  --color-border: #2E2E2A;
+  --color-nav-bg: #0E0E0C;
 
-  /* Borders */
-  --tribos-border-subtle: #1C2230;
-  --tribos-border-default: #242D3E;
-  --tribos-border-hover: #E8EBF2;
+  /* ===== TEXT ===== */
+  --color-text-primary: #E8E8E4;
+  --color-text-secondary: #B0B0A8;
+  --color-text-muted: #7A7970;
 
-  /* Shadows */
+  /* ===== ACCENTS (lifted for dark) ===== */
+  --color-teal: #3BA89D;
+  --color-teal-subtle: rgba(59, 168, 157, 0.12);
+  --color-teal-border: rgba(59, 168, 157, 0.28);
+  --color-teal-border-strong: rgba(59, 168, 157, 0.45);
+  --color-orange: #E87020;
+  --color-orange-subtle: rgba(232, 112, 32, 0.12);
+  --color-orange-border: rgba(232, 112, 32, 0.28);
+  --color-gold: #D4AA1A;
+  --color-gold-subtle: rgba(212, 170, 26, 0.12);
+  --color-gold-border: rgba(212, 170, 26, 0.28);
+  --color-coral: #D45035;
+  --color-coral-subtle: rgba(212, 80, 53, 0.12);
+  --color-coral-border: rgba(212, 80, 53, 0.28);
+
+  /* ===== SHADOWS ===== */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.30), 0 4px 12px rgba(0, 0, 0, 0.20);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
+
+  /* ===== SEMANTIC ===== */
+  --color-success: var(--color-gold);
+  --color-warning: var(--color-coral);
+  --color-error: var(--color-coral);
+  --color-info: var(--color-teal);
+
+  /* ===== BACKWARD-COMPAT BRIDGE ===== */
+  --tribos-void: var(--color-bg);
+  --tribos-nav: var(--color-bg-secondary);
+  --tribos-panel: var(--color-bg);
+  --tribos-card: var(--color-card);
+  --tribos-card-top: var(--color-card);
+  --tribos-card-bottom: var(--color-card);
+  --tribos-card-hover: #2A2A28;
+  --tribos-elevated: #2A2A28;
+  --tribos-input: var(--color-bg);
+  --tribos-border-subtle: var(--color-bg-secondary);
+  --tribos-border-default: var(--color-border);
+  --tribos-border-hover: var(--color-text-primary);
   --tribos-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --tribos-shadow-card:
-    0 1px 3px rgba(0, 0, 0, 0.30),
-    0 4px 12px rgba(0, 0, 0, 0.20);
-  --tribos-shadow-card-hover:
-    0 4px 12px rgba(0, 0, 0, 0.35),
-    0 2px 4px rgba(0, 0, 0, 0.2);
+  --tribos-shadow-card: var(--shadow-sm);
+  --tribos-shadow-card-hover: var(--shadow-md);
   --tribos-shadow-panel: none;
   --tribos-shadow-inset: none;
-  --tribos-shadow-sm: var(--tribos-shadow-card);
-  --tribos-shadow-md: var(--tribos-shadow-card);
-  --tribos-shadow-lg: var(--tribos-shadow-card-hover);
-  --tribos-shadow-focus: 0 0 0 2px rgba(90, 122, 172, 0.3);
-
-  /* Terracotta (Primary — steel blue) */
-  --tribos-terracotta-500: #5A7AAC;
-  --tribos-terracotta-400: #7A9AC4;
-  --tribos-terracotta-600: #4A6890;
-  --tribos-terracotta-surface: rgba(90, 122, 172, 0.15);
-  --tribos-terracotta-surface-strong: rgba(90, 122, 172, 0.22);
-  --tribos-terracotta-border: rgba(90, 122, 172, 0.3);
-  --tribos-terracotta-border-strong: rgba(90, 122, 172, 0.45);
-
-  /* Mauve (now slate) */
-  --tribos-mauve-500: #6B7F94;
-  --tribos-mauve-surface: rgba(107, 127, 148, 0.1);
-  --tribos-mauve-border: rgba(107, 127, 148, 0.25);
-
-  /* Teal (moss) */
-  --tribos-teal-500: #407045;
-  --tribos-teal-surface: rgba(64, 112, 69, 0.1);
-  --tribos-teal-border: rgba(64, 112, 69, 0.25);
-
-  /* Sage (green — success, lifted for dark) */
-  --tribos-sage-500: #52B068;
-  --tribos-sage-surface: rgba(82, 176, 104, 0.15);
-  --tribos-sage-border: rgba(82, 176, 104, 0.25);
-
-  /* Gold (amber — warnings, lifted for dark) */
-  --tribos-gold-500: #F0960C;
-  --tribos-gold-surface: rgba(240, 150, 12, 0.12);
-  --tribos-gold-border: rgba(240, 150, 12, 0.25);
-
-  /* Sky (now iron) */
-  --tribos-sky-500: #7A5E4E;
-  --tribos-sky-surface: rgba(122, 94, 78, 0.12);
-  --tribos-sky-border: rgba(122, 94, 78, 0.25);
-
-  /* Dusty Rose (now iron variant) */
-  --tribos-dustyrose-500: #7A5E4E;
-
-  /* Text */
-  --tribos-text-100: #E8EBF2;
-  --tribos-text-200: #C8D0E0;
-  --tribos-text-300: #8A90A5;
-  --tribos-text-400: #5A6175;
-  --tribos-text-500: #3D4560;
-  --tribos-text-600: #2D3550;
-
-  /* Legacy green aliases → primary blue */
-  --tribos-lime: var(--tribos-terracotta-500);
-  --tribos-lime-light: var(--tribos-terracotta-400);
-  --tribos-lime-dark: var(--tribos-terracotta-600);
-  --tribos-green-500: var(--tribos-terracotta-500);
-  --tribos-green-400: var(--tribos-terracotta-400);
-  --tribos-green-600: var(--tribos-terracotta-600);
-  --tribos-green-bright: var(--tribos-terracotta-400);
-  --tribos-green-surface: var(--tribos-terracotta-surface);
-  --tribos-green-surface-strong: var(--tribos-terracotta-surface-strong);
-  --tribos-green-border: var(--tribos-terracotta-border);
-  --tribos-green-border-strong: var(--tribos-terracotta-border-strong);
+  --tribos-shadow-sm: var(--shadow-sm);
+  --tribos-shadow-md: var(--shadow-md);
+  --tribos-shadow-lg: var(--shadow-md);
+  --tribos-shadow-focus: 0 0 0 2px rgba(59, 168, 157, 0.3);
+  --tribos-terracotta-500: var(--color-teal);
+  --tribos-terracotta-400: #4CC0B5;
+  --tribos-terracotta-600: #2A8C82;
+  --tribos-terracotta-surface: var(--color-teal-subtle);
+  --tribos-terracotta-surface-strong: rgba(59, 168, 157, 0.20);
+  --tribos-terracotta-border: var(--color-teal-border);
+  --tribos-terracotta-border-strong: var(--color-teal-border-strong);
+  --tribos-mauve-500: var(--color-text-muted);
+  --tribos-mauve-surface: rgba(122, 121, 112, 0.10);
+  --tribos-mauve-border: rgba(122, 121, 112, 0.25);
+  --tribos-teal-500: var(--color-teal);
+  --tribos-teal-surface: var(--color-teal-subtle);
+  --tribos-teal-border: var(--color-teal-border);
+  --tribos-sage-500: var(--color-gold);
+  --tribos-sage-surface: var(--color-gold-subtle);
+  --tribos-sage-border: var(--color-gold-border);
+  --tribos-gold-500: var(--color-coral);
+  --tribos-gold-surface: var(--color-coral-subtle);
+  --tribos-gold-border: var(--color-coral-border);
+  --tribos-sky-500: var(--color-orange);
+  --tribos-sky-surface: var(--color-orange-subtle);
+  --tribos-sky-border: var(--color-orange-border);
+  --tribos-dustyrose-500: var(--color-orange);
+  --tribos-text-100: var(--color-text-primary);
+  --tribos-text-200: #C8C8C0;
+  --tribos-text-300: var(--color-text-secondary);
+  --tribos-text-400: var(--color-text-muted);
+  --tribos-text-500: #4A4A42;
+  --tribos-text-600: #2E2E2A;
+  --tribos-lime: var(--color-teal);
+  --tribos-lime-light: #4CC0B5;
+  --tribos-lime-dark: #2A8C82;
+  --tribos-green-500: var(--color-teal);
+  --tribos-green-400: #4CC0B5;
+  --tribos-green-600: #2A8C82;
+  --tribos-green-bright: #4CC0B5;
+  --tribos-green-surface: var(--color-teal-subtle);
+  --tribos-green-surface-strong: rgba(59, 168, 157, 0.20);
+  --tribos-green-border: var(--color-teal-border);
+  --tribos-green-border-strong: var(--color-teal-border-strong);
   --tribos-green-glow: none;
-
-  /* Semantic */
-  --tribos-success: var(--tribos-sage-500);
-  --tribos-warning: var(--tribos-gold-500);
-  --tribos-error: var(--tribos-terracotta-500);
-  --tribos-info: var(--tribos-mauve-500);
-
-  /* Legacy color aliases */
-  --tribos-amber-500: var(--tribos-gold-500);
-  --tribos-amber-400: #F5A820;
-  --tribos-amber-surface: var(--tribos-gold-surface);
-  --tribos-amber-border: var(--tribos-gold-border);
-  --tribos-blue-500: var(--tribos-mauve-500);
-  --tribos-blue-400: #8497AA;
-  --tribos-blue-surface: var(--tribos-mauve-surface);
-  --tribos-blue-border: var(--tribos-mauve-border);
-  --tribos-purple-500: var(--tribos-mauve-500);
-  --tribos-purple-surface: var(--tribos-mauve-surface);
-  --tribos-purple-border: var(--tribos-mauve-border);
-  --tribos-red-500: var(--tribos-terracotta-500);
-  --tribos-red-surface: var(--tribos-terracotta-surface);
-
-  /* Backward-compatible surface aliases */
-  --tribos-bg-primary: var(--tribos-void);
-  --tribos-bg-secondary: var(--tribos-card);
-  --tribos-bg-tertiary: var(--tribos-panel);
-  --tribos-bg-elevated: var(--tribos-elevated);
-  --tribos-border: var(--tribos-border-default);
-  --tribos-border-light: var(--tribos-border-hover);
-  --tribos-border-focus: rgba(90, 122, 172, 0.5);
-  --tribos-text-primary: var(--tribos-text-100);
-  --tribos-text-secondary: var(--tribos-text-200);
-  --tribos-text-muted: var(--tribos-text-300);
+  --tribos-success: var(--color-gold);
+  --tribos-warning: var(--color-coral);
+  --tribos-error: var(--color-coral);
+  --tribos-info: var(--color-text-muted);
+  --tribos-amber-500: var(--color-coral);
+  --tribos-amber-400: #E06050;
+  --tribos-amber-surface: var(--color-coral-subtle);
+  --tribos-amber-border: var(--color-coral-border);
+  --tribos-blue-500: var(--color-text-muted);
+  --tribos-blue-400: #8E8D85;
+  --tribos-blue-surface: rgba(122, 121, 112, 0.10);
+  --tribos-blue-border: rgba(122, 121, 112, 0.25);
+  --tribos-purple-500: var(--color-text-muted);
+  --tribos-purple-surface: rgba(122, 121, 112, 0.10);
+  --tribos-purple-border: rgba(122, 121, 112, 0.25);
+  --tribos-red-500: var(--color-coral);
+  --tribos-red-surface: var(--color-coral-subtle);
+  --tribos-bg-primary: var(--color-bg);
+  --tribos-bg-secondary: var(--color-card);
+  --tribos-bg-tertiary: var(--color-bg-secondary);
+  --tribos-bg-elevated: #2A2A28;
+  --tribos-border: var(--color-border);
+  --tribos-border-light: var(--color-text-primary);
+  --tribos-border-focus: rgba(59, 168, 157, 0.5);
+  --tribos-text-primary: var(--color-text-primary);
+  --tribos-text-secondary: #C8C8C0;
+  --tribos-text-muted: var(--color-text-muted);
 
   /* Scrollbar */
   --tribos-scrollbar-thumb: rgba(255, 255, 255, 0.12);
   --tribos-scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
 
   /* Selection */
-  --tribos-selection-bg: rgba(90, 122, 172, 0.25);
-  --tribos-selection-color: #E8EBF2;
+  --tribos-selection-bg: rgba(59, 168, 157, 0.25);
+  --tribos-selection-color: #E8E8E4;
 
   /* Overlay */
   --tribos-overlay: rgba(0, 0, 0, 0.6);
@@ -300,7 +315,7 @@ body {
   padding: 0;
   background-color: var(--tribos-bg-primary);
   color: var(--tribos-text-primary);
-  font-family: 'Familjen Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+  font-family: 'Barlow', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -343,7 +358,7 @@ body {
   width: 32px;
   height: 32px;
   border: 2px solid var(--tribos-border);
-  border-top-color: #9E5A3C;
+  border-top-color: #2A8C82;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -426,7 +441,7 @@ body {
 
 /* Mapbox controls for light theme */
 :root[data-mantine-color-scheme='light'] .mapboxgl-ctrl-attrib {
-  background-color: rgba(245, 245, 241, 0.9) !important;
+  background-color: rgba(244, 244, 242, 0.9) !important;
 }
 
 :root[data-mantine-color-scheme='light'] .mapboxgl-ctrl-group {
@@ -496,7 +511,7 @@ body {
 .mantine-DateInput-input:focus {
   border-color: var(--tribos-terracotta-border) !important;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(158, 90, 60, 0.1) !important;
+  box-shadow: 0 0 0 2px rgba(42, 140, 130, 0.1) !important;
 }
 
 /* Card/Paper hover effects */
@@ -539,30 +554,29 @@ button {
 /* Dark theme specific */
 :root[data-mantine-color-scheme='dark'] {
   --mantine-color-body: var(--tribos-void) !important;
-  --mantine-color-dark-9: #111210 !important;
-  --mantine-color-dark-8: #131410 !important;
-  --mantine-color-dark-7: #191A17 !important;
-  --mantine-color-dark-6: #1D1E1B !important;
-  --mantine-color-dark-5: #222320 !important;
-  --mantine-color-dark-4: #2C2D28 !important;
+  --mantine-color-dark-9: #0E0E0C !important;
+  --mantine-color-dark-8: #141410 !important;
+  --mantine-color-dark-7: #1A1A16 !important;
+  --mantine-color-dark-6: #222220 !important;
+  --mantine-color-dark-5: #2A2A28 !important;
+  --mantine-color-dark-4: #343430 !important;
 
-  /* Override gray scale mid-tones so color="gray" variant="subtle/light"
-     renders readable text on dark backgrounds */
-  --mantine-color-gray-4: #74766A !important;
-  --mantine-color-gray-5: #959588 !important;
-  --mantine-color-gray-6: #959588 !important;
-  --mantine-color-text: #E5E5DF !important;
-  --mantine-color-dimmed: #74766A !important;
+  /* Override gray scale mid-tones for dark mode readability */
+  --mantine-color-gray-4: #7A7970 !important;
+  --mantine-color-gray-5: #96958D !important;
+  --mantine-color-gray-6: #96958D !important;
+  --mantine-color-text: #E8E8E4 !important;
+  --mantine-color-dimmed: #7A7970 !important;
 }
 
 /* Light theme specific */
 :root[data-mantine-color-scheme='light'] {
-  --mantine-color-body: #EDEDE8 !important;
-  --mantine-color-gray-0: #FBFBF9 !important;
-  --mantine-color-gray-1: #F5F5F1 !important;
-  --mantine-color-gray-2: #EDEDE8 !important;
-  --mantine-color-text: #24261F !important;
-  --mantine-color-dimmed: #74766A !important;
+  --mantine-color-body: #F4F4F2 !important;
+  --mantine-color-gray-0: #FAFAF8 !important;
+  --mantine-color-gray-1: #F4F4F2 !important;
+  --mantine-color-gray-2: #EBEBE8 !important;
+  --mantine-color-text: #141410 !important;
+  --mantine-color-dimmed: #7A7970 !important;
 }
 
 /* Modal/Drawer overlays */
@@ -860,7 +874,7 @@ button {
 }
 
 .tribos-discussion-item:hover {
-  border-color: rgba(158, 90, 60, 0.38) !important;
+  border-color: rgba(42, 140, 130, 0.38) !important;
 }
 
 .tribos-segment-card:hover {

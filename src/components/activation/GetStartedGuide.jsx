@@ -136,7 +136,7 @@ export default function GetStartedGuide() {
   return (
     <Card
       style={{
-        borderLeft: '3px solid var(--tribos-terracotta-500, #3A5A8C)',
+        borderLeft: '3px solid var(--color-teal, #2A8C82)',
       }}
     >
       <Group justify="space-between" mb="sm">
@@ -147,11 +147,11 @@ export default function GetStartedGuide() {
             tt="uppercase"
             ff="'DM Mono', monospace"
             lts={1}
-            style={{ color: 'var(--tribos-text-primary)' }}
+            style={{ color: 'var(--color-text-primary)' }}
           >
             Get Started
           </Text>
-          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+          <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
             {completedCount} of {totalSteps} complete
           </Text>
         </Box>
@@ -159,13 +159,13 @@ export default function GetStartedGuide() {
           size="sm"
           onClick={dismissGuide}
           aria-label="Dismiss guide"
-          style={{ color: 'var(--tribos-text-muted)' }}
+          style={{ color: 'var(--color-text-muted)' }}
         />
       </Group>
 
       <Progress
         value={progressPct}
-        color="terracotta"
+        color="teal"
         size="xs"
         radius="xl"
         mb="md"
@@ -204,7 +204,7 @@ export default function GetStartedGuide() {
                     size="sm"
                     fw={500}
                     style={{
-                      color: 'var(--tribos-text-primary)',
+                      color: 'var(--color-text-primary)',
                       textDecoration: isStepComplete ? 'line-through' : 'none',
                     }}
                     truncate
@@ -213,7 +213,7 @@ export default function GetStartedGuide() {
                   </Text>
                   <Text
                     size="xs"
-                    style={{ color: 'var(--tribos-text-muted)' }}
+                    style={{ color: 'var(--color-text-muted)' }}
                     truncate
                   >
                     {step.description}
@@ -240,7 +240,7 @@ export default function GetStartedGuide() {
                       }
                     : { to: step.href })}
                   variant="light"
-                  color="terracotta"
+                  color="teal"
                   size="compact-xs"
                   style={{ flexShrink: 0 }}
                 >

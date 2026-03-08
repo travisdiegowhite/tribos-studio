@@ -85,7 +85,7 @@ const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
           <!-- Header -->
           <tr>
             <td style="padding: 30px 40px; text-align: center; border-bottom: 1px solid #222222;">
-              <p style="margin: 0; color: #3A5A8C; font-size: 18px; font-weight: 700; letter-spacing: 0.1em;">TRIBOS.STUDIO</p>
+              <p style="margin: 0; color: #2A8C82; font-size: 18px; font-weight: 700; letter-spacing: 0.1em;">TRIBOS.STUDIO</p>
             </td>
           </tr>
           <!-- Content -->
@@ -98,7 +98,7 @@ const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                 <tr>
                   <td align="center">
-                    <a href="https://www.tribos.studio" style="display: inline-block; padding: 16px 32px; background-color: #3A5A8C; color: #121212; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Visit Tribos.Studio</a>
+                    <a href="https://www.tribos.studio" style="display: inline-block; padding: 16px 32px; background-color: #2A8C82; color: #121212; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Visit Tribos.Studio</a>
                   </td>
                 </tr>
               </table>
@@ -111,7 +111,7 @@ const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
           <!-- Footer -->
           <tr>
             <td style="background-color: #121212; padding: 30px 40px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #222222;">
-              <p style="margin: 0 0 10px; font-size: 14px; color: #999999;"><strong style="color: #3A5A8C;">tribos.studio</strong></p>
+              <p style="margin: 0 0 10px; font-size: 14px; color: #999999;"><strong style="color: #2A8C82;">tribos.studio</strong></p>
               <p style="margin: 0; font-size: 12px; color: #666666;">Training load analytics & smart route planning for cyclists</p>
             </td>
           </tr>
@@ -792,7 +792,7 @@ export default function EmailCampaigns() {
                     Configure filters to target specific users. Leave empty to include all users in the selected audience.
                   </Alert>
                 ) : (
-                  <Alert icon={<IconUserCheck size={16} />} color="sage">
+                  <Alert icon={<IconUserCheck size={16} />} color="teal">
                     <Group>
                       <Text size="sm">
                         {selectedUserIds.length === 0
@@ -822,7 +822,7 @@ export default function EmailCampaigns() {
                   {/* NEW: Date Range Filter for New Users */}
                   <Paper withBorder p="md">
                     <Group gap="xs" mb="sm">
-                      <ThemeIcon size="sm" variant="light" color="sage">
+                      <ThemeIcon size="sm" variant="light" color="teal">
                         <IconCalendar size={14} />
                       </ThemeIcon>
                       <Text fw={500} size="sm">Filter by Signup Date (New Users)</Text>
@@ -1070,7 +1070,7 @@ export default function EmailCampaigns() {
             </Button>
             {editingCampaign && editingCampaign.status === 'draft' && (
               <Button
-                color="sage"
+                color="teal"
                 leftSection={<IconSend size={16} />}
                 onClick={() => setConfirmSend(true)}
               >
@@ -1121,7 +1121,7 @@ export default function EmailCampaigns() {
                     <Button
                       size="xs"
                       variant="light"
-                      color="sage"
+                      color="teal"
                       onClick={() => setPreviewOpen(false)}
                     >
                       Confirm Selection
@@ -1227,7 +1227,7 @@ export default function EmailCampaigns() {
             <Button variant="light" onClick={() => setPreviewOpen(false)}>Close</Button>
             {selectionMode === 'manual' && selectedUserIds.length > 0 && (
               <Button
-                color="sage"
+                color="teal"
                 leftSection={<IconCheck size={16} />}
                 onClick={() => setPreviewOpen(false)}
               >
@@ -1299,7 +1299,7 @@ export default function EmailCampaigns() {
               Cancel
             </Button>
             <Button
-              color="sage"
+              color="teal"
               leftSection={<IconSend size={16} />}
               onClick={handleSendCampaign}
               loading={sendingCampaign}

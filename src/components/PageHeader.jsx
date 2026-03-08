@@ -23,15 +23,15 @@ function PageHeader({ title, subtitle, greeting, actions, titleOrder = 1 }) {
     <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
       <Box>
         {greeting && (
-          <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
+          <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
             {greeting}
           </Text>
         )}
-        <Title order={titleOrder} style={{ color: 'var(--tribos-text-primary)' }}>
+        <Title order={titleOrder} style={{ color: 'var(--color-text-primary)' }}>
           {title}
         </Title>
         {subtitle && (
-          <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+          <Text style={{ color: 'var(--color-text-secondary)' }}>
             {subtitle}
           </Text>
         )}

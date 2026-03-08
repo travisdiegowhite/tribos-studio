@@ -77,10 +77,10 @@ const WeekSummary = ({
     <Card>
       <Stack gap="md">
         <Group justify="space-between">
-          <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
             This Week
           </Text>
-          <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
+          <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
             {weekStats.rides} ride{weekStats.rides !== 1 ? 's' : ''}
           </Text>
         </Group>
@@ -92,7 +92,7 @@ const WeekSummary = ({
             label="Distance"
             value={formatDist ? formatDist(weekStats.distance) : `${weekStats.distance} km`}
             progress={distanceProgress}
-            progressColor={'var(--tribos-terracotta-500)'}
+            progressColor={'var(--color-teal)'}
             goal={formatDist ? formatDist(weeklyDistanceGoal) : `${weeklyDistanceGoal} km`}
           />
 
@@ -136,18 +136,18 @@ function StatBox({ icon: Icon, label, value, progress, progressColor, goal, icon
       style={{
         padding: tokens.spacing.md,
         borderRadius: tokens.radius.md,
-        backgroundColor: 'var(--tribos-bg-tertiary)',
+        backgroundColor: 'var(--color-bg-secondary)',
       }}
     >
       <Stack gap="xs">
         <Group gap="xs">
-          <Icon size={16} color={iconColor || 'var(--tribos-text-muted)'} />
-          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+          <Icon size={16} color={iconColor || 'var(--color-text-muted)'} />
+          <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
             {label}
           </Text>
         </Group>
 
-        <Text size="xl" fw={700} style={{ color: 'var(--tribos-text-primary)' }}>
+        <Text size="xl" fw={700} style={{ color: 'var(--color-text-primary)' }}>
           {value}
         </Text>
 
@@ -156,10 +156,10 @@ function StatBox({ icon: Icon, label, value, progress, progressColor, goal, icon
             <Progress
               value={progress}
               size="sm"
-              color={progressColor === 'var(--tribos-terracotta-500)' ? 'terracotta' : 'blue'}
-              style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}
+              color={progressColor === 'var(--color-teal)' ? 'terracotta' : 'blue'}
+              style={{ backgroundColor: 'var(--color-bg-secondary)' }}
             />
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
               {Math.round(progress)}% of {goal} goal
             </Text>
           </Stack>

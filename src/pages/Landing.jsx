@@ -76,12 +76,12 @@ function Landing() {
       <Box className="landing-nav" py="sm" px={{ base: 'md', md: 'xl' }}>
         <Group justify="space-between" align="center">
           <Group gap="sm">
-            <IconRoute size={22} color="var(--tribos-terracotta-500)" />
+            <IconRoute size={22} color="var(--color-teal)" />
             <Text
               fw={700}
               size="md"
               style={{
-                color: 'var(--tribos-terracotta-500)',
+                color: 'var(--color-teal)',
                 letterSpacing: '-0.02em',
                 fontFamily: "'DM Mono', monospace",
               }}
@@ -95,7 +95,7 @@ function Landing() {
               to="/auth"
               size="sm"
               variant="subtle"
-              color="terracotta"
+              color="teal"
             >
               Log in
             </Button>
@@ -104,7 +104,7 @@ function Landing() {
               to="/auth"
               state={{ fromBetaSignup: true }}
               size="sm"
-              color="terracotta"
+              color="teal"
             >
               Create Free Account
             </Button>
@@ -118,7 +118,7 @@ function Landing() {
       {/* Page content */}
       <Box
         style={{
-          background: `linear-gradient(180deg, var(--tribos-bg-primary) 0%, var(--tribos-bg-secondary) 50%, var(--tribos-bg-primary) 100%)`,
+          background: `linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-secondary) 50%, var(--color-bg) 100%)`,
           minHeight: '100vh',
         }}
       >
@@ -162,31 +162,31 @@ function Landing() {
           py={30}
           px={{ base: 'md', md: 'xl' }}
           style={{
-            borderTop: '1px solid var(--tribos-border-default)',
+            borderTop: '1px solid var(--color-border)',
           }}
         >
           <Container size="lg">
             <Stack gap="sm">
               <Center>
                 <Group gap="md">
-                  <IconRoute size={20} color="var(--tribos-terracotta-500)" />
-                  <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <IconRoute size={20} color="var(--color-teal)" />
+                  <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
                     tribos.studio
                   </Text>
                 </Group>
               </Center>
               <Center>
                 <Group gap="lg">
-                  <Anchor href="/privacy" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <Anchor href="/privacy" size="xs" style={{ color: 'var(--color-text-muted)' }}>
                     Privacy
                   </Anchor>
-                  <Anchor href="/terms" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <Anchor href="/terms" size="xs" style={{ color: 'var(--color-text-muted)' }}>
                     Terms
                   </Anchor>
-                  <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: 'var(--color-text-muted)' }}>
                     Contact
                   </Anchor>
-                  <Anchor href="mailto:travis@tribos.studio?subject=Abuse%20Report" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <Anchor href="mailto:travis@tribos.studio?subject=Abuse%20Report" size="xs" style={{ color: 'var(--color-text-muted)' }}>
                     Report Abuse
                   </Anchor>
                 </Group>

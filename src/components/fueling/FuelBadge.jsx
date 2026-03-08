@@ -181,7 +181,7 @@ export function FuelIndicator({
         withArrow
       >
         <Group spacing={2}>
-          <IconFlame size={12} color="#3A5A8C" />
+          <IconFlame size={12} color="#2A8C82" />
           <Text size="xs" c="dimmed">{plan.gelsEquivalent.min}-{plan.gelsEquivalent.max}</Text>
         </Group>
       </Tooltip>
@@ -190,7 +190,7 @@ export function FuelIndicator({
         withArrow
       >
         <Group spacing={2}>
-          <IconDroplet size={12} color="#3D8B50" />
+          <IconDroplet size={12} color="#2A8C82" />
           <Text size="xs" c="dimmed">{plan.bottlesNeeded}</Text>
         </Group>
       </Tooltip>

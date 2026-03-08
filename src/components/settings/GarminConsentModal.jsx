@@ -32,31 +32,31 @@ export default function GarminConsentModal({ opened, onClose, onConsent }) {
       size="md"
     >
       <Stack gap="md">
-        <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+        <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
           By connecting your Garmin Connect account, you consent to tribos.studio
           accessing and processing the following data:
         </Text>
 
-        <List size="sm" spacing="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+        <List size="sm" spacing="xs" style={{ color: 'var(--color-text-secondary)' }}>
           <List.Item>Activity data (rides, workouts, GPS tracks)</List.Item>
           <List.Item>Health metrics (heart rate, sleep, stress data)</List.Item>
           <List.Item>Training and fitness data</List.Item>
           <List.Item>Device and athlete profile information</List.Item>
         </List>
 
-        <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+        <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
           This data will be stored securely and used to provide route planning,
           training analysis, and coaching features. tribos.studio may also send
           data back to Garmin Connect (e.g., routes exported to your device).
         </Text>
 
-        <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+        <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
           See our{' '}
-          <Anchor component={Link} to="/privacy" target="_blank" style={{ color: 'var(--tribos-terracotta-500)' }}>
+          <Anchor component={Link} to="/privacy" target="_blank" style={{ color: 'var(--color-teal)' }}>
             Privacy Policy
           </Anchor>
           {' '}and the{' '}
-          <Anchor href="https://www.garmin.com/privacy/connect" target="_blank" style={{ color: 'var(--tribos-terracotta-500)' }}>
+          <Anchor href="https://www.garmin.com/privacy/connect" target="_blank" style={{ color: 'var(--color-teal)' }}>
             Garmin Connect Privacy Notice
           </Anchor>
           {' '}for complete details.
@@ -72,7 +72,7 @@ export default function GarminConsentModal({ opened, onClose, onConsent }) {
           label="I consent to the transfer and processing of my Garmin Connect data as described above"
           checked={accepted}
           onChange={(e) => setAccepted(e.currentTarget.checked)}
-          color="terracotta"
+          color="teal"
           size="sm"
         />
 
@@ -80,7 +80,7 @@ export default function GarminConsentModal({ opened, onClose, onConsent }) {
           <Button variant="subtle" color="gray" onClick={handleClose}>
             Cancel
           </Button>
-          <Button color="terracotta" disabled={!accepted} onClick={handleConsent}>
+          <Button color="teal" disabled={!accepted} onClick={handleConsent}>
             Connect Garmin
           </Button>
         </Group>

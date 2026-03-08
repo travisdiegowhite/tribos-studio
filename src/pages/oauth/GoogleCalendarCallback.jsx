@@ -73,7 +73,7 @@ function GoogleCalendarCallback() {
     <Box
       style={{
         minHeight: '100vh',
-        backgroundColor: 'var(--tribos-bg-primary)',
+        backgroundColor: 'var(--color-bg)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -89,17 +89,17 @@ function GoogleCalendarCallback() {
             <Text size="xl" fw={600} style={{ color: tokens.colors.primary }}>
               Calendar Connected!
             </Text>
-            <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text style={{ color: 'var(--color-text-secondary)' }}>
               Redirecting to settings...
             </Text>
           </>
         ) : (
           <>
             <div className="loading-spinner" />
-            <Text size="lg" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text size="lg" fw={500} style={{ color: 'var(--color-text-primary)' }}>
               {status === 'exchanging' ? 'Connecting Google Calendar...' : 'Processing authorization...'}
             </Text>
-            <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
               {status === 'exchanging' ? 'Setting up calendar access' : 'Please wait'}
             </Text>
           </>

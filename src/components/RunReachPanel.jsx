@@ -59,9 +59,9 @@ export default function RunReachPanel({
   return (
     <Box
       style={{
-        backgroundColor: 'var(--tribos-bg-secondary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         borderRadius: tokens.radius.md,
-        border: '1px solid var(--tribos-bg-tertiary)',
+        border: '1px solid var(--color-bg-secondary)',
         overflow: 'hidden',
         width: 320,
         maxHeight: 480,
@@ -72,11 +72,11 @@ export default function RunReachPanel({
         justify="space-between"
         px="sm"
         py="xs"
-        style={{ borderBottom: '1px solid var(--tribos-bg-tertiary)' }}
+        style={{ borderBottom: '1px solid var(--color-bg-secondary)' }}
       >
         <Group gap={6}>
           {mode === 'running' ? <IconRun size={16} /> : <IconBike size={16} />}
-          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Run Reach
           </Text>
           {loading && <Loader size={14} color="green" />}
@@ -181,7 +181,7 @@ export default function RunReachPanel({
           <Box
             p="xs"
             style={{
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               borderRadius: tokens.radius.sm,
               textAlign: 'center',
             }}

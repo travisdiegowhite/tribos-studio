@@ -210,7 +210,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
   if (loading) {
     return (
       <Box p="xl" style={{ textAlign: 'center' }}>
-        <Loader size="lg" color="terracotta" />
+        <Loader size="lg" color="teal" />
         <Text mt="md" c="dimmed">Loading availability settings...</Text>
       </Box>
     );
@@ -255,7 +255,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
             <Button
               size="xs"
               variant="light"
-              color="terracotta"
+              color="teal"
               loading={importingCalendar}
               onClick={handleImportCalendarBusyTimes}
               leftSection={<IconBrandGoogle size={14} />}
@@ -394,7 +394,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
           <Button
             onClick={handleSavePreferences}
             loading={isSaving}
-            color="terracotta"
+            color="teal"
             leftSection={<IconCheck size={16} />}
           >
             Save Preferences
@@ -438,7 +438,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
               Cancel
             </Button>
             <Button
-              color="terracotta"
+              color="teal"
               onClick={() => editingDay !== null && handleSaveNotes(editingDay)}
               loading={isSaving}
             >

@@ -71,7 +71,7 @@ function DiscussionThread({
         <ActionIcon
           variant="subtle"
           onClick={onBack}
-          style={{ color: 'var(--tribos-text-secondary)' }}
+          style={{ color: 'var(--color-text-secondary)' }}
         >
           <IconArrowLeft size={18} />
         </ActionIcon>
@@ -85,8 +85,8 @@ function DiscussionThread({
         padding="md"
         radius="md"
         style={{
-          backgroundColor: 'var(--tribos-bg-secondary)',
-          border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+          backgroundColor: 'var(--color-bg-secondary)',
+          border: `1px solid ${'var(--color-bg-secondary)'}`,
         }}
       >
         <Stack gap="sm">
@@ -94,7 +94,7 @@ function DiscussionThread({
           <Group justify="space-between" align="flex-start">
             <Group gap="xs">
               {discussion.is_pinned && (
-                <Badge size="xs" variant="light" color="terracotta" leftSection={<IconPin size={10} />}>
+                <Badge size="xs" variant="light" color="teal" leftSection={<IconPin size={10} />}>
                   Pinned
                 </Badge>
               )}
@@ -121,7 +121,7 @@ function DiscussionThread({
           </Group>
 
           {/* Title */}
-          <Text size="lg" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             {discussion.title}
           </Text>
 
@@ -145,7 +145,7 @@ function DiscussionThread({
               padding="xs"
               radius="sm"
               style={{
-                backgroundColor: 'var(--tribos-bg-tertiary)',
+                backgroundColor: 'var(--color-bg-secondary)',
               }}
             >
               <Group gap="lg">
@@ -181,7 +181,7 @@ function DiscussionThread({
           <Text
             size="sm"
             style={{
-              color: 'var(--tribos-text-secondary)',
+              color: 'var(--color-text-secondary)',
               whiteSpace: 'pre-wrap',
             }}
           >
@@ -216,8 +216,8 @@ function DiscussionThread({
           padding="md"
           radius="md"
           style={{
-            backgroundColor: 'var(--tribos-bg-secondary)',
-            border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+            backgroundColor: 'var(--color-bg-secondary)',
+            border: `1px solid ${'var(--color-bg-secondary)'}`,
           }}
         >
           <Stack gap="sm">
@@ -229,14 +229,14 @@ function DiscussionThread({
               maxRows={6}
               styles={{
                 input: {
-                  backgroundColor: 'var(--tribos-bg-tertiary)',
-                  border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
-                  color: 'var(--tribos-text-primary)',
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  border: `1px solid ${'var(--color-bg-secondary)'}`,
+                  color: 'var(--color-text-primary)',
                   '&::placeholder': {
-                    color: 'var(--tribos-text-muted)',
+                    color: 'var(--color-text-muted)',
                   },
                   '&:focus': {
-                    borderColor: 'var(--tribos-terracotta-500)',
+                    borderColor: 'var(--color-teal)',
                   },
                 },
               }}
@@ -248,8 +248,8 @@ function DiscussionThread({
                 loading={submitting}
                 disabled={!replyText.trim()}
                 style={{
-                  backgroundColor: 'var(--tribos-terracotta-500)',
-                  color: 'var(--tribos-bg-primary)',
+                  backgroundColor: 'var(--color-teal)',
+                  color: 'var(--color-bg)',
                 }}
               >
                 Reply
@@ -264,13 +264,13 @@ function DiscussionThread({
           padding="md"
           radius="md"
           style={{
-            backgroundColor: 'var(--tribos-bg-secondary)',
-            border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+            backgroundColor: 'var(--color-bg-secondary)',
+            border: `1px solid ${'var(--color-bg-secondary)'}`,
             textAlign: 'center',
           }}
         >
           <Group gap="xs" justify="center">
-            <IconLock size={16} color={'var(--tribos-text-muted)'} />
+            <IconLock size={16} color={'var(--color-text-muted)'} />
             <Text size="sm" c="dimmed">
               This discussion is locked
             </Text>
@@ -292,8 +292,8 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
       padding="sm"
       radius="md"
       style={{
-        backgroundColor: 'var(--tribos-bg-secondary)',
-        border: `1px solid ${isOwn ? 'var(--tribos-terracotta-500)' + '30' : 'var(--tribos-bg-tertiary)'}`,
+        backgroundColor: 'var(--color-bg-secondary)',
+        border: `1px solid ${isOwn ? 'var(--color-teal)' + '30' : 'var(--color-bg-secondary)'}`,
       }}
     >
       <Stack gap="xs">
@@ -338,7 +338,7 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
             padding="xs"
             radius="sm"
             style={{
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
             }}
           >
             <Group gap="md">
@@ -362,7 +362,7 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
         <Text
           size="sm"
           style={{
-            color: 'var(--tribos-text-secondary)',
+            color: 'var(--color-text-secondary)',
             whiteSpace: 'pre-wrap',
           }}
         >

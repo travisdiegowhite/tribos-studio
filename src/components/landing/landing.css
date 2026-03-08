@@ -180,7 +180,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: var(--tribos-text-400);
+  background-color: var(--color-text-muted);
   animation: typingBounce 1.4s ease-in-out infinite;
 }
 
@@ -236,13 +236,13 @@
 }
 
 .progress-dot.passed {
-  background: var(--tribos-text-400);
-  border-color: var(--tribos-text-400);
+  background: var(--color-text-muted);
+  border-color: var(--color-text-muted);
 }
 
 .progress-dot.active {
-  background: var(--tribos-terracotta-500);
-  border-color: var(--tribos-terracotta-500);
+  background: var(--color-teal);
+  border-color: var(--color-teal);
   box-shadow: 0 0 8px rgba(158, 90, 60, 0.4);
   transform: scale(1.2);
 }
@@ -257,7 +257,7 @@
   z-index: 200;
   backdrop-filter: blur(12px);
   background: color-mix(in srgb, var(--tribos-void) 85%, transparent);
-  border-bottom: 1px solid var(--tribos-border-default);
+  border-bottom: 1px solid var(--color-border);
   transition: background 0.3s ease;
 }
 

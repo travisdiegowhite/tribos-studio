@@ -1,9 +1,9 @@
 import { createTheme } from '@mantine/core';
 
 // Design tokens for tribos.studio
-// "Department of Cycling Intelligence" — retro-futuristic field guide
-// Anybody / Familjen Grotesk / DM Mono
-// Light: cooler base, Dark: dark slate
+// Tribos brand system — teal / orange / gold / coral
+// Barlow Condensed / Barlow / DM Mono
+// Light: warm neutral, Dark: warm dark
 
 // ===== Depth Presets =====
 // Flat surfaces with sharp borders — no gradients, no edge lighting
@@ -35,135 +35,142 @@ export const depth = {
   },
 };
 
-// Light theme tokens (default — neutral)
+// Light theme tokens (default — warm neutral)
 export const lightTokens = {
   colors: {
-    // Primary accent: Steel blue (via terracotta token)
-    terracotta: '#3A5A8C',
-    terracottaLight: '#5A7AAC',
-    terracottaDark: '#2E4870',
+    // Primary accent: Teal (via terracotta token for backward compat)
+    accent: '#2A8C82',
+    terracotta: '#2A8C82',
+    terracottaLight: '#3BA89D',
+    terracottaDark: '#1E6B63',
 
-    // Brand accents
-    mauve: '#6B7F94',      // Slate (informational, Z5)
-    teal: '#5C7A5E',       // Moss (Z2 endurance)
-    sage: '#3D8B50',       // Green (success, positive metrics, AI Coach)
-    gold: '#D4820A',       // Amber (warnings, load alerts, fatigue)
-    dustyRose: '#8B6B5A',  // Iron (warm brown)
-    skyPale: '#8B6B5A',    // Iron
+    // Brand accents — 4 semantic colors
+    teal: '#2A8C82',       // Primary — CTAs, active states, links
+    orange: '#D4600A',     // Effort — power, workouts, intensity
+    gold: '#C49A0A',       // Achievement — optimal, CTL, gains
+    coral: '#C43C2A',      // Warning — fatigue, errors, overtraining
 
-    // Backgrounds — neutral
-    bgPrimary: '#F4F4F4',     // Page background
-    bgSecondary: '#ECECEC',   // Surface (nav)
-    bgTertiary: '#E0E0E0',    // Sunken (recessed areas)
-    bgElevated: '#FFFFFF',    // Elevated (modals/inputs)
+    // Legacy accent names (backward compat → new palette)
+    mauve: '#7A7970',      // → muted text
+    sage: '#C49A0A',       // → gold (was success/green)
+    dustyRose: '#D4600A',  // → orange
+    skyPale: '#D4600A',    // → orange
+
+    // Backgrounds — warm neutral
+    bgPrimary: '#F4F4F2',
+    bgSecondary: '#EBEBE8',
+    bgTertiary: '#EBEBE8',
+    bgElevated: '#FFFFFF',
 
     // Borders
-    border: '#E0E0E0',
-    borderLight: '#E0E0E0',
-    borderFocus: 'rgba(58, 90, 140, 0.5)',
+    border: '#DDDDD8',
+    borderLight: '#DDDDD8',
+    borderFocus: 'rgba(42, 140, 130, 0.5)',
 
     // Text
-    textPrimary: '#0A0A0A',
-    textSecondary: '#383838',
-    textMuted: '#717171',
+    textPrimary: '#141410',
+    textSecondary: '#3D3C36',
+    textMuted: '#7A7970',
 
-    // Semantic — mapped to palette
-    success: '#3D8B50',  // Green
-    warning: '#D4820A',  // Amber
-    error: '#3A5A8C',    // Primary (steel blue)
-    info: '#6B7F94',     // Slate (mauve token)
+    // Semantic
+    success: '#C49A0A',   // Gold (positive metrics)
+    warning: '#C43C2A',   // Coral (fatigue)
+    error: '#C43C2A',     // Coral (errors)
+    info: '#2A8C82',      // Teal (interactive)
 
-    // Training Zone Colors — 5 spec zones + 2 extensions
+    // Training Zone Colors — deferred from brand overhaul, keep existing
     zone1: '#3D8B50', // Recovery — Green
     zone2: '#4A7A5A', // Endurance — Sage green
     zone3: '#D4820A', // Tempo — Amber
     zone4: '#3A5A8C', // Threshold — Steel blue
     zone5: '#6B7F94', // VO2max — Slate
     zone6: '#8B6B5A', // Anaerobic — Iron
-    zone7: '#E0E0E0', // Rest/Neuromuscular — Border gray
+    zone7: '#DDDDD8', // Rest/Neuromuscular — Border
 
     // Legacy aliases (backward compat)
-    electricLime: '#3A5A8C',
-    electricLimeLight: '#5A7AAC',
-    electricLimeDark: '#2E4870',
+    electricLime: '#2A8C82',
+    electricLimeLight: '#3BA89D',
+    electricLimeDark: '#1E6B63',
   },
 
   shadows: {
-    xs: '0 1px 2px rgba(0, 0, 0, 0.04)',
-    sm: '0 1px 3px rgba(0, 0, 0, 0.07), 0 4px 12px rgba(0, 0, 0, 0.05)',
-    md: '0 2px 6px rgba(0, 0, 0, 0.07), 0 4px 12px rgba(0, 0, 0, 0.05)',
-    lg: '0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
-    card: '0 1px 3px rgba(0, 0, 0, 0.07), 0 4px 12px rgba(0, 0, 0, 0.05)',
-    cardHover: '0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
-    focus: '0 0 0 2px rgba(58, 90, 140, 0.25)',
+    xs: '0 1px 2px rgba(20, 16, 8, 0.04)',
+    sm: '0 1px 3px rgba(20, 16, 8, 0.07), 0 4px 12px rgba(20, 16, 8, 0.05)',
+    md: '0 2px 6px rgba(20, 16, 8, 0.08), 0 8px 24px rgba(20, 16, 8, 0.07)',
+    lg: '0 4px 12px rgba(20, 16, 8, 0.10), 0 2px 4px rgba(20, 16, 8, 0.06)',
+    card: '0 1px 3px rgba(20, 16, 8, 0.07), 0 4px 12px rgba(20, 16, 8, 0.05)',
+    cardHover: '0 2px 6px rgba(20, 16, 8, 0.08), 0 8px 24px rgba(20, 16, 8, 0.07)',
+    focus: '0 0 0 2px rgba(42, 140, 130, 0.25)',
   },
 };
 
-// Dark theme tokens (dark slate)
+// Dark theme tokens (warm dark)
 export const darkTokens = {
   colors: {
-    // Primary accent: Steel blue (dark-adapted)
-    terracotta: '#5A7AAC',
-    terracottaLight: '#7A9AC4',
-    terracottaDark: '#4A6890',
+    // Primary accent: Teal (lifted for dark)
+    accent: '#3BA89D',
+    terracotta: '#3BA89D',
+    terracottaLight: '#4CC0B5',
+    terracottaDark: '#2A8C82',
 
-    // Brand accents — slightly muted for dark
-    mauve: '#6B7F94',      // Slate
-    mauveDim: '#5B6C7D',
-    teal: '#507052',       // Moss (dark)
-    tealDim: '#405643',
-    sage: '#52B068',       // Green (dark, success, lifted for contrast)
-    gold: '#F0960C',       // Amber (dark, warnings, lifted for contrast)
-    goldDim: '#D4820A',
-    dustyRose: '#7A5E4E',  // Iron (dark)
-    skyMuted: '#7A5E4E',   // Iron (dark)
+    // Brand accents — lifted for dark contrast
+    teal: '#3BA89D',
+    orange: '#E87020',
+    gold: '#D4AA1A',
+    coral: '#D45035',
 
-    // Backgrounds — dark slate
-    bgPrimary: '#141820',     // Deep (page background)
-    bgSecondary: '#1C2230',   // Surface (cards)
-    bgTertiary: '#242D3E',    // Elevated
-    bgElevated: '#242D3E',    // Elevated (modals)
+    // Legacy accent names (backward compat)
+    mauve: '#7A7970',
+    sage: '#D4AA1A',
+    dustyRose: '#E87020',
+    skyMuted: '#E87020',
+
+    // Backgrounds — warm dark
+    bgPrimary: '#141410',
+    bgSecondary: '#1A1A16',
+    bgTertiary: '#222220',
+    bgElevated: '#2A2A28',
 
     // Borders
-    border: '#242D3E',
-    borderLight: '#1C2230',
-    borderFocus: 'rgba(90, 122, 172, 0.5)',
+    border: '#2E2E2A',
+    borderLight: '#1A1A16',
+    borderFocus: 'rgba(59, 168, 157, 0.5)',
 
-    // Text — cool slate hierarchy
-    textPrimary: '#E8EBF2',
-    textSecondary: '#C8D0E0',
-    textMuted: '#8A90A5',
-    textDim: '#5A6175',
+    // Text — warm light hierarchy
+    textPrimary: '#E8E8E4',
+    textSecondary: '#B0B0A8',
+    textMuted: '#7A7970',
+    textDim: '#4A4A42',
 
     // Semantic
-    success: '#52B068',
-    warning: '#F0960C',
-    error: '#5A7AAC',
-    info: '#6B7F94',
+    success: '#D4AA1A',   // Gold
+    warning: '#D45035',   // Coral
+    error: '#D45035',     // Coral
+    info: '#3BA89D',      // Teal
 
-    // Training Zone Colors — dark adapted
+    // Training Zone Colors — dark adapted (deferred from overhaul)
     zone1: '#52B068', // Recovery — Green (dark)
     zone2: '#407045', // Endurance — Moss (dark)
     zone3: '#F0960C', // Tempo — Amber
     zone4: '#5A7AAC', // Threshold — Steel blue
     zone5: '#6B7F94', // VO2max — Slate
     zone6: '#7A5E4E', // Anaerobic — Iron (dark)
-    zone7: '#242D3E', // Rest — Border gray (dark)
+    zone7: '#2E2E2A', // Rest — Border (dark)
 
     // Legacy aliases
-    electricLime: '#5A7AAC',
-    electricLimeLight: '#7A9AC4',
-    electricLimeDark: '#4A6890',
+    electricLime: '#3BA89D',
+    electricLimeLight: '#4CC0B5',
+    electricLimeDark: '#2A8C82',
   },
 
   shadows: {
     xs: '0 1px 2px rgba(0, 0, 0, 0.2)',
-    sm: '0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2)',
-    md: '0 2px 8px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2)',
+    sm: '0 1px 3px rgba(0, 0, 0, 0.30), 0 4px 12px rgba(0, 0, 0, 0.20)',
+    md: '0 2px 6px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25)',
     lg: '0 4px 16px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.2)',
-    card: '0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2)',
-    cardHover: '0 4px 12px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2)',
-    focus: '0 0 0 2px rgba(90, 122, 172, 0.3)',
+    card: '0 1px 3px rgba(0, 0, 0, 0.30), 0 4px 12px rgba(0, 0, 0, 0.20)',
+    cardHover: '0 2px 6px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25)',
+    focus: '0 0 0 2px rgba(59, 168, 157, 0.3)',
   },
 };
 
@@ -223,68 +230,63 @@ export function getThemeTokens(colorScheme) {
 
 // Mantine theme configuration
 export const theme = createTheme({
-  primaryColor: 'terracotta',
-  primaryShade: { light: 5, dark: 4 },
+  primaryColor: 'teal',
+  primaryShade: 5,
 
   colors: {
-    terracotta: [
-      '#EFF3F8', '#D4DFED', '#B0C5DD', '#8AAACE',
-      '#5A7AAC', '#3A5A8C', '#2E4870', '#233858',
-      '#1A2A42', '#121E30',
-    ],
-    sage: [
-      '#EDF7EF', '#D0EAD5', '#A8D8B2', '#7CC58D',
-      '#57B26C', '#3D8B50', '#327440', '#285E33',
-      '#1F4927', '#17361D',
-    ],
     teal: [
-      '#EEF3EF', '#D4E2D6', '#B5CEB8', '#93B896',
-      '#77A07A', '#5C7A5E', '#4E6850', '#405643',
-      '#334536', '#27352A',
+      '#E6F4F3', '#CCE9E7', '#99D3CE', '#66BDB5',
+      '#33A79C', '#2A8C82', '#237368', '#1B5A4E',
+      '#134034', '#0C271A',
     ],
-    mauve: [
-      '#F1F4F7', '#D9E0E8', '#BCC8D4', '#9DAFC0',
-      '#8497AA', '#6B7F94', '#5B6C7D', '#4B5967',
-      '#3C4752', '#2E363E',
+    terracotta: [
+      '#E6F4F3', '#CCE9E7', '#99D3CE', '#66BDB5',
+      '#33A79C', '#2A8C82', '#237368', '#1B5A4E',
+      '#134034', '#0C271A',
+    ],
+    orange: [
+      '#FAEEE6', '#F5DDD0', '#EBBBA1', '#E09872',
+      '#D57643', '#D4600A', '#A94D08', '#7F3906',
+      '#542604', '#2A1302',
     ],
     gold: [
-      '#FDF5E6', '#F8E2B0', '#F2CA72', '#ECB23A',
-      '#E4980F', '#D4820A', '#B06C08', '#8C5606',
-      '#6C4205', '#503104',
+      '#FBF6E6', '#F5E9BF', '#EDDA8F', '#E4CA5F',
+      '#DCBA30', '#C49A0A', '#9D7B08', '#765C06',
+      '#4F3D04', '#282002',
     ],
-    sky: [
-      '#F5F0ED', '#E5DCD6', '#D1C1B6', '#BCA495',
-      '#A38877', '#8B6B5A', '#765B4C', '#624B3E',
-      '#4E3C32', '#3B2E26',
+    coral: [
+      '#FAEAE8', '#F2D0CB', '#E5A19A', '#D87268',
+      '#CC4B3A', '#C43C2A', '#9D3022', '#762419',
+      '#4F1811', '#280C08',
     ],
     dark: [
-      '#E8EBF2',  // 0 — lightest text
-      '#C8D0E0',  // 1 — secondary text
-      '#8A90A5',  // 2 — tertiary text
-      '#5A6175',  // 3 — dim text
-      '#242D3E',  // 4 — borders
-      '#242D3E',  // 5 — elevated
-      '#1C2230',  // 6 — card
-      '#1C2230',  // 7 — surface
-      '#141820',  // 8 — panel
-      '#141820',  // 9 — deep
+      '#E8E8E4',  // 0 — lightest text
+      '#C8C8C0',  // 1 — secondary text
+      '#96958D',  // 2 — tertiary text
+      '#7A7970',  // 3 — dim/muted text
+      '#2E2E2A',  // 4 — borders
+      '#2A2A28',  // 5 — elevated
+      '#222220',  // 6 — card
+      '#1A1A16',  // 7 — surface
+      '#141410',  // 8 — panel
+      '#0E0E0C',  // 9 — deep
     ],
     gray: [
       '#FFFFFF',  // 0 — elevated / card
-      '#F4F4F4',  // 1 — surface
-      '#ECECEC',  // 2 — base
-      '#E0E0E0',  // 3 — sunken
-      '#E0E0E0',  // 4 — border default
-      '#717171',  // 5 — muted text
-      '#383838',  // 6 — secondary text
-      '#0A0A0A',  // 7 — primary text
-      '#050505',  // 8 — deep ink
+      '#F4F4F2',  // 1 — bg
+      '#EBEBE8',  // 2 — bg-secondary
+      '#DDDDD8',  // 3 — border
+      '#DDDDD8',  // 4 — border
+      '#7A7970',  // 5 — muted text
+      '#3D3C36',  // 6 — secondary text
+      '#141410',  // 7 — primary text
+      '#0A0A08',  // 8 — deep ink
       '#000000',  // 9 — darkest
     ],
     green: [
-      '#EDF7EF', '#D0EAD5', '#A8D8B2', '#7CC58D',
-      '#57B26C', '#3D8B50', '#327440', '#285E33',
-      '#1F4927', '#17361D',
+      '#E6F4F3', '#CCE9E7', '#99D3CE', '#66BDB5',
+      '#33A79C', '#2A8C82', '#237368', '#1B5A4E',
+      '#134034', '#0C271A',
     ],
   },
 
@@ -296,12 +298,14 @@ export const theme = createTheme({
     xl: '0px',
   },
 
-  fontFamily: "'Familjen Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+  fontFamily: "'Barlow', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
   fontFamilyMonospace: "'DM Mono', 'SF Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 
   headings: {
-    fontFamily: "'Anybody', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    fontWeight: '800',
+    fontFamily: "'Barlow Condensed', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
     sizes: {
       h1: { fontSize: '26px', lineHeight: '1.1' },
       h2: { fontSize: '20px', lineHeight: '1.2' },
@@ -313,16 +317,25 @@ export const theme = createTheme({
   defaultRadius: 0,
 
   shadows: {
-    xs: '0 1px 2px rgba(0,0,0,0.04)',
-    sm: '0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.05)',
-    md: '0 2px 6px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.05)',
-    lg: '0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06)',
-    xl: '0 8px 24px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.06)',
+    xs: '0 1px 2px rgba(20,16,8,0.04)',
+    sm: '0 1px 3px rgba(20,16,8,0.07), 0 4px 12px rgba(20,16,8,0.05)',
+    md: '0 2px 6px rgba(20,16,8,0.08), 0 8px 24px rgba(20,16,8,0.07)',
+    lg: '0 4px 12px rgba(20,16,8,0.10), 0 2px 4px rgba(20,16,8,0.06)',
+    xl: '0 8px 24px rgba(20,16,8,0.10), 0 4px 8px rgba(20,16,8,0.06)',
   },
 
   other: {
     transitions: sharedTokens.transitions,
     depth,
+    colorBg: '#F4F4F2',
+    colorBgSecondary: '#EBEBE8',
+    colorCard: '#FFFFFF',
+    colorBorder: '#DDDDD8',
+    colorNavBg: '#141410',
+    colorTeal: '#2A8C82',
+    colorOrange: '#D4600A',
+    colorGold: '#C49A0A',
+    colorCoral: '#C43C2A',
   },
 
   components: {
@@ -381,7 +394,7 @@ export const theme = createTheme({
           transition: 'all 0.15s',
           '&:focus': {
             borderColor: 'var(--tribos-terracotta-border)',
-            boxShadow: '0 0 0 2px rgba(158, 90, 60, 0.1)',
+            boxShadow: '0 0 0 2px rgba(42, 140, 130, 0.1)',
           },
           '&::placeholder': { color: 'var(--tribos-text-400)' },
         },
@@ -405,7 +418,7 @@ export const theme = createTheme({
           color: 'var(--tribos-text-100)',
           '&:focus': {
             borderColor: 'var(--tribos-terracotta-border)',
-            boxShadow: '0 0 0 2px rgba(158, 90, 60, 0.1)',
+            boxShadow: '0 0 0 2px rgba(42, 140, 130, 0.1)',
           },
         },
       }),
@@ -442,7 +455,7 @@ export const theme = createTheme({
           transition: 'all 0.15s',
           '&:focus': {
             borderColor: 'var(--tribos-terracotta-border)',
-            boxShadow: '0 0 0 2px rgba(158, 90, 60, 0.1)',
+            boxShadow: '0 0 0 2px rgba(42, 140, 130, 0.1)',
           },
           '&::placeholder': { color: 'var(--tribos-text-400)' },
         },

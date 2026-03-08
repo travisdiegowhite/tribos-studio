@@ -151,7 +151,7 @@ export default function PlannerPage() {
             height: 'calc(100vh - 60px)',
           }}
         >
-          <Loader color="terracotta" size="lg" />
+          <Loader color="teal" size="lg" />
         </Box>
       </AppShell>
     );
@@ -179,7 +179,7 @@ export default function PlannerPage() {
             actions={
               <Button
                 variant="light"
-                color="terracotta"
+                color="teal"
                 size="compact-sm"
                 leftSection={<IconList size={14} />}
                 onClick={() => setBrowseOpen(true)}
@@ -193,21 +193,21 @@ export default function PlannerPage() {
           {!activePlan && activities.length > 0 && (
             <Card style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #3A5A8C)' }}>
               <Group gap="sm" wrap="nowrap">
-                <ThemeIcon size="lg" variant="light" color="terracotta" radius="xl">
+                <ThemeIcon size="lg" variant="light" color="teal" radius="xl">
                   <IconTarget size={18} />
                 </ThemeIcon>
                 <Box style={{ flex: 1 }}>
-                  <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                     Ready for structured training?
                   </Text>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                     {`You've been averaging ${Math.round(activities.length / 4)} rides/week. A training plan can help you get more from each session.`}
                   </Text>
                 </Box>
                 <Group gap="xs">
                   <Button
                     variant="light"
-                    color="terracotta"
+                    color="teal"
                     size="compact-sm"
                     onClick={() => setBrowseOpen(true)}
                   >

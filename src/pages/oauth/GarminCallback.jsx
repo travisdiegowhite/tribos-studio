@@ -64,7 +64,7 @@ function GarminCallback() {
     <Box
       style={{
         minHeight: '100vh',
-        backgroundColor: 'var(--tribos-bg-primary)',
+        backgroundColor: 'var(--color-bg)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -78,7 +78,7 @@ function GarminCallback() {
         ) : (
           <>
             <div className="loading-spinner" />
-            <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text style={{ color: 'var(--color-text-secondary)' }}>
               Connecting to Garmin...
             </Text>
           </>

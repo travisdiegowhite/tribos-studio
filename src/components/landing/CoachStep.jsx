@@ -82,7 +82,7 @@ export default function CoachStep() {
     <Box
       py={{ base: 60, md: 100 }}
       px={{ base: 'md', md: 'xl' }}
-      style={{ backgroundColor: 'var(--tribos-bg-secondary)', borderTop: '1px solid var(--tribos-border-default)', borderBottom: '1px solid var(--tribos-border-default)' }}
+      style={{ backgroundColor: 'var(--color-bg-secondary)', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}
     >
       <Container size="md">
         <div ref={ref} className={`landing-step ${isVisible ? 'visible' : ''}`}>
@@ -96,7 +96,7 @@ export default function CoachStep() {
                   fontFamily: "'DM Mono', monospace",
                   letterSpacing: '3px',
                   textTransform: 'uppercase',
-                  color: 'var(--tribos-terracotta-500)',
+                  color: 'var(--color-teal)',
                   marginBottom: 8,
                 }}
               >
@@ -109,7 +109,7 @@ export default function CoachStep() {
                   fontSize: 'clamp(1.4rem, 3.5vw, 2.2rem)',
                   fontFamily: "'Anybody', sans-serif",
                   fontWeight: 800,
-                  color: 'var(--tribos-text-primary)',
+                  color: 'var(--color-text-primary)',
                 }}
               >
                 Your coach already knows the answer.
@@ -130,12 +130,12 @@ export default function CoachStep() {
                 px="md"
                 py="sm"
                 gap="sm"
-                style={{ borderBottom: '1px solid var(--tribos-border-default)' }}
+                style={{ borderBottom: '1px solid var(--color-border)' }}
               >
-                <ThemeIcon color="terracotta" variant="light" size="sm">
+                <ThemeIcon color="teal" variant="light" size="sm">
                   <IconSparkles size={14} />
                 </ThemeIcon>
-                <Text fw={600} size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                <Text fw={600} size="sm" style={{ color: 'var(--color-text-primary)' }}>
                   AI Coach
                 </Text>
                 <Box
@@ -143,7 +143,7 @@ export default function CoachStep() {
                     width: 7,
                     height: 7,
                     borderRadius: '50%',
-                    backgroundColor: 'var(--tribos-sage-500)',
+                    backgroundColor: 'var(--color-gold)',
                     marginLeft: -4,
                   }}
                 />
@@ -164,11 +164,11 @@ export default function CoachStep() {
                           p="sm"
                           style={{
                             maxWidth: '80%',
-                            backgroundColor: 'var(--tribos-input, var(--tribos-bg-tertiary))',
-                            border: '1px solid var(--tribos-border-default)',
+                            backgroundColor: 'var(--tribos-input, var(--color-bg-secondary))',
+                            border: '1px solid var(--color-border)',
                           }}
                         >
-                          <Text size="sm" style={{ color: 'var(--tribos-text-primary)', lineHeight: 1.5 }}>
+                          <Text size="sm" style={{ color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
                             {msg.text}
                           </Text>
                         </Paper>
@@ -180,7 +180,7 @@ export default function CoachStep() {
                     return (
                       <Box key={index} className={`chat-message ${isVisible ? 'visible' : ''}`} mb="md">
                         <Group gap={8} align="flex-start">
-                          <ThemeIcon color="terracotta" variant="light" size="sm" mt={2}>
+                          <ThemeIcon color="teal" variant="light" size="sm" mt={2}>
                             <IconRobot size={12} />
                           </ThemeIcon>
                           <Stack gap="xs" style={{ flex: 1 }}>
@@ -191,7 +191,7 @@ export default function CoachStep() {
                                 border: '1px solid var(--tribos-terracotta-border)',
                               }}
                             >
-                              <Text size="sm" style={{ color: 'var(--tribos-text-primary)', lineHeight: 1.6 }}>
+                              <Text size="sm" style={{ color: 'var(--color-text-primary)', lineHeight: 1.6 }}>
                                 {msg.text}
                               </Text>
                             </Paper>
@@ -199,7 +199,7 @@ export default function CoachStep() {
                               <Button
                                 size="compact-xs"
                                 variant="light"
-                                color="terracotta"
+                                color="teal"
                                 leftSection={<msg.action.icon size={12} />}
                                 style={{ alignSelf: 'flex-start', pointerEvents: 'none' }}
                               >
@@ -219,7 +219,7 @@ export default function CoachStep() {
                 {showTyping && (
                   <Box mb="md">
                     <Group gap={8} align="flex-start">
-                      <ThemeIcon color="terracotta" variant="light" size="sm" mt={2}>
+                      <ThemeIcon color="teal" variant="light" size="sm" mt={2}>
                         <IconRobot size={12} />
                       </ThemeIcon>
                       <Paper

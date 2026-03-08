@@ -39,8 +39,8 @@ import ThreadLinkBadge from './conversations/ThreadLinkBadge';
 
 // Pulse theme colors
 const PULSE_THEME = {
-  primary: '#3A5A8C', // Terracotta
-  primaryLight: '#3A5A8C33',
+  primary: '#2A8C82', // Teal
+  primaryLight: '#2A8C8233',
   icon: IconActivity,
   name: 'Pulse',
   coachType: 'pulse',
@@ -661,7 +661,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
     return (
       <Card
         style={{
-          backgroundColor: 'var(--tribos-bg-secondary)',
+          backgroundColor: 'var(--color-bg-secondary)',
           height: '100%',
           display: 'flex',
           alignItems: 'center',
@@ -679,7 +679,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
   return (
     <Card
       style={{
-        backgroundColor: 'var(--tribos-bg-secondary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         height: '100%',
         display: 'flex',
         flexDirection: 'column'
@@ -692,7 +692,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
             <IconActivity size={20} />
           </ThemeIcon>
           <div>
-            <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
               {PULSE_THEME.name}
             </Text>
             <Text size="xs" c="dimmed">
@@ -741,7 +741,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
               key={thread.id}
               p="xs"
               style={{
-                backgroundColor: 'var(--tribos-bg-tertiary)',
+                backgroundColor: 'var(--color-bg-secondary)',
                 cursor: 'pointer',
                 border: expandedThreads[thread.id] ? `1px solid ${PULSE_THEME.primary}` : 'none'
               }}
@@ -755,9 +755,9 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                   {expandedThreads[thread.id] ? (
                     <IconChevronDown size={14} style={{ color: PULSE_THEME.primary }} />
                   ) : (
-                    <IconChevronRight size={14} style={{ color: 'var(--tribos-text-muted)' }} />
+                    <IconChevronRight size={14} style={{ color: 'var(--color-text-muted)' }} />
                   )}
-                  <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
                     {thread.title}
                   </Text>
                 </Group>
@@ -788,7 +788,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
           p="sm"
           mb="md"
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             border: `1px solid ${PULSE_THEME.primaryLight}`
           }}
         >
@@ -823,18 +823,18 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                 padding: tokens.spacing.xl,
                 textAlign: 'center',
                 borderRadius: tokens.radius.md,
-                border: `1px dashed ${'var(--tribos-bg-tertiary)'}`,
+                border: `1px dashed ${'var(--color-bg-secondary)'}`,
               }}
             >
               <IconActivity size={48} style={{ color: PULSE_THEME.primary, marginBottom: 12, opacity: 0.7 }} />
-              <Text style={{ color: 'var(--tribos-text-secondary)' }} mb="xs">
+              <Text style={{ color: 'var(--color-text-secondary)' }} mb="xs">
                 {getGreeting()}! I'm Pulse, your accountability partner.
               </Text>
-              <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
                 I'm here to help you stick to your training plan.
               </Text>
               <Stack gap="xs" mt="md" align="center">
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Quick actions:</Text>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Quick actions:</Text>
                 <Group gap="xs" justify="center" wrap="wrap">
                   {[
                     { text: "What's my plan today?", icon: <IconCalendar size={14} /> },
@@ -865,7 +865,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                     width: 32,
                     height: 32,
                     borderRadius: '50%',
-                    backgroundColor: msg.role === 'user' ? 'var(--tribos-bg-tertiary)' : PULSE_THEME.primary,
+                    backgroundColor: msg.role === 'user' ? 'var(--color-bg-secondary)' : PULSE_THEME.primary,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -873,7 +873,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                   }}
                 >
                   {msg.role === 'user' ? (
-                    <IconUser size={18} style={{ color: 'var(--tribos-text-secondary)' }} />
+                    <IconUser size={18} style={{ color: 'var(--color-text-secondary)' }} />
                   ) : (
                     <IconActivity size={18} style={{ color: 'white' }} />
                   )}
@@ -892,7 +892,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                   <Text
                     size="sm"
                     style={{
-                      color: 'var(--tribos-text-primary)',
+                      color: 'var(--color-text-primary)',
                       whiteSpace: 'pre-wrap'
                     }}
                   >
@@ -937,8 +937,8 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
           style={{ flex: 1 }}
           styles={{
             input: {
-              backgroundColor: 'var(--tribos-bg-tertiary)',
-              borderColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
+              borderColor: 'var(--color-bg-secondary)',
               '&:focus': {
                 borderColor: PULSE_THEME.primary
               }

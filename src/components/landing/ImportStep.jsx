@@ -71,7 +71,7 @@ export default function ImportStep() {
     <Box
       py={{ base: 60, md: 100 }}
       px={{ base: 'md', md: 'xl' }}
-      style={{ backgroundColor: 'var(--tribos-bg-secondary)', borderTop: '1px solid var(--tribos-border-default)', borderBottom: '1px solid var(--tribos-border-default)' }}
+      style={{ backgroundColor: 'var(--color-bg-secondary)', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}
     >
       <Container size="md">
         <div ref={ref} className={`landing-step ${isVisible ? 'visible' : ''}`}>
@@ -85,7 +85,7 @@ export default function ImportStep() {
                   fontFamily: "'DM Mono', monospace",
                   letterSpacing: '3px',
                   textTransform: 'uppercase',
-                  color: 'var(--tribos-terracotta-500)',
+                  color: 'var(--color-teal)',
                   marginBottom: 8,
                 }}
               >
@@ -98,7 +98,7 @@ export default function ImportStep() {
                   fontSize: 'clamp(1.4rem, 3.5vw, 2.2rem)',
                   fontFamily: "'Anybody', sans-serif",
                   fontWeight: 800,
-                  color: 'var(--tribos-text-primary)',
+                  color: 'var(--color-text-primary)',
                 }}
               >
                 Your ride history flows in.
@@ -113,7 +113,7 @@ export default function ImportStep() {
                     size="xs"
                     style={{
                       fontFamily: "'DM Mono', monospace",
-                      color: 'var(--tribos-text-muted)',
+                      color: 'var(--color-text-muted)',
                       textTransform: 'uppercase',
                       letterSpacing: '1px',
                     }}
@@ -126,7 +126,7 @@ export default function ImportStep() {
                     className="import-counter"
                     style={{
                       fontFamily: "'DM Mono', monospace",
-                      color: 'var(--tribos-terracotta-500)',
+                      color: 'var(--color-teal)',
                     }}
                   >
                     {rideCount} rides
@@ -135,7 +135,7 @@ export default function ImportStep() {
                 <Box
                   style={{
                     height: 4,
-                    backgroundColor: 'var(--tribos-border-default)',
+                    backgroundColor: 'var(--color-border)',
                     overflow: 'hidden',
                   }}
                 >
@@ -144,7 +144,7 @@ export default function ImportStep() {
                     style={{
                       height: '100%',
                       width: `${progressWidth}%`,
-                      background: `linear-gradient(90deg, var(--tribos-terracotta-500), var(--tribos-teal-500))`,
+                      background: `linear-gradient(90deg, var(--color-teal), var(--tribos-teal-500))`,
                     }}
                   />
                 </Box>
@@ -155,18 +155,18 @@ export default function ImportStep() {
                 justify="space-between"
                 mb="xs"
                 pb="xs"
-                style={{ borderBottom: '1px solid var(--tribos-border-default)' }}
+                style={{ borderBottom: '1px solid var(--color-border)' }}
               >
-                <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', textTransform: 'uppercase', letterSpacing: '1px', width: 54 }}>
+                <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px', width: 54 }}>
                   Date
                 </Text>
-                <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', textTransform: 'uppercase', letterSpacing: '1px', flex: 1, paddingLeft: 12 }}>
+                <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px', flex: 1, paddingLeft: 12 }}>
                   Ride
                 </Text>
-                <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', textTransform: 'uppercase', letterSpacing: '1px', width: 64, textAlign: 'right' }}>
+                <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px', width: 64, textAlign: 'right' }}>
                   Dist
                 </Text>
-                <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', textTransform: 'uppercase', letterSpacing: '1px', width: 50, textAlign: 'right' }}>
+                <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px', width: 50, textAlign: 'right' }}>
                   Pwr
                 </Text>
               </Group>
@@ -180,19 +180,19 @@ export default function ImportStep() {
                     justify="space-between"
                     py={6}
                     style={{
-                      borderBottom: index < rides.length - 1 ? '1px solid var(--tribos-border-subtle, var(--tribos-border-default))' : undefined,
+                      borderBottom: index < rides.length - 1 ? '1px solid var(--tribos-border-subtle, var(--color-border))' : undefined,
                     }}
                   >
-                    <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', width: 54 }}>
+                    <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)', width: 54 }}>
                       {ride.date}
                     </Text>
-                    <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)', flex: 1, paddingLeft: 12 }}>
+                    <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)', flex: 1, paddingLeft: 12 }}>
                       {ride.name}
                     </Text>
-                    <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-secondary)', width: 64, textAlign: 'right' }}>
+                    <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-secondary)', width: 64, textAlign: 'right' }}>
                       {ride.distance}
                     </Text>
-                    <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-terracotta-500)', width: 50, textAlign: 'right' }}>
+                    <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-teal)', width: 50, textAlign: 'right' }}>
                       {ride.power}
                     </Text>
                   </Group>

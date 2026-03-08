@@ -86,7 +86,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
     <Box
       style={{
         minHeight: '100dvh',
-        backgroundColor: 'var(--tribos-bg-primary)',
+        backgroundColor: 'var(--color-bg)',
         paddingBottom: isMobile && !hideNav ? 64 : 0,
       }}
     >
@@ -95,7 +95,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
         component="header"
         style={{
           height: 56,
-          backgroundColor: 'var(--tribos-bg-primary)',
+          backgroundColor: 'var(--color-bg)',
           borderBottom: '1px solid var(--tribos-border)',
           position: 'sticky',
           top: 0,
@@ -110,7 +110,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                 fw={700}
                 size="md"
                 style={{
-                  color: 'var(--tribos-text-primary)',
+                  color: 'var(--color-text-primary)',
                   letterSpacing: '-0.02em',
                 }}
               >
@@ -178,16 +178,16 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
         >
           <Container size={fullWidth ? '100%' : 'xl'} px={fullWidth ? 'md' : undefined}>
             <Group justify="center" gap="lg">
-              <Anchor href="/privacy" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+              <Anchor href="/privacy" size="xs" style={{ color: 'var(--color-text-muted)' }}>
                 Privacy
               </Anchor>
-              <Anchor href="/terms" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+              <Anchor href="/terms" size="xs" style={{ color: 'var(--color-text-muted)' }}>
                 Terms
               </Anchor>
-              <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+              <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: 'var(--color-text-muted)' }}>
                 Contact
               </Anchor>
-              <Anchor href="mailto:travis@tribos.studio?subject=Abuse%20Report" size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+              <Anchor href="mailto:travis@tribos.studio?subject=Abuse%20Report" size="xs" style={{ color: 'var(--color-text-muted)' }}>
                 Report Abuse
               </Anchor>
             </Group>
@@ -212,7 +212,7 @@ function DesktopNavLink({ to, label, icon: Icon, active }) {
       style={{
         padding: '6px 12px',
         borderRadius: 6,
-        backgroundColor: active ? 'var(--tribos-bg-tertiary)' : 'transparent',
+        backgroundColor: active ? 'var(--color-bg-secondary)' : 'transparent',
         transition: 'background-color 0.15s ease',
       }}
       className={!active ? 'tribos-nav-link' : undefined}
@@ -220,14 +220,14 @@ function DesktopNavLink({ to, label, icon: Icon, active }) {
       <Group gap={6}>
         <Icon
           size={16}
-          color={active ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-secondary)'}
+          color={active ? 'var(--color-teal)' : 'var(--color-text-secondary)'}
           stroke={1.5}
         />
         <Text
           size="sm"
           fw={active ? 500 : 400}
           style={{
-            color: active ? 'var(--tribos-text-primary)' : 'var(--tribos-text-secondary)',
+            color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
           }}
         >
           {label}
@@ -249,7 +249,7 @@ function MobileBottomNav({ navItems, isActive }) {
         left: 0,
         right: 0,
         height: 64,
-        backgroundColor: 'var(--tribos-bg-secondary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         borderTop: '1px solid var(--tribos-border)',
         zIndex: 100,
         display: 'flex',
@@ -279,14 +279,14 @@ function MobileBottomNav({ navItems, isActive }) {
           >
             <Icon
               size={22}
-              color={active ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-secondary)'}
+              color={active ? 'var(--color-teal)' : 'var(--color-text-secondary)'}
               stroke={active ? 2 : 1.5}
             />
             <Text
               size="xs"
               fw={active ? 500 : 400}
               style={{
-                color: active ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-secondary)',
+                color: active ? 'var(--color-teal)' : 'var(--color-text-secondary)',
                 fontSize: 11,
               }}
             >

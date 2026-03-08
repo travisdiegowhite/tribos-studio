@@ -228,7 +228,7 @@ function CoachMemories({ opened, onClose }) {
       onClose={onClose}
       title={
         <Group gap="xs">
-          <ThemeIcon color="terracotta" variant="light">
+          <ThemeIcon color="teal" variant="light">
             <IconBrain size={18} />
           </ThemeIcon>
           <Text fw={600}>What I Remember</Text>
@@ -245,7 +245,7 @@ function CoachMemories({ opened, onClose }) {
         {!isAddingMemory ? (
           <Button
             variant="outline"
-            color="terracotta"
+            color="teal"
             leftSection={<IconPlus size={16} />}
             onClick={() => setIsAddingMemory(true)}
           >
@@ -282,7 +282,7 @@ function CoachMemories({ opened, onClose }) {
                   Cancel
                 </Button>
                 <Button
-                  color="terracotta"
+                  color="teal"
                   leftSection={<IconCheck size={16} />}
                   onClick={handleAddMemory}
                   disabled={!newMemory.content.trim()}
@@ -313,7 +313,7 @@ function CoachMemories({ opened, onClose }) {
         {/* Memory List */}
         {loading ? (
           <Stack align="center" py="xl">
-            <Loader color="terracotta" />
+            <Loader color="teal" />
             <Text size="sm" c="dimmed">Loading memories...</Text>
           </Stack>
         ) : filteredMemories.length === 0 ? (
@@ -358,7 +358,7 @@ function CoachMemories({ opened, onClose }) {
                         </Button>
                         <Button
                           size="xs"
-                          color="terracotta"
+                          color="teal"
                           onClick={() => handleUpdateMemory(memory.id, { content: memory.content })}
                         >
                           Save

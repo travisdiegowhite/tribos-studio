@@ -276,7 +276,7 @@ export default function ActivityLinkingModal({
           <ScrollArea h={400}>
             <Stack spacing="sm">
               {workoutsWithMatches.length === 0 ? (
-                <Alert icon={<IconCheck size={18} />} color="sage">
+                <Alert icon={<IconCheck size={18} />} color="teal">
                   All workouts are already linked to activities!
                 </Alert>
               ) : (
@@ -312,7 +312,7 @@ export default function ActivityLinkingModal({
                         </Group>
                       </div>
                       {selected && (
-                        <Badge color="sage" leftSection={<IconCheck size={12} />}>
+                        <Badge color="teal" leftSection={<IconCheck size={12} />}>
                           Linked
                         </Badge>
                       )}

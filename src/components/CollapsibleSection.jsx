@@ -27,7 +27,7 @@ function CollapsibleSection({
     <Box
       style={{
         borderRadius: tokens.radius.md,
-        backgroundColor: 'var(--tribos-bg-tertiary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         overflow: 'hidden',
         border: accentColor ? `1px solid ${accentColor}20` : 'none',
       }}
@@ -47,18 +47,18 @@ function CollapsibleSection({
       >
         <Group gap="xs">
           {icon && (
-            <Box style={{ color: accentColor || 'var(--tribos-terracotta-500)' }}>
+            <Box style={{ color: accentColor || 'var(--color-teal)' }}>
               {icon}
             </Box>
           )}
-          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             {title}
           </Text>
           {badge && (
             <Box
               style={{
-                backgroundColor: 'var(--tribos-terracotta-500)',
-                color: 'var(--tribos-bg-primary)',
+                backgroundColor: 'var(--color-teal)',
+                color: 'var(--color-bg)',
                 padding: '2px 8px',
                 borderRadius: tokens.radius.full,
                 fontSize: '12px',
@@ -69,7 +69,7 @@ function CollapsibleSection({
             </Box>
           )}
         </Group>
-        <Box style={{ color: 'var(--tribos-text-muted)', transition: 'transform 0.2s ease' }}>
+        <Box style={{ color: 'var(--color-text-muted)', transition: 'transform 0.2s ease' }}>
           {isExpanded ? <IconChevronDown size={18} /> : <IconChevronRight size={18} />}
         </Box>
       </UnstyledButton>

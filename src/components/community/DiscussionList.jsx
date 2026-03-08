@@ -57,7 +57,7 @@ function DiscussionList({
         size="xs"
         styles={{
           root: {
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
           },
         }}
       />
@@ -68,8 +68,8 @@ function DiscussionList({
           padding="xl"
           radius="md"
           style={{
-            backgroundColor: 'var(--tribos-bg-secondary)',
-            border: `1px dashed ${'var(--tribos-bg-tertiary)'}`,
+            backgroundColor: 'var(--color-bg-secondary)',
+            border: `1px dashed ${'var(--color-bg-secondary)'}`,
             textAlign: 'center',
           }}
         >
@@ -105,8 +105,8 @@ function DiscussionCard({ discussion, onClick }) {
       padding="sm"
       radius="md"
       style={{
-        backgroundColor: 'var(--tribos-bg-secondary)',
-        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+        backgroundColor: 'var(--color-bg-secondary)',
+        border: `1px solid ${'var(--color-bg-secondary)'}`,
         cursor: 'pointer',
         transition: 'border-color 0.15s',
       }}
@@ -117,10 +117,10 @@ function DiscussionCard({ discussion, onClick }) {
         <Box style={{ flex: 1, minWidth: 0 }}>
           <Group gap="xs" mb={4}>
             {discussion.is_pinned && (
-              <IconPin size={14} color={'var(--tribos-terracotta-500)'} />
+              <IconPin size={14} color={'var(--color-teal)'} />
             )}
             {discussion.is_locked && (
-              <IconLock size={14} color={'var(--tribos-text-muted)'} />
+              <IconLock size={14} color={'var(--color-text-muted)'} />
             )}
             <Badge
               size="xs"
@@ -135,7 +135,7 @@ function DiscussionCard({ discussion, onClick }) {
             size="sm"
             fw={500}
             lineClamp={1}
-            style={{ color: 'var(--tribos-text-primary)' }}
+            style={{ color: 'var(--color-text-primary)' }}
           >
             {discussion.title}
           </Text>
@@ -155,7 +155,7 @@ function DiscussionCard({ discussion, onClick }) {
         </Box>
 
         <Group gap={4} align="center">
-          <IconMessageCircle size={14} color={'var(--tribos-text-muted)'} />
+          <IconMessageCircle size={14} color={'var(--color-text-muted)'} />
           <Text size="xs" c="dimmed">
             {discussion.reply_count}
           </Text>

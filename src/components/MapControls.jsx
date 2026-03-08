@@ -124,7 +124,7 @@ function ScaleBar({ latitude, zoom }) {
       <Text
         size="xs"
         style={{
-          color: 'var(--tribos-text-secondary)',
+          color: 'var(--color-text-secondary)',
           fontSize: 10,
           fontWeight: 500,
         }}
@@ -135,7 +135,7 @@ function ScaleBar({ latitude, zoom }) {
         style={{
           width: width,
           height: 4,
-          backgroundColor: 'var(--tribos-text-secondary)',
+          backgroundColor: 'var(--color-text-secondary)',
           borderRadius: 2,
           position: 'relative',
         }}
@@ -148,7 +148,7 @@ function ScaleBar({ latitude, zoom }) {
             top: -2,
             width: 2,
             height: 8,
-            backgroundColor: 'var(--tribos-text-secondary)',
+            backgroundColor: 'var(--color-text-secondary)',
             borderRadius: 1,
           }}
         />
@@ -160,7 +160,7 @@ function ScaleBar({ latitude, zoom }) {
             top: -2,
             width: 2,
             height: 8,
-            backgroundColor: 'var(--tribos-text-secondary)',
+            backgroundColor: 'var(--color-text-secondary)',
             borderRadius: 1,
           }}
         />
@@ -289,11 +289,11 @@ export default function MapControls({
   const isTilted = pitch > 1;
 
   const controlButtonStyle = {
-    backgroundColor: 'var(--tribos-bg-secondary)',
-    border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
-    color: 'var(--tribos-text-primary)',
+    backgroundColor: 'var(--color-bg-secondary)',
+    border: `1px solid ${'var(--color-bg-secondary)'}`,
+    color: 'var(--color-text-primary)',
     '&:hover': {
-      backgroundColor: 'var(--tribos-bg-tertiary)',
+      backgroundColor: 'var(--color-bg-secondary)',
     },
   };
 
@@ -317,10 +317,10 @@ export default function MapControls({
           display: 'flex',
           flexDirection: 'column',
           gap: 4,
-          backgroundColor: 'var(--tribos-bg-secondary)',
+          backgroundColor: 'var(--color-bg-secondary)',
           borderRadius: tokens.radius.md,
           padding: 4,
-          border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+          border: `1px solid ${'var(--color-bg-secondary)'}`,
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
         }}
       >
@@ -352,7 +352,7 @@ export default function MapControls({
         <Box
           style={{
             height: 1,
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             margin: '2px 4px',
           }}
         />
@@ -372,7 +372,7 @@ export default function MapControls({
             <IconCompass
               size={20}
               style={{
-                color: isRotated ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-secondary)',
+                color: isRotated ? 'var(--color-teal)' : 'var(--color-text-secondary)',
               }}
             />
           </ActionIcon>
@@ -389,7 +389,7 @@ export default function MapControls({
             <IconTiltShift
               size={20}
               style={{
-                color: isTilted ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-secondary)',
+                color: isTilted ? 'var(--color-teal)' : 'var(--color-text-secondary)',
               }}
             />
           </ActionIcon>
@@ -399,7 +399,7 @@ export default function MapControls({
         <Box
           style={{
             height: 1,
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             margin: '2px 4px',
           }}
         />
@@ -417,13 +417,13 @@ export default function MapControls({
               </ActionIcon>
             </Tooltip>
           </Menu.Target>
-          <Menu.Dropdown style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+          <Menu.Dropdown style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
             <Menu.Item
               leftSection={<IconCurrentLocation size={16} />}
               onClick={handleRecenterUser}
               disabled={isLocating}
               style={{
-                color: 'var(--tribos-text-primary)',
+                color: 'var(--color-text-primary)',
               }}
             >
               {hasUserLocation ? 'Go to My Location' : 'Find My Location'}
@@ -433,7 +433,7 @@ export default function MapControls({
               onClick={handleFitRoute}
               disabled={!hasRoute}
               style={{
-                color: hasRoute ? 'var(--tribos-text-primary)' : 'var(--tribos-text-muted)',
+                color: hasRoute ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
               }}
             >
               Fit to Route

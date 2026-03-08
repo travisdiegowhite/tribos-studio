@@ -40,21 +40,21 @@ function FeatureCard({ name, description, highlight }) {
       p="lg"
       radius="md"
       style={{
-        background: 'var(--tribos-bg-secondary)',
-        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+        background: 'var(--color-bg-secondary)',
+        border: `1px solid ${'var(--color-bg-secondary)'}`,
       }}
     >
       <Stack gap="sm">
-        <Text fw={600} size="lg" c={'var(--tribos-text-primary)'}>
+        <Text fw={600} size="lg" c={'var(--color-text-primary)'}>
           {name}
         </Text>
-        <Text size="sm" c={'var(--tribos-text-secondary)'} lh={1.6}>
+        <Text size="sm" c={'var(--color-text-secondary)'} lh={1.6}>
           {description}
         </Text>
         {highlight && (
           <Badge
             variant="light"
-            color="terracotta"
+            color="teal"
             size="sm"
             style={{ alignSelf: 'flex-start' }}
           >
@@ -76,22 +76,22 @@ function FeatureSection({ feature }) {
           size="lg"
           radius="md"
           variant="light"
-          color="terracotta"
+          color="teal"
         >
           <IconComponent size={20} />
         </ThemeIcon>
         <Box>
-          <Text size="xs" c={'var(--tribos-text-muted)'} tt="uppercase" fw={500}>
+          <Text size="xs" c={'var(--color-text-muted)'} tt="uppercase" fw={500}>
             {feature.category}
           </Text>
-          <Title order={3} c={'var(--tribos-text-primary)'}>
+          <Title order={3} c={'var(--color-text-primary)'}>
             {feature.title}
           </Title>
         </Box>
       </Group>
 
       {feature.description && (
-        <Text size="sm" c={'var(--tribos-text-secondary)'} mb="md" lh={1.6}>
+        <Text size="sm" c={'var(--color-text-secondary)'} mb="md" lh={1.6}>
           {feature.description}
         </Text>
       )}
@@ -108,13 +108,13 @@ function FeatureSection({ feature }) {
           mt="md"
           radius="md"
           style={{
-            background: `linear-gradient(135deg, ${'var(--tribos-terracotta-500)'}15, ${'var(--tribos-terracotta-500)'}05)`,
-            border: `1px solid ${'var(--tribos-terracotta-500)'}30`,
+            background: `linear-gradient(135deg, ${'var(--color-teal)'}15, ${'var(--color-teal)'}05)`,
+            border: `1px solid ${'var(--color-teal)'}30`,
           }}
         >
           <Group gap="xs">
-            <IconBulb size={16} color={'var(--tribos-terracotta-500)'} />
-            <Text size="sm" c={'var(--tribos-text-primary)'} fw={500}>
+            <IconBulb size={16} color={'var(--color-teal)'} />
+            <Text size="sm" c={'var(--color-text-primary)'} fw={500}>
               {feature.summary}
             </Text>
           </Group>
@@ -130,24 +130,24 @@ function UpdateCard({ update }) {
       p="lg"
       radius="md"
       style={{
-        background: 'var(--tribos-bg-secondary)',
-        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+        background: 'var(--color-bg-secondary)',
+        border: `1px solid ${'var(--color-bg-secondary)'}`,
       }}
     >
       <Group justify="space-between" mb="sm">
-        <Badge variant="light" color="terracotta" size="sm">
+        <Badge variant="light" color="teal" size="sm">
           {update.type === 'improvement' ? 'Improvement' : 'New'}
         </Badge>
-        <Text size="xs" c={'var(--tribos-text-muted)'}>
+        <Text size="xs" c={'var(--color-text-muted)'}>
           {update.date}
         </Text>
       </Group>
 
-      <Text fw={600} size="lg" c={'var(--tribos-text-primary)'} mb="xs">
+      <Text fw={600} size="lg" c={'var(--color-text-primary)'} mb="xs">
         {update.title}
       </Text>
 
-      <Text size="sm" c={'var(--tribos-text-secondary)'} mb="md" lh={1.6}>
+      <Text size="sm" c={'var(--color-text-secondary)'} mb="md" lh={1.6}>
         {update.description}
       </Text>
 
@@ -155,8 +155,8 @@ function UpdateCard({ update }) {
         <Stack gap={6}>
           {update.details.map((detail, idx) => (
             <Group key={idx} gap="xs" wrap="nowrap">
-              <IconArrowRight size={14} color={'var(--tribos-terracotta-500)'} style={{ flexShrink: 0 }} />
-              <Text size="sm" c={'var(--tribos-text-secondary)'}>
+              <IconArrowRight size={14} color={'var(--color-teal)'} style={{ flexShrink: 0 }} />
+              <Text size="sm" c={'var(--color-text-secondary)'}>
                 {detail}
               </Text>
             </Group>
@@ -177,35 +177,35 @@ function Updates() {
           {/* Welcome Section */}
           <Box mb="md">
             <Group gap="sm" mb="xs">
-              <IconSparkles size={28} color={'var(--tribos-terracotta-500)'} />
-              <Title order={1} c={'var(--tribos-text-primary)'}>
+              <IconSparkles size={28} color={'var(--color-teal)'} />
+              <Title order={1} c={'var(--color-text-primary)'}>
                 {welcome.title}
               </Title>
             </Group>
-            <Text size="lg" c={'var(--tribos-terracotta-500)'} fw={500} mb="sm">
+            <Text size="lg" c={'var(--color-teal)'} fw={500} mb="sm">
               {welcome.subtitle}
             </Text>
-            <Text size="md" c={'var(--tribos-text-secondary)'} lh={1.7} maw={700}>
+            <Text size="md" c={'var(--color-text-secondary)'} lh={1.7} maw={700}>
               {welcome.description}
             </Text>
           </Box>
 
-          <Divider color={'var(--tribos-bg-tertiary)'} />
+          <Divider color={'var(--color-bg-secondary)'} />
 
           {/* Feature Sections */}
           {features.map((feature) => (
             <FeatureSection key={feature.id} feature={feature} />
           ))}
 
-          <Divider color={'var(--tribos-bg-tertiary)'} />
+          <Divider color={'var(--color-bg-secondary)'} />
 
           {/* Recent Updates */}
           <Box>
             <Group gap="sm" mb="lg">
-              <ThemeIcon size="lg" radius="md" variant="light" color="terracotta">
+              <ThemeIcon size="lg" radius="md" variant="light" color="teal">
                 <IconRocket size={20} />
               </ThemeIcon>
-              <Title order={2} c={'var(--tribos-text-primary)'}>
+              <Title order={2} c={'var(--color-text-primary)'}>
                 Recent Updates
               </Title>
             </Group>
@@ -220,7 +220,7 @@ function Updates() {
           {/* Coming Soon */}
           {comingSoon && comingSoon.length > 0 && (
             <Box>
-              <Text size="sm" c={'var(--tribos-text-muted)'} tt="uppercase" fw={500} mb="md">
+              <Text size="sm" c={'var(--color-text-muted)'} tt="uppercase" fw={500} mb="md">
                 Coming Soon
               </Text>
               <Group gap="md">

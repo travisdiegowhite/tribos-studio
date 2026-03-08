@@ -13,7 +13,7 @@ import { tokens } from '../../theme';
 function ModeSelector({ onSelectMode, onImportGPX }) {
   return (
     <Stack gap="md">
-      <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-muted)', letterSpacing: '0.05em' }}>
+      <Text size="xs" fw={600} style={{ color: 'var(--color-text-muted)', letterSpacing: '0.05em' }}>
         HOW DO YOU WANT TO BUILD?
       </Text>
 
@@ -22,7 +22,7 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
         icon={<IconRobot size={24} />}
         title="Describe a Route"
         description="Tell the AI what you want and get route suggestions"
-        accentColor="var(--tribos-terracotta-500)"
+        accentColor="var(--color-teal)"
         onClick={() => onSelectMode('ai')}
       />
 
@@ -31,7 +31,7 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
         icon={<IconHandClick size={24} />}
         title="Draw on Map"
         description="Click to place waypoints and build a route manually"
-        accentColor="#3D8B50"
+        accentColor="#2A8C82"
         onClick={() => onSelectMode('manual')}
       />
 
@@ -48,8 +48,8 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
           }}
         >
           <Group gap="sm">
-            <IconUpload size={16} style={{ color: 'var(--tribos-text-muted)' }} />
-            <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <IconUpload size={16} style={{ color: 'var(--color-text-muted)' }} />
+            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
               Import GPX / TCX file
             </Text>
           </Group>
@@ -76,10 +76,10 @@ function ModeCard({ icon, title, description, accentColor, onClick }) {
       <Group gap="md" align="flex-start">
         <Box style={{ color: accentColor, marginTop: 2 }}>{icon}</Box>
         <Box style={{ flex: 1 }}>
-          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             {title}
           </Text>
-          <Text size="xs" style={{ color: 'var(--tribos-text-secondary)', marginTop: 2 }}>
+          <Text size="xs" style={{ color: 'var(--color-text-secondary)', marginTop: 2 }}>
             {description}
           </Text>
         </Box>

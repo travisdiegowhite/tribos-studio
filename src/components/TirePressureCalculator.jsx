@@ -239,8 +239,8 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
         {/* Header */}
         <Group justify="space-between">
           <Group gap="xs">
-            <IconWheel size={18} style={{ color: 'var(--tribos-terracotta-500)' }} />
-            <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            <IconWheel size={18} style={{ color: 'var(--color-teal)' }} />
+            <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
               Tire Pressure
             </Text>
           </Group>
@@ -254,7 +254,7 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
                 { label: 'BAR', value: 'bar' },
               ]}
               styles={{
-                root: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                root: { backgroundColor: 'var(--color-bg-secondary)' },
               }}
             />
             <Tooltip label="Settings">
@@ -280,17 +280,17 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
               thickness={6}
               roundCaps
               sections={[
-                { value: frontNormalized, color: 'var(--tribos-text-secondary)' },
+                { value: frontNormalized, color: 'var(--color-text-secondary)' },
               ]}
               label={
                 <Box ta="center">
-                  <Text size="lg" fw={700} style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text size="lg" fw={700} style={{ color: 'var(--color-text-primary)' }}>
                     {pressure.front}
                   </Text>
                 </Box>
               }
             />
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt={4}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt={4}>
               Front
             </Text>
           </Box>
@@ -302,17 +302,17 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
               thickness={6}
               roundCaps
               sections={[
-                { value: rearNormalized, color: 'var(--tribos-terracotta-500)' },
+                { value: rearNormalized, color: 'var(--color-teal)' },
               ]}
               label={
                 <Box ta="center">
-                  <Text size="lg" fw={700} style={{ color: 'var(--tribos-terracotta-500)' }}>
+                  <Text size="lg" fw={700} style={{ color: 'var(--color-teal)' }}>
                     {pressure.rear}
                   </Text>
                 </Box>
               }
             />
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt={4}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt={4}>
               Rear
             </Text>
           </Box>
@@ -326,7 +326,7 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
             onChange={setTireWidth}
             data={TIRE_PRESETS}
             styles={{
-              root: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+              root: { backgroundColor: 'var(--color-bg-secondary)' },
             }}
           />
         </Group>
@@ -336,7 +336,7 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
           <Box
             style={{
               padding: tokens.spacing.md,
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               borderRadius: tokens.radius.md,
             }}
           >
@@ -356,7 +356,7 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
                   min={80}
                   max={400}
                   styles={{
-                    input: { backgroundColor: 'var(--tribos-bg-secondary)' },
+                    input: { backgroundColor: 'var(--color-bg-secondary)' },
                   }}
                 />
                 <NumberInput
@@ -372,14 +372,14 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
                   min={10}
                   max={100}
                   styles={{
-                    input: { backgroundColor: 'var(--tribos-bg-secondary)' },
+                    input: { backgroundColor: 'var(--color-bg-secondary)' },
                   }}
                 />
               </Group>
 
               {/* Surface Type */}
               <Box>
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb={4}>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb={4}>
                   Surface
                 </Text>
                 <SegmentedControl
@@ -389,7 +389,7 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
                   onChange={setRidingStyle}
                   data={SURFACE_OPTIONS}
                   styles={{
-                    root: { backgroundColor: 'var(--tribos-bg-secondary)' },
+                    root: { backgroundColor: 'var(--color-bg-secondary)' },
                   }}
                 />
               </Box>
@@ -397,22 +397,22 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
               {/* Tubeless Toggle */}
               <Group justify="space-between">
                 <Box>
-                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                     Tubeless
                   </Text>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                     Allows ~8% lower pressure
                   </Text>
                 </Box>
                 <Switch
                   checked={tubeless}
                   onChange={(e) => setTubeless(e.currentTarget.checked)}
-                  color="terracotta"
+                  color="teal"
                 />
               </Group>
 
               {/* Total Weight Display */}
-              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} ta="center">
+              <Text size="xs" style={{ color: 'var(--color-text-muted)' }} ta="center">
                 Total: {isImperial
                   ? `${riderWeightLbs + bikeWeight} lbs`
                   : `${Math.round((riderWeightLbs + bikeWeight) / 2.20462)} kg`
@@ -423,7 +423,7 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
         )}
 
         {/* Tips */}
-        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} ta="center">
+        <Text size="xs" style={{ color: 'var(--color-text-muted)' }} ta="center">
           Based on {parseInt(tireWidth)}c {tubeless ? 'tubeless' : 'clincher'} on {ridingStyle} roads
         </Text>
       </Stack>

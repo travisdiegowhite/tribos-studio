@@ -54,7 +54,7 @@ class ErrorBoundary extends React.Component {
       return (
         <div style={{
           minHeight: '100vh',
-          backgroundColor: 'var(--tribos-bg-primary)',
+          backgroundColor: 'var(--color-bg)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -65,8 +65,8 @@ class ErrorBoundary extends React.Component {
               padding="xl"
               radius="lg"
               style={{
-                backgroundColor: 'var(--tribos-bg-secondary)',
-                border: `1px solid ${'var(--tribos-bg-tertiary)'}`
+                backgroundColor: 'var(--color-bg-secondary)',
+                border: `1px solid ${'var(--color-bg-secondary)'}`
               }}
             >
               <Stack align="center" gap="lg">
@@ -75,13 +75,13 @@ class ErrorBoundary extends React.Component {
                   style={{ color: 'var(--tribos-warning)' }}
                 />
 
-                <Title order={2} ta="center" style={{ color: 'var(--tribos-text-primary)' }}>
+                <Title order={2} ta="center" style={{ color: 'var(--color-text-primary)' }}>
                   Something went wrong
                 </Title>
 
                 <Text
                   ta="center"
-                  style={{ color: 'var(--tribos-text-secondary)' }}
+                  style={{ color: 'var(--color-text-secondary)' }}
                   maw={400}
                 >
                   We encountered an unexpected error. This has been logged and we'll look into it.
@@ -93,7 +93,7 @@ class ErrorBoundary extends React.Component {
                     radius="md"
                     w="100%"
                     style={{
-                      backgroundColor: 'var(--tribos-bg-tertiary)',
+                      backgroundColor: 'var(--color-bg-secondary)',
                       border: `1px solid ${'var(--tribos-error)'}33`
                     }}
                   >
@@ -104,8 +104,8 @@ class ErrorBoundary extends React.Component {
                       <Code
                         block
                         style={{
-                          backgroundColor: 'var(--tribos-bg-primary)',
-                          color: 'var(--tribos-text-secondary)',
+                          backgroundColor: 'var(--color-bg)',
+                          color: 'var(--color-text-secondary)',
                           fontSize: '12px',
                           maxHeight: '150px',
                           overflow: 'auto'
@@ -133,7 +133,7 @@ class ErrorBoundary extends React.Component {
                     Go Home
                   </Button>
                   <Button
-                    color="terracotta"
+                    color="teal"
                     leftSection={<IconRefresh size={18} />}
                     onClick={this.handleRefresh}
                   >
@@ -141,7 +141,7 @@ class ErrorBoundary extends React.Component {
                   </Button>
                 </Group>
 
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                   If this problem persists, please contact support.
                 </Text>
               </Stack>

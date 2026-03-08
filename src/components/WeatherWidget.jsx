@@ -27,7 +27,7 @@ function WindArrow({ degrees, size = 24 }) {
     >
       <path
         d="M12 2L8 10h3v10h2V10h3L12 2z"
-        fill={'var(--tribos-terracotta-500)'}
+        fill={'var(--color-teal)'}
       />
     </svg>
   );
@@ -97,11 +97,11 @@ export function WindAnalysisPanel({ coordinates, weather, isImperial = true }) {
   };
 
   return (
-    <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+    <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <Group justify="space-between" mb="xs">
         <Group gap="xs">
           <WindArrow degrees={weather.windDegrees} size={20} />
-          <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
             Wind Analysis
           </Text>
         </Group>
@@ -203,9 +203,9 @@ const WeatherWidget = ({
 
   if (loading && !weather) {
     return (
-      <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+      <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Group gap="xs" justify="center">
-          <Loader size="xs" color="terracotta" />
+          <Loader size="xs" color="teal" />
           <Text size="xs" c="dimmed">Loading weather...</Text>
         </Group>
       </Paper>
@@ -214,7 +214,7 @@ const WeatherWidget = ({
 
   if (error && !weather) {
     return (
-      <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+      <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Text size="xs" c="dimmed" ta="center">{error}</Text>
       </Paper>
     );
@@ -230,15 +230,15 @@ const WeatherWidget = ({
       <Paper
         p="xs"
         style={{
-          backgroundColor: `${'var(--tribos-bg-secondary)'}ee`,
+          backgroundColor: `${'var(--color-bg-secondary)'}ee`,
           backdropFilter: 'blur(8px)',
-          border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+          border: `1px solid ${'var(--color-bg-secondary)'}`,
         }}
       >
         <Group gap="xs" justify="space-between">
           <Group gap="xs">
             <WindArrow degrees={weather.windDegrees} size={18} />
-            <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
               {formatTemperature(weather.temperature, isImperial)}
             </Text>
             <Text size="xs" c="dimmed">
@@ -255,13 +255,13 @@ const WeatherWidget = ({
 
   // Full widget
   return (
-    <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+    <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <Stack gap="sm">
         {/* Header */}
         <Group justify="space-between">
           <Group gap="xs">
-            <IconCloud size={18} style={{ color: 'var(--tribos-text-secondary)' }} />
-            <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            <IconCloud size={18} style={{ color: 'var(--color-text-secondary)' }} />
+            <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
               Current Weather
             </Text>
             {weather.location && (
@@ -295,9 +295,9 @@ const WeatherWidget = ({
             : "Temperature"
           }>
             <Group gap={4}>
-              <IconTemperature size={16} style={{ color: 'var(--tribos-text-muted)' }} />
+              <IconTemperature size={16} style={{ color: 'var(--color-text-muted)' }} />
               <Box>
-                <Text size="lg" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                   {formatTemperature(weather.temperature, isImperial)}
                 </Text>
                 {severity.effectiveTemp && severity.effectiveTemp < weather.temperature && (
@@ -313,7 +313,7 @@ const WeatherWidget = ({
             <Group gap={4}>
               <WindArrow degrees={weather.windDegrees} size={20} />
               <Box>
-                <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                   {formatWindSpeed(weather.windSpeed, isImperial)}
                 </Text>
                 <Text size="xs" c="dimmed">{weather.windDirection}</Text>
@@ -323,8 +323,8 @@ const WeatherWidget = ({
 
           <Tooltip label="Humidity">
             <Group gap={4}>
-              <IconDroplet size={16} style={{ color: 'var(--tribos-text-muted)' }} />
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+              <IconDroplet size={16} style={{ color: 'var(--color-text-muted)' }} />
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                 {weather.humidity}%
               </Text>
             </Group>
@@ -351,7 +351,7 @@ const WeatherWidget = ({
         <Group gap="md" justify="center">
           <Tooltip label="Visibility">
             <Group gap={4}>
-              <IconEye size={14} style={{ color: 'var(--tribos-text-muted)' }} />
+              <IconEye size={14} style={{ color: 'var(--color-text-muted)' }} />
               <Text size="xs" c="dimmed">
                 {formatVisibility(weather.visibility, isImperial)}
               </Text>

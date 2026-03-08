@@ -351,16 +351,16 @@ export default function RoadPreferencesCard() {
           <Box>
             <Group gap="xs">
               <IconRoute size={24} style={{ color: 'var(--tribos-accent)' }} />
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+              <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                 Route Learning
               </Title>
             </Group>
-            <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }} mt={4}>
+            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }} mt={4}>
               Learn your preferred roads from your riding history
             </Text>
           </Box>
           {stats && (
-            <Badge color="terracotta" variant="light" size="lg">
+            <Badge color="teal" variant="light" size="lg">
               {stats.total_segments?.toLocaleString() || 0} segments learned
             </Badge>
           )}
@@ -382,7 +382,7 @@ export default function RoadPreferencesCard() {
         {stats && stats.total_segments > 0 && (
           <Box
             style={{
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               padding: tokens.spacing.md,
               borderRadius: tokens.radius.sm
             }}
@@ -392,7 +392,7 @@ export default function RoadPreferencesCard() {
                 <Text size="xl" fw={600} style={{ color: 'var(--tribos-accent)' }}>
                   {stats.total_segments?.toLocaleString() || 0}
                 </Text>
-                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                   Road Segments
                 </Text>
               </Box>
@@ -400,7 +400,7 @@ export default function RoadPreferencesCard() {
                 <Text size="xl" fw={600} style={{ color: 'var(--tribos-accent)' }}>
                   {stats.unique_km ? `${Math.round(stats.unique_km)}` : '0'}
                 </Text>
-                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                   Unique km
                 </Text>
               </Box>
@@ -408,7 +408,7 @@ export default function RoadPreferencesCard() {
                 <Text size="xl" fw={600} style={{ color: 'var(--tribos-accent)' }}>
                   {stats.most_ridden_count || 0}
                 </Text>
-                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                   Max Repeats
                 </Text>
               </Box>
@@ -416,7 +416,7 @@ export default function RoadPreferencesCard() {
                 <Text size="xl" fw={600} style={{ color: 'var(--tribos-accent)' }}>
                   {stats.recent_new_segments || 0}
                 </Text>
-                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                   New (30 days)
                 </Text>
               </Box>
@@ -425,7 +425,7 @@ export default function RoadPreferencesCard() {
             {/* Segment distribution */}
             {stats.segments_by_ride_count && (
               <Box mt="md">
-                <Text size="xs" fw={500} mb="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                <Text size="xs" fw={500} mb="xs" style={{ color: 'var(--color-text-secondary)' }}>
                   Familiarity Distribution
                 </Text>
                 <Group gap="xs">
@@ -440,12 +440,12 @@ export default function RoadPreferencesCard() {
                     </Badge>
                   </Tooltip>
                   <Tooltip label="Ridden 4-10 times">
-                    <Badge color="terracotta" variant="light" size="sm">
+                    <Badge color="teal" variant="light" size="sm">
                       4-10x: {stats.segments_by_ride_count['4_10_rides'] || 0}
                     </Badge>
                   </Tooltip>
                   <Tooltip label="Ridden 10+ times">
-                    <Badge color="sage" variant="light" size="sm">
+                    <Badge color="teal" variant="light" size="sm">
                       10+: {stats.segments_by_ride_count['10_plus_rides'] || 0}
                     </Badge>
                   </Tooltip>
@@ -485,7 +485,7 @@ export default function RoadPreferencesCard() {
         {/* Extract Segments Button - Always show */}
         <Box
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             padding: tokens.spacing.md,
             borderRadius: tokens.radius.sm
           }}
@@ -493,12 +493,12 @@ export default function RoadPreferencesCard() {
           <Group justify="space-between" align="flex-start">
             <Box>
               <Group gap="xs" mb={4}>
-                <IconMap size={20} style={{ color: 'var(--tribos-text-primary)' }} />
-                <Text fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+                <IconMap size={20} style={{ color: 'var(--color-text-primary)' }} />
+                <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>
                   Process Activity History
                 </Text>
               </Group>
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                 {needsMigration
                   ? 'Database setup required before extracting segments.'
                   : unprocessedCount > 0
@@ -510,7 +510,7 @@ export default function RoadPreferencesCard() {
             </Box>
             <Button
               size="sm"
-              color="terracotta"
+              color="teal"
               variant="light"
               onClick={handleExtractSegments}
               loading={extracting}
@@ -525,22 +525,22 @@ export default function RoadPreferencesCard() {
           {extractionProgress && (
             <Box mt="md">
               <Group justify="space-between" mb="xs">
-                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                   Processing activities...
                 </Text>
-                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                   {extractionProgress.processed} / {extractionProgress.total || '?'}
                 </Text>
               </Group>
               {extractionProgress.total > 0 && (
                 <Progress
                   value={(extractionProgress.processed / extractionProgress.total) * 100}
-                  color="terracotta"
+                  color="teal"
                   size="sm"
                   animated
                 />
               )}
-              <Text size="xs" mt="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+              <Text size="xs" mt="xs" style={{ color: 'var(--color-text-secondary)' }}>
                 {extractionProgress.segments} segments extracted
               </Text>
             </Box>
@@ -553,10 +553,10 @@ export default function RoadPreferencesCard() {
         <Box>
           <Group justify="space-between" mb="xs">
             <Box>
-              <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+              <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
                 Familiar Road Preference
               </Text>
-              <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+              <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                 How strongly should routes favor roads you've ridden before?
               </Text>
             </Box>
@@ -570,14 +570,14 @@ export default function RoadPreferencesCard() {
             min={0}
             max={100}
             step={10}
-            color="terracotta"
+            color="teal"
             marks={[
               { value: 0, label: 'Off' },
               { value: 50, label: 'Balanced' },
               { value: 100, label: 'Max' },
             ]}
             styles={{
-              markLabel: { color: 'var(--tribos-text-secondary)', fontSize: 10 }
+              markLabel: { color: 'var(--color-text-secondary)', fontSize: 10 }
             }}
           />
         </Box>
@@ -586,19 +586,19 @@ export default function RoadPreferencesCard() {
         <Group justify="space-between">
           <Box>
             <Group gap="xs">
-              <IconCompass size={18} style={{ color: 'var(--tribos-text-primary)' }} />
-              <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+              <IconCompass size={18} style={{ color: 'var(--color-text-primary)' }} />
+              <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
                 Explore Mode
               </Text>
             </Group>
-            <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
               Intentionally favor new roads you haven't ridden yet
             </Text>
           </Box>
           <Switch
             checked={exploreMode}
             onChange={(e) => setExploreMode(e.currentTarget.checked)}
-            color="terracotta"
+            color="teal"
             size="md"
           />
         </Group>
@@ -606,7 +606,7 @@ export default function RoadPreferencesCard() {
         {/* Advanced Settings */}
         <Box
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             padding: tokens.spacing.sm,
             borderRadius: tokens.radius.sm,
           }}
@@ -621,11 +621,11 @@ export default function RoadPreferencesCard() {
             }}
           >
             {showAdvanced ? (
-              <IconChevronDown size={16} style={{ color: 'var(--tribos-text-secondary)' }} />
+              <IconChevronDown size={16} style={{ color: 'var(--color-text-secondary)' }} />
             ) : (
-              <IconChevronRight size={16} style={{ color: 'var(--tribos-text-secondary)' }} />
+              <IconChevronRight size={16} style={{ color: 'var(--color-text-secondary)' }} />
             )}
-            <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
               Advanced Settings
             </Text>
           </UnstyledButton>
@@ -634,7 +634,7 @@ export default function RoadPreferencesCard() {
               {/* Min Rides for Familiar */}
               <Box>
                 <Group justify="space-between" mb="xs">
-                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                     Minimum Rides for "Familiar"
                   </Text>
                   <Badge color="gray" variant="light">
@@ -656,10 +656,10 @@ export default function RoadPreferencesCard() {
                     { value: 5, label: '5' },
                   ]}
                   styles={{
-                    markLabel: { color: 'var(--tribos-text-secondary)', fontSize: 10 }
+                    markLabel: { color: 'var(--color-text-secondary)', fontSize: 10 }
                   }}
                 />
-                <Text size="xs" mt="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                <Text size="xs" mt="xs" style={{ color: 'var(--color-text-secondary)' }}>
                   How many times must you ride a road before it's considered familiar?
                 </Text>
               </Box>
@@ -667,7 +667,7 @@ export default function RoadPreferencesCard() {
               {/* Recency Weight */}
               <Box>
                 <Group justify="space-between" mb="xs">
-                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                     Recency Weight
                   </Text>
                   <Badge color="gray" variant="light">
@@ -687,10 +687,10 @@ export default function RoadPreferencesCard() {
                     { value: 100, label: 'High' },
                   ]}
                   styles={{
-                    markLabel: { color: 'var(--tribos-text-secondary)', fontSize: 10 }
+                    markLabel: { color: 'var(--color-text-secondary)', fontSize: 10 }
                   }}
                 />
-                <Text size="xs" mt="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                <Text size="xs" mt="xs" style={{ color: 'var(--color-text-secondary)' }}>
                   Favor roads you've ridden recently over roads from months ago?
                 </Text>
               </Box>
@@ -700,7 +700,7 @@ export default function RoadPreferencesCard() {
 
         {/* Save Button */}
         <Button
-          color="terracotta"
+          color="teal"
           onClick={handleSavePreferences}
           loading={savingPrefs}
           leftSection={<IconCheck size={16} />}

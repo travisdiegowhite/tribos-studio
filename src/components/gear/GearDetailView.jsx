@@ -199,7 +199,7 @@ export default function GearDetailView({
           {/* Header */}
           <Group justify="space-between" align="flex-start">
             <Group gap="sm">
-              <Icon size={24} color="var(--tribos-terracotta-500)" stroke={1.5} />
+              <Icon size={24} color="var(--color-teal)" stroke={1.5} />
               <Box>
                 <Title order={3}>{gear.name}</Title>
                 {(gear.brand || gear.model) && (
@@ -210,7 +210,7 @@ export default function GearDetailView({
               </Box>
             </Group>
             <Group gap={4}>
-              {gear.is_default && <Badge color="terracotta" variant="light">Default</Badge>}
+              {gear.is_default && <Badge color="teal" variant="light">Default</Badge>}
               {isRetired && <Badge color="gray" variant="light">Retired</Badge>}
             </Group>
           </Group>

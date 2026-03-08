@@ -914,7 +914,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           {/* Overall Progress */}
           <Progress
             value={(currentWeek / activePlan.duration_weeks) * 100}
-            color="terracotta"
+            color="teal"
             size="sm"
             radius="xl"
             mt="md"
@@ -984,7 +984,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       <Card>
         {/* Calendar Header */}
         <Group justify="space-between" mb="md">
-          <Text size="lg" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>{monthName}</Text>
+          <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{monthName}</Text>
           <Group gap="xs">
             <ActionIcon variant="subtle" onClick={previousMonth}>
               <IconChevronLeft size={18} />
@@ -997,7 +997,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
         {/* Show info about no active plan */}
         {!activePlan && rides.length === 0 && (
-          <Text style={{ color: 'var(--tribos-text-muted)' }} ta="center" py="xl">
+          <Text style={{ color: 'var(--color-text-muted)' }} ta="center" py="xl">
             No rides recorded yet. Connect Strava or upload rides to see them on the calendar.
           </Text>
         )}
@@ -1013,7 +1013,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
               marginBottom: '8px'
             }}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <Text key={day} size="xs" fw={600} style={{ color: 'var(--tribos-text-muted)' }} ta="center">
+                <Text key={day} size="xs" fw={600} style={{ color: 'var(--color-text-muted)' }} ta="center">
                   {day}
                 </Text>
               ))}
@@ -1059,8 +1059,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 });
 
                 // Determine border color based on workout completion and race goals
-                let borderColor = isToday ? 'var(--tribos-terracotta-500)' : 'var(--tribos-bg-tertiary)';
-                let backgroundColor = isToday ? `${'var(--tribos-terracotta-500)'}15` : isPast ? 'var(--tribos-bg-secondary)' : 'var(--tribos-bg-tertiary)';
+                let borderColor = isToday ? 'var(--color-teal)' : 'var(--color-bg-secondary)';
+                let backgroundColor = isToday ? `${'var(--color-teal)'}15` : isPast ? 'var(--color-bg-secondary)' : 'var(--color-bg-secondary)';
 
                 // Race day gets special styling
                 if (raceGoal) {
@@ -1100,7 +1100,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     style={{
                       minHeight: 110,
                       backgroundColor: isDropTarget ? 'rgba(132, 216, 99, 0.3)' : backgroundColor,
-                      border: isDropTarget ? `2px dashed ${'var(--tribos-terracotta-500)'}` : `2px solid ${borderColor}`,
+                      border: isDropTarget ? `2px dashed ${'var(--color-teal)'}` : `2px solid ${borderColor}`,
                       opacity: isPast && !workout?.completed && !dayRides.length ? 0.7 : 1,
                       cursor: hasDraggableWorkout ? 'grab' : (activePlan ? 'pointer' : 'default'),
                       transition: 'background-color 0.2s, border 0.2s',
@@ -1110,7 +1110,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     <Stack gap={4}>
                       {/* Date and completion checkbox */}
                       <Group justify="space-between" align="center">
-                        <Text size="sm" fw={700} style={{ color: 'var(--tribos-text-primary)' }}>
+                        <Text size="sm" fw={700} style={{ color: 'var(--color-text-primary)' }}>
                           {date.getDate()}
                         </Text>
                         {workout && workout.workout_type !== 'rest' && (
@@ -1148,14 +1148,14 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                             fw={600}
                             lineClamp={1}
                             mb={2}
-                            style={{ color: workout.completed ? 'var(--tribos-text-secondary)' : 'var(--tribos-text-primary)' }}
+                            style={{ color: workout.completed ? 'var(--color-text-secondary)' : 'var(--color-text-primary)' }}
                           >
                             {getWorkoutById(workout.workout_id)?.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
                           </Text>
                           {/* Duration and TSS - prominent */}
                           <Group gap={8}>
                             {workout.target_duration > 0 && (
-                              <Text size="xs" fw={500} style={{ color: 'var(--tribos-text-secondary)' }}>
+                              <Text size="xs" fw={500} style={{ color: 'var(--color-text-secondary)' }}>
                                 {workout.target_duration} min
                               </Text>
                             )}
@@ -1179,7 +1179,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               <ActionIcon
                                 size="xs"
                                 variant="light"
-                                color="terracotta"
+                                color="teal"
                                 mt={4}
                                 onClick={(e) => handleCreateRoute(e, workout, date)}
                               >
@@ -1238,7 +1238,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               fw={600}
                               lineClamp={1}
                               mt={2}
-                              style={{ color: 'var(--tribos-text-primary)' }}
+                              style={{ color: 'var(--color-text-primary)' }}
                             >
                               {raceGoal.name}
                             </Text>
@@ -1318,7 +1318,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       )}
 
                       {dayRides.length > 0 && (
-                        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                        <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                           {formatDistance(dayRides.reduce((sum, r) => sum + ((r.distance || 0) / 1000), 0))}
                         </Text>
                       )}
@@ -1331,32 +1331,32 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             {/* Legend */}
             <Stack gap="xs" mt="md">
               <Group gap="xs">
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} fw={600}>Workout Types:</Text>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Workout Types:</Text>
                 {Object.entries(WORKOUT_TYPES).slice(1, 6).map(([key, type]) => (
                   <Group gap={4} key={key}>
                     <Text size="lg">{type.icon}</Text>
-                    <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>{type.name}</Text>
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>{type.name}</Text>
                   </Group>
                 ))}
               </Group>
 
               {/* Race goals legend */}
               <Group gap="md">
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} fw={600}>Race Priority:</Text>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Race Priority:</Text>
                 <Group gap={4}>
                   <IconTrophy size={14} style={{ color: '#fa5252' }} />
                   <Badge size="xs" color="red" variant="filled">A</Badge>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Main Goal</Text>
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Main Goal</Text>
                 </Group>
                 <Group gap={4}>
                   <IconTrophy size={14} style={{ color: '#fd7e14' }} />
                   <Badge size="xs" color="orange" variant="filled">B</Badge>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Important</Text>
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Important</Text>
                 </Group>
                 <Group gap={4}>
                   <IconTrophy size={14} style={{ color: '#868e96' }} />
                   <Badge size="xs" color="gray" variant="filled">C</Badge>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Training</Text>
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Training</Text>
                 </Group>
                 <Button
                   size="xs"
@@ -1372,18 +1372,18 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
               {activePlan && (
                 <Group gap="md">
-                  <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} fw={600}>Status:</Text>
+                  <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Status:</Text>
                   <Group gap={4}>
                     <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: '#51cf66', border: '1px solid #51cf66' }} />
-                    <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Completed</Text>
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Completed</Text>
                   </Group>
                   <Group gap={4}>
                     <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'rgba(255, 107, 107, 0.15)', border: '2px solid #ff6b6b' }} />
-                    <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Missed</Text>
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Missed</Text>
                   </Group>
                   <Group gap={4}>
-                    <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: `${'var(--tribos-terracotta-500)'}15`, border: `2px solid ${'var(--tribos-terracotta-500)'}` }} />
-                    <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Today</Text>
+                    <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: `${'var(--color-teal)'}15`, border: `2px solid ${'var(--color-teal)'}` }} />
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Today</Text>
                   </Group>
                   <Text size="xs" c="dimmed" ml="auto">Drag workouts to move • Click to edit</Text>
                 </Group>
@@ -1400,7 +1400,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         aria-label={selectedWorkout ? 'Edit workout' : 'Add workout'}
         title={
           <Group gap="sm">
-            <ThemeIcon size="lg" color="terracotta" variant="light">
+            <ThemeIcon size="lg" color="teal" variant="light">
               <IconCalendarEvent size={18} />
             </ThemeIcon>
             <Text fw={600}>
@@ -1480,7 +1480,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 Cancel
               </Button>
               <Button
-                color="terracotta"
+                color="teal"
                 leftSection={<IconCheck size={16} />}
                 onClick={saveWorkout}
                 loading={saving}
