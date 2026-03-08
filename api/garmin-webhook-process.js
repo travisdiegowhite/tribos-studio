@@ -204,7 +204,7 @@ async function processActivityEvent(event) {
     console.log('✅ Token refreshed proactively');
   }
 
-  // Check if activity already imported
+  // Check if activity already imported (as Garmin)
   if (event.activity_id) {
     const { data: existing } = await supabase
       .from('activities')
@@ -361,9 +361,30 @@ async function downloadAndProcessActivity(event, integration) {
   const activityInfo = activityDetails || webhookInfo || {};
 
   // Build activity data
-  const source = activityDetails ? 'webhook_with_api' : 'webhook_push';
-  const activityData = buildActivityData(integration.user_id, event.activity_id, activityInfo, source);
+  let source = activityDetails ? 'webhook_with_api' : 'webhook_push';
+  let activityData = buildActivityData(integration.user_id, event.activity_id, activityInfo, source);
   activityData.raw_data = { webhook: payload, api: activityDetails };
+
+  // If critical fields are missing (no start_date or distance), try API fetch as fallback
+  // This is essential for dedup — without start_date we can't match against existing activities
+  if ((!activityData.start_date || activityData.distance == null) && !activityDetails && integration.access_token && summaryId) {
+    console.log('⚠️ Missing start_date or distance from webhook, fetching from Garmin API for dedup...');
+    activityDetails = await fetchGarminActivityDetails(integration.access_token, summaryId);
+    if (activityDetails) {
+      const enrichedInfo = { ...activityInfo, ...activityDetails };
+      source = 'webhook_with_api';
+      activityData = buildActivityData(integration.user_id, event.activity_id, enrichedInfo, source);
+      activityData.raw_data = { webhook: payload, api: activityDetails };
+    }
+  }
+
+  // Last resort: if start_date is still null after API fetch, use current time for the insert
+  // (but dedup will rely on whatever time we have)
+  if (!activityData.start_date) {
+    console.warn('⚠️ No start time available from webhook or API, using current time as fallback');
+    activityData.start_date = new Date().toISOString();
+    activityData.start_date_local = new Date().toISOString();
+  }
 
   // Cross-provider duplicate check
   const dupCheck = await checkForDuplicate(

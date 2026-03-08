@@ -48,8 +48,8 @@ export function getProviderPriority(provider) {
  * @returns {Promise<{isDuplicate: boolean, existingActivity: object|null, reason: string|null, shouldTakeover: boolean, shouldMerge: boolean}>}
  */
 export async function checkForDuplicate(userId, startDate, distanceMeters, currentProvider, currentActivityId) {
-  // If no start date or distance, can't check for duplicates reliably
-  if (!startDate || !distanceMeters) {
+  // If no start date, can't check for duplicates at all
+  if (!startDate) {
     return { isDuplicate: false, existingActivity: null, reason: null, shouldTakeover: false, shouldMerge: false };
   }
 
@@ -59,21 +59,26 @@ export async function checkForDuplicate(userId, startDate, distanceMeters, curre
   const fiveMinutesBefore = new Date(startTime.getTime() - 5 * 60 * 1000);
   const fiveMinutesAfter = new Date(startTime.getTime() + 5 * 60 * 1000);
 
-  // Distance tolerance: 1% or 100m, whichever is greater
-  const distanceTolerance = Math.max(distanceMeters * 0.01, 100);
-  const minDistance = distanceMeters - distanceTolerance;
-  const maxDistance = distanceMeters + distanceTolerance;
+  // Build the query - always filter by time window
+  let query = supabase
+    .from('activities')
+    .select('id, provider, provider_activity_id, name, start_date, distance')
+    .eq('user_id', userId)
+    .gte('start_date', fiveMinutesBefore.toISOString())
+    .lte('start_date', fiveMinutesAfter.toISOString());
+
+  // If we have distance, also filter by distance tolerance for precision
+  // If distance is missing, we still check by time window alone (less precise but prevents missed duplicates)
+  const hasDistance = distanceMeters != null && distanceMeters > 0;
+  if (hasDistance) {
+    const distanceTolerance = Math.max(distanceMeters * 0.01, 100);
+    const minDistance = distanceMeters - distanceTolerance;
+    const maxDistance = distanceMeters + distanceTolerance;
+    query = query.gte('distance', minDistance).lte('distance', maxDistance);
+  }
 
   try {
-    const { data: existingActivities, error } = await supabase
-      .from('activities')
-      .select('id, provider, provider_activity_id, name, start_date, distance')
-      .eq('user_id', userId)
-      .gte('start_date', fiveMinutesBefore.toISOString())
-      .lte('start_date', fiveMinutesAfter.toISOString())
-      .gte('distance', minDistance)
-      .lte('distance', maxDistance)
-      .limit(5);
+    const { data: existingActivities, error } = await query.limit(5);
 
     if (error) {
       console.error('Error checking for duplicate:', error);
@@ -97,8 +102,9 @@ export async function checkForDuplicate(userId, startDate, distanceMeters, curre
 
     if (duplicates.length > 0) {
       const existing = duplicates[0];
+      const matchType = hasDistance ? 'same time window and distance' : 'same time window (distance not available)';
       const reason = `Matches existing ${existing.provider} activity "${existing.name}" ` +
-                     `(ID: ${existing.id}) - same time window and distance`;
+                     `(ID: ${existing.id}) - ${matchType}`;
 
       // Determine if the new provider should take over or just merge
       const newPriority = getProviderPriority(currentProvider);

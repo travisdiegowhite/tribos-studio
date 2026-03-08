@@ -163,10 +163,10 @@ export function buildActivityData(userId, activityId, activityInfo, source = 'we
     sport_type: activityInfo.activityType || null,
     start_date: activityInfo.startTimeInSeconds
       ? new Date(activityInfo.startTimeInSeconds * 1000).toISOString()
-      : new Date().toISOString(),
+      : null,
     start_date_local: activityInfo.startTimeInSeconds
       ? new Date((activityInfo.startTimeInSeconds + (activityInfo.startTimeOffsetInSeconds || 0)) * 1000).toISOString()
-      : new Date().toISOString(),
+      : null,
     // Distance (Garmin sends in meters)
     distance: activityInfo.distanceInMeters ?? activityInfo.distance ?? null,
     // Duration (Garmin sends in seconds)
