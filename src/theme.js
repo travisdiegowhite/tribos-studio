@@ -521,11 +521,8 @@ export const theme = createTheme({
           },
           '&[data-active]': {
             background: 'transparent',
-            color: 'var(--tribos-text-100)',
+            color: 'var(--tab-color, var(--tribos-text-100))',
             borderBottom: '2px solid var(--tribos-terracotta-500)',
-          },
-          '&[data-variant="pills"][data-active]': {
-            color: '#FFFFFF',
           },
         },
       }),
