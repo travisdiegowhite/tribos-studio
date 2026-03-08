@@ -294,6 +294,7 @@ function RouteBuilder() {
 
   // Run Reach — road network reachability visualization
   const [showRunReach, setShowRunReach] = useState(false);
+  const [showRunReachPanel, setShowRunReachPanel] = useState(false);
   const [runReachData, setRunReachData] = useState(null);
   const [runReachSource, setRunReachSource] = useState('none'); // 'valhalla' | 'mapbox' | 'none'
   const [runReachLoading, setRunReachLoading] = useState(false);
@@ -809,7 +810,7 @@ function RouteBuilder() {
     }
   }, [showRunReach, runReachOrigin, fetchRunReachData]);
 
-  // Clear Run Reach data when toggled off
+  // Clear Run Reach data when toggled off via toolbar
   useEffect(() => {
     if (!showRunReach) {
       setRunReachData(null);
@@ -817,6 +818,7 @@ function RouteBuilder() {
       setRunReachOrigin(null);
       setSettingRunReachOrigin(false);
       setRunReachMaxDistance(0);
+      setShowRunReachPanel(false);
     }
   }, [showRunReach]);
 
@@ -3093,7 +3095,7 @@ function RouteBuilder() {
                   />
                 )}
 
-                {/* Run Reach Layer - road network reachability */}
+                {/* Run Reach Layer - road network reachability (persists after panel close) */}
                 {showRunReach && (
                   <RunReachLayer
                     data={runReachData}
@@ -3425,15 +3427,24 @@ function RouteBuilder() {
                     <IconBike size={20} color={showBikeInfrastructure ? '#fff' : 'var(--tribos-text-100)'} />
                   </Button>
                 </Tooltip>
-                <Tooltip label={showRunReach ? 'Hide Run Reach' : 'Run Reach'}>
+                <Tooltip label={showRunReachPanel ? 'Hide Run Reach' : showRunReach ? 'Show Run Reach Panel' : 'Run Reach'}>
                   <Button
                     variant={showRunReach ? 'filled' : 'default'}
                     color={showRunReach ? 'green' : 'dark'}
                     size="md"
                     onClick={() => {
-                      const newVal = !showRunReach;
-                      setShowRunReach(newVal);
-                      if (newVal) setSettingRunReachOrigin(true);
+                      if (showRunReach && showRunReachPanel) {
+                        // Panel visible: clear everything
+                        setShowRunReach(false);
+                      } else if (showRunReach && !showRunReachPanel) {
+                        // Panel hidden but viz active: reopen panel
+                        setShowRunReachPanel(true);
+                      } else {
+                        // Fresh start
+                        setShowRunReach(true);
+                        setShowRunReachPanel(true);
+                        setSettingRunReachOrigin(true);
+                      }
                     }}
                     loading={runReachLoading}
                     style={{
@@ -3629,7 +3640,7 @@ function RouteBuilder() {
             )}
 
             {/* Run Reach Panel (mobile) */}
-            {showRunReach && (
+            {showRunReachPanel && showRunReach && (
               <Box style={{ position: 'absolute', bottom: 110, left: 16, right: 16, zIndex: 10, maxHeight: 'calc(100% - 180px)', overflowY: 'auto' }}>
                 <RunReachPanel
                   mode={runReachMode}
@@ -3646,7 +3657,7 @@ function RouteBuilder() {
                   loading={runReachLoading}
                   source={runReachSource}
                   hasOrigin={!!runReachOrigin}
-                  onClose={() => setShowRunReach(false)}
+                  onClose={() => setShowRunReachPanel(false)}
                   onSetOrigin={() => setSettingRunReachOrigin(true)}
                 />
               </Box>
@@ -4830,15 +4841,21 @@ function RouteBuilder() {
                   <IconBike size={20} color={showBikeInfrastructure ? '#fff' : 'var(--tribos-text-100)'} />
                 </Button>
               </Tooltip>
-              <Tooltip label={showRunReach ? 'Hide Run Reach' : 'Run Reach'}>
+              <Tooltip label={showRunReachPanel ? 'Hide Run Reach' : showRunReach ? 'Show Run Reach Panel' : 'Run Reach'}>
                 <Button
                   variant={showRunReach ? 'filled' : 'default'}
                   color={showRunReach ? 'green' : 'dark'}
                   size="md"
                   onClick={() => {
-                    const newVal = !showRunReach;
-                    setShowRunReach(newVal);
-                    if (newVal) setSettingRunReachOrigin(true);
+                    if (showRunReach && showRunReachPanel) {
+                      setShowRunReach(false);
+                    } else if (showRunReach && !showRunReachPanel) {
+                      setShowRunReachPanel(true);
+                    } else {
+                      setShowRunReach(true);
+                      setShowRunReachPanel(true);
+                      setSettingRunReachOrigin(true);
+                    }
                   }}
                   loading={runReachLoading}
                   style={{
@@ -5055,13 +5072,13 @@ function RouteBuilder() {
                 />
               )}
 
-              {/* Run Reach Layer - road network reachability */}
-              {showRunReach && (
+              {/* Run Reach Layer - road network reachability (persists after panel close) */}
+              {(showRunReach || runReachData) && (
                 <RunReachLayer
                   data={runReachData}
                   source={runReachSource}
                   origin={runReachOrigin}
-                  visible={showRunReach}
+                  visible={!!(showRunReach || runReachData)}
                 />
               )}
 
@@ -5374,7 +5391,7 @@ function RouteBuilder() {
           )}
 
           {/* Run Reach Panel (desktop) */}
-          {showRunReach && (
+          {showRunReachPanel && showRunReach && (
             <Box style={{ position: 'absolute', bottom: 20, left: showPOIs ? 360 : 20, zIndex: 10 }}>
               <RunReachPanel
                 mode={runReachMode}
@@ -5391,7 +5408,7 @@ function RouteBuilder() {
                 loading={runReachLoading}
                 source={runReachSource}
                 hasOrigin={!!runReachOrigin}
-                onClose={() => setShowRunReach(false)}
+                onClose={() => setShowRunReachPanel(false)}
                 onSetOrigin={() => setSettingRunReachOrigin(true)}
               />
             </Box>
