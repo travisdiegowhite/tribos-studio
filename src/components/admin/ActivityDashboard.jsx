@@ -304,7 +304,7 @@ export default function ActivityDashboard() {
                         <Badge variant="light" color="blue">{user.page_views}</Badge>
                       </Table.Td>
                       <Table.Td>
-                        <Badge variant="light" color="sage">{user.sync_events}</Badge>
+                        <Badge variant="light" color="teal">{user.sync_events}</Badge>
                       </Table.Td>
                       <Table.Td>
                         <Badge variant="light" color="orange">{user.upload_events}</Badge>
@@ -568,7 +568,7 @@ export default function ActivityDashboard() {
                               <Badge variant="light">{data.total}</Badge>
                             </Table.Td>
                             <Table.Td>
-                              <Badge variant="light" color="sage">{data.unique_users}</Badge>
+                              <Badge variant="light" color="teal">{data.unique_users}</Badge>
                             </Table.Td>
                           </Table.Tr>
                         ))}

@@ -78,11 +78,11 @@ function getActivityColor(activity, index) {
   // Color palette for rides - recent rides are brighter
   // Note: Must use hex colors, not CSS variables, as Mapbox GL doesn't support CSS variables
   const colors = [
-    '#3A5A8C', // Terracotta - most recent
-    '#3D8B50', // Teal
-    '#D4820A', // Gold
-    '#6B7F94', // Mauve
-    '#8B6B5A', // Dusty rose
+    '#2A8C82', // Teal - most recent
+    '#2A8C82', // Teal
+    '#D4600A', // Orange
+    '#7A7970', // Muted
+    '#C49A0A', // Gold
   ];
 
   return colors[index % colors.length];
@@ -222,7 +222,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
       <Card>
         <Stack gap="md">
           <Group justify="space-between">
-            <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
               Recent Rides
             </Text>
           </Group>
@@ -236,8 +236,8 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
     return (
       <Card>
         <Stack gap="md" align="center" py="xl">
-          <IconMapPin size={48} color={'var(--tribos-text-muted)'} />
-          <Text style={{ color: 'var(--tribos-text-muted)' }}>
+          <IconMapPin size={48} color={'var(--color-text-muted)'} />
+          <Text style={{ color: 'var(--color-text-muted)' }}>
             Map requires configuration
           </Text>
         </Stack>
@@ -250,7 +250,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
       <Card>
         <Stack gap="md">
           <Group justify="space-between">
-            <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
               Recent Rides
             </Text>
           </Group>
@@ -258,7 +258,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
             style={{
               height: 300,
               borderRadius: tokens.radius.md,
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -266,11 +266,11 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
               gap: tokens.spacing.md,
             }}
           >
-            <IconRoute size={48} color={'var(--tribos-text-muted)'} />
-            <Text style={{ color: 'var(--tribos-text-muted)' }}>
+            <IconRoute size={48} color={'var(--color-text-muted)'} />
+            <Text style={{ color: 'var(--color-text-muted)' }}>
               No rides with route data yet
             </Text>
-            <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
               Connect Strava or upload FIT files to see your rides on the map
             </Text>
           </Box>
@@ -295,10 +295,10 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
           }}
         >
           <Group justify="space-between" align="center">
-            <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
               Recent Rides
             </Text>
-            <Badge variant="light" color="terracotta" size="sm">
+            <Badge variant="light" color="teal" size="sm">
               {allRidesWithRoutes.length} ride{allRidesWithRoutes.length !== 1 ? 's' : ''}
             </Badge>
           </Group>
@@ -373,7 +373,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
                     padding: '4px 8px',
                     borderRadius: tokens.radius.sm,
                     transition: 'background-color 0.15s',
-                    backgroundColor: hoveredActivity === ride.id ? 'var(--tribos-bg-tertiary)' : 'transparent',
+                    backgroundColor: hoveredActivity === ride.id ? 'var(--color-bg-secondary)' : 'transparent',
                     opacity: isOnMap ? 1 : 0.6,
                   }}
                   onMouseEnter={() => isOnMap && setHoveredActivity(ride.id)}
@@ -385,29 +385,29 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
                         width: 12,
                         height: 12,
                         borderRadius: '50%',
-                        backgroundColor: isOnMap ? ride.color : 'var(--tribos-text-muted)',
+                        backgroundColor: isOnMap ? ride.color : 'var(--color-text-muted)',
                         flexShrink: 0,
-                        border: isOnMap ? 'none' : `1px dashed ${'var(--tribos-text-muted)'}`,
+                        border: isOnMap ? 'none' : `1px dashed ${'var(--color-text-muted)'}`,
                       }}
                     />
                     <Text
                       size="sm"
                       fw={500}
                       lineClamp={1}
-                      style={{ color: isOnMap ? 'var(--tribos-text-primary)' : 'var(--tribos-text-muted)' }}
+                      style={{ color: isOnMap ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}
                     >
                       {ride.name || 'Untitled Ride'}
                       {!isOnMap && ' (virtual)'}
                     </Text>
                   </Group>
                   <Group gap="md" wrap="nowrap">
-                    <Text size="xs" style={{ color: isOnMap ? 'var(--tribos-text-secondary)' : 'var(--tribos-text-muted)' }}>
+                    <Text size="xs" style={{ color: isOnMap ? 'var(--color-text-secondary)' : 'var(--color-text-muted)' }}>
                       {formatDate(ride.start_date)}
                     </Text>
-                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                    <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                       {formatDist ? formatDist(distanceKm) : `${distanceKm.toFixed(1)} km`}
                     </Text>
-                    <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                    <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                       {formatDuration(duration)}
                     </Text>
                     {stravaActivityId && (

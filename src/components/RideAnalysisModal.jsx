@@ -312,7 +312,7 @@ const RideAnalysisModal = ({
       onClose={onClose}
       title={
         <Group gap="sm">
-          <ThemeIcon size="lg" color="terracotta" variant="light">
+          <ThemeIcon size="lg" color="teal" variant="light">
             <IconRoute size={18} />
           </ThemeIcon>
           <Box>
@@ -342,7 +342,7 @@ const RideAnalysisModal = ({
             <Box
               p="xl"
               ta="center"
-              style={{ backgroundColor: 'var(--tribos-card)' }}
+              style={{ backgroundColor: 'var(--color-card)' }}
             >
               <IconMapOff size={48} style={{ opacity: 0.3, marginBottom: 8 }} />
               <Text c="dimmed" size="sm">
@@ -398,7 +398,7 @@ const RideAnalysisModal = ({
           </Paper>
 
           <Paper p="md" withBorder ta="center">
-            <ThemeIcon size="lg" variant="light" color="terracotta" mb="xs">
+            <ThemeIcon size="lg" variant="light" color="teal" mb="xs">
               <IconFlame size={18} />
             </ThemeIcon>
             <Text size="xl" fw={700}>
@@ -418,7 +418,7 @@ const RideAnalysisModal = ({
                 <Group gap="xs">
                   <Text size="sm">Power Analysis</Text>
                   {metrics.deviceWatts && (
-                    <Badge size="xs" color="terracotta" variant="light" leftSection={<IconGauge size={10} />}>
+                    <Badge size="xs" color="teal" variant="light" leftSection={<IconGauge size={10} />}>
                       Power Meter
                     </Badge>
                   )}
@@ -440,7 +440,7 @@ const RideAnalysisModal = ({
                       )}
                     </Group>
                   </Box>
-                  <IconBolt size={20} style={{ color: 'var(--tribos-terracotta-500)' }} />
+                  <IconBolt size={20} style={{ color: 'var(--color-teal)' }} />
                 </Group>
               </Paper>
 
@@ -663,14 +663,14 @@ const RideAnalysisModal = ({
 
         {/* Strava attribution if applicable */}
         {ride.provider === 'strava' && (
-          <Box pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
+          <Box pt="sm" style={{ borderTop: '1px solid var(--color-border)' }}>
             <PoweredByStrava variant="light" size="sm" />
           </Box>
         )}
 
         {/* Garmin attribution if applicable */}
         {ride.provider === 'garmin' && (
-          <Box pt="sm" style={{ borderTop: ride.provider === 'strava' ? 'none' : '1px solid var(--tribos-border-default)' }}>
+          <Box pt="sm" style={{ borderTop: ride.provider === 'strava' ? 'none' : '1px solid var(--color-border)' }}>
             <PoweredByGarmin variant="light" size="sm" />
           </Box>
         )}

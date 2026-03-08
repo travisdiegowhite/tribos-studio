@@ -78,7 +78,7 @@ function BottomSheet({
         right: 0,
         height: getHeight(),
         maxHeight: '85vh',
-        backgroundColor: 'var(--tribos-bg-secondary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         borderRadius: '16px 16px 0 0',
         zIndex: 200,
         transition: isDragging ? 'none' : 'height 0.3s ease-out',
@@ -113,7 +113,7 @@ function BottomSheet({
           style={{
             width: 40,
             height: 5,
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             borderRadius: 3,
           }}
         />
@@ -124,7 +124,7 @@ function BottomSheet({
             display: 'flex',
             alignItems: 'center',
             gap: 4,
-            color: 'var(--tribos-text-muted)',
+            color: 'var(--color-text-muted)',
           }}
         >
           {isExpanded ? (

@@ -60,10 +60,10 @@ const MAPBOX_TOKEN = (import.meta as any).env.VITE_MAPBOX_TOKEN;
 
 // Segment type colors (reused from RouteAnalysisPanel)
 const SEGMENT_COLORS: Record<string, string> = {
-  flat: '#3D8B50',
-  climb: '#3A5A8C',
-  descent: '#3D8B50',
-  rolling: '#D4820A',
+  flat: '#2A8C82',
+  climb: '#C43C2A',
+  descent: '#2A8C82',
+  rolling: '#D4600A',
 };
 
 // Power zone display names and colors
@@ -143,7 +143,7 @@ function SegmentCard({
       style={{
         cursor: 'pointer',
         borderRadius: 0,
-        borderColor: 'var(--tribos-border-default)',
+        borderColor: 'var(--color-border)',
         transition: 'box-shadow 150ms ease',
       }}
       onClick={onClick}
@@ -167,15 +167,15 @@ function SegmentCard({
         {/* Row 2: Stats */}
         <Group gap="xs">
           <Group gap={4}>
-            <IconRoad size={14} style={{ color: 'var(--tribos-text-secondary)' }} />
+            <IconRoad size={14} style={{ color: 'var(--color-text-secondary)' }} />
             <Text size="xs" c="dimmed">{formatDistance(segment.distance_meters)}</Text>
           </Group>
           <Group gap={4}>
-            <IconTrendingUp size={14} style={{ color: 'var(--tribos-text-secondary)' }} />
+            <IconTrendingUp size={14} style={{ color: 'var(--color-text-secondary)' }} />
             <Text size="xs" c="dimmed">{segment.avg_gradient.toFixed(1)}%</Text>
           </Group>
           <Group gap={4}>
-            <IconMountain size={14} style={{ color: 'var(--tribos-text-secondary)' }} />
+            <IconMountain size={14} style={{ color: 'var(--color-text-secondary)' }} />
             <Text size="xs" c="dimmed">{Math.round(segment.elevation_gain_meters)}m</Text>
           </Group>
         </Group>
@@ -391,7 +391,7 @@ function SegmentDetailModal({
           </Group>
 
           {/* Map */}
-          <Box style={{ height: 300, borderRadius: 0, overflow: 'hidden', border: '1.5px solid var(--tribos-border-default)' }}>
+          <Box style={{ height: 300, borderRadius: 0, overflow: 'hidden', border: '1.5px solid var(--color-border)' }}>
             <Map
               initialViewState={initialViewState}
               style={{ width: '100%', height: '100%' }}
@@ -417,7 +417,7 @@ function SegmentDetailModal({
               {coords.length > 0 && (
                 <Marker longitude={coords[0][0]} latitude={coords[0][1]} anchor="bottom">
                   <div style={{
-                    backgroundColor: '#3D8B50',
+                    backgroundColor: '#2A8C82',
                     color: 'white',
                     width: 24,
                     height: 24,
@@ -439,7 +439,7 @@ function SegmentDetailModal({
               {coords.length > 1 && (
                 <Marker longitude={coords[coords.length - 1][0]} latitude={coords[coords.length - 1][1]} anchor="bottom">
                   <div style={{
-                    backgroundColor: '#3A5A8C',
+                    backgroundColor: '#C43C2A',
                     color: 'white',
                     width: 24,
                     height: 24,
@@ -647,7 +647,7 @@ function SegmentDetailModal({
               <Button
                 size="xs"
                 variant="light"
-                color="terracotta"
+                color="teal"
                 leftSection={<IconTarget size={14} />}
                 loading={matchesLoading}
                 onClick={onComputeMatches}
@@ -833,7 +833,7 @@ function SegmentLibraryPanel({
           { label: 'My Segments', value: 'segments' },
           { label: 'Route Analysis', value: 'routes' },
         ]}
-        color="terracotta"
+        color="teal"
         style={{ borderRadius: 0 }}
       />
 
@@ -845,7 +845,7 @@ function SegmentLibraryPanel({
               <ThemeIcon
                 size="md"
                 variant="light"
-                color="terracotta"
+                color="teal"
                 style={{ borderRadius: 0 }}
               >
                 <IconActivity size={16} />
@@ -857,7 +857,7 @@ function SegmentLibraryPanel({
             <Button
               size="xs"
               variant="light"
-              color="terracotta"
+              color="teal"
               leftSection={<IconRefresh size={14} />}
               loading={analyzing}
               onClick={handleAnalyze}
@@ -925,7 +925,7 @@ function SegmentLibraryPanel({
           {/* Segment grid */}
           {loading ? (
             <Center py="xl">
-              <Loader color="terracotta" size="md" />
+              <Loader color="teal" size="md" />
             </Center>
           ) : filteredSegments.length > 0 ? (
             <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
@@ -944,7 +944,7 @@ function SegmentLibraryPanel({
               style={{
                 borderRadius: 0,
                 textAlign: 'center',
-                borderColor: 'var(--tribos-border-default)',
+                borderColor: 'var(--color-border)',
               }}
             >
               <Stack align="center" gap="sm">
@@ -959,7 +959,7 @@ function SegmentLibraryPanel({
                 <Button
                   size="sm"
                   variant="light"
-                  color="terracotta"
+                  color="teal"
                   leftSection={<IconRefresh size={16} />}
                   loading={analyzing}
                   onClick={handleAnalyze}

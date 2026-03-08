@@ -30,7 +30,7 @@ function TypingIndicator() {
               width: 6,
               height: 6,
               borderRadius: '50%',
-              backgroundColor: 'var(--tribos-terracotta-500)',
+              backgroundColor: 'var(--color-teal)',
               animation: 'coachBounce 1.4s ease-in-out infinite',
               animationDelay: `${i * 0.16}s`,
             }}
@@ -95,7 +95,7 @@ function CoachResponseArea({
       <Paper
         p="lg"
         style={{
-          backgroundColor: 'var(--tribos-bg-tertiary)',
+          backgroundColor: 'var(--color-bg-secondary)',
           border: '1px solid var(--tribos-border)',
         }}
       >
@@ -112,7 +112,7 @@ function CoachResponseArea({
     <Paper
       p="lg"
       style={{
-        backgroundColor: 'var(--tribos-bg-tertiary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         border: '1px solid var(--tribos-border)',
       }}
     >
@@ -121,7 +121,7 @@ function CoachResponseArea({
         <Text
           size="sm"
           style={{
-            color: 'var(--tribos-text-primary)',
+            color: 'var(--color-text-primary)',
             lineHeight: 1.6,
             whiteSpace: 'pre-wrap',
           }}
@@ -139,7 +139,7 @@ function CoachResponseArea({
                   key={action.id || index}
                   size="xs"
                   variant={action.primary ? 'filled' : 'light'}
-                  color="terracotta"
+                  color="teal"
                   leftSection={<ActionIcon size={14} />}
                   onClick={() => onActionClick?.(action)}
                   styles={{

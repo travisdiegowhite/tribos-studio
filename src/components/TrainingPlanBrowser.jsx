@@ -1047,7 +1047,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       style={{
         cursor: 'pointer',
         transition: 'all 0.2s',
-        borderColor: 'var(--tribos-bg-tertiary)',
+        borderColor: 'var(--color-bg-secondary)',
       }}
       onClick={() => handlePreviewPlan(plan)}
     >
@@ -1056,7 +1056,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           <Box style={{ flex: 1 }}>
             <Group gap="xs" mb={4}>
               <Text size="lg">{getGoalIcon(plan.goal)}</Text>
-              <Text fw={600} size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+              <Text fw={600} size="sm" style={{ color: 'var(--color-text-primary)' }}>
                 {plan.name}
               </Text>
             </Group>
@@ -1097,13 +1097,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
         <Group gap="lg">
           <Group gap={4}>
-            <IconClock size={14} style={{ color: 'var(--tribos-text-muted)' }} />
+            <IconClock size={14} style={{ color: 'var(--color-text-muted)' }} />
             <Text size="xs" c="dimmed">
               {plan.hoursPerWeek?.min}-{plan.hoursPerWeek?.max} hrs/wk
             </Text>
           </Group>
           <Group gap={4}>
-            <IconTrendingUp size={14} style={{ color: 'var(--tribos-text-muted)' }} />
+            <IconTrendingUp size={14} style={{ color: 'var(--color-text-muted)' }} />
             <Text size="xs" c="dimmed">
               {plan.weeklyTSS?.min}-{plan.weeklyTSS?.max} TSS
             </Text>
@@ -1112,7 +1112,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
         <Button
           variant="light"
-          color="terracotta"
+          color="teal"
           size="xs"
           fullWidth
           rightSection={<IconChevronRight size={14} />}
@@ -1146,17 +1146,17 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           {/* Key Stats */}
           <SimpleGrid cols={{ base: 3 }} spacing="xs">
             <Paper p="sm" withBorder ta="center">
-              <IconCalendar size={20} style={{ color: 'var(--tribos-text-muted)', marginBottom: 4 }} />
+              <IconCalendar size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.duration}</Text>
               <Text size="xs" c="dimmed">weeks</Text>
             </Paper>
             <Paper p="sm" withBorder ta="center">
-              <IconClock size={20} style={{ color: 'var(--tribos-text-muted)', marginBottom: 4 }} />
+              <IconClock size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.hoursPerWeek?.min}-{selectedPlan.hoursPerWeek?.max}</Text>
               <Text size="xs" c="dimmed">hrs/week</Text>
             </Paper>
             <Paper p="sm" withBorder ta="center">
-              <IconTrendingUp size={20} style={{ color: 'var(--tribos-text-muted)', marginBottom: 4 }} />
+              <IconTrendingUp size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.weeklyTSS?.min}-{selectedPlan.weeklyTSS?.max}</Text>
               <Text size="xs" c="dimmed">weekly TSS</Text>
             </Paper>
@@ -1248,7 +1248,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
           {/* Activate Button */}
           <Button
-            color="terracotta"
+            color="teal"
             size="md"
             fullWidth
             leftSection={<IconPlayerPlay size={18} />}
@@ -1303,7 +1303,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   <Text size="sm" fw={500}>{plan.name}</Text>
                   <Text size="xs" c="dimmed">{plan.duration} weeks</Text>
                 </Box>
-                <IconChevronRight size={16} style={{ color: 'var(--tribos-text-muted)' }} />
+                <IconChevronRight size={16} style={{ color: 'var(--color-text-muted)' }} />
               </Group>
             </Paper>
           ))}
@@ -1323,7 +1323,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
     <Box>
       {/* Header */}
       <Group justify="space-between" mb="md" wrap="wrap" gap="sm">
-        <Text fw={600} size="lg" style={{ color: 'var(--tribos-text-primary)' }}>
+        <Text fw={600} size="lg" style={{ color: 'var(--color-text-primary)' }}>
           Training Plans
         </Text>
         <Group gap="sm">
@@ -1404,10 +1404,10 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
       {/* Active Plan Card with Management */}
       {activePlan && (
-        <Card withBorder mb="md" p="md" style={{ borderColor: 'var(--tribos-terracotta-500)', borderWidth: 2 }}>
+        <Card withBorder mb="md" p="md" style={{ borderColor: 'var(--color-teal)', borderWidth: 2 }}>
           <Group justify="space-between" mb="sm">
             <Group gap="sm">
-              <ThemeIcon size="lg" color="terracotta" variant="light">
+              <ThemeIcon size="lg" color="teal" variant="light">
                 <IconPlayerPlay size={18} />
               </ThemeIcon>
               <Box>
@@ -1479,7 +1479,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   <Text size="xs" c="dimmed">Week {week} of {activePlan.duration_weeks}</Text>
                   <Text size="xs" c="dimmed">{daysRemaining} days remaining</Text>
                 </Group>
-                <Progress value={progress} color="terracotta" size="sm" radius="xl" />
+                <Progress value={progress} color="teal" size="sm" radius="xl" />
                 {activePlan.compliance_percentage > 0 && (
                   <Text size="xs" c="dimmed" mt={4}>
                     Compliance: {Math.round(activePlan.compliance_percentage)}% ({activePlan.workouts_completed}/{activePlan.workouts_total} workouts)
@@ -1523,7 +1523,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         }}
         title={
           <Group gap="sm">
-            <ThemeIcon size="lg" color="terracotta" variant="light">
+            <ThemeIcon size="lg" color="teal" variant="light">
               <IconCalendar size={18} />
             </ThemeIcon>
             <Box>
@@ -1560,7 +1560,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
           {/* Date Summary */}
           {selectedStartDate && planToActivate && (
-            <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${'var(--tribos-terracotta-500)'}10` }}>
+            <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${'var(--color-teal)'}10` }}>
               <SimpleGrid cols={{ base: 1, xs: 2 }}>
                 <Box>
                   <Text size="xs" c="dimmed" tt="uppercase">Starts</Text>
@@ -1608,7 +1608,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               Cancel
             </Button>
             <Button
-              color="terracotta"
+              color="teal"
               size="md"
               leftSection={<IconPlayerPlay size={18} />}
               onClick={() => handleActivatePlan(planToActivate, selectedStartDate)}

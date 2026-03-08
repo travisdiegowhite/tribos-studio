@@ -54,7 +54,7 @@ const PacingTooltip = ({ active, payload }) => {
   if (!data) return null;
 
   return (
-    <Paper p="xs" withBorder style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+    <Paper p="xs" withBorder style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <Text size="xs" fw={600}>{data.label}</Text>
       <Text size="xs">{Math.round(data.watts)} W</Text>
     </Paper>
@@ -92,8 +92,8 @@ const RidePacingChart = ({ activity, ftp }) => {
   return (
     <Stack gap="xs">
       <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="xs">
-        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
-          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Strategy</Text>
+        <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+          <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Strategy</Text>
           <Group gap={4}>
             <Badge size="sm" color={strategy.color} variant="light">
               {strategy.label}
@@ -101,17 +101,17 @@ const RidePacingChart = ({ activity, ftp }) => {
           </Group>
         </Paper>
         {splitRatio != null && (
-          <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Split Ratio</Text>
+          <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Split Ratio</Text>
             <Text size="sm" fw={600}>{splitRatio.toFixed(2)}</Text>
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
               {splitRatio < 1 ? '2nd half harder' : splitRatio > 1 ? '1st half harder' : 'Even'}
             </Text>
           </Paper>
         )}
         {powerFade != null && (
-          <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Power Fade</Text>
+          <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Power Fade</Text>
             <Text size="sm" fw={600} style={{ color: powerFade > 10 ? tokens.colors.zone4 : 'inherit' }}>
               {powerFade > 0 ? `-${Math.round(powerFade)}%` : `+${Math.abs(Math.round(powerFade))}%`}
             </Text>
@@ -121,13 +121,13 @@ const RidePacingChart = ({ activity, ftp }) => {
 
       <ResponsiveContainer width="100%" height={180}>
         <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--tribos-bg-tertiary)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bg-secondary)" />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
             width={45}
             domain={['dataMin - 20', 'auto']}
           />

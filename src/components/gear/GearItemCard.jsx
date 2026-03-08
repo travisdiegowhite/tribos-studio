@@ -40,7 +40,7 @@ export default function GearItemCard({ gear, onClick, useImperial = true }) {
           <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
             <Icon
               size={20}
-              color="var(--tribos-terracotta-500)"
+              color="var(--color-teal)"
               stroke={1.5}
             />
             <Box style={{ minWidth: 0 }}>
@@ -54,7 +54,7 @@ export default function GearItemCard({ gear, onClick, useImperial = true }) {
           </Group>
           <Group gap={4}>
             {gear.is_default && (
-              <Badge size="xs" variant="light" color="terracotta">Default</Badge>
+              <Badge size="xs" variant="light" color="teal">Default</Badge>
             )}
             {isRetired && (
               <Badge size="xs" variant="light" color="gray">Retired</Badge>
@@ -63,7 +63,7 @@ export default function GearItemCard({ gear, onClick, useImperial = true }) {
         </Group>
 
         <Group justify="space-between">
-          <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
             {formatDistance(distanceKm, useImperial, 0)}
           </Text>
           {!isShoes && activeComponents.length > 0 && (

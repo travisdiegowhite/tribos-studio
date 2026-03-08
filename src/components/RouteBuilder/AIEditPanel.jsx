@@ -89,9 +89,9 @@ export default function AIEditPanel({
   return (
     <Box
       style={{
-        backgroundColor: 'var(--tribos-bg-secondary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         borderRadius: tokens.radius.md,
-        border: '1px solid var(--tribos-bg-tertiary)',
+        border: '1px solid var(--color-bg-secondary)',
         overflow: 'hidden',
       }}
     >
@@ -100,11 +100,11 @@ export default function AIEditPanel({
         justify="space-between"
         px="sm"
         py="xs"
-        style={{ borderBottom: '1px solid var(--tribos-bg-tertiary)' }}
+        style={{ borderBottom: '1px solid var(--color-bg-secondary)' }}
       >
         <Group gap={6}>
-          <IconWand size={16} color="var(--tribos-terracotta-500)" />
-          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <IconWand size={16} color="var(--color-teal)" />
+          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             AI Route Edit
           </Text>
         </Group>
@@ -159,15 +159,15 @@ export default function AIEditPanel({
               style={{ flex: 1 }}
               styles={{
                 input: {
-                  backgroundColor: 'var(--tribos-bg-primary)',
-                  borderColor: 'var(--tribos-bg-tertiary)',
+                  backgroundColor: 'var(--color-bg)',
+                  borderColor: 'var(--color-bg-secondary)',
                   fontSize: 13,
                 },
               }}
             />
             <ActionIcon
               variant="filled"
-              color="terracotta"
+              color="teal"
               size="lg"
               onClick={handleSubmit}
               disabled={!inputText.trim() || loading}
@@ -180,8 +180,8 @@ export default function AIEditPanel({
         {/* Loading state */}
         {loading && (
           <Group gap="xs" justify="center" py="xs">
-            <Loader size={16} color="terracotta" />
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Loader size={16} color="teal" />
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
               Finding a better route...
             </Text>
           </Group>
@@ -212,7 +212,7 @@ export default function AIEditPanel({
                 borderRadius: tokens.radius.sm,
               }}
             >
-              <Text size="xs" fw={500} style={{ color: 'var(--tribos-terracotta-500)' }} mb={4}>
+              <Text size="xs" fw={500} style={{ color: 'var(--color-teal)' }} mb={4}>
                 {lastResult.message}
               </Text>
 
@@ -241,7 +241,7 @@ export default function AIEditPanel({
             <Group grow>
               <Button
                 variant="filled"
-                color="terracotta"
+                color="teal"
                 size="xs"
                 onClick={onAccept}
                 leftSection={<IconCheck size={14} />}
@@ -278,7 +278,7 @@ function ComparisonStat({ label, delta, unit, value, formatDist }) {
 
   return (
     <Box>
-      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>{label}</Text>
+      <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>{label}</Text>
       <Badge size="xs" variant="light" color={color}>
         {sign}{displayDelta}{unit}
       </Badge>

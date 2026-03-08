@@ -76,7 +76,7 @@ export const ROUTE_PROFILES = [
 
 // Waypoint marker colors
 export const WAYPOINT_COLORS = {
-  start: '#3D8B50', // Sage
-  end: '#3A5A8C',   // Terracotta
-  waypoint: '#3D8B50', // Teal
+  start: '#2A8C82', // Teal
+  end: '#C43C2A',   // Coral
+  waypoint: '#2A8C82', // Teal
 };

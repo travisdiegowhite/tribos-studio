@@ -279,7 +279,7 @@ const RideHistoryTable = ({
               key={ride.id}
               withBorder
               p="sm"
-              style={{ backgroundColor: 'var(--tribos-card)', cursor: 'pointer' }}
+              style={{ backgroundColor: 'var(--color-card)', cursor: 'pointer' }}
               onClick={() => onViewRide?.(ride)}
             >
               <Group justify="space-between" mb="xs">
@@ -525,7 +525,7 @@ const RideHistoryTable = ({
 
       {/* Pagination controls - show when there are multiple pages */}
       {totalPages > 1 && maxRows === Infinity && (
-        <Group justify="space-between" align="center" mt="md" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
+        <Group justify="space-between" align="center" mt="md" pt="sm" style={{ borderTop: '1px solid var(--color-border)' }}>
           <Text size="xs" c="dimmed">
             Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalFilteredCount)} of {totalFilteredCount} activities
           </Text>
@@ -554,14 +554,14 @@ const RideHistoryTable = ({
 
       {/* Strava Attribution - show if any rides are from Strava */}
       {filteredRides.some(r => isFromStrava(r)) && (
-        <Box mt="sm" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
+        <Box mt="sm" pt="sm" style={{ borderTop: '1px solid var(--color-border)' }}>
           <PoweredByStrava variant="light" size="sm" />
         </Box>
       )}
 
       {/* Garmin Attribution - show if any rides are from Garmin */}
       {filteredRides.some(r => r.provider === 'garmin' || r.imported_from === 'garmin') && (
-        <Box mt="sm" pt="sm" style={{ borderTop: filteredRides.some(r => isFromStrava(r)) ? 'none' : '1px solid var(--tribos-border-default)' }}>
+        <Box mt="sm" pt="sm" style={{ borderTop: filteredRides.some(r => isFromStrava(r)) ? 'none' : '1px solid var(--color-border)' }}>
           <PoweredByGarmin variant="light" size="sm" />
         </Box>
       )}

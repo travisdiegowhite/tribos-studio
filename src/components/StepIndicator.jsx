@@ -14,7 +14,7 @@ function StepIndicator({ currentStep, steps, onStepClick }) {
   return (
     <Box
       style={{
-        backgroundColor: 'var(--tribos-bg-tertiary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         borderRadius: tokens.radius.md,
         padding: '16px',
         marginBottom: '16px',
@@ -47,12 +47,12 @@ function StepIndicator({ currentStep, steps, onStepClick }) {
                   height: 36,
                   borderRadius: '50%',
                   backgroundColor: isCompleted
-                    ? 'var(--tribos-terracotta-500)'
+                    ? 'var(--color-teal)'
                     : isActive
-                    ? `${'var(--tribos-terracotta-500)'}30`
-                    : 'var(--tribos-bg-secondary)',
+                    ? `${'var(--color-teal)'}30`
+                    : 'var(--color-bg-secondary)',
                   border: isActive
-                    ? `2px solid ${'var(--tribos-terracotta-500)'}`
+                    ? `2px solid ${'var(--color-teal)'}`
                     : isCompleted
                     ? 'none'
                     : `1px solid ${'var(--tribos-bg-elevated)'}`,
@@ -64,15 +64,15 @@ function StepIndicator({ currentStep, steps, onStepClick }) {
                 }}
               >
                 {isCompleted ? (
-                  <IconCheck size={18} style={{ color: 'var(--tribos-bg-primary)' }} />
+                  <IconCheck size={18} style={{ color: 'var(--color-bg)' }} />
                 ) : (
                   <Text
                     size="sm"
                     fw={600}
                     style={{
                       color: isActive
-                        ? 'var(--tribos-terracotta-500)'
-                        : 'var(--tribos-text-muted)',
+                        ? 'var(--color-teal)'
+                        : 'var(--color-text-muted)',
                     }}
                   >
                     {step.icon || index + 1}
@@ -84,10 +84,10 @@ function StepIndicator({ currentStep, steps, onStepClick }) {
                 fw={isActive ? 600 : 400}
                 style={{
                   color: isActive
-                    ? 'var(--tribos-terracotta-500)'
+                    ? 'var(--color-teal)'
                     : isCompleted
-                    ? 'var(--tribos-text-primary)'
-                    : 'var(--tribos-text-muted)',
+                    ? 'var(--color-text-primary)'
+                    : 'var(--color-text-muted)',
                   textAlign: 'center',
                   whiteSpace: 'nowrap',
                 }}
@@ -103,8 +103,8 @@ function StepIndicator({ currentStep, steps, onStepClick }) {
       <Progress
         value={progressPercentage}
         size="xs"
-        color="terracotta"
-        style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}
+        color="teal"
+        style={{ backgroundColor: 'var(--color-bg-secondary)' }}
         animated={currentStep < steps.length - 1}
       />
     </Box>

@@ -32,7 +32,7 @@ const integrations = [
     name: 'FIT Upload',
     subtitle: 'Direct file upload',
     icon: IconUpload,
-    color: 'var(--tribos-terracotta-500)',
+    color: 'var(--color-teal)',
     themeColor: 'terracotta',
     delay: 1200,
   },
@@ -74,7 +74,7 @@ export default function ConnectStep() {
                   fontFamily: "'DM Mono', monospace",
                   letterSpacing: '3px',
                   textTransform: 'uppercase',
-                  color: 'var(--tribos-terracotta-500)',
+                  color: 'var(--color-teal)',
                   marginBottom: 8,
                 }}
               >
@@ -87,7 +87,7 @@ export default function ConnectStep() {
                   fontSize: 'clamp(1.4rem, 3.5vw, 2.2rem)',
                   fontFamily: "'Anybody', sans-serif",
                   fontWeight: 800,
-                  color: 'var(--tribos-text-primary)',
+                  color: 'var(--color-text-primary)',
                 }}
               >
                 Link your accounts. One click each.
@@ -110,7 +110,7 @@ export default function ConnectStep() {
                     className={`integration-card ${isActive ? 'active' : ''}`}
                     style={{
                       textAlign: 'center',
-                      border: `2px solid ${isActive ? integration.color : 'var(--tribos-border-default)'}`,
+                      border: `2px solid ${isActive ? integration.color : 'var(--color-border)'}`,
                       boxShadow: isActive ? `0 0 20px ${integration.color}20` : undefined,
                     }}
                   >
@@ -123,7 +123,7 @@ export default function ConnectStep() {
                       >
                         <Icon size={24} />
                       </ThemeIcon>
-                      <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                      <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
                         {integration.name}
                       </Text>
                       <Text size="xs" c="dimmed">
@@ -140,7 +140,7 @@ export default function ConnectStep() {
                           transition: 'opacity 0.3s ease-out, transform 0.3s ease-out',
                         }}
                       >
-                        <IconCheck size={14} color="var(--tribos-sage-500)" />
+                        <IconCheck size={14} color="var(--color-gold)" />
                         <Text
                           size="xs"
                           fw={600}
@@ -148,7 +148,7 @@ export default function ConnectStep() {
                             fontFamily: "'DM Mono', monospace",
                             letterSpacing: '1px',
                             textTransform: 'uppercase',
-                            color: 'var(--tribos-sage-500)',
+                            color: 'var(--color-gold)',
                           }}
                         >
                           Connected

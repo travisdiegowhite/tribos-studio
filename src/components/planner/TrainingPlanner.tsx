@@ -768,7 +768,7 @@ export function TrainingPlanner({
           height: 400,
         }}
       >
-        <Loader color="terracotta" />
+        <Loader color="teal" />
       </Box>
     );
   }
@@ -950,7 +950,7 @@ export function TrainingPlanner({
                 <Button
                   variant="light"
                   size="xs"
-                  color="terracotta"
+                  color="teal"
                   leftSection={<IconBrain size={14} />}
                   onClick={handleWeekReview}
                   loading={store.isReviewingWeek}
@@ -962,7 +962,7 @@ export function TrainingPlanner({
                   <Button
                     variant="filled"
                     size="xs"
-                    color="terracotta"
+                    color="teal"
                     leftSection={<IconDeviceFloppy size={14} />}
                     onClick={handleSave}
                     loading={store.isSaving}
@@ -979,7 +979,7 @@ export function TrainingPlanner({
                 {store.hasUnsavedChanges && (
                   <ActionIcon
                     variant="filled"
-                    color="terracotta"
+                    color="teal"
                     onClick={handleSave}
                     loading={store.isSaving}
                   >
@@ -1129,7 +1129,7 @@ export function TrainingPlanner({
                 <ActionIcon
                   size={56}
                   radius="xl"
-                  color="terracotta"
+                  color="teal"
                   variant="filled"
                   style={transitionStyles}
                   onClick={() => setSidebarOpen(true)}
@@ -1246,7 +1246,7 @@ export function TrainingPlanner({
                         <Tooltip label="Apply suggestion">
                           <ActionIcon
                             size="sm"
-                            color="sage"
+                            color="teal"
                             variant="subtle"
                             onClick={() => store.applyHint(hint.id)}
                           >
@@ -1342,7 +1342,7 @@ export function TrainingPlanner({
                 <Button
                   variant="filled"
                   size="xs"
-                  color="terracotta"
+                  color="teal"
                   loading={isReshuffling}
                   onClick={async () => {
                     setIsReshuffling(true);

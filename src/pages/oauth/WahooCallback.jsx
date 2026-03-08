@@ -98,7 +98,7 @@ function WahooCallback() {
     <Box
       style={{
         minHeight: '100vh',
-        backgroundColor: 'var(--tribos-bg-primary)',
+        backgroundColor: 'var(--color-bg)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -112,7 +112,7 @@ function WahooCallback() {
         ) : (
           <>
             <div className="loading-spinner" />
-            <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text style={{ color: 'var(--color-text-secondary)' }}>
               {status === 'exchanging' ? 'Connecting to Wahoo...' : 'Processing...'}
             </Text>
           </>

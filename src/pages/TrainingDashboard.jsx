@@ -827,7 +827,7 @@ function TrainingDashboard() {
               <>
                 <Button
                   variant="filled"
-                  color="terracotta"
+                  color="teal"
                   size="xs"
                   leftSection={<IconCalendarEvent size={14} />}
                   onClick={() => navigate('/planner')}
@@ -894,7 +894,7 @@ function TrainingDashboard() {
                 </Button>
                 <Button
                   variant="light"
-                  color="terracotta"
+                  color="teal"
                   size="xs"
                   leftSection={<IconSettings size={14} />}
                   onClick={() => navigate('/settings')}
@@ -906,7 +906,7 @@ function TrainingDashboard() {
           />
 
           {/* Main Tabs - Pill Style for clear visual distinction */}
-          <Tabs value={activeTab} onChange={setActiveTab} color="terracotta" variant="pills">
+          <Tabs value={activeTab} onChange={setActiveTab} color="teal" variant="pills">
             <Paper
               withBorder
               radius="xl"
@@ -917,7 +917,7 @@ function TrainingDashboard() {
                 zIndex: 100,
                 background: depth.panel.background,
                 boxShadow: depth.panel.boxShadow,
-                border: '1px solid var(--tribos-border-default)',
+                border: '1px solid var(--color-border)',
               }}
             >
               <Tabs.List grow={!isMobile} justify={isMobile ? 'center' : undefined}>
@@ -983,20 +983,20 @@ function TrainingDashboard() {
                   {!activePlan ? (
                     <Card style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #3A5A8C)' }}>
                       <Group gap="sm" wrap="nowrap">
-                        <ThemeIcon size="lg" variant="light" color="terracotta" radius="xl">
+                        <ThemeIcon size="lg" variant="light" color="teal" radius="xl">
                           <IconCalendarEvent size={18} />
                         </ThemeIcon>
                         <Box style={{ flex: 1 }}>
-                          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                             Start a training plan
                           </Text>
-                          <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                          <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                             Structure your training with a periodized plan tailored to your goals.
                           </Text>
                         </Box>
                         <Button
                           variant="light"
-                          color="terracotta"
+                          color="teal"
                           size="compact-sm"
                           onClick={() => navigate('/planner')}
                         >
@@ -1010,10 +1010,10 @@ function TrainingDashboard() {
                       onClick={() => navigate('/planner')}
                     >
                       <Group gap="sm" wrap="nowrap">
-                        <ThemeIcon size="sm" variant="light" color="terracotta" radius="xl">
+                        <ThemeIcon size="sm" variant="light" color="teal" radius="xl">
                           <IconCalendarEvent size={14} />
                         </ThemeIcon>
-                        <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)', flex: 1 }}>
+                        <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)', flex: 1 }}>
                           {activePlan.name}
                         </Text>
                         <Text size="xs" c="dimmed">
@@ -1062,7 +1062,7 @@ function TrainingDashboard() {
                       onClick={() => setTrainNowExpanded(!trainNowExpanded)}
                     >
                       <Group gap="xs">
-                        <ThemeIcon size="sm" color="terracotta" variant="light">
+                        <ThemeIcon size="sm" color="teal" variant="light">
                           <IconTarget size={14} />
                         </ThemeIcon>
                         <Text fw={600} size="sm">TrainNow Recommendations</Text>
@@ -1349,7 +1349,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             <Text size="sm" c="dimmed">TSB: {trainingMetrics.tsb > 0 ? '+' : ''}{Math.round(trainingMetrics.tsb)}</Text>
           </Group>
 
-          <Text size="lg" fw={600} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text size="lg" fw={600} mb="xs" style={{ color: 'var(--color-text-primary)' }}>
             {getStory()}
           </Text>
 
@@ -1380,7 +1380,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
               <Group gap="sm" wrap="wrap">
                 <Button
                   variant="light"
-                  color="terracotta"
+                  color="teal"
                   rightSection={<IconChevronRight size={16} />}
                   onClick={() => onViewWorkout(suggestedWorkout)}
                 >
@@ -1529,7 +1529,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
               </ThemeIcon>
               <Text fw={600}>Body Check-in</Text>
               {hasCheckedIn && (
-                <Badge color="sage" variant="light" size="xs">Done</Badge>
+                <Badge color="teal" variant="light" size="xs">Done</Badge>
               )}
             </Group>
             <Text size="sm" c="dimmed">
@@ -1891,7 +1891,7 @@ function BodyCheckInCard({ todayHealthMetrics, onOpenHealthCheckIn }) {
             </ThemeIcon>
             <Text fw={600}>Body Check-in</Text>
             {hasCheckedIn && (
-              <Badge color="sage" variant="light" size="xs">Done</Badge>
+              <Badge color="teal" variant="light" size="xs">Done</Badge>
             )}
           </Group>
           <Text size="sm" c="dimmed">
@@ -2342,7 +2342,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
             </Box>
             <Button
               variant="light"
-              color="terracotta"
+              color="teal"
               leftSection={<IconRoute size={16} />}
               onClick={() => {
                 onClose();
@@ -2356,7 +2356,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
         </Paper>
 
         {/* Close Button */}
-        <Button variant="light" color="terracotta" fullWidth onClick={onClose}>
+        <Button variant="light" color="teal" fullWidth onClick={onClose}>
           Close
         </Button>
       </Stack>

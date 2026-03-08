@@ -147,12 +147,12 @@ const terrainSegments = [
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload || payload.length === 0) return null;
   return (
-    <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
-      <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>{label}</Text>
+    <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+      <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--color-text-primary)' }}>{label}</Text>
       {payload.map((entry, index) => (
         <Group key={index} justify="space-between" gap="md">
           <Text size="xs" style={{ color: entry.color }}>{entry.name}:</Text>
-          <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>{entry.value}</Text>
+          <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>{entry.value}</Text>
         </Group>
       ))}
     </Card>
@@ -168,7 +168,7 @@ function TrainingLoadSection() {
   return (
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
-        <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+        <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
           Training Load Over Time
         </Text>
         <SegmentedControl
@@ -185,57 +185,57 @@ function TrainingLoadSection() {
 
       {/* Legend badges — matches app */}
       <Group gap="xs" mb="md">
-        <Badge color="blue" variant="light" size="sm">CTL (Fitness)</Badge>
-        <Badge color="orange" variant="light" size="sm">ATL (Fatigue)</Badge>
-        <Badge color="green" variant="light" size="sm">TSB (Form)</Badge>
+        <Badge color="gold" variant="light" size="sm">CTL (Fitness)</Badge>
+        <Badge color="coral" variant="light" size="sm">ATL (Fatigue)</Badge>
+        <Badge color="teal" variant="light" size="sm">TSB (Form)</Badge>
       </Group>
 
       {/* Daily TSS Area Chart */}
       <ResponsiveContainer width="100%" height={120}>
         <AreaChart data={displayData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--tribos-bg-tertiary)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bg-secondary)" />
           <XAxis
             dataKey="formattedDate"
-            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
             interval="preserveStartEnd"
           />
-          <YAxis tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }} />
+          <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
           <RechartsTooltip content={<ChartTooltip />} />
           <Area
             type="monotone"
             dataKey="tss"
-            stroke="#3D8B50"
-            fill="#3D8B50"
+            stroke="#2A8C82"
+            fill="#2A8C82"
             fillOpacity={0.3}
             name="Daily TSS"
           />
         </AreaChart>
       </ResponsiveContainer>
 
-      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="lg" mt="xs">
+      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="lg" mt="xs">
         Daily Training Stress Score
       </Text>
 
       {/* CTL/ATL/TSB Line Chart */}
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={displayData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--tribos-bg-tertiary)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bg-secondary)" />
           <XAxis
             dataKey="formattedDate"
-            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
             interval="preserveStartEnd"
           />
-          <YAxis tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }} />
+          <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
           <RechartsTooltip content={<ChartTooltip />} />
           <Legend wrapperStyle={{ fontSize: 13 }} />
-          <ReferenceLine y={0} stroke="var(--tribos-text-muted)" strokeDasharray="3 3" />
-          <Line type="monotone" dataKey="ctl" stroke="#3A5A8C" strokeWidth={2} dot={false} name="CTL (Fitness)" />
-          <Line type="monotone" dataKey="atl" stroke="#D4820A" strokeWidth={2} dot={false} name="ATL (Fatigue)" />
-          <Line type="monotone" dataKey="tsb" stroke="#3D8B50" strokeWidth={2} dot={false} name="TSB (Form)" />
+          <ReferenceLine y={0} stroke="var(--color-text-muted)" strokeDasharray="3 3" />
+          <Line type="monotone" dataKey="ctl" stroke="#C49A0A" strokeWidth={2} dot={false} name="CTL (Fitness)" />
+          <Line type="monotone" dataKey="atl" stroke="#C43C2A" strokeWidth={2} dot={false} name="ATL (Fatigue)" />
+          <Line type="monotone" dataKey="tsb" stroke="#2A8C82" strokeWidth={2} dot={false} name="TSB (Form)" />
         </LineChart>
       </ResponsiveContainer>
 
-      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt="xs">
+      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt="xs">
         CTL = Long-term fitness (42-day) | ATL = Recent fatigue (7-day) | TSB = Freshness/Form (CTL - ATL)
       </Text>
     </Card>
@@ -247,7 +247,7 @@ function TrainingLoadSection() {
 function PowerMetricCard({ label, value, color, isFtp }) {
   const wkg = (value / WEIGHT).toFixed(2);
   return (
-    <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+    <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <Text size="xs" c="dimmed">{label}</Text>
       <Text size="sm" fw={700} c={color}>{value}W</Text>
       <Text size="xs" c="dimmed">{wkg}</Text>
@@ -262,14 +262,14 @@ function PowerDurationSection() {
     if (!active || !payload || payload.length === 0) return null;
     const data = payload[0].payload;
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
-        <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+      <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+        <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--color-text-primary)' }}>
           {data.name}
         </Text>
         {data.current && (
           <Group justify="space-between" gap="md">
             <Text size="xs" c="yellow">Current:</Text>
-            <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>
               {data.current}W ({data.currentWkg} W/kg)
             </Text>
           </Group>
@@ -296,7 +296,7 @@ function PowerDurationSection() {
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
           <IconBolt size={20} color={tokens.colors.zone4} />
-          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Power Duration Curve
           </Text>
           <Badge color="grape" variant="light" size="sm">All-Rounder</Badge>
@@ -327,15 +327,15 @@ function PowerDurationSection() {
       {/* Power Curve Chart */}
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={pdcData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--tribos-bg-tertiary)" />
-          <XAxis dataKey="duration" tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bg-secondary)" />
+          <XAxis dataKey="duration" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
           <YAxis
-            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
             label={{
               value: 'Watts',
               angle: -90,
               position: 'insideLeft',
-              style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 12 },
+              style: { textAnchor: 'middle', fill: 'var(--color-text-muted)', fontSize: 12 },
             }}
           />
           <RechartsTooltip content={<PDCTooltip />} />
@@ -353,7 +353,7 @@ function PowerDurationSection() {
           <Line
             type="monotone"
             dataKey="previous"
-            stroke="var(--tribos-text-muted)"
+            stroke="var(--color-text-muted)"
             strokeWidth={1}
             strokeDasharray="3 3"
             dot={false}
@@ -362,27 +362,27 @@ function PowerDurationSection() {
           <Line
             type="monotone"
             dataKey="current"
-            stroke="#D4820A"
+            stroke="#D4600A"
             strokeWidth={2}
-            dot={{ fill: '#D4820A', r: 3 }}
-            activeDot={{ r: 5, fill: '#D4820A' }}
+            dot={{ fill: '#D4600A', r: 3 }}
+            activeDot={{ r: 5, fill: '#D4600A' }}
             name="Current"
           />
         </LineChart>
       </ResponsiveContainer>
 
       {/* Rider type description */}
-      <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+      <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Group gap="xs">
-          <IconTrophy size={16} color="var(--tribos-terracotta-500)" />
-          <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+          <IconTrophy size={16} color="var(--color-teal)" />
+          <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
             <Text span fw={600} c="grape">All-Rounder</Text>
             {' - '}Balanced power profile
           </Text>
         </Group>
       </Paper>
 
-      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt="md">
+      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt="md">
         Power curve shows best efforts at each duration. Dashed line shows previous period for comparison.
       </Text>
     </Card>
@@ -400,14 +400,14 @@ function ZoneDistributionSection() {
     if (!active || !payload || payload.length === 0) return null;
     const data = payload[0].payload;
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+      <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Group gap="xs" mb="xs">
           <Box w={12} h={12} style={{ backgroundColor: data.color, borderRadius: 2 }} />
-          <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Zone {data.zone}: {data.name}
           </Text>
         </Group>
-        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+        <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
           {data.hours}h ({data.percentage}%)
         </Text>
       </Card>
@@ -418,8 +418,8 @@ function ZoneDistributionSection() {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconChartPie size={20} color="var(--tribos-terracotta-500)" />
-          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <IconChartPie size={20} color="var(--color-teal)" />
+          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Training Zone Distribution
           </Text>
           <Badge color="blue" variant="light" size="sm">Pyramidal</Badge>
@@ -449,28 +449,28 @@ function ZoneDistributionSection() {
 
       {/* Summary Stats */}
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs" mb="md">
-        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs">
-            <IconClock size={14} color="var(--tribos-text-muted)" />
+            <IconClock size={14} color="var(--color-text-muted)" />
             <Text size="xs" c="dimmed">Total Time</Text>
           </Group>
           <Text size="sm" fw={600}>25h 0m</Text>
         </Paper>
-        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs">
             <Box w={8} h={8} style={{ backgroundColor: tokens.colors.zone2, borderRadius: '50%' }} />
             <Text size="xs" c="dimmed">Zone 2</Text>
           </Group>
           <Text size="sm" fw={600}>{z2Pct}%</Text>
         </Paper>
-        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs">
             <IconFlame size={14} color={tokens.colors.zone5} />
             <Text size="xs" c="dimmed">High Intensity</Text>
           </Group>
           <Text size="sm" fw={600}>{highIntensityPct}%</Text>
         </Paper>
-        <Paper p="xs" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Text size="xs" c="dimmed">Activities</Text>
           <Text size="sm" fw={600}>32</Text>
         </Paper>
@@ -479,21 +479,21 @@ function ZoneDistributionSection() {
       {/* Bar Chart */}
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={zoneChartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--tribos-bg-tertiary)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bg-secondary)" />
           <XAxis
             dataKey="name"
-            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
             angle={-20}
             textAnchor="end"
             height={50}
           />
           <YAxis
-            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
             label={{
               value: '%',
               angle: -90,
               position: 'insideLeft',
-              style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 12 },
+              style: { textAnchor: 'middle', fill: 'var(--color-text-muted)', fontSize: 12 },
             }}
           />
           <RechartsTooltip content={<ZoneTooltip />} />
@@ -535,14 +535,14 @@ function ZoneDistributionSection() {
       </Stack>
 
       {/* Distribution insight */}
-      <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
-        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+      <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+        <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
           <Text span fw={600} c="blue">Pyramidal Distribution:</Text>
           {' '}Good mix of endurance and intensity
         </Text>
       </Paper>
 
-      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt="md">
+      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt="md">
         Zone distribution estimated from average power/HR. 80/20 polarized training is optimal for most athletes.
       </Text>
     </Card>
@@ -582,7 +582,7 @@ function RouteIntelligence({ animate }) {
 
   return (
     <Paper p="sm" style={{ overflow: 'hidden' }}>
-      <Text size="xs" fw={600} mb="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--tribos-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+      <Text size="xs" fw={600} mb="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
         Route Intelligence
       </Text>
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
@@ -591,9 +591,9 @@ function RouteIntelligence({ animate }) {
             {[150, 200, 250].map(v => (
               <g key={v}>
                 <line x1={padding.left} y1={toY(v)} x2={width - padding.right} y2={toY(v)}
-                  stroke="var(--tribos-border-default)" strokeWidth="0.5" strokeDasharray="4,4" opacity="0.4" />
+                  stroke="var(--color-border)" strokeWidth="0.5" strokeDasharray="4,4" opacity="0.4" />
                 <text x={padding.left - 6} y={toY(v) + 3} textAnchor="end"
-                  style={{ fontSize: 8, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-muted)' }}>
+                  style={{ fontSize: 8, fontFamily: "'DM Mono', monospace", fill: 'var(--color-text-muted)' }}>
                   {v}m
                 </text>
               </g>
@@ -617,7 +617,7 @@ function RouteIntelligence({ animate }) {
               );
             })}
 
-            <path ref={profileRef} d={profilePath} fill="none" stroke="var(--tribos-text-secondary)" strokeWidth="1.5"
+            <path ref={profileRef} d={profilePath} fill="none" stroke="var(--color-text-secondary)" strokeWidth="1.5"
               strokeLinecap="round" strokeLinejoin="round"
               style={{
                 strokeDasharray: profileLength,
@@ -628,7 +628,7 @@ function RouteIntelligence({ animate }) {
 
             {[0, 10, 20, 30, 40, 50].map(km => (
               <text key={km} x={toX(km)} y={height - 6} textAnchor="middle"
-                style={{ fontSize: 8, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-muted)' }}>
+                style={{ fontSize: 8, fontFamily: "'DM Mono', monospace", fill: 'var(--color-text-muted)' }}>
                 {km}km
               </text>
             ))}
@@ -643,7 +643,7 @@ function RouteIntelligence({ animate }) {
             ].map(t => (
               <Group key={t.label} gap={3}>
                 <Box style={{ width: 8, height: 8, background: t.color, opacity: 0.6 }} />
-                <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: 'var(--tribos-text-muted)' }}>
+                <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: 'var(--color-text-muted)' }}>
                   {t.label}
                 </Text>
               </Group>
@@ -659,11 +659,11 @@ function RouteIntelligence({ animate }) {
               return (
                 <g key={d.label}>
                   <text x={0} y={y + barH - 2}
-                    style={{ fontSize: 10, fontFamily: "'DM Mono', monospace", fill: 'var(--tribos-text-secondary)' }}>
+                    style={{ fontSize: 10, fontFamily: "'DM Mono', monospace", fill: 'var(--color-text-secondary)' }}>
                     {d.label}
                   </text>
                   <rect x={75} y={y} width={barMaxW} height={barH} rx={0}
-                    fill="var(--tribos-border-default)" opacity="0.3" />
+                    fill="var(--color-border)" opacity="0.3" />
                   <rect x={75} y={y} width={barW} height={barH} rx={0}
                     fill={d.color} opacity="0.7"
                     style={{
@@ -722,7 +722,7 @@ export default function AnalyzeStep() {
                   fontFamily: "'DM Mono', monospace",
                   letterSpacing: '3px',
                   textTransform: 'uppercase',
-                  color: 'var(--tribos-terracotta-500)',
+                  color: 'var(--color-teal)',
                   marginBottom: 8,
                 }}
               >
@@ -735,7 +735,7 @@ export default function AnalyzeStep() {
                   fontSize: 'clamp(1.4rem, 3.5vw, 2.2rem)',
                   fontFamily: "'Anybody', sans-serif",
                   fontWeight: 800,
-                  color: 'var(--tribos-text-primary)',
+                  color: 'var(--color-text-primary)',
                 }}
               >
                 Your numbers start talking.

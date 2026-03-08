@@ -50,8 +50,8 @@ export default function BikeInfrastructureLegend({ visible = true }) {
         top: 70,
         right: 16,
         zIndex: 10,
-        backgroundColor: 'var(--tribos-bg-secondary)',
-        border: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+        backgroundColor: 'var(--color-bg-secondary)',
+        border: `1px solid ${'var(--color-bg-secondary)'}`,
         borderRadius: tokens.radius.md,
         overflow: 'hidden',
         minWidth: expanded ? 180 : 'auto',
@@ -69,8 +69,8 @@ export default function BikeInfrastructureLegend({ visible = true }) {
           userSelect: 'none',
         }}
       >
-        <IconInfoCircle size={16} color={'var(--tribos-terracotta-500)'} />
-        <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+        <IconInfoCircle size={16} color={'var(--color-teal)'} />
+        <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>
           Bike Infrastructure
         </Text>
         <ActionIcon
@@ -79,9 +79,9 @@ export default function BikeInfrastructureLegend({ visible = true }) {
           style={{ marginLeft: 'auto' }}
         >
           {expanded ? (
-            <IconChevronDown size={14} color={'var(--tribos-text-secondary)'} />
+            <IconChevronDown size={14} color={'var(--color-text-secondary)'} />
           ) : (
-            <IconChevronUp size={14} color={'var(--tribos-text-secondary)'} />
+            <IconChevronUp size={14} color={'var(--color-text-secondary)'} />
           )}
         </ActionIcon>
       </Box>
@@ -91,7 +91,7 @@ export default function BikeInfrastructureLegend({ visible = true }) {
         <Box
           style={{
             padding: '0 12px 12px 12px',
-            borderTop: `1px solid ${'var(--tribos-bg-tertiary)'}`,
+            borderTop: `1px solid ${'var(--color-bg-secondary)'}`,
           }}
         >
           <Stack gap={6} mt={8}>
@@ -105,7 +105,7 @@ export default function BikeInfrastructureLegend({ visible = true }) {
                 }}
               >
                 <LineSwatch color={item.color} style={item.style} />
-                <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                   {item.label}
                 </Text>
               </Box>

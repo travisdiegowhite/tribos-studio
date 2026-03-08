@@ -580,7 +580,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
                 {/* Pre-workout fuel */}
                 <Box>
                   <Group gap="xs" mb={6}>
-                    <ThemeIcon size="sm" variant="light" color="terracotta">
+                    <ThemeIcon size="sm" variant="light" color="teal">
                       <IconFlame size={14} />
                     </ThemeIcon>
                     <Text size="sm" fw={500}>Pre-workout fueling?</Text>

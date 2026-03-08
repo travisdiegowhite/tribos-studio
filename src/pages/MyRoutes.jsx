@@ -313,7 +313,7 @@ function MyRoutes() {
             {/* Routes grid skeleton */}
             <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Card key={i} padding="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+                <Card key={i} padding="lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                   <Stack gap="sm">
                     <Group justify="space-between">
                       <Box style={{ flex: 1 }}>
@@ -360,7 +360,7 @@ function MyRoutes() {
             subtitle={`${filteredRoutes.length} of ${routes.length} route${routes.length !== 1 ? 's' : ''}`}
             actions={
               <Button
-                color="terracotta"
+                color="teal"
                 leftSection={<IconPlus size={18} />}
                 onClick={() => navigate('/routes/new')}
               >
@@ -398,7 +398,7 @@ function MyRoutes() {
                   { label: 'Manual', value: 'manual' }
                 ]}
                 styles={{
-                  root: { backgroundColor: 'var(--tribos-bg-tertiary)' }
+                  root: { backgroundColor: 'var(--color-bg-secondary)' }
                 }}
               />
             </Group>
@@ -409,16 +409,16 @@ function MyRoutes() {
             <Card>
               <Stack align="center" gap="lg" py="xl">
                 <Text size="4rem">🗺️</Text>
-                <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+                <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                   No routes yet
                 </Title>
-                <Text style={{ color: 'var(--tribos-text-secondary)', textAlign: 'center' }} maw={{ base: '100%', sm: 400 }}>
+                <Text style={{ color: 'var(--color-text-secondary)', textAlign: 'center' }} maw={{ base: '100%', sm: 400 }}>
                   Plan your next ride with the route builder. Start from scratch, let AI suggest something, or trace one of your past rides.
                 </Text>
                 <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm" w="100%" maw={600}>
                   <Button
                     variant="light"
-                    color="sage"
+                    color="teal"
                     size="md"
                     leftSection={<IconBrain size={18} />}
                     onClick={() => navigate('/routes/new?mode=ai')}
@@ -431,7 +431,7 @@ function MyRoutes() {
                   </Button>
                   <Button
                     variant="light"
-                    color="terracotta"
+                    color="teal"
                     size="md"
                     leftSection={<IconRoute size={18} />}
                     onClick={() => navigate('/routes/new?mode=activity')}
@@ -462,15 +462,15 @@ function MyRoutes() {
             <Card>
               <Stack align="center" gap="md" py="xl">
                 <Text size="3rem">🔍</Text>
-                <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+                <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                   No routes found
                 </Title>
-                <Text style={{ color: 'var(--tribos-text-secondary)', textAlign: 'center' }} maw={{ base: '100%', sm: 400 }}>
+                <Text style={{ color: 'var(--color-text-secondary)', textAlign: 'center' }} maw={{ base: '100%', sm: 400 }}>
                   No routes match your search. Try adjusting your filters or search terms.
                 </Text>
                 <Button
                   variant="light"
-                  color="terracotta"
+                  color="teal"
                   onClick={() => { setSearchQuery(''); setFilterType('all'); }}
                 >
                   Clear Filters
@@ -484,7 +484,7 @@ function MyRoutes() {
                   key={route.id}
                   padding="lg"
                   style={{
-                    backgroundColor: 'var(--tribos-bg-secondary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
                     cursor: 'pointer',
                     transition: 'transform 0.2s, box-shadow 0.2s',
                   }}
@@ -500,7 +500,7 @@ function MyRoutes() {
                           <Text
                             fw={600}
                             style={{
-                              color: 'var(--tribos-text-primary)',
+                              color: 'var(--color-text-primary)',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap'
@@ -509,7 +509,7 @@ function MyRoutes() {
                             {route.name}
                           </Text>
                         </Group>
-                        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                        <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                           {formatDate(route.updated_at || route.created_at)}
                         </Text>
                       </Box>
@@ -585,26 +585,26 @@ function MyRoutes() {
                     {/* Stats */}
                     <Group gap="md">
                       <Box>
-                        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                        <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                           Distance
                         </Text>
-                        <Text fw={600} style={{ color: 'var(--tribos-terracotta-500)' }}>
+                        <Text fw={600} style={{ color: 'var(--color-teal)' }}>
                           {route.distance_km ? formatDist(route.distance_km) : '--'}
                         </Text>
                       </Box>
                       <Box>
-                        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                        <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                           Elevation
                         </Text>
-                        <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                        <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
                           {route.elevation_gain_m ? formatElev(route.elevation_gain_m) : '--'}
                         </Text>
                       </Box>
                       <Box>
-                        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                        <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                           Time
                         </Text>
-                        <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+                        <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
                           {formatDuration(route.estimated_duration_minutes)}
                         </Text>
                       </Box>

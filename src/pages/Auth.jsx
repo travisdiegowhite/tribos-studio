@@ -151,7 +151,7 @@ function Auth() {
     <Box
       style={{
         minHeight: '100vh',
-        backgroundColor: 'var(--tribos-bg-primary)',
+        backgroundColor: 'var(--color-bg)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -163,17 +163,17 @@ function Auth() {
           <Text
             size="lg"
             fw={600}
-            style={{ color: 'var(--tribos-terracotta-500)', letterSpacing: '0.1em' }}
+            style={{ color: 'var(--color-teal)', letterSpacing: '0.1em' }}
             mb="xs"
           >
             TRIBOS.STUDIO
           </Text>
-          <Title order={2} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Title order={2} style={{ color: 'var(--color-text-primary)' }}>
             {isSignUp ? 'Create your account' : 'Welcome back'}
           </Title>
         </Box>
 
-        <Paper p="xl" radius="lg" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+        <Paper p="xl" radius="lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <form onSubmit={handleSubmit}>
             <Stack gap="md">
               {webviewInfo.isWebview && (
@@ -205,13 +205,13 @@ function Auth() {
               )}
 
               {message && (
-                <Alert color="sage" variant="light">
+                <Alert color="teal" variant="light">
                   {message}
                 </Alert>
               )}
 
               {fromBetaSignup && !message && (
-                <Alert color="terracotta" variant="light">
+                <Alert color="teal" variant="light">
                   Your email has been added to the beta list! Complete your account below.
                 </Alert>
               )}
@@ -247,27 +247,27 @@ function Auth() {
               {isSignUp && (
                 <Checkbox
                   label={
-                    <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                    <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                       I agree to the{' '}
-                      <Anchor component={Link} to="/terms" target="_blank" style={{ color: 'var(--tribos-terracotta-500)' }}>
+                      <Anchor component={Link} to="/terms" target="_blank" style={{ color: 'var(--color-teal)' }}>
                         Terms of Service
                       </Anchor>
                       {' '}and{' '}
-                      <Anchor component={Link} to="/privacy" target="_blank" style={{ color: 'var(--tribos-terracotta-500)' }}>
+                      <Anchor component={Link} to="/privacy" target="_blank" style={{ color: 'var(--color-teal)' }}>
                         Privacy Policy
                       </Anchor>
                     </Text>
                   }
                   checked={tosAccepted}
                   onChange={(e) => setTosAccepted(e.currentTarget.checked)}
-                  color="terracotta"
+                  color="teal"
                   size="sm"
                 />
               )}
 
               <Button
                 type="submit"
-                color="terracotta"
+                color="teal"
                 loading={loading}
                 fullWidth
                 mt="sm"
@@ -298,7 +298,7 @@ function Auth() {
             </Tooltip>
           </Stack>
 
-          <Text ta="center" mt="lg" size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+          <Text ta="center" mt="lg" size="sm" style={{ color: 'var(--color-text-secondary)' }}>
             {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
             <Anchor
               component="button"
@@ -308,7 +308,7 @@ function Auth() {
                 setError('');
                 setMessage('');
               }}
-              style={{ color: 'var(--tribos-terracotta-500)' }}
+              style={{ color: 'var(--color-teal)' }}
             >
               {isSignUp ? 'Sign in' : 'Sign up'}
             </Anchor>

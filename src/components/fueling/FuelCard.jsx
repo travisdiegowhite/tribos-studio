@@ -139,7 +139,7 @@ export default function FuelCard({
     return (
       <Paper p="md" radius="md" withBorder>
         <Group spacing="xs">
-          <ThemeIcon size={32} radius="md" color="sage" variant="light">
+          <ThemeIcon size={32} radius="md" color="teal" variant="light">
             <IconFlame size={18} />
           </ThemeIcon>
           <div>
@@ -226,7 +226,7 @@ export default function FuelCard({
           {/* Carbs */}
           <Group position="apart" noWrap>
             <Group spacing="xs" noWrap>
-              <ThemeIcon size={24} radius="sm" color="terracotta" variant="light">
+              <ThemeIcon size={24} radius="sm" color="teal" variant="light">
                 <IconApple size={14} />
               </ThemeIcon>
               <Text size="sm" fw={500}>On-Bike Carbs</Text>
@@ -438,11 +438,11 @@ export function FuelSummary({
       style={{ cursor: onClick ? 'pointer' : 'default' }}
       onClick={onClick}
     >
-      <IconFlame size={14} color="#3A5A8C" />
+      <IconFlame size={14} color="#2A8C82" />
       <Text size="xs" c="dimmed">
         {plan.carbs.totalGramsMin}-{plan.carbs.totalGramsMax}g carbs
       </Text>
-      <IconDroplet size={14} color="#3D8B50" />
+      <IconDroplet size={14} color="#2A8C82" />
       <Text size="xs" c="dimmed">
         {plan.hydration.ozPerHour} oz/hr
       </Text>

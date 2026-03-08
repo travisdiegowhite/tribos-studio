@@ -356,8 +356,8 @@ export default function TirePressureCard({
         {/* Header */}
         <Group justify="space-between">
           <Group gap="xs">
-            <IconWheel size={18} style={{ color: 'var(--tribos-terracotta-500)' }} />
-            <Text fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+            <IconWheel size={18} style={{ color: 'var(--color-teal)' }} />
+            <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
               Tire Pressure
             </Text>
             {weather?.temperatureCelsius != null && (
@@ -383,7 +383,7 @@ export default function TirePressureCard({
                 { label: 'BAR', value: 'bar' },
               ]}
               styles={{
-                root: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                root: { backgroundColor: 'var(--color-bg-secondary)' },
               }}
             />
             <Tooltip label="Settings">
@@ -411,7 +411,7 @@ export default function TirePressureCard({
             leftSection={<IconBike size={14} />}
             comboboxProps={{ withinPortal: false }}
             styles={{
-              input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+              input: { backgroundColor: 'var(--color-bg-secondary)' },
             }}
           />
         )}
@@ -425,17 +425,17 @@ export default function TirePressureCard({
               thickness={6}
               roundCaps
               sections={[
-                { value: frontNormalized, color: 'var(--tribos-text-secondary)' },
+                { value: frontNormalized, color: 'var(--color-text-secondary)' },
               ]}
               label={
                 <Box ta="center">
-                  <Text size="lg" fw={700} style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text size="lg" fw={700} style={{ color: 'var(--color-text-primary)' }}>
                     {unit === 'bar' ? frontValue : frontValue}
                   </Text>
                 </Box>
               }
             />
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt={4}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt={4}>
               Front
             </Text>
           </Box>
@@ -447,17 +447,17 @@ export default function TirePressureCard({
               thickness={6}
               roundCaps
               sections={[
-                { value: rearNormalized, color: 'var(--tribos-terracotta-500)' },
+                { value: rearNormalized, color: 'var(--color-teal)' },
               ]}
               label={
                 <Box ta="center">
-                  <Text size="lg" fw={700} style={{ color: 'var(--tribos-terracotta-500)' }}>
+                  <Text size="lg" fw={700} style={{ color: 'var(--color-teal)' }}>
                     {unit === 'bar' ? rearValue : rearValue}
                   </Text>
                 </Box>
               }
             />
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt={4}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt={4}>
               Rear
             </Text>
           </Box>
@@ -492,7 +492,7 @@ export default function TirePressureCard({
             }}
             data={TIRE_PRESETS}
             styles={{
-              root: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+              root: { backgroundColor: 'var(--color-bg-secondary)' },
             }}
           />
         </Group>
@@ -502,7 +502,7 @@ export default function TirePressureCard({
           <Box
             style={{
               padding: tokens.spacing.md,
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               borderRadius: tokens.radius.md,
             }}
           >
@@ -522,7 +522,7 @@ export default function TirePressureCard({
                   min={isImperial ? 80 : 36}
                   max={isImperial ? 400 : 180}
                   styles={{
-                    input: { backgroundColor: 'var(--tribos-bg-secondary)' },
+                    input: { backgroundColor: 'var(--color-bg-secondary)' },
                   }}
                 />
                 <NumberInput
@@ -538,7 +538,7 @@ export default function TirePressureCard({
                   min={isImperial ? 10 : 5}
                   max={isImperial ? 100 : 45}
                   styles={{
-                    input: { backgroundColor: 'var(--tribos-bg-secondary)' },
+                    input: { backgroundColor: 'var(--color-bg-secondary)' },
                   }}
                 />
               </Group>
@@ -546,7 +546,7 @@ export default function TirePressureCard({
               {/* Surface Type */}
               <Box>
                 <Group gap={4} mb={4}>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                     Surface
                   </Text>
                   {autoSources.surface && (
@@ -567,7 +567,7 @@ export default function TirePressureCard({
                   }}
                   data={SURFACE_OPTIONS}
                   styles={{
-                    root: { backgroundColor: 'var(--tribos-bg-secondary)' },
+                    root: { backgroundColor: 'var(--color-bg-secondary)' },
                   }}
                 />
               </Box>
@@ -576,14 +576,14 @@ export default function TirePressureCard({
               <Group justify="space-between">
                 <Box>
                   <Group gap={4}>
-                    <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                    <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                       Tubeless
                     </Text>
                     {autoSources.tubeless && (
                       <Badge size="xs" variant="dot" color="teal">from gear</Badge>
                     )}
                   </Group>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                     Allows ~8% lower pressure
                   </Text>
                 </Box>
@@ -597,12 +597,12 @@ export default function TirePressureCard({
                       return next;
                     });
                   }}
-                  color="terracotta"
+                  color="teal"
                 />
               </Group>
 
               {/* Total Weight Display */}
-              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} ta="center">
+              <Text size="xs" style={{ color: 'var(--color-text-muted)' }} ta="center">
                 Total: {isImperial
                   ? `${Math.round((riderWeightKg + bikeWeightKg) * KG_TO_LBS)} lbs`
                   : `${Math.round(riderWeightKg + bikeWeightKg)} kg`
@@ -613,14 +613,14 @@ export default function TirePressureCard({
         )}
 
         {/* Summary */}
-        <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} ta="center">
+        <Text size="xs" style={{ color: 'var(--color-text-muted)' }} ta="center">
           {formatPressureSummary(result, unit)}
           {weather?.temperatureCelsius != null && ` @ ${Math.round(weather.temperatureCelsius)}°C`}
         </Text>
 
         {/* Gear setup prompt */}
         {!gearLoading && gearSetupLoaded && !autoSources.tireWidth && activeBikes.length > 0 && (
-          <Text size="xs" style={{ color: 'var(--tribos-text-muted)', fontStyle: 'italic' }} ta="center">
+          <Text size="xs" style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }} ta="center">
             Add tire specs to your bike in Gear settings for automatic recommendations
           </Text>
         )}

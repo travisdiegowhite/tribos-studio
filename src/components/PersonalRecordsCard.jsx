@@ -117,7 +117,7 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
                   }}
                 >
                   <Group gap="xs">
-                    <pr.icon size={14} color="#3D8B50" />
+                    <pr.icon size={14} color="#2A8C82" />
                     <Text size="sm" fw={500}>{pr.type}</Text>
                   </Group>
                   <Text size="sm" fw={600} c="teal">{pr.value}</Text>

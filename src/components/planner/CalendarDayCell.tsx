@@ -271,7 +271,7 @@ export function CalendarDayCell({
 
         {/* Completion indicator */}
         {plannedWorkout?.completed && (
-          <Badge size="xs" color="sage" variant="filled">
+          <Badge size="xs" color="teal" variant="filled">
             <IconCheck size={10} />
           </Badge>
         )}
@@ -443,7 +443,7 @@ export function CalendarDayCell({
                   <Button
                     size="compact-xs"
                     variant="light"
-                    color="terracotta"
+                    color="teal"
                     leftSection={<IconLink size={12} />}
                     mt={4}
                     fullWidth
@@ -460,7 +460,7 @@ export function CalendarDayCell({
 
                 {/* Linked indicator */}
                 {actualActivity.isLinked && (
-                  <Badge size="xs" color="sage" variant="dot" mt={4}>
+                  <Badge size="xs" color="teal" variant="dot" mt={4}>
                     Linked
                   </Badge>
                 )}

@@ -175,12 +175,12 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
           <Paper
             p="lg"
             style={{
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               textAlign: 'center',
-              border: `1px dashed ${'var(--tribos-bg-tertiary)'}`,
+              border: `1px dashed ${'var(--color-bg-secondary)'}`,
             }}
           >
-            <IconTrophy size={32} style={{ color: 'var(--tribos-text-muted)', marginBottom: 8 }} />
+            <IconTrophy size={32} style={{ color: 'var(--color-text-muted)', marginBottom: 8 }} />
             <Text size="sm" c="dimmed" mb="xs">
               No race goals set
             </Text>
@@ -285,7 +285,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
 
                       <Group gap="md" wrap="wrap">
                         <Group gap={4}>
-                          <IconCalendarEvent size={12} style={{ color: 'var(--tribos-text-muted)' }} />
+                          <IconCalendarEvent size={12} style={{ color: 'var(--color-text-muted)' }} />
                           <Text size="xs" c="dimmed">
                             {new Date(race.race_date + 'T00:00:00').toLocaleDateString('en-US', {
                               month: 'short',
@@ -296,7 +296,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
                         </Group>
                         {race.distance_km && (
                           <Group gap={4}>
-                            <IconRoute size={12} style={{ color: 'var(--tribos-text-muted)' }} />
+                            <IconRoute size={12} style={{ color: 'var(--color-text-muted)' }} />
                             <Text size="xs" c="dimmed">
                               {isImperial
                                 ? `${Math.round(race.distance_km * 0.621371)} mi`
@@ -306,7 +306,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
                         )}
                         {race.goal_placement && (
                           <Group gap={4}>
-                            <IconTarget size={12} style={{ color: 'var(--tribos-text-muted)' }} />
+                            <IconTarget size={12} style={{ color: 'var(--color-text-muted)' }} />
                             <Text size="xs" c="dimmed">{race.goal_placement}</Text>
                           </Group>
                         )}

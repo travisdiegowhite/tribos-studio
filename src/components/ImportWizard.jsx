@@ -187,9 +187,9 @@ const ImportWizard = ({ opened, onClose }) => {
       size="lg"
       centered
       styles={{
-        header: { backgroundColor: 'var(--tribos-bg-primary)' },
-        body: { backgroundColor: 'var(--tribos-bg-primary)' },
-        content: { backgroundColor: 'var(--tribos-bg-primary)' },
+        header: { backgroundColor: 'var(--color-bg)' },
+        body: { backgroundColor: 'var(--color-bg)' },
+        content: { backgroundColor: 'var(--color-bg)' },
       }}
     >
       {checkingConnections ? (

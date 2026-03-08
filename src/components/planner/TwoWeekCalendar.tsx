@@ -312,7 +312,7 @@ export function TwoWeekCalendar({
               </Group>
             </Badge>
             {summary.actual > 0 && (
-              <Badge size="xs" color="terracotta" variant="light">
+              <Badge size="xs" color="teal" variant="light">
                 {summary.actual} done
               </Badge>
             )}
@@ -397,7 +397,7 @@ export function TwoWeekCalendar({
                 {currentWeekSummary.planned} TSS
               </Badge>
               {currentWeekSummary.actual > 0 && (
-                <Badge size="xs" color="terracotta" variant="light">
+                <Badge size="xs" color="teal" variant="light">
                   {currentWeekSummary.actual} done
                 </Badge>
               )}
@@ -519,7 +519,7 @@ export function TwoWeekCalendar({
                     {selectedDay.monthName} {selectedDay.dayNumber}
                   </Text>
                   {selectedDay.isToday && (
-                    <Badge size="xs" color="terracotta" variant="filled">Today</Badge>
+                    <Badge size="xs" color="teal" variant="filled">Today</Badge>
                   )}
                 </Group>
                 {selectedDayWorkout && (

@@ -107,7 +107,7 @@ function StravaCallback() {
     <Box
       style={{
         minHeight: '100vh',
-        backgroundColor: 'var(--tribos-bg-primary)',
+        backgroundColor: 'var(--color-bg)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -123,17 +123,17 @@ function StravaCallback() {
             <Text size="xl" fw={600} style={{ color: tokens.colors.primary }}>
               ✅ Successfully connected!
             </Text>
-            <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text style={{ color: 'var(--color-text-secondary)' }}>
               Redirecting to settings...
             </Text>
           </>
         ) : (
           <>
             <div className="loading-spinner" />
-            <Text size="lg" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text size="lg" fw={500} style={{ color: 'var(--color-text-primary)' }}>
               {status === 'exchanging' ? 'Connecting to Strava...' : 'Processing authorization...'}
             </Text>
-            <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
               {status === 'exchanging' ? 'Exchanging tokens securely' : 'Please wait'}
             </Text>
           </>

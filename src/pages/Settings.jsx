@@ -1340,7 +1340,7 @@ function Settings() {
         onClose={() => setOpenModal(null)}
         title={
           <Group gap="sm">
-            <IconAlertTriangle size={24} color="terracotta" />
+            <IconAlertTriangle size={24} color="teal" />
             <Text fw={600}>Disconnect Strava?</Text>
           </Group>
         }
@@ -1348,7 +1348,7 @@ function Settings() {
         size="md"
       >
         <Stack gap="md">
-          <Alert color="terracotta" variant="light" icon={<IconAlertTriangle size={18} />}>
+          <Alert color="teal" variant="light" icon={<IconAlertTriangle size={18} />}>
             <Text size="sm" fw={500}>
               This action will permanently delete all your Strava-synced activities and speed profile data.
             </Text>
@@ -1362,21 +1362,21 @@ function Settings() {
           <Box
             style={{
               padding: tokens.spacing.md,
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
               borderRadius: tokens.radius.md,
             }}
           >
             <Group gap="sm" mb="xs">
-              <IconUpload size={18} color={'var(--tribos-terracotta-500)'} />
-              <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+              <IconUpload size={18} color={'var(--color-teal)'} />
+              <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
                 Want to keep your data?
               </Text>
             </Group>
-            <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
               Before disconnecting, export your data from Strava and import it using the{' '}
               <Text
                 component="span"
-                style={{ color: 'var(--tribos-terracotta-500)', cursor: 'pointer' }}
+                style={{ color: 'var(--color-teal)', cursor: 'pointer' }}
                 onClick={() => {
                   setOpenModal(null);
                   setOpenModal('bulkUpload');
@@ -1418,10 +1418,10 @@ function Settings() {
           <Alert color="red" variant="light" icon={<IconAlertTriangle size={18} />}>
             <Text size="sm" fw={500}>This action is permanent and cannot be undone.</Text>
           </Alert>
-          <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+          <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
             Deleting your account will permanently remove:
           </Text>
-          <List size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+          <List size="sm" style={{ color: 'var(--color-text-secondary)' }}>
             <List.Item>Your profile and preferences</List.Item>
             <List.Item>All activities and routes</List.Item>
             <List.Item>Training plans and workout history</List.Item>
@@ -1429,7 +1429,7 @@ function Settings() {
             <List.Item>Gear and component data</List.Item>
             <List.Item>Connected service tokens (Strava, Garmin, Wahoo)</List.Item>
           </List>
-          <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+          <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
             Type <strong>DELETE</strong> below to confirm:
           </Text>
           <TextInput
@@ -1466,7 +1466,7 @@ function Settings() {
         onClose={() => setOpenModal(null)}
         title={
           <Group gap="sm">
-            <IconAlertTriangle size={24} color="terracotta" />
+            <IconAlertTriangle size={24} color="teal" />
             <Text fw={600}>Reconnect Garmin</Text>
           </Group>
         }
@@ -1474,7 +1474,7 @@ function Settings() {
         size="md"
       >
         <Stack gap="md">
-          <Alert color="terracotta" variant="light" icon={<IconAlertTriangle size={18} />}>
+          <Alert color="teal" variant="light" icon={<IconAlertTriangle size={18} />}>
             <Text size="sm" fw={500}>
               Your Garmin connection has expired or become invalid. Activities are not syncing.
             </Text>
@@ -1504,7 +1504,7 @@ function Settings() {
             </Button>
             {garminStatus.connected ? (
               <Button
-                color="terracotta"
+                color="teal"
                 onClick={async () => {
                   setOpenModal(null);
                   await disconnectGarmin();
@@ -1516,7 +1516,7 @@ function Settings() {
               </Button>
             ) : (
               <Button
-                color="sage"
+                color="teal"
                 onClick={() => {
                   setOpenModal(null);
                   connectGarmin();
@@ -1545,7 +1545,7 @@ function Settings() {
             }
           />
 
-          <Tabs value={activeTab} onChange={setActiveTab} color="terracotta" variant="pills">
+          <Tabs value={activeTab} onChange={setActiveTab} color="teal" variant="pills">
             <Paper
               withBorder
               radius="xl"
@@ -1556,7 +1556,7 @@ function Settings() {
                 zIndex: 100,
                 background: depth.panel.background,
                 boxShadow: depth.panel.boxShadow,
-                border: '1px solid var(--tribos-border-default)',
+                border: '1px solid var(--color-border)',
               }}
             >
               <Tabs.List grow={!isMobile} justify={isMobile ? 'center' : undefined}>
@@ -1589,7 +1589,7 @@ function Settings() {
           {/* Profile Settings */}
           <Card>
             <Stack gap="md">
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+              <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                 Profile
               </Title>
 
@@ -1648,7 +1648,7 @@ function Settings() {
                 </Text>
               )}
 
-              <Button color="terracotta" onClick={handleSaveProfile} loading={loading}>
+              <Button color="teal" onClick={handleSaveProfile} loading={loading}>
                 Save Changes
               </Button>
             </Stack>
@@ -1664,10 +1664,10 @@ function Settings() {
           {/* Training & Power */}
           <Card>
             <Stack gap="md">
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+              <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                 Training & Power
               </Title>
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                 Set your FTP to calculate personalized power zones
               </Text>
 
@@ -1705,12 +1705,12 @@ function Settings() {
                 <Box
                   style={{
                     padding: tokens.spacing.sm,
-                    backgroundColor: 'var(--tribos-bg-tertiary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
                     borderRadius: tokens.radius.sm,
                   }}
                 >
-                  <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
-                    Your W/kg: <Text component="span" fw={700} style={{ color: 'var(--tribos-terracotta-500)' }}>
+                  <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+                    Your W/kg: <Text component="span" fw={700} style={{ color: 'var(--color-teal)' }}>
                       {(ftp / weightKg).toFixed(2)} W/kg
                     </Text>
                   </Text>
@@ -1719,7 +1719,7 @@ function Settings() {
 
               {powerZones && (
                 <Box>
-                  <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }} mb="xs">
+                  <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }} mb="xs">
                     Your Power Zones
                   </Text>
                   <Stack gap="xs">
@@ -1743,10 +1743,10 @@ function Settings() {
                           >
                             Z{index + 1}
                           </Badge>
-                          <Text size="sm" style={{ color: 'var(--tribos-text-primary)', minWidth: 100 }}>
+                          <Text size="sm" style={{ color: 'var(--color-text-primary)', minWidth: 100 }}>
                             {zone.name}
                           </Text>
-                          <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                          <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                             {zone.min}{zone.max ? `-${zone.max}` : '+'} W
                           </Text>
                         </Group>
@@ -1760,19 +1760,19 @@ function Settings() {
                 <Box
                   style={{
                     padding: tokens.spacing.md,
-                    backgroundColor: 'var(--tribos-bg-tertiary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
                     borderRadius: tokens.radius.md,
                     textAlign: 'center',
                   }}
                 >
-                  <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
                     Enter your FTP above to see your personalized power zones.
                     Not sure of your FTP? Try a 20-minute all-out effort and multiply by 0.95.
                   </Text>
                 </Box>
               )}
 
-              <Button color="terracotta" onClick={handleSaveProfile} loading={loading}>
+              <Button color="teal" onClick={handleSaveProfile} loading={loading}>
                 Save Training Settings
               </Button>
             </Stack>
@@ -1790,10 +1790,10 @@ function Settings() {
 
           <Group justify="space-between" align="center">
             <Stack gap={4}>
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+              <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                 Gear
               </Title>
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                 Track mileage and maintenance for your bikes and running shoes
               </Text>
             </Stack>
@@ -1902,10 +1902,10 @@ function Settings() {
           {/* Connected Services */}
           <Card>
             <Stack gap="md">
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+              <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                 Connected Services
               </Title>
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                 Connect your cycling platforms to sync activities automatically
               </Text>
 
@@ -1930,13 +1930,13 @@ function Settings() {
                     Recommended: Export your data from Strava and use bulk import instead:
                   </Text>
                   <List size="sm" spacing="xs">
-                    <List.Item icon={<ThemeIcon color="sage" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="teal" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
                       Your data stays even if you disconnect Strava later
                     </List.Item>
-                    <List.Item icon={<ThemeIcon color="sage" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="teal" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
                       Full historical data with GPS tracks and power data
                     </List.Item>
-                    <List.Item icon={<ThemeIcon color="sage" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="teal" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
                       Not subject to Strava's API restrictions
                     </List.Item>
                   </List>
@@ -1945,7 +1945,7 @@ function Settings() {
                   </Text>
                   <Button
                     variant="light"
-                    color="terracotta"
+                    color="teal"
                     size="sm"
                     leftSection={<IconUpload size={16} />}
                     onClick={() => setOpenModal('bulkUpload')}
@@ -2021,9 +2021,9 @@ function Settings() {
                   <Group>
                     <Text size="xl">📅</Text>
                     <Box>
-                      <Text style={{ color: 'var(--tribos-text-primary)' }}>Google Calendar</Text>
+                      <Text style={{ color: 'var(--color-text-primary)' }}>Google Calendar</Text>
                       {googleCalendarStatus.connected && googleCalendarStatus.email && (
-                        <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                        <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                           Connected as {googleCalendarStatus.email}
                         </Text>
                       )}
@@ -2036,7 +2036,7 @@ function Settings() {
                   </Group>
                 </Group>
                 <Box style={{ marginLeft: '2.5rem' }}>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                     Google Calendar integration is coming soon. Connect your calendar to automatically detect busy days for schedule-aware training plans.
                   </Text>
                 </Box>
@@ -2049,7 +2049,7 @@ function Settings() {
               {stravaStatus.connected && (
                 <Box
                   style={{
-                    backgroundColor: 'var(--tribos-bg-tertiary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
                     padding: tokens.spacing.md,
                     borderRadius: tokens.radius.sm
                   }}
@@ -2058,17 +2058,17 @@ function Settings() {
                     <Box>
                       <Group gap="xs" mb={4}>
                         <Text size="xl">📚</Text>
-                        <Text fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+                        <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>
                           Full Strava History Sync
                         </Text>
                       </Group>
-                      <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                      <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                         Import your complete Strava history (all years). Regular sync imports ~2000 max.
                       </Text>
                     </Box>
                     <Button
                       size="sm"
-                      color="terracotta"
+                      color="teal"
                       variant="light"
                       onClick={syncFullStravaHistory}
                       loading={fullHistorySyncing}
@@ -2083,7 +2083,7 @@ function Settings() {
               {/* Duplicate Cleanup */}
               <Box
                 style={{
-                  backgroundColor: 'var(--tribos-bg-tertiary)',
+                  backgroundColor: 'var(--color-bg-secondary)',
                   padding: tokens.spacing.md,
                   borderRadius: tokens.radius.sm
                 }}
@@ -2093,11 +2093,11 @@ function Settings() {
                     <Box>
                       <Group gap="xs" mb={4}>
                         <Text size="xl">🔍</Text>
-                        <Text fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+                        <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>
                           Duplicate Activity Cleanup
                         </Text>
                       </Group>
-                      <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                      <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                         Find and merge duplicate activities (e.g., same ride from Garmin and Strava).
                       </Text>
                     </Box>
@@ -2162,15 +2162,15 @@ function Settings() {
           {/* Preferences */}
           <Card>
             <Stack gap="md">
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+              <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                 Preferences
               </Title>
 
               {/* Theme Toggle */}
               <Group justify="space-between">
                 <Box>
-                  <Text style={{ color: 'var(--tribos-text-primary)' }}>Appearance</Text>
-                  <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text style={{ color: 'var(--color-text-primary)' }}>Appearance</Text>
+                  <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                     Choose your preferred color theme
                   </Text>
                 </Box>
@@ -2200,8 +2200,8 @@ function Settings() {
 
               <Group justify="space-between">
                 <Box>
-                  <Text style={{ color: 'var(--tribos-text-primary)' }}>Email Notifications</Text>
-                  <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text style={{ color: 'var(--color-text-primary)' }}>Email Notifications</Text>
+                  <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                     Receive weekly training summaries
                   </Text>
                 </Box>
@@ -2212,8 +2212,8 @@ function Settings() {
 
               <Group justify="space-between">
                 <Box>
-                  <Text style={{ color: 'var(--tribos-text-primary)' }}>Auto-sync Activities</Text>
-                  <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text style={{ color: 'var(--color-text-primary)' }}>Auto-sync Activities</Text>
+                  <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                     Automatically import new activities
                   </Text>
                 </Box>
@@ -2226,25 +2226,25 @@ function Settings() {
           <Card>
             <Stack gap="md">
               <Group gap="xs">
-                <IconSparkles size={20} color="var(--tribos-terracotta-500)" />
-                <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+                <IconSparkles size={20} color="var(--color-teal)" />
+                <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                   AI Features
                 </Title>
               </Group>
 
               <Group justify="space-between">
                 <Box style={{ flex: 1 }}>
-                  <Text style={{ color: 'var(--tribos-text-primary)' }}>AI Coach & Insights</Text>
-                  <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text style={{ color: 'var(--color-text-primary)' }}>AI Coach & Insights</Text>
+                  <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                     Enable AI-powered coaching, training insights, and route suggestions.
                     Your data is processed by Anthropic's Claude AI.{' '}
-                    <Link to="/privacy#ai" style={{ color: 'var(--tribos-terracotta-500)' }}>
+                    <Link to="/privacy#ai" style={{ color: 'var(--color-teal)' }}>
                       Learn more
                     </Link>
                   </Text>
                 </Box>
                 <Switch
-                  color="terracotta"
+                  color="teal"
                   checked={aiConsentEnabled}
                   disabled={aiConsentLoading}
                   onChange={(e) => handleAiConsentToggle(e.currentTarget.checked)}
@@ -2256,14 +2256,14 @@ function Settings() {
           {/* Account Actions */}
           <Card>
             <Stack gap="md">
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+              <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                 Account
               </Title>
 
               <Group justify="space-between">
                 <Box>
-                  <Text style={{ color: 'var(--tribos-text-primary)' }}>Export My Data</Text>
-                  <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text style={{ color: 'var(--color-text-primary)' }}>Export My Data</Text>
+                  <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                     Download all your data as JSON
                   </Text>
                 </Box>
@@ -2314,7 +2314,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
       <Group justify="space-between">
         <Group>
           <Text size="xl">{icon}</Text>
-          <Text style={{ color: 'var(--tribos-text-primary)' }}>{name}</Text>
+          <Text style={{ color: 'var(--color-text-primary)' }}>{name}</Text>
         </Group>
         <Loader size="sm" />
       </Group>
@@ -2327,9 +2327,9 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
         <Group>
           <Text size="xl">{icon}</Text>
           <Box>
-            <Text style={{ color: 'var(--tribos-text-primary)' }}>{name}</Text>
+            <Text style={{ color: 'var(--color-text-primary)' }}>{name}</Text>
             {connected && username && (
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                 Connected as {username}
               </Text>
             )}
@@ -2338,7 +2338,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
         <Group>
           {connected ? (
             <>
-              <Badge color="sage" variant="light">
+              <Badge color="teal" variant="light">
                 Connected
               </Badge>
               <Button variant="subtle" color="red" size="sm" onClick={onDisconnect}>
@@ -2348,7 +2348,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
           ) : isStrava ? (
             <ConnectWithStravaButton onClick={onConnect} />
           ) : (
-            <Button variant="outline" color="terracotta" size="sm" onClick={onConnect}>
+            <Button variant="outline" color="teal" size="sm" onClick={onConnect}>
               Connect
             </Button>
           )}
@@ -2359,7 +2359,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
       {connected && onSync && (
         <Box
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             padding: tokens.spacing.sm,
             borderRadius: tokens.radius.sm,
             marginLeft: '2.5rem'
@@ -2367,26 +2367,26 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
         >
           <Group justify="space-between" align="flex-start">
             <Box>
-              <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                 Activity Sync
               </Text>
               {speedProfile ? (
                 <Stack gap={4}>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                     {speedProfile.rides_analyzed} rides analyzed • Avg: {formatSpeed(speedProfile.average_speed, unitsPreference === 'imperial')}
                   </Text>
                   {isStrava && <PoweredByStrava variant="light" size="sm" />}
                   {name === 'Garmin Connect' && <PoweredByGarmin variant="light" size="sm" />}
                 </Stack>
               ) : (
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                   {onCheckWebhook ? 'Sync last 90 days of activities' : 'Sync recent activities (for full history, see Activity Maintenance below)'}
                 </Text>
               )}
             </Box>
             <Button
               size="xs"
-              color="terracotta"
+              color="teal"
               variant="light"
               onClick={onSync}
               loading={syncing}
@@ -2401,7 +2401,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
       {connected && onBackfillGps && (
         <Box
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             padding: tokens.spacing.sm,
             borderRadius: tokens.radius.sm,
             marginLeft: '2.5rem'
@@ -2409,10 +2409,10 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
         >
           <Group justify="space-between" align="flex-start">
             <Box>
-              <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                 GPS Data
               </Text>
-              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+              <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                 Download GPS tracks for activities missing map data
               </Text>
             </Box>
@@ -2433,7 +2433,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
       {connected && onBackfillStreams && (
         <Box
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             padding: tokens.spacing.sm,
             borderRadius: tokens.radius.sm,
             marginLeft: '2.5rem'
@@ -2441,10 +2441,10 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
         >
           <Group justify="space-between" align="flex-start">
             <Box>
-              <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                 Ride Analysis
               </Text>
-              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+              <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                 Generate detailed charts and analytics for activities missing ride data
               </Text>
             </Box>
@@ -2465,7 +2465,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
       {connected && onBackfillHistory && (
         <Box
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             padding: tokens.spacing.sm,
             borderRadius: tokens.radius.sm,
             marginLeft: '2.5rem'
@@ -2474,10 +2474,10 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
           <Stack gap="xs">
             <Group justify="space-between" align="flex-start">
               <Box>
-                <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                   Historical Data (2 Years)
                 </Text>
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                   Import all activities from the past 2 years in small chunks
                 </Text>
               </Box>
@@ -2494,7 +2494,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
             {backfillStatus?.initialized && (
               <Box
                 style={{
-                  backgroundColor: 'var(--tribos-bg-secondary)',
+                  backgroundColor: 'var(--color-bg-secondary)',
                   padding: tokens.spacing.xs,
                   borderRadius: tokens.radius.xs,
                   fontSize: '12px'
@@ -2502,14 +2502,14 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
               >
                 <Stack gap={4}>
                   <Group gap="xs">
-                    <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Progress:</Text>
-                    <Text size="xs" style={{ color: backfillStatus.progress?.percentComplete === 100 ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-primary)' }}>
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Progress:</Text>
+                    <Text size="xs" style={{ color: backfillStatus.progress?.percentComplete === 100 ? 'var(--color-teal)' : 'var(--color-text-primary)' }}>
                       {backfillStatus.progress?.percentComplete || 0}% ({backfillStatus.progress?.received + backfillStatus.progress?.alreadyProcessed || 0}/{backfillStatus.progress?.total || 0} chunks)
                     </Text>
                   </Group>
                   {backfillStatus.progress?.requested > 0 && (
                     <Group gap="xs">
-                      <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Waiting:</Text>
+                      <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Waiting:</Text>
                       <Text size="xs" style={{ color: '#3A5A8C' }}>
                         {backfillStatus.progress.requested} chunks pending from Garmin
                       </Text>
@@ -2517,8 +2517,8 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                   )}
                   {backfillStatus.progress?.activitiesReceived > 0 && (
                     <Group gap="xs">
-                      <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Activities:</Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-terracotta-500)' }}>
+                      <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Activities:</Text>
+                      <Text size="xs" style={{ color: 'var(--color-teal)' }}>
                         {backfillStatus.progress.activitiesReceived} received
                       </Text>
                     </Group>
@@ -2539,7 +2539,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
       {connected && onCheckWebhook && (
         <Box
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             padding: tokens.spacing.sm,
             borderRadius: tokens.radius.sm,
             marginLeft: '2.5rem'
@@ -2548,10 +2548,10 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
           <Stack gap="xs">
             <Group justify="space-between" align="flex-start">
               <Box>
-                <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                   Webhook Status
                 </Text>
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                   Auto-sync when you complete rides
                 </Text>
               </Box>
@@ -2567,7 +2567,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
             {webhookStatus && (
               <Box
                 style={{
-                  backgroundColor: 'var(--tribos-bg-secondary)',
+                  backgroundColor: 'var(--color-bg-secondary)',
                   padding: tokens.spacing.xs,
                   borderRadius: tokens.radius.xs,
                   fontSize: '12px'
@@ -2575,20 +2575,20 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
               >
                 <Stack gap={4}>
                   <Group gap="xs">
-                    <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Garmin User ID:</Text>
-                    <Text size="xs" style={{ color: webhookStatus.integration?.hasGarminUserId ? 'var(--tribos-terracotta-500)' : 'red' }}>
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Garmin User ID:</Text>
+                    <Text size="xs" style={{ color: webhookStatus.integration?.hasGarminUserId ? 'var(--color-teal)' : 'red' }}>
                       {webhookStatus.integration?.hasGarminUserId ? '✓ Set' : '✗ Missing'}
                     </Text>
                   </Group>
                   <Group gap="xs">
-                    <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Token Valid:</Text>
-                    <Text size="xs" style={{ color: webhookStatus.integration?.tokenValid ? 'var(--tribos-terracotta-500)' : 'red' }}>
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Token Valid:</Text>
+                    <Text size="xs" style={{ color: webhookStatus.integration?.tokenValid ? 'var(--color-teal)' : 'red' }}>
                       {webhookStatus.integration?.tokenValid ? '✓ Yes' : '✗ Expired'}
                     </Text>
                   </Group>
                   <Group gap="xs">
-                    <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>Webhooks Received:</Text>
-                    <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Webhooks Received:</Text>
+                    <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                       {webhookStatus.webhookStats?.totalEvents || 0}
                     </Text>
                   </Group>
@@ -2612,7 +2612,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
       {connected && (onRepair || onRecover || onDiagnose) && (
         <Box
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             padding: tokens.spacing.sm,
             borderRadius: tokens.radius.sm,
             marginLeft: '2.5rem'
@@ -2628,11 +2628,11 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
             }}
           >
             {diagnosticsOpen ? (
-              <IconChevronDown size={16} color="var(--tribos-text-secondary)" />
+              <IconChevronDown size={16} color="var(--color-text-secondary)" />
             ) : (
-              <IconChevronRight size={16} color="var(--tribos-text-secondary)" />
+              <IconChevronRight size={16} color="var(--color-text-secondary)" />
             )}
-            <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+            <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
               Advanced Diagnostics
             </Text>
           </UnstyledButton>
@@ -2653,7 +2653,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 <Button
                   size="xs"
                   variant="outline"
-                  color="terracotta"
+                  color="teal"
                   onClick={onRecover}
                   loading={recovering}
                 >
@@ -2673,7 +2673,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
               {diagnosis && (
                 <Box
                   style={{
-                    backgroundColor: 'var(--tribos-bg-secondary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
                     padding: tokens.spacing.sm,
                     borderRadius: tokens.radius.sm,
                     fontSize: '11px',
@@ -2681,38 +2681,38 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                     overflow: 'auto'
                   }}
                 >
-                  <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginBottom: 4 }}>
+                  <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)', marginBottom: 4 }}>
                     Diagnosis Results:
                   </Text>
-                  <Text size="xs" style={{ color: 'var(--tribos-terracotta-500)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-teal)' }}>
                     Activities in DB: {diagnosis.activities?.count || 0}
                   </Text>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                     Webhook Events: {diagnosis.summary?.totalWebhooks || 0}
                   </Text>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                     • PUSH events: {diagnosis.summary?.pushEvents || 0}
                   </Text>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                     • PING events: {diagnosis.summary?.pingEvents || 0}
                   </Text>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                     • With errors: {diagnosis.summary?.withErrors || 0}
                   </Text>
-                  <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                     • Imported: {diagnosis.summary?.imported || 0}
                   </Text>
                   {diagnosis.webhookEvents?.analysis?.length > 0 && (
                     <>
-                      <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)', marginTop: 8 }}>
+                      <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)', marginTop: 8 }}>
                         Recent Events:
                       </Text>
                       {diagnosis.webhookEvents.analysis.slice(0, 5).map((event, i) => (
-                        <Box key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${event.error ? 'red' : 'var(--tribos-terracotta-500)'}` }}>
-                          <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+                        <Box key={i} style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${event.error ? 'red' : 'var(--color-teal)'}` }}>
+                          <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                             {event.activityName || event.activity_id || 'Unknown'} - {event.activityType || 'N/A'}
                           </Text>
-                          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                          <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                             {event.dataSource} | {event.distance || 'No distance'}
                           </Text>
                           {event.error && (

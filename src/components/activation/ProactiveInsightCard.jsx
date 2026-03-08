@@ -100,11 +100,11 @@ export default function ProactiveInsightCard() {
     <Card
       id="insight-card"
       style={{
-        borderLeft: '3px solid var(--tribos-sage-500, #3D8B50)',
+        borderLeft: '3px solid var(--color-teal, #2A8C82)',
       }}
     >
       <Group gap="sm" mb="xs" wrap="nowrap">
-        <ThemeIcon size="md" variant="light" color="sage" radius="xl">
+        <ThemeIcon size="md" variant="light" color="teal" radius="xl">
           <IconBrain size={16} />
         </ThemeIcon>
         <Box style={{ flex: 1 }}>
@@ -114,12 +114,12 @@ export default function ProactiveInsightCard() {
             tt="uppercase"
             ff="'DM Mono', monospace"
             lts={1}
-            style={{ color: 'var(--tribos-sage-500, #3D8B50)' }}
+            style={{ color: 'var(--color-teal, #2A8C82)' }}
           >
             Your coach noticed something
           </Text>
           {activityName && (
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
               About your ride: {activityName}
             </Text>
           )}
@@ -130,7 +130,7 @@ export default function ProactiveInsightCard() {
         size="sm"
         mb="md"
         style={{
-          color: 'var(--tribos-text-primary)',
+          color: 'var(--color-text-primary)',
           lineHeight: 1.5,
         }}
       >
@@ -140,7 +140,7 @@ export default function ProactiveInsightCard() {
       <Group gap="sm">
         <Button
           variant="light"
-          color="sage"
+          color="teal"
           size="compact-sm"
           leftSection={<IconMessageCircle size={14} />}
           onClick={handleTalkToCoach}

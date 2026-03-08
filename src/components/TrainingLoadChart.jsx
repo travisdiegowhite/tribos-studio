@@ -81,12 +81,12 @@ const TrainingLoadChart = ({ data }) => {
     if (!active || !payload || payload.length === 0) return null;
 
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
-        <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--tribos-text-primary)' }}>{label}</Text>
+      <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+        <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--color-text-primary)' }}>{label}</Text>
         {payload.map((entry, index) => (
           <Group key={index} justify="space-between" gap="md">
             <Text size="xs" style={{ color: entry.color }}>{entry.name}:</Text>
-            <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>{entry.value}</Text>
+            <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>{entry.value}</Text>
           </Group>
         ))}
       </Card>
@@ -96,7 +96,7 @@ const TrainingLoadChart = ({ data }) => {
   if (!chartData || chartData.length === 0) {
     return (
       <Card withBorder p="xl">
-        <Text style={{ color: 'var(--tribos-text-muted)' }} ta="center">
+        <Text style={{ color: 'var(--color-text-muted)' }} ta="center">
           No training data available. Import your rides to see your training load metrics.
         </Text>
       </Card>
@@ -106,7 +106,7 @@ const TrainingLoadChart = ({ data }) => {
   return (
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
-        <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+        <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
           Training Load Over Time
         </Text>
         <Group gap="xs">
@@ -125,58 +125,58 @@ const TrainingLoadChart = ({ data }) => {
 
       {/* Legend */}
       <Group gap="xs" mb="md">
-        <Badge color="blue" variant="light" size="sm">CTL (Fitness)</Badge>
-        <Badge color="orange" variant="light" size="sm">ATL (Fatigue)</Badge>
-        <Badge color="green" variant="light" size="sm">TSB (Form)</Badge>
+        <Badge color="gold" variant="light" size="sm">CTL (Fitness)</Badge>
+        <Badge color="coral" variant="light" size="sm">ATL (Fatigue)</Badge>
+        <Badge color="teal" variant="light" size="sm">TSB (Form)</Badge>
       </Group>
 
       {/* Daily TSS Bar Chart */}
       <ResponsiveContainer width="100%" height={120}>
         <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
+          <CartesianGrid strokeDasharray="3 3" stroke={'var(--color-bg-secondary)'} />
           <XAxis
             dataKey="formattedDate"
-            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
             interval="preserveStartEnd"
           />
-          <YAxis tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }} />
+          <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
           <Tooltip content={<CustomTooltip />} />
           <Area
             type="monotone"
             dataKey="tss"
-            stroke="#3D8B50"
-            fill="#3D8B50"
+            stroke="#2A8C82"
+            fill="#2A8C82"
             fillOpacity={0.3}
             name="Daily TSS"
           />
         </AreaChart>
       </ResponsiveContainer>
 
-      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb="lg" mt="xs">
+      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="lg" mt="xs">
         Daily Training Stress Score
       </Text>
 
       {/* CTL/ATL/TSB Line Chart */}
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
+          <CartesianGrid strokeDasharray="3 3" stroke={'var(--color-bg-secondary)'} />
           <XAxis
             dataKey="formattedDate"
-            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
             interval="preserveStartEnd"
           />
-          <YAxis tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }} />
+          <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ fontSize: 13 }} />
 
           {/* Reference line at TSB = 0 */}
-          <ReferenceLine y={0} stroke={'var(--tribos-text-muted)'} strokeDasharray="3 3" />
+          <ReferenceLine y={0} stroke={'var(--color-text-muted)'} strokeDasharray="3 3" />
 
           {/* CTL - Chronic Training Load (Fitness) */}
           <Line
             type="monotone"
             dataKey="ctl"
-            stroke="#3A5A8C"
+            stroke="#C49A0A"
             strokeWidth={2}
             dot={false}
             name="CTL (Fitness)"
@@ -186,7 +186,7 @@ const TrainingLoadChart = ({ data }) => {
           <Line
             type="monotone"
             dataKey="atl"
-            stroke="#D4820A"
+            stroke="#C43C2A"
             strokeWidth={2}
             dot={false}
             name="ATL (Fatigue)"
@@ -196,7 +196,7 @@ const TrainingLoadChart = ({ data }) => {
           <Line
             type="monotone"
             dataKey="tsb"
-            stroke="#3D8B50"
+            stroke="#2A8C82"
             strokeWidth={2}
             dot={false}
             name="TSB (Form)"
@@ -204,7 +204,7 @@ const TrainingLoadChart = ({ data }) => {
         </LineChart>
       </ResponsiveContainer>
 
-      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mt="xs">
+      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt="xs">
         CTL = Long-term fitness (42-day) | ATL = Recent fatigue (7-day) | TSB = Freshness/Form (CTL - ATL)
       </Text>
     </Card>

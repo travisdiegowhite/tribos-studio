@@ -74,7 +74,7 @@ function CoachRecentQuestions({
           }}
           sx={(theme) => ({
             '&:hover': {
-              backgroundColor: 'var(--tribos-bg-tertiary)',
+              backgroundColor: 'var(--color-bg-secondary)',
             },
           })}
         >
@@ -91,7 +91,7 @@ function CoachRecentQuestions({
               <Text
                 size="sm"
                 style={{
-                  color: 'var(--tribos-text-secondary)',
+                  color: 'var(--color-text-secondary)',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',

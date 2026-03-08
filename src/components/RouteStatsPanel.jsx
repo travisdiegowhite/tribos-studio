@@ -46,7 +46,7 @@ function RouteStatsPanel({
       icon: <IconRuler size={20} />,
       label: 'Distance',
       value: formatDist(stats.distance),
-      color: 'var(--tribos-terracotta-500)',
+      color: 'var(--color-teal)',
     },
     {
       icon: <IconMountain size={20} />,
@@ -60,7 +60,7 @@ function RouteStatsPanel({
       value: hasETA
         ? personalizedETA.formattedTime
         : (rawDuration || '--:--'),
-      color: hasETA ? 'var(--tribos-terracotta-500)' : tokens.colors.zone1,
+      color: hasETA ? 'var(--color-teal)' : tokens.colors.zone1,
       tooltip: hasETA
         ? buildETATooltip(personalizedETA, rawDuration)
         : null,
@@ -83,7 +83,7 @@ function RouteStatsPanel({
   return (
     <Box
       style={{
-        backgroundColor: 'var(--tribos-bg-tertiary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         borderRadius: tokens.radius.md,
         padding: tokens.spacing.md,
       }}
@@ -100,7 +100,7 @@ function RouteStatsPanel({
           >
             <Box
               style={{
-                backgroundColor: 'var(--tribos-bg-secondary)',
+                backgroundColor: 'var(--color-bg-secondary)',
                 borderRadius: tokens.radius.md,
                 padding: '12px',
                 textAlign: 'center',
@@ -120,11 +120,11 @@ function RouteStatsPanel({
               <Text
                 size="lg"
                 fw={700}
-                style={{ color: 'var(--tribos-text-primary)', marginBottom: '2px' }}
+                style={{ color: 'var(--color-text-primary)', marginBottom: '2px' }}
               >
                 {item.value}
               </Text>
-              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+              <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                 {item.label}
               </Text>
             </Box>
@@ -185,7 +185,7 @@ function ETABreakdownBar({ breakdown, isPersonalized }) {
     factors.push({ label: `Goal -${pct}%`, color: tokens.colors.zone1 });
   } else if (breakdown.goalModifier > 1.02) {
     const pct = Math.round((breakdown.goalModifier - 1) * 100);
-    factors.push({ label: `Goal +${pct}%`, color: 'var(--tribos-terracotta-500)' });
+    factors.push({ label: `Goal +${pct}%`, color: 'var(--color-teal)' });
   }
 
   return (

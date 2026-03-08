@@ -29,9 +29,9 @@ export default function SegmentAlternativesPanel({
   return (
     <Box
       style={{
-        backgroundColor: 'var(--tribos-bg-secondary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         borderRadius: tokens.radius.md,
-        border: '1px solid var(--tribos-bg-tertiary)',
+        border: '1px solid var(--color-bg-secondary)',
         overflow: 'hidden',
       }}
     >
@@ -40,11 +40,11 @@ export default function SegmentAlternativesPanel({
         justify="space-between"
         px="sm"
         py="xs"
-        style={{ borderBottom: '1px solid var(--tribos-bg-tertiary)' }}
+        style={{ borderBottom: '1px solid var(--color-bg-secondary)' }}
       >
         <Group gap={6}>
-          <IconArrowRight size={16} color="var(--tribos-terracotta-500)" />
-          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <IconArrowRight size={16} color="var(--color-teal)" />
+          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Segment Alternatives
           </Text>
         </Group>
@@ -55,19 +55,19 @@ export default function SegmentAlternativesPanel({
 
       {/* Current segment reference */}
       {currentSegment && (
-        <Box px="sm" py={6} style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Box px="sm" py={6} style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap={12}>
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>Current:</Text>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Current:</Text>
             <Group gap={6}>
-              <IconRuler size={12} color="var(--tribos-text-muted)" />
-              <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+              <IconRuler size={12} color="var(--color-text-muted)" />
+              <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                 {currentSegment.distanceKm} km
               </Text>
             </Group>
             {currentSegment.elevationGain > 0 && (
               <Group gap={6}>
-                <IconMountain size={12} color="var(--tribos-text-muted)" />
-                <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+                <IconMountain size={12} color="var(--color-text-muted)" />
+                <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                   {Math.round(currentSegment.elevationGain)}m
                 </Text>
               </Group>
@@ -76,19 +76,19 @@ export default function SegmentAlternativesPanel({
         </Box>
       )}
 
-      <Divider color="var(--tribos-bg-tertiary)" />
+      <Divider color="var(--color-bg-secondary)" />
 
       {/* Alternatives list */}
       <Box style={{ padding: tokens.spacing.xs }}>
         {loading ? (
           <Box py="lg" style={{ textAlign: 'center' }}>
-            <Loader size={24} color="terracotta" />
-            <Text size="xs" mt="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Loader size={24} color="teal" />
+            <Text size="xs" mt="xs" style={{ color: 'var(--color-text-muted)' }}>
               Finding alternative routes…
             </Text>
           </Box>
         ) : alternatives.length === 0 ? (
-          <Text size="xs" ta="center" py="md" style={{ color: 'var(--tribos-text-muted)' }}>
+          <Text size="xs" ta="center" py="md" style={{ color: 'var(--color-text-muted)' }}>
             No alternatives found for this segment.
           </Text>
         ) : (
@@ -111,7 +111,7 @@ export default function SegmentAlternativesPanel({
                     padding: '8px 10px',
                     borderRadius: tokens.radius.sm,
                     border: `2px solid ${isHovered ? alt.color : 'transparent'}`,
-                    backgroundColor: isHovered ? alt.color + '12' : 'var(--tribos-bg-tertiary)',
+                    backgroundColor: isHovered ? alt.color + '12' : 'var(--color-bg-secondary)',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                   }}
@@ -132,7 +132,7 @@ export default function SegmentAlternativesPanel({
                         size="sm"
                         fw={600}
                         lineClamp={1}
-                        style={{ color: 'var(--tribos-text-primary)' }}
+                        style={{ color: 'var(--color-text-primary)' }}
                       >
                         {alt.label}
                       </Text>
@@ -143,7 +143,7 @@ export default function SegmentAlternativesPanel({
                       <ActionIcon
                         size="sm"
                         variant="light"
-                        color="terracotta"
+                        color="teal"
                         onClick={(e) => {
                           e.stopPropagation();
                           onApply?.(alt);
@@ -157,15 +157,15 @@ export default function SegmentAlternativesPanel({
                   {/* Stats row */}
                   <Group gap={12} mt={4}>
                     <Group gap={4}>
-                      <IconRuler size={12} color="var(--tribos-text-muted)" />
-                      <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+                      <IconRuler size={12} color="var(--color-text-muted)" />
+                      <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                         {alt.distanceKm} km
                       </Text>
                       {distDelta != null && distDelta !== 0 && (
                         <Text
                           size="xs"
                           fw={500}
-                          style={{ color: distDelta > 0 ? tokens.colors.zone4 : 'var(--tribos-terracotta-500)' }}
+                          style={{ color: distDelta > 0 ? tokens.colors.zone4 : 'var(--color-teal)' }}
                         >
                           {distDelta > 0 ? '+' : ''}{distDelta.toFixed(1)}
                         </Text>
@@ -174,15 +174,15 @@ export default function SegmentAlternativesPanel({
 
                     {alt.elevationGain > 0 && (
                       <Group gap={4}>
-                        <IconMountain size={12} color="var(--tribos-text-muted)" />
-                        <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+                        <IconMountain size={12} color="var(--color-text-muted)" />
+                        <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                           {Math.round(alt.elevationGain)}m
                         </Text>
                         {elevDelta != null && elevDelta !== 0 && (
                           <Text
                             size="xs"
                             fw={500}
-                            style={{ color: elevDelta > 0 ? tokens.colors.zone4 : 'var(--tribos-terracotta-500)' }}
+                            style={{ color: elevDelta > 0 ? tokens.colors.zone4 : 'var(--color-teal)' }}
                           >
                             {elevDelta > 0 ? '+' : ''}{Math.round(elevDelta)}m
                           </Text>
@@ -192,8 +192,8 @@ export default function SegmentAlternativesPanel({
 
                     {alt.durationMin > 0 && (
                       <Group gap={4}>
-                        <IconClock size={12} color="var(--tribos-text-muted)" />
-                        <Text size="xs" style={{ color: 'var(--tribos-text-primary)' }}>
+                        <IconClock size={12} color="var(--color-text-muted)" />
+                        <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                           {alt.durationMin}m
                         </Text>
                       </Group>

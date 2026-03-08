@@ -30,7 +30,7 @@ export default function FinalCTA() {
               order={2}
               style={{
                 fontSize: 'clamp(1.6rem, 4vw, 2.6rem)',
-                color: 'var(--tribos-text-primary)',
+                color: 'var(--color-text-primary)',
                 lineHeight: 1.15,
               }}
             >
@@ -41,7 +41,7 @@ export default function FinalCTA() {
               className="step-desc"
               size="lg"
               style={{
-                color: 'var(--tribos-text-secondary)',
+                color: 'var(--color-text-secondary)',
                 maxWidth: 480,
                 lineHeight: 1.6,
               }}
@@ -54,7 +54,7 @@ export default function FinalCTA() {
               component={Link}
               to="/auth"
               size="xl"
-              color="terracotta"
+              color="teal"
               rightSection={<IconChevronRight size={20} />}
             >
               Create Free Account
@@ -62,20 +62,20 @@ export default function FinalCTA() {
 
             <Group className="step-content" gap="lg" justify="center" wrap="wrap">
               <Group gap={4}>
-                <IconCheck size={14} color="var(--tribos-sage-500)" />
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                <IconCheck size={14} color="var(--color-gold)" />
+                <Text size="xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
                   Free during beta
                 </Text>
               </Group>
               <Group gap={4}>
-                <IconCheck size={14} color="var(--tribos-sage-500)" />
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                <IconCheck size={14} color="var(--color-gold)" />
+                <Text size="xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
                   No credit card
                 </Text>
               </Group>
               <Group gap={4}>
-                <IconCheck size={14} color="var(--tribos-sage-500)" />
-                <Text size="xs" style={{ color: 'var(--tribos-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                <IconCheck size={14} color="var(--color-gold)" />
+                <Text size="xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
                   Syncs with Strava & Garmin
                 </Text>
               </Group>
@@ -84,7 +84,7 @@ export default function FinalCTA() {
             <Text
               size="sm"
               style={{
-                color: 'var(--tribos-text-muted)',
+                color: 'var(--color-text-muted)',
                 fontFamily: "'DM Mono', monospace",
               }}
             >

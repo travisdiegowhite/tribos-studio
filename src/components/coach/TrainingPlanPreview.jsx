@@ -55,7 +55,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
     <Paper
       p={compact ? 'sm' : 'md'}
       style={{
-        backgroundColor: 'var(--tribos-bg-tertiary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         border: '1px solid var(--tribos-terracotta-border)',
         borderRadius: 12,
       }}
@@ -64,7 +64,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
         {/* Header */}
         <Group justify="space-between" wrap="nowrap">
           <Group gap="xs" wrap="nowrap">
-            <IconChartLine size={16} style={{ color: 'var(--tribos-terracotta-500)' }} />
+            <IconChartLine size={16} style={{ color: 'var(--color-teal)' }} />
             <Text size={compact ? 'sm' : 'md'} fw={600} lineClamp={1}>
               {plan.name}
             </Text>
@@ -84,7 +84,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
 
         {/* Methodology badge */}
         <Group gap="xs">
-          <Badge size="sm" variant="light" color="terracotta">
+          <Badge size="sm" variant="light" color="teal">
             {METHODOLOGY_LABELS[plan.methodology] || plan.methodology}
           </Badge>
           <Badge size="sm" variant="light" color="gray">
@@ -101,19 +101,19 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
         {plan.summary && (
           <SimpleGrid cols={compact ? 2 : 3} spacing="xs">
             <Group gap={4} wrap="nowrap">
-              <IconCalendarPlus size={14} style={{ color: 'var(--tribos-text-muted)', flexShrink: 0 }} />
+              <IconCalendarPlus size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
               <Text size="xs" c="dimmed">
                 {plan.summary.total_workouts} workouts
               </Text>
             </Group>
             <Group gap={4} wrap="nowrap">
-              <IconClock size={14} style={{ color: 'var(--tribos-text-muted)', flexShrink: 0 }} />
+              <IconClock size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
               <Text size="xs" c="dimmed">
                 ~{plan.summary.avg_weekly_hours} hrs/wk
               </Text>
             </Group>
             <Group gap={4} wrap="nowrap">
-              <IconFlame size={14} style={{ color: 'var(--tribos-text-muted)', flexShrink: 0 }} />
+              <IconFlame size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
               <Text size="xs" c="dimmed">
                 ~{plan.summary.avg_weekly_tss} TSS/wk
               </Text>
@@ -149,7 +149,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
 
         {/* Activate button */}
         <Button
-          color="terracotta"
+          color="teal"
           size={compact ? 'xs' : 'sm'}
           leftSection={activating ? <Loader size={14} color="dark" /> : <IconTrophy size={16} />}
           onClick={handleActivate}

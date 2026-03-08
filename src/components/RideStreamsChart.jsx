@@ -22,31 +22,31 @@ const METRIC_CONFIG = {
   power: {
     label: 'Power',
     unit: 'W',
-    color: '#3A5A8C',
+    color: '#D4600A',
     yAxisId: 'left',
   },
   heartRate: {
     label: 'Heart Rate',
     unit: 'bpm',
-    color: '#D4820A',
+    color: '#C43C2A',
     yAxisId: 'right',
   },
   speed: {
     label: 'Speed',
     unit: 'km/h',
-    color: '#6B7F94',
+    color: '#7A7970',
     yAxisId: 'left',
   },
   cadence: {
     label: 'Cadence',
     unit: 'rpm',
-    color: '#8B6B5A',
+    color: '#C49A0A',
     yAxisId: 'left',
   },
   elevation: {
     label: 'Elevation',
     unit: 'm',
-    color: '#3D8B50',
+    color: '#2A8C82',
     yAxisId: 'right',
   },
 };
@@ -96,7 +96,7 @@ const StreamsTooltip = ({ active, payload, label, activeMetrics }) => {
   if (!active || !payload || payload.length === 0) return null;
 
   return (
-    <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)', minWidth: 140 }}>
+    <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)', minWidth: 140 }}>
       <Text size="xs" fw={600} mb={4}>
         {typeof label === 'number' ? `${label.toFixed(1)} km` : label}
       </Text>
@@ -230,24 +230,24 @@ const RideStreamsChart = ({ activity }) => {
       <Box>
         <ResponsiveContainer width="100%" height={280}>
           <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--tribos-bg-tertiary)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bg-secondary)" />
 
             <XAxis
               dataKey="distance"
-              tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+              tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
               tickFormatter={(v) => `${v.toFixed(0)}`}
               label={{
                 value: 'km',
                 position: 'insideBottomRight',
                 offset: -5,
-                style: { fontSize: 10, fill: 'var(--tribos-text-muted)' },
+                style: { fontSize: 10, fill: 'var(--color-text-muted)' },
               }}
             />
 
             {hasLeftAxis && (
               <YAxis
                 yAxisId="left"
-                tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+                tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
                 width={45}
               />
             )}
@@ -255,7 +255,7 @@ const RideStreamsChart = ({ activity }) => {
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                tick={{ fontSize: 11, fill: 'var(--tribos-text-muted)' }}
+                tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
                 width={45}
               />
             )}

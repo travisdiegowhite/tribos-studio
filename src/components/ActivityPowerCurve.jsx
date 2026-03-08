@@ -103,9 +103,9 @@ const ActivityPowerCurve = ({ powerCurveSummary, ftp, weight }) => {
       <Paper
         p="xs"
         withBorder
-        style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}
+        style={{ backgroundColor: 'var(--color-bg-secondary)' }}
       >
-        <Text size="xs" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+        <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>
           {data.name} ({data.duration})
         </Text>
         <Text size="sm" fw={700} style={{ color: data.color }}>
@@ -133,7 +133,7 @@ const ActivityPowerCurve = ({ powerCurveSummary, ftp, weight }) => {
               key={effort.key}
               p="xs"
               ta="center"
-              style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}
+              style={{ backgroundColor: 'var(--color-bg-secondary)' }}
             >
               <Text size="xs" c="dimmed">{effort.label}</Text>
               <Text size="sm" fw={700} c="yellow.4">
@@ -155,23 +155,23 @@ const ActivityPowerCurve = ({ powerCurveSummary, ftp, weight }) => {
         >
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="var(--tribos-bg-tertiary)"
+            stroke="var(--color-bg-secondary)"
             vertical={false}
           />
           <XAxis
             dataKey="duration"
-            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
-            axisLine={{ stroke: 'var(--tribos-bg-tertiary)' }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
+            axisLine={{ stroke: 'var(--color-bg-secondary)' }}
           />
           <YAxis
-            tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
-            axisLine={{ stroke: 'var(--tribos-bg-tertiary)' }}
+            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
+            axisLine={{ stroke: 'var(--color-bg-secondary)' }}
             width={45}
             label={{
               value: 'W',
               angle: -90,
               position: 'insideLeft',
-              style: { textAnchor: 'middle', fill: 'var(--tribos-text-muted)', fontSize: 12 },
+              style: { textAnchor: 'middle', fill: 'var(--color-text-muted)', fontSize: 12 },
             }}
           />
           <RechartsTooltip content={<CustomTooltip />} />

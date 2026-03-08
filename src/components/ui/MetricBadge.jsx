@@ -25,8 +25,8 @@ function MetricBadge({
   size = 'sm',
   highlighted = false,
 }) {
-  const color = highlighted ? 'var(--tribos-terracotta-500)' : 'var(--tribos-text-muted)';
-  const bgColor = highlighted ? `${'var(--tribos-terracotta-500)'}15` : `${'var(--tribos-text-muted)'}10`;
+  const color = highlighted ? 'var(--color-teal)' : 'var(--color-text-muted)';
+  const bgColor = highlighted ? `${'var(--color-teal)'}15` : `${'var(--color-text-muted)'}10`;
 
   return (
     <Box

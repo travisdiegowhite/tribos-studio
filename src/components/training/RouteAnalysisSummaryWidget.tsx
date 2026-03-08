@@ -67,15 +67,15 @@ const TERRAIN_LABELS: Record<string, string> = {
 
 // Shared card style — gradient bg + terracotta accent border
 const cardStyle = {
-  background: 'linear-gradient(135deg, var(--tribos-bg-secondary) 0%, var(--tribos-bg-tertiary) 100%)',
-  border: '1px solid var(--tribos-terracotta-500)30',
+  background: 'linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-secondary) 100%)',
+  border: '1px solid var(--color-teal)30',
 };
 
 const monoStyle = {
   fontFamily: "'DM Mono', monospace",
   letterSpacing: '1.5px',
   textTransform: 'uppercase' as const,
-  color: 'var(--tribos-text-muted)',
+  color: 'var(--color-text-muted)',
 };
 
 function getMatchColor(score: number): string {
@@ -199,7 +199,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
       <Card padding="md" radius="md" style={cardStyle}>
         <Stack gap="sm">
           <Group gap="xs">
-            <ThemeIcon size="sm" variant="light" color="terracotta">
+            <ThemeIcon size="sm" variant="light" color="teal">
               <IconRoute size={14} />
             </ThemeIcon>
             <Text size="sm" fw={600}>
@@ -216,7 +216,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
             component={Link}
             to="/training?tab=routes"
             variant="filled"
-            color="terracotta"
+            color="teal"
             size="sm"
             leftSection={<IconTarget size={16} />}
           >
@@ -234,14 +234,14 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
         <Stack gap="sm">
           <Group justify="space-between" align="flex-start">
             <Group gap="xs">
-              <ThemeIcon size="sm" variant="light" color="terracotta">
+              <ThemeIcon size="sm" variant="light" color="teal">
                 <IconRoute size={14} />
               </ThemeIcon>
               <Text size="sm" fw={600}>
                 Routes for Today
               </Text>
             </Group>
-            <Badge size="xs" variant="light" color="terracotta">
+            <Badge size="xs" variant="light" color="teal">
               {analysisSummary.count} analyzed
             </Badge>
           </Group>
@@ -258,8 +258,8 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
                 style={{
                   padding: '6px 8px',
                   borderRadius: 0,
-                  backgroundColor: i === 0 ? 'var(--tribos-bg-tertiary)' : 'transparent',
-                  borderLeft: i === 0 ? '3px solid var(--tribos-terracotta-500)' : '3px solid transparent',
+                  backgroundColor: i === 0 ? 'var(--color-bg-secondary)' : 'transparent',
+                  borderLeft: i === 0 ? '3px solid var(--color-teal)' : '3px solid transparent',
                 }}
               >
                 <Box style={{ flex: 1, minWidth: 0 }}>
@@ -300,7 +300,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
             variant="subtle"
             size="xs"
             rightSection={<IconChevronRight size={14} />}
-            style={{ color: 'var(--tribos-text-secondary)' }}
+            style={{ color: 'var(--color-text-secondary)' }}
           >
             View all matches
           </Button>
@@ -315,14 +315,14 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start">
           <Group gap="xs">
-            <ThemeIcon size="sm" variant="light" color="terracotta">
+            <ThemeIcon size="sm" variant="light" color="teal">
               <IconRoute size={14} />
             </ThemeIcon>
             <Text size="sm" fw={600}>
               Route Intelligence
             </Text>
           </Group>
-          <Badge size="xs" variant="light" color="terracotta">
+          <Badge size="xs" variant="light" color="teal">
             {analysisSummary.count} routes
           </Badge>
         </Group>
@@ -337,7 +337,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
             </Text>
             <Group gap={4}>
               {analysisSummary.topCategories.map((cat) => (
-                <Badge key={cat} size="sm" variant="light" color="terracotta">
+                <Badge key={cat} size="sm" variant="light" color="teal">
                   {cat}
                 </Badge>
               ))}
@@ -351,7 +351,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
           variant="subtle"
           size="xs"
           rightSection={<IconChevronRight size={14} />}
-          style={{ color: 'var(--tribos-text-secondary)' }}
+          style={{ color: 'var(--color-text-secondary)' }}
         >
           Explore route analysis
         </Button>

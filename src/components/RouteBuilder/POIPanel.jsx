@@ -47,9 +47,9 @@ export default function POIPanel({
   return (
     <Box
       style={{
-        backgroundColor: 'var(--tribos-bg-secondary)',
+        backgroundColor: 'var(--color-bg-secondary)',
         borderRadius: tokens.radius.md,
-        border: '1px solid var(--tribos-bg-tertiary)',
+        border: '1px solid var(--color-bg-secondary)',
         overflow: 'hidden',
       }}
     >
@@ -58,16 +58,16 @@ export default function POIPanel({
         justify="space-between"
         px="sm"
         py="xs"
-        style={{ borderBottom: '1px solid var(--tribos-bg-tertiary)' }}
+        style={{ borderBottom: '1px solid var(--color-bg-secondary)' }}
       >
         <Group gap={6}>
-          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Nearby POIs
           </Text>
           {loading ? (
-            <Loader size={14} color="terracotta" />
+            <Loader size={14} color="teal" />
           ) : (
-            <Badge size="xs" variant="light" color="terracotta">{totalVisible}</Badge>
+            <Badge size="xs" variant="light" color="teal">{totalVisible}</Badge>
           )}
         </Group>
         <ActionIcon size="sm" variant="subtle" onClick={onClose} color="gray">
@@ -96,7 +96,7 @@ export default function POIPanel({
                   cursor: 'pointer',
                   backgroundColor: isActive ? cat.color + '20' : 'transparent',
                   borderColor: isActive ? cat.color : 'var(--tribos-bg-elevated)',
-                  color: isActive ? cat.color : 'var(--tribos-text-muted)',
+                  color: isActive ? cat.color : 'var(--color-text-muted)',
                 },
                 iconWrapper: { display: 'none' },
               }}
@@ -111,7 +111,7 @@ export default function POIPanel({
         })}
       </Group>
 
-      <Divider color="var(--tribos-bg-tertiary)" />
+      <Divider color="var(--color-bg-secondary)" />
 
       {/* POI list */}
       <Box
@@ -122,11 +122,11 @@ export default function POIPanel({
         }}
       >
         {loading && totalVisible === 0 ? (
-          <Text size="xs" ta="center" py="md" style={{ color: 'var(--tribos-text-muted)' }}>
+          <Text size="xs" ta="center" py="md" style={{ color: 'var(--color-text-muted)' }}>
             Searching for nearby points of interest…
           </Text>
         ) : totalVisible === 0 ? (
-          <Text size="xs" ta="center" py="md" style={{ color: 'var(--tribos-text-muted)' }}>
+          <Text size="xs" ta="center" py="md" style={{ color: 'var(--color-text-muted)' }}>
             No POIs found along this route. Try enabling more categories.
           </Text>
         ) : (
@@ -159,16 +159,16 @@ export default function POIPanel({
                           size="xs"
                           fw={500}
                           lineClamp={1}
-                          style={{ color: 'var(--tribos-text-primary)' }}
+                          style={{ color: 'var(--color-text-primary)' }}
                         >
                           {poi.name}
                         </Text>
                         <Group gap={6}>
-                          <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                          <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                             km {poi.routeDistanceKm}
                           </Text>
                           {poi.offRouteDistanceM > 50 && (
-                            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                               • {poi.offRouteDistanceM}m off route
                             </Text>
                           )}

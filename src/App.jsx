@@ -87,7 +87,7 @@ function PublicRoute({ children }) {
 function PageLoader() {
   return (
     <Center style={{ height: '100vh' }}>
-      <Loader size="lg" color="var(--tribos-terracotta-500)" />
+      <Loader size="lg" color="var(--color-teal)" />
     </Center>
   );
 }

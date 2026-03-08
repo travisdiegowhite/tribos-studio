@@ -289,7 +289,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
       onClose={onClose}
       title={
         <Group gap="xs">
-          <IconFolderOpen size={20} style={{ color: 'var(--tribos-terracotta-500)' }} />
+          <IconFolderOpen size={20} style={{ color: 'var(--color-teal)' }} />
           <Text fw={600}>My Routes</Text>
           {!loading && (
             <Badge size="sm" variant="light" color="gray">
@@ -303,15 +303,15 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
       styles={{
         body: { padding: 0 },
         header: {
-          backgroundColor: 'var(--tribos-bg-secondary)',
-          borderBottom: '1px solid var(--tribos-bg-tertiary)',
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderBottom: '1px solid var(--color-bg-secondary)',
         },
-        content: { backgroundColor: 'var(--tribos-bg-secondary)' },
+        content: { backgroundColor: 'var(--color-bg-secondary)' },
       }}
     >
       <Stack gap={0}>
         {/* Search and Filter */}
-        <Box px="md" py="sm" style={{ borderBottom: '1px solid var(--tribos-bg-tertiary)' }}>
+        <Box px="md" py="sm" style={{ borderBottom: '1px solid var(--color-bg-secondary)' }}>
           <TextInput
             placeholder="Search routes..."
             value={searchQuery}
@@ -336,7 +336,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
               { label: 'Manual', value: 'manual' },
             ]}
             styles={{
-              root: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+              root: { backgroundColor: 'var(--color-bg-secondary)' },
             }}
           />
         </Box>
@@ -346,7 +346,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
           {loading ? (
             <Stack gap="sm">
               {[1, 2, 3, 4].map((i) => (
-                <Box key={i} p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)', borderRadius: 8 }}>
+                <Box key={i} p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)', borderRadius: 8 }}>
                   <Skeleton height={16} width="60%" mb={8} />
                   <Skeleton height={12} width="40%" mb={8} />
                   <Group gap="sm">
@@ -359,18 +359,18 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
           ) : routes.length === 0 ? (
             <Stack align="center" gap="md" py="xl">
               <Text size="2rem">🗺️</Text>
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)', textAlign: 'center' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)', textAlign: 'center' }}>
                 No saved routes yet. Create your first route!
               </Text>
             </Stack>
           ) : filteredRoutes.length === 0 ? (
             <Stack align="center" gap="md" py="lg">
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)', textAlign: 'center' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)', textAlign: 'center' }}>
                 No routes match your search.
               </Text>
               <Button
                 variant="light"
-                color="terracotta"
+                color="teal"
                 size="xs"
                 onClick={() => { setSearchQuery(''); setFilterType('all'); }}
               >
@@ -385,7 +385,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
                   p="sm"
                   className="tribos-route-list-item"
                   style={{
-                    backgroundColor: 'var(--tribos-bg-tertiary)',
+                    backgroundColor: 'var(--color-bg-secondary)',
                     borderRadius: 8,
                     cursor: 'pointer',
                     transition: 'background-color 0.15s ease',
@@ -400,7 +400,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
                           size="sm"
                           fw={600}
                           style={{
-                            color: 'var(--tribos-text-primary)',
+                            color: 'var(--color-text-primary)',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
@@ -409,19 +409,19 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
                           {route.name}
                         </Text>
                       </Group>
-                      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }} mb={6}>
+                      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb={6}>
                         {formatDate(route.updated_at || route.created_at)}
                       </Text>
 
                       {/* Stats row */}
                       <Group gap="md">
-                        <Text size="xs" fw={500} style={{ color: 'var(--tribos-terracotta-500)' }}>
+                        <Text size="xs" fw={500} style={{ color: 'var(--color-teal)' }}>
                           {route.distance_km ? formatDist(route.distance_km) : '--'}
                         </Text>
-                        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                        <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                           {route.elevation_gain_m ? formatElev(route.elevation_gain_m) : '--'}
                         </Text>
-                        <Text size="xs" style={{ color: 'var(--tribos-text-secondary)' }}>
+                        <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                           {formatDuration(route.estimated_duration_minutes)}
                         </Text>
                       </Group>

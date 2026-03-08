@@ -21,7 +21,7 @@ function CoachCommandBarTrigger({
         <ActionIcon
           size="lg"
           variant="light"
-          color="terracotta"
+          color="teal"
           onClick={handleClick}
           className={className}
         >
@@ -39,7 +39,7 @@ function CoachCommandBarTrigger({
           size={56}
           radius="xl"
           variant="filled"
-          color="terracotta"
+          color="teal"
           onClick={handleClick}
           className={className}
           style={{
@@ -69,7 +69,7 @@ function CoachCommandBarTrigger({
   return (
     <Button
       variant="light"
-      color="terracotta"
+      color="teal"
       onClick={handleClick}
       className={className}
       leftSection={<IconSparkles size={18} />}

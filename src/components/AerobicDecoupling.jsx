@@ -241,7 +241,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
     const data = payload[0].payload;
 
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: 'var(--tribos-bg-secondary)' }}>
+      <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Text size="xs" fw={600} mb="xs">{data.name}</Text>
         <SimpleGrid cols={2} spacing="xs">
           <Box>
@@ -268,7 +268,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
   if (!analysis) {
     return (
       <Card withBorder p="xl">
-        <Text style={{ color: 'var(--tribos-text-muted)' }} ta="center">
+        <Text style={{ color: 'var(--color-text-muted)' }} ta="center">
           No activities with both power and heart rate data available.
           Use a power meter and HR monitor together to track aerobic efficiency.
         </Text>
@@ -282,8 +282,8 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconHeart size={20} color="#3A5A8C" />
-          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <IconHeart size={20} color="#2A8C82" />
+          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Aerobic Efficiency (Pw:Hr)
           </Text>
         </Group>
@@ -294,16 +294,16 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
 
       {/* Summary Metrics */}
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
-        <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs" mb={2}>
-            <IconHeart size={14} color="#3A5A8C" />
+            <IconHeart size={14} color="#2A8C82" />
             <Text size="xs" c="dimmed">Avg EF</Text>
           </Group>
           <Text size="lg" fw={700}>{analysis.avgEF}</Text>
           <Text size="xs" c="dimmed">Power/HR ratio</Text>
         </Paper>
 
-        <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs" mb={2}>
             <StatusIcon size={14} color={`var(--mantine-color-${analysis.interpretation?.color}-5)`} />
             <Text size="xs" c="dimmed">Avg Decoupling</Text>
@@ -314,7 +314,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
           <Text size="xs" c="dimmed">{analysis.interpretation?.status}</Text>
         </Paper>
 
-        <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs" mb={2}>
             {analysis.efTrend > 0 ? (
               <IconTrendingUp size={14} color={'var(--tribos-success)'} />
@@ -329,7 +329,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
           <Text size="xs" c="dimmed">vs older rides</Text>
         </Paper>
 
-        <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Text size="xs" c="dimmed" mb={2}>Activities Analyzed</Text>
           <Text size="lg" fw={700}>{analysis.count}</Text>
           <Text size="xs" c="dimmed">Last {timeRange} days</Text>
@@ -340,20 +340,20 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
       {analysis.activities.length > 3 && (
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={analysis.activities} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-bg-tertiary)'} />
+            <CartesianGrid strokeDasharray="3 3" stroke={'var(--color-bg-secondary)'} />
             <XAxis
               dataKey="formattedDate"
-              tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+              tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
               interval="preserveStartEnd"
             />
             <YAxis
-              tick={{ fontSize: 12, fill: 'var(--tribos-text-muted)' }}
+              tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
               domain={['auto', 'auto']}
               label={{
                 value: 'EF (W/bpm)',
                 angle: -90,
                 position: 'insideLeft',
-                style: { fill: 'var(--tribos-text-muted)', fontSize: 12 }
+                style: { fill: 'var(--color-text-muted)', fontSize: 12 }
               }}
             />
             <RechartsTooltip content={<CustomTooltip />} />
@@ -361,16 +361,16 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
             {/* Average EF reference line */}
             <ReferenceLine
               y={analysis.avgEF}
-              stroke={'var(--tribos-terracotta-500)'}
+              stroke={'var(--color-teal)'}
               strokeDasharray="5 5"
             />
 
             <Line
               type="monotone"
               dataKey="ef"
-              stroke="#3A5A8C"
+              stroke="#2A8C82"
               strokeWidth={2}
-              dot={{ fill: '#3A5A8C', r: 3 }}
+              dot={{ fill: '#2A8C82', r: 3 }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -390,7 +390,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
       )}
 
       {/* Decoupling Scale */}
-      <Paper p="sm" mt="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+      <Paper p="sm" mt="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Text size="xs" fw={500} mb="sm">Decoupling Scale</Text>
         <Box>
           <Group justify="space-between" mb={4}>
@@ -421,7 +421,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
                   height: 0,
                   borderLeft: '6px solid transparent',
                   borderRight: '6px solid transparent',
-                  borderTop: `8px solid ${'var(--tribos-text-primary)'}`,
+                  borderTop: `8px solid ${'var(--color-text-primary)'}`,
                 }}
               />
             </Box>

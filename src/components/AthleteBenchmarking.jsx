@@ -328,7 +328,7 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
   if (!analysis) {
     return (
       <Card withBorder p="xl">
-        <Text style={{ color: 'var(--tribos-text-muted)' }} ta="center">
+        <Text style={{ color: 'var(--color-text-muted)' }} ta="center">
           Enter your weight in Settings to see how you compare to other cyclists.
         </Text>
       </Card>
@@ -341,8 +341,8 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconUsers size={20} color={'var(--tribos-terracotta-500)'} />
-          <Text size="sm" fw={600} style={{ color: 'var(--tribos-text-primary)' }}>
+          <IconUsers size={20} color={'var(--color-teal)'} />
+          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Athlete Benchmarking
           </Text>
         </Group>
@@ -362,7 +362,7 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
         <Paper
           p="md"
           style={{
-            backgroundColor: 'var(--tribos-bg-tertiary)',
+            backgroundColor: 'var(--color-bg-secondary)',
             border: `1px solid var(--mantine-color-${analysis.riderTypeData?.color || 'gray'}-7)`,
           }}
         >
@@ -380,7 +380,7 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
           </Text>
         </Paper>
 
-        <Paper p="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Text size="xs" c="dimmed" mb="xs">FTP Category</Text>
           <Badge size="lg" color={analysis.ftpCategory.color} variant="filled">
             {analysis.ftpCategory.category}
@@ -390,7 +390,7 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
           </Text>
         </Paper>
 
-        <Paper p="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+        <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Text size="xs" c="dimmed" mb="xs">Overall Percentile</Text>
           <Text size="2rem" fw={700} c="terracotta">
             Top {100 - analysis.avgPercentile}%
@@ -413,7 +413,7 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
             { duration: 1200, label: '20 minutes (Threshold)' },
             { duration: 3600, label: '60 minutes (FTP)' },
           ].map(({ duration, label }) => (
-            <Paper key={duration} p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+            <Paper key={duration} p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
               <Group justify="space-between" mb="xs">
                 <Box>
                   <Text size="sm" fw={500}>{label}</Text>
@@ -440,7 +440,7 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
         <Stack gap="md">
           {analysis.riderTypeData && (
             <>
-              <Paper p="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+              <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                 <Text size="sm" fw={600} c="green" mb="sm">Strengths</Text>
                 <Group gap="xs">
                   {analysis.riderTypeData.strengths.map((s, i) => (
@@ -451,7 +451,7 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
                 </Group>
               </Paper>
 
-              <Paper p="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+              <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                 <Text size="sm" fw={600} c="red" mb="sm">Areas to Improve</Text>
                 <Group gap="xs">
                   {analysis.riderTypeData.weaknesses.map((w, i) => (
@@ -465,7 +465,7 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
           )}
 
           {/* Benchmark Table */}
-          <Paper p="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
+          <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
             <Text size="sm" fw={600} mb="sm">FTP Benchmark Categories (W/kg)</Text>
             <Table striped highlightOnHover size="sm">
               <Table.Thead>

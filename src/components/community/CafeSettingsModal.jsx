@@ -285,13 +285,13 @@ export default function CafeSettingsModal({
       size="lg"
       styles={{
         header: {
-          backgroundColor: 'var(--tribos-bg-secondary)',
+          backgroundColor: 'var(--color-bg-secondary)',
         },
         content: {
-          backgroundColor: 'var(--tribos-bg-secondary)',
+          backgroundColor: 'var(--color-bg-secondary)',
         },
         title: {
-          color: 'var(--tribos-text-primary)',
+          color: 'var(--color-text-primary)',
           fontWeight: 600,
         },
       }}
@@ -324,7 +324,7 @@ export default function CafeSettingsModal({
                 required
                 maxLength={50}
                 styles={{
-                  input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                  input: { backgroundColor: 'var(--color-bg-secondary)' },
                 }}
               />
 
@@ -336,7 +336,7 @@ export default function CafeSettingsModal({
                 autosize
                 minRows={2}
                 styles={{
-                  input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                  input: { backgroundColor: 'var(--color-bg-secondary)' },
                 }}
               />
 
@@ -347,7 +347,7 @@ export default function CafeSettingsModal({
                   onChange={(val) => setFormData({ ...formData, goal_type: val })}
                   data={GOAL_OPTIONS}
                   styles={{
-                    input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                    input: { backgroundColor: 'var(--color-bg-secondary)' },
                   }}
                 />
 
@@ -357,7 +357,7 @@ export default function CafeSettingsModal({
                   onChange={(val) => setFormData({ ...formData, experience_level: val })}
                   data={EXPERIENCE_OPTIONS}
                   styles={{
-                    input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                    input: { backgroundColor: 'var(--color-bg-secondary)' },
                   }}
                 />
               </Group>
@@ -370,7 +370,7 @@ export default function CafeSettingsModal({
                   onChange={(val) => setFormData({ ...formData, checkin_day: val })}
                   data={CHECKIN_DAY_OPTIONS}
                   styles={{
-                    input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                    input: { backgroundColor: 'var(--color-bg-secondary)' },
                   }}
                 />
 
@@ -381,7 +381,7 @@ export default function CafeSettingsModal({
                   min={3}
                   max={12}
                   styles={{
-                    input: { backgroundColor: 'var(--tribos-bg-tertiary)' },
+                    input: { backgroundColor: 'var(--color-bg-secondary)' },
                   }}
                 />
               </Group>
@@ -393,7 +393,7 @@ export default function CafeSettingsModal({
                 description="Allow this cafe to appear in search results"
                 checked={formData.is_public}
                 onChange={(e) => setFormData({ ...formData, is_public: e.currentTarget.checked })}
-                color="terracotta"
+                color="teal"
               />
 
               <Switch
@@ -401,7 +401,7 @@ export default function CafeSettingsModal({
                 description="Allow new members to join without an invite"
                 checked={formData.is_open}
                 onChange={(e) => setFormData({ ...formData, is_open: e.currentTarget.checked })}
-                color="terracotta"
+                color="teal"
               />
 
               <Group justify="flex-end" mt="md">
@@ -412,8 +412,8 @@ export default function CafeSettingsModal({
                   onClick={handleSave}
                   loading={saving}
                   style={{
-                    backgroundColor: 'var(--tribos-terracotta-500)',
-                    color: 'var(--tribos-bg-primary)',
+                    backgroundColor: 'var(--color-teal)',
+                    color: 'var(--color-bg)',
                   }}
                 >
                   Save Changes
@@ -443,7 +443,7 @@ export default function CafeSettingsModal({
                       padding="sm"
                       radius="md"
                       style={{
-                        backgroundColor: 'var(--tribos-bg-tertiary)',
+                        backgroundColor: 'var(--color-bg-secondary)',
                       }}
                     >
                       <Group justify="space-between">
@@ -457,7 +457,7 @@ export default function CafeSettingsModal({
                           </Avatar>
                           <Box>
                             <Group gap="xs">
-                              <Text size="sm" fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+                              <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
                                 {getMemberDisplayName(member)}
                               </Text>
                               {member.role === 'admin' && (
@@ -530,14 +530,14 @@ export default function CafeSettingsModal({
               padding="md"
               radius="md"
               style={{
-                backgroundColor: 'var(--tribos-bg-tertiary)',
+                backgroundColor: 'var(--color-bg-secondary)',
                 border: '1px solid rgba(158, 90, 60, 0.3)',
               }}
             >
               <Stack gap="sm">
                 <Group>
-                  <IconDoorExit size={20} color={'var(--tribos-text-muted)'} />
-                  <Text fw={500} style={{ color: 'var(--tribos-text-primary)' }}>
+                  <IconDoorExit size={20} color={'var(--color-text-muted)'} />
+                  <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>
                     Leave Cafe
                   </Text>
                 </Group>
@@ -588,13 +588,13 @@ export default function CafeSettingsModal({
                 padding="md"
                 radius="md"
                 style={{
-                  backgroundColor: 'var(--tribos-bg-tertiary)',
+                  backgroundColor: 'var(--color-bg-secondary)',
                   border: '1px solid rgba(158, 90, 60, 0.5)',
                 }}
               >
                 <Stack gap="sm">
                   <Group>
-                    <IconTrash size={20} color="#3A5A8C" />
+                    <IconTrash size={20} color="#C43C2A" />
                     <Text fw={500} c="red">
                       Delete Cafe
                     </Text>

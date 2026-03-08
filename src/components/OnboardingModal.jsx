@@ -135,7 +135,7 @@ function OnboardingModal({ opened, onClose }) {
       size="lg"
       title={
         <Group gap="sm">
-          <ThemeIcon color="terracotta" variant="light" size="lg">
+          <ThemeIcon color="teal" variant="light" size="lg">
             <IconRocket size={20} />
           </ThemeIcon>
           <Text fw={600} size="lg">Welcome to tribos.studio</Text>
@@ -144,45 +144,45 @@ function OnboardingModal({ opened, onClose }) {
       }
       closeOnClickOutside={false}
     >
-      <Stepper active={active} onStepClick={setActive} color="terracotta" size="sm" mb="xl">
+      <Stepper active={active} onStepClick={setActive} color="teal" size="sm" mb="xl">
         <Stepper.Step label="Welcome" icon={<IconRocket size={18} />}>
           <Stack gap="lg" py="md">
-            <Title order={3} style={{ color: 'var(--tribos-text-primary)' }}>
+            <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
               Thanks for joining the beta!
             </Title>
 
-            <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text style={{ color: 'var(--color-text-secondary)' }}>
               tribos.studio helps you train smarter by combining route planning,
               training analytics, and recovery tracking in one place.
             </Text>
 
-            <Paper p="md" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
-              <Text size="sm" style={{ color: 'var(--tribos-text-secondary)' }} mb="sm">
+            <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }} mb="sm">
                 <strong>As a beta user, you'll get:</strong>
               </Text>
               <Stack gap="xs">
                 <Group gap="xs">
-                  <IconCheck size={16} color={'var(--tribos-text-muted)'} />
-                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                  <IconCheck size={16} color={'var(--color-text-muted)'} />
+                  <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                     Early access to all features
                   </Text>
                 </Group>
                 <Group gap="xs">
-                  <IconCheck size={16} color={'var(--tribos-text-muted)'} />
-                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                  <IconCheck size={16} color={'var(--color-text-muted)'} />
+                  <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                     Direct line to Travis for feedback
                   </Text>
                 </Group>
                 <Group gap="xs">
-                  <IconCheck size={16} color={'var(--tribos-text-muted)'} />
-                  <Text size="sm" style={{ color: 'var(--tribos-text-primary)' }}>
+                  <IconCheck size={16} color={'var(--color-text-muted)'} />
+                  <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                     Free access during the beta period
                   </Text>
                 </Group>
               </Stack>
             </Paper>
 
-            <Text size="sm" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
               Let's get you set up in just a couple of steps.
             </Text>
           </Stack>
@@ -191,10 +191,10 @@ function OnboardingModal({ opened, onClose }) {
         <Stepper.Step label="Connect" icon={<IconDeviceWatch size={18} />}>
           <Stack gap="lg" py="md">
             <Box>
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }} mb="xs">
+              <Title order={3} style={{ color: 'var(--color-text-primary)' }} mb="xs">
                 Connect Your Devices
               </Title>
-              <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+              <Text style={{ color: 'var(--color-text-secondary)' }}>
                 Sync your activities from Strava, Garmin, or Wahoo to unlock training insights.
               </Text>
             </Box>
@@ -204,8 +204,8 @@ function OnboardingModal({ opened, onClose }) {
                 p="md"
                 withBorder
                 style={{
-                  borderColor: stravaConnected ? 'var(--tribos-terracotta-500)' : 'var(--tribos-border)',
-                  backgroundColor: stravaConnected ? `${'var(--tribos-terracotta-500)'}10` : 'var(--tribos-bg-secondary)',
+                  borderColor: stravaConnected ? 'var(--color-teal)' : 'var(--tribos-border)',
+                  backgroundColor: stravaConnected ? `${'var(--color-teal)'}10` : 'var(--color-bg-secondary)',
                 }}
               >
                 <Group justify="space-between">
@@ -214,8 +214,8 @@ function OnboardingModal({ opened, onClose }) {
                       <IconActivity size={20} color={STRAVA_ORANGE} />
                     </ThemeIcon>
                     <Box>
-                      <Text fw={500} style={{ color: 'var(--tribos-text-primary)' }}>Strava</Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                      <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>Strava</Text>
+                      <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                         Import rides and activities
                       </Text>
                     </Box>
@@ -232,8 +232,8 @@ function OnboardingModal({ opened, onClose }) {
                 p="md"
                 withBorder
                 style={{
-                  borderColor: garminConnected ? 'var(--tribos-terracotta-500)' : 'var(--tribos-border)',
-                  backgroundColor: garminConnected ? `${'var(--tribos-terracotta-500)'}10` : 'var(--tribos-bg-secondary)',
+                  borderColor: garminConnected ? 'var(--color-teal)' : 'var(--tribos-border)',
+                  backgroundColor: garminConnected ? `${'var(--color-teal)'}10` : 'var(--color-bg-secondary)',
                 }}
               >
                 <Group justify="space-between">
@@ -242,8 +242,8 @@ function OnboardingModal({ opened, onClose }) {
                       <IconDeviceWatch size={20} />
                     </ThemeIcon>
                     <Box>
-                      <Text fw={500} style={{ color: 'var(--tribos-text-primary)' }}>Garmin</Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                      <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>Garmin</Text>
+                      <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                         Auto-sync from your Garmin device
                       </Text>
                     </Box>
@@ -262,8 +262,8 @@ function OnboardingModal({ opened, onClose }) {
                 p="md"
                 withBorder
                 style={{
-                  borderColor: wahooConnected ? 'var(--tribos-terracotta-500)' : 'var(--tribos-border)',
-                  backgroundColor: wahooConnected ? `${'var(--tribos-terracotta-500)'}10` : 'var(--tribos-bg-secondary)',
+                  borderColor: wahooConnected ? 'var(--color-teal)' : 'var(--tribos-border)',
+                  backgroundColor: wahooConnected ? `${'var(--color-teal)'}10` : 'var(--color-bg-secondary)',
                 }}
               >
                 <Group justify="space-between">
@@ -272,8 +272,8 @@ function OnboardingModal({ opened, onClose }) {
                       <IconDeviceWatch size={20} />
                     </ThemeIcon>
                     <Box>
-                      <Text fw={500} style={{ color: 'var(--tribos-text-primary)' }}>Wahoo</Text>
-                      <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+                      <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>Wahoo</Text>
+                      <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                         Sync with Wahoo devices
                       </Text>
                     </Box>
@@ -289,7 +289,7 @@ function OnboardingModal({ opened, onClose }) {
               </Paper>
             </SimpleGrid>
 
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
               You can always connect more devices later in Settings.
             </Text>
           </Stack>
@@ -298,10 +298,10 @@ function OnboardingModal({ opened, onClose }) {
         <Stepper.Step label="Preferences" icon={<IconTarget size={18} />}>
           <Stack gap="lg" py="md">
             <Box>
-              <Title order={3} style={{ color: 'var(--tribos-text-primary)' }} mb="xs">
+              <Title order={3} style={{ color: 'var(--color-text-primary)' }} mb="xs">
                 Set Your Preferences
               </Title>
-              <Text style={{ color: 'var(--tribos-text-secondary)' }}>
+              <Text style={{ color: 'var(--color-text-secondary)' }}>
                 Help us personalize your experience.
               </Text>
             </Box>
@@ -328,8 +328,8 @@ function OnboardingModal({ opened, onClose }) {
               suffix=" W"
             />
 
-            <Paper p="sm" style={{ backgroundColor: 'var(--tribos-bg-tertiary)' }}>
-              <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+              <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                 <strong>Tip:</strong> If you don't know your FTP, you can set it later.
                 We can also estimate it from your ride data once you've connected a device.
               </Text>
@@ -339,15 +339,15 @@ function OnboardingModal({ opened, onClose }) {
 
         <Stepper.Completed>
           <Stack gap="lg" py="md" align="center">
-            <ThemeIcon size={80} radius="xl" color="terracotta" variant="light">
+            <ThemeIcon size={80} radius="xl" color="teal" variant="light">
               <IconCheck size={40} />
             </ThemeIcon>
 
-            <Title order={3} ta="center" style={{ color: 'var(--tribos-text-primary)' }}>
+            <Title order={3} ta="center" style={{ color: 'var(--color-text-primary)' }}>
               You're All Set!
             </Title>
 
-            <Text ta="center" style={{ color: 'var(--tribos-text-secondary)' }}>
+            <Text ta="center" style={{ color: 'var(--color-text-secondary)' }}>
               Your account is ready. Here's what you can do next:
             </Text>
 
@@ -355,14 +355,14 @@ function OnboardingModal({ opened, onClose }) {
               <Paper
                 p="md"
                 withBorder
-                style={{ backgroundColor: 'var(--tribos-bg-secondary)', cursor: 'pointer' }}
+                style={{ backgroundColor: 'var(--color-bg-secondary)', cursor: 'pointer' }}
                 onClick={() => { onClose(); navigate('/routes/new'); }}
               >
                 <Stack gap="xs" align="center">
                   <ThemeIcon size="lg" color="gray" variant="light">
                     <IconRoute size={20} />
                   </ThemeIcon>
-                  <Text size="sm" fw={500} ta="center" style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text size="sm" fw={500} ta="center" style={{ color: 'var(--color-text-primary)' }}>
                     Create a Route
                   </Text>
                 </Stack>
@@ -371,21 +371,21 @@ function OnboardingModal({ opened, onClose }) {
               <Paper
                 p="md"
                 withBorder
-                style={{ backgroundColor: 'var(--tribos-bg-secondary)', cursor: 'pointer' }}
+                style={{ backgroundColor: 'var(--color-bg-secondary)', cursor: 'pointer' }}
                 onClick={() => { onClose(); navigate('/training'); }}
               >
                 <Stack gap="xs" align="center">
                   <ThemeIcon size="lg" color="gray" variant="light">
                     <IconActivity size={20} />
                   </ThemeIcon>
-                  <Text size="sm" fw={500} ta="center" style={{ color: 'var(--tribos-text-primary)' }}>
+                  <Text size="sm" fw={500} ta="center" style={{ color: 'var(--color-text-primary)' }}>
                     View Training
                   </Text>
                 </Stack>
               </Paper>
             </SimpleGrid>
 
-            <Text size="xs" style={{ color: 'var(--tribos-text-muted)' }}>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
               Use the feedback button (bottom right) to send suggestions or report issues!
             </Text>
           </Stack>
@@ -407,12 +407,12 @@ function OnboardingModal({ opened, onClose }) {
           <Button
             onClick={nextStep}
             rightSection={<IconChevronRight size={16} />}
-            color="terracotta"
+            color="teal"
           >
             {active === 2 ? 'Finish Setup' : 'Continue'}
           </Button>
         ) : (
-          <Button onClick={handleComplete} color="terracotta" loading={loading}>
+          <Button onClick={handleComplete} color="teal" loading={loading}>
             Go to Dashboard
           </Button>
         )}
