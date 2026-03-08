@@ -3630,7 +3630,7 @@ function RouteBuilder() {
 
             {/* Run Reach Panel (mobile) */}
             {showRunReach && (
-              <Box style={{ position: 'absolute', bottom: 20, left: 16, right: 16, zIndex: 10 }}>
+              <Box style={{ position: 'absolute', bottom: 110, left: 16, right: 16, zIndex: 10, maxHeight: 'calc(100% - 180px)', overflowY: 'auto' }}>
                 <RunReachPanel
                   mode={runReachMode}
                   onModeChange={setRunReachMode}
