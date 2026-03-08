@@ -524,6 +524,9 @@ export const theme = createTheme({
             color: 'var(--tribos-text-100)',
             borderBottom: '2px solid var(--tribos-terracotta-500)',
           },
+          '&[data-variant="pills"][data-active]': {
+            color: '#FFFFFF',
+          },
         },
       }),
     },
