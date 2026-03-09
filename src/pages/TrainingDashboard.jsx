@@ -250,7 +250,6 @@ function TrainingDashboard() {
             .from('activities')
             .select('*')
             .eq('user_id', user.id)
-            .is('duplicate_of', null)
             .order('start_date', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -273,7 +272,8 @@ function TrainingDashboard() {
           const dates = allActivities.map(a => a.start_date).filter(Boolean).sort();
           console.log(`Activity date range: ${dates[0]} to ${dates[dates.length - 1]}`);
         }
-        setActivities(allActivities);
+        // Filter out duplicates client-side (duplicate_of column may not exist in all environments)
+        setActivities(allActivities.filter(a => !a.duplicate_of));
 
         const { data: profileData } = await supabase
           .from('user_speed_profiles')
@@ -424,7 +424,7 @@ function TrainingDashboard() {
               .order('start_date', { ascending: false })
               .limit(2000);
             if (activityData) {
-              setActivities(activityData);
+              setActivities(activityData.filter(a => !a.duplicate_of));
             }
           }
         } catch (err) {
@@ -445,7 +445,7 @@ function TrainingDashboard() {
               .order('start_date', { ascending: false })
               .limit(2000);
             if (activityData) {
-              setActivities(activityData);
+              setActivities(activityData.filter(a => !a.duplicate_of));
             }
           }
         } catch (err) {
@@ -465,7 +465,7 @@ function TrainingDashboard() {
               .order('start_date', { ascending: false })
               .limit(2000);
             if (activityData) {
-              setActivities(activityData);
+              setActivities(activityData.filter(a => !a.duplicate_of));
             }
           }
         } catch (err) {

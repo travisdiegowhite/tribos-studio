@@ -151,12 +151,12 @@ function Dashboard() {
           .from('activities')
           .select('*')
           .eq('user_id', user.id)
-          .is('duplicate_of', null)
           .gte('start_date', ninetyDaysAgo.toISOString())
           .order('start_date', { ascending: false });
 
         if (!error) {
-          setActivities(activityData || []);
+          // Filter out duplicates client-side (duplicate_of column may not exist in all environments)
+          setActivities((activityData || []).filter(a => !a.duplicate_of));
 
           // Calculate week stats
           const weekAgo = new Date();
