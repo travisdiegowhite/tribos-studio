@@ -3,6 +3,7 @@
 
 import { supabase } from '../lib/supabase';
 import { getWeatherData } from './weather';
+import { getTurnDirectionGuidance } from './claudeRouteService';
 
 /**
  * Enhanced user context collection for better AI route generation
@@ -526,8 +527,11 @@ ROAD QUALITY & TRAINING-SPECIFIC ROUTING:${trainingGoal === 'intervals' || train
 - AVOID: State highways (SR/SH), US routes, numbered county roads, multi-lane boulevards with traffic signals
 - PREFER: Roads with bike lanes, wide shoulders, residential grids with long blocks, rail trails, greenways
 - A parallel road with a bike lane beats a straight highway every time — always check for safer alternatives nearby
+- When a busy road has a quieter parallel road with bike infrastructure within 200-500m, ALWAYS use the quieter alternative
+- Each effort segment must be on a road with either: a bike lane, a wide shoulder (>1.5m), or very low traffic (residential/rural)
 - Recovery segments between efforts can use any safe, low-traffic road
-- Annotate each waypoint with "segmentType": "effort" or "recovery" to indicate workout phase suitability` : ''}${trainingGoal === 'endurance' ? `
+- Annotate each waypoint with "segmentType": "effort" or "recovery" to indicate workout phase suitability
+${getTurnDirectionGuidance(longitude, latitude)}` : ''}${trainingGoal === 'endurance' ? `
 - Prefer roads that allow sustained rhythm: minimal stop signs, traffic lights, or forced stops
 - Avoid downtown areas or commercial strips with frequent traffic signals
 - Use bike paths, greenways, and quiet rural roads where possible` : ''}${trainingGoal === 'recovery' ? `
@@ -536,6 +540,7 @@ ROAD QUALITY & TRAINING-SPECIFIC ROUTING:${trainingGoal === 'intervals' || train
 - Flat terrain is essential — avoid unnecessary climbs` : ''}
 - For ALL routes: prefer quiet roads over busy ones unless the busy road offers significantly better cycling infrastructure
 - Minimize time spent on multi-lane arterial roads
+- When a busy road runs parallel to a quieter road with bike infrastructure within 200-500m, ALWAYS choose the quieter road
 
 DETAILED WAYPOINT REQUIREMENTS:
 Please provide routes with comprehensive waypoint information including:

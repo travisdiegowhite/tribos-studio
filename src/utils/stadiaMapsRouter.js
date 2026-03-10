@@ -58,8 +58,9 @@ const ROUTE_PROFILE_COSTING = {
 const TRAINING_GOAL_COSTING = {
   intervals: {
     // Intervals need long uninterrupted stretches on QUIET roads with bike infrastructure
-    // Low maneuver_penalty avoids pushing Valhalla onto straight arterials/highways
-    maneuver_penalty: 8,        // 1.6x default — mild turn preference without favoring arterials
+    // use_roads: 0 already prevents arterial routing, so higher maneuver_penalty
+    // safely reduces intersections without pushing onto highways
+    maneuver_penalty: 15,       // 3x default — aggressive intersection avoidance for uninterrupted efforts
     use_roads: 0,               // Maximum bike path/cycleway preference
     use_living_streets: 1.0,    // Maximum residential preference — these have long blocks + bike lanes
     use_hills: 0.2              // Keep it flat for consistent power output
@@ -86,7 +87,9 @@ const TRAINING_GOAL_COSTING = {
   },
   tempo: {
     // Tempo needs steady effort roads — prefer bike infrastructure over straightness
-    maneuver_penalty: 12,       // Moderate turn avoidance, won't override bike-safety routing
+    // use_roads: 0.1 already biases toward bike paths, so higher maneuver_penalty
+    // reduces intersections without forcing onto arterials
+    maneuver_penalty: 18,       // High turn avoidance for sustained effort without interruption
     use_roads: 0.1,             // Stronger bike path preference
     use_living_streets: 0.9,    // Stronger residential preference
     use_hills: 0.3              // Prefer flatter terrain for steady effort
@@ -378,6 +381,13 @@ function extractManeuverData(trip) {
   const turnTypes = new Set([7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]);
   const realTurns = allManeuvers.filter(m => turnTypes.has(m.type));
 
+  // Classify turns by direction for safety analysis
+  // Left turns cross oncoming traffic (in RHD countries), right turns stay in flow
+  const leftTurnTypes = new Set([11, 12, 13, 15]);
+  const rightTurnTypes = new Set([7, 8, 9, 16]);
+  const leftTurns = realTurns.filter(m => leftTurnTypes.has(m.type)).length;
+  const rightTurns = realTurns.filter(m => rightTurnTypes.has(m.type)).length;
+
   const turnsPerKm = totalDistanceKm > 0
     ? realTurns.length / totalDistanceKm
     : 0;
@@ -385,9 +395,15 @@ function extractManeuverData(trip) {
   // Classify road segments for arterial detection
   const roadClassification = classifyRoadSegments(allManeuvers, totalDistanceKm);
 
+  if (leftTurns > 0 || rightTurns > 0) {
+    console.log(`🔄 Turn analysis: ${leftTurns} left, ${rightTurns} right, ${realTurns.length - leftTurns - rightTurns} other (${turnsPerKm.toFixed(1)}/km)`);
+  }
+
   return {
     totalManeuvers: allManeuvers.length,
     totalTurns: realTurns.length,
+    leftTurns,
+    rightTurns,
     totalDistanceKm,
     turnsPerKm,
     maneuvers: allManeuvers,
@@ -553,18 +569,27 @@ export async function scoreRouteInfrastructure(coordinates) {
  */
 export function analyzeSegmentSuitability(maneuverData, startKm, endKm) {
   if (!maneuverData?.maneuvers || maneuverData.maneuvers.length === 0) {
-    return { score: 0.5, turnsInSegment: 0, segmentLengthKm: endKm - startKm, reason: 'no maneuver data' };
+    return { score: 0.5, turnsInSegment: 0, leftTurns: 0, rightTurns: 0, segmentLengthKm: endKm - startKm, reason: 'no maneuver data' };
   }
 
   const segmentLengthKm = endKm - startKm;
   if (segmentLengthKm <= 0) {
-    return { score: 0.5, turnsInSegment: 0, segmentLengthKm: 0, reason: 'zero-length segment' };
+    return { score: 0.5, turnsInSegment: 0, leftTurns: 0, rightTurns: 0, segmentLengthKm: 0, reason: 'zero-length segment' };
   }
 
-  // Walk through maneuvers and find which ones fall within [startKm, endKm]
-  let cumulativeKm = 0;
-  const turnTypes = new Set([7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]);
+  // Valhalla maneuver type classification:
+  // Left turns (cross oncoming traffic in RHD countries): 11=slight left, 12=left, 13=sharp left, 15=uturn left
+  // Right turns (safer, stay in traffic flow): 7=slight right, 8=right, 9=sharp right, 16=uturn right
+  // Other turns: 10=continue, 14=straight, 26+=roundabouts, ramps, merges
+  const leftTurnTypes = new Set([11, 12, 13, 15]);
+  const rightTurnTypes = new Set([7, 8, 9, 16]);
+  const otherTurnTypes = new Set([10, 14, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]);
+  const allTurnTypes = new Set([...leftTurnTypes, ...rightTurnTypes, ...otherTurnTypes]);
+
   let turnsInSegment = 0;
+  let leftTurns = 0;
+  let rightTurns = 0;
+  let cumulativeKm = 0;
 
   for (const m of maneuverData.maneuvers) {
     const maneuverStartKm = cumulativeKm;
@@ -572,34 +597,45 @@ export function analyzeSegmentSuitability(maneuverData, startKm, endKm) {
 
     // Check if this maneuver overlaps with our segment
     if (maneuverEndKm > startKm && maneuverStartKm < endKm) {
-      if (turnTypes.has(m.type)) {
+      if (allTurnTypes.has(m.type)) {
         turnsInSegment++;
+        if (leftTurnTypes.has(m.type)) leftTurns++;
+        else if (rightTurnTypes.has(m.type)) rightTurns++;
       }
     }
 
     cumulativeKm = maneuverEndKm;
   }
 
+  // Left turns are penalized more heavily — they cross oncoming traffic (in RHD countries)
+  // and typically require a full stop. Weight left turns 2x in the effective density.
+  const effectiveTurns = rightTurns + (leftTurns * 2) + (turnsInSegment - leftTurns - rightTurns);
+  const effectiveTurnsPerKm = effectiveTurns / segmentLengthKm;
   const turnsPerKm = turnsInSegment / segmentLengthKm;
 
-  // Score: 0 turns/km = 1.0, 1 turn/km = 0.7, 2/km = 0.4, 3+/km = 0.1
+  // Score based on effective turns/km (left turns count double)
   let score;
-  if (turnsPerKm <= 0.5) score = 1.0;
-  else if (turnsPerKm <= 1.0) score = 0.8;
-  else if (turnsPerKm <= 2.0) score = 0.5;
-  else if (turnsPerKm <= 3.0) score = 0.3;
+  if (effectiveTurnsPerKm <= 0.5) score = 1.0;
+  else if (effectiveTurnsPerKm <= 1.0) score = 0.8;
+  else if (effectiveTurnsPerKm <= 2.0) score = 0.5;
+  else if (effectiveTurnsPerKm <= 3.0) score = 0.3;
   else score = 0.1;
 
   return {
     score,
     turnsInSegment,
+    leftTurns,
+    rightTurns,
     turnsPerKm,
+    effectiveTurnsPerKm,
     segmentLengthKm,
-    reason: turnsPerKm <= 1.0
+    reason: effectiveTurnsPerKm <= 1.0
       ? 'good: low intersection density'
-      : turnsPerKm <= 2.0
+      : effectiveTurnsPerKm <= 2.0
         ? 'moderate: some intersections'
-        : 'poor: high intersection density — consider re-routing'
+        : leftTurns > rightTurns
+          ? 'poor: high intersection density with many left turns — consider re-routing'
+          : 'poor: high intersection density — consider re-routing'
   };
 }
 

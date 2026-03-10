@@ -102,6 +102,54 @@ export async function generateClaudeRoutes(params) {
 }
 
 /**
+ * Detect if coordinates fall within a left-hand-drive country.
+ * Uses bounding boxes for major LHD nations. Defaults to RHD (right-hand drive).
+ *
+ * @param {number} longitude
+ * @param {number} latitude
+ * @returns {boolean} true if left-hand-drive (UK, AU, JP, IN, ZA, TH, ID, NZ, etc.)
+ */
+export function isLeftHandDrive(longitude, latitude) {
+  const LHD_REGIONS = [
+    { name: 'UK & Ireland', latMin: 49, latMax: 61, lonMin: -11, lonMax: 2 },
+    { name: 'Australia', latMin: -44, latMax: -10, lonMin: 113, lonMax: 154 },
+    { name: 'Japan', latMin: 24, latMax: 46, lonMin: 123, lonMax: 146 },
+    { name: 'India/Sri Lanka/Bangladesh', latMin: 5, latMax: 37, lonMin: 68, lonMax: 98 },
+    { name: 'South Africa', latMin: -35, latMax: -22, lonMin: 16, lonMax: 33 },
+    { name: 'Thailand', latMin: 5, latMax: 21, lonMin: 97, lonMax: 106 },
+    { name: 'Indonesia', latMin: -11, latMax: 6, lonMin: 95, lonMax: 141 },
+    { name: 'New Zealand', latMin: -48, latMax: -34, lonMin: 166, lonMax: 179 },
+    { name: 'Malaysia/Singapore', latMin: 1, latMax: 8, lonMin: 99, lonMax: 120 },
+    { name: 'Kenya/Tanzania/Uganda', latMin: -12, latMax: 5, lonMin: 29, lonMax: 42 },
+  ];
+
+  return LHD_REGIONS.some(r =>
+    latitude >= r.latMin && latitude <= r.latMax &&
+    longitude >= r.lonMin && longitude <= r.lonMax
+  );
+}
+
+/**
+ * Get turn direction guidance for effort segments based on locale.
+ * In RHD countries, right turns are safer (no crossing oncoming traffic).
+ * In LHD countries, left turns are safer.
+ *
+ * @param {number} longitude
+ * @param {number} latitude
+ * @returns {string} Prompt guidance text for effort segment turn preferences
+ */
+export function getTurnDirectionGuidance(longitude, latitude) {
+  const lhd = isLeftHandDrive(longitude, latitude);
+  const safeTurn = lhd ? 'left' : 'right';
+  const unsafeTurn = lhd ? 'right' : 'left';
+
+  return `
+- TURN PREFERENCE FOR EFFORT SEGMENTS: When turns are unavoidable during high-intensity effort segments, prefer ${safeTurn}-hand turns — they don't require crossing oncoming traffic and cyclists can often execute them without fully stopping
+- Avoid placing effort segments on roads that require ${unsafeTurn}-hand turns across oncoming traffic
+- This is a soft preference for effort segments only — do NOT reshape the overall route or add distance to satisfy this preference`;
+}
+
+/**
  * Build a comprehensive prompt for Claude route generation
  */
 function buildRoutePrompt(params) {
@@ -243,7 +291,9 @@ ROAD QUALITY PRIORITIES:
 - Avoid busy arterials and multi-lane roads unless no alternative exists
 - Minimize exposure to traffic signals and stop signs, especially for interval and endurance routes
 - For interval/tempo routes: ensure effort segments fall on long uninterrupted stretches (1+ km with no stops)
-
+- When a busy road runs parallel to a quieter road with bike infrastructure within 200-500m, ALWAYS choose the quieter road — even if it adds slight distance
+- Each effort segment must be on a road with either: a bike lane, a wide shoulder (>1.5m), or very low traffic (residential/rural)
+${(trainingGoal === 'intervals' || trainingGoal === 'tempo') ? getTurnDirectionGuidance(longitude, latitude) : ''}
 IMPORTANT:
 - Focus on realistic, rideable routes
 - Consider safety (bike lanes, traffic levels)
@@ -303,6 +353,7 @@ function getTrainingGoalDescription(goal) {
 - PREFER: Residential streets with long blocks, dedicated bike paths, rural roads with bike lanes or wide shoulders
 - A lower-traffic road with a bike lane is ALWAYS better than a straight highway without cycling infrastructure
 - Look for parallel alternatives: frontage roads, bike routes, rail trails running alongside busy roads
+- When a busy road has a quieter parallel road with bike infrastructure within 200-500m, ALWAYS use the quieter alternative
 - Recovery segments: Can use any safe road, preferably low-traffic for easy spinning
 - Road quality: Smooth pavement, good visibility, minimal need to brake or stop
 - Avoid: Downtown areas with stoplights, busy arterials, school zones, roads with frequent driveways`,
@@ -328,6 +379,7 @@ function getTrainingGoalDescription(goal) {
 - AVOID state highways (SR/SH), US routes, and numbered county roads for sustained effort segments
 - PREFER roads with cycling infrastructure: bike lanes, wide shoulders, separated paths
 - A parallel road with a bike lane beats a straight highway every time
+- When a busy road has a quieter parallel road with bike infrastructure within 200-500m, ALWAYS use the quieter alternative
 - Road quality: Smooth roads with few interruptions, similar needs to intervals but less extreme
 - Avoid: Frequent stop signs/traffic lights that break rhythm, steep grades that force power spikes`
   };
