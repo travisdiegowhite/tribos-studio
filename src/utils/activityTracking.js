@@ -54,6 +54,9 @@ export const EventType = {
 
   // Feature usage - Routes
   ROUTE_CREATE: 'route_create',
+  ROUTE_CREATE_FROM_ACTIVITY_NUDGE: 'route_create_from_activity_nudge',
+  ROUTE_CREATE_FROM_EMPTY_STATE: 'route_create_from_empty_state',
+  ROUTE_CREATE_FROM_GUIDE: 'route_create_from_guide',
   ROUTE_VIEW: 'route_view',
   ROUTE_EXPORT: 'route_export',
   ROUTE_SEND_TO_GARMIN: 'route_send_to_garmin',
