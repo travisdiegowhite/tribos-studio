@@ -102,14 +102,18 @@ export default async function handler(req, res) {
       eventType: webhookData.event_type,
       userId: webhookData.user?.id,
       workoutId: webhookData.workout?.id,
+      hasWorkoutSummary: !!webhookData.workout_summary,
+      summaryFields: webhookData.workout_summary ? Object.keys(webhookData.workout_summary) : [],
       timestamp: new Date().toISOString()
     });
 
     // Wahoo sends different event types
-    // workout.created, workout.updated, workout.deleted
+    // workout.created, workout.updated, workout.deleted, workout_summary
     const eventType = webhookData.event_type;
     const wahooUser = webhookData.user;
     const workout = webhookData.workout;
+    // Wahoo sends workout metrics in a separate workout_summary object
+    const webhookSummary = webhookData.workout_summary;
 
     // Validate required fields
     if (!eventType || typeof eventType !== 'string') {
@@ -122,9 +126,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid webhook payload - missing user' });
     }
 
-    // Only process workout.created events for new activities
-    if (eventType !== 'workout.created' && eventType !== 'workout_summary') {
-      console.log('Ignoring non-creation event:', eventType);
+    // Process workout creation, update, and summary events
+    const SUPPORTED_EVENTS = ['workout.created', 'workout.updated', 'workout_summary'];
+    if (!SUPPORTED_EVENTS.includes(eventType)) {
+      console.log('Ignoring unsupported event:', eventType);
       return res.status(200).json({ success: true, message: 'Event ignored' });
     }
 
@@ -141,17 +146,24 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: 'User not linked' });
     }
 
-    // Check for duplicate
+    // Check for existing activity from same workout
+    let existingActivity = null;
     if (workout?.id) {
       const { data: existing } = await supabase
         .from('activities')
-        .select('id')
+        .select('id, distance, moving_time, average_watts')
         .eq('provider_activity_id', workout.id.toString())
         .eq('user_id', integration.user_id)
         .eq('provider', 'wahoo')
         .maybeSingle();
 
-      if (existing) {
+      existingActivity = existing;
+
+      // If activity exists and this is a workout_summary or workout.updated event,
+      // update it with the new summary data instead of skipping
+      if (existing && (eventType === 'workout_summary' || eventType === 'workout.updated')) {
+        console.log('📊 Updating existing activity with summary data:', workout.id);
+      } else if (existing) {
         console.log('Workout already imported:', workout.id);
         return res.status(200).json({ success: true, message: 'Already imported' });
       }
@@ -161,11 +173,11 @@ export default async function handler(req, res) {
     // IMPORTANT: Vercel terminates the function after response is sent,
     // so async processing after response will NOT complete!
     try {
-      const result = await processWahooWorkout(integration, workout, webhookData);
+      const result = await processWahooWorkout(integration, workout, webhookData, webhookSummary, existingActivity);
       console.log('✅ Wahoo webhook processed successfully');
       return res.status(200).json({
         success: true,
-        message: 'Workout imported',
+        message: existingActivity ? 'Workout updated' : 'Workout imported',
         activityId: result?.activityId
       });
     } catch (processingError) {
@@ -193,7 +205,7 @@ export default async function handler(req, res) {
   }
 }
 
-async function processWahooWorkout(integration, workout, webhookData) {
+async function processWahooWorkout(integration, workout, webhookData, webhookSummary, existingActivity) {
   if (!workout) {
     console.log('No workout data in webhook');
     return { activityId: null };
@@ -202,9 +214,10 @@ async function processWahooWorkout(integration, workout, webhookData) {
   // Get valid access token for fetching full workout data
   const accessToken = await ensureValidAccessToken(integration);
 
-  // Fetch full workout details if we only have summary
+  // Fetch full workout details from API to get file URL and nested workout_summary
   let workoutDetails = workout;
-  if (workout.id && !workout.file) {
+  let apiSummary = null;
+  if (workout.id) {
     try {
       const response = await fetch(`${WAHOO_API_BASE}/workouts/${workout.id}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -213,11 +226,27 @@ async function processWahooWorkout(integration, workout, webhookData) {
       if (response.ok) {
         const data = await response.json();
         workoutDetails = data.workout || workout;
+        // API response nests summary under workout.workout_summary
+        apiSummary = workoutDetails.workout_summary || null;
       }
     } catch (err) {
       console.warn('Could not fetch full workout details:', err);
     }
   }
+
+  // Resolve workout summary: prefer webhook payload, fall back to API response
+  // Wahoo sends metrics in workout_summary (distance, speed, power, HR, etc.)
+  // NOT on the workout object itself
+  const summary = webhookSummary || apiSummary || {};
+
+  console.log('📊 Wahoo workout summary resolved:', {
+    source: webhookSummary ? 'webhook_payload' : apiSummary ? 'api_response' : 'none',
+    hasDistance: summary.distance_accum != null,
+    hasPower: summary.power_avg != null,
+    hasHR: summary.heart_rate_avg != null,
+    hasCadence: summary.cadence_avg != null,
+    fields: Object.keys(summary).length
+  });
 
   // Map Wahoo workout type to activity type (cycling + running)
   const activityType = mapWahooWorkoutType(workoutDetails.workout_type);
@@ -238,6 +267,7 @@ async function processWahooWorkout(integration, workout, webhookData) {
     }
   }
 
+  // Build activity data — read metrics from the summary object, not the workout object
   const activityData = {
     user_id: integration.user_id,
     provider: 'wahoo',
@@ -246,22 +276,29 @@ async function processWahooWorkout(integration, workout, webhookData) {
     type: activityType,
     sport_type: workoutDetails.workout_type,
     start_date: workoutDetails.starts || workoutDetails.created_at || new Date().toISOString(),
-    distance: workoutDetails.distance_accum, // meters
-    moving_time: workoutDetails.duration_active_accum, // seconds
-    elapsed_time: workoutDetails.duration_total_accum, // seconds
-    total_elevation_gain: workoutDetails.ascent_accum,
-    average_speed: workoutDetails.speed_avg, // m/s
-    max_speed: workoutDetails.speed_max,
-    average_watts: workoutDetails.power_avg,
-    average_heartrate: workoutDetails.heart_rate_avg,
-    max_heartrate: workoutDetails.heart_rate_max,
-    average_cadence: workoutDetails.cadence_avg,
-    kilojoules: workoutDetails.work_accum ? workoutDetails.work_accum / 1000 : null,
+    distance: summary.distance_accum ?? null, // meters
+    moving_time: summary.duration_active_accum ?? null, // seconds
+    elapsed_time: summary.duration_total_accum ?? null, // seconds
+    total_elevation_gain: summary.ascent_accum ?? null,
+    average_speed: summary.speed_avg ?? null, // m/s
+    max_speed: summary.speed_max ?? null,
+    average_watts: summary.power_avg ?? null,
+    average_heartrate: summary.heart_rate_avg ?? null,
+    max_heartrate: summary.heart_rate_max ?? null,
+    average_cadence: summary.cadence_avg ?? null,
+    kilojoules: summary.work_accum ? summary.work_accum / 1000 : null,
+    calories: summary.calories_accum ?? null,
     trainer: workoutDetails.workout_type === 'indoor_cycling' || workoutDetails.workout_type === 'treadmill_running',
     map_summary_polyline: mapPolyline,
     raw_data: webhookData,
     imported_from: 'wahoo_webhook'
   };
+
+  // If this is an update to an existing activity (workout_summary or workout.updated event),
+  // update it with the new data instead of inserting
+  if (existingActivity) {
+    return await updateExistingActivity(existingActivity.id, activityData, integration);
+  }
 
   // Cross-provider duplicate check (e.g., Wahoo activity already synced via Strava/Garmin)
   const dupCheck = await checkForDuplicate(
@@ -357,6 +394,62 @@ async function processWahooWorkout(integration, workout, webhookData) {
     .eq('id', integration.id);
 
   return { activityId: activity.id };
+}
+
+/**
+ * Update an existing Wahoo activity with summary data
+ * Called when a workout_summary or workout.updated event arrives for an already-imported workout
+ */
+async function updateExistingActivity(activityId, activityData, integration) {
+  // Only update fields that have actual values (don't overwrite good data with null)
+  const updates = {};
+  const fieldsToUpdate = [
+    'distance', 'moving_time', 'elapsed_time', 'total_elevation_gain',
+    'average_speed', 'max_speed', 'average_watts', 'average_heartrate',
+    'max_heartrate', 'average_cadence', 'kilojoules', 'calories',
+    'map_summary_polyline', 'trainer'
+  ];
+
+  for (const field of fieldsToUpdate) {
+    if (activityData[field] != null) {
+      updates[field] = activityData[field];
+    }
+  }
+
+  // Always update raw_data and name if available
+  updates.raw_data = activityData.raw_data;
+  updates.updated_at = new Date().toISOString();
+  if (activityData.name) {
+    updates.name = activityData.name;
+  }
+
+  const { error: updateError } = await supabase
+    .from('activities')
+    .update(updates)
+    .eq('id', activityId);
+
+  if (updateError) {
+    console.error('Error updating Wahoo activity:', updateError);
+    throw updateError;
+  }
+
+  console.log('✅ Wahoo activity updated with summary data:', {
+    id: activityId,
+    updatedFields: Object.keys(updates).filter(k => k !== 'raw_data' && k !== 'updated_at'),
+    distance: updates.distance ? `${(updates.distance / 1000).toFixed(2)} km` : 'N/A',
+    hasGPS: !!updates.map_summary_polyline
+  });
+
+  // Update integration last sync
+  await supabase
+    .from('bike_computer_integrations')
+    .update({
+      last_sync_at: new Date().toISOString(),
+      sync_error: null
+    })
+    .eq('id', integration.id);
+
+  return { activityId, updated: true };
 }
 
 async function ensureValidAccessToken(integration) {
