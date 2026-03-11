@@ -345,33 +345,176 @@ async function syncWorkouts(req, res, userId) {
   try {
     const accessToken = await getValidAccessToken(userId);
 
-    // Fetch workouts from Wahoo
-    const response = await fetch(`${WAHOO_API_BASE}/workouts`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
+    // Get integration record for this user
+    const { data: integration, error: intError } = await supabase
+      .from('bike_computer_integrations')
+      .select('id, user_id')
+      .eq('user_id', userId)
+      .eq('provider', 'wahoo')
+      .single();
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch workouts from Wahoo');
+    if (intError || !integration) {
+      return res.status(400).json({ error: 'Wahoo not connected' });
     }
 
-    const workoutsData = await response.json();
-    const workouts = workoutsData.workouts || [];
+    // Fetch workouts from Wahoo (paginated)
+    let allWorkouts = [];
+    let page = 1;
+    const perPage = 30;
+    let hasMore = true;
 
-    // TODO: Store workouts in activities table
-    // For now, just return the count
+    while (hasMore && page <= 10) { // Cap at 10 pages (300 workouts) to avoid timeout
+      const response = await fetch(`${WAHOO_API_BASE}/workouts?page=${page}&per_page=${perPage}`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch workouts from Wahoo (page ${page})`);
+      }
+
+      const data = await response.json();
+      const workouts = data.workouts || [];
+      allWorkouts = allWorkouts.concat(workouts);
+
+      hasMore = workouts.length === perPage;
+      page++;
+    }
+
+    console.log(`📥 Wahoo manual sync: fetched ${allWorkouts.length} workouts for user ${userId}`);
+
+    let imported = 0;
+    let skipped = 0;
+    let updated = 0;
+    let errors = 0;
+
+    for (const workoutItem of allWorkouts) {
+      try {
+        const workout = workoutItem.workout || workoutItem;
+        if (!workout.id) {
+          skipped++;
+          continue;
+        }
+
+        // Check if already imported
+        const { data: existing } = await supabase
+          .from('activities')
+          .select('id, distance, moving_time')
+          .eq('provider_activity_id', workout.id.toString())
+          .eq('user_id', userId)
+          .eq('provider', 'wahoo')
+          .maybeSingle();
+
+        // Map workout type
+        const activityType = mapWahooWorkoutType(workout.workout_type);
+        if (!activityType) {
+          skipped++;
+          continue;
+        }
+
+        // Extract summary from nested workout_summary (API response structure)
+        const summary = workout.workout_summary || {};
+
+        const activityData = {
+          user_id: userId,
+          provider: 'wahoo',
+          provider_activity_id: workout.id.toString(),
+          name: workout.name || `Wahoo ${['Run', 'VirtualRun', 'TrailRun'].includes(activityType) ? 'Run' : 'Ride'}`,
+          type: activityType,
+          sport_type: workout.workout_type,
+          start_date: workout.starts || workout.created_at || new Date().toISOString(),
+          distance: summary.distance_accum ?? null,
+          moving_time: summary.duration_active_accum ?? null,
+          elapsed_time: summary.duration_total_accum ?? null,
+          total_elevation_gain: summary.ascent_accum ?? null,
+          average_speed: summary.speed_avg ?? null,
+          max_speed: summary.speed_max ?? null,
+          average_watts: summary.power_avg ?? null,
+          average_heartrate: summary.heart_rate_avg ?? null,
+          max_heartrate: summary.heart_rate_max ?? null,
+          average_cadence: summary.cadence_avg ?? null,
+          kilojoules: summary.work_accum ? summary.work_accum / 1000 : null,
+          calories: summary.calories_accum ?? null,
+          trainer: workout.workout_type === 'indoor_cycling' || workout.workout_type === 'treadmill_running',
+          raw_data: workout,
+          imported_from: 'wahoo_manual_sync'
+        };
+
+        if (existing) {
+          // Update existing activity if it has missing metrics
+          const needsUpdate = !existing.distance && activityData.distance;
+          if (needsUpdate) {
+            const updates = {};
+            for (const [key, value] of Object.entries(activityData)) {
+              if (value != null && key !== 'user_id' && key !== 'provider' && key !== 'provider_activity_id') {
+                updates[key] = value;
+              }
+            }
+            updates.updated_at = new Date().toISOString();
+
+            await supabase.from('activities').update(updates).eq('id', existing.id);
+            updated++;
+          } else {
+            skipped++;
+          }
+        } else {
+          // Insert new activity
+          const { error: insertError } = await supabase
+            .from('activities')
+            .insert(activityData);
+
+          if (insertError) {
+            console.error('Error inserting synced workout:', insertError.message);
+            errors++;
+          } else {
+            imported++;
+          }
+        }
+      } catch (workoutError) {
+        console.error('Error processing workout during sync:', workoutError.message);
+        errors++;
+      }
+    }
+
+    // Update integration last sync
+    await supabase
+      .from('bike_computer_integrations')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        sync_error: null
+      })
+      .eq('id', integration.id);
+
+    console.log(`✅ Wahoo manual sync complete: ${imported} imported, ${updated} updated, ${skipped} skipped, ${errors} errors`);
 
     return res.status(200).json({
       success: true,
-      synced: workouts.length,
-      message: `Found ${workouts.length} workouts from Wahoo`
+      synced: imported,
+      updated,
+      skipped,
+      errors,
+      total: allWorkouts.length,
+      message: `Synced ${imported} new, updated ${updated}, skipped ${skipped} workouts from Wahoo`
     });
 
   } catch (error) {
     console.error('Sync workouts error:', error);
     return res.status(500).json({ error: error.message });
   }
+}
+
+// Map Wahoo workout type to activity type (shared with webhook handler)
+function mapWahooWorkoutType(wahooType) {
+  const typeMap = {
+    'cycling': 'Ride', 'indoor_cycling': 'VirtualRide',
+    'mountain_biking': 'MountainBikeRide', 'gravel_cycling': 'GravelRide',
+    'running': 'Run', 'treadmill_running': 'Run',
+    'indoor_running': 'Run', 'trail_running': 'TrailRun'
+  };
+  const lowerType = (wahooType || '').toLowerCase();
+  if (typeMap[lowerType]) return typeMap[lowerType];
+  if (lowerType.includes('bike') || lowerType.includes('cycling')) return 'Ride';
+  if (lowerType.includes('run')) return 'Run';
+  return null;
 }
 
 async function pushRoute(req, res, userId, routeData) {
