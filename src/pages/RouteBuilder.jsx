@@ -32,6 +32,7 @@ import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { createGradientRoute, GRADE_COLORS } from '../utils/routeGradient';
 import { fetchRouteSurfaceData, createSurfaceRoute, computeSurfaceDistribution, SURFACE_COLORS, SURFACE_LABELS } from '../utils/surfaceOverlay';
 import { supabase } from '../lib/supabase';
+import { decodePolyline } from '../utils/activityRouteAnalyzer';
 import { useRouteBuilderStore, useRouteBuilderHydrated } from '../stores/routeBuilderStore';
 import CollapsibleSection from '../components/CollapsibleSection.jsx';
 import StepIndicator from '../components/StepIndicator.jsx';
@@ -559,6 +560,52 @@ function RouteBuilder() {
     // Clear the URL params after reading (keeps URL clean)
     setSearchParams({}, { replace: true });
   }, []);
+
+  // Load activity GPS track when from_activity param is present
+  useEffect(() => {
+    const fromActivityId = searchParams.get('from_activity');
+    if (!fromActivityId || !user?.id) return;
+
+    const loadActivityRoute = async () => {
+      try {
+        const { data: activity, error } = await supabase
+          .from('activities')
+          .select('id, name, map_summary_polyline, distance, total_elevation_gain')
+          .eq('id', fromActivityId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (error || !activity?.map_summary_polyline) return;
+
+        const coords = decodePolyline(activity.map_summary_polyline);
+        if (coords.length === 0) return;
+
+        const geometry = { type: 'LineString', coordinates: coords };
+
+        setRouteGeometry(geometry);
+        setRouteName(activity.name ? `Route from ${activity.name}` : 'Route from Activity');
+        setBuilderMode('editing');
+
+        // Center map on the midpoint of the route
+        const midIdx = Math.floor(coords.length / 2);
+        const [lng, lat] = coords[midIdx];
+        if (mapRef.current) {
+          mapRef.current.flyTo({ center: [lng, lat], zoom: 13 });
+        } else {
+          setViewport(v => ({ ...v, latitude: lat, longitude: lng, zoom: 13 }));
+        }
+
+        // Clear the URL params after reading
+        setSearchParams({}, { replace: true });
+
+        trackFeature(EventType.FEATURE, 'route_from_activity', { activityId: fromActivityId });
+      } catch (err) {
+        console.error('Failed to load activity route:', err);
+      }
+    };
+
+    loadActivityRoute();
+  }, [searchParams, user?.id]);
 
   // Geolocate user on mount (after store hydration)
   // Track if we've already attempted geolocation this session

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -28,6 +28,7 @@ import { formatDistance, formatElevation } from '../utils/units';
 import { supabase } from '../lib/supabase';
 import { exportAndDownloadRoute } from '../utils/routeExport';
 import { garminService } from '../utils/garminService';
+import { trackFeature, EventType } from '../utils/activityTracking';
 import PageHeader from '../components/PageHeader.jsx';
 
 function MyRoutes() {
@@ -41,6 +42,8 @@ function MyRoutes() {
   const [garminConnected, setGarminConnected] = useState(false);
   const [sendingToGarmin, setSendingToGarmin] = useState(null); // Track which route is being sent
   const [unitsPreference, setUnitsPreference] = useState('imperial');
+  const [rideArea, setRideArea] = useState('your area');
+  const [medianDistanceKm, setMedianDistanceKm] = useState(null);
 
   // Unit formatting helpers
   const isImperial = unitsPreference === 'imperial';
@@ -119,6 +122,52 @@ function MyRoutes() {
     };
     checkGarmin();
   }, []);
+
+  // Fetch ride data for personalized empty state
+  useEffect(() => {
+    const loadRideContext = async () => {
+      if (!user) return;
+      try {
+        const { data: recentActivities } = await supabase
+          .from('activities')
+          .select('raw_data, distance')
+          .eq('user_id', user.id)
+          .order('start_date', { ascending: false })
+          .limit(20);
+
+        if (!recentActivities?.length) return;
+
+        // Extract most common city from raw_data
+        const cities = recentActivities
+          .map(a => a.raw_data?.location_city)
+          .filter(Boolean);
+        if (cities.length > 0) {
+          const counts = {};
+          for (const city of cities) {
+            counts[city] = (counts[city] || 0) + 1;
+          }
+          const topCity = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+          setRideArea(topCity);
+        }
+
+        // Calculate median distance
+        const distances = recentActivities
+          .map(a => a.distance ? a.distance / 1000 : null)
+          .filter(Boolean)
+          .sort((a, b) => a - b);
+        if (distances.length > 0) {
+          const mid = Math.floor(distances.length / 2);
+          const median = distances.length % 2 === 0
+            ? (distances[mid - 1] + distances[mid]) / 2
+            : distances[mid];
+          setMedianDistanceKm(Math.round(median));
+        }
+      } catch (err) {
+        console.error('Failed to load ride context:', err);
+      }
+    };
+    loadRideContext();
+  }, [user]);
 
   // Delete a route
   const handleDelete = async (routeId, routeName) => {
@@ -406,40 +455,58 @@ function MyRoutes() {
 
           {/* Routes Grid */}
           {routes.length === 0 ? (
-            <Card>
-              <Stack align="center" gap="lg" py="xl">
-                <Text size="4rem">🗺️</Text>
-                <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
-                  No routes yet
-                </Title>
-                <Text style={{ color: 'var(--color-text-secondary)', textAlign: 'center' }} maw={{ base: '100%', sm: 400 }}>
-                  Plan your next ride with the route builder. Start from scratch, let AI suggest something, or trace one of your past rides.
-                </Text>
+            <Card p="2rem">
+              <Stack align="center" gap="xl" py="xl">
+                <IconRoute size={48} color="var(--color-teal, #2A8C82)" stroke={1.5} />
+                <Stack align="center" gap="xs">
+                  <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
+                    {rideArea !== 'your area'
+                      ? `Your ride history shows you like ${rideArea}.`
+                      : 'Plan your next ride'}
+                  </Title>
+                  <Text style={{ color: 'var(--color-text-secondary)', textAlign: 'center' }} maw={{ base: '100%', sm: 420 }}>
+                    {rideArea !== 'your area'
+                      ? "Let's put that to work."
+                      : 'Start from scratch, let AI suggest something, or trace one of your past rides.'}
+                  </Text>
+                </Stack>
                 <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm" w="100%" maw={600}>
                   <Button
                     variant="light"
                     color="teal"
                     size="md"
-                    leftSection={<IconBrain size={18} />}
-                    onClick={() => navigate('/routes/new?mode=ai')}
+                    leftSection={<IconRoute size={18} />}
+                    onClick={() => {
+                      trackFeature(EventType.ROUTE_CREATE_FROM_EMPTY_STATE, 'empty_state_past_ride');
+                      navigate('/routes/new?mode=activity');
+                    }}
                     styles={{ root: { height: 'auto', padding: '12px 16px' } }}
                   >
                     <Stack gap={2} align="flex-start">
-                      <Text size="sm" fw={600}>AI-suggested route</Text>
-                      <Text size="xs" c="dimmed">Based on your location</Text>
+                      <Text size="sm" fw={600}>Build from a past ride</Text>
+                      <Text size="xs" c="dimmed">Retrace your steps</Text>
                     </Stack>
                   </Button>
                   <Button
                     variant="light"
                     color="teal"
                     size="md"
-                    leftSection={<IconRoute size={18} />}
-                    onClick={() => navigate('/routes/new?mode=activity')}
+                    leftSection={<IconBrain size={18} />}
+                    onClick={() => {
+                      trackFeature(EventType.ROUTE_CREATE_FROM_EMPTY_STATE, 'empty_state_ai_route');
+                      const params = new URLSearchParams({ mode: 'ai' });
+                      if (medianDistanceKm) params.set('distance', String(medianDistanceKm));
+                      navigate(`/routes/new?${params.toString()}`);
+                    }}
                     styles={{ root: { height: 'auto', padding: '12px 16px' } }}
                   >
                     <Stack gap={2} align="flex-start">
-                      <Text size="sm" fw={600}>From a past ride</Text>
-                      <Text size="xs" c="dimmed">Retrace your steps</Text>
+                      <Text size="sm" fw={600}>Get an AI-suggested route</Text>
+                      <Text size="xs" c="dimmed">
+                        {medianDistanceKm
+                          ? `Based on your typical ${formatDist(medianDistanceKm)} rides`
+                          : 'Based on your location'}
+                      </Text>
                     </Stack>
                   </Button>
                   <Button
@@ -447,7 +514,10 @@ function MyRoutes() {
                     color="gray"
                     size="md"
                     leftSection={<IconMap size={18} />}
-                    onClick={() => navigate('/routes/new')}
+                    onClick={() => {
+                      trackFeature(EventType.ROUTE_CREATE_FROM_EMPTY_STATE, 'empty_state_scratch');
+                      navigate('/routes/new');
+                    }}
                     styles={{ root: { height: 'auto', padding: '12px 16px' } }}
                   >
                     <Stack gap={2} align="flex-start">

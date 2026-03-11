@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Card,
@@ -82,6 +82,23 @@ export default function GetStartedGuide() {
     dismissGuide,
     setActivation,
   } = useActivation(user?.id);
+  const [recentActivityId, setRecentActivityId] = useState(null);
+
+  // Fetch most recent activity with GPS data for personalized route step
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('activities')
+      .select('id')
+      .eq('user_id', user.id)
+      .not('map_summary_polyline', 'is', null)
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data) setRecentActivityId(data.id);
+      });
+  }, [user?.id]);
 
   // Subscribe to realtime updates
   useEffect(() => {
@@ -172,7 +189,11 @@ export default function GetStartedGuide() {
       />
 
       <Stack gap="xs">
-        {ACTIVATION_STEPS.map((step) => {
+        {ACTIVATION_STEPS.map((stepConfig) => {
+          // Override route step CTA if user has synced activities with GPS
+          const step = stepConfig.key === 'first_route' && recentActivityId
+            ? { ...stepConfig, cta: 'Build from your last ride', href: `/routes/new?from_activity=${recentActivityId}` }
+            : stepConfig;
           const StepIcon = step.icon;
           const isStepComplete = activation.steps?.[step.key]?.completed;
 

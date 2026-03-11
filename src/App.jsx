@@ -25,6 +25,7 @@ const Settings = lazy(() => import('./pages/Settings.jsx'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'));
 const GearPage = lazy(() => import('./pages/GearPage.jsx'));
 const Admin = lazy(() => import('./pages/Admin.jsx'));
+const MyRoutes = lazy(() => import('./pages/MyRoutes.jsx'));
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
@@ -130,16 +131,16 @@ function AppRoutes() {
         path="/routes"
         element={
           <ProtectedRoute>
-            <Navigate to="/routes/new" replace />
+            <MyRoutes />
           </ProtectedRoute>
         }
       />
-      {/* Redirect old /routes/list bookmarks to the builder */}
+      {/* Redirect old /routes/list bookmarks to the routes page */}
       <Route
         path="/routes/list"
         element={
           <ProtectedRoute>
-            <Navigate to="/routes/new" replace />
+            <Navigate to="/routes" replace />
           </ProtectedRoute>
         }
       />

@@ -66,6 +66,7 @@ import {
 import { tokens, depth } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useActivation } from '../hooks/useActivation';
 import { parsePlanStartDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
 import { CoachCard } from '../components/coach';
@@ -107,6 +108,7 @@ import { useCrossTraining } from '../hooks/useCrossTraining';
 
 function TrainingDashboard() {
   const { user } = useAuth();
+  const { activation } = useActivation(user?.id);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -1254,6 +1256,7 @@ function TrainingDashboard() {
         formatDistance={formatDist}
         formatElevation={formatElev}
         formatSpeed={formatSpd}
+        hasCreatedRoute={!!activation?.steps?.first_route?.completed}
       />
     </AppShell>
   );

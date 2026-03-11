@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Modal,
   Text,
@@ -25,6 +26,7 @@ import {
   IconBrandStrava,
   IconDeviceWatch,
   IconGauge,
+  IconArrowRight,
 } from '@tabler/icons-react';
 import {
   estimateNormalizedPower,
@@ -41,6 +43,7 @@ import ColoredRouteMap from './ColoredRouteMap';
 import RideStreamsChart from './RideStreamsChart';
 import RideZonesChart from './RideZonesChart';
 import RidePacingChart from './RidePacingChart';
+import { trackFeature, EventType } from '../utils/activityTracking';
 
 // FIT protocol uses 0xFFFF (65535) for "no data" - must filter before display
 const MAX_VALID_POWER_WATTS = 2500;
@@ -148,7 +151,9 @@ const RideAnalysisModal = ({
   formatSpeed,
   onBackfillGps,
   isBackfilling = false,
+  hasCreatedRoute = false,
 }) => {
+  const navigate = useNavigate();
   // Extract polyline from various possible locations
   const polyline = useMemo(() => {
     if (!ride) return null;
@@ -624,6 +629,41 @@ const RideAnalysisModal = ({
               useImperial={!!formatDistance}
             />
           </>
+        )}
+
+        {/* Route Builder Nudge — only for users who haven't created a route yet */}
+        {!hasCreatedRoute && polyline && (
+          <Paper
+            p="md"
+            style={{
+              borderLeft: '3px solid var(--color-teal, #2A8C82)',
+              backgroundColor: 'rgba(42, 140, 130, 0.06)',
+            }}
+          >
+            <Group justify="space-between" wrap="nowrap">
+              <Box>
+                <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
+                  Want to ride this again?
+                </Text>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
+                  Build a route from this activity in one click
+                </Text>
+              </Box>
+              <Button
+                color="teal"
+                size="compact-sm"
+                rightSection={<IconArrowRight size={14} />}
+                onClick={() => {
+                  trackFeature(EventType.ROUTE_CREATE_FROM_ACTIVITY_NUDGE, 'activity_nudge_click', { activityId: ride.id });
+                  onClose();
+                  navigate(`/routes/new?from_activity=${ride.id}`);
+                }}
+                style={{ flexShrink: 0 }}
+              >
+                Build Route from This Ride
+              </Button>
+            </Group>
+          </Paper>
         )}
 
         {/* Activity Info Footer */}
