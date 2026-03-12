@@ -108,6 +108,9 @@ import { garminService } from '../utils/garminService.js';
 import PageHeader from '../components/PageHeader.jsx';
 import { useCrossTraining } from '../hooks/useCrossTraining';
 
+// Helper to determine sport type from activity data
+const getSportTypeForActivity = (a) => a.sport_type || (a.type === 'Run' || a.type === 'VirtualRun' || a.type === 'TrailRun' ? 'running' : 'cycling');
+
 function TrainingDashboard() {
   const { user } = useAuth();
   const { activation } = useActivation(user?.id);
@@ -542,9 +545,6 @@ function TrainingDashboard() {
     loadCrossTrainingContext();
   }, [user, getRecentActivitiesForContext]);
 
-  // Helper to determine sport type from activity
-  const getSportType = (a) => a.sport_type || (a.type === 'Run' || a.type === 'VirtualRun' || a.type === 'TrailRun' ? 'running' : 'cycling');
-
   // Calculate weekly stats (uses visibleActivities to exclude hidden)
   const weeklyStats = useMemo(() => {
     const days = parseInt(timeRange) || 7;
@@ -568,7 +568,7 @@ function TrainingDashboard() {
           );
         }
 
-        const sport = getSportType(a);
+        const sport = getSportTypeForActivity(a);
         const sportBucket = sport === 'running' ? acc.running : acc.cycling;
         sportBucket.distance += (a.distance || 0);
         sportBucket.time += (a.moving_time || 0);
@@ -621,7 +621,7 @@ function TrainingDashboard() {
 
     return weeklyActivities.reduce(
       (acc, a) => {
-        const sport = getSportType(a);
+        const sport = getSportTypeForActivity(a);
         return {
           totalDistance: acc.totalDistance + (a.distance || 0),
           totalTime: acc.totalTime + (a.moving_time || 0),
@@ -1308,7 +1308,8 @@ function TrainingDashboard() {
 // TODAY'S FOCUS HERO CARD - Story-Driven Narrative
 // ============================================================================
 function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeeklyStats, activities, formatDist, formatTime, raceGoals, suggestedWorkout, recommendationReason, recommendationSource, plannedRest, plannedRestReason, focusTimeAvailable, onFocusTimeChange, onViewWorkout }) {
-  const lastRide = activities[0];
+  const lastActivity = activities[0];
+  const lastActivitySport = lastActivity ? getSportTypeForActivity(lastActivity) : 'cycling';
   const FormIcon = formStatus.icon;
 
   // Find next upcoming race
@@ -1318,11 +1319,16 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
   // Generate story-driven narrative based on context
   const getStory = () => {
     const tsb = trainingMetrics.tsb;
-    const rideCount = actualWeeklyStats.rideCount;
+    const activityCount = actualWeeklyStats.activityCount || actualWeeklyStats.rideCount;
 
-    // Build context phrases
-    const weekContext = rideCount > 0
-      ? `after ${rideCount} ride${rideCount > 1 ? 's' : ''} this week`
+    // Build context phrases with sport-aware language
+    const weekContext = activityCount > 0
+      ? (() => {
+          const parts = [];
+          if (actualWeeklyStats.rideCount > 0) parts.push(`${actualWeeklyStats.rideCount} ride${actualWeeklyStats.rideCount > 1 ? 's' : ''}`);
+          if (actualWeeklyStats.runCount > 0) parts.push(`${actualWeeklyStats.runCount} run${actualWeeklyStats.runCount > 1 ? 's' : ''}`);
+          return `after ${parts.join(' and ')} this week`;
+        })()
       : 'with fresh legs this week';
 
     const raceContext = daysUntilRace && nextRace
@@ -1466,44 +1472,68 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             thickness={8}
             roundCaps
             sections={[
-              { value: Math.min((actualWeeklyStats.rideCount / 7) * 100, 100), color: 'gray.6' },
+              ...(actualWeeklyStats.rideCount > 0 ? [{ value: Math.min((actualWeeklyStats.rideCount / 7) * 100, 100), color: 'gray.6' }] : []),
+              ...(actualWeeklyStats.runCount > 0 ? [{ value: Math.min((actualWeeklyStats.runCount / 7) * 100, 100), color: 'teal.5' }] : []),
+              ...(!actualWeeklyStats.rideCount && !actualWeeklyStats.runCount ? [{ value: 0, color: 'gray.6' }] : []),
             ]}
             label={
               <Text size="lg" fw={700} ta="center">
-                {actualWeeklyStats.rideCount}
+                {(actualWeeklyStats.activityCount || actualWeeklyStats.rideCount)}
               </Text>
             }
           />
-          <Text size="xs" c="dimmed" mt={4}>rides this week</Text>
+          <Text size="xs" c="dimmed" mt={4}>
+            {actualWeeklyStats.runCount > 0 && actualWeeklyStats.rideCount > 0
+              ? 'activities'
+              : actualWeeklyStats.runCount > 0
+                ? 'runs'
+                : 'rides'} this week
+          </Text>
         </Box>
       </Group>
 
-      {/* Last Ride Preview */}
-      {lastRide && (
+      {/* Last Activity Preview */}
+      {lastActivity && (
         <>
           <Divider my="md" />
           <Group justify="space-between">
             <Group gap="sm">
-              <ThemeIcon size="lg" variant="light" color="gray">
-                <IconRoute size={18} />
+              <ThemeIcon size="lg" variant="light" color={lastActivitySport === 'running' ? 'teal' : 'gray'}>
+                {lastActivitySport === 'running' ? <IconRun size={18} /> : <IconRoute size={18} />}
               </ThemeIcon>
               <Box>
-                <Text size="sm" fw={500}>{lastRide.name}</Text>
+                <Text size="sm" fw={500}>{lastActivity.name}</Text>
                 <Text size="xs" c="dimmed">
-                  {new Date(lastRide.start_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {new Date(lastActivity.start_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                 </Text>
               </Box>
             </Group>
             <Group gap="lg">
               <Box ta="right">
-                <Text size="sm" fw={600}>{formatDist(lastRide.distance / 1000)}</Text>
-                <Text size="xs" c="dimmed">{formatTime(lastRide.moving_time)}</Text>
+                <Text size="sm" fw={600}>{formatDist(lastActivity.distance / 1000)}</Text>
+                <Text size="xs" c="dimmed">{formatTime(lastActivity.moving_time)}</Text>
               </Box>
-              {lastRide.average_watts && (
-                <Box ta="right">
-                  <Text size="sm" fw={600}>{Math.round(lastRide.average_watts)}W</Text>
-                  <Text size="xs" c="dimmed">avg power</Text>
-                </Box>
+              {lastActivitySport === 'running' ? (
+                lastActivity.distance > 0 && lastActivity.moving_time > 0 && (
+                  <Box ta="right">
+                    <Text size="sm" fw={600}>
+                      {(() => {
+                        const paceMinKm = (lastActivity.moving_time / 60) / (lastActivity.distance / 1000);
+                        const mins = Math.floor(paceMinKm);
+                        const secs = Math.round((paceMinKm - mins) * 60);
+                        return `${mins}:${secs.toString().padStart(2, '0')}/km`;
+                      })()}
+                    </Text>
+                    <Text size="xs" c="dimmed">avg pace</Text>
+                  </Box>
+                )
+              ) : (
+                lastActivity.average_watts && (
+                  <Box ta="right">
+                    <Text size="sm" fw={600}>{Math.round(lastActivity.average_watts)}W</Text>
+                    <Text size="xs" c="dimmed">avg power</Text>
+                  </Box>
+                )
               )}
             </Group>
           </Group>
@@ -2516,13 +2546,26 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     }
   }
 
-  if (actualWeeklyStats.rideCount > 0) {
-    context.push(`This week: ${actualWeeklyStats.rideCount} rides, ${formatDist(actualWeeklyStats.totalDistance / 1000)}, ${formatTime(actualWeeklyStats.totalTime)}`);
+  if ((actualWeeklyStats.activityCount || actualWeeklyStats.rideCount) > 0) {
+    const parts = [];
+    if (actualWeeklyStats.rideCount > 0) parts.push(`${actualWeeklyStats.rideCount} rides`);
+    if (actualWeeklyStats.runCount > 0) parts.push(`${actualWeeklyStats.runCount} runs`);
+    context.push(`This week: ${parts.join(', ')}, ${formatDist(actualWeeklyStats.totalDistance / 1000)}, ${formatTime(actualWeeklyStats.totalTime)}`);
+
+    // Add per-sport breakdown if multi-sport
+    if (weeklyStats.cycling?.count > 0 && weeklyStats.running?.count > 0) {
+      context.push(`  Cycling: ${formatDist(weeklyStats.cycling.distance / 1000)}, ${Math.round(weeklyStats.cycling.tss)} TSS${weeklyStats.cycling.avgPower > 0 ? `, ${weeklyStats.cycling.avgPower}W avg` : ''}`);
+      const runPace = weeklyStats.running.avgPaceMinKm;
+      const paceStr = runPace > 0 ? `, ${Math.floor(runPace)}:${Math.round((runPace % 1) * 60).toString().padStart(2, '0')}/km avg pace` : '';
+      context.push(`  Running: ${formatDist(weeklyStats.running.distance / 1000)}, ${Math.round(weeklyStats.running.tss)} TSS${paceStr}`);
+    }
   }
 
   if (activities.length > 0) {
-    const lastRide = activities[0];
-    context.push(`Last ride: ${lastRide.name} - ${formatDist(lastRide.distance / 1000)}`);
+    const lastActivity = activities[0];
+    const lastSport = getSportTypeForActivity(lastActivity);
+    const label = lastSport === 'running' ? 'Last run' : 'Last ride';
+    context.push(`${label}: ${lastActivity.name} - ${formatDist(lastActivity.distance / 1000)}`);
     context.push(`Activity history available for analysis (use query_fitness_history tool for historical comparisons)`);
   }
 
