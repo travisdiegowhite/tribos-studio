@@ -117,3 +117,63 @@ export async function enqueueProactiveInsight(supabase, userId, activityId, insi
     console.error('⚠️ Failed to enqueue proactive insight:', error.message);
   }
 }
+
+/**
+ * Enqueue a coaching check-in for generation by the cron processor.
+ * Only enqueues if the user has an active training plan.
+ * Idempotent — one check-in per activity (enforced by UNIQUE constraint).
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase - Server-side Supabase client
+ * @param {string} userId - User ID
+ * @param {string} activityId - Activity ID that triggered the check-in
+ */
+export async function enqueueCheckIn(supabase, userId, activityId) {
+  try {
+    // Check if check-in already exists for this activity
+    const { data: existing } = await supabase
+      .from('coach_check_ins')
+      .select('id')
+      .eq('activity_id', activityId)
+      .maybeSingle();
+
+    if (existing) {
+      return;
+    }
+
+    // Only generate check-ins for users with an active training plan
+    const { data: plan } = await supabase
+      .from('training_plans')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle();
+
+    if (!plan) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from('coach_check_ins')
+      .insert({
+        user_id: userId,
+        activity_id: activityId,
+        persona_id: 'pending',
+        narrative: '',
+        status: 'pending',
+      });
+
+    if (error) {
+      // Likely a unique constraint violation — already exists
+      if (!error.message?.includes('duplicate') && !error.message?.includes('unique')) {
+        console.error('Failed to enqueue check-in:', error);
+      }
+      return;
+    }
+
+    console.log(`📋 Coach check-in enqueued for activity ${activityId}`);
+  } catch (error) {
+    // Non-critical — don't break the sync flow
+    console.error('⚠️ Failed to enqueue check-in:', error.message);
+  }
+}
