@@ -41,6 +41,7 @@ import {
   IconYoga,
   IconRun,
   IconStretching,
+  IconBike,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -1251,20 +1252,32 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                         </Tooltip>
                       )}
 
-                      {/* Completed rides */}
-                      {dayRides.length > 0 && (
-                        <Tooltip label={dayRides.map(r => r.name || 'Ride').join(', ')}>
-                          <Group gap={4}>
-                            <Badge size="xs" color="green" variant="filled">
-                              🚴 {dayRides.length}
-                            </Badge>
-                            {/* Show Strava logo if any rides are from Strava */}
-                            {dayRides.some(r => r.provider === 'strava') && (
-                              <StravaLogo size={12} />
-                            )}
-                          </Group>
-                        </Tooltip>
-                      )}
+                      {/* Completed activities */}
+                      {dayRides.length > 0 && (() => {
+                        const getSport = (r) => r.sport_type || (r.type === 'Run' || r.type === 'VirtualRun' || r.type === 'TrailRun' ? 'running' : 'cycling');
+                        const rides = dayRides.filter(r => getSport(r) === 'cycling');
+                        const runs = dayRides.filter(r => getSport(r) === 'running');
+                        return (
+                          <Tooltip label={dayRides.map(r => r.name || 'Activity').join(', ')}>
+                            <Group gap={4}>
+                              {rides.length > 0 && (
+                                <Badge size="xs" color="green" variant="filled" leftSection={<IconBike size={10} />}>
+                                  {rides.length}
+                                </Badge>
+                              )}
+                              {runs.length > 0 && (
+                                <Badge size="xs" color="teal" variant="filled" leftSection={<IconRun size={10} />}>
+                                  {runs.length}
+                                </Badge>
+                              )}
+                              {/* Show Strava logo if any activities are from Strava */}
+                              {dayRides.some(r => r.provider === 'strava') && (
+                                <StravaLogo size={12} />
+                              )}
+                            </Group>
+                          </Tooltip>
+                        );
+                      })()}
 
                       {/* Cross-training activities */}
                       {(() => {
