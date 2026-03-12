@@ -6,17 +6,22 @@
 // Strava/Garmin activity type constants
 export const CYCLING_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
 export const RUNNING_TYPES = ['Run', 'VirtualRun', 'TrailRun'];
+export const OTHER_TYPES = [
+  'Walk', 'Hike', 'Swim', 'WeightTraining', 'Yoga', 'Workout',
+  'Elliptical', 'StairStepper', 'Rowing', 'AlpineSki', 'Snowboard',
+  'NordicSki', 'BackcountrySki', 'StandUpPaddling', 'Kayaking', 'Surfing',
+];
 export const SUPPORTED_ACTIVITY_TYPES = [...CYCLING_TYPES, ...RUNNING_TYPES];
 
 /**
  * Get the high-level sport type from a Strava/Garmin activity type
- * @param {string} activityType - e.g. 'Ride', 'Run', 'TrailRun'
- * @returns {'cycling'|'running'|null}
+ * @param {string} activityType - e.g. 'Ride', 'Run', 'TrailRun', 'Hike'
+ * @returns {'cycling'|'running'|'other'}
  */
 export function getSportType(activityType) {
   if (CYCLING_TYPES.includes(activityType)) return 'cycling';
   if (RUNNING_TYPES.includes(activityType)) return 'running';
-  return null;
+  return 'other';
 }
 
 /**

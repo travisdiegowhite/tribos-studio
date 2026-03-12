@@ -1254,9 +1254,17 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
                       {/* Completed activities */}
                       {dayRides.length > 0 && (() => {
-                        const getSport = (r) => r.sport_type || (r.type === 'Run' || r.type === 'VirtualRun' || r.type === 'TrailRun' ? 'running' : 'cycling');
+                        const RUNNING = ['Run', 'VirtualRun', 'TrailRun'];
+                        const CYCLING = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
+                        const getSport = (r) => {
+                          if (r.sport_type === 'cycling' || r.sport_type === 'running') return r.sport_type;
+                          if (RUNNING.includes(r.type)) return 'running';
+                          if (CYCLING.includes(r.type)) return 'cycling';
+                          return 'other';
+                        };
                         const rides = dayRides.filter(r => getSport(r) === 'cycling');
                         const runs = dayRides.filter(r => getSport(r) === 'running');
+                        const others = dayRides.filter(r => getSport(r) === 'other');
                         return (
                           <Tooltip label={dayRides.map(r => r.name || 'Activity').join(', ')}>
                             <Group gap={4}>
@@ -1268,6 +1276,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               {runs.length > 0 && (
                                 <Badge size="xs" color="teal" variant="filled" leftSection={<IconRun size={10} />}>
                                   {runs.length}
+                                </Badge>
+                              )}
+                              {others.length > 0 && (
+                                <Badge size="xs" color="orange" variant="filled" leftSection={<IconActivity size={10} />}>
+                                  {others.length}
                                 </Badge>
                               )}
                               {/* Show Strava logo if any activities are from Strava */}
