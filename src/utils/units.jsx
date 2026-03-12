@@ -44,6 +44,26 @@ export function formatSpeed(kmh, useImperial = true, precision = 1) {
   return `${kmh.toFixed(precision)} km/h`;
 }
 
+// Format pace (min/km or min/mi) from seconds per km
+export function formatPace(secondsPerKm, useImperial = true) {
+  if (secondsPerKm == null || isNaN(secondsPerKm) || secondsPerKm <= 0) return useImperial ? '-/mi' : '-/km';
+  let paceSeconds = secondsPerKm;
+  const unit = useImperial ? 'mi' : 'km';
+  if (useImperial) {
+    // Convert sec/km to sec/mi
+    paceSeconds = secondsPerKm * 1.60934;
+  }
+  const mins = Math.floor(paceSeconds / 60);
+  const secs = Math.round(paceSeconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}/${unit}`;
+}
+
+// Calculate pace in seconds per km from distance (meters) and time (seconds)
+export function calculatePace(distanceMeters, movingTimeSeconds) {
+  if (!distanceMeters || !movingTimeSeconds || distanceMeters <= 0) return null;
+  return movingTimeSeconds / (distanceMeters / 1000); // seconds per km
+}
+
 // Unit preferences context
 const UnitPreferencesContext = createContext();
 
