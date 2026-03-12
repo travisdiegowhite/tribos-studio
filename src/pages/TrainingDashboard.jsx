@@ -109,7 +109,14 @@ import PageHeader from '../components/PageHeader.jsx';
 import { useCrossTraining } from '../hooks/useCrossTraining';
 
 // Helper to determine sport type from activity data
-const getSportTypeForActivity = (a) => a.sport_type || (a.type === 'Run' || a.type === 'VirtualRun' || a.type === 'TrailRun' ? 'running' : 'cycling');
+const CYCLING_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
+const RUNNING_TYPES = ['Run', 'VirtualRun', 'TrailRun'];
+const getSportTypeForActivity = (a) => {
+  if (a.sport_type === 'cycling' || a.sport_type === 'running') return a.sport_type;
+  if (RUNNING_TYPES.includes(a.type)) return 'running';
+  if (CYCLING_TYPES.includes(a.type)) return 'cycling';
+  return 'other';
+};
 
 function TrainingDashboard() {
   const { user } = useAuth();
@@ -569,7 +576,7 @@ function TrainingDashboard() {
         }
 
         const sport = getSportTypeForActivity(a);
-        const sportBucket = sport === 'running' ? acc.running : acc.cycling;
+        const sportBucket = sport === 'running' ? acc.running : sport === 'cycling' ? acc.cycling : acc.other;
         sportBucket.distance += (a.distance || 0);
         sportBucket.time += (a.moving_time || 0);
         sportBucket.elevation += (a.total_elevation_gain || 0);
@@ -588,14 +595,16 @@ function TrainingDashboard() {
           totalTSS: acc.totalTSS + (activityTSS || 0),
           rideCount: acc.rideCount + (sport === 'cycling' ? 1 : 0),
           runCount: acc.runCount + (sport === 'running' ? 1 : 0),
+          otherCount: acc.otherCount + (sport === 'other' ? 1 : 0),
           activityCount: acc.activityCount + 1,
         };
       },
       {
         totalDistance: 0, totalTime: 0, totalElevation: 0, totalTSS: 0,
-        rideCount: 0, runCount: 0, activityCount: 0,
+        rideCount: 0, runCount: 0, otherCount: 0, activityCount: 0,
         cycling: { distance: 0, time: 0, elevation: 0, tss: 0, count: 0, totalPower: 0, powerCount: 0 },
         running: { distance: 0, time: 0, elevation: 0, tss: 0, count: 0 },
+        other: { distance: 0, time: 0, elevation: 0, tss: 0, count: 0 },
       }
     );
 
@@ -627,10 +636,11 @@ function TrainingDashboard() {
           totalTime: acc.totalTime + (a.moving_time || 0),
           rideCount: acc.rideCount + (sport === 'cycling' ? 1 : 0),
           runCount: acc.runCount + (sport === 'running' ? 1 : 0),
+          otherCount: acc.otherCount + (sport === 'other' ? 1 : 0),
           activityCount: acc.activityCount + 1,
         };
       },
-      { totalDistance: 0, totalTime: 0, rideCount: 0, runCount: 0, activityCount: 0 }
+      { totalDistance: 0, totalTime: 0, rideCount: 0, runCount: 0, otherCount: 0, activityCount: 0 }
     );
   }, [visibleActivities]);
 
@@ -1327,6 +1337,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
           const parts = [];
           if (actualWeeklyStats.rideCount > 0) parts.push(`${actualWeeklyStats.rideCount} ride${actualWeeklyStats.rideCount > 1 ? 's' : ''}`);
           if (actualWeeklyStats.runCount > 0) parts.push(`${actualWeeklyStats.runCount} run${actualWeeklyStats.runCount > 1 ? 's' : ''}`);
+          if (actualWeeklyStats.otherCount > 0) parts.push(`${actualWeeklyStats.otherCount} other session${actualWeeklyStats.otherCount > 1 ? 's' : ''}`);
           return `after ${parts.join(' and ')} this week`;
         })()
       : 'with fresh legs this week';
@@ -1474,7 +1485,8 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             sections={[
               ...(actualWeeklyStats.rideCount > 0 ? [{ value: Math.min((actualWeeklyStats.rideCount / 7) * 100, 100), color: 'gray.6' }] : []),
               ...(actualWeeklyStats.runCount > 0 ? [{ value: Math.min((actualWeeklyStats.runCount / 7) * 100, 100), color: 'teal.5' }] : []),
-              ...(!actualWeeklyStats.rideCount && !actualWeeklyStats.runCount ? [{ value: 0, color: 'gray.6' }] : []),
+              ...(actualWeeklyStats.otherCount > 0 ? [{ value: Math.min((actualWeeklyStats.otherCount / 7) * 100, 100), color: 'orange.4' }] : []),
+              ...(!actualWeeklyStats.activityCount ? [{ value: 0, color: 'gray.6' }] : []),
             ]}
             label={
               <Text size="lg" fw={700} ta="center">
@@ -1483,11 +1495,13 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             }
           />
           <Text size="xs" c="dimmed" mt={4}>
-            {actualWeeklyStats.runCount > 0 && actualWeeklyStats.rideCount > 0
+            {(actualWeeklyStats.rideCount > 0) + (actualWeeklyStats.runCount > 0) + (actualWeeklyStats.otherCount > 0) > 1
               ? 'activities'
               : actualWeeklyStats.runCount > 0
                 ? 'runs'
-                : 'rides'} this week
+                : actualWeeklyStats.otherCount > 0
+                  ? 'sessions'
+                  : 'rides'} this week
           </Text>
         </Box>
       </Group>
@@ -1498,8 +1512,8 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
           <Divider my="md" />
           <Group justify="space-between">
             <Group gap="sm">
-              <ThemeIcon size="lg" variant="light" color={lastActivitySport === 'running' ? 'teal' : 'gray'}>
-                {lastActivitySport === 'running' ? <IconRun size={18} /> : <IconRoute size={18} />}
+              <ThemeIcon size="lg" variant="light" color={lastActivitySport === 'running' ? 'teal' : lastActivitySport === 'other' ? 'orange' : 'gray'}>
+                {lastActivitySport === 'running' ? <IconRun size={18} /> : lastActivitySport === 'other' ? <IconActivity size={18} /> : <IconRoute size={18} />}
               </ThemeIcon>
               <Box>
                 <Text size="sm" fw={500}>{lastActivity.name}</Text>
@@ -1527,14 +1541,14 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
                     <Text size="xs" c="dimmed">avg pace</Text>
                   </Box>
                 )
-              ) : (
+              ) : lastActivitySport === 'cycling' ? (
                 lastActivity.average_watts && (
                   <Box ta="right">
                     <Text size="sm" fw={600}>{Math.round(lastActivity.average_watts)}W</Text>
                     <Text size="xs" c="dimmed">avg power</Text>
                   </Box>
                 )
-              )}
+              ) : null}
             </Group>
           </Group>
         </>
@@ -2005,7 +2019,8 @@ function BodyCheckInCard({ todayHealthMetrics, onOpenHealthCheckIn }) {
 function WeeklySportSummary({ weeklyStats }) {
   const hasCycling = weeklyStats.cycling?.count > 0;
   const hasRunning = weeklyStats.running?.count > 0;
-  const hasMultiSport = hasCycling && hasRunning;
+  const hasOther = weeklyStats.other?.count > 0;
+  const sportCount = [hasCycling, hasRunning, hasOther].filter(Boolean).length;
 
   const formatPace = (minPerKm) => {
     if (!minPerKm || minPerKm <= 0) return '';
@@ -2019,40 +2034,58 @@ function WeeklySportSummary({ weeklyStats }) {
     return km >= 100 ? `${Math.round(km)}km` : `${km.toFixed(1)}km`;
   };
 
-  if (hasMultiSport) {
-    // Multi-sport: show two lines with sport-specific metrics
-    const cyclingLabel = [
-      `${weeklyStats.cycling.count}`,
-      formatDist(weeklyStats.cycling.distance),
-      `${Math.round(weeklyStats.cycling.tss)} TSS`,
-      weeklyStats.cycling.avgPower > 0 ? `${weeklyStats.cycling.avgPower}W` : null,
-    ].filter(Boolean).join(' · ');
-
-    const runningLabel = [
-      `${weeklyStats.running.count}`,
-      formatDist(weeklyStats.running.distance),
-      `${Math.round(weeklyStats.running.tss)} TSS`,
-      weeklyStats.running.avgPaceMinKm > 0 ? formatPace(weeklyStats.running.avgPaceMinKm) : null,
-    ].filter(Boolean).join(' · ');
+  if (sportCount > 1) {
+    // Multi-sport: show one line per sport with sport-specific metrics
+    const lines = [];
+    if (hasCycling) {
+      lines.push({
+        icon: <IconBike size={11} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />,
+        label: [
+          `${weeklyStats.cycling.count}`,
+          formatDist(weeklyStats.cycling.distance),
+          `${Math.round(weeklyStats.cycling.tss)} TSS`,
+          weeklyStats.cycling.avgPower > 0 ? `${weeklyStats.cycling.avgPower}W` : null,
+        ].filter(Boolean).join(' · '),
+      });
+    }
+    if (hasRunning) {
+      lines.push({
+        icon: <IconRun size={11} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />,
+        label: [
+          `${weeklyStats.running.count}`,
+          formatDist(weeklyStats.running.distance),
+          `${Math.round(weeklyStats.running.tss)} TSS`,
+          weeklyStats.running.avgPaceMinKm > 0 ? formatPace(weeklyStats.running.avgPaceMinKm) : null,
+        ].filter(Boolean).join(' · '),
+      });
+    }
+    if (hasOther) {
+      lines.push({
+        icon: <IconActivity size={11} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />,
+        label: [
+          `${weeklyStats.other.count} other`,
+          weeklyStats.other.distance > 0 ? formatDist(weeklyStats.other.distance) : null,
+          `${Math.round(weeklyStats.other.tss)} TSS`,
+        ].filter(Boolean).join(' · '),
+      });
+    }
 
     return (
       <Tooltip label={`${weeklyStats.activityCount} activities this week`} position="bottom">
         <Stack gap={2} style={{ cursor: 'default' }}>
-          <Group gap={4}>
-            <IconBike size={11} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />
-            <Text size="xs" c="dimmed">{cyclingLabel}</Text>
-          </Group>
-          <Group gap={4}>
-            <IconRun size={11} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />
-            <Text size="xs" c="dimmed">{runningLabel}</Text>
-          </Group>
+          {lines.map((line, i) => (
+            <Group key={i} gap={4}>
+              {line.icon}
+              <Text size="xs" c="dimmed">{line.label}</Text>
+            </Group>
+          ))}
         </Stack>
       </Tooltip>
     );
   }
 
   // Single sport or no activities — compact inline
-  if (hasRunning && !hasCycling) {
+  if (hasRunning) {
     const label = [
       `${weeklyStats.running.count} runs`,
       formatDist(weeklyStats.running.distance),
@@ -2070,6 +2103,23 @@ function WeeklySportSummary({ weeklyStats }) {
     );
   }
 
+  if (hasOther && !hasCycling) {
+    const label = [
+      `${weeklyStats.other.count} sessions`,
+      weeklyStats.other.distance > 0 ? formatDist(weeklyStats.other.distance) : null,
+      `${Math.round(weeklyStats.other.tss)} TSS`,
+    ].filter(Boolean).join(' · ');
+
+    return (
+      <Tooltip label={`${weeklyStats.activityCount} sessions this week`} position="bottom">
+        <Group gap={4} style={{ cursor: 'default' }}>
+          <IconActivity size={11} style={{ color: 'var(--mantine-color-dimmed)' }} />
+          <Text size="xs" c="dimmed">{label}</Text>
+        </Group>
+      </Tooltip>
+    );
+  }
+
   // Default: cycling-only or no activities
   const label = weeklyStats.cycling?.count > 0
     ? [
@@ -2081,7 +2131,7 @@ function WeeklySportSummary({ weeklyStats }) {
     : `${Math.round(weeklyStats.totalTSS)} TSS (${weeklyStats.activityCount})`;
 
   return (
-    <Tooltip label={`${weeklyStats.rideCount} rides this week`} position="bottom">
+    <Tooltip label={`${weeklyStats.activityCount} activities this week`} position="bottom">
       <Text size="xs" c="dimmed" style={{ cursor: 'default' }}>
         Week: {label}
       </Text>
@@ -2550,21 +2600,30 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     const parts = [];
     if (actualWeeklyStats.rideCount > 0) parts.push(`${actualWeeklyStats.rideCount} rides`);
     if (actualWeeklyStats.runCount > 0) parts.push(`${actualWeeklyStats.runCount} runs`);
+    if (actualWeeklyStats.otherCount > 0) parts.push(`${actualWeeklyStats.otherCount} other sessions`);
     context.push(`This week: ${parts.join(', ')}, ${formatDist(actualWeeklyStats.totalDistance / 1000)}, ${formatTime(actualWeeklyStats.totalTime)}`);
 
     // Add per-sport breakdown if multi-sport
-    if (weeklyStats.cycling?.count > 0 && weeklyStats.running?.count > 0) {
-      context.push(`  Cycling: ${formatDist(weeklyStats.cycling.distance / 1000)}, ${Math.round(weeklyStats.cycling.tss)} TSS${weeklyStats.cycling.avgPower > 0 ? `, ${weeklyStats.cycling.avgPower}W avg` : ''}`);
-      const runPace = weeklyStats.running.avgPaceMinKm;
-      const paceStr = runPace > 0 ? `, ${Math.floor(runPace)}:${Math.round((runPace % 1) * 60).toString().padStart(2, '0')}/km avg pace` : '';
-      context.push(`  Running: ${formatDist(weeklyStats.running.distance / 1000)}, ${Math.round(weeklyStats.running.tss)} TSS${paceStr}`);
+    const sportCount = [weeklyStats.cycling?.count > 0, weeklyStats.running?.count > 0, weeklyStats.other?.count > 0].filter(Boolean).length;
+    if (sportCount > 1) {
+      if (weeklyStats.cycling?.count > 0) {
+        context.push(`  Cycling: ${formatDist(weeklyStats.cycling.distance / 1000)}, ${Math.round(weeklyStats.cycling.tss)} TSS${weeklyStats.cycling.avgPower > 0 ? `, ${weeklyStats.cycling.avgPower}W avg` : ''}`);
+      }
+      if (weeklyStats.running?.count > 0) {
+        const runPace = weeklyStats.running.avgPaceMinKm;
+        const paceStr = runPace > 0 ? `, ${Math.floor(runPace)}:${Math.round((runPace % 1) * 60).toString().padStart(2, '0')}/km avg pace` : '';
+        context.push(`  Running: ${formatDist(weeklyStats.running.distance / 1000)}, ${Math.round(weeklyStats.running.tss)} TSS${paceStr}`);
+      }
+      if (weeklyStats.other?.count > 0) {
+        context.push(`  Other (cross-training): ${weeklyStats.other.count} sessions, ${Math.round(weeklyStats.other.tss)} TSS`);
+      }
     }
   }
 
   if (activities.length > 0) {
     const lastActivity = activities[0];
     const lastSport = getSportTypeForActivity(lastActivity);
-    const label = lastSport === 'running' ? 'Last run' : 'Last ride';
+    const label = lastSport === 'running' ? 'Last run' : lastSport === 'other' ? 'Last activity' : 'Last ride';
     context.push(`${label}: ${lastActivity.name} - ${formatDist(lastActivity.distance / 1000)}`);
     context.push(`Activity history available for analysis (use query_fitness_history tool for historical comparisons)`);
   }

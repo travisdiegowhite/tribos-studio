@@ -10,7 +10,7 @@
 /**
  * Primary sport type for multi-sport support
  */
-export type SportType = 'cycling' | 'running';
+export type SportType = 'cycling' | 'running' | 'other';
 
 export type TrainingMethodology =
   | 'polarized'
@@ -854,14 +854,26 @@ export function isPlanCompleted(plan: TrainingPlanDB): boolean {
 
 const CYCLING_ACTIVITY_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
 const RUNNING_ACTIVITY_TYPES = ['Run', 'VirtualRun', 'TrailRun'];
+const OTHER_ACTIVITY_TYPES = [
+  'Walk', 'Hike', 'Swim', 'WeightTraining', 'Yoga', 'Workout',
+  'Elliptical', 'StairStepper', 'Rowing', 'AlpineSki', 'Snowboard',
+  'NordicSki', 'BackcountrySki', 'StandUpPaddling', 'Kayaking', 'Surfing',
+];
 
 /**
  * Determine the sport type from a Strava/Garmin activity type string
  */
-export function getSportTypeFromActivityType(activityType: string): SportType | null {
+export function getSportTypeFromActivityType(activityType: string): SportType {
   if (CYCLING_ACTIVITY_TYPES.includes(activityType)) return 'cycling';
   if (RUNNING_ACTIVITY_TYPES.includes(activityType)) return 'running';
-  return null;
+  return 'other';
+}
+
+/**
+ * Check if an activity type is a non-cycling/non-running activity
+ */
+export function isOtherActivity(activityType: string): boolean {
+  return !CYCLING_ACTIVITY_TYPES.includes(activityType) && !RUNNING_ACTIVITY_TYPES.includes(activityType);
 }
 
 /**
