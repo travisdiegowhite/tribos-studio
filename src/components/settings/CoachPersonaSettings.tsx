@@ -24,17 +24,22 @@ export default function CoachPersonaSettings({ userId }: CoachPersonaSettingsPro
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from('user_coach_settings')
-        .select('coaching_persona, persona_set_by')
-        .eq('user_id', userId)
-        .maybeSingle();
+      try {
+        const { data } = await supabase
+          .from('user_coach_settings')
+          .select('coaching_persona, persona_set_by')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-      if (data?.coaching_persona) {
-        setCurrentPersona(data.coaching_persona as PersonaId);
-        setSetBy(data.persona_set_by || 'default');
+        if (data?.coaching_persona) {
+          setCurrentPersona(data.coaching_persona as PersonaId);
+          setSetBy(data.persona_set_by || 'default');
+        }
+      } catch (err) {
+        console.error('Failed to load coach settings:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     load();
   }, [userId]);
@@ -43,19 +48,24 @@ export default function CoachPersonaSettings({ userId }: CoachPersonaSettingsPro
     setSaving(true);
     const pid = personaId as PersonaId;
 
-    await supabase
-      .from('user_coach_settings')
-      .upsert({
-        user_id: userId,
-        coaching_persona: pid,
-        persona_set_at: new Date().toISOString(),
-        persona_set_by: 'manual',
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
+    try {
+      await supabase
+        .from('user_coach_settings')
+        .upsert({
+          user_id: userId,
+          coaching_persona: pid,
+          persona_set_at: new Date().toISOString(),
+          persona_set_by: 'manual',
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
 
-    setCurrentPersona(pid);
-    setSetBy('manual');
-    setSaving(false);
+      setCurrentPersona(pid);
+      setSetBy('manual');
+    } catch (err) {
+      console.error('Failed to save persona:', err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleIntakeComplete = (personaId: PersonaId) => {

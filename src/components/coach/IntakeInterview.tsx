@@ -106,8 +106,7 @@ export default function IntakeInterview({ opened, onComplete, userId }: IntakeIn
     // If user overrode the AI recommendation, save the manual choice
     if (classification && selectedPersona !== classification.persona) {
       try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = (await import('../../lib/supabase')).default;
+        const { supabase } = await import('../../lib/supabase');
         await supabase
           .from('user_coach_settings')
           .upsert({

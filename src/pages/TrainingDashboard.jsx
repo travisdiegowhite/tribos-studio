@@ -72,7 +72,8 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { useActivation } from '../hooks/useActivation';
 import { parsePlanStartDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
-import { CoachCard, CheckInPage } from '../components/coach';
+import { CoachCard } from '../components/coach';
+import CheckInPage from '../components/coach/CheckInPage';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
 // TrainingPlanBrowser moved to PlannerPage
@@ -131,7 +132,7 @@ function TrainingDashboard() {
   // Note: 'plans' tab moved to /planner page
   const urlTab = searchParams.get('tab');
   const validTabs = ['coach', 'today', 'trends', 'power', 'routes', 'history', 'insights', 'calendar'];
-  const initialTab = validTabs.includes(urlTab) ? urlTab : 'coach';
+  const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);

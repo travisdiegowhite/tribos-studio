@@ -135,7 +135,11 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
           }
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (err) {
+          console.error('Check-in subscription error:', err);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -145,23 +149,27 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
   const makeDecision = useCallback(async (checkInId: string, decision: DecisionType, summary: string) => {
     if (!userId) return;
 
-    const { data, error } = await supabase
-      .from('coach_check_in_decisions')
-      .insert({
-        user_id: userId,
-        check_in_id: checkInId,
-        decision,
-        recommendation_summary: summary,
-      })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('coach_check_in_decisions')
+        .insert({
+          user_id: userId,
+          check_in_id: checkInId,
+          decision,
+          recommendation_summary: summary,
+        })
+        .select()
+        .single();
 
-    if (error) {
+      if (error) {
+        console.error('Failed to save decision:', error);
+        return;
+      }
+
+      setCurrentDecision(data as CheckInDecision);
+    } catch (error) {
       console.error('Failed to save decision:', error);
-      throw error;
     }
-
-    setCurrentDecision(data as CheckInDecision);
   }, [userId]);
 
   const markSeen = useCallback(async (checkInId: string) => {
