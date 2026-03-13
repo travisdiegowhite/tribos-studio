@@ -79,6 +79,19 @@
     </style>
   </head>
   <body>
+    <script>
+      // Kill stale service workers that cause infinite spinner after deployments
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(r) {
+          r.forEach(function(reg) { reg.unregister(); });
+        });
+        if ('caches' in window) {
+          caches.keys().then(function(n) {
+            n.forEach(function(name) { caches.delete(name); });
+          });
+        }
+      }
+    </script>
     <div id="root">
       <div class="initial-loader">
         <div class="initial-loader-spinner"></div>
