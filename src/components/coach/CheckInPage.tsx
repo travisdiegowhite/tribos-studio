@@ -1,0 +1,218 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Stack, Text, Card, Button, Loader, Alert, Group, Box } from '@mantine/core';
+import { IconRefresh, IconAlertCircle } from '@tabler/icons-react';
+import type { CheckInDecisionType, PersonaId } from '../../types/checkIn';
+import { useCoachCheckIn } from '../../hooks/useCoachCheckIn';
+import { IntakeInterview } from './IntakeInterview';
+import { CheckInNarrative } from './CheckInNarrative';
+import { CheckInWeekBar } from './CheckInWeekBar';
+import { CheckInRecommendation } from './CheckInRecommendation';
+import { CheckInAcknowledgment } from './CheckInAcknowledgment';
+
+interface CheckInPageProps {
+  userId: string | null;
+}
+
+export function CheckInPage({ userId }: CheckInPageProps) {
+  const {
+    checkIn,
+    loading,
+    generating,
+    error,
+    persona,
+    hasPersona,
+    needsGeneration,
+    generateCheckIn,
+    submitDecision,
+    classifyPersona,
+    setPersonaManual,
+    loadCheckIn,
+  } = useCoachCheckIn({ userId });
+
+  const [decided, setDecided] = useState(false);
+  const [lastDecision, setLastDecision] = useState<CheckInDecisionType | null>(null);
+  const [weekSchedule, setWeekSchedule] = useState<any[]>([]);
+  const [blockPurpose, setBlockPurpose] = useState<string | null>(null);
+
+  // Auto-generate when a new activity is detected
+  useEffect(() => {
+    if (needsGeneration && hasPersona && !generating && !loading) {
+      generateCheckIn();
+    }
+  }, [needsGeneration, hasPersona, generating, loading, generateCheckIn]);
+
+  // Load week schedule context for the bar chart
+  useEffect(() => {
+    if (!checkIn || !userId) return;
+
+    const loadWeekContext = async () => {
+      try {
+        const { supabase } = await import('../../lib/supabase');
+
+        // Get active plan
+        const { data: plan } = await supabase
+          .from('training_plans')
+          .select('id, current_week, template_id')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (plan) {
+          const { data: workouts } = await supabase
+            .from('planned_workouts')
+            .select('day_of_week, workout_type, target_tss, actual_tss, completed, scheduled_date')
+            .eq('plan_id', plan.id)
+            .eq('week_number', plan.current_week)
+            .order('day_of_week', { ascending: true });
+
+          setWeekSchedule(workouts || []);
+        }
+      } catch {
+        // Non-critical
+      }
+    };
+
+    loadWeekContext();
+  }, [checkIn, userId]);
+
+  const handleAccept = useCallback(async () => {
+    if (!checkIn?.recommendation || !checkIn.id) return;
+
+    const success = await submitDecision({
+      user_id: userId!,
+      check_in_id: checkIn.id,
+      decision: 'accept',
+      recommendation_summary: checkIn.recommendation.action + ': ' + checkIn.recommendation.detail,
+    });
+
+    if (success) {
+      setDecided(true);
+      setLastDecision('accept');
+    }
+  }, [checkIn, userId, submitDecision]);
+
+  const handleDismiss = useCallback(async () => {
+    if (!checkIn?.recommendation || !checkIn.id) return;
+
+    const success = await submitDecision({
+      user_id: userId!,
+      check_in_id: checkIn.id,
+      decision: 'dismiss',
+      recommendation_summary: checkIn.recommendation.action + ': ' + checkIn.recommendation.detail,
+    });
+
+    if (success) {
+      setDecided(true);
+      setLastDecision('dismiss');
+    }
+  }, [checkIn, userId, submitDecision]);
+
+  const handleSkipIntake = useCallback(() => {
+    setPersonaManual('pragmatist');
+  }, [setPersonaManual]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <Stack align="center" py="xl">
+        <Loader size="md" color="teal" />
+        <Text size="sm" c="dimmed">Loading check-in...</Text>
+      </Stack>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Alert color="red" variant="light" icon={<IconAlertCircle size={16} />} style={{ borderRadius: 0 }}>
+        <Text size="sm">{error}</Text>
+        <Button variant="subtle" color="red" size="xs" mt="xs" onClick={loadCheckIn}>
+          Try again
+        </Button>
+      </Alert>
+    );
+  }
+
+  // No persona set — show intake interview
+  if (!hasPersona) {
+    return (
+      <Stack gap="md">
+        <IntakeInterview
+          onComplete={classifyPersona}
+          onSkip={handleSkipIntake}
+        />
+      </Stack>
+    );
+  }
+
+  // Generating state
+  if (generating) {
+    return (
+      <Stack align="center" py="xl">
+        <Loader size="md" color="teal" />
+        <Text size="sm" c="dimmed">Your coach is reviewing your latest ride...</Text>
+      </Stack>
+    );
+  }
+
+  // No check-in yet (no activities synced)
+  if (!checkIn) {
+    return (
+      <Card withBorder p="xl" style={{ borderRadius: 0 }}>
+        <Stack align="center" gap="md" py="md">
+          <Text size="sm" c="dimmed" ta="center">
+            No check-in yet. Sync an activity from your device and your coach will have something to say.
+          </Text>
+          <Button
+            variant="outline"
+            color="teal"
+            size="sm"
+            leftSection={<IconRefresh size={14} />}
+            onClick={loadCheckIn}
+            style={{ borderRadius: 0 }}
+          >
+            Refresh
+          </Button>
+        </Stack>
+      </Card>
+    );
+  }
+
+  // Main check-in view
+  return (
+    <Stack gap="md">
+      {/* Week bar chart */}
+      {weekSchedule.length > 0 && (
+        <Card withBorder p="md" style={{ borderRadius: 0 }}>
+          <CheckInWeekBar weekSchedule={weekSchedule} />
+        </Card>
+      )}
+
+      {/* Narrative */}
+      <Card withBorder p="md" style={{ borderRadius: 0 }}>
+        <CheckInNarrative checkIn={checkIn} blockPurpose={blockPurpose} />
+      </Card>
+
+      {/* Recommendation card */}
+      {checkIn.recommendation && !decided && (
+        <CheckInRecommendation
+          recommendation={checkIn.recommendation}
+          personaId={checkIn.persona_id}
+          onAccept={handleAccept}
+          onDismiss={handleDismiss}
+          decided={decided}
+        />
+      )}
+
+      {/* Acknowledgment after decision */}
+      {decided && lastDecision && (
+        <CheckInAcknowledgment
+          decision={lastDecision}
+          personaId={checkIn.persona_id}
+        />
+      )}
+    </Stack>
+  );
+}
