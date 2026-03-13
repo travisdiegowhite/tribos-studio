@@ -9,10 +9,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
-        // Only precache static assets (CSS, images, fonts) — NOT JS chunks.
-        // JS is handled by NetworkFirst runtime cache, preventing stale
-        // precached bundles from surviving across deployments.
-        globPatterns: ['**/*.{css,ico,svg,png,jpg,webp,woff,woff2}'],
+        // Allow larger files in precache (default is 2MB, our bundle is ~2.1MB)
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3MB
         // Network First for navigation (HTML pages)
         navigateFallback: null,
@@ -91,7 +88,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-mantine': ['@mantine/core', '@mantine/hooks', '@mantine/form', '@mantine/notifications', '@mantine/charts', '@mantine/dates'],
+          'vendor-mantine': ['@mantine/core', '@mantine/hooks', '@mantine/form', '@mantine/notifications', '@mantine/charts'],
           'vendor-map': ['mapbox-gl', 'react-map-gl', '@turf/turf'],
           'vendor-charts': ['recharts'],
         },
