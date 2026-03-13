@@ -13,6 +13,10 @@ initSentry();
 // Network First strategy means users always get latest when online
 registerSW({
   immediate: true,
+  onNeedRefresh() {
+    // New service worker available — reload to activate it immediately
+    window.location.reload();
+  },
   onRegistered(registration) {
     if (registration) {
       // Check for updates every 5 minutes

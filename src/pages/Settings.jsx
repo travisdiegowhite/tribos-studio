@@ -48,6 +48,7 @@ import { formatSpeed } from '../utils/units';
 import PageHeader from '../components/PageHeader.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import RunningProfileSettings from '../components/settings/RunningProfileSettings.jsx';
+import CoachPersonaSettings from '../components/settings/CoachPersonaSettings.tsx';
 import { useGear } from '../hooks/useGear.ts';
 import GearItemCard from '../components/gear/GearItemCard.jsx';
 import GearDetailView from '../components/gear/GearDetailView.jsx';
@@ -1660,6 +1661,9 @@ function Settings() {
               {/* Training Tab */}
               <Tabs.Panel value="training">
                 <Stack gap="md">
+
+          {/* Coaching Persona */}
+          <CoachPersonaSettings userId={user?.id} />
 
           {/* Training & Power */}
           <Card>
