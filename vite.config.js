@@ -9,7 +9,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
-        // Allow larger files in precache (default is 2MB, our bundle is ~2.1MB)
+        // Only precache static assets (CSS, images, fonts) — NOT JS chunks.
+        // JS is handled by NetworkFirst runtime cache, preventing stale
+        // precached bundles from surviving across deployments.
+        globPatterns: ['**/*.{css,ico,svg,png,jpg,webp,woff,woff2}'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3MB
         // Network First for navigation (HTML pages)
         navigateFallback: null,
