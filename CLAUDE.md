@@ -241,6 +241,31 @@ The signup and login flow is the most critical path in the app. Any breakage blo
 - After any auth-adjacent change, verify that both signup and login still work end-to-end
 - Email confirmation flow must remain intact: signup → confirmation email → `/auth/callback` → dashboard
 
+## Deployment & Caching — Critical Rules (DO NOT BREAK)
+
+The production domain `www.tribos.studio` routes through **Cloudflare CDN** before hitting Vercel. This has caused a major outage before (see `docs/postmortem-2026-03-13-cloudflare-pwa-outage.md`).
+
+### Never re-introduce a service worker that precaches JS chunks
+- The PWA service worker was **removed** after it caused an 18-hour outage
+- Workbox precaching of content-hashed JS files breaks on every deployment (old SW serves stale chunks)
+- If offline support is ever needed, use `NetworkFirst` for everything — **never precache JS**
+- The `index.html` contains an inline SW killer script — keep it until all user caches have rotated
+
+### Cloudflare cache awareness
+- Deploying to Vercel does NOT immediately update what users see — Cloudflare may serve stale content
+- After any deployment that changes caching behavior or fixes a production issue, **purge Cloudflare cache** (Caching → Configuration → Purge Everything)
+- `sw.js` must always have `Cache-Control: no-cache, no-store, must-revalidate` in `vercel.json`
+- `index.html` should have `max-age=0, must-revalidate` (Vercel default, don't override)
+- Only `/assets/*` (content-hashed files) should have long `max-age`
+
+### Always verify on the production domain
+- After deploying fixes, test on `www.tribos.studio` — not just Vercel preview URLs
+- Vercel preview URLs bypass Cloudflare and can give false confidence that a fix worked
+
+### The SPA rewrite is a silent footgun
+- `vercel.json` rewrites `/((?!api/).*) → /index.html` — missing JS files return HTML with 200, not 404
+- This means stale SW or CDN cache issues surface as MIME type errors, not clear 404s
+
 ## Code Conventions
 
 ### File Organization
