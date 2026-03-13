@@ -64,7 +64,6 @@ import {
   IconTrophy,
   IconBike,
   IconRun,
-  IconSparkles,
 } from '@tabler/icons-react';
 import { tokens, depth } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -72,7 +71,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { useActivation } from '../hooks/useActivation';
 import { parsePlanStartDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
-import { CoachCard, CheckInPage } from '../components/coach';
+import { CoachCard } from '../components/coach';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
 // TrainingPlanBrowser moved to PlannerPage
@@ -130,8 +129,8 @@ function TrainingDashboard() {
   // Read tab from URL query parameter, default to 'today'
   // Note: 'plans' tab moved to /planner page
   const urlTab = searchParams.get('tab');
-  const validTabs = ['coach', 'today', 'trends', 'power', 'routes', 'history', 'insights', 'calendar'];
-  const initialTab = validTabs.includes(urlTab) ? urlTab : 'coach';
+  const validTabs = ['today', 'trends', 'power', 'routes', 'history', 'insights', 'calendar'];
+  const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);
@@ -977,12 +976,6 @@ function TrainingDashboard() {
             >
               <Tabs.List grow={!isMobile} justify={isMobile ? 'center' : undefined}>
                 <Tabs.Tab
-                  value="coach"
-                  leftSection={<IconSparkles size={isMobile ? 20 : 18} />}
-                >
-                  {!isMobile && 'Coach'}
-                </Tabs.Tab>
-                <Tabs.Tab
                   value="today"
                   leftSection={<IconTarget size={isMobile ? 20 : 18} />}
                 >
@@ -1029,11 +1022,6 @@ function TrainingDashboard() {
 
             {/* Tab Panels */}
             <Box mt="md">
-              {/* COACH TAB - AI Check-In */}
-              <Tabs.Panel value="coach">
-                <CheckInPage />
-              </Tabs.Panel>
-
               {/* TODAY TAB - Streamlined Layout */}
               <Tabs.Panel value="today">
                 <Stack gap="md">
