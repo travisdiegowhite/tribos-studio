@@ -7,7 +7,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
-import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
+import { completeActivationStep, enqueueProactiveInsight } from './utils/activation.js';
 import { buildCorosActivityData } from './utils/coros/activityBuilder.js';
 
 const supabase = createClient(
@@ -174,12 +174,6 @@ async function processWorkoutEvent(event, results) {
       type: activityData.type
     });
   } catch (insightErr) {
-    // Non-blocking
-  }
-
-  try {
-    await enqueueCheckIn(supabase, userId, inserted.id);
-  } catch (checkInErr) {
     // Non-blocking
   }
 }
