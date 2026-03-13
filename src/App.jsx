@@ -4,7 +4,6 @@ import { MantineProvider, ColorSchemeScript, Center, Loader } from '@mantine/cor
 import { DatesProvider } from '@mantine/dates';
 import { Notifications } from '@mantine/notifications';
 import { Analytics } from '@vercel/analytics/react';
-import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { UserPreferencesProvider } from './contexts/UserPreferencesContext.jsx';
 import { theme } from './theme';
@@ -260,7 +259,6 @@ function App() {
                     <CoachCommandBar />
                   </BrowserRouter>
                   <Analytics />
-                  <SpeedInsights />
                 </CoachCommandBarProvider>
               </UserPreferencesProvider>
             </AuthProvider>
