@@ -46,7 +46,11 @@ export function CheckInWeekBar({ weekSchedule }: CheckInWeekBarProps) {
 
           const targetHeight = day.target_tss ? (day.target_tss / maxTSS) * 60 + 4 : 4;
           const actualHeight = actualTss ? (actualTss / maxTSS) * 60 + 4 : 0;
-          const dayName = DAY_NAMES[day.day_of_week] ?? `Day ${day.day_of_week}`;
+          // Derive day name from scheduled_date (actual calendar day), not day_of_week
+          // (which is the template index and may not match the calendar when plan starts on non-Sunday)
+          const dayName = day.scheduled_date
+            ? DAY_NAMES[new Date(day.scheduled_date + 'T12:00:00').getDay()]
+            : DAY_NAMES[day.day_of_week] ?? `Day ${day.day_of_week}`;
           const workoutType = day.workout_type || 'rest';
 
           let barColor = 'var(--mantine-color-gray-3)';

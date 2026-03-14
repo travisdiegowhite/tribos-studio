@@ -225,7 +225,11 @@ export async function assembleCheckInContext(supabase, userId) {
       direction: deviationDirection,
     } : null,
     week_schedule: weekSchedule.map(w => ({
-      day: w.day_of_week,
+      // Derive actual calendar day from scheduled_date, not day_of_week
+      // (day_of_week is the template index and may not match the calendar)
+      day: w.scheduled_date
+        ? new Date(w.scheduled_date + 'T12:00:00').getDay()
+        : w.day_of_week,
       type: w.workout_type,
       target_tss: w.target_tss,
       actual_tss: w.actual_tss,
@@ -299,7 +303,10 @@ export function formatContextForPrompt(ctx) {
     lines.push('## THIS WEEK');
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     for (const w of ctx.week_schedule) {
-      const day = dayNames[w.day] ?? `Day ${w.day}`;
+      // Derive day name from actual date when available (day_of_week may not match calendar)
+      const day = w.date
+        ? dayNames[new Date(w.date + 'T12:00:00').getDay()]
+        : dayNames[w.day] ?? `Day ${w.day}`;
       const dateLabel = w.date || '';
       const isToday = dateLabel === today;
       const isPast = dateLabel && dateLabel < today;
