@@ -81,23 +81,38 @@ export async function assembleCheckInContext(supabase, userId) {
 
     weekSchedule = workouts || [];
 
+    // Date guard: don't trust `completed` or `actual_tss` on workouts scheduled
+    // in the future. The upstream matching system can incorrectly mark future
+    // workouts as done. Strip those fields for any workout after today.
+    const today = new Date().toISOString().split('T')[0];
+    weekSchedule = weekSchedule.map(w => {
+      if (w.scheduled_date && w.scheduled_date > today) {
+        return { ...w, completed: false, actual_tss: null, actual_duration: null, activity_id: null };
+      }
+      return w;
+    });
+
     // Find the planned workout that corresponds to the last activity.
     // Priority: explicit match via matched_planned_workout_id > activity_id on workout > date match.
-    // IMPORTANT: Only match if the activity date actually falls on the same day as the planned workout.
+    // IMPORTANT: Only match if the planned workout's date is NOT in the future.
     if (lastActivity?.matched_planned_workout_id) {
       const { data: matched } = await supabase
         .from('planned_workouts')
         .select('target_tss, target_duration, workout_type, day_of_week, scheduled_date')
         .eq('id', lastActivity.matched_planned_workout_id)
         .single();
-      plannedWorkoutForActivity = matched;
-    } else if (lastActivity) {
-      // Try to match by activity_id on planned_workouts first (most reliable)
+      // Only accept the match if the workout date is not in the future
+      if (matched && (!matched.scheduled_date || matched.scheduled_date <= today)) {
+        plannedWorkoutForActivity = matched;
+      }
+    }
+    if (!plannedWorkoutForActivity && lastActivity) {
+      // Try to match by activity_id on planned_workouts (most reliable)
       const activityMatch = weekSchedule.find(w => w.activity_id === lastActivity.id);
       if (activityMatch) {
         plannedWorkoutForActivity = activityMatch;
       } else {
-        // Fallback: match by date — but ONLY if the activity date equals the workout's scheduled_date
+        // Fallback: match by date — activity date must equal workout's scheduled_date
         const activityDate = lastActivity.start_date_local?.split('T')[0];
         if (activityDate) {
           const dateMatch = weekSchedule.find(w => w.scheduled_date === activityDate);

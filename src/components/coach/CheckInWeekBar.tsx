@@ -22,8 +22,12 @@ export function CheckInWeekBar({ weekSchedule }: CheckInWeekBarProps) {
     return null;
   }
 
+  const todayForMax = new Date().toISOString().split('T')[0];
   const maxTSS = Math.max(
-    ...weekSchedule.map((d) => Math.max(d.target_tss || 0, d.actual_tss || 0)),
+    ...weekSchedule.map((d) => {
+      const actual = (d.scheduled_date && d.scheduled_date > todayForMax) ? 0 : (d.actual_tss || 0);
+      return Math.max(d.target_tss || 0, actual);
+    }),
     1
   );
 
@@ -34,14 +38,20 @@ export function CheckInWeekBar({ weekSchedule }: CheckInWeekBarProps) {
       </Text>
       <Group gap="xs" align="flex-end" style={{ height: 80 }}>
         {weekSchedule.map((day, idx) => {
+          // Date guard: don't trust completed/actual_tss for future dates
+          const todayStr = new Date().toISOString().split('T')[0];
+          const isFuture = day.scheduled_date ? day.scheduled_date > todayStr : false;
+          const actualTss = isFuture ? null : day.actual_tss;
+          const isCompleted = isFuture ? false : day.completed;
+
           const targetHeight = day.target_tss ? (day.target_tss / maxTSS) * 60 + 4 : 4;
-          const actualHeight = day.actual_tss ? (day.actual_tss / maxTSS) * 60 + 4 : 0;
+          const actualHeight = actualTss ? (actualTss / maxTSS) * 60 + 4 : 0;
           const dayName = DAY_NAMES[day.day_of_week] ?? `Day ${day.day_of_week}`;
           const workoutType = day.workout_type || 'rest';
 
           let barColor = 'var(--mantine-color-gray-3)';
-          if (day.completed && day.actual_tss && day.target_tss) {
-            const ratio = day.actual_tss / day.target_tss;
+          if (isCompleted && actualTss && day.target_tss) {
+            const ratio = actualTss / day.target_tss;
             if (ratio >= 0.8 && ratio <= 1.2) {
               barColor = 'var(--mantine-color-teal-6)';
             } else if (ratio < 0.8) {
@@ -49,12 +59,12 @@ export function CheckInWeekBar({ weekSchedule }: CheckInWeekBarProps) {
             } else {
               barColor = 'var(--mantine-color-orange-6)';
             }
-          } else if (day.completed) {
+          } else if (isCompleted) {
             barColor = 'var(--mantine-color-teal-6)';
           }
 
-          const tooltipText = day.completed
-            ? `${dayName}: ${day.actual_tss || 0} / ${day.target_tss || 0} TSS (${workoutType})`
+          const tooltipText = isCompleted
+            ? `${dayName}: ${actualTss || 0} / ${day.target_tss || 0} TSS (${workoutType})`
             : `${dayName}: ${day.target_tss || 0} TSS planned (${workoutType})`;
 
           return (
