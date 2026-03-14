@@ -144,6 +144,12 @@ export default async function handler(req, res) {
     const contextString = formatContextForPrompt(context);
     const personaId = context.persona_id || 'pragmatist';
 
+    // Build debug info when force regenerating (helps diagnose data issues)
+    const debugInfo = forceRegenerate ? {
+      ...context._debug,
+      prompt_sent: contextString,
+    } : undefined;
+
     // Build system prompt
     const systemPrompt = buildSystemPrompt(personaId, contextString);
 
@@ -202,10 +208,11 @@ export default async function handler(req, res) {
           generated_at: new Date().toISOString(),
         },
         stored: false,
+        debug: debugInfo,
       });
     }
 
-    return res.status(200).json({ check_in: checkIn, cached: false });
+    return res.status(200).json({ check_in: checkIn, cached: false, debug: debugInfo });
   } catch (error) {
     console.error('❌ Check-in generation error:', error.message);
     return res.status(500).json({ error: 'Check-in generation failed' });

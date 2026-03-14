@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Stack, Text, Card, Button, Loader, Alert, Group, Box } from '@mantine/core';
-import { IconRefresh, IconAlertCircle } from '@tabler/icons-react';
+import { Stack, Text, Card, Button, Loader, Alert, Group, Box, Code, Collapse } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import { IconRefresh, IconAlertCircle, IconBug } from '@tabler/icons-react';
 import type { CheckInDecisionType, PersonaId } from '../../types/checkIn';
 import { useCoachCheckIn } from '../../hooks/useCoachCheckIn';
 import { IntakeInterview } from './IntakeInterview';
@@ -29,9 +30,11 @@ export function CheckInPage({ userId }: CheckInPageProps) {
     setPersonaManual,
     loadCheckIn,
     latestActivityId,
+    debugContext,
   } = useCoachCheckIn({ userId });
 
   const [decided, setDecided] = useState(false);
+  const [debugOpen, { toggle: toggleDebug }] = useDisclosure(false);
   const [lastDecision, setLastDecision] = useState<CheckInDecisionType | null>(null);
   const [weekSchedule, setWeekSchedule] = useState<any[]>([]);
   const [blockPurpose, setBlockPurpose] = useState<string | null>(null);
@@ -54,7 +57,7 @@ export function CheckInPage({ userId }: CheckInPageProps) {
         // Get active plan
         const { data: plan } = await supabase
           .from('training_plans')
-          .select('id, current_week, template_id')
+          .select('id, current_week, started_at, duration_weeks, template_id')
           .eq('user_id', userId)
           .eq('status', 'active')
           .order('created_at', { ascending: false })
@@ -62,11 +65,21 @@ export function CheckInPage({ userId }: CheckInPageProps) {
           .maybeSingle();
 
         if (plan) {
+          // Calculate current week dynamically (same as planner does).
+          // The DB's current_week is set to 1 at activation and never updated.
+          const diffDays = Math.floor(
+            (Date.now() - new Date(plan.started_at).getTime()) / 86400000
+          );
+          const calculatedWeek = Math.max(1, Math.min(
+            Math.floor(diffDays / 7) + 1,
+            plan.duration_weeks || 1
+          ));
+
           const { data: workouts } = await supabase
             .from('planned_workouts')
             .select('day_of_week, workout_type, target_tss, actual_tss, completed, scheduled_date, activity_id')
             .eq('plan_id', plan.id)
-            .eq('week_number', plan.current_week)
+            .eq('week_number', calculatedWeek)
             .order('day_of_week', { ascending: true });
 
           let schedule = workouts || [];
@@ -267,6 +280,34 @@ export function CheckInPage({ userId }: CheckInPageProps) {
           decision={lastDecision}
           personaId={checkIn.persona_id}
         />
+      )}
+
+      {/* Debug panel — shows raw data sent to AI after Regenerate */}
+      {debugContext && (
+        <Card withBorder p="md" style={{ borderRadius: 0 }}>
+          <Group justify="space-between" mb={debugOpen ? 'xs' : 0}>
+            <Button
+              variant="subtle"
+              color="dimmed"
+              size="xs"
+              leftSection={<IconBug size={14} />}
+              onClick={toggleDebug}
+              style={{ borderRadius: 0 }}
+            >
+              {debugOpen ? 'Hide' : 'Show'} Coach Data (Debug)
+            </Button>
+            {debugContext.calculated_week !== debugContext.db_current_week && (
+              <Text size="xs" c="red" fw={600}>
+                Week mismatch: DB says {debugContext.db_current_week}, calculated {debugContext.calculated_week}
+              </Text>
+            )}
+          </Group>
+          <Collapse in={debugOpen}>
+            <Code block style={{ fontSize: 11, maxHeight: 400, overflow: 'auto' }}>
+              {JSON.stringify(debugContext, null, 2)}
+            </Code>
+          </Collapse>
+        </Card>
       )}
     </Stack>
   );

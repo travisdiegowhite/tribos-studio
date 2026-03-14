@@ -24,6 +24,7 @@ interface UseCoachCheckInReturn {
   hasPersona: boolean;
   needsGeneration: boolean;
   latestActivityId: string | null;
+  debugContext: any;
 
   // Actions
   generateCheckIn: (activityId?: string, force?: boolean) => Promise<void>;
@@ -106,6 +107,7 @@ export function useCoachCheckIn({ userId }: UseCoachCheckInOptions): UseCoachChe
   const [persona, setPersona] = useState<PersonaId | null>(null);
   const [needsGeneration, setNeedsGeneration] = useState(false);
   const [latestActivityId, setLatestActivityId] = useState<string | null>(null);
+  const [debugContext, setDebugContext] = useState<any>(null);
 
   // Load current check-in and persona
   const loadCheckIn = useCallback(async () => {
@@ -220,6 +222,7 @@ export function useCoachCheckIn({ userId }: UseCoachCheckInOptions): UseCoachChe
 
       const data = await response.json();
       setCheckIn(data.check_in as CoachCheckIn);
+      if (data.debug) setDebugContext(data.debug);
       setNeedsGeneration(false);
     } catch (err: any) {
       setError(err.message || 'Failed to generate check-in');
@@ -343,6 +346,7 @@ export function useCoachCheckIn({ userId }: UseCoachCheckInOptions): UseCoachChe
     hasPersona: persona !== null,
     needsGeneration,
     latestActivityId,
+    debugContext,
     generateCheckIn,
     regenerateCheckIn,
     submitDecision,

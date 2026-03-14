@@ -72,11 +72,22 @@ export async function assembleCheckInContext(supabase, userId) {
   let plannedWorkoutForActivity = null;
 
   if (activePlan) {
+    // Calculate current week dynamically from started_at (same as planner does).
+    // The DB's current_week field is set to 1 at activation and never updated,
+    // so it becomes stale as time progresses.
+    const planStart = new Date(activePlan.started_at);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - planStart.getTime()) / (1000 * 60 * 60 * 24));
+    const calculatedWeek = Math.max(1, Math.min(
+      Math.floor(diffDays / 7) + 1,
+      activePlan.duration_weeks || 1
+    ));
+
     const { data: workouts } = await supabase
       .from('planned_workouts')
       .select('day_of_week, workout_type, target_tss, target_duration, actual_tss, actual_duration, completed, scheduled_date, activity_id')
       .eq('plan_id', activePlan.id)
-      .eq('week_number', activePlan.current_week)
+      .eq('week_number', calculatedWeek)
       .order('day_of_week', { ascending: true });
 
     weekSchedule = workouts || [];
@@ -169,6 +180,13 @@ export async function assembleCheckInContext(supabase, userId) {
   // Derive block/phase from template phases
   const blockInfo = deriveBlockInfo(activePlan);
 
+  // Week number used for the query (calculated dynamically)
+  const weekUsed = activePlan ? (() => {
+    const s = new Date(activePlan.started_at);
+    const d = Math.floor((new Date().getTime() - s.getTime()) / 86400000);
+    return Math.max(1, Math.min(Math.floor(d / 7) + 1, activePlan.duration_weeks || 1));
+  })() : null;
+
   // Build the context object
   return {
     rider: {
@@ -181,11 +199,27 @@ export async function assembleCheckInContext(supabase, userId) {
       name: activePlan.name,
       goal: activePlan.goal,
       methodology: activePlan.methodology,
-      current_week: activePlan.current_week,
+      current_week: weekUsed,
       total_weeks: activePlan.duration_weeks,
       block_name: blockInfo.name,
       block_purpose: blockInfo.purpose,
     } : null,
+    // Debug metadata — helps diagnose data issues
+    _debug: {
+      db_current_week: activePlan?.current_week,
+      calculated_week: weekUsed,
+      plan_id: activePlan?.id,
+      plan_started_at: activePlan?.started_at,
+      raw_week_schedule: weekSchedule.map(w => ({
+        day_of_week: w.day_of_week,
+        scheduled_date: w.scheduled_date,
+        workout_type: w.workout_type,
+        target_tss: w.target_tss,
+        actual_tss: w.actual_tss,
+        completed: w.completed,
+        activity_id: w.activity_id,
+      })),
+    },
     fitness: fitness ? {
       ctl: fitness.ctl,
       atl: fitness.atl,
