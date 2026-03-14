@@ -1030,10 +1030,8 @@ function TrainingDashboard() {
             {/* Tab Panels */}
             <Box mt="md">
               {/* COACH TAB - AI Check-In */}
-              <Tabs.Panel value="coach">
-                {activeTab === 'coach' && (
-                  <CheckInPage userId={user?.id || null} />
-                )}
+              <Tabs.Panel value="coach" keepMounted>
+                <CheckInPage userId={user?.id || null} />
               </Tabs.Panel>
 
               {/* TODAY TAB - Streamlined Layout */}

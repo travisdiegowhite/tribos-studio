@@ -23,6 +23,7 @@ interface UseCoachCheckInReturn {
   persona: PersonaId | null;
   hasPersona: boolean;
   needsGeneration: boolean;
+  latestActivityId: string | null;
 
   // Actions
   generateCheckIn: (activityId?: string) => Promise<void>;
@@ -103,6 +104,7 @@ export function useCoachCheckIn({ userId }: UseCoachCheckInOptions): UseCoachChe
   const [error, setError] = useState<string | null>(null);
   const [persona, setPersona] = useState<PersonaId | null>(null);
   const [needsGeneration, setNeedsGeneration] = useState(false);
+  const [latestActivityId, setLatestActivityId] = useState<string | null>(null);
 
   // Load current check-in and persona
   const loadCheckIn = useCallback(async () => {
@@ -165,8 +167,14 @@ export function useCoachCheckIn({ userId }: UseCoachCheckInOptions): UseCoachChe
         .limit(1)
         .maybeSingle();
 
+      setLatestActivityId(latestActivity?.id || null);
+
       if (latestActivity && (!currentCheckIn || currentCheckIn.activity_id !== latestActivity.id)) {
-        setNeedsGeneration(true);
+        // Only flag for generation if check-in is truly stale (not generated in the last hour)
+        const recentCutoff = Date.now() - 60 * 60 * 1000;
+        const checkInIsRecent = currentCheckIn?.generated_at &&
+          new Date(currentCheckIn.generated_at).getTime() > recentCutoff;
+        setNeedsGeneration(!checkInIsRecent);
       } else {
         setNeedsGeneration(false);
       }
@@ -328,6 +336,7 @@ export function useCoachCheckIn({ userId }: UseCoachCheckInOptions): UseCoachChe
     persona,
     hasPersona: persona !== null,
     needsGeneration,
+    latestActivityId,
     generateCheckIn,
     submitDecision,
     classifyPersona,

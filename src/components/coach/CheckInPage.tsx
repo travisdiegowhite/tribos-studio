@@ -27,6 +27,7 @@ export function CheckInPage({ userId }: CheckInPageProps) {
     classifyPersona,
     setPersonaManual,
     loadCheckIn,
+    latestActivityId,
   } = useCoachCheckIn({ userId });
 
   const [decided, setDecided] = useState(false);
@@ -37,9 +38,9 @@ export function CheckInPage({ userId }: CheckInPageProps) {
   // Auto-generate when a new activity is detected
   useEffect(() => {
     if (needsGeneration && hasPersona && !generating && !loading) {
-      generateCheckIn();
+      generateCheckIn(latestActivityId || undefined);
     }
-  }, [needsGeneration, hasPersona, generating, loading, generateCheckIn]);
+  }, [needsGeneration, hasPersona, generating, loading, generateCheckIn, latestActivityId]);
 
   // Load week schedule context for the bar chart
   useEffect(() => {
@@ -62,12 +63,58 @@ export function CheckInPage({ userId }: CheckInPageProps) {
         if (plan) {
           const { data: workouts } = await supabase
             .from('planned_workouts')
-            .select('day_of_week, workout_type, target_tss, actual_tss, completed, scheduled_date')
+            .select('day_of_week, workout_type, target_tss, actual_tss, completed, scheduled_date, activity_id')
             .eq('plan_id', plan.id)
             .eq('week_number', plan.current_week)
             .order('day_of_week', { ascending: true });
 
-          setWeekSchedule(workouts || []);
+          let schedule = workouts || [];
+
+          // Cross-reference activities table for real TSS values.
+          // planned_workouts.actual_tss can be incorrect from upstream matching.
+          const activityIds = schedule
+            .filter((w: any) => w.activity_id)
+            .map((w: any) => w.activity_id);
+
+          if (activityIds.length > 0) {
+            const { data: realActivities } = await supabase
+              .from('activities')
+              .select('id, tss')
+              .in('id', activityIds);
+
+            const activityTssMap: Record<string, number | null> = {};
+            for (const a of (realActivities || [])) {
+              activityTssMap[a.id] = a.tss;
+            }
+
+            schedule = schedule.map((w: any) => {
+              if (w.activity_id && activityTssMap[w.activity_id] !== undefined) {
+                return { ...w, actual_tss: activityTssMap[w.activity_id] };
+              }
+              if (w.completed && !w.activity_id) {
+                return { ...w, actual_tss: null, completed: false };
+              }
+              return w;
+            });
+          } else {
+            schedule = schedule.map((w: any) => {
+              if (w.completed && !w.activity_id) {
+                return { ...w, actual_tss: null, completed: false };
+              }
+              return w;
+            });
+          }
+
+          // Date guard: strip future-dated completion data
+          const today = new Date().toISOString().split('T')[0];
+          schedule = schedule.map((w: any) => {
+            if (w.scheduled_date && w.scheduled_date > today) {
+              return { ...w, completed: false, actual_tss: null, activity_id: null };
+            }
+            return w;
+          });
+
+          setWeekSchedule(schedule);
         }
       } catch {
         // Non-critical

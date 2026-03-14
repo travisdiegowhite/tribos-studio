@@ -81,6 +81,44 @@ export async function assembleCheckInContext(supabase, userId) {
 
     weekSchedule = workouts || [];
 
+    // Cross-reference activities table for real TSS values.
+    // planned_workouts.actual_tss can contain incorrect values from the upstream
+    // activity matching system. Use the real activity's TSS instead.
+    const activityIds = weekSchedule
+      .filter(w => w.activity_id)
+      .map(w => w.activity_id);
+
+    if (activityIds.length > 0) {
+      const { data: realActivities } = await supabase
+        .from('activities')
+        .select('id, tss')
+        .in('id', activityIds);
+
+      const activityTssMap = {};
+      for (const a of (realActivities || [])) {
+        activityTssMap[a.id] = a.tss;
+      }
+
+      weekSchedule = weekSchedule.map(w => {
+        if (w.activity_id && activityTssMap[w.activity_id] !== undefined) {
+          return { ...w, actual_tss: activityTssMap[w.activity_id] };
+        }
+        // If marked completed but no linked activity, don't trust actual_tss
+        if (w.completed && !w.activity_id) {
+          return { ...w, actual_tss: null, completed: false };
+        }
+        return w;
+      });
+    } else {
+      // No linked activities — clear any suspect actual_tss on "completed" workouts
+      weekSchedule = weekSchedule.map(w => {
+        if (w.completed && !w.activity_id) {
+          return { ...w, actual_tss: null, completed: false };
+        }
+        return w;
+      });
+    }
+
     // Date guard: don't trust `completed` or `actual_tss` on workouts scheduled
     // in the future. The upstream matching system can incorrectly mark future
     // workouts as done. Strip those fields for any workout after today.
