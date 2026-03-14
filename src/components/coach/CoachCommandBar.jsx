@@ -213,9 +213,13 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         }),
       };
 
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`${getApiBaseUrl()}/api/coach`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+        },
         credentials: 'include',
         body: JSON.stringify({
           message: query.trim(),

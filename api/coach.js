@@ -319,30 +319,28 @@ export default async function handler(req, res) {
       });
     }
 
-    // SECURITY: Validate user identity if auth header provided
-    // This ensures users can only access their own coaching data
+    // SECURITY: Require authenticated user identity
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-      if (authError) {
-        console.error('Coach API auth validation failed:', authError.message);
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid or expired authentication token'
-        });
-      }
-
-      // If userId is provided, verify it matches the authenticated user
-      if (userId && user && user.id !== userId) {
-        console.error(`🚨 Coach API user mismatch: auth user ${user.id} requested data for ${userId}`);
-        return res.status(403).json({
-          success: false,
-          error: 'Access denied: You can only access your own coaching data'
-        });
-      }
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      });
     }
+
+    const token = authHeader.substring(7);
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !authUser) {
+      console.error('Coach API auth validation failed:', authError?.message);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or expired authentication token'
+      });
+    }
+
+    // Use the verified user ID from the token, not the untrusted request body
+    const verifiedUserId = authUser.id;
 
     // Rate limiting (10 requests per 5 minutes per IP)
     const rateLimitResult = await rateLimitMiddleware(
@@ -359,9 +357,9 @@ export default async function handler(req, res) {
 
     // Fetch Google Calendar context (busy times + available windows) if user is connected
     let calendarContext = null;
-    if (userId) {
+    if (verifiedUserId) {
       try {
-        calendarContext = await fetchCalendarContext(userId);
+        calendarContext = await fetchCalendarContext(verifiedUserId);
         if (calendarContext) {
           console.log('📅 Calendar context loaded for coach');
         }
@@ -574,18 +572,18 @@ ${conversationSummary}
     // (fitness history and training data queries both need server-side processing)
     const serverSideTools = [...fitnessHistoryUses, ...trainingDataUses];
 
-    if (serverSideTools.length > 0 && userId) {
+    if (serverSideTools.length > 0 && verifiedUserId) {
       const toolResults = [];
 
       for (const tool of serverSideTools) {
         try {
           let result;
           if (tool.name === 'query_fitness_history') {
-            console.log(`🤖 Fitness history tool requested. userId: ${userId}`);
-            result = await handleFitnessHistoryQuery(userId, tool.input);
+            console.log(`🤖 Fitness history tool requested. userId: ${verifiedUserId}`);
+            result = await handleFitnessHistoryQuery(verifiedUserId, tool.input);
           } else if (tool.name === 'query_training_data') {
-            console.log(`📋 Training data query requested. userId: ${userId}`);
-            result = await handleTrainingDataQuery(userId, tool.input);
+            console.log(`📋 Training data query requested. userId: ${verifiedUserId}`);
+            result = await handleTrainingDataQuery(verifiedUserId, tool.input);
           }
           toolResults.push({
             type: 'tool_result',
