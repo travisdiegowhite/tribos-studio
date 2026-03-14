@@ -51,6 +51,7 @@ import RunningProfileSettings from '../components/settings/RunningProfileSetting
 import { useGear } from '../hooks/useGear.ts';
 import GearItemCard from '../components/gear/GearItemCard.jsx';
 import GearDetailView from '../components/gear/GearDetailView.jsx';
+import CoachPersonaSettings from '../components/settings/CoachPersonaSettings.tsx';
 import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
 import AddGearModal from '../components/gear/AddGearModal.jsx';
 import IntegrationAlert from '../components/IntegrationAlert.jsx';
@@ -2250,6 +2251,13 @@ function Settings() {
                   onChange={(e) => handleAiConsentToggle(e.currentTarget.checked)}
                 />
               </Group>
+
+              {aiConsentEnabled && user?.id && (
+                <>
+                  <Divider />
+                  <CoachPersonaSettings userId={user.id} />
+                </>
+              )}
             </Stack>
           </Card>
 

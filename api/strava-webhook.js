@@ -10,7 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
-import { completeActivationStep, enqueueProactiveInsight } from './utils/activation.js';
+import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
 
 // Initialize Supabase (server-side with service key for webhook processing)
 const supabase = createClient(
@@ -430,6 +430,17 @@ async function handleActivityCreate(eventId, webhookData, integration) {
     try {
       await completeActivationStep(supabase, integration.user_id, 'first_sync');
       await enqueueProactiveInsight(supabase, integration.user_id, savedActivity.id);
+
+      // Enqueue coaching check-in and trigger generation (fire-and-forget)
+      const checkInId = await enqueueCheckIn(supabase, integration.user_id, savedActivity.id);
+      if (checkInId) {
+        const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://www.tribos.studio';
+        fetch(`${baseUrl}/api/coach-check-in-generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-cron-secret': process.env.CRON_SECRET },
+          body: JSON.stringify({ checkInId }),
+        }).catch(() => {});
+      }
     } catch (activationError) {
       console.error('⚠️ Activation tracking failed (non-critical):', activationError.message);
     }
