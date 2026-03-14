@@ -2,19 +2,20 @@ import React from 'react';
 import { Box, Group, Text, Stack, Tooltip } from '@mantine/core';
 
 interface WeekDay {
-  day: number;
-  type: string;
+  day_of_week: number;  // 0=Sunday, 6=Saturday
+  workout_type: string | null;
   target_tss: number | null;
   actual_tss: number | null;
   completed: boolean;
-  date: string | null;
+  scheduled_date: string | null;
 }
 
 interface CheckInWeekBarProps {
   weekSchedule: WeekDay[];
 }
 
-const DAY_NAMES = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// 0=Sunday, 1=Monday, ..., 6=Saturday
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function CheckInWeekBar({ weekSchedule }: CheckInWeekBarProps) {
   if (!weekSchedule || weekSchedule.length === 0) {
@@ -32,10 +33,11 @@ export function CheckInWeekBar({ weekSchedule }: CheckInWeekBarProps) {
         This Week
       </Text>
       <Group gap="xs" align="flex-end" style={{ height: 80 }}>
-        {weekSchedule.map((day) => {
+        {weekSchedule.map((day, idx) => {
           const targetHeight = day.target_tss ? (day.target_tss / maxTSS) * 60 + 4 : 4;
           const actualHeight = day.actual_tss ? (day.actual_tss / maxTSS) * 60 + 4 : 0;
-          const dayName = DAY_NAMES[day.day] || `D${day.day}`;
+          const dayName = DAY_NAMES[day.day_of_week] ?? `Day ${day.day_of_week}`;
+          const workoutType = day.workout_type || 'rest';
 
           let barColor = 'var(--mantine-color-gray-3)';
           if (day.completed && day.actual_tss && day.target_tss) {
@@ -52,11 +54,11 @@ export function CheckInWeekBar({ weekSchedule }: CheckInWeekBarProps) {
           }
 
           const tooltipText = day.completed
-            ? `${dayName}: ${day.actual_tss || 0} / ${day.target_tss || 0} TSS (${day.type})`
-            : `${dayName}: ${day.target_tss || 0} TSS planned (${day.type})`;
+            ? `${dayName}: ${day.actual_tss || 0} / ${day.target_tss || 0} TSS (${workoutType})`
+            : `${dayName}: ${day.target_tss || 0} TSS planned (${workoutType})`;
 
           return (
-            <Tooltip key={day.day} label={tooltipText} position="top" withArrow>
+            <Tooltip key={`${day.day_of_week}-${idx}`} label={tooltipText} position="top" withArrow>
               <Stack gap={2} align="center" style={{ flex: 1 }}>
                 <Box style={{ position: 'relative', width: '100%', height: 64, display: 'flex', alignItems: 'flex-end' }}>
                   {/* Target bar (background) */}

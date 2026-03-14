@@ -81,20 +81,28 @@ export async function assembleCheckInContext(supabase, userId) {
 
     weekSchedule = workouts || [];
 
-    // Find the planned workout for the last activity
+    // Find the planned workout that corresponds to the last activity.
+    // Priority: explicit match via matched_planned_workout_id > activity_id on workout > date match.
+    // IMPORTANT: Only match if the activity date actually falls on the same day as the planned workout.
     if (lastActivity?.matched_planned_workout_id) {
       const { data: matched } = await supabase
         .from('planned_workouts')
-        .select('target_tss, target_duration, workout_type, day_of_week')
+        .select('target_tss, target_duration, workout_type, day_of_week, scheduled_date')
         .eq('id', lastActivity.matched_planned_workout_id)
         .single();
       plannedWorkoutForActivity = matched;
     } else if (lastActivity) {
-      // Try to match by date
-      const activityDate = lastActivity.start_date_local?.split('T')[0];
-      if (activityDate) {
-        const match = weekSchedule.find(w => w.scheduled_date === activityDate);
-        if (match) plannedWorkoutForActivity = match;
+      // Try to match by activity_id on planned_workouts first (most reliable)
+      const activityMatch = weekSchedule.find(w => w.activity_id === lastActivity.id);
+      if (activityMatch) {
+        plannedWorkoutForActivity = activityMatch;
+      } else {
+        // Fallback: match by date — but ONLY if the activity date equals the workout's scheduled_date
+        const activityDate = lastActivity.start_date_local?.split('T')[0];
+        if (activityDate) {
+          const dateMatch = weekSchedule.find(w => w.scheduled_date === activityDate);
+          if (dateMatch) plannedWorkoutForActivity = dateMatch;
+        }
       }
     }
   }
@@ -156,6 +164,8 @@ export async function assembleCheckInContext(supabase, userId) {
     planned_workout: plannedWorkoutForActivity ? {
       target_tss: plannedWorkoutForActivity.target_tss,
       workout_type: plannedWorkoutForActivity.workout_type,
+      scheduled_date: plannedWorkoutForActivity.scheduled_date || null,
+      day_of_week: plannedWorkoutForActivity.day_of_week,
     } : null,
     deviation: deviationPercent !== null ? {
       percent: deviationPercent,
@@ -229,31 +239,49 @@ export function formatContextForPrompt(ctx) {
     lines.push(`Load trend: ${ctx.fitness.load_trend || 'N/A'} | Fitness trend: ${ctx.fitness.fitness_trend || 'N/A'}`);
   }
 
-  // Week schedule
+  // Week schedule — show each day with planned vs actual, and flag today's date
   if (ctx.week_schedule.length > 0) {
+    const today = new Date().toISOString().split('T')[0];
     lines.push('');
     lines.push('## THIS WEEK');
-    const dayNames = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     for (const w of ctx.week_schedule) {
-      const day = dayNames[w.day] || `Day ${w.day}`;
-      const status = w.completed ? `done (${w.actual_tss || '?'} TSS)` : 'pending';
-      lines.push(`${day}: ${w.type || 'rest'} — target ${w.target_tss || 0} TSS — ${status}`);
+      const day = dayNames[w.day] ?? `Day ${w.day}`;
+      const dateLabel = w.date || '';
+      const isToday = dateLabel === today;
+      const isPast = dateLabel && dateLabel < today;
+      let status;
+      if (w.completed) {
+        status = `DONE (${w.actual_tss || '?'} TSS)`;
+      } else if (isPast) {
+        status = 'MISSED';
+      } else if (isToday) {
+        status = 'TODAY — not yet completed';
+      } else {
+        status = 'upcoming';
+      }
+      lines.push(`${day} (${dateLabel}): ${w.type || 'rest'} — target ${w.target_tss || 0} TSS — ${status}`);
     }
   }
 
-  // Last activity
+  // Last activity — always include the actual date so the AI knows WHEN it happened
   if (ctx.last_activity) {
+    const activityDate = ctx.last_activity.date?.split('T')[0] || 'unknown';
+    const activityDayName = ctx.last_activity.date
+      ? new Date(ctx.last_activity.date).toLocaleDateString('en-US', { weekday: 'long' })
+      : 'unknown';
     lines.push('');
     lines.push('## LAST ACTIVITY');
-    lines.push(`Date: ${ctx.last_activity.date}`);
+    lines.push(`Date: ${activityDayName}, ${activityDate}`);
     lines.push(`Type: ${ctx.last_activity.type} — ${ctx.last_activity.name}`);
     if (ctx.planned_workout) {
-      lines.push(`Planned TSS: ${ctx.planned_workout.target_tss} | Actual TSS: ${ctx.last_activity.tss || 'N/A'}`);
+      lines.push(`Matched to planned workout: ${ctx.planned_workout.workout_type} (target ${ctx.planned_workout.target_tss} TSS)`);
+      lines.push(`Actual TSS: ${ctx.last_activity.tss || 'N/A'}`);
     } else {
-      lines.push(`TSS: ${ctx.last_activity.tss || 'N/A'}`);
+      lines.push(`TSS: ${ctx.last_activity.tss || 'N/A'} (no matching planned workout)`);
     }
     if (ctx.deviation) {
-      lines.push(`Deviation: ${ctx.deviation.percent}% ${ctx.deviation.direction}`);
+      lines.push(`Deviation from plan: ${ctx.deviation.percent}% ${ctx.deviation.direction}`);
     }
     const powerParts = [];
     if (ctx.last_activity.normalized_power) powerParts.push(`NP: ${ctx.last_activity.normalized_power}W`);
