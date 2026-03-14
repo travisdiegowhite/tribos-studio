@@ -72,39 +72,33 @@ export function CheckInPage({ userId }: CheckInPageProps) {
           let schedule = workouts || [];
 
           // Cross-reference activities table for real TSS values.
-          // planned_workouts.actual_tss can be incorrect from upstream matching.
+          // STRICT: Only trust `completed` if backed by a real activity.
           const activityIds = schedule
             .filter((w: any) => w.activity_id)
             .map((w: any) => w.activity_id);
 
+          const activityTssMap: Record<string, number | null> = {};
           if (activityIds.length > 0) {
             const { data: realActivities } = await supabase
               .from('activities')
               .select('id, tss')
               .in('id', activityIds);
 
-            const activityTssMap: Record<string, number | null> = {};
             for (const a of (realActivities || [])) {
               activityTssMap[a.id] = a.tss;
             }
-
-            schedule = schedule.map((w: any) => {
-              if (w.activity_id && activityTssMap[w.activity_id] !== undefined) {
-                return { ...w, actual_tss: activityTssMap[w.activity_id] };
-              }
-              if (w.completed && !w.activity_id) {
-                return { ...w, actual_tss: null, completed: false };
-              }
-              return w;
-            });
-          } else {
-            schedule = schedule.map((w: any) => {
-              if (w.completed && !w.activity_id) {
-                return { ...w, actual_tss: null, completed: false };
-              }
-              return w;
-            });
           }
+
+          // Single pass: only trust completion if backed by a real activity
+          schedule = schedule.map((w: any) => {
+            if (w.activity_id && activityTssMap[w.activity_id] !== undefined) {
+              return { ...w, actual_tss: activityTssMap[w.activity_id], completed: true };
+            }
+            if (w.completed || w.actual_tss) {
+              return { ...w, actual_tss: null, completed: false, activity_id: null };
+            }
+            return w;
+          });
 
           // Date guard: strip future-dated completion data
           const today = new Date().toISOString().split('T')[0];
