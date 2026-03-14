@@ -23,6 +23,7 @@ export function CheckInPage({ userId }: CheckInPageProps) {
     hasPersona,
     needsGeneration,
     generateCheckIn,
+    regenerateCheckIn,
     submitDecision,
     classifyPersona,
     setPersonaManual,
@@ -237,8 +238,21 @@ export function CheckInPage({ userId }: CheckInPageProps) {
         </Card>
       )}
 
-      {/* Narrative */}
+      {/* Narrative + Regenerate */}
       <Card withBorder p="md" style={{ borderRadius: 0 }}>
+        <Group justify="flex-end" mb="xs">
+          <Button
+            variant="subtle"
+            color="dimmed"
+            size="xs"
+            leftSection={<IconRefresh size={14} />}
+            onClick={regenerateCheckIn}
+            loading={generating}
+            style={{ borderRadius: 0 }}
+          >
+            Regenerate
+          </Button>
+        </Group>
         <CheckInNarrative checkIn={checkIn} blockPurpose={blockPurpose} />
       </Card>
 

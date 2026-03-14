@@ -26,7 +26,8 @@ interface UseCoachCheckInReturn {
   latestActivityId: string | null;
 
   // Actions
-  generateCheckIn: (activityId?: string) => Promise<void>;
+  generateCheckIn: (activityId?: string, force?: boolean) => Promise<void>;
+  regenerateCheckIn: () => Promise<void>;
   submitDecision: (decision: CheckInDecisionInsert) => Promise<boolean>;
   classifyPersona: (answers: IntakeAnswers) => Promise<PersonaClassification | null>;
   setPersonaManual: (personaId: PersonaId) => Promise<boolean>;
@@ -191,7 +192,7 @@ export function useCoachCheckIn({ userId }: UseCoachCheckInOptions): UseCoachChe
   }, [loadCheckIn]);
 
   // Generate a new check-in
-  const generateCheckIn = useCallback(async (activityId?: string) => {
+  const generateCheckIn = useCallback(async (activityId?: string, force?: boolean) => {
     if (!userId) return;
 
     try {
@@ -209,7 +210,7 @@ export function useCoachCheckIn({ userId }: UseCoachCheckInOptions): UseCoachChe
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ activityId }),
+        body: JSON.stringify({ activityId, forceRegenerate: force || false }),
       });
 
       if (!response.ok) {
@@ -226,6 +227,11 @@ export function useCoachCheckIn({ userId }: UseCoachCheckInOptions): UseCoachChe
       setGenerating(false);
     }
   }, [userId]);
+
+  // Force-regenerate the current check-in (bypasses cache)
+  const regenerateCheckIn = useCallback(async () => {
+    await generateCheckIn(latestActivityId || undefined, true);
+  }, [generateCheckIn, latestActivityId]);
 
   // Submit an accept/dismiss decision
   const submitDecision = useCallback(async (decision: CheckInDecisionInsert): Promise<boolean> => {
@@ -338,6 +344,7 @@ export function useCoachCheckIn({ userId }: UseCoachCheckInOptions): UseCoachChe
     needsGeneration,
     latestActivityId,
     generateCheckIn,
+    regenerateCheckIn,
     submitDecision,
     classifyPersona,
     setPersonaManual,

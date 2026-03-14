@@ -123,10 +123,10 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    const { activityId } = req.body;
+    const { activityId, forceRegenerate } = req.body;
 
-    // Check if a check-in already exists for this activity
-    if (activityId) {
+    // Check if a check-in already exists for this activity (skip if force regenerating)
+    if (activityId && !forceRegenerate) {
       const { data: existing } = await supabase
         .from('coach_check_ins')
         .select('id, narrative, deviation_callout, recommendation, next_session_purpose, persona_id, generated_at, activity_id, is_current')
