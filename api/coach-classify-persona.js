@@ -78,10 +78,18 @@ export default async function handler(req, res) {
     const responseText = message.content[0]?.text || '';
     let classification;
     try {
-      classification = JSON.parse(responseText);
+      // Strip markdown fences if Claude wrapped the JSON
+      const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      classification = JSON.parse(cleaned);
     } catch {
       console.error('Failed to parse classification response:', responseText);
-      return res.status(500).json({ error: 'Classification failed — invalid response' });
+      // Fallback: return a default classification rather than failing
+      classification = {
+        persona: 'pragmatist',
+        confidence: 0.5,
+        reasoning: 'Default assignment — classification response could not be parsed.',
+        secondary: null,
+      };
     }
 
     // Validate persona

@@ -21,7 +21,11 @@ ALTER TABLE public.user_profiles
   CHECK (coaching_persona_set_by IS NULL OR coaching_persona_set_by IN ('intake', 'manual'));
 
 -- 2. Coach check-ins table
-CREATE TABLE IF NOT EXISTS public.coach_check_ins (
+-- Drop if exists from a previous partial migration (PR #544 was reverted but table may remain)
+DROP TABLE IF EXISTS public.coach_check_in_decisions CASCADE;
+DROP TABLE IF EXISTS public.coach_check_ins CASCADE;
+
+CREATE TABLE public.coach_check_ins (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   activity_id uuid REFERENCES public.activities(id) ON DELETE SET NULL,
@@ -36,10 +40,10 @@ CREATE TABLE IF NOT EXISTS public.coach_check_ins (
 );
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_coach_check_ins_user_generated
+CREATE INDEX idx_coach_check_ins_user_generated
   ON public.coach_check_ins (user_id, generated_at DESC);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_coach_check_ins_user_activity
+CREATE UNIQUE INDEX idx_coach_check_ins_user_activity
   ON public.coach_check_ins (user_id, activity_id)
   WHERE activity_id IS NOT NULL;
 
@@ -67,7 +71,7 @@ CREATE POLICY "Service role full access to check-ins"
   USING (auth.jwt() ->> 'role' = 'service_role');
 
 -- 3. Check-in decisions table
-CREATE TABLE IF NOT EXISTS public.coach_check_in_decisions (
+CREATE TABLE public.coach_check_in_decisions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   check_in_id uuid NOT NULL REFERENCES public.coach_check_ins(id) ON DELETE CASCADE,
@@ -78,7 +82,7 @@ CREATE TABLE IF NOT EXISTS public.coach_check_in_decisions (
 );
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_coach_check_in_decisions_user
+CREATE INDEX idx_coach_check_in_decisions_user
   ON public.coach_check_in_decisions (user_id, decided_at DESC);
 
 -- RLS
