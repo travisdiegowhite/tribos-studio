@@ -1045,7 +1045,11 @@ function TrainingDashboard() {
             <Box mt="md">
               {/* COACH TAB - AI Coaching Check-Ins */}
               <Tabs.Panel value="coach">
-                <CheckInPage />
+                <CheckInPage
+                  plannedWorkouts={plannedWorkouts}
+                  activities={visibleActivities}
+                  ftp={ftp}
+                />
               </Tabs.Panel>
 
               {/* TODAY TAB - Streamlined Layout */}

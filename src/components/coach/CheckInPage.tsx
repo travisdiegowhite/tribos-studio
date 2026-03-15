@@ -18,7 +18,13 @@ import CheckInAcknowledgment from './CheckInAcknowledgment';
 import IntakeInterview from './IntakeInterview';
 import type { PersonaId, DecisionType } from '../../types/checkIn';
 
-export default function CheckInPage() {
+interface CheckInPageProps {
+  plannedWorkouts?: any[];
+  activities?: any[];
+  ftp?: number | null;
+}
+
+export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp = null }: CheckInPageProps) {
   const { user } = useAuth();
   const userId = user?.id;
   const {
@@ -117,12 +123,7 @@ export default function CheckInPage() {
     );
   }
 
-  // Extract structured week schedule from context snapshot
-  const weekSchedule = currentCheckIn.context_snapshot &&
-    typeof currentCheckIn.context_snapshot === 'object' &&
-    'week_schedule' in currentCheckIn.context_snapshot
-    ? (currentCheckIn.context_snapshot as Record<string, unknown>).week_schedule
-    : [];
+  // Week bar now uses live data from TrainingDashboard instead of stale check-in snapshot
 
   return (
     <Stack gap="lg">
@@ -156,8 +157,12 @@ export default function CheckInPage() {
         <Text size="sm" c="red">{generateError}</Text>
       )}
 
-      {/* Week bar chart */}
-      <CheckInWeekBar weekSchedule={weekSchedule as any[]} />
+      {/* Week bar — live data from the training calendar */}
+      <CheckInWeekBar
+        plannedWorkouts={plannedWorkouts}
+        activities={activities}
+        ftp={ftp}
+      />
 
       {/* Coaching narrative + deviation callout */}
       <CheckInNarrative
