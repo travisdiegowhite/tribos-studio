@@ -18,6 +18,35 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+// Persona voice data — shared with coach-check-in-request.js
+const PERSONA_DATA = {
+  hammer: {
+    name: 'The Hammer',
+    philosophy: 'Discomfort is the price of adaptation. You committed to this — now honor that commitment.',
+    voice: 'Direct, brief, no filler. Short declarative sentences. No hedging. Uses imperatives.',
+  },
+  scientist: {
+    name: 'The Scientist',
+    philosophy: 'Every training session is a data point. Understand the stimulus, trust the adaptation, measure the outcome.',
+    voice: 'Calm, precise, explanatory. Uses physiological terminology naturally but always explains it.',
+  },
+  encourager: {
+    name: 'The Encourager',
+    philosophy: 'Consistency is the only thing that creates lasting fitness. Every ride counts.',
+    voice: "Warm, present-tense focused, process-oriented. Notices the effort behind the number.",
+  },
+  pragmatist: {
+    name: 'The Pragmatist',
+    philosophy: "A good plan that gets executed beats a perfect plan that doesn't. Work with the life you have.",
+    voice: 'Grounded, conversational, no-nonsense but not harsh. Meets the rider where they are.',
+  },
+  competitor: {
+    name: 'The Competitor',
+    philosophy: "You train to race. Every session either prepares you to win or it doesn't.",
+    voice: 'Focused, forward-looking, frames everything in terms of race outcomes.',
+  },
+};
+
 // Base coaching knowledge (date context added dynamically)
 const COACHING_KNOWLEDGE = `You are an expert endurance sports coach with deep knowledge of:
 - Training periodization and load management for BOTH cycling and running
@@ -49,8 +78,7 @@ FOR RUNNERS:
 IMPORTANT: Match your workout recommendations to the athlete's sport. Never recommend cycling workouts to a runner or running workouts to a cyclist unless they ask about cross-training.
 
 Your Personality:
-- Supportive and encouraging, but honest and realistic
-- Data-driven but emphasize listening to one's body
+(Your persona voice is set dynamically per athlete — see the COACHING PERSONA section in the system prompt below.)
 - Clear and concise (avoid jargon unless explaining it)
 - Focus on sustainable long-term improvement over quick fixes
 
@@ -355,19 +383,38 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Fetch Google Calendar context (busy times + available windows) if user is connected
-    let calendarContext = null;
-    if (verifiedUserId) {
-      try {
-        calendarContext = await fetchCalendarContext(verifiedUserId);
-        if (calendarContext) {
-          console.log('📅 Calendar context loaded for coach');
-        }
-      } catch (err) {
-        // Non-blocking — coach works without calendar
+    // Fetch persona, coach memory, recent check-ins, and calendar in parallel
+    // These give the command bar coach the same "identity" as the check-in coach
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult] = await Promise.all([
+      supabase
+        .from('user_coach_settings')
+        .select('coaching_persona, user_preferred_name')
+        .eq('user_id', verifiedUserId)
+        .maybeSingle(),
+      supabase
+        .from('coach_memory')
+        .select('category, content')
+        .eq('user_id', verifiedUserId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('coach_check_ins')
+        .select('persona_id, narrative, recommendation, next_session_purpose, created_at')
+        .eq('user_id', verifiedUserId)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(3),
+      fetchCalendarContext(verifiedUserId).catch((err) => {
         console.error('Calendar context fetch failed (non-blocking):', err.message);
-      }
-    }
+        return null;
+      }),
+    ]);
+
+    const coachSettings = coachSettingsResult.data;
+    const coachMemories = coachMemoryResult.data || [];
+    const recentCheckIns = recentCheckInsResult.data || [];
+    const calendarContext = calendarContextResult;
 
     // Build system message with date context FIRST
     // Use user's local date if provided, otherwise fall back to server date
@@ -404,6 +451,13 @@ export default async function handler(req, res) {
     // Simplified week range display
     const weekRangeStr = `Week of ${monthNames[todayMonth]} ${mondayDate > 0 ? mondayDate : todayDate}, ${todayYear}`;
 
+    // Determine persona
+    const personaId = coachSettings?.coaching_persona && coachSettings.coaching_persona !== 'pending'
+      ? coachSettings.coaching_persona
+      : null;
+    const persona = personaId ? PERSONA_DATA[personaId] : null;
+    const riderName = coachSettings?.user_preferred_name || null;
+
     // Build the full system prompt with date as the foundation
     let systemPrompt = `=== CURRENT DATE & TIME CONTEXT ===
 TODAY IS: ${dateStr}
@@ -414,6 +468,40 @@ You MUST use the current date above as your reference point. When the athlete as
 
 === YOUR ROLE ===
 ${COACHING_KNOWLEDGE}`;
+
+    // Inject persona voice (same voice used in coaching check-ins)
+    if (persona) {
+      systemPrompt += `\n\n=== COACHING PERSONA: ${persona.name.toUpperCase()} ===
+You are ${persona.name}. Adopt this voice consistently in all responses.
+Philosophy: ${persona.philosophy}
+Voice: ${persona.voice}
+${riderName ? `The athlete's preferred name is: ${riderName}` : ''}
+
+IMPORTANT: You also generate coaching check-ins that appear on the athlete's training dashboard.
+Those check-ins use this same voice and persona. When the athlete references something from a check-in,
+you should respond as the same coach who wrote it — maintain continuity.`;
+    }
+
+    // Inject coach memory (persistent behavioral insights)
+    if (coachMemories.length > 0) {
+      const memoryLines = coachMemories.map((m) => `- [${m.category}] ${m.content}`).join('\n');
+      systemPrompt += `\n\n=== COACH MEMORY (PERSISTENT INSIGHTS ABOUT THIS ATHLETE) ===
+These are facts you've learned about this athlete over time. Reference them naturally:
+${memoryLines}`;
+    }
+
+    // Inject recent check-in summaries (cross-context awareness)
+    if (recentCheckIns.length > 0) {
+      const checkInLines = recentCheckIns.map((ci) => {
+        const date = ci.created_at?.split('T')[0] || 'Unknown';
+        const rec = ci.recommendation ? ` | Recommended: ${ci.recommendation.action}` : '';
+        return `[${date}] ${ci.narrative}${rec}`;
+      }).join('\n\n');
+      systemPrompt += `\n\n=== RECENT COACHING CHECK-INS (FROM TRAINING DASHBOARD) ===
+These are recent coaching check-ins you generated on the athlete's training dashboard.
+You wrote these — they reflect your prior analysis. Stay consistent with this advice unless new data warrants a change.
+${checkInLines}`;
+    }
 
     if (trainingContext) {
       systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT (INCLUDING RACE CALENDAR) ===

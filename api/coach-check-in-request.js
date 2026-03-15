@@ -111,6 +111,11 @@ ${context.health}
 
 ${context.memories ? `## COACH MEMORY\n${context.memories}` : ''}
 
+${context.recent_conversations ? `## RECENT COMMAND BAR CONVERSATIONS
+The athlete has also been chatting with you via the quick command bar on their dashboard.
+Stay consistent with what was discussed there. Here are the recent exchanges:
+${context.recent_conversations}` : ''}
+
 ## DECISION HISTORY (last 5)
 ${context.decision_history}
 

@@ -127,6 +127,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     decisionsResult,
     healthResult,
     memoryResult,
+    recentConversationsResult,
   ] = await Promise.all([
     activityQuery,
 
@@ -185,6 +186,15 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(10),
+
+    // Recent command bar conversations (cross-context awareness)
+    supabase
+      .from('coach_conversations')
+      .select('role, message, timestamp')
+      .eq('user_id', userId)
+      .in('role', ['user', 'coach'])
+      .order('timestamp', { ascending: false })
+      .limit(10),
   ]);
 
   const activity = activityResult.data;
@@ -195,6 +205,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   const decisions = decisionsResult.data || [];
   const health = healthResult.data;
   const memories = memoryResult.data || [];
+  const recentConversations = recentConversationsResult.data || [];
 
   // Get matched planned workout (if any)
   let plannedWorkout = null;
@@ -319,5 +330,11 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     decision_history: decisionHistory,
     health: healthText,
     memories: memoryText,
+    recent_conversations: recentConversations.length > 0
+      ? recentConversations
+          .reverse()
+          .map((m) => `${m.role === 'coach' ? 'Coach' : 'Athlete'}: ${m.message.length > 200 ? m.message.substring(0, 200) + '...' : m.message}`)
+          .join('\n')
+      : '',
   };
 }
