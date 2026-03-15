@@ -96,19 +96,6 @@ export async function completeActivationStep(supabase, userId, stepName) {
  */
 export async function enqueueCheckIn(supabase, userId, activityId) {
   try {
-    // Guard: user has active training plan
-    const { data: plan } = await supabase
-      .from('training_plans')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    if (!plan) {
-      console.log(`ℹ️ No active plan for user ${userId}, skipping check-in`);
-      return null;
-    }
-
     // Guard: user has a persona set (completed intake)
     const { data: settings } = await supabase
       .from('user_coach_settings')

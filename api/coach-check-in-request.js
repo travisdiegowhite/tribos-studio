@@ -18,7 +18,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// Persona voice data (same as coach-check-in-generate.js)
+// Persona voice data
 const PERSONA_DATA = {
   hammer: {
     name: 'The Hammer',
