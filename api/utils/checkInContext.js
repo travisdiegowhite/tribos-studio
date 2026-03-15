@@ -2,7 +2,8 @@
  * Check-In Context Assembly Pipeline
  *
  * Gathers all data needed for the AI coaching check-in system prompt.
- * Returns a structured context object matching the voice bible template.
+ * Works with or without a specific activity — when no activity is provided,
+ * fetches the most recent activity for context (if any exist).
  */
 
 /**
@@ -59,7 +60,6 @@ function derivePhase(currentWeek, totalWeeks, methodology) {
 
 /**
  * Format the week schedule as structured data for both the AI prompt and UI.
- * Returns an array (not a string) to avoid the fragile regex-parsing from the original.
  */
 function formatWeekSchedule(weekWorkouts) {
   if (!weekWorkouts || weekWorkouts.length === 0) {
@@ -107,10 +107,16 @@ function weekScheduleToText(weekSchedule) {
  *
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase - Service role client
  * @param {string} userId
- * @param {string} activityId - The activity that triggered this check-in
+ * @param {string|null} activityId - The activity that triggered this check-in (null for general check-ins)
  * @returns {Promise<object>} Context object ready for system prompt injection
  */
 export async function assembleCheckInContext(supabase, userId, activityId) {
+  // Build the activity query — specific activity or most recent one
+  const activityQuery = activityId
+    ? supabase.from('activities').select('*').eq('id', activityId).maybeSingle()
+    : supabase.from('activities').select('*').eq('user_id', userId)
+        .order('start_date', { ascending: false }).limit(1).maybeSingle();
+
   // Run independent queries in parallel
   const [
     activityResult,
@@ -122,11 +128,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     healthResult,
     memoryResult,
   ] = await Promise.all([
-    supabase
-      .from('activities')
-      .select('*')
-      .eq('id', activityId)
-      .single(),
+    activityQuery,
 
     supabase
       .from('training_plans')
@@ -223,7 +225,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   // Derive phase
   const phase = plan
     ? derivePhase(plan.current_week, plan.duration_weeks, plan.methodology)
-    : { blockName: 'No Active Plan', blockPurpose: 'Training without a structured plan.' };
+    : { blockName: 'General Training', blockPurpose: 'Build overall fitness and consistency.' };
 
   // Calculate deviation
   const plannedTss = plannedWorkout?.target_tss || null;
@@ -254,7 +256,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     ? memories.map((m) => `[${m.category}] ${m.content}`).join('\n')
     : '';
 
-  // Format health (using correct column names from migration 002)
+  // Format health
   const healthText = health
     ? [
         health.resting_hr ? `RHR: ${health.resting_hr}bpm` : null,
@@ -268,9 +270,13 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   const weekSchedule = formatWeekSchedule(weekScheduleRaw);
   const weekScheduleText = weekScheduleToText(weekSchedule);
 
+  // Flag whether this is an activity-based or general check-in
+  const hasActivity = !!activity;
+
   return {
     rider_name: coachSettings?.user_preferred_name || 'Rider',
     persona_id: coachSettings?.coaching_persona || 'pragmatist',
+    has_activity: hasActivity,
 
     goal_event: raceGoal
       ? `${raceGoal.name} (${raceGoal.race_type}, ${raceGoal.race_date}, Priority ${raceGoal.priority})`
@@ -287,28 +293,28 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     load_trend: fitness?.load_trend || null,
     overtraining_risk: fitness?.overtraining_risk || null,
 
-    // Structured array for UI (fixes original's fragile string-parsing)
     week_schedule: weekSchedule,
-    // Text version for AI prompt
     week_schedule_text: weekScheduleText,
 
-    last_activity: {
-      date: activity?.start_date_local || activity?.start_date || 'Unknown',
-      type: activity?.type || 'Ride',
-      name: activity?.name || 'Untitled Activity',
-      planned_tss: plannedTss,
-      actual_tss: actualTss,
-      deviation_percent: deviationPercent,
-      over_or_under: deviationPercent != null
-        ? (deviationPercent >= 0 ? 'over' : 'under')
-        : null,
-      duration_minutes: activity?.moving_time ? Math.round(activity.moving_time / 60) : 0,
-      distance_km: activity?.distance ? Math.round((activity.distance / 1000) * 10) / 10 : 0,
-      power_summary: powerSummary,
-      average_heartrate: activity?.average_heartrate || null,
-      execution_score: activity?.execution_score || null,
-      execution_rating: activity?.execution_rating || null,
-    },
+    last_activity: hasActivity
+      ? {
+          date: activity.start_date_local || activity.start_date || 'Unknown',
+          type: activity.type || 'Ride',
+          name: activity.name || 'Untitled Activity',
+          planned_tss: plannedTss,
+          actual_tss: actualTss,
+          deviation_percent: deviationPercent,
+          over_or_under: deviationPercent != null
+            ? (deviationPercent >= 0 ? 'over' : 'under')
+            : null,
+          duration_minutes: activity.moving_time ? Math.round(activity.moving_time / 60) : 0,
+          distance_km: activity.distance ? Math.round((activity.distance / 1000) * 10) / 10 : 0,
+          power_summary: powerSummary,
+          average_heartrate: activity.average_heartrate || null,
+          execution_score: activity.execution_score || null,
+          execution_rating: activity.execution_rating || null,
+        }
+      : null,
 
     decision_history: decisionHistory,
     health: healthText,

@@ -13,7 +13,7 @@ DROP TABLE IF EXISTS public.coach_check_ins CASCADE;
 CREATE TABLE public.coach_check_ins (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  activity_id UUID UNIQUE REFERENCES public.activities(id) ON DELETE SET NULL,
+  activity_id UUID REFERENCES public.activities(id) ON DELETE SET NULL,
   persona_id TEXT NOT NULL DEFAULT 'pending',
   narrative TEXT,
   deviation_callout TEXT,

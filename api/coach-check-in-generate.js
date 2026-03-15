@@ -98,7 +98,7 @@ ${context.overtraining_risk && context.overtraining_risk !== 'low' ? `Overtraini
 ## THIS WEEK
 ${context.week_schedule_text}
 
-## LAST ACTIVITY
+${context.has_activity && context.last_activity ? `## LAST ACTIVITY
 Date: ${context.last_activity.date}
 Type: ${context.last_activity.type} — "${context.last_activity.name}"
 Duration: ${context.last_activity.duration_minutes} min | Distance: ${context.last_activity.distance_km} km
@@ -106,7 +106,8 @@ Planned TSS: ${context.last_activity.planned_tss ?? 'N/A'} | Actual TSS: ${conte
 ${context.last_activity.deviation_percent != null ? `Deviation: ${Math.abs(context.last_activity.deviation_percent)}% ${context.last_activity.over_or_under}` : 'Deviation: N/A (no planned workout matched)'}
 Power data: ${context.last_activity.power_summary}
 ${context.last_activity.average_heartrate ? `Avg HR: ${context.last_activity.average_heartrate} bpm` : ''}
-${context.last_activity.execution_score ? `Execution score: ${context.last_activity.execution_score}/100 (${context.last_activity.execution_rating})` : ''}
+${context.last_activity.execution_score ? `Execution score: ${context.last_activity.execution_score}/100 (${context.last_activity.execution_rating})` : ''}` : `## ACTIVITY STATUS
+No recent activities synced. This is a general coaching check-in based on the rider's plan, fitness, and health data.`}
 
 ## HEALTH STATUS
 ${context.health}
@@ -175,7 +176,9 @@ async function generateCheckIn(checkIn) {
       messages: [
         {
           role: 'user',
-          content: 'Generate the coaching check-in for the last activity described above.',
+          content: context.has_activity
+            ? 'Generate the coaching check-in for the last activity described above.'
+            : 'Generate a general coaching check-in based on the rider\'s current training plan, fitness status, health data, and weekly schedule. Focus on where they are in their training block, what\'s coming up, and any adjustments you\'d recommend.',
         },
       ],
     });

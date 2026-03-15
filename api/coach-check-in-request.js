@@ -2,7 +2,8 @@
  * Coach Check-In Manual Request
  *
  * User-authenticated endpoint that lets users manually trigger a coaching
- * check-in based on their most recent synced activity.
+ * check-in at any time. If recent activities exist, the latest unanalyzed
+ * one is attached; otherwise a general (activity-free) check-in is created.
  *
  * POST /api/coach-check-in-request
  * Auth: Bearer <JWT>
@@ -47,22 +48,7 @@ export default async function handler(req, res) {
   const userId = user.id;
 
   try {
-    // Guard: active training plan
-    const { data: plan } = await supabase
-      .from('training_plans')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    if (!plan) {
-      return res.status(400).json({
-        error: 'no_active_plan',
-        message: 'You need an active training plan to get coaching check-ins.',
-      });
-    }
-
-    // Guard: persona set
+    // Guard: persona set (intake interview completed)
     const { data: settings } = await supabase
       .from('user_coach_settings')
       .select('coaching_persona')
@@ -76,13 +62,13 @@ export default async function handler(req, res) {
       });
     }
 
-    // Rate limit: no check-in created in last 10 minutes
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    // Rate limit: no check-in created in last 2 minutes
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     const { data: recentCheckIn } = await supabase
       .from('coach_check_ins')
       .select('id, created_at')
       .eq('user_id', userId)
-      .gt('created_at', tenMinutesAgo)
+      .gt('created_at', twoMinutesAgo)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -90,11 +76,12 @@ export default async function handler(req, res) {
     if (recentCheckIn) {
       return res.status(429).json({
         error: 'rate_limited',
-        message: 'You recently requested a check-in. Try again in a few minutes.',
+        message: 'You recently requested a check-in. Try again in a couple minutes.',
       });
     }
 
-    // Find latest activity without an existing check-in
+    // Best-effort: find latest activity without an existing check-in
+    let eligibleActivityId = null;
     const { data: recentActivities } = await supabase
       .from('activities')
       .select('id')
@@ -102,36 +89,23 @@ export default async function handler(req, res) {
       .order('start_date', { ascending: false })
       .limit(5);
 
-    if (!recentActivities?.length) {
-      return res.status(400).json({
-        error: 'no_eligible_activity',
-        message: 'No synced activities found. Complete a ride first.',
-      });
-    }
+    if (recentActivities?.length) {
+      for (const activity of recentActivities) {
+        const { data: existing } = await supabase
+          .from('coach_check_ins')
+          .select('id')
+          .eq('activity_id', activity.id)
+          .maybeSingle();
 
-    // Find first activity without a check-in
-    let eligibleActivityId = null;
-    for (const activity of recentActivities) {
-      const { data: existing } = await supabase
-        .from('coach_check_ins')
-        .select('id')
-        .eq('activity_id', activity.id)
-        .maybeSingle();
-
-      if (!existing) {
-        eligibleActivityId = activity.id;
-        break;
+        if (!existing) {
+          eligibleActivityId = activity.id;
+          break;
+        }
       }
     }
+    // If no eligible activity, that's fine — we'll create a general check-in
 
-    if (!eligibleActivityId) {
-      return res.status(400).json({
-        error: 'no_eligible_activity',
-        message: 'Your latest activities all have check-ins already. Go ride!',
-      });
-    }
-
-    // Insert pending check-in
+    // Insert pending check-in (activity_id is nullable)
     const { data: checkIn, error: insertError } = await supabase
       .from('coach_check_ins')
       .insert({
@@ -165,7 +139,6 @@ export default async function handler(req, res) {
       body: JSON.stringify({ checkInId: checkIn.id }),
     }).catch((err) => {
       console.error(`Fire-and-forget to coach-check-in-generate failed for ${checkIn.id}:`, err.message);
-      // Mark as failed so the realtime subscription fires and the UI unblocks
       supabase
         .from('coach_check_ins')
         .update({ status: 'failed', error_message: `Generate trigger failed: ${err.message}` })
