@@ -387,11 +387,38 @@ IMPORTANT: For geographic queries, provide the place name (e.g., "Golden Gate Br
   }
 };
 
-// Combined tools for AI coach (includes workout, fitness history, plan creation, fueling, and training data queries)
+// Coach Memory Tool - lets the AI persist important facts about the athlete
+export const SAVE_COACH_MEMORY_TOOL = {
+  name: "save_coach_memory",
+  description: "Save an important fact or preference about the athlete for future reference. Use this when the athlete shares something you should remember across conversations — preferences, life context, goals, injuries, schedule constraints, or behavioral patterns. Do NOT save trivial or transient information.",
+  input_schema: {
+    type: "object",
+    properties: {
+      category: {
+        type: "string",
+        enum: ["goal", "context", "obstacle", "pattern", "win", "preference", "injury", "schedule"],
+        description: "Category of the memory: goal (training goals, target events), context (life circumstances), obstacle (recurring challenges), pattern (behavioral patterns), win (achievements, breakthroughs), preference (workout timing, route types, etc.), injury (past/current injuries), schedule (regular schedule constraints)"
+      },
+      content: {
+        type: "string",
+        description: "The fact to remember, written as a concise statement. E.g. 'Prefers early morning rides before 7am', 'Has a recurring knee issue on left side', 'Works from home on Tuesdays and Thursdays'"
+      },
+      memory_type: {
+        type: "string",
+        enum: ["short", "medium", "long"],
+        description: "How long to remember this: short (this week only), medium (this training block/month), long (permanent important fact). Default to 'long' for preferences, injuries, and schedule. Use 'short' for temporary situations like 'feeling under the weather this week'."
+      }
+    },
+    required: ["category", "content", "memory_type"]
+  }
+};
+
+// Combined tools for AI coach (includes workout, fitness history, plan creation, fueling, training data, and memory)
 export const ALL_COACH_TOOLS = [
   ...WORKOUT_TOOLS,
   FITNESS_HISTORY_TOOL,
   CREATE_PLAN_TOOL,
   FUEL_PLAN_TOOL,
-  TRAINING_DATA_TOOL
+  TRAINING_DATA_TOOL,
+  SAVE_COACH_MEMORY_TOOL
 ];

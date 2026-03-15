@@ -290,7 +290,30 @@ You should proactively mention fueling considerations when recommending workouts
 - "Race-day nutrition: eat a carb-heavy meal 3-4 hours before, then fuel consistently"
 - "If you're bonking late in rides, try eating earlier and more often"
 
-**DISCLAIMER**: Always remind athletes that these are general guidelines. For personalized nutrition advice, they should consult a sports dietitian.`;
+**DISCLAIMER**: Always remind athletes that these are general guidelines. For personalized nutrition advice, they should consult a sports dietitian.
+
+**REMEMBERING ATHLETE PREFERENCES (COACH MEMORY):**
+
+You have a save_coach_memory tool that lets you persist important facts about the athlete.
+Use it proactively when the athlete shares information you should remember for future conversations.
+
+**When to save a memory:**
+- Schedule constraints: "I can only ride before work" → save as schedule/long
+- Preferences: "I hate indoor training" → save as preference/long
+- Life context: "I have a new baby" → save as context/long
+- Injuries: "My left knee has been bothering me" → save as injury/long
+- Goals: "I want to finish a century by September" → save as goal/long
+- Temporary situations: "I'm traveling this week" → save as context/short
+- Patterns you observe: Athlete consistently skips recovery rides → save as pattern/medium
+
+**When NOT to save a memory:**
+- Trivial conversation ("thanks", "got it")
+- Information already in their training context (FTP, CTL, race goals in the system)
+- Duplicate of an existing memory (check the COACH MEMORY section in your context)
+- Single-session details that won't matter next week
+
+**Important:** Save memories silently — don't announce "I'll remember that" unless the athlete specifically asks you to remember something. Just save it naturally as part of the conversation.`;
+
 
 
 export default async function handler(req, res) {
@@ -645,6 +668,7 @@ ${conversationSummary}
     const trainingDataUses = toolUses.filter(tool => tool.name === 'query_training_data');
     const planCreationUses = toolUses.filter(tool => tool.name === 'create_training_plan');
     const fuelPlanUses = toolUses.filter(tool => tool.name === 'generate_fuel_plan');
+    const memoryUses = toolUses.filter(tool => tool.name === 'save_coach_memory');
 
     // Detailed logging for debugging
     console.log(`🤖 Coach response: ${toolUses.length} tool uses`);
@@ -652,13 +676,15 @@ ${conversationSummary}
     console.log(`   - Fitness history queries: ${fitnessHistoryUses.length}`);
     console.log(`   - Training data queries: ${trainingDataUses.length}`);
     console.log(`   - Plan creations: ${planCreationUses.length}`);
+    console.log(`   - Memory saves: ${memoryUses.length}`);
     if (planCreationUses.length > 0) {
       console.log(`   - Plan creation input:`, JSON.stringify(planCreationUses[0].input, null, 2));
     }
 
     // Handle server-side tool calls that require a continuation turn
-    // (fitness history and training data queries both need server-side processing)
-    const serverSideTools = [...fitnessHistoryUses, ...trainingDataUses];
+    // (fitness history and training data queries need server-side processing)
+    // Memory saves are also processed here so Claude gets confirmation before responding.
+    const serverSideTools = [...fitnessHistoryUses, ...trainingDataUses, ...memoryUses];
 
     if (serverSideTools.length > 0 && verifiedUserId) {
       const toolResults = [];
@@ -672,6 +698,31 @@ ${conversationSummary}
           } else if (tool.name === 'query_training_data') {
             console.log(`📋 Training data query requested. userId: ${verifiedUserId}`);
             result = await handleTrainingDataQuery(verifiedUserId, tool.input);
+          } else if (tool.name === 'save_coach_memory') {
+            console.log(`🧠 Saving coach memory: [${tool.input.category}] ${tool.input.content}`);
+            // Calculate expiry for short/medium memories
+            let expiresAt = null;
+            if (tool.input.memory_type === 'short') {
+              expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            } else if (tool.input.memory_type === 'medium') {
+              expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+            }
+            const { error: memError } = await supabase
+              .from('coach_memory')
+              .insert({
+                user_id: verifiedUserId,
+                memory_type: tool.input.memory_type,
+                category: tool.input.category,
+                content: tool.input.content,
+                source_type: 'conversation',
+                expires_at: expiresAt,
+              });
+            if (memError) {
+              console.error('Failed to save coach memory:', memError);
+              result = { success: false, error: 'Failed to save memory' };
+            } else {
+              result = { success: true, saved: tool.input.content };
+            }
           }
           toolResults.push({
             type: 'tool_result',
