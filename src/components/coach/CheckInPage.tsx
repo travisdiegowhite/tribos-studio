@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Stack, Text, Center, Loader, Paper, Group } from '@mantine/core';
+import { Stack, Text, Center, Loader, Paper, Group, Button } from '@mantine/core';
 import { IconSparkles } from '@tabler/icons-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useCoachCheckIn } from '../../hooks/useCoachCheckIn';
@@ -30,6 +30,9 @@ export default function CheckInPage() {
     markSeen,
     currentDecision,
     savePersona,
+    requestCheckIn,
+    generating,
+    generateError,
   } = useCoachCheckIn(userId);
 
   const [showIntake, setShowIntake] = useState(false);
@@ -93,9 +96,22 @@ export default function CheckInPage() {
           <IconSparkles size={32} color="var(--color-teal)" style={{ opacity: 0.5 }} />
           <Text size="lg" fw={600}>No check-in yet</Text>
           <Text size="sm" c="dimmed" maw={400}>
-            Your coaching check-in will appear here after your next synced activity.
-            Go ride, and your coach will have something to say when you get back.
+            Your coaching check-in will appear here after your next synced activity,
+            or you can request one now based on your latest ride.
           </Text>
+          {generateError && (
+            <Text size="sm" c="red">{generateError}</Text>
+          )}
+          <Button
+            variant="outline"
+            color="teal"
+            leftSection={<IconSparkles size={16} />}
+            loading={generating}
+            onClick={requestCheckIn}
+            style={{ borderRadius: 0 }}
+          >
+            Request Check-In
+          </Button>
         </Stack>
       </Paper>
     );
@@ -115,14 +131,30 @@ export default function CheckInPage() {
         <Text size="xs" fw={700} tt="uppercase" ff="monospace" c="dimmed">
           Coach Check-In
         </Text>
-        <Text size="xs" c="dimmed">
-          {new Date(currentCheckIn.created_at).toLocaleDateString('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-          })}
-        </Text>
+        <Group gap="sm">
+          <Button
+            variant="subtle"
+            size="xs"
+            color="teal"
+            leftSection={<IconSparkles size={14} />}
+            loading={generating}
+            onClick={requestCheckIn}
+            style={{ borderRadius: 0 }}
+          >
+            New Check-In
+          </Button>
+          <Text size="xs" c="dimmed">
+            {new Date(currentCheckIn.created_at).toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+            })}
+          </Text>
+        </Group>
       </Group>
+      {generateError && (
+        <Text size="sm" c="red">{generateError}</Text>
+      )}
 
       {/* Week bar chart */}
       <CheckInWeekBar weekSchedule={weekSchedule as any[]} />

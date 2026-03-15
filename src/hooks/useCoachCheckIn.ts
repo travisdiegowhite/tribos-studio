@@ -25,6 +25,9 @@ interface UseCoachCheckInReturn {
   refresh: () => Promise<void>;
   savePersona: (personaId: PersonaId, setBy: 'intake' | 'manual') => Promise<void>;
   currentDecision: CheckInDecision | null;
+  requestCheckIn: () => Promise<void>;
+  generating: boolean;
+  generateError: string | null;
 }
 
 export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInReturn {
@@ -34,6 +37,8 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
   const [persona, setPersona] = useState<PersonaId>('pragmatist');
   const [hasCompletedIntake, setHasCompletedIntake] = useState(false);
   const [currentDecision, setCurrentDecision] = useState<CheckInDecision | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!userId) {
@@ -116,8 +121,14 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          if (payload.new && (payload.new as CheckIn).status === 'completed') {
+          const newRow = payload.new as CheckIn;
+          if (newRow?.status === 'completed') {
+            setGenerating(false);
+            setGenerateError(null);
             fetchData();
+          } else if (newRow?.status === 'failed') {
+            setGenerating(false);
+            setGenerateError('Check-in generation failed. Try again later.');
           }
         }
       )
@@ -181,6 +192,41 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
     setHasCompletedIntake(true);
   }, [userId]);
 
+  const requestCheckIn = useCallback(async () => {
+    if (!userId || generating) return;
+
+    setGenerating(true);
+    setGenerateError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setGenerateError('Please sign in again.');
+        setGenerating(false);
+        return;
+      }
+
+      const response = await fetch('/api/coach-check-in-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setGenerateError(result.message || 'Failed to request check-in.');
+        setGenerating(false);
+      }
+      // On success, stay in generating state — real-time subscription will clear it
+    } catch {
+      setGenerateError('Something went wrong. Please try again.');
+      setGenerating(false);
+    }
+  }, [userId, generating]);
+
   return {
     currentCheckIn,
     checkInHistory,
@@ -192,5 +238,8 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
     refresh: fetchData,
     savePersona,
     currentDecision,
+    requestCheckIn,
+    generating,
+    generateError,
   };
 }
