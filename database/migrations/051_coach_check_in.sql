@@ -1,9 +1,16 @@
 -- 051: Coach Check-In System
 -- AI-generated coaching check-ins triggered by activity syncs.
+--
+-- NOTE: DROP + recreate because the original PR #544 left these tables
+-- in an inconsistent state after the nuclear code revert. No user data
+-- exists in these tables (feature was never live), so this is safe.
 
 -- ── coach_check_ins ──────────────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS public.coach_check_ins (
+DROP TABLE IF EXISTS public.coach_check_in_decisions CASCADE;
+DROP TABLE IF EXISTS public.coach_check_ins CASCADE;
+
+CREATE TABLE public.coach_check_ins (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   activity_id UUID UNIQUE REFERENCES public.activities(id) ON DELETE SET NULL,
@@ -21,10 +28,10 @@ CREATE TABLE IF NOT EXISTS public.coach_check_ins (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_coach_check_ins_user_created
+CREATE INDEX idx_coach_check_ins_user_created
   ON public.coach_check_ins (user_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_coach_check_ins_user_status
+CREATE INDEX idx_coach_check_ins_user_status
   ON public.coach_check_ins (user_id, status);
 
 ALTER TABLE public.coach_check_ins ENABLE ROW LEVEL SECURITY;
@@ -44,7 +51,7 @@ CREATE POLICY "Service role full access on check-ins"
 
 -- ── coach_check_in_decisions ─────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS public.coach_check_in_decisions (
+CREATE TABLE public.coach_check_in_decisions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   check_in_id UUID NOT NULL REFERENCES public.coach_check_ins(id) ON DELETE CASCADE,
@@ -54,7 +61,7 @@ CREATE TABLE IF NOT EXISTS public.coach_check_in_decisions (
   decided_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_coach_decisions_user_decided
+CREATE INDEX idx_coach_decisions_user_decided
   ON public.coach_check_in_decisions (user_id, decided_at DESC);
 
 ALTER TABLE public.coach_check_in_decisions ENABLE ROW LEVEL SECURITY;
