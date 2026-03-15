@@ -997,22 +997,36 @@ function Settings() {
       const result = await garminService.syncRecentActivities(30);
 
       if (result.success) {
-        // Show detailed results from direct API fetch
+        // Garmin uses async webhook backfill — no direct API fetch
         const storedCount = result.stored || 0;
-        const cyclingCount = result.cyclingActivities || 0;
-        const message = storedCount > 0
-          ? `Synced ${storedCount} cycling ${storedCount === 1 ? 'activity' : 'activities'} from Garmin.`
-          : cyclingCount === 0
-            ? 'No new cycling activities found in the last 30 days.'
-            : 'All activities already synced.';
+        const isBackfill = result.method === 'webhook_backfill';
+
+        let title, message, color;
+        if (storedCount > 0) {
+          title = 'Sync Complete!';
+          message = `Synced ${storedCount} cycling ${storedCount === 1 ? 'activity' : 'activities'} from Garmin.`;
+          color = 'terracotta';
+        } else if (isBackfill) {
+          title = 'Sync Requested';
+          message = `Garmin will send your activities from the last ${result.dateRange?.days || 30} days via webhooks. They should appear within a few minutes.`;
+          color = 'teal';
+        } else {
+          title = 'Up to Date';
+          message = 'All activities already synced.';
+          color = 'teal';
+        }
+
+        if (result.note) {
+          message += ` ${result.note}`;
+        }
 
         notifications.update({
           id: 'garmin-sync',
-          title: storedCount > 0 ? 'Sync Complete!' : 'Up to Date',
+          title,
           message,
-          color: storedCount > 0 ? 'terracotta' : 'teal',
+          color,
           loading: false,
-          autoClose: 5000
+          autoClose: 8000
         });
       } else {
         // API call failed
