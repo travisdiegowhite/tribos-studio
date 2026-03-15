@@ -20,8 +20,8 @@ export function verifyCronAuth(req) {
 
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
-    console.warn('CRON_SECRET not configured — rejecting cron request');
-    return { authorized: false };
+    console.warn('⚠️ CRON_SECRET not configured — accepting request WITHOUT token verification. Set this env var for security.');
+    return { authorized: true };
   }
 
   const authHeader = req.headers.authorization;

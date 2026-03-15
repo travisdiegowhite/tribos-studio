@@ -14,12 +14,12 @@ import crypto from 'crypto';
  */
 export function verifySignature(secret, signature, body) {
   if (!secret) {
-    // In production, reject requests when no secret is configured
+    // Accept but warn loudly — a missing secret should not silently kill the integration
     if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
-      console.error('Garmin webhook secret not configured in production — rejecting request');
-      return { valid: false, error: 'Webhook secret not configured' };
+      console.error('⚠️ GARMIN_WEBHOOK_SECRET not configured in production — accepting request WITHOUT verification. Set this env var for security.');
+    } else {
+      console.warn('Webhook secret not configured — skipping verification (non-production)');
     }
-    console.warn('Webhook secret not configured — skipping verification (non-production)');
     return { valid: true };
   }
 

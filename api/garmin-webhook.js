@@ -13,6 +13,32 @@ import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 import { verifySignature, getSignatureFromHeaders } from './utils/garmin/signatureVerifier.js';
 import { parseWebhookPayload, extractActivityFields } from './utils/garmin/webhookPayloadParser.js';
 
+// Disable Vercel's automatic body parsing so we can access the raw body
+// for accurate HMAC signature verification (JSON.stringify on a parsed
+// object produces different bytes than the original payload)
+export const config = {
+  api: {
+    bodyParser: false
+  }
+};
+
+/**
+ * Read the raw request body from the stream.
+ * Required for accurate webhook signature verification.
+ */
+function getRawBody(req) {
+  // If body was already parsed (e.g. in dev/test), use it directly
+  if (req.body) {
+    return Promise.resolve(typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+  }
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
 // Initialize Supabase (server-side)
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
@@ -54,11 +80,20 @@ export default async function handler(req, res) {
   const rateLimited = await rateLimitMiddleware(req, res, name, limit, windowMinutes);
   if (rateLimited) return;
 
-  // Signature verification
+  // Read raw body for accurate signature verification
+  let rawBody;
+  try {
+    rawBody = await getRawBody(req);
+  } catch (bodyErr) {
+    console.error('Failed to read request body:', bodyErr.message);
+    return res.status(400).json({ error: 'Failed to read request body' });
+  }
+
+  // Signature verification (using raw bytes, not re-serialized JSON)
   const sigResult = verifySignature(
     WEBHOOK_SECRET,
     getSignatureFromHeaders(req.headers),
-    JSON.stringify(req.body)
+    rawBody
   );
   if (!sigResult.valid) {
     console.warn(`${sigResult.error} from:`, clientIP);
@@ -67,7 +102,7 @@ export default async function handler(req, res) {
 
   try {
     lastWebhookReceived = new Date().toISOString();
-    const webhookData = req.body;
+    const webhookData = typeof rawBody === 'object' ? rawBody : JSON.parse(rawBody);
     const parsed = parseWebhookPayload(webhookData);
 
     console.log('📥 Garmin webhook received:', {
