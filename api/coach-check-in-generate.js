@@ -258,7 +258,7 @@ export default async function handler(req, res) {
         .select('id, user_id, activity_id, persona_id')
         .eq('id', checkInId)
         .eq('status', 'pending')
-        .single();
+        .maybeSingle();
 
       if (data) checkIns = [data];
     }

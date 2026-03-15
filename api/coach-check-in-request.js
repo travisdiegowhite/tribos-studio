@@ -163,7 +163,15 @@ export default async function handler(req, res) {
         'x-cron-secret': process.env.CRON_SECRET,
       },
       body: JSON.stringify({ checkInId: checkIn.id }),
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error(`Fire-and-forget to coach-check-in-generate failed for ${checkIn.id}:`, err.message);
+      // Mark as failed so the realtime subscription fires and the UI unblocks
+      supabase
+        .from('coach_check_ins')
+        .update({ status: 'failed', error_message: `Generate trigger failed: ${err.message}` })
+        .eq('id', checkIn.id)
+        .then(() => {});
+    });
 
     return res.status(200).json({
       checkInId: checkIn.id,

@@ -201,7 +201,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
       .from('planned_workouts')
       .select('name, workout_type, target_tss, target_duration')
       .eq('id', activity.matched_planned_workout_id)
-      .single();
+      .maybeSingle();
     plannedWorkout = data;
   }
 
