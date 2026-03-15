@@ -112,7 +112,7 @@ export function useUserAvailability({
           .from('user_training_preferences')
           .select('*')
           .eq('user_id', userId)
-          .single(),
+          .maybeSingle(),
       ]);
 
       // Process weekly availability

@@ -378,9 +378,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             actualDuration: 0,
           };
         }
-        // Calculate TSS for this ride
+        // Prefer stored TSS, fall back to recomputation, cap at 500
         let rideTSS;
-        if (ride.average_watts && ftp) {
+        if (ride.tss != null && ride.tss > 0) {
+          rideTSS = ride.tss;
+        } else if (ride.average_watts && ftp) {
           rideTSS = calculateTSS(ride.moving_time, ride.average_watts, ftp);
         } else {
           rideTSS = estimateTSS(
@@ -390,7 +392,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             'endurance'
           );
         }
-        stats[weekNumber].actualTSS += rideTSS || 0;
+        rideTSS = Math.min(rideTSS || 0, 500);
+        stats[weekNumber].actualTSS += rideTSS;
         stats[weekNumber].actualDuration += (ride.moving_time || 0) / 60;
       }
     });
@@ -1041,16 +1044,20 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 // Calculate day's TSS (including cycling and cross-training)
                 let dayTSS = 0;
                 dayRides.forEach(ride => {
-                  if (ride.average_watts && ftp) {
-                    dayTSS += calculateTSS(ride.moving_time, ride.average_watts, ftp);
+                  let rideTSS;
+                  if (ride.tss != null && ride.tss > 0) {
+                    rideTSS = ride.tss;
+                  } else if (ride.average_watts && ftp) {
+                    rideTSS = calculateTSS(ride.moving_time, ride.average_watts, ftp);
                   } else {
-                    dayTSS += estimateTSS(
+                    rideTSS = estimateTSS(
                       (ride.moving_time || 0) / 60,
                       (ride.distance || 0) / 1000,
                       ride.total_elevation_gain || 0,
                       'endurance'
                     );
                   }
+                  dayTSS += Math.min(rideTSS || 0, 500);
                 });
 
                 // Add cross-training TSS

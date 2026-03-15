@@ -84,6 +84,67 @@ export async function completeActivationStep(supabase, userId, stepName) {
  * @param {string} activityId - Activity ID to generate insight for
  * @param {string} insightType - Type of insight (default: 'post_ride')
  */
+/**
+ * Enqueue a coaching check-in for generation after an activity sync.
+ * Guards: user must have an active plan and a persona set (not 'pending').
+ * Idempotent — skips if a check-in already exists for this activity.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase - Server-side Supabase client
+ * @param {string} userId - User ID
+ * @param {string} activityId - Activity ID that triggered the check-in
+ * @returns {Promise<string|null>} The check-in ID if enqueued, null otherwise
+ */
+export async function enqueueCheckIn(supabase, userId, activityId) {
+  try {
+    // Guard: user has a persona set (completed intake)
+    const { data: settings } = await supabase
+      .from('user_coach_settings')
+      .select('coaching_persona')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!settings?.coaching_persona || settings.coaching_persona === 'pending') {
+      console.log(`ℹ️ No persona set for user ${userId}, skipping check-in`);
+      return null;
+    }
+
+    // Guard: no existing check-in for this activity (idempotent)
+    const { data: existing } = await supabase
+      .from('coach_check_ins')
+      .select('id')
+      .eq('activity_id', activityId)
+      .maybeSingle();
+
+    if (existing) {
+      console.log(`ℹ️ Check-in already exists for activity ${activityId}`);
+      return null;
+    }
+
+    const { data: checkIn, error } = await supabase
+      .from('coach_check_ins')
+      .insert({
+        user_id: userId,
+        activity_id: activityId,
+        persona_id: settings.coaching_persona,
+        status: 'pending',
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Failed to enqueue check-in:', error);
+      return null;
+    }
+
+    console.log(`📋 Coach check-in enqueued for activity ${activityId}`);
+    return checkIn.id;
+  } catch (error) {
+    // Non-critical — don't let check-in tracking break main flows
+    console.error('⚠️ Failed to enqueue check-in:', error.message);
+    return null;
+  }
+}
+
 export async function enqueueProactiveInsight(supabase, userId, activityId, insightType = 'post_ride') {
   try {
     // Check if an insight already exists for this activity

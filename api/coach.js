@@ -18,6 +18,35 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+// Persona voice data — shared with coach-check-in-request.js
+const PERSONA_DATA = {
+  hammer: {
+    name: 'The Hammer',
+    philosophy: 'Discomfort is the price of adaptation. You committed to this — now honor that commitment.',
+    voice: 'Direct, brief, no filler. Short declarative sentences. No hedging. Uses imperatives.',
+  },
+  scientist: {
+    name: 'The Scientist',
+    philosophy: 'Every training session is a data point. Understand the stimulus, trust the adaptation, measure the outcome.',
+    voice: 'Calm, precise, explanatory. Uses physiological terminology naturally but always explains it.',
+  },
+  encourager: {
+    name: 'The Encourager',
+    philosophy: 'Consistency is the only thing that creates lasting fitness. Every ride counts.',
+    voice: "Warm, present-tense focused, process-oriented. Notices the effort behind the number.",
+  },
+  pragmatist: {
+    name: 'The Pragmatist',
+    philosophy: "A good plan that gets executed beats a perfect plan that doesn't. Work with the life you have.",
+    voice: 'Grounded, conversational, no-nonsense but not harsh. Meets the rider where they are.',
+  },
+  competitor: {
+    name: 'The Competitor',
+    philosophy: "You train to race. Every session either prepares you to win or it doesn't.",
+    voice: 'Focused, forward-looking, frames everything in terms of race outcomes.',
+  },
+};
+
 // Base coaching knowledge (date context added dynamically)
 const COACHING_KNOWLEDGE = `You are an expert endurance sports coach with deep knowledge of:
 - Training periodization and load management for BOTH cycling and running
@@ -49,8 +78,7 @@ FOR RUNNERS:
 IMPORTANT: Match your workout recommendations to the athlete's sport. Never recommend cycling workouts to a runner or running workouts to a cyclist unless they ask about cross-training.
 
 Your Personality:
-- Supportive and encouraging, but honest and realistic
-- Data-driven but emphasize listening to one's body
+(Your persona voice is set dynamically per athlete — see the COACHING PERSONA section in the system prompt below.)
 - Clear and concise (avoid jargon unless explaining it)
 - Focus on sustainable long-term improvement over quick fixes
 
@@ -262,7 +290,30 @@ You should proactively mention fueling considerations when recommending workouts
 - "Race-day nutrition: eat a carb-heavy meal 3-4 hours before, then fuel consistently"
 - "If you're bonking late in rides, try eating earlier and more often"
 
-**DISCLAIMER**: Always remind athletes that these are general guidelines. For personalized nutrition advice, they should consult a sports dietitian.`;
+**DISCLAIMER**: Always remind athletes that these are general guidelines. For personalized nutrition advice, they should consult a sports dietitian.
+
+**REMEMBERING ATHLETE PREFERENCES (COACH MEMORY):**
+
+You have a save_coach_memory tool that lets you persist important facts about the athlete.
+Use it proactively when the athlete shares information you should remember for future conversations.
+
+**When to save a memory:**
+- Schedule constraints: "I can only ride before work" → save as schedule/long
+- Preferences: "I hate indoor training" → save as preference/long
+- Life context: "I have a new baby" → save as context/long
+- Injuries: "My left knee has been bothering me" → save as injury/long
+- Goals: "I want to finish a century by September" → save as goal/long
+- Temporary situations: "I'm traveling this week" → save as context/short
+- Patterns you observe: Athlete consistently skips recovery rides → save as pattern/medium
+
+**When NOT to save a memory:**
+- Trivial conversation ("thanks", "got it")
+- Information already in their training context (FTP, CTL, race goals in the system)
+- Duplicate of an existing memory (check the COACH MEMORY section in your context)
+- Single-session details that won't matter next week
+
+**Important:** Save memories silently — don't announce "I'll remember that" unless the athlete specifically asks you to remember something. Just save it naturally as part of the conversation.`;
+
 
 
 export default async function handler(req, res) {
@@ -319,30 +370,28 @@ export default async function handler(req, res) {
       });
     }
 
-    // SECURITY: Validate user identity if auth header provided
-    // This ensures users can only access their own coaching data
+    // SECURITY: Require authenticated user identity
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-      if (authError) {
-        console.error('Coach API auth validation failed:', authError.message);
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid or expired authentication token'
-        });
-      }
-
-      // If userId is provided, verify it matches the authenticated user
-      if (userId && user && user.id !== userId) {
-        console.error(`🚨 Coach API user mismatch: auth user ${user.id} requested data for ${userId}`);
-        return res.status(403).json({
-          success: false,
-          error: 'Access denied: You can only access your own coaching data'
-        });
-      }
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      });
     }
+
+    const token = authHeader.substring(7);
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !authUser) {
+      console.error('Coach API auth validation failed:', authError?.message);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or expired authentication token'
+      });
+    }
+
+    // Use the verified user ID from the token, not the untrusted request body
+    const verifiedUserId = authUser.id;
 
     // Rate limiting (10 requests per 5 minutes per IP)
     const rateLimitResult = await rateLimitMiddleware(
@@ -357,19 +406,38 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Fetch Google Calendar context (busy times + available windows) if user is connected
-    let calendarContext = null;
-    if (userId) {
-      try {
-        calendarContext = await fetchCalendarContext(userId);
-        if (calendarContext) {
-          console.log('📅 Calendar context loaded for coach');
-        }
-      } catch (err) {
-        // Non-blocking — coach works without calendar
+    // Fetch persona, coach memory, recent check-ins, and calendar in parallel
+    // These give the command bar coach the same "identity" as the check-in coach
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult] = await Promise.all([
+      supabase
+        .from('user_coach_settings')
+        .select('coaching_persona, user_preferred_name')
+        .eq('user_id', verifiedUserId)
+        .maybeSingle(),
+      supabase
+        .from('coach_memory')
+        .select('category, content')
+        .eq('user_id', verifiedUserId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(10),
+      supabase
+        .from('coach_check_ins')
+        .select('persona_id, narrative, recommendation, next_session_purpose, created_at')
+        .eq('user_id', verifiedUserId)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(3),
+      fetchCalendarContext(verifiedUserId).catch((err) => {
         console.error('Calendar context fetch failed (non-blocking):', err.message);
-      }
-    }
+        return null;
+      }),
+    ]);
+
+    const coachSettings = coachSettingsResult.data;
+    const coachMemories = coachMemoryResult.data || [];
+    const recentCheckIns = recentCheckInsResult.data || [];
+    const calendarContext = calendarContextResult;
 
     // Build system message with date context FIRST
     // Use user's local date if provided, otherwise fall back to server date
@@ -406,6 +474,13 @@ export default async function handler(req, res) {
     // Simplified week range display
     const weekRangeStr = `Week of ${monthNames[todayMonth]} ${mondayDate > 0 ? mondayDate : todayDate}, ${todayYear}`;
 
+    // Determine persona
+    const personaId = coachSettings?.coaching_persona && coachSettings.coaching_persona !== 'pending'
+      ? coachSettings.coaching_persona
+      : null;
+    const persona = personaId ? PERSONA_DATA[personaId] : null;
+    const riderName = coachSettings?.user_preferred_name || null;
+
     // Build the full system prompt with date as the foundation
     let systemPrompt = `=== CURRENT DATE & TIME CONTEXT ===
 TODAY IS: ${dateStr}
@@ -416,6 +491,40 @@ You MUST use the current date above as your reference point. When the athlete as
 
 === YOUR ROLE ===
 ${COACHING_KNOWLEDGE}`;
+
+    // Inject persona voice (same voice used in coaching check-ins)
+    if (persona) {
+      systemPrompt += `\n\n=== COACHING PERSONA: ${persona.name.toUpperCase()} ===
+You are ${persona.name}. Adopt this voice consistently in all responses.
+Philosophy: ${persona.philosophy}
+Voice: ${persona.voice}
+${riderName ? `The athlete's preferred name is: ${riderName}` : ''}
+
+IMPORTANT: You also generate coaching check-ins that appear on the athlete's training dashboard.
+Those check-ins use this same voice and persona. When the athlete references something from a check-in,
+you should respond as the same coach who wrote it — maintain continuity.`;
+    }
+
+    // Inject coach memory (persistent behavioral insights)
+    if (coachMemories.length > 0) {
+      const memoryLines = coachMemories.map((m) => `- [${m.category}] ${m.content}`).join('\n');
+      systemPrompt += `\n\n=== COACH MEMORY (PERSISTENT INSIGHTS ABOUT THIS ATHLETE) ===
+These are facts you've learned about this athlete over time. Reference them naturally:
+${memoryLines}`;
+    }
+
+    // Inject recent check-in summaries (cross-context awareness)
+    if (recentCheckIns.length > 0) {
+      const checkInLines = recentCheckIns.map((ci) => {
+        const date = ci.created_at?.split('T')[0] || 'Unknown';
+        const rec = ci.recommendation ? ` | Recommended: ${ci.recommendation.action}` : '';
+        return `[${date}] ${ci.narrative}${rec}`;
+      }).join('\n\n');
+      systemPrompt += `\n\n=== RECENT COACHING CHECK-INS (FROM TRAINING DASHBOARD) ===
+These are recent coaching check-ins you generated on the athlete's training dashboard.
+You wrote these — they reflect your prior analysis. Stay consistent with this advice unless new data warrants a change.
+${checkInLines}`;
+    }
 
     if (trainingContext) {
       systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT (INCLUDING RACE CALENDAR) ===
@@ -559,6 +668,7 @@ ${conversationSummary}
     const trainingDataUses = toolUses.filter(tool => tool.name === 'query_training_data');
     const planCreationUses = toolUses.filter(tool => tool.name === 'create_training_plan');
     const fuelPlanUses = toolUses.filter(tool => tool.name === 'generate_fuel_plan');
+    const memoryUses = toolUses.filter(tool => tool.name === 'save_coach_memory');
 
     // Detailed logging for debugging
     console.log(`🤖 Coach response: ${toolUses.length} tool uses`);
@@ -566,26 +676,53 @@ ${conversationSummary}
     console.log(`   - Fitness history queries: ${fitnessHistoryUses.length}`);
     console.log(`   - Training data queries: ${trainingDataUses.length}`);
     console.log(`   - Plan creations: ${planCreationUses.length}`);
+    console.log(`   - Memory saves: ${memoryUses.length}`);
     if (planCreationUses.length > 0) {
       console.log(`   - Plan creation input:`, JSON.stringify(planCreationUses[0].input, null, 2));
     }
 
     // Handle server-side tool calls that require a continuation turn
-    // (fitness history and training data queries both need server-side processing)
-    const serverSideTools = [...fitnessHistoryUses, ...trainingDataUses];
+    // (fitness history and training data queries need server-side processing)
+    // Memory saves are also processed here so Claude gets confirmation before responding.
+    const serverSideTools = [...fitnessHistoryUses, ...trainingDataUses, ...memoryUses];
 
-    if (serverSideTools.length > 0 && userId) {
+    if (serverSideTools.length > 0 && verifiedUserId) {
       const toolResults = [];
 
       for (const tool of serverSideTools) {
         try {
           let result;
           if (tool.name === 'query_fitness_history') {
-            console.log(`🤖 Fitness history tool requested. userId: ${userId}`);
-            result = await handleFitnessHistoryQuery(userId, tool.input);
+            console.log(`🤖 Fitness history tool requested. userId: ${verifiedUserId}`);
+            result = await handleFitnessHistoryQuery(verifiedUserId, tool.input);
           } else if (tool.name === 'query_training_data') {
-            console.log(`📋 Training data query requested. userId: ${userId}`);
-            result = await handleTrainingDataQuery(userId, tool.input);
+            console.log(`📋 Training data query requested. userId: ${verifiedUserId}`);
+            result = await handleTrainingDataQuery(verifiedUserId, tool.input);
+          } else if (tool.name === 'save_coach_memory') {
+            console.log(`🧠 Saving coach memory: [${tool.input.category}] ${tool.input.content}`);
+            // Calculate expiry for short/medium memories
+            let expiresAt = null;
+            if (tool.input.memory_type === 'short') {
+              expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            } else if (tool.input.memory_type === 'medium') {
+              expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+            }
+            const { error: memError } = await supabase
+              .from('coach_memory')
+              .insert({
+                user_id: verifiedUserId,
+                memory_type: tool.input.memory_type,
+                category: tool.input.category,
+                content: tool.input.content,
+                source_type: 'conversation',
+                expires_at: expiresAt,
+              });
+            if (memError) {
+              console.error('Failed to save coach memory:', memError);
+              result = { success: false, error: 'Failed to save memory' };
+            } else {
+              result = { success: true, saved: tool.input.content };
+            }
           }
           toolResults.push({
             type: 'tool_result',

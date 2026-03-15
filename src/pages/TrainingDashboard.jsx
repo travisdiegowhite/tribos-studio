@@ -64,6 +64,7 @@ import {
   IconTrophy,
   IconBike,
   IconRun,
+  IconSparkles,
 } from '@tabler/icons-react';
 import { tokens, depth } from '../theme';
 import AppShell from '../components/AppShell.jsx';
@@ -71,7 +72,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { useActivation } from '../hooks/useActivation';
 import { parsePlanStartDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
-import { CoachCard } from '../components/coach';
+import { CoachCard, CheckInPage } from '../components/coach';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
 // TrainingPlanBrowser moved to PlannerPage
@@ -129,7 +130,7 @@ function TrainingDashboard() {
   // Read tab from URL query parameter, default to 'today'
   // Note: 'plans' tab moved to /planner page
   const urlTab = searchParams.get('tab');
-  const validTabs = ['today', 'trends', 'power', 'routes', 'history', 'insights', 'calendar'];
+  const validTabs = ['coach', 'today', 'trends', 'power', 'routes', 'history', 'insights', 'calendar'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [timeRange, setTimeRange] = useState('30');
@@ -202,7 +203,11 @@ function TrainingDashboard() {
       const dateStr = activity.start_date?.split('T')[0];
       if (dateStr && dailyTSS[dateStr]) {
         let activityTSS;
-        if (activity.average_watts && ftp) {
+
+        // Prefer stored TSS (from provider or FIT file analysis)
+        if (activity.tss != null && activity.tss > 0) {
+          activityTSS = activity.tss;
+        } else if (activity.average_watts && ftp) {
           activityTSS = calculateTSS(
             activity.moving_time,
             activity.average_watts,
@@ -216,7 +221,10 @@ function TrainingDashboard() {
             'endurance'
           );
         }
-        dailyTSS[dateStr].tss += activityTSS || 0;
+
+        // Cap TSS to prevent corrupted data from breaking metrics
+        activityTSS = Math.min(activityTSS || 0, 500);
+        dailyTSS[dateStr].tss += activityTSS;
       }
     });
 
@@ -562,9 +570,11 @@ function TrainingDashboard() {
 
     const stats = filtered.reduce(
       (acc, a) => {
-        // Calculate TSS for this activity
+        // Prefer stored TSS, fall back to recomputation, cap at 500
         let activityTSS;
-        if (a.average_watts && ftp) {
+        if (a.tss != null && a.tss > 0) {
+          activityTSS = a.tss;
+        } else if (a.average_watts && ftp) {
           activityTSS = calculateTSS(a.moving_time, a.average_watts, ftp);
         } else {
           activityTSS = estimateTSS(
@@ -574,13 +584,14 @@ function TrainingDashboard() {
             'endurance'
           );
         }
+        activityTSS = Math.min(activityTSS || 0, 500);
 
         const sport = getSportTypeForActivity(a);
         const sportBucket = sport === 'running' ? acc.running : sport === 'cycling' ? acc.cycling : acc.other;
         sportBucket.distance += (a.distance || 0);
         sportBucket.time += (a.moving_time || 0);
         sportBucket.elevation += (a.total_elevation_gain || 0);
-        sportBucket.tss += (activityTSS || 0);
+        sportBucket.tss += activityTSS;
         sportBucket.count += 1;
         if (sport === 'cycling' && a.average_watts > 0) {
           sportBucket.totalPower += a.average_watts;
@@ -621,12 +632,16 @@ function TrainingDashboard() {
     return stats;
   }, [visibleActivities, timeRange, ftp]);
 
-  // Calculate true weekly stats (always 7 days, independent of timeRange)
+  // Calculate true weekly stats (Monday-Sunday of current week)
   const actualWeeklyStats = useMemo(() => {
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const thisMonday = new Date(today);
+    thisMonday.setDate(thisMonday.getDate() + mondayOffset);
+    thisMonday.setHours(0, 0, 0, 0);
 
-    const weeklyActivities = visibleActivities.filter(a => new Date(a.start_date) >= weekAgo);
+    const weeklyActivities = visibleActivities.filter(a => new Date(a.start_date) >= thisMonday);
 
     return weeklyActivities.reduce(
       (acc, a) => {
@@ -976,6 +991,12 @@ function TrainingDashboard() {
             >
               <Tabs.List grow={!isMobile} justify={isMobile ? 'center' : undefined}>
                 <Tabs.Tab
+                  value="coach"
+                  leftSection={<IconSparkles size={isMobile ? 20 : 18} />}
+                >
+                  {!isMobile && 'Coach'}
+                </Tabs.Tab>
+                <Tabs.Tab
                   value="today"
                   leftSection={<IconTarget size={isMobile ? 20 : 18} />}
                 >
@@ -1022,6 +1043,15 @@ function TrainingDashboard() {
 
             {/* Tab Panels */}
             <Box mt="md">
+              {/* COACH TAB - AI Coaching Check-Ins */}
+              <Tabs.Panel value="coach">
+                <CheckInPage
+                  plannedWorkouts={plannedWorkouts}
+                  activities={visibleActivities}
+                  ftp={ftp}
+                />
+              </Tabs.Panel>
+
               {/* TODAY TAB - Streamlined Layout */}
               <Tabs.Panel value="today">
                 <Stack gap="md">
@@ -2621,10 +2651,35 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
   }
 
   if (activities.length > 0) {
-    const lastActivity = activities[0];
-    const lastSport = getSportTypeForActivity(lastActivity);
-    const label = lastSport === 'running' ? 'Last run' : lastSport === 'other' ? 'Last activity' : 'Last ride';
-    context.push(`${label}: ${lastActivity.name} - ${formatDist(lastActivity.distance / 1000)}`);
+    context.push(`\n--- Recent Activities ---`);
+    const recentActivities = activities.slice(0, 7);
+    recentActivities.forEach((a, i) => {
+      const date = a.start_date ? new Date(a.start_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '?';
+      const sport = getSportTypeForActivity(a);
+      const typeLabel = sport === 'running' ? 'Run' : sport === 'cycling' ? 'Ride' : a.type || 'Activity';
+      const dist = a.distance ? formatDist(a.distance / 1000) : '';
+      const dur = a.moving_time ? formatTime(a.moving_time) : '';
+      const power = (sport === 'cycling' && a.average_watts) ? `${Math.round(a.average_watts)}W avg` : '';
+
+      // Use stored TSS, or recompute with cap
+      let tss = 0;
+      if (a.tss != null && a.tss > 0) {
+        tss = a.tss;
+      } else if (a.average_watts && ftp) {
+        tss = calculateTSS(a.moving_time, a.average_watts, ftp) || 0;
+      } else {
+        tss = estimateTSS((a.moving_time || 0) / 60, (a.distance || 0) / 1000, a.total_elevation_gain || 0, 'endurance');
+      }
+      tss = Math.min(tss, 500);
+
+      const parts = [a.name || typeLabel, `(${typeLabel})`];
+      if (dist) parts.push(dist);
+      if (dur) parts.push(dur);
+      if (power) parts.push(power);
+      parts.push(`${Math.round(tss)} TSS`);
+
+      context.push(`${i + 1}. ${date}: ${parts.join(', ')}`);
+    });
     context.push(`Activity history available for analysis (use query_fitness_history tool for historical comparisons)`);
   }
 
@@ -2822,6 +2877,16 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
       context.push(`\n--- TRAINING CALENDAR (PLANNED WORKOUTS) ---`);
       context.push(`IMPORTANT: These are the workouts currently scheduled on the athlete's training calendar. Reference this when discussing their schedule, suggesting changes, or advising on load management.`);
 
+      // Build date-to-activities lookup for actual vs planned comparison
+      const activityByDate = {};
+      activities.forEach(a => {
+        const dateStr = a.start_date?.split('T')[0];
+        if (dateStr) {
+          if (!activityByDate[dateStr]) activityByDate[dateStr] = [];
+          activityByDate[dateStr].push(a);
+        }
+      });
+
       const formatWorkoutLine = (w) => {
         const wDate = new Date(w.scheduled_date + 'T12:00:00');
         const dayLabel = dayNames[wDate.getDay()];
@@ -2830,11 +2895,33 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
         const todayTag = isToday ? ' ** TODAY **' : '';
         const status = w.completed ? 'DONE' : w.skipped_reason ? 'SKIPPED' : 'planned';
         const typeParts = [];
-        if (w.name) typeParts.push(w.name);
-        else if (w.workout_type) typeParts.push(w.workout_type);
-        if (w.duration_minutes || w.target_duration) typeParts.push(`${w.duration_minutes || w.target_duration} min`);
+        typeParts.push(w.name || w.workout_type || w.workout_id || 'Workout');
+        const dur = w.duration_minutes || w.target_duration;
+        if (dur) typeParts.push(`${dur}min`);
         if (w.target_tss) typeParts.push(`~${w.target_tss} TSS`);
-        return `  ${dayLabel} ${dateLabel}${todayTag}: [${status}] ${typeParts.join(', ')}`;
+
+        let actualStr = '';
+        if (w.completed && w.scheduled_date) {
+          const dayActivities = activityByDate[w.scheduled_date];
+          if (dayActivities && dayActivities.length > 0) {
+            const bestMatch = dayActivities[0];
+            let actualTSS = 0;
+            if (bestMatch.tss != null && bestMatch.tss > 0) {
+              actualTSS = bestMatch.tss;
+            } else if (bestMatch.average_watts && ftp) {
+              actualTSS = calculateTSS(bestMatch.moving_time, bestMatch.average_watts, ftp) || 0;
+            } else {
+              actualTSS = estimateTSS((bestMatch.moving_time || 0) / 60, (bestMatch.distance || 0) / 1000, bestMatch.total_elevation_gain || 0, 'endurance');
+            }
+            actualTSS = Math.min(actualTSS, 500);
+            actualStr = ` -> actual ${Math.round(actualTSS)} TSS`;
+            if (w.target_tss && w.target_tss > 0) {
+              actualStr += ` (${Math.round(actualTSS / w.target_tss * 100)}%)`;
+            }
+          }
+        }
+
+        return `  ${dayLabel} ${dateLabel}${todayTag}: [${status}] ${typeParts.join(', ')}${actualStr}`;
       };
 
       if (thisWeekWorkouts.length > 0) {

@@ -815,7 +815,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           .from('user_training_preferences')
           .select('*')
           .eq('user_id', user.id)
-          .single(),
+          .maybeSingle(),
       ]);
 
       // Build weekly availability array

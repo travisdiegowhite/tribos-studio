@@ -19,9 +19,9 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-mantine': ['@mantine/core', '@mantine/hooks', '@mantine/form', '@mantine/notifications', '@mantine/charts'],
+          'vendor-mantine': ['@mantine/core', '@mantine/hooks', '@mantine/form', '@mantine/notifications'],
           'vendor-map': ['mapbox-gl', 'react-map-gl', '@turf/turf'],
-          'vendor-charts': ['recharts'],
+          'vendor-charts': ['recharts', '@mantine/charts'],
         },
       },
     },
