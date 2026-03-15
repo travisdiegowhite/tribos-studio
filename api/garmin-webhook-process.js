@@ -231,20 +231,36 @@ async function processActivityEvent(event) {
 }
 
 async function handleExistingActivity(event, existing, integration) {
-  const fitFileUrl = event.file_url;
+  // Extract FIT URL from event column OR from webhook payload callbackURL
+  const parsed = parseWebhookPayload(event.payload || {});
+  const idx = event.batch_index || 0;
+  const webhookInfo = parsed.items.length > 0 ? (parsed.items[idx] || parsed.items[0]) : (event.payload || {});
+  const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
+
   const needsGps = !existing.map_summary_polyline;
   const needsAvgPower = !existing.average_watts;
   const needsPowerMetrics = !existing.normalized_power && !existing.power_curve_summary;
   const needsStreams = !existing.activity_streams;
   const needsAnalytics = !existing.ride_analytics;
-  const needsFitData = (needsGps || needsPowerMetrics || needsAvgPower || needsStreams || needsAnalytics) && fitFileUrl;
+  const needsAnyFitData = needsGps || needsPowerMetrics || needsAvgPower || needsStreams || needsAnalytics;
+  const needsFitData = needsAnyFitData && fitFileUrl;
 
   if (!needsFitData) {
+    // If data is missing but we have no FIT URL, request a backfill
+    if (needsAnyFitData && !fitFileUrl) {
+      const startTime = webhookInfo?.startTimeInSeconds;
+      if (integration.access_token && startTime) {
+        await requestActivityDetailsBackfill(integration.access_token, startTime);
+        console.log(`[FIT:BACKFILL] Requested backfill for existing activity missing FIT data: ${event.activity_id}`);
+      }
+      await markEventProcessed(event.id, 'Already imported, missing FIT data - backfill requested', existing.id);
+      return;
+    }
     await markEventProcessed(event.id, 'Already imported', existing.id);
     return;
   }
 
-  console.log('📍 Activity exists but missing data, attempting FIT file download:', event.activity_id);
+  console.log(`[FIT:DOWNLOAD] Activity ${event.activity_id} exists but missing data (GPS:${needsGps} power:${needsPowerMetrics} streams:${needsStreams} analytics:${needsAnalytics}), downloading FIT from: ${fitFileUrl ? 'URL available' : 'no URL'}`);
   const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token);
 
   const activityUpdate = { updated_at: new Date().toISOString() };
@@ -295,9 +311,10 @@ async function handleExistingActivity(event, existing, integration) {
     if (updateError) {
       throw new Error(`Update failed: ${updateError.message}`);
     }
-    console.log(`✅ Data added to existing activity: ${updates.join(', ')}`);
+    console.log(`[FIT:SUCCESS] Data added to existing activity ${existing.id}: ${updates.join(', ')}`);
     await markEventProcessed(event.id, `Data added: ${updates.join(', ')}`, existing.id);
   } else {
+    console.log(`[FIT:SKIP] FIT file parsed but no new data for activity ${existing.id}`);
     await markEventProcessed(event.id, 'Already imported, no new data in FIT file', existing.id);
   }
 }
@@ -421,6 +438,7 @@ async function downloadAndProcessActivity(event, integration) {
   // FIT file processing
   const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
   if (fitFileUrl && integration.access_token) {
+    console.log(`[FIT:DOWNLOAD] Processing FIT file for new activity ${activity.id}`);
     await processFitFile(activity.id, fitFileUrl, integration.access_token);
   } else {
     // Request backfill for outdoor activities without FIT URL
@@ -429,7 +447,10 @@ async function downloadAndProcessActivity(event, integration) {
       (activityInfo.activityType || '').toLowerCase().includes('virtual');
 
     if (!isIndoorActivity && activityInfo.startTimeInSeconds) {
+      console.log(`[FIT:BACKFILL] No FIT URL for activity ${activity.id}, requesting backfill`);
       await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
+    } else {
+      console.log(`[FIT:SKIP] No FIT URL for activity ${activity.id} (indoor: ${isIndoorActivity})`);
     }
   }
 
@@ -518,6 +539,32 @@ async function handleDuplicateActivity(event, integration, activityData, activit
       raw_data: activityData.raw_data
     };
     await mergeActivityData(dupCheck.existingActivity.id, garminData, 'garmin');
+
+    // Also process FIT file if available and activity is missing detailed data
+    const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
+    if (fitFileUrl && integration.access_token) {
+      try {
+        const { data: existingFull } = await supabase
+          .from('activities')
+          .select('activity_streams, power_curve_summary, ride_analytics')
+          .eq('id', dupCheck.existingActivity.id)
+          .single();
+
+        const needsFitData = existingFull && (
+          !existingFull.activity_streams ||
+          !existingFull.power_curve_summary ||
+          !existingFull.ride_analytics
+        );
+
+        if (needsFitData) {
+          await processFitFile(dupCheck.existingActivity.id, fitFileUrl, integration.access_token);
+          console.log('[FIT:SUCCESS] FIT data added via merge path');
+        }
+      } catch (fitError) {
+        console.warn('⚠️ FIT processing in merge path failed:', fitError.message);
+      }
+    }
+
     if (activityInfo.startTimeInSeconds) {
       await updateBackfillChunkIfApplicable(integration.user_id, activityInfo.startTimeInSeconds);
     }
@@ -550,7 +597,7 @@ async function processFitFile(activityId, fitFileUrl, accessToken) {
       if (pm.workKj) activityUpdate.kilojoules = pm.workKj;
       activityUpdate.device_watts = true;
 
-      console.log(`⚡ Power metrics from FIT: Avg=${pm.avgPower}W, NP=${pm.normalizedPower}W, Max=${pm.maxPower}W, Work=${pm.workKj}kJ`);
+      console.log(`[FIT:SUCCESS] Power metrics: Avg=${pm.avgPower}W, NP=${pm.normalizedPower}W, Max=${pm.maxPower}W, Work=${pm.workKj}kJ`);
     }
 
     // Store advanced ride analytics

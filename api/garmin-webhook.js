@@ -91,12 +91,15 @@ export default async function handler(req, res) {
 
       // Quick duplicate check for activity webhooks (avoid storing dupes)
       if (activityId && parsed.type !== 'HEALTH') {
-        const { data: existingEvent } = await supabase
+        const { data: existingEvents } = await supabase
           .from('garmin_webhook_events')
           .select('id, file_url')
           .eq('activity_id', activityId)
           .eq('garmin_user_id', userId)
-          .maybeSingle();
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        const existingEvent = existingEvents?.[0] || null;
 
         if (existingEvent) {
           const hasNewFileUrl = fileUrl && !existingEvent.file_url;
@@ -115,11 +118,44 @@ export default async function handler(req, res) {
               })
               .eq('id', existingEvent.id);
 
-            console.log('📍 Updated existing event with FIT URL:', activityId);
+            console.log(`[FIT:MATCH] Updated existing event ${existingEvent.id} with FIT URL for activity: ${activityId}`);
             eventIds.push(existingEvent.id);
           } else {
-            console.log('ℹ️ Duplicate ignored:', activityId);
+            console.log(`[FIT:SKIP] Duplicate webhook ignored for activity: ${activityId} (hasNewFileUrl: ${hasNewFileUrl}, isFileData: ${isFileDataWebhook})`);
           }
+          batchIndex++;
+          continue;
+        }
+      }
+
+      // Secondary match: PING with FIT URL but no exact activity_id match
+      // Try to find a recent PUSH event for this user that needs a FIT URL
+      if (!activityId && parsed.type === 'ACTIVITY_FILE_DATA' && fileUrl) {
+        const recentWindow = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+        const { data: recentPush } = await supabase
+          .from('garmin_webhook_events')
+          .select('id, file_url, activity_id')
+          .eq('garmin_user_id', userId)
+          .is('file_url', null)
+          .gte('created_at', recentWindow)
+          .in('event_type', ['CONNECT_ACTIVITY', 'ACTIVITY_DETAIL'])
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (recentPush?.[0]) {
+          await supabase
+            .from('garmin_webhook_events')
+            .update({
+              file_url: fileUrl,
+              processed: false,
+              process_error: null,
+              retry_count: 0,
+              next_retry_at: null
+            })
+            .eq('id', recentPush[0].id);
+
+          console.log(`[FIT:MATCH] Matched PING to recent PUSH event ${recentPush[0].activity_id} by userId+time`);
+          eventIds.push(recentPush[0].id);
           batchIndex++;
           continue;
         }
