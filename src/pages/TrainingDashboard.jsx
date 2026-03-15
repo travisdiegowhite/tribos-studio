@@ -425,9 +425,11 @@ function TrainingDashboard() {
       try {
         // Check if user has Garmin connected
         const status = await garminService.getConnectionStatus();
-        if (!status.connected || status.tokenExpired) {
-          return; // Not connected or token expired
+        if (!status.connected) {
+          return; // Not connected
         }
+        // Note: Don't skip on tokenExpired - the server-side getValidAccessToken()
+        // automatically refreshes tokens. Skipping here prevents recovery.
 
         console.log('🔄 Running automatic Garmin sync...');
 
