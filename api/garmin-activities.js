@@ -615,14 +615,16 @@ async function reprocessFailedEvents(req, res, userId) {
 
         // Check if activity already exists in database
         if (activityId) {
-          const { data: existing } = await supabase
+          const { data: existingRows } = await supabase
             .from('activities')
             .select('id')
             .eq('provider_activity_id', activityId)
             .eq('user_id', userId)
             .eq('provider', 'garmin')
-            .maybeSingle();
+            .order('created_at', { ascending: false })
+            .limit(1);
 
+          const existing = existingRows?.[0] || null;
           if (existing) {
             // Activity already imported - just update the webhook event
             await supabase
@@ -881,13 +883,15 @@ async function backfillGpsData(req, res, userId) {
 
         // Check webhook events table for this activity
         if (!fitFileUrl && activity.provider_activity_id) {
-          const { data: webhookEvent } = await supabase
+          const { data: webhookEvents } = await supabase
             .from('garmin_webhook_events')
             .select('file_url, payload')
             .eq('activity_id', activity.provider_activity_id)
             .eq('garmin_user_id', integration.provider_user_id)
-            .maybeSingle();
+            .order('created_at', { ascending: false })
+            .limit(1);
 
+          const webhookEvent = webhookEvents?.[0] || null;
           if (webhookEvent) {
             fitFileUrl = webhookEvent.file_url ||
                          webhookEvent.payload?.activityFiles?.[0]?.callbackURL ||
@@ -1273,13 +1277,15 @@ async function backfillPowerData(req, res, userId) {
 
         // Check webhook events table for this activity
         if (!fitFileUrl && activity.provider_activity_id) {
-          const { data: webhookEvent } = await supabase
+          const { data: webhookEvents } = await supabase
             .from('garmin_webhook_events')
             .select('file_url, payload')
             .eq('activity_id', activity.provider_activity_id)
             .eq('garmin_user_id', integration.provider_user_id)
-            .maybeSingle();
+            .order('created_at', { ascending: false })
+            .limit(1);
 
+          const webhookEvent = webhookEvents?.[0] || null;
           if (webhookEvent) {
             fitFileUrl = webhookEvent.file_url ||
                          webhookEvent.payload?.activityFiles?.[0]?.callbackURL ||
@@ -1592,13 +1598,15 @@ async function backfillStreamsData(req, res, userId) {
 
         // Check webhook events table for this activity
         if (!fitFileUrl && activity.provider_activity_id) {
-          const { data: webhookEvent } = await supabase
+          const { data: webhookEvents } = await supabase
             .from('garmin_webhook_events')
             .select('file_url, payload')
             .eq('activity_id', activity.provider_activity_id)
             .eq('garmin_user_id', integration.provider_user_id)
-            .maybeSingle();
+            .order('created_at', { ascending: false })
+            .limit(1);
 
+          const webhookEvent = webhookEvents?.[0] || null;
           if (webhookEvent) {
             fitFileUrl = webhookEvent.file_url ||
                          webhookEvent.payload?.activityFiles?.[0]?.callbackURL ||
