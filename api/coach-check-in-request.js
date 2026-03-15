@@ -144,8 +144,11 @@ export default async function handler(req, res) {
       .single();
 
     if (insertError) {
-      console.error('Failed to insert check-in:', insertError.message);
-      return res.status(500).json({ error: 'insert_failed', message: 'Failed to create check-in.' });
+      console.error('Failed to insert check-in:', insertError.message, insertError.details, insertError.hint);
+      return res.status(500).json({
+        error: 'insert_failed',
+        message: `Failed to create check-in: ${insertError.message}`,
+      });
     }
 
     // Fire-and-forget: trigger generation
