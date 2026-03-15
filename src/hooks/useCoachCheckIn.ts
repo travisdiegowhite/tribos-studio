@@ -2,10 +2,13 @@
  * useCoachCheckIn Hook
  *
  * Manages coach check-in state: fetches latest check-in, persona info,
- * handles accept/dismiss decisions, and subscribes to real-time updates.
+ * handles accept/dismiss decisions, and requests new check-ins.
+ *
+ * Simplified: check-in request is synchronous (like coach chat).
+ * No realtime subscriptions or polling needed.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type {
   CheckIn,
@@ -39,7 +42,6 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
   const [currentDecision, setCurrentDecision] = useState<CheckInDecision | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
-  const pendingCheckInIdRef = useRef<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!userId) {
@@ -106,82 +108,6 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // Subscribe to real-time updates for new check-ins
-  useEffect(() => {
-    if (!userId) return;
-
-    const channel = supabase
-      .channel(`check-ins-${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'coach_check_ins',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          const newRow = payload.new as CheckIn;
-          if (newRow?.status === 'completed') {
-            pendingCheckInIdRef.current = null;
-            setGenerating(false);
-            setGenerateError(null);
-            fetchData();
-          } else if (newRow?.status === 'failed') {
-            pendingCheckInIdRef.current = null;
-            setGenerating(false);
-            setGenerateError('Check-in generation failed. Try again later.');
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, fetchData]);
-
-  // Timeout fallback: if realtime never fires, poll the check-in status directly
-  useEffect(() => {
-    if (!generating) return;
-
-    const pollId = setTimeout(async () => {
-      const checkInId = pendingCheckInIdRef.current;
-      if (!checkInId || !generating) return;
-
-      const { data } = await supabase
-        .from('coach_check_ins')
-        .select('id, status, error_message')
-        .eq('id', checkInId)
-        .maybeSingle();
-
-      if (data?.status === 'completed') {
-        pendingCheckInIdRef.current = null;
-        setGenerating(false);
-        setGenerateError(null);
-        fetchData();
-      } else if (data?.status === 'failed') {
-        pendingCheckInIdRef.current = null;
-        setGenerating(false);
-        setGenerateError(data.error_message || 'Check-in generation failed.');
-      }
-      // If still pending/processing, keep waiting — hard timeout below will catch it
-    }, 30_000);
-
-    const hardTimeoutId = setTimeout(() => {
-      if (pendingCheckInIdRef.current) {
-        pendingCheckInIdRef.current = null;
-        setGenerating(false);
-        setGenerateError('Check-in generation timed out. Please try again.');
-      }
-    }, 90_000);
-
-    return () => {
-      clearTimeout(pollId);
-      clearTimeout(hardTimeoutId);
-    };
-  }, [generating, fetchData]);
 
   const makeDecision = useCallback(async (checkInId: string, decision: DecisionType, summary: string) => {
     if (!userId) return;
@@ -262,17 +188,20 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
 
       if (!response.ok) {
         setGenerateError(result.message || 'Failed to request check-in.');
-        setGenerating(false);
       } else {
-        // Store check-in ID for timeout polling fallback
-        pendingCheckInIdRef.current = result.checkInId || null;
+        // Check-in is returned directly — update state immediately
+        setCurrentCheckIn(result.checkIn as CheckIn);
+        setCurrentDecision(null);
+        setGenerateError(null);
+        // Refresh history in background
+        fetchData();
       }
-      // On success, stay in generating state — real-time subscription will clear it
     } catch {
       setGenerateError('Something went wrong. Please try again.');
+    } finally {
       setGenerating(false);
     }
-  }, [userId, generating]);
+  }, [userId, generating, fetchData]);
 
   return {
     currentCheckIn,
