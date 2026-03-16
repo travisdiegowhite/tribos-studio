@@ -51,6 +51,42 @@
   ],
   "updates": [
     {
+      "id": "coach-check-in",
+      "date": "2026-03",
+      "type": "new",
+      "title": "AI Coaching Check-ins",
+      "description": "Your coach now checks in on you proactively. Each coach persona has a distinct voice and reviews your week — giving you feedback, accountability, and next steps without you having to ask.",
+      "details": [
+        "Persona system with distinct coach voices and personalities",
+        "Proactive weekly check-ins that review your training load and compliance",
+        "Conversational follow-ups and coach memory across sessions"
+      ]
+    },
+    {
+      "id": "route-analysis-export",
+      "date": "2026-03",
+      "type": "new",
+      "title": "Route Analysis & Workout Export",
+      "description": "Routes now detect climbs and key segments automatically. Match segments to workouts from your library and export structured workouts as FIT files to ride on your head unit.",
+      "details": [
+        "Automatic segment detection from route terrain and Strava data",
+        "Workout-segment matching to pair intervals with real road features",
+        "FIT file export for structured workouts on Garmin, Wahoo, and more"
+      ]
+    },
+    {
+      "id": "multi-sport-support",
+      "date": "2026-03",
+      "type": "new",
+      "title": "Multi-Sport Activity Tracking",
+      "description": "Tribos now tracks running and other activities alongside your rides. Sport-specific metrics show up in your dashboard and your AI coach understands your full training picture.",
+      "details": [
+        "Running and cross-training activities synced and displayed",
+        "Sport-specific metrics in your dashboard and Today's Focus card",
+        "AI coaching context includes all your activities, not just cycling"
+      ]
+    },
+    {
       "id": "route-builder-manual-mode",
       "date": "2026-02",
       "type": "new",
