@@ -723,6 +723,7 @@ function SegmentMapView({
 }) {
   const mapRef = useRef<any>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [bounds, setBounds] = useState<{ minLng: number; maxLng: number; minLat: number; maxLat: number } | null>(null);
   const [hoverInfo, setHoverInfo] = useState<{
     longitude: number;
     latitude: number;
@@ -749,14 +750,35 @@ function SegmentMapView({
       })),
   }), [segments]);
 
+  const updateBounds = useCallback((map: any) => {
+    const b = map.getBounds();
+    setBounds({
+      minLng: b.getWest(),
+      maxLng: b.getEast(),
+      minLat: b.getSouth(),
+      maxLat: b.getNorth(),
+    });
+  }, []);
+
+  const visibleSegments = useMemo(() => {
+    return segments.filter(s => {
+      if (!s.geojson?.coordinates?.length) return false;
+      if (!bounds) return true;
+      return s.geojson.coordinates.some(([lng, lat]: [number, number]) =>
+        lng >= bounds.minLng && lng <= bounds.maxLng &&
+        lat >= bounds.minLat && lat <= bounds.maxLat
+      );
+    });
+  }, [segments, bounds]);
+
   const groupedSegments = useMemo(() => {
     const groups: Record<string, SegmentSummary[]> = {};
     for (const terrain of TERRAIN_GROUP_ORDER) {
-      const matching = segments.filter(s => s.terrain_type === terrain && s.geojson?.coordinates?.length);
+      const matching = visibleSegments.filter(s => s.terrain_type === terrain);
       if (matching.length) groups[terrain] = matching;
     }
     return groups;
-  }, [segments]);
+  }, [visibleSegments]);
 
   const initialViewState = useMemo(() => {
     const allCoords = segments.flatMap(s => s.geojson?.coordinates || []);
@@ -851,6 +873,11 @@ function SegmentMapView({
         visibleFrom="sm"
       >
         <Stack gap={0} p="xs">
+          {bounds && (
+            <Text size="xs" c="dimmed" px="xs" py={4} style={{ borderBottom: '1px solid var(--color-border)' }}>
+              {visibleSegments.length} of {segments.filter(s => s.geojson?.coordinates?.length).length} segments in view
+            </Text>
+          )}
           {Object.entries(groupedSegments).map(([terrain, segs]) => (
             <React.Fragment key={terrain}>
               <Group gap="xs" px="xs" py={6}>
@@ -907,6 +934,8 @@ function SegmentMapView({
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setHoverInfo(null)}
           onClick={handleMapClick}
+          onLoad={(e: any) => updateBounds(e.target)}
+          onMoveEnd={(e: any) => updateBounds(e.target)}
           cursor={hoverInfo ? 'pointer' : 'grab'}
           style={{ width: '100%', height: '100%' }}
         >
