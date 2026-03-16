@@ -9,7 +9,8 @@
  * - Health: dailies[], sleeps[], bodyComps[], stressDetails[], hrv[], etc.
  */
 
-const HEALTH_DATA_TYPES = ['dailies', 'epochs', 'sleeps', 'bodyComps', 'stressDetails', 'userMetrics', 'hrv'];
+const HEALTH_DATA_TYPES = ['dailies', 'epochs', 'sleeps', 'bodyComps', 'stressDetails', 'userMetrics', 'hrv',
+  'respirations', 'pulseOx', 'allDayRespiration', 'bloodPressures'];
 
 /**
  * Parse a Garmin webhook payload and return structured result.

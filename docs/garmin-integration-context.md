@@ -458,7 +458,7 @@ March 15: Emergency fixes (4 commits)
 
 ---
 
-## Current State (March 15, 2026)
+## Current State (March 16, 2026)
 
 ### Fixed (code deployed)
 
@@ -467,31 +467,33 @@ March 15: Emergency fixes (4 commits)
 - Missing cron secret → warn and accept (not reject)
 - FIT file URLs extracted from webhook callbackURL (not just event column)
 - PING webhooks matched to recent PUSH events by user + 2-hour window
-- `.maybeSingle()` replaced with `.order().limit(1)` across all lookups
+- `.maybeSingle()` replaced with `.order().limit(1)` across all lookups (including Cloudflare Worker)
 - Frontend auto-sync no longer blocked by expired token state
+- **Webhook URLs switched to Cloudflare Worker** (`garmin-webhook.tribos.workers.dev`) — all webhook types in Garmin Developer Portal now point here instead of `www.tribos.studio/api/garmin-webhook` (Vercel)
+- Health data type arrays synchronized between Cloudflare Worker and Vercel webhook parser
+
+### Why the Cloudflare Worker Matters
+
+The Cloudflare Worker was built specifically to bypass Vercel deployment protection and cold starts, but **was never actually wired up in Garmin's portal until March 16**. All webhooks were hitting the Vercel endpoint the entire time — meaning every Vercel code deploy (like the March 6 security hardening) directly broke webhook reception. With the Cloudflare Worker as the entry point, Vercel code changes cannot break webhook storage — only the cron processor is affected.
 
 ### Needs Verification
 
 | Item | How to Verify |
 |------|---------------|
-| Garmin webhook endpoint is re-enabled | Check Garmin Developer Portal — may need to re-register webhook URL |
+| Cloudflare Worker is receiving webhooks | Sync a Garmin device → check `garmin_webhook_events` for new rows |
 | Tokens are valid/refreshed | Check `garmin-webhook-status` endpoint or Settings → Diagnose |
-| Webhook events are being received | Check `garmin_webhook_events` table for new events after March 15 |
 | Cron jobs are running | Check Vercel dashboard → Functions → Cron for recent invocations |
-| Activities are importing | Sync a ride on Garmin and check if it appears in Tribos |
+| Activities are importing | Sync a ride on Garmin, wait 2-3 min, check Training dashboard |
 | FIT file data is being extracted | Check imported activities for power metrics, GPS, streams |
 | Historical events (4955 failed) can be recovered | Run "Recover Activities" from Settings |
 
 ### Possibly Still Broken
 
-1. **Garmin may have disabled the webhook URL** — After 9 days of 401s, Garmin likely deactivated the endpoint. You may need to:
-   - Log into the Garmin Developer Portal
-   - Check webhook registration status
-   - Re-register the webhook URL if disabled
+1. **User tokens may have fully expired** — If both access AND refresh tokens expired during the 9-day outage, users must reconnect. Check `refresh_token_invalid` flag.
 
-2. **User tokens may have fully expired** — If both access AND refresh tokens expired during the 9-day outage, users must reconnect. Check `refresh_token_invalid` flag.
+2. **4955 failed events** — These may be recoverable via the "Recover Activities" button in Settings, or `reprocessFailedEvents()` in garminService. Events older than 24 hours with FIT URLs will have expired download links — those activities would need a fresh backfill.
 
-3. **4955 failed events** — These may be recoverable via the "Recover Activities" button in Settings, or `reprocessFailedEvents()` in garminService. Events older than 24 hours with FIT URLs will have expired download links — those activities would need a fresh backfill.
+3. **Cloudflare Worker env vars** — Verify `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and `GARMIN_WEBHOOK_SECRET` are set correctly in the Cloudflare dashboard. The Worker was deployed 3 months ago and may have stale values.
 
 ---
 

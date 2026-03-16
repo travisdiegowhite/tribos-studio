@@ -57,12 +57,14 @@ export default {
 
         // Duplicate check for activity webhooks
         if (activityId && type !== 'HEALTH') {
-          const { data: existing } = await supabase
+          const { data: rows } = await supabase
             .from('garmin_webhook_events')
             .select('id, file_url')
             .eq('activity_id', activityId)
             .eq('garmin_user_id', userId)
-            .maybeSingle();
+            .order('created_at', { ascending: false })
+            .limit(1);
+          const existing = rows?.[0] || null;
 
           if (existing) {
             if (type === 'ACTIVITY_FILE_DATA' && fileUrl) {
@@ -137,7 +139,7 @@ async function verifyHmac(secret, signature, body) {
 
 function parsePayload(data) {
   const healthTypes = ['dailies', 'sleeps', 'bodyComps', 'stressDetails', 'hrv',
-    'epochs', 'respirations', 'pulseOx', 'allDayRespiration', 'bloodPressures'];
+    'epochs', 'respirations', 'pulseOx', 'allDayRespiration', 'bloodPressures', 'userMetrics'];
   for (const ht of healthTypes) {
     if (data[ht]?.length) return { type: 'HEALTH', healthType: ht, items: data[ht] };
   }
