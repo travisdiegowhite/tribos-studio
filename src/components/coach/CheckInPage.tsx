@@ -15,6 +15,7 @@ import CheckInNarrative from './CheckInNarrative';
 import CheckInWeekBar from './CheckInWeekBar';
 import CheckInRecommendationCard from './CheckInRecommendation';
 import CheckInAcknowledgment from './CheckInAcknowledgment';
+import CheckInThread from './CheckInThread';
 import IntakeInterview from './IntakeInterview';
 import type { PersonaId, DecisionType } from '../../types/checkIn';
 
@@ -22,9 +23,10 @@ interface CheckInPageProps {
   plannedWorkouts?: any[];
   activities?: any[];
   ftp?: number | null;
+  trainingContext?: string | null;
 }
 
-export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp = null }: CheckInPageProps) {
+export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp = null, trainingContext = null }: CheckInPageProps) {
   const { user } = useAuth();
   const userId = user?.id;
   const {
@@ -188,6 +190,12 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
           decision={currentDecision.decision as DecisionType}
         />
       )}
+
+      {/* Conversation thread — ask about this check-in */}
+      <CheckInThread
+        checkInId={currentCheckIn.id}
+        trainingContext={trainingContext}
+      />
     </Stack>
   );
 }

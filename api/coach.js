@@ -353,6 +353,7 @@ export default async function handler(req, res) {
       maxTokens = 1024,
       quickMode = false,
       userAvailability = null,
+      checkInId = null,
     } = req.body;
 
     if (!message || typeof message !== 'string') {
@@ -406,9 +407,9 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Fetch persona, coach memory, recent check-ins, and calendar in parallel
+    // Fetch persona, coach memory, recent check-ins, calendar, and (optionally) the specific check-in for threading
     // These give the command bar coach the same "identity" as the check-in coach
-    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult] = await Promise.all([
+    const parallelFetches = [
       supabase
         .from('user_coach_settings')
         .select('coaching_persona, user_preferred_name')
@@ -432,9 +433,21 @@ export default async function handler(req, res) {
         console.error('Calendar context fetch failed (non-blocking):', err.message);
         return null;
       }),
-    ]);
+      // If this is a check-in thread, fetch the full check-in for rich context
+      checkInId
+        ? supabase
+            .from('coach_check_ins')
+            .select('id, persona_id, narrative, deviation_callout, recommendation, next_session_purpose, context_snapshot, created_at')
+            .eq('id', checkInId)
+            .eq('user_id', verifiedUserId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ];
+
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult] = await Promise.all(parallelFetches);
 
     const coachSettings = coachSettingsResult.data;
+    const activeCheckIn = checkInResult?.data || null;
     const coachMemories = coachMemoryResult.data || [];
     const recentCheckIns = recentCheckInsResult.data || [];
     const calendarContext = calendarContextResult;
@@ -578,6 +591,26 @@ IMPORTANT: Use this real-time calendar data when recommending workouts or discus
 - When recommending a workout, match its duration to an available window
 - If they ask "when can I ride?", reference their actual free time above
 - Do NOT suggest workout times that conflict with their calendar events or work hours`;
+    }
+
+    // Inject the specific check-in being discussed (for check-in thread conversations)
+    if (activeCheckIn) {
+      const rec = activeCheckIn.recommendation;
+      const recText = rec ? `\nRecommendation: ${rec.action || ''} — ${rec.detail || ''}\nReasoning: ${rec.reasoning || ''}` : '';
+      systemPrompt += `\n\n=== ACTIVE CHECK-IN BEING DISCUSSED ===
+The athlete is asking about a specific coaching check-in you generated on ${activeCheckIn.created_at?.split('T')[0] || 'recently'}.
+This is YOUR analysis — you wrote it. Answer questions about it as the same coach, with full confidence.
+
+Your Narrative:
+${activeCheckIn.narrative || '(none)'}
+${activeCheckIn.deviation_callout ? `\nDeviation Callout: ${activeCheckIn.deviation_callout}` : ''}
+${recText}
+${activeCheckIn.next_session_purpose ? `\nNext Session Purpose: ${activeCheckIn.next_session_purpose}` : ''}
+
+IMPORTANT:
+- The athlete may ask "why did you say X?" or "what do you mean by Y?" — answer directly from this check-in.
+- If they ask for alternatives or disagree with the recommendation, engage thoughtfully.
+- You have the full context that was used to generate this check-in — use it.`;
     }
 
     systemPrompt += `\n\n=== INSTRUCTIONS ===
