@@ -36,6 +36,8 @@ function getSupabase() {
 // CONFIGURATION
 // ============================================================================
 
+const MAPBOX_ACCESS_TOKEN = process.env.MAPBOX_ACCESS_TOKEN || process.env.VITE_MAPBOX_ACCESS_TOKEN;
+
 const CONFIG = {
   // Minimum activity requirements for segment analysis
   MIN_DISTANCE_METERS: 2000,       // 2km minimum ride distance
@@ -796,8 +798,10 @@ async function createNewSegment(supabase, userId, segment, dataQualityTier = 'me
   // Calculate obstruction score
   const obstruction = calculateObstruction(segment);
 
-  // Generate name
-  const autoName = generateAutoName(segment);
+  // Generate name with location
+  const locationName = await reverseGeocode(segment.startLat, segment.startLng);
+  const baseName = generateAutoName(segment);
+  const autoName = locationName ? `${locationName} ${baseName}` : baseName;
   const description = generateDescription(segment);
 
   const { data, error } = await supabase
@@ -1142,6 +1146,26 @@ function calculateObstruction(segment) {
   }
 
   return { overall, maxUninterrupted };
+}
+
+/**
+ * Reverse geocode coordinates to get a locality/neighborhood name.
+ * Returns the most specific place name available (neighborhood > locality > place).
+ */
+async function reverseGeocode(lat, lng) {
+  if (!MAPBOX_ACCESS_TOKEN || !lat || !lng) return null;
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_ACCESS_TOKEN}&types=neighborhood,locality,place&limit=1`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const feature = data.features?.[0];
+    if (!feature) return null;
+    // Use the short text (e.g. "Hawk Hill", "Marina District")
+    return feature.text || null;
+  } catch {
+    return null;
+  }
 }
 
 function generateAutoName(segment) {
