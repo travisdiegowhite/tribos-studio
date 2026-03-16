@@ -47,8 +47,9 @@ import {
   IconActivity,
   IconRoad,
   IconTrendingUp,
+  IconLayoutGrid,
 } from '@tabler/icons-react';
-import Map, { Source, Layer, Marker } from 'react-map-gl';
+import Map, { Source, Layer, Marker, Popup } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -702,6 +703,160 @@ function SegmentDetailModal({
 }
 
 // ============================================================================
+// SEGMENT MAP VIEW
+// ============================================================================
+
+function SegmentMapView({
+  segments,
+  onSegmentClick,
+}: {
+  segments: SegmentSummary[];
+  onSegmentClick: (segmentId: string) => void;
+}) {
+  const [hoverInfo, setHoverInfo] = useState<{
+    longitude: number;
+    latitude: number;
+    name: string;
+    distance: string;
+    gradient: string;
+    segmentId: string;
+  } | null>(null);
+
+  const featureCollection = useMemo(() => ({
+    type: 'FeatureCollection' as const,
+    features: segments
+      .filter(s => s.geojson?.coordinates?.length)
+      .map(s => ({
+        type: 'Feature' as const,
+        properties: {
+          id: s.id,
+          terrain_type: s.terrain_type,
+          display_name: s.display_name || s.auto_name || 'Unnamed',
+          distance: `${(s.distance_meters / 1000).toFixed(1)} km`,
+          gradient: `${s.avg_gradient.toFixed(1)}%`,
+        },
+        geometry: s.geojson!,
+      })),
+  }), [segments]);
+
+  const initialViewState = useMemo(() => {
+    const allCoords = segments.flatMap(s => s.geojson?.coordinates || []);
+    if (!allCoords.length) return { longitude: -98.5, latitude: 39.8, zoom: 3 };
+    let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    allCoords.forEach(([lng, lat]) => {
+      minLng = Math.min(minLng, lng);
+      maxLng = Math.max(maxLng, lng);
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+    });
+    const maxSpan = Math.max(maxLng - minLng, maxLat - minLat);
+    let zoom = 12;
+    if (maxSpan > 1) zoom = 7;
+    else if (maxSpan > 0.5) zoom = 8;
+    else if (maxSpan > 0.2) zoom = 9;
+    else if (maxSpan > 0.1) zoom = 10;
+    else if (maxSpan > 0.05) zoom = 11;
+    return {
+      longitude: (minLng + maxLng) / 2,
+      latitude: (minLat + maxLat) / 2,
+      zoom,
+    };
+  }, [segments]);
+
+  const handleMouseMove = useCallback((e: any) => {
+    const feature = e.features?.[0];
+    if (feature) {
+      const props = feature.properties;
+      setHoverInfo({
+        longitude: e.lngLat.lng,
+        latitude: e.lngLat.lat,
+        name: props.display_name,
+        distance: props.distance,
+        gradient: props.gradient,
+        segmentId: props.id,
+      });
+    } else {
+      setHoverInfo(null);
+    }
+  }, []);
+
+  const handleClick = useCallback((e: any) => {
+    const feature = e.features?.[0];
+    if (feature?.properties?.id) {
+      onSegmentClick(feature.properties.id);
+    }
+  }, [onSegmentClick]);
+
+  if (!featureCollection.features.length) {
+    return (
+      <Paper withBorder p="xl" style={{ borderRadius: 0, textAlign: 'center', borderColor: 'var(--color-border)' }}>
+        <Text size="sm" c="dimmed">No segments with map data available.</Text>
+      </Paper>
+    );
+  }
+
+  return (
+    <Box style={{ height: 500, borderRadius: 0, overflow: 'hidden', border: '1.5px solid var(--color-border)' }}>
+      <Map
+        initialViewState={initialViewState}
+        mapStyle="mapbox://styles/mapbox/dark-v11"
+        mapboxAccessToken={MAPBOX_TOKEN}
+        interactiveLayerIds={['segments-base']}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverInfo(null)}
+        onClick={handleClick}
+        cursor={hoverInfo ? 'pointer' : 'grab'}
+        style={{ width: '100%', height: '100%' }}
+      >
+        <Source id="all-segments" type="geojson" data={featureCollection}>
+          <Layer
+            id="segments-highlight"
+            type="line"
+            paint={{
+              'line-color': '#ffffff',
+              'line-width': 7,
+              'line-opacity': 0.5,
+            }}
+            filter={hoverInfo ? ['==', ['get', 'id'], hoverInfo.segmentId] : ['==', ['get', 'id'], '']}
+          />
+          <Layer
+            id="segments-base"
+            type="line"
+            paint={{
+              'line-color': [
+                'match', ['get', 'terrain_type'],
+                'flat', SEGMENT_COLORS.flat,
+                'climb', SEGMENT_COLORS.climb,
+                'descent', SEGMENT_COLORS.descent,
+                'rolling', SEGMENT_COLORS.rolling,
+                SEGMENT_COLORS.flat,
+              ],
+              'line-width': 4,
+              'line-opacity': 0.85,
+            }}
+          />
+        </Source>
+        {hoverInfo && (
+          <Popup
+            longitude={hoverInfo.longitude}
+            latitude={hoverInfo.latitude}
+            closeButton={false}
+            closeOnClick={false}
+            anchor="bottom"
+            offset={10}
+          >
+            <div style={{ fontFamily: 'var(--mantine-font-family)', padding: 2 }}>
+              <Text size="xs" fw={600}>{hoverInfo.name}</Text>
+              <Text size="xs" c="dimmed">{hoverInfo.distance} · {hoverInfo.gradient}</Text>
+            </div>
+          </Popup>
+        )}
+      </Map>
+    </Box>
+  );
+}
+
+// ============================================================================
 // MAIN PANEL
 // ============================================================================
 
@@ -734,6 +889,7 @@ function SegmentLibraryPanel({
   const [viewMode, setViewMode] = useState('routes');
   const [terrainFilter, setTerrainFilter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState('relevance');
+  const [displayMode, setDisplayMode] = useState<'list' | 'map'>('list');
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeResult, setAnalyzeResult] = useState<string | null>(null);
 
@@ -920,23 +1076,52 @@ function SegmentLibraryPanel({
               ]}
               style={{ width: 140, borderRadius: 0 }}
             />
+            <Group gap={2} ml="auto">
+              <ActionIcon
+                variant={displayMode === 'list' ? 'filled' : 'subtle'}
+                color="teal"
+                size="sm"
+                onClick={() => setDisplayMode('list')}
+                style={{ borderRadius: 0 }}
+                aria-label="Card view"
+              >
+                <IconLayoutGrid size={16} />
+              </ActionIcon>
+              <ActionIcon
+                variant={displayMode === 'map' ? 'filled' : 'subtle'}
+                color="teal"
+                size="sm"
+                onClick={() => setDisplayMode('map')}
+                style={{ borderRadius: 0 }}
+                aria-label="Map view"
+              >
+                <IconMap size={16} />
+              </ActionIcon>
+            </Group>
           </Group>
 
-          {/* Segment grid */}
+          {/* Segment grid or map */}
           {loading ? (
             <Center py="xl">
               <Loader color="teal" size="md" />
             </Center>
           ) : filteredSegments.length > 0 ? (
-            <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
-              {filteredSegments.map((segment) => (
-                <SegmentCard
-                  key={segment.id}
-                  segment={segment}
-                  onClick={() => setSelectedSegmentId(segment.id)}
-                />
-              ))}
-            </SimpleGrid>
+            displayMode === 'map' ? (
+              <SegmentMapView
+                segments={filteredSegments}
+                onSegmentClick={(id) => setSelectedSegmentId(id)}
+              />
+            ) : (
+              <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
+                {filteredSegments.map((segment) => (
+                  <SegmentCard
+                    key={segment.id}
+                    segment={segment}
+                    onClick={() => setSelectedSegmentId(segment.id)}
+                  />
+                ))}
+              </SimpleGrid>
+            )
           ) : (
             <Paper
               withBorder
