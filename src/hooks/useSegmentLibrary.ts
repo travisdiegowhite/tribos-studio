@@ -62,6 +62,7 @@ export interface SegmentSummary {
   last_ridden_at: string | null;
   confidence_score: number;
   data_quality_tier: 'measured' | 'geometry_only';
+  geojson: { type: string; coordinates: [number, number][] } | null;
   training_segment_profiles: SegmentProfile | null;
 }
 
@@ -161,7 +162,7 @@ export function useSegmentLibrary(userId?: string) {
           elevation_gain_meters, terrain_type, obstruction_score,
           stop_count, stops_per_km, sharp_turn_count,
           max_uninterrupted_seconds, topology, is_repeatable,
-          ride_count, first_ridden_at, last_ridden_at, confidence_score, data_quality_tier,
+          ride_count, first_ridden_at, last_ridden_at, confidence_score, data_quality_tier, geojson,
           training_segment_profiles (
             mean_avg_power, std_dev_power, typical_power_zone,
             zone_distribution, consistency_score, mean_avg_hr,
