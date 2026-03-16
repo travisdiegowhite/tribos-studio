@@ -6,7 +6,7 @@
  *   - "Route Analysis": existing RouteAnalysisPanel pass-through
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Card,
   Text,
@@ -49,7 +49,7 @@ import {
   IconTrendingUp,
   IconLayoutGrid,
 } from '@tabler/icons-react';
-import Map, { Source, Layer, Marker, Popup } from 'react-map-gl';
+import Map, { Source, Layer, Marker, Popup, GeolocateControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -706,6 +706,14 @@ function SegmentDetailModal({
 // SEGMENT MAP VIEW
 // ============================================================================
 
+const TERRAIN_GROUP_ORDER = ['climb', 'rolling', 'flat', 'descent'] as const;
+const TERRAIN_LABELS: Record<string, string> = {
+  climb: 'CLIMBS',
+  rolling: 'ROLLING',
+  flat: 'FLAT',
+  descent: 'DESCENTS',
+};
+
 function SegmentMapView({
   segments,
   onSegmentClick,
@@ -713,6 +721,8 @@ function SegmentMapView({
   segments: SegmentSummary[];
   onSegmentClick: (segmentId: string) => void;
 }) {
+  const mapRef = useRef<any>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoverInfo, setHoverInfo] = useState<{
     longitude: number;
     latitude: number;
@@ -738,6 +748,15 @@ function SegmentMapView({
         geometry: s.geojson!,
       })),
   }), [segments]);
+
+  const groupedSegments = useMemo(() => {
+    const groups: Record<string, SegmentSummary[]> = {};
+    for (const terrain of TERRAIN_GROUP_ORDER) {
+      const matching = segments.filter(s => s.terrain_type === terrain && s.geojson?.coordinates?.length);
+      if (matching.length) groups[terrain] = matching;
+    }
+    return groups;
+  }, [segments]);
 
   const initialViewState = useMemo(() => {
     const allCoords = segments.flatMap(s => s.geojson?.coordinates || []);
@@ -780,12 +799,36 @@ function SegmentMapView({
     }
   }, []);
 
-  const handleClick = useCallback((e: any) => {
+  const handleMapClick = useCallback((e: any) => {
     const feature = e.features?.[0];
     if (feature?.properties?.id) {
       onSegmentClick(feature.properties.id);
     }
   }, [onSegmentClick]);
+
+  const handleListClick = useCallback((segment: SegmentSummary) => {
+    if (selectedId === segment.id) {
+      onSegmentClick(segment.id);
+      return;
+    }
+    setSelectedId(segment.id);
+    if (segment.geojson?.coordinates?.length && mapRef.current) {
+      const coords = segment.geojson.coordinates;
+      let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+      coords.forEach(([lng, lat]: [number, number]) => {
+        minLng = Math.min(minLng, lng);
+        maxLng = Math.max(maxLng, lng);
+        minLat = Math.min(minLat, lat);
+        maxLat = Math.max(maxLat, lat);
+      });
+      mapRef.current.fitBounds(
+        [[minLng, minLat], [maxLng, maxLat]],
+        { padding: 80, duration: 800 }
+      );
+    }
+  }, [selectedId, onSegmentClick]);
+
+  const highlightId = hoverInfo?.segmentId || selectedId;
 
   if (!featureCollection.features.length) {
     return (
@@ -796,62 +839,123 @@ function SegmentMapView({
   }
 
   return (
-    <Box style={{ height: 500, borderRadius: 0, overflow: 'hidden', border: '1.5px solid var(--color-border)' }}>
-      <Map
-        initialViewState={initialViewState}
-        mapStyle="mapbox://styles/mapbox/dark-v11"
-        mapboxAccessToken={MAPBOX_TOKEN}
-        interactiveLayerIds={['segments-base']}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHoverInfo(null)}
-        onClick={handleClick}
-        cursor={hoverInfo ? 'pointer' : 'grab'}
-        style={{ width: '100%', height: '100%' }}
+    <Box style={{ height: 500, borderRadius: 0, overflow: 'hidden', border: '1.5px solid var(--color-border)', display: 'flex' }}>
+      {/* Segment list sidebar */}
+      <ScrollArea
+        style={{
+          width: 260,
+          minWidth: 260,
+          borderRight: '1px solid var(--color-border)',
+          background: 'var(--color-bg-secondary)',
+        }}
+        visibleFrom="sm"
       >
-        <Source id="all-segments" type="geojson" data={featureCollection}>
-          <Layer
-            id="segments-highlight"
-            type="line"
-            paint={{
-              'line-color': '#ffffff',
-              'line-width': 7,
-              'line-opacity': 0.5,
-            }}
-            filter={hoverInfo ? ['==', ['get', 'id'], hoverInfo.segmentId] : ['==', ['get', 'id'], '']}
-          />
-          <Layer
-            id="segments-base"
-            type="line"
-            paint={{
-              'line-color': [
-                'match', ['get', 'terrain_type'],
-                'flat', SEGMENT_COLORS.flat,
-                'climb', SEGMENT_COLORS.climb,
-                'descent', SEGMENT_COLORS.descent,
-                'rolling', SEGMENT_COLORS.rolling,
-                SEGMENT_COLORS.flat,
-              ],
-              'line-width': 4,
-              'line-opacity': 0.85,
-            }}
-          />
-        </Source>
-        {hoverInfo && (
-          <Popup
-            longitude={hoverInfo.longitude}
-            latitude={hoverInfo.latitude}
-            closeButton={false}
-            closeOnClick={false}
-            anchor="bottom"
-            offset={10}
-          >
-            <div style={{ fontFamily: 'var(--mantine-font-family)', padding: 2 }}>
-              <Text size="xs" fw={600}>{hoverInfo.name}</Text>
-              <Text size="xs" c="dimmed">{hoverInfo.distance} · {hoverInfo.gradient}</Text>
-            </div>
-          </Popup>
-        )}
-      </Map>
+        <Stack gap={0} p="xs">
+          {Object.entries(groupedSegments).map(([terrain, segs]) => (
+            <React.Fragment key={terrain}>
+              <Group gap="xs" px="xs" py={6}>
+                <Box
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: SEGMENT_COLORS[terrain] || SEGMENT_COLORS.flat,
+                    flexShrink: 0,
+                  }}
+                />
+                <Text size="xs" fw={700} c="dimmed" style={{ letterSpacing: '0.05em' }}>
+                  {TERRAIN_LABELS[terrain] || terrain.toUpperCase()}
+                </Text>
+                <Badge size="xs" variant="light" color="gray" style={{ borderRadius: 0 }}>
+                  {segs.length}
+                </Badge>
+              </Group>
+              {segs.map(seg => (
+                <Box
+                  key={seg.id}
+                  onClick={() => handleListClick(seg)}
+                  style={{
+                    padding: '6px 10px',
+                    cursor: 'pointer',
+                    borderRadius: 0,
+                    backgroundColor: selectedId === seg.id ? 'rgba(42, 140, 130, 0.12)' : 'transparent',
+                    borderLeft: selectedId === seg.id ? '3px solid #2A8C82' : '3px solid transparent',
+                    transition: 'background-color 150ms',
+                  }}
+                >
+                  <Text size="xs" fw={500} lineClamp={1}>
+                    {seg.display_name || seg.auto_name || 'Unnamed'}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {(seg.distance_meters / 1000).toFixed(1)} km · {seg.avg_gradient.toFixed(1)}%
+                  </Text>
+                </Box>
+              ))}
+            </React.Fragment>
+          ))}
+        </Stack>
+      </ScrollArea>
+
+      {/* Map */}
+      <Box style={{ flex: 1, position: 'relative' }}>
+        <Map
+          ref={mapRef}
+          initialViewState={initialViewState}
+          mapStyle="mapbox://styles/mapbox/dark-v11"
+          mapboxAccessToken={MAPBOX_TOKEN}
+          interactiveLayerIds={['segments-base']}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHoverInfo(null)}
+          onClick={handleMapClick}
+          cursor={hoverInfo ? 'pointer' : 'grab'}
+          style={{ width: '100%', height: '100%' }}
+        >
+          <GeolocateControl position="top-right" trackUserLocation={false} showUserLocation />
+          <Source id="all-segments" type="geojson" data={featureCollection}>
+            <Layer
+              id="segments-highlight"
+              type="line"
+              paint={{
+                'line-color': '#ffffff',
+                'line-width': 7,
+                'line-opacity': 0.5,
+              }}
+              filter={highlightId ? ['==', ['get', 'id'], highlightId] : ['==', ['get', 'id'], '']}
+            />
+            <Layer
+              id="segments-base"
+              type="line"
+              paint={{
+                'line-color': [
+                  'match', ['get', 'terrain_type'],
+                  'flat', SEGMENT_COLORS.flat,
+                  'climb', SEGMENT_COLORS.climb,
+                  'descent', SEGMENT_COLORS.descent,
+                  'rolling', SEGMENT_COLORS.rolling,
+                  SEGMENT_COLORS.flat,
+                ],
+                'line-width': 4,
+                'line-opacity': 0.85,
+              }}
+            />
+          </Source>
+          {hoverInfo && (
+            <Popup
+              longitude={hoverInfo.longitude}
+              latitude={hoverInfo.latitude}
+              closeButton={false}
+              closeOnClick={false}
+              anchor="bottom"
+              offset={10}
+            >
+              <div style={{ fontFamily: 'var(--mantine-font-family)', padding: 2 }}>
+                <Text size="xs" fw={600}>{hoverInfo.name}</Text>
+                <Text size="xs" c="dimmed">{hoverInfo.distance} · {hoverInfo.gradient}</Text>
+              </div>
+            </Popup>
+          )}
+        </Map>
+      </Box>
     </Box>
   );
 }
