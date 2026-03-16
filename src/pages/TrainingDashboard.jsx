@@ -1051,6 +1051,7 @@ function TrainingDashboard() {
                   plannedWorkouts={plannedWorkouts}
                   activities={visibleActivities}
                   ftp={ftp}
+                  trainingContext={trainingContext}
                 />
               </Tabs.Panel>
 
