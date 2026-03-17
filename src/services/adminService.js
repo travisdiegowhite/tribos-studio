@@ -34,10 +34,46 @@ async function adminFetch(action, data = {}) {
     body: JSON.stringify({ action, ...data })
   });
 
+  // Guard against non-JSON responses (e.g., Cloudflare 524 timeout HTML pages)
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error(`Server error (${response.status}): non-JSON response`);
+  }
+
   const result = await response.json();
 
   if (!response.ok) {
     throw new Error(result.error || 'Admin API request failed');
+  }
+
+  return result;
+}
+
+/**
+ * Make an authenticated email tool API call
+ * Uses dedicated /api/email-tool endpoint for faster responses
+ */
+async function emailToolFetch(action, data = {}) {
+  const token = await getAccessToken();
+
+  const response = await fetch(`${API_BASE}/api/email-tool`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ action, ...data })
+  });
+
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error(`Server error (${response.status}): non-JSON response`);
+  }
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Email tool API request failed');
   }
 
   return result;
@@ -156,14 +192,14 @@ export async function getUserInsights() {
  * List all email campaigns
  */
 export async function listCampaigns() {
-  return adminFetch('list_campaigns');
+  return emailToolFetch('list_campaigns');
 }
 
 /**
  * Get a single campaign with recipients
  */
 export async function getCampaign(campaignId) {
-  return adminFetch('get_campaign', { campaignId });
+  return emailToolFetch('get_campaign', { campaignId });
 }
 
 /**
@@ -181,7 +217,7 @@ export async function createCampaign({
   fromEmail,
   replyTo
 }) {
-  return adminFetch('create_campaign', {
+  return emailToolFetch('create_campaign', {
     name,
     subject,
     htmlContent,
@@ -199,35 +235,35 @@ export async function createCampaign({
  * Update an existing campaign
  */
 export async function updateCampaign(campaignId, updates) {
-  return adminFetch('update_campaign', { campaignId, ...updates });
+  return emailToolFetch('update_campaign', { campaignId, ...updates });
 }
 
 /**
  * Delete a draft campaign
  */
 export async function deleteCampaign(campaignId) {
-  return adminFetch('delete_campaign', { campaignId });
+  return emailToolFetch('delete_campaign', { campaignId });
 }
 
 /**
  * Preview recipients based on filter criteria
  */
 export async function previewRecipients(audienceType, filterCriteria) {
-  return adminFetch('preview_recipients', { audienceType, filterCriteria });
+  return emailToolFetch('preview_recipients', { audienceType, filterCriteria });
 }
 
 /**
  * Send a test email to the admin
  */
 export async function sendTestEmail({ subject, htmlContent, fromName, fromEmail }) {
-  return adminFetch('send_test_email', { subject, htmlContent, fromName, fromEmail });
+  return emailToolFetch('send_test_email', { subject, htmlContent, fromName, fromEmail });
 }
 
 /**
  * Send a campaign to all recipients
  */
 export async function sendCampaign(campaignId) {
-  return adminFetch('send_campaign', { campaignId });
+  return emailToolFetch('send_campaign', { campaignId });
 }
 
 export default {
