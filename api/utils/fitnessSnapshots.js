@@ -529,6 +529,23 @@ export async function updateSnapshotForActivity(supabase, userId, activityDate) 
   const weekStart = getWeekStart(new Date(activityDate));
 
   try {
+    // Debounce: skip recomputation if snapshot was updated in the last 5 minutes.
+    // This avoids expensive 90-day queries when multiple activities from the same
+    // user arrive in quick succession (common with Garmin batch imports).
+    const { data: existing } = await supabase
+      .from('fitness_snapshots')
+      .select('snapshot_date')
+      .eq('user_id', userId)
+      .eq('snapshot_week', weekStart)
+      .maybeSingle();
+
+    if (existing?.snapshot_date) {
+      const lastUpdated = new Date(existing.snapshot_date);
+      if (Date.now() - lastUpdated.getTime() < 5 * 60 * 1000) {
+        return { success: true, weekUpdated: weekStart, skipped: true };
+      }
+    }
+
     const snapshot = await computeWeeklySnapshot(supabase, userId, weekStart);
 
     await supabase

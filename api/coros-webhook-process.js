@@ -1,6 +1,6 @@
 // Vercel API Route: COROS Webhook Event Processor (Cron)
 // Processes unprocessed events stored by the webhook handler.
-// Runs every minute via Vercel cron.
+// Runs every 2 minutes via Vercel cron.
 //
 // Retry strategy: exponential backoff (1m, 2m, 4m, 8m, 16m, 32m)
 // Max retries: 6 (gives up after ~1 hour of failures)
@@ -16,7 +16,7 @@ const supabase = createClient(
 );
 
 const MAX_RETRIES = 6;
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 20;
 
 export default async function handler(req, res) {
   // Verify cron authorization (timing-safe)
@@ -56,9 +56,12 @@ export default async function handler(req, res) {
 
     console.log(`Found ${events.length} COROS events to process`);
 
+    // Cache integration lookups per batch to avoid repeated queries for the same user
+    const integrationCache = new Map();
+
     for (const event of events) {
       try {
-        await processWorkoutEvent(event, results);
+        await processWorkoutEvent(event, results, integrationCache);
       } catch (error) {
         console.error(`Error processing COROS event ${event.id}:`, error.message);
         await scheduleRetry(event, error.message);
@@ -85,19 +88,24 @@ export default async function handler(req, res) {
 /**
  * Process a single COROS workout webhook event
  */
-async function processWorkoutEvent(event, results) {
+async function processWorkoutEvent(event, results, integrationCache) {
   const workout = event.payload;
   const corosUserId = event.coros_user_id;
 
-  // Look up our user
+  // Look up our user (cached per batch to avoid repeated lookups for same user)
   let userId = event.user_id;
   if (!userId) {
-    const { data: integration } = await supabase
-      .from('bike_computer_integrations')
-      .select('user_id, id')
-      .eq('provider', 'coros')
-      .eq('provider_user_id', corosUserId)
-      .maybeSingle();
+    let integration = integrationCache.get(corosUserId);
+    if (integration === undefined) {
+      const { data } = await supabase
+        .from('bike_computer_integrations')
+        .select('user_id, id')
+        .eq('provider', 'coros')
+        .eq('provider_user_id', corosUserId)
+        .maybeSingle();
+      integration = data || null;
+      integrationCache.set(corosUserId, integration);
+    }
 
     if (!integration) {
       console.warn(`No COROS integration found for openId: ${corosUserId}`);

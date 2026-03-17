@@ -10,19 +10,23 @@
     },
     {
       "path": "/api/garmin-webhook-process",
-      "schedule": "* * * * *"
+      "schedule": "*/2 * * * *"
     },
     {
       "path": "/api/proactive-insights-process",
-      "schedule": "* * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/coros-webhook-process",
-      "schedule": "* * * * *"
+      "schedule": "*/2 * * * *"
     },
     {
       "path": "/api/coros-token-maintenance",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/database-cleanup",
+      "schedule": "0 3 * * *"
     }
   ],
   "functions": {
@@ -30,6 +34,15 @@
       "maxDuration": 60
     },
     "api/email-tool.js": {
+      "maxDuration": 60
+    },
+    "api/garmin-webhook-process.js": {
+      "maxDuration": 60
+    },
+    "api/coros-webhook-process.js": {
+      "maxDuration": 60
+    },
+    "api/database-cleanup.js": {
       "maxDuration": 60
     }
   },
