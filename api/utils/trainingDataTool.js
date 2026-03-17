@@ -15,6 +15,17 @@ import { routePassesNear } from './polylineDecode.js';
 
 const MAPBOX_ACCESS_TOKEN = process.env.MAPBOX_ACCESS_TOKEN || process.env.VITE_MAPBOX_ACCESS_TOKEN;
 
+// Lazy singleton — reused across warm Vercel invocations
+let _supabase = null;
+function getSupabase() {
+  if (_supabase) return _supabase;
+  _supabase = createClient(
+    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+  );
+  return _supabase;
+}
+
 /**
  * Geocode a place name to coordinates using Mapbox Geocoding API.
  *
@@ -110,10 +121,7 @@ function resolveDate(dateStr) {
 export async function handleTrainingDataQuery(userId, params) {
   console.log(`📋 Training data query for user ${userId}:`, JSON.stringify(params));
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
+  const supabase = getSupabase();
 
   const {
     filters = {},

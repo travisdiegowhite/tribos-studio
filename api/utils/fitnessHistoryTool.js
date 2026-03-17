@@ -11,6 +11,17 @@
 import { createClient } from '@supabase/supabase-js';
 import { backfillSnapshots } from './fitnessSnapshots.js';
 
+// Lazy singleton — reused across warm Vercel invocations
+let _supabase = null;
+function getSupabase() {
+  if (_supabase) return _supabase;
+  _supabase = createClient(
+    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY
+  );
+  return _supabase;
+}
+
 /**
  * Handle fitness history query from AI coach
  *
@@ -21,10 +32,7 @@ import { backfillSnapshots } from './fitnessSnapshots.js';
 export async function handleFitnessHistoryQuery(userId, params) {
   console.log(`📊 Fitness history query for user ${userId}:`, JSON.stringify(params));
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
+  const supabase = getSupabase();
 
   const {
     query_type,
