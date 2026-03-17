@@ -45,11 +45,15 @@ const WEIGHTS = {
 // SUPABASE CLIENT
 // ============================================================================
 
+// Lazy singleton — reused across warm Vercel invocations
+let _supabase = null;
 function getSupabase() {
-  return createClient(
+  if (_supabase) return _supabase;
+  _supabase = createClient(
     process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY
   );
+  return _supabase;
 }
 
 // ============================================================================

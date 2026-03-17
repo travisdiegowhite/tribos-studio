@@ -3,8 +3,11 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Create Supabase client for server-side use
+// Create Supabase client for server-side use (lazy singleton — reused across warm invocations)
+let _supabase = null;
 function getSupabaseClient() {
+  if (_supabase) return _supabase;
+
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
@@ -13,7 +16,8 @@ function getSupabaseClient() {
     return null;
   }
 
-  return createClient(supabaseUrl, supabaseKey);
+  _supabase = createClient(supabaseUrl, supabaseKey);
+  return _supabase;
 }
 
 // Fallback in-memory rate limiting (for development or if Supabase unavailable)
