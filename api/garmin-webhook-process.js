@@ -5,7 +5,7 @@
 // Retry strategy: exponential backoff (1m, 2m, 4m, 8m, 16m, 32m)
 // Max retries: 6 (gives up after ~1 hour of failures)
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
@@ -19,10 +19,7 @@ import { fetchGarminActivityDetails, requestActivityDetailsBackfill } from './ut
 import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
 import { processHealthPushData, extractAndSaveHealthMetrics } from './utils/garmin/healthDataProcessor.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const MAX_RETRIES = 6;
 const BATCH_SIZE = 20;

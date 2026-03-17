@@ -1,16 +1,13 @@
 // Vercel API Route: Secure Google Calendar Authentication
 // Handles OAuth token exchange, refresh, and calendar operations
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 import { refreshAccessToken as sharedRefreshAccessToken, getAccessTokenForUser as sharedGetAccessTokenForUser } from './utils/calendarHelper.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const GOOGLE_OAUTH_BASE = 'https://oauth2.googleapis.com';
 const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3';

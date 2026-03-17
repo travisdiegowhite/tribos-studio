@@ -1,15 +1,12 @@
 // Vercel API Route: Routes Management
 // Handles CRUD operations for user cycling routes
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { completeActivationStep } from './utils/activation.js';
 
 // Initialize Supabase (server-side with service role)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 /**
  * Extract and validate user from Authorization header

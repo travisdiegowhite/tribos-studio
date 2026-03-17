@@ -1,23 +1,16 @@
 // Supabase-based rate limiting for production
 // Uses database function for distributed rate limiting across serverless instances
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './supabaseAdmin.js';
 
-// Create Supabase client for server-side use (lazy singleton — reused across warm invocations)
-let _supabase = null;
+// Shared Supabase client for server-side use
 function getSupabaseClient() {
-  if (_supabase) return _supabase;
-
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
+  try {
+    return getSupabaseAdmin();
+  } catch {
     console.warn('Supabase credentials not configured for rate limiting');
     return null;
   }
-
-  _supabase = createClient(supabaseUrl, supabaseKey);
-  return _supabase;
 }
 
 // Fallback in-memory rate limiting (for development or if Supabase unavailable)

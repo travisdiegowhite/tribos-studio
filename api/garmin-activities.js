@@ -2,7 +2,7 @@
 // Fetches/backfills activities from Garmin Health API and stores them in Supabase
 // Similar to strava-activities.js but for Garmin
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
 import {
@@ -18,10 +18,7 @@ import {
 } from './utils/garmin/activityBuilder.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const GARMIN_API_BASE = 'https://apis.garmin.com/wellness-api/rest';
 const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oauth/token';

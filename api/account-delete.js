@@ -2,14 +2,11 @@
 // Handles complete user account deletion including OAuth token revocation
 // and cascading data cleanup via Supabase auth.admin.deleteUser()
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase with service role (server-side only)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const STRAVA_OAUTH_BASE = 'https://www.strava.com/oauth';
 

@@ -2,12 +2,9 @@
 // Runs daily at 3 AM UTC to clean up old processed webhook events,
 // stale proactive insights, and expired weather cache entries.
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 export default async function handler(req, res) {
   // Verify cron authorization

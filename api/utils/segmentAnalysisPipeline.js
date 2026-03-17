@@ -18,22 +18,15 @@
  * are tagged with data_quality_tier = 'geometry_only'.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './supabaseAdmin.js';
 import { buildStreamsFromPolyline, calculatePolylineDistance } from './polylineStreamBuilder.js';
 
 // ============================================================================
 // SUPABASE CLIENT
 // ============================================================================
 
-// Lazy singleton — reused across warm Vercel invocations
-let _supabase = null;
 function getSupabase() {
-  if (_supabase) return _supabase;
-  _supabase = createClient(
-    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
-  return _supabase;
+  return getSupabaseAdmin();
 }
 
 // ============================================================================

@@ -2,6 +2,7 @@
 // Logs user activity events for analytics
 
 import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase clients
@@ -14,10 +15,7 @@ const supabase = createClient(
 );
 
 // Admin client for admin operations
-const supabaseAdmin = createClient(
-  supabaseUrl,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabaseAdmin = getSupabaseAdmin();
 
 // SECURITY: Hardcoded admin email
 const ADMIN_EMAIL = 'travis@tribos.studio';

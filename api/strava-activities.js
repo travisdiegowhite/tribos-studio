@@ -1,16 +1,13 @@
 // Vercel API Route: Strava Activities
 // Fetches activities from Strava and stores them in Supabase
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
 

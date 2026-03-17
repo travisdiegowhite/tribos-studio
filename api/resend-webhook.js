@@ -2,7 +2,7 @@
 // Receives delivery/open/click events from Resend for email tracking
 // Setup: Configure webhook URL in Resend dashboard: https://yourdomain.com/api/resend-webhook
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import crypto from 'crypto';
 import { setupCors } from './utils/cors.js';
 
@@ -15,10 +15,7 @@ export const config = {
 };
 
 // Initialize Supabase with service key for database operations
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 /**
  * Read the raw request body from the stream.

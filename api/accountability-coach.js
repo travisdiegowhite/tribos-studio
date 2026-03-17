@@ -2,15 +2,12 @@
 // AI coach for cycling accountability with memory extraction
 
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 // Memory extraction prompt to run after conversation
 const MEMORY_EXTRACTION_PROMPT = `Analyze this conversation exchange and extract any important information worth remembering about the user.

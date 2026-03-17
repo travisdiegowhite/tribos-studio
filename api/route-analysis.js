@@ -1,14 +1,11 @@
 // Vercel API Route: Activity Route Analysis
 // Analyzes imported activities for training suitability and workout matching
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase (server-side with service key for full access)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 // OpenTopoData API for elevation
 const ELEVATION_API_URL = 'https://api.opentopodata.org/v1/srtm30m';

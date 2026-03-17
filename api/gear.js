@@ -1,16 +1,13 @@
 // Vercel API Route: Gear Management
 // Handles CRUD for gear items, components, activity-gear links, and alerts
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { getDefaultThresholds } from './utils/gearDefaults.js';
 import { recalculateGearMileage, reassignActivityGear } from './utils/gearAssignment.js';
 import { computeGearAlerts } from './utils/gearAlerts.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 async function getUserFromAuthHeader(req) {
   const authHeader = req.headers.authorization;

@@ -1,14 +1,11 @@
 // Vercel API Route: Activities Management
 // Handles activity operations like hide/unhide
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 /**
  * Extract and validate user from Authorization header

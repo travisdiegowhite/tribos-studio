@@ -12,7 +12,7 @@
  * Stores results in workout_segment_matches with 7-day expiry.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './supabaseAdmin.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -45,15 +45,8 @@ const WEIGHTS = {
 // SUPABASE CLIENT
 // ============================================================================
 
-// Lazy singleton — reused across warm Vercel invocations
-let _supabase = null;
 function getSupabase() {
-  if (_supabase) return _supabase;
-  _supabase = createClient(
-    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY
-  );
-  return _supabase;
+  return getSupabaseAdmin();
 }
 
 // ============================================================================

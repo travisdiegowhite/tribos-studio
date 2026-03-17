@@ -5,17 +5,14 @@
 // SECURITY: This endpoint is restricted to travis@tribos.studio ONLY
 // All actions are logged to admin_audit_log table
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { Resend } from 'resend';
 import { setupCors } from './utils/cors.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'travis@tribos.studio';
 

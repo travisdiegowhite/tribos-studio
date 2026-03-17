@@ -2,17 +2,14 @@
 // Fetches activities from COROS and stores them in Supabase
 // COROS API: max 30-day range, max 3 months back
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 import { getValidAccessToken } from './coros-auth.js';
 import { buildCorosActivityData, mapCorosWorkoutType } from './utils/coros/activityBuilder.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const COROS_API_BASE = process.env.COROS_API_BASE || 'https://open.coros.com';
 

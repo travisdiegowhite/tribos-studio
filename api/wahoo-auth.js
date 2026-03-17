@@ -1,16 +1,13 @@
 // Vercel API Route: Wahoo Fitness Authentication
 // Wahoo uses OAuth 2.0
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 import { completeActivationStep } from './utils/activation.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const WAHOO_OAUTH_BASE = 'https://api.wahooligan.com/oauth';
 const WAHOO_API_BASE = 'https://api.wahooligan.com/v1';

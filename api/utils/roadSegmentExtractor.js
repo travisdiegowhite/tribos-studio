@@ -3,14 +3,11 @@
  * Extracts discrete road segments from activity polylines for preference-based routing
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './supabaseAdmin.js';
 import crypto from 'crypto';
 
 // Initialize Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 // ============================================================================
 // CONFIGURATION
