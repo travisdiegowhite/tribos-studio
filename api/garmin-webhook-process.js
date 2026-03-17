@@ -1,6 +1,6 @@
 // Vercel API Route: Garmin Webhook Event Processor (Cron)
 // Processes unprocessed events stored by the webhook handler.
-// Runs every minute via Vercel cron.
+// Runs every 2 minutes via Vercel cron.
 //
 // Retry strategy: exponential backoff (1m, 2m, 4m, 8m, 16m, 32m)
 // Max retries: 6 (gives up after ~1 hour of failures)
@@ -25,7 +25,7 @@ const supabase = createClient(
 );
 
 const MAX_RETRIES = 6;
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 20;
 
 export default async function handler(req, res) {
   // Verify cron authorization (timing-safe)
@@ -69,17 +69,20 @@ export default async function handler(req, res) {
 
     console.log(`Found ${events.length} events to process`);
 
+    // Cache integration lookups per batch to avoid repeated queries for the same user
+    const integrationCache = new Map();
+
     for (const event of events) {
       try {
         // Health events
         if (event.event_type?.startsWith('HEALTH_')) {
-          await processHealthEvent(event);
+          await processHealthEvent(event, integrationCache);
           results.processed++;
           continue;
         }
 
         // Activity events
-        await processActivityEvent(event);
+        await processActivityEvent(event, integrationCache);
         results.processed++;
       } catch (err) {
         console.error(`❌ Failed to process event ${event.id}:`, err.message);
@@ -122,10 +125,45 @@ export default async function handler(req, res) {
 }
 
 // ============================================================================
+// INTEGRATION LOOKUP CACHE
+// ============================================================================
+
+/**
+ * Look up a Garmin integration by provider_user_id, using a per-batch cache.
+ * For activity processing (fullSelect=true), fetches token fields too.
+ * After token refreshes, the caller should update the cached object.
+ */
+async function getCachedIntegration(garminUserId, cache, fullSelect = false) {
+  const cacheKey = `${garminUserId}:${fullSelect ? 'full' : 'basic'}`;
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey);
+  }
+
+  const selectFields = fullSelect
+    ? 'id, user_id, access_token, refresh_token, token_expires_at, provider_user_id'
+    : 'id, user_id';
+
+  const { data: integration, error } = await supabase
+    .from('bike_computer_integrations')
+    .select(selectFields)
+    .eq('provider', 'garmin')
+    .eq('provider_user_id', garminUserId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error finding integration:', error);
+  }
+
+  // Cache even null results to avoid re-querying for unknown users
+  cache.set(cacheKey, integration || null);
+  return integration || null;
+}
+
+// ============================================================================
 // HEALTH EVENT PROCESSING
 // ============================================================================
 
-async function processHealthEvent(event) {
+async function processHealthEvent(event, integrationCache) {
   const healthType = event.event_type.replace('HEALTH_', '');
   const payload = event.payload;
 
@@ -146,12 +184,7 @@ async function processHealthEvent(event) {
 
   // Look up integration to populate user_id/integration_id on the event (audit trail)
   if (item.userId) {
-    const { data: integration } = await supabase
-      .from('bike_computer_integrations')
-      .select('id, user_id')
-      .eq('provider', 'garmin')
-      .eq('provider_user_id', item.userId)
-      .maybeSingle();
+    const integration = await getCachedIntegration(item.userId, integrationCache);
 
     if (integration) {
       await supabase
@@ -173,18 +206,9 @@ async function processHealthEvent(event) {
 // ACTIVITY EVENT PROCESSING
 // ============================================================================
 
-async function processActivityEvent(event) {
-  // Find integration
-  const { data: integration, error: integrationError } = await supabase
-    .from('bike_computer_integrations')
-    .select('id, user_id, access_token, refresh_token, token_expires_at, provider_user_id')
-    .eq('provider', 'garmin')
-    .eq('provider_user_id', event.garmin_user_id)
-    .maybeSingle();
-
-  if (integrationError) {
-    console.error('Error finding integration:', integrationError);
-  }
+async function processActivityEvent(event, integrationCache) {
+  // Find integration (cached per batch to avoid repeated lookups for same user)
+  const integration = await getCachedIntegration(event.garmin_user_id, integrationCache, true);
 
   if (!integration) {
     await markEventProcessed(event.id, `No integration found for Garmin user ID: ${event.garmin_user_id}. User needs to reconnect Garmin.`);
@@ -197,7 +221,7 @@ async function processActivityEvent(event) {
     .update({ user_id: integration.user_id, integration_id: integration.id })
     .eq('id', event.id);
 
-  // Refresh token if needed
+  // Refresh token if needed (also updates cached integration object for subsequent events)
   const validToken = await ensureValidAccessToken(integration, supabase);
   if (validToken !== integration.access_token) {
     integration.access_token = validToken;
