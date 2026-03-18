@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   generateCSV,
   generateICal,
@@ -418,5 +418,76 @@ describe('exportTrainingPlan', () => {
     const planWithSpecial = { ...mockPlan, name: 'My Plan: Test (2026)!' };
     const result = exportTrainingPlan(planWithSpecial, mockWorkouts, { format: 'csv' });
     expect(result.filename).toBe('My_Plan_Test_2026_workouts.csv');
+  });
+});
+
+// ============================================================
+// WORKOUT RESOLUTION TESTS (raw DB data without .workout)
+// ============================================================
+
+describe('workout resolution from library', () => {
+  // These tests use workout_id='traditional_sst' which exists in the real workout library
+  const rawDbWorkout: PlannedWorkoutWithDetails = {
+    id: 'pw-raw',
+    plan_id: 'plan-1',
+    week_number: 1,
+    day_of_week: 2,
+    scheduled_date: '2026-03-03',
+    workout_type: 'sweet_spot',
+    workout_id: 'traditional_sst', // Real ID from workoutLibrary.ts
+    target_tss: 85,
+    target_duration: 65,
+    target_distance_km: null,
+    completed: false,
+    completed_at: null,
+    activity_id: null,
+    actual_tss: null,
+    actual_duration: null,
+    actual_distance_km: null,
+    difficulty_rating: null,
+    notes: null,
+    skipped_reason: null,
+    created_at: '2026-03-01T00:00:00Z',
+    updated_at: '2026-03-01T00:00:00Z',
+    // NOTE: no .workout property — simulates raw DB data from TrainingDashboard
+  };
+
+  it('CSV resolves workout name from library when .workout is missing', () => {
+    const csv = generateCSV(mockPlan, [rawDbWorkout]);
+    expect(csv).toContain('Traditional Sweet Spot');
+  });
+
+  it('iCal resolves workout details from library when .workout is missing', () => {
+    const ical = generateICal(mockPlan, [rawDbWorkout]);
+    expect(ical).toContain('Traditional Sweet Spot');
+    expect(ical).toContain('sweet_spot');
+  });
+
+  it('JSON resolves workout structure from library when .workout is missing', () => {
+    const json = generatePlanJSON(mockPlan, [rawDbWorkout]);
+    const parsed = JSON.parse(json);
+    const workout = parsed.workouts[0];
+    expect(workout.name).toBe('Traditional Sweet Spot');
+    expect(workout.structure).not.toBeNull();
+    expect(workout.structure.warmup).toBeDefined();
+  });
+
+  it('falls back to workout_type when workout_id is not in library', () => {
+    const unknownIdWorkout: PlannedWorkoutWithDetails = {
+      ...rawDbWorkout,
+      workout_id: 'nonexistent_workout_id',
+    };
+    const csv = generateCSV(mockPlan, [unknownIdWorkout]);
+    // Should fall back to workout_type
+    expect(csv).toContain('sweet_spot');
+  });
+
+  it('falls back to workout_type when workout_id is null', () => {
+    const noIdWorkout: PlannedWorkoutWithDetails = {
+      ...rawDbWorkout,
+      workout_id: null,
+    };
+    const csv = generateCSV(mockPlan, [noIdWorkout]);
+    expect(csv).toContain('sweet_spot');
   });
 });

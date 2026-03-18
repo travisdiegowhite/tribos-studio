@@ -9,6 +9,7 @@
 
 import JSZip from 'jszip';
 import { encodeFitWorkout } from './fitWorkoutEncoder';
+import { getWorkoutById } from '../data/workoutLibrary';
 import type {
   ActivePlan,
   PlannedWorkoutWithDetails,
@@ -61,6 +62,21 @@ function formatDuration(minutes: number | null): string {
   const mins = Math.round(minutes % 60);
   if (hrs > 0) return `${hrs}h ${mins}m`;
   return `${mins}m`;
+}
+
+// ============================================================
+// WORKOUT RESOLUTION
+// ============================================================
+
+/**
+ * Resolve WorkoutDefinition for a planned workout.
+ * The planned workout may already have `.workout` enriched (from useTrainingPlan hook),
+ * or it may be raw DB data where we need to look up by `workout_id` from the library.
+ */
+function resolveWorkout(w: PlannedWorkoutWithDetails): WorkoutDefinition | null {
+  if (w.workout) return w.workout;
+  if (w.workout_id) return getWorkoutById(w.workout_id) || null;
+  return null;
 }
 
 // ============================================================
@@ -120,17 +136,18 @@ export function generateCSV(
   });
 
   for (const w of sorted) {
+    const workout = resolveWorkout(w);
     lines.push([
       escapeCSV(w.week_number),
       escapeCSV(getDayName(w.day_of_week)),
       escapeCSV(w.scheduled_date ? formatDate(w.scheduled_date) : ''),
-      escapeCSV(w.workout?.name || w.workout_type || 'Rest'),
-      escapeCSV(w.workout?.category || w.workout_type || ''),
-      escapeCSV(w.target_duration || w.workout?.duration || ''),
-      escapeCSV(w.target_tss || w.workout?.targetTSS || ''),
+      escapeCSV(workout?.name || w.workout_type || 'Rest'),
+      escapeCSV(workout?.category || w.workout_type || ''),
+      escapeCSV(w.target_duration || workout?.duration || ''),
+      escapeCSV(w.target_tss || workout?.targetTSS || ''),
       escapeCSV(w.target_distance_km),
-      escapeCSV(w.workout?.description || ''),
-      escapeCSV(w.workout?.coachNotes || ''),
+      escapeCSV(workout?.description || ''),
+      escapeCSV(workout?.coachNotes || ''),
       escapeCSV(w.completed ? 'Yes' : 'No'),
       escapeCSV(w.actual_duration),
       escapeCSV(w.actual_tss),
@@ -195,25 +212,26 @@ export function generateICal(
   for (const w of sorted) {
     if (!w.scheduled_date) continue;
 
-    const workoutName = w.workout?.name || w.workout_type || 'Workout';
-    const duration = w.target_duration || w.workout?.duration || 60;
+    const workout = resolveWorkout(w);
+    const workoutName = workout?.name || w.workout_type || 'Workout';
+    const duration = w.target_duration || workout?.duration || 60;
     const dateStr = toICalDate(w.scheduled_date);
 
     // Build description
     const descParts: string[] = [];
-    if (w.workout?.category) descParts.push(`Type: ${w.workout.category}`);
-    if (w.target_tss || w.workout?.targetTSS) {
-      descParts.push(`Target TSS: ${w.target_tss || w.workout?.targetTSS}`);
+    if (workout?.category) descParts.push(`Type: ${workout.category}`);
+    if (w.target_tss || workout?.targetTSS) {
+      descParts.push(`Target TSS: ${w.target_tss || workout?.targetTSS}`);
     }
     if (duration) descParts.push(`Duration: ${formatDuration(duration)}`);
     if (w.target_distance_km) descParts.push(`Distance: ${w.target_distance_km} km`);
-    if (w.workout?.description) descParts.push(`\\n${w.workout.description}`);
-    if (w.workout?.coachNotes) descParts.push(`\\nCoach Notes: ${w.workout.coachNotes}`);
+    if (workout?.description) descParts.push(`\\n${workout.description}`);
+    if (workout?.coachNotes) descParts.push(`\\nCoach Notes: ${workout.coachNotes}`);
     if (w.notes) descParts.push(`\\nNotes: ${w.notes}`);
 
     // Build workout structure summary if available
-    if (w.workout?.structure) {
-      const struct = w.workout.structure;
+    if (workout?.structure) {
+      const struct = workout.structure;
       const structParts: string[] = [];
       if (struct.warmup) structParts.push(`Warmup: ${struct.warmup.duration}min @ ${struct.warmup.zone}`);
       if (struct.main && struct.main.length > 0) {
@@ -243,7 +261,7 @@ export function generateICal(
     lines.push(`SUMMARY:${escapeICalText(`${plan.name} - Wk${w.week_number}: ${workoutName}`)}`);
     if (description) lines.push(`DESCRIPTION:${description}`);
     if (w.completed) lines.push('STATUS:CONFIRMED');
-    lines.push(`CATEGORIES:Training,${escapeICalText(w.workout?.category || 'workout')}`);
+    lines.push(`CATEGORIES:Training,${escapeICalText(workout?.category || 'workout')}`);
     lines.push('END:VEVENT');
   }
 
@@ -284,25 +302,28 @@ export function generatePlanJSON(
       daysRemaining: progress.daysRemaining,
       weeklyStats: progress.weeklyStats,
     } : null,
-    workouts: sorted.map(w => ({
-      weekNumber: w.week_number,
-      dayOfWeek: getDayName(w.day_of_week),
-      scheduledDate: w.scheduled_date,
-      name: w.workout?.name || w.workout_type || 'Rest',
-      category: w.workout?.category || w.workout_type || null,
-      targetDurationMinutes: w.target_duration || w.workout?.duration || null,
-      targetTSS: w.target_tss || w.workout?.targetTSS || null,
-      targetDistanceKm: w.target_distance_km,
-      description: w.workout?.description || null,
-      coachNotes: w.workout?.coachNotes || null,
-      structure: w.workout?.structure || null,
-      completed: w.completed,
-      completedAt: w.completed_at,
-      actualDurationMinutes: w.actual_duration,
-      actualTSS: w.actual_tss,
-      actualDistanceKm: w.actual_distance_km,
-      notes: w.notes,
-    })),
+    workouts: sorted.map(w => {
+      const workout = resolveWorkout(w);
+      return {
+        weekNumber: w.week_number,
+        dayOfWeek: getDayName(w.day_of_week),
+        scheduledDate: w.scheduled_date,
+        name: workout?.name || w.workout_type || 'Rest',
+        category: workout?.category || w.workout_type || null,
+        targetDurationMinutes: w.target_duration || workout?.duration || null,
+        targetTSS: w.target_tss || workout?.targetTSS || null,
+        targetDistanceKm: w.target_distance_km,
+        description: workout?.description || null,
+        coachNotes: workout?.coachNotes || null,
+        structure: workout?.structure || null,
+        completed: w.completed,
+        completedAt: w.completed_at,
+        actualDurationMinutes: w.actual_duration,
+        actualTSS: w.actual_tss,
+        actualDistanceKm: w.actual_distance_km,
+        notes: w.notes,
+      };
+    }),
     exportedAt: new Date().toISOString(),
     source: 'Tribos Studio',
   };
@@ -441,19 +462,20 @@ export async function generateFitZip(
   });
 
   for (const w of sorted) {
-    if (!w.workout) continue;
+    const workout = resolveWorkout(w);
+    if (!workout) continue;
 
-    const cyclingStructure = getCyclingStructure(w.workout);
+    const cyclingStructure = getCyclingStructure(workout);
     if (!cyclingStructure || cyclingStructure.steps.length === 0) continue;
 
-    const workoutName = w.workout.name || w.workout_type || 'Workout';
+    const workoutName = workout.name || w.workout_type || 'Workout';
     const prefix = `Wk${w.week_number}_${getDayName(w.day_of_week).slice(0, 3)}`;
     const cleanName = `${prefix}_${workoutName}`.replace(/[^a-zA-Z0-9-_]/g, '_');
 
     try {
       const fitData = encodeFitWorkout(cyclingStructure, {
         workoutName: `${prefix}: ${workoutName}`,
-        description: w.workout.description,
+        description: workout.description,
       });
       zip.file(`${cleanName}.fit`, fitData);
       fileCount++;
