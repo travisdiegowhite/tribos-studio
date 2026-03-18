@@ -575,3 +575,5 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
     { name: 'training-planner' }
   )
 );
+
+export default useTrainingPlannerStore;
