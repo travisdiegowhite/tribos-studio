@@ -151,6 +151,9 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     bicycle: { ...ROUTE_PROFILE_COSTING[profile] || ROUTE_PROFILE_COSTING.road }
   };
 
+  // Never route cyclists onto ferries — use bridges/tunnels instead
+  costing_options.bicycle.use_ferry = 0;
+
   // Apply personalized cycling speed if provided
   if (userSpeed && userSpeed > 0) {
     costing_options.bicycle.cycling_speed = userSpeed;
