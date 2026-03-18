@@ -100,50 +100,46 @@ export default function GetStartedGuide() {
       });
   }, [user?.id]);
 
-  // Subscribe to realtime updates
+  // Poll for activation updates (replaces Realtime subscription to reduce DB connections)
   useEffect(() => {
     if (!user?.id) return;
 
-    const channel = supabase
-      .channel(`activation-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'user_activation',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const newData = payload.new;
-          const oldData = payload.old;
+    const prevStepsRef = { current: activation?.steps };
 
-          setActivation(newData);
+    const poll = async () => {
+      const { data } = await supabase
+        .from('user_activation')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
 
-          // Show toast for newly completed steps
-          if (newData.steps && oldData.steps) {
-            for (const step of ACTIVATION_STEPS) {
-              if (
-                newData.steps[step.key]?.completed &&
-                !oldData.steps[step.key]?.completed
-              ) {
-                notifications.show({
-                  title: step.label,
-                  message: 'Step complete!',
-                  color: 'sage',
-                  autoClose: 3000,
-                });
-              }
-            }
+      if (!data) return;
+
+      // Show toast for newly completed steps
+      const oldSteps = prevStepsRef.current;
+      if (data.steps && oldSteps) {
+        for (const step of ACTIVATION_STEPS) {
+          if (
+            data.steps[step.key]?.completed &&
+            !oldSteps[step.key]?.completed
+          ) {
+            notifications.show({
+              title: step.label,
+              message: 'Step complete!',
+              color: 'sage',
+              autoClose: 3000,
+            });
           }
         }
-      )
-      .subscribe();
+      }
 
-    return () => {
-      supabase.removeChannel(channel);
+      prevStepsRef.current = data.steps;
+      setActivation(data);
     };
-  }, [user?.id, setActivation]);
+
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
+  }, [user?.id, setActivation, activation?.steps]);
 
   // Don't render if loading, complete, dismissed, or no activation record
   if (loading || isComplete || isDismissed || !activation) return null;
