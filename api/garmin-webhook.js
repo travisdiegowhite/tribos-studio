@@ -3,9 +3,10 @@
 // Documentation: https://developer.garmin.com/gc-developer-program/activity-api/
 //
 // ARCHITECTURE: Store-and-respond pattern
-// 1. This handler ONLY stores events and returns 200 (fast, well within 5s)
+// 1. This handler ONLY stores events — the DB insert is fast (milliseconds)
 // 2. Processing happens via api/garmin-webhook-process.js (cron, every minute)
-// This eliminates the 5-second Garmin timeout risk entirely.
+// 3. Returns 200 if at least one event was stored, 503 if ALL storage failed
+//    (so Garmin retries when the DB is down instead of silently losing events)
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
@@ -112,6 +113,7 @@ export default async function handler(req, res) {
     // Store every item as a separate event for the processor to pick up
     const eventIds = [];
     let batchIndex = 0;
+    let storageAttempts = 0;
 
     for (const item of parsed.items) {
       const { userId, activityId, fileUrl } = extractActivityFields(item, webhookData);
@@ -139,6 +141,7 @@ export default async function handler(req, res) {
 
           if (isFileDataWebhook && hasNewFileUrl) {
             // Update existing event with new FIT URL and mark for reprocessing
+            storageAttempts++;
             await supabase
               .from('garmin_webhook_events')
               .update({
@@ -175,6 +178,7 @@ export default async function handler(req, res) {
           .limit(1);
 
         if (recentPush?.[0]) {
+          storageAttempts++;
           await supabase
             .from('garmin_webhook_events')
             .update({
@@ -194,6 +198,7 @@ export default async function handler(req, res) {
       }
 
       // Store the event - processor will handle it
+      storageAttempts++;
       const eventData = {
         event_type: parsed.type === 'HEALTH' ? `HEALTH_${parsed.healthType}` : parsed.type,
         garmin_user_id: userId,
@@ -225,6 +230,31 @@ export default async function handler(req, res) {
       batchIndex++;
     }
 
+    // Return 503 when ALL storage attempts failed (e.g. database is down).
+    // This tells Garmin the service is temporarily unavailable, triggering retry.
+    // Losing events silently (returning 200 when DB is down) is worse than risking
+    // a temporary endpoint disable — we can re-enable the endpoint, but we cannot
+    // recover events that were never stored.
+    if (eventIds.length === 0 && storageAttempts > 0) {
+      console.error('🚨 All event storage failed — returning 503 for Garmin retry', {
+        attemptedCount: storageAttempts,
+        type: parsed.type
+      });
+      return res.status(503).json({
+        success: false,
+        error: 'Service temporarily unavailable — all event storage failed',
+        retryable: true
+      });
+    }
+
+    if (eventIds.length > 0 && eventIds.length < storageAttempts) {
+      console.warn('⚠️ Partial storage failure', {
+        stored: eventIds.length,
+        attempted: storageAttempts,
+        type: parsed.type
+      });
+    }
+
     console.log(`✅ Stored ${eventIds.length} events for async processing`);
 
     return res.status(200).json({
@@ -234,12 +264,14 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Webhook handler error:', error);
-    // Always 200 to prevent Garmin from disabling the webhook
-    return res.status(200).json({
+    console.error('🚨 Webhook handler error:', error);
+    // Return 503 so Garmin retries delivery.
+    // Losing events silently (200 when DB is down) is worse than risking
+    // a temporary endpoint disable.
+    return res.status(503).json({
       success: false,
-      error: 'Webhook storage failed',
-      message: 'Event acknowledged but storage failed'
+      error: 'Service temporarily unavailable',
+      retryable: true
     });
   }
 }

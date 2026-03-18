@@ -2,7 +2,8 @@
  * Cloudflare Worker: Garmin Webhook Proxy
  *
  * Thin store-and-respond handler — no business logic.
- * Verifies signature, stores events to Supabase, returns 200.
+ * Verifies signature, stores events to Supabase.
+ * Returns 200 if stored, 503 if storage failed (so Garmin retries).
  * All processing happens via Vercel cron (api/garmin-webhook-process.js).
  */
 
@@ -47,6 +48,7 @@ export default {
 
       const eventIds = [];
       let batchIndex = 0;
+      let storageAttempts = 0;
 
       for (const item of items) {
         const userId = item.userId;
@@ -68,6 +70,7 @@ export default {
 
           if (existing) {
             if (type === 'ACTIVITY_FILE_DATA' && fileUrl) {
+              storageAttempts++;
               await supabase.from('garmin_webhook_events')
                 .update({ file_url: fileUrl, processed: false, process_error: null, retry_count: 0, next_retry_at: null })
                 .eq('id', existing.id);
@@ -78,6 +81,7 @@ export default {
           }
         }
 
+        storageAttempts++;
         const { data: event, error } = await supabase
           .from('garmin_webhook_events')
           .insert({
@@ -102,12 +106,36 @@ export default {
         batchIndex++;
       }
 
+      // Return 503 when ALL storage attempts failed (e.g. database is down).
+      // Garmin will retry delivery. Losing events silently is worse than risking
+      // a temporary endpoint disable.
+      if (eventIds.length === 0 && storageAttempts > 0) {
+        console.error('All event storage failed — returning 503 for Garmin retry', {
+          attemptedCount: storageAttempts, type
+        });
+        return json(503, {
+          success: false,
+          error: 'Service temporarily unavailable — all event storage failed',
+          retryable: true
+        });
+      }
+
+      if (eventIds.length > 0 && eventIds.length < storageAttempts) {
+        console.warn('Partial storage failure', {
+          stored: eventIds.length, attempted: storageAttempts, type
+        });
+      }
+
       return json(200, { success: true, eventIds, message: `${eventIds.length} events queued` });
 
     } catch (err) {
       console.error('Webhook error:', err);
-      // Always 200 to prevent Garmin from disabling the webhook
-      return json(200, { success: false, error: 'Storage failed', message: 'Event acknowledged but storage failed' });
+      // Return 503 so Garmin retries delivery.
+      return json(503, {
+        success: false,
+        error: 'Service temporarily unavailable',
+        retryable: true
+      });
     }
   }
 };
