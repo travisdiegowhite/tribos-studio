@@ -83,7 +83,7 @@ import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
-import { SupplementWorkoutModal, SegmentLibraryPanel } from '../components/training';
+import { SupplementWorkoutModal, SegmentLibraryPanel, TrainingPlanExportMenu } from '../components/training';
 import RaceGoalsPanel from '../components/RaceGoalsPanel.jsx';
 import PowerDurationCurve from '../components/PowerDurationCurve.jsx';
 import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
@@ -926,6 +926,13 @@ function TrainingDashboard() {
                   >
                     Add Supplement
                   </Button>
+                )}
+                {activePlan && (
+                  <TrainingPlanExportMenu
+                    plan={activePlan}
+                    workouts={plannedWorkouts}
+                    progress={null}
+                  />
                 )}
                 <Menu shadow="md" width={200}>
                   <Menu.Target>

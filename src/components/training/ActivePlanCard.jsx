@@ -31,14 +31,18 @@ import {
   IconTrendingUp,
   IconAlertCircle,
   IconBarbell,
+  IconDownload,
 } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { TRAINING_PHASES } from '../../utils/trainingPlans';
+import { exportTrainingPlan, downloadPlanExport } from '../../utils/trainingPlanExport';
 
 export default function ActivePlanCard({
   plan,
   currentWeek,
   currentPhase,
   progress,
+  plannedWorkouts,
   onPause,
   onResume,
   onComplete,
@@ -160,6 +164,40 @@ export default function ActivePlanCard({
             >
               Regenerate Workouts
             </Menu.Item>
+            {plannedWorkouts && plannedWorkouts.length > 0 && (
+              <>
+                <Menu.Divider />
+                <Menu.Label>Export Plan</Menu.Label>
+                <Menu.Item
+                  icon={<IconDownload size={16} />}
+                  onClick={() => {
+                    try {
+                      const result = exportTrainingPlan(plan, plannedWorkouts, { format: 'csv' }, progress);
+                      downloadPlanExport(result);
+                      notifications.show({ title: 'Plan Exported', message: 'CSV downloaded', color: 'green' });
+                    } catch (e) {
+                      notifications.show({ title: 'Export Failed', message: e.message, color: 'red' });
+                    }
+                  }}
+                >
+                  Export as CSV
+                </Menu.Item>
+                <Menu.Item
+                  icon={<IconDownload size={16} />}
+                  onClick={() => {
+                    try {
+                      const result = exportTrainingPlan(plan, plannedWorkouts, { format: 'ical' }, progress);
+                      downloadPlanExport(result);
+                      notifications.show({ title: 'Plan Exported', message: 'Calendar file downloaded', color: 'green' });
+                    } catch (e) {
+                      notifications.show({ title: 'Export Failed', message: e.message, color: 'red' });
+                    }
+                  }}
+                >
+                  Export as Calendar (.ics)
+                </Menu.Item>
+              </>
+            )}
             <Menu.Divider />
             <Menu.Item
               icon={<IconTrash size={16} />}
