@@ -27,6 +27,7 @@ import {
   IconDeviceWatch,
   IconGauge,
   IconArrowRight,
+  IconActivity,
 } from '@tabler/icons-react';
 import {
   estimateNormalizedPower,
