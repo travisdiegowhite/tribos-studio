@@ -13,6 +13,8 @@ export function getSupabaseAdmin() {
       process.env.SUPABASE_SERVICE_KEY,
       {
         auth: { persistSession: false, autoRefreshToken: false },
+        db: { schema: 'public' },
+        global: { headers: { 'X-Client-Info': 'tribos-server' } },
       }
     );
   }

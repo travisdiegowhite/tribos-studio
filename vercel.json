@@ -10,15 +10,15 @@
     },
     {
       "path": "/api/garmin-webhook-process",
-      "schedule": "*/2 * * * *"
-    },
-    {
-      "path": "/api/proactive-insights-process",
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/proactive-insights-process",
+      "schedule": "*/10 * * * *"
+    },
+    {
       "path": "/api/coros-webhook-process",
-      "schedule": "*/2 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/coros-token-maintenance",
