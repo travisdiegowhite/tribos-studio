@@ -1,14 +1,11 @@
 // Vercel API Route: User Data Export
 // Exports all user data as JSON for GDPR/compliance data portability requests
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase with service role (server-side only)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 // Helper to get user from Authorization header
 async function getUserFromAuthHeader(req) {

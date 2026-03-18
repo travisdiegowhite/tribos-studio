@@ -5,15 +5,12 @@
 // Retry strategy: exponential backoff (1m, 2m, 4m, 8m, 16m, 32m)
 // Max retries: 6 (gives up after ~1 hour of failures)
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 import { completeActivationStep, enqueueProactiveInsight } from './utils/activation.js';
 import { buildCorosActivityData } from './utils/coros/activityBuilder.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const MAX_RETRIES = 6;
 const BATCH_SIZE = 20;

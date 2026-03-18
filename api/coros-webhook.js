@@ -6,15 +6,12 @@
 // 1. This handler ONLY stores events and returns 200 (fast response)
 // 2. Processing happens via api/coros-webhook-process.js (cron, every minute)
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 let lastWebhookReceived = null;
 

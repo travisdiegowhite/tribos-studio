@@ -2,12 +2,9 @@
 // Runs as a cron job to proactively refresh expiring access tokens
 // COROS access tokens last 30 days; refresh tokens never expire
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const COROS_API_BASE = process.env.COROS_API_BASE || 'https://open.coros.com';
 

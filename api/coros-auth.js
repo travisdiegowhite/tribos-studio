@@ -2,16 +2,13 @@
 // COROS uses OAuth 2.0 with application/x-www-form-urlencoded format
 // Docs: COROS API Reference V2.0.6
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 import { completeActivationStep } from './utils/activation.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const COROS_API_BASE = process.env.COROS_API_BASE || 'https://open.coros.com';
 

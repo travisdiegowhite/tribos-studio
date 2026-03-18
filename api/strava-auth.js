@@ -1,16 +1,13 @@
 // Vercel API Route: Secure Strava Authentication
 // Handles token exchange and storage server-side
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 import { completeActivationStep } from './utils/activation.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY // Use service key for server operations
-);
+const supabase = getSupabaseAdmin();
 
 const STRAVA_OAUTH_BASE = 'https://www.strava.com/oauth';
 

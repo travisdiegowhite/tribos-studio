@@ -9,12 +9,9 @@
 // 4. Strava - Good for GPS/social but limited power data access
 // 5. Manual uploads
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './supabaseAdmin.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 // Provider priority - higher number = higher priority
 export const PROVIDER_PRIORITY = {

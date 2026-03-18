@@ -9,7 +9,7 @@
  * - GET /api/fitness-snapshots?action=compute-weekly - Cron job for weekly computation
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import {
   computeWeeklySnapshot,
   backfillSnapshots,
@@ -17,10 +17,7 @@ import {
 } from './utils/fitnessSnapshots.js';
 import { setupCors } from './utils/cors.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 /**
  * Extract and validate user from Authorization header

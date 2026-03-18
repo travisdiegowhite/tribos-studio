@@ -2,15 +2,12 @@
 // Uses Claude Vision to extract workout schedules from screenshots
 
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 // System prompt for extracting training plan data
 const EXTRACTION_PROMPT = `Analyze this training plan screenshot. Extract all scheduled workouts and return as JSON.

@@ -7,7 +7,7 @@
 // 2. Processing happens via api/garmin-webhook-process.js (cron, every minute)
 // This eliminates the 5-second Garmin timeout risk entirely.
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 import { verifySignature, getSignatureFromHeaders } from './utils/garmin/signatureVerifier.js';
@@ -40,10 +40,7 @@ function getRawBody(req) {
 }
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const WEBHOOK_SECRET = process.env.GARMIN_WEBHOOK_SECRET;
 

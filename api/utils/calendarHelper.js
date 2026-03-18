@@ -1,12 +1,9 @@
 // Shared Google Calendar utilities for coach and calendar API endpoints
 // Extracts token management and busy-time fetching so the coach can use them directly
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './supabaseAdmin.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const GOOGLE_OAUTH_BASE = 'https://oauth2.googleapis.com';
 const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3';

@@ -3,14 +3,11 @@
 // This is an admin-only endpoint - one-time setup per application
 // Documentation: https://developers.strava.com/docs/webhooks/
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 
 // Initialize Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
 const VERIFY_TOKEN = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN;

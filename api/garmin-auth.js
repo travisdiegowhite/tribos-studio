@@ -1,17 +1,14 @@
 // Vercel API Route: Garmin Connect Authentication
 // Garmin uses OAuth 2.0 with PKCE
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 import { completeActivationStep } from './utils/activation.js';
 import crypto from 'crypto';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 // Garmin Connect OAuth 2.0 endpoints (from official PKCE spec)
 const GARMIN_AUTHORIZE_URL = 'https://connect.garmin.com/oauth2Confirm';

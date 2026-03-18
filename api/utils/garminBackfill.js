@@ -13,13 +13,10 @@
  * - Must add delays between requests to be respectful of Garmin's servers
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from './supabaseAdmin.js';
 
 // Initialize Supabase (server-side)
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabase = getSupabaseAdmin();
 
 const GARMIN_API_BASE = 'https://apis.garmin.com/wellness-api/rest';
 
