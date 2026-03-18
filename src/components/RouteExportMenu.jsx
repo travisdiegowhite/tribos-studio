@@ -15,6 +15,7 @@ import {
   IconChevronDown,
   IconCloudUpload,
   IconCheck,
+  IconFile,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { exportAndDownloadRoute } from '../utils/routeExport';
@@ -224,6 +225,20 @@ export function RouteExportMenu({
             </Text>
             <Text size="xs" c="dimmed">
               Garmin's native format - best compatibility
+            </Text>
+          </Stack>
+        </Menu.Item>
+
+        <Menu.Item
+          leftSection={<IconFile size={16} />}
+          onClick={() => handleExport('fit')}
+        >
+          <Stack gap={0}>
+            <Text size="sm" fw={500}>
+              FIT Course
+            </Text>
+            <Text size="xs" c="dimmed">
+              Binary format - Garmin, Wahoo, Hammerhead
             </Text>
           </Stack>
         </Menu.Item>

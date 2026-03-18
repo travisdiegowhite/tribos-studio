@@ -3,12 +3,15 @@
  * Generates route files for bike computers and navigation in various formats:
  * - GPX (GPS Exchange Format) - Universal format for GPS devices
  * - TCX (Training Center XML) - Garmin's course format
+ * - FIT (Flexible and Interoperable Data Transfer) - Binary format for Garmin/Wahoo/Hammerhead
  *
  * Supports exporting routes with:
  * - Full coordinate data (lat, lng, elevation)
  * - Route metadata (name, description, distance, elevation gain)
  * - Waypoints/cuepoints for navigation
  */
+
+import { encodeFitCourse } from './fitCourseEncoder';
 
 // ============================================================
 // TYPES
@@ -41,14 +44,14 @@ export interface RouteData {
 }
 
 export interface RouteExportOptions {
-  format: 'gpx' | 'tcx';
+  format: 'gpx' | 'tcx' | 'fit';
   includeWaypoints?: boolean;
   includeElevation?: boolean;
   author?: string;
 }
 
 export interface RouteExportResult {
-  content: string;
+  content: string | Uint8Array;
   filename: string;
   mimeType: string;
 }
@@ -389,6 +392,18 @@ function mapWaypointType(type?: string): string {
 }
 
 // ============================================================
+// FIT COURSE EXPORT (BINARY FORMAT)
+// ============================================================
+
+/**
+ * Generate FIT Course file (binary)
+ * Compatible with Garmin, Wahoo, Hammerhead, and other ANT+ devices.
+ */
+export function generateFIT(route: RouteData): Uint8Array {
+  return encodeFitCourse(route);
+}
+
+// ============================================================
 // MAIN EXPORT FUNCTION
 // ============================================================
 
@@ -414,6 +429,13 @@ export function exportRoute(route: RouteData, options: RouteExportOptions): Rout
         mimeType: 'application/vnd.garmin.tcx+xml'
       };
 
+    case 'fit':
+      return {
+        content: generateFIT(route),
+        filename: `${cleanName}.fit`,
+        mimeType: 'application/octet-stream'
+      };
+
     default:
       throw new Error(`Unsupported export format: ${format}`);
   }
@@ -423,7 +445,7 @@ export function exportRoute(route: RouteData, options: RouteExportOptions): Rout
  * Trigger download of exported route file
  */
 export function downloadRoute(result: RouteExportResult): void {
-  const blob = new Blob([result.content], { type: result.mimeType });
+  const blob = new Blob([result.content as BlobPart], { type: result.mimeType });
   const url = URL.createObjectURL(blob);
 
   const link = document.createElement('a');
@@ -439,7 +461,7 @@ export function downloadRoute(result: RouteExportResult): void {
 /**
  * Quick export and download a route
  */
-export function exportAndDownloadRoute(route: RouteData, format: 'gpx' | 'tcx'): void {
+export function exportAndDownloadRoute(route: RouteData, format: 'gpx' | 'tcx' | 'fit'): void {
   const result = exportRoute(route, { format });
   downloadRoute(result);
 }
@@ -451,6 +473,7 @@ export function exportAndDownloadRoute(route: RouteData, format: 'gpx' | 'tcx'):
 export default {
   generateGPX,
   generateTCX,
+  generateFIT,
   exportRoute,
   downloadRoute,
   exportAndDownloadRoute
