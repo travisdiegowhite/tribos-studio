@@ -56,7 +56,7 @@ const initialState = {
   lastSaved: null,
 };
 
-export const useRouteBuilderStore = create(
+export const useRouteBuilderStore = create()(
   persist(
     (set, get) => ({
       ...initialState,
