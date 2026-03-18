@@ -11,7 +11,7 @@ import { EnhancedContextCollector } from './enhancedContext';
 import { optimizeLoopRoute, validateLoopRoute } from './routeOptimizer';
 import { filterRoutesByInfrastructure, enhanceRouteWithInfrastructure, generateInfrastructureReport } from './infrastructureValidator';
 import { getSmartCyclingRoute, getRoutingStrategyDescription } from './smartCyclingRouter';
-import { analyzeSegmentSuitability } from './stadiaMapsRouter';
+import { analyzeSegmentSuitability, classifyRoadSegments, classifyRouteWithOverpass } from './stadiaMapsRouter';
 import { generateSmartRouteName, generateAlternativeNames } from './routeNaming';
 
 // Normalize startLocation to [lng, lat] array format
@@ -806,6 +806,31 @@ async function generateMapboxLoop(startLocation, targetDistance, pattern, traini
     // Skip optimization to preserve road snapping
     console.log(`🔧 Preserving road structure for ${pattern.name}: ${route.coordinates.length} points`);
 
+    // Full-route arterial audit — detect busy roads using Overpass ground truth
+    try {
+      const audit = await auditFullRouteArterials(route.coordinates, route.maneuvers, startLocation);
+      route.arterialAudit = audit;
+      if (!audit.passed) {
+        const improved = await rerouteArterialSegments(route, audit, startLocation, targetDistance, {
+          profile: routingProfile,
+          preferences: userPreferences,
+          trainingGoal,
+          mapboxToken,
+          userSpeed
+        });
+        if (improved) {
+          route.coordinates = improved.coordinates;
+          route.distance = improved.distance;
+          if (improved.maneuvers) route.maneuvers = improved.maneuvers;
+          if (improved.roadClassification) route.roadClassification = improved.roadClassification;
+          route.arterialAudit.totalArterialFraction = improved.arterialFraction;
+          console.log(`✅ ${pattern.name}: arterial segments improved`);
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️ Arterial audit skipped for ${pattern.name}:`, error.message);
+    }
+
     // Get elevation profile
     const elevationProfile = await fetchElevationProfile(route.coordinates, mapboxToken);
     const elevationStats = calculateElevationStats(elevationProfile);
@@ -819,7 +844,7 @@ async function generateMapboxLoop(startLocation, targetDistance, pattern, traini
 
     const smartName = generateSmartRouteName(tempRoute, pattern, trainingGoal);
 
-    return {
+    const result = {
       name: smartName,
       distance: route.distance / 1000,
       elevationGain: elevationStats.gain,
@@ -835,6 +860,17 @@ async function generateMapboxLoop(startLocation, targetDistance, pattern, traini
       elevationProfile,
       windFactor: 0.8
     };
+
+    // Propagate routing analysis data (maneuvers, road classification, traffic scores)
+    // so that scoreRoutes() can use it for ranking — matches convertClaudeToFullRoute behavior
+    if (route.maneuvers) result.maneuvers = route.maneuvers;
+    if (route.trafficScore !== undefined) result.trafficScore = route.trafficScore;
+    if (route.quietnessScore !== undefined) result.quietnessScore = route.quietnessScore;
+    if (route.roadClassification) result.roadClassification = route.roadClassification;
+    if (route.infrastructureScore !== undefined) result.infrastructureScore = route.infrastructureScore;
+    if (route.isMetro !== undefined) result.isMetro = route.isMetro;
+
+    return result;
     
   } catch (error) {
     console.warn(`Failed to generate ${pattern.name}:`, error);
@@ -1062,6 +1098,36 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
       if (route.quietnessScore !== undefined) fullRoute.quietnessScore = route.quietnessScore;
       if (route.roadClassification) fullRoute.roadClassification = route.roadClassification;
       if (route.infrastructureScore !== undefined) fullRoute.infrastructureScore = route.infrastructureScore;
+      if (route.isMetro !== undefined) fullRoute.isMetro = route.isMetro;
+
+      // Full-route arterial audit for loop routes
+      const isLoop = (claudeRoute.routeType || 'loop') === 'loop';
+      if (isLoop) {
+        try {
+          const audit = await auditFullRouteArterials(fullRoute.coordinates, route.maneuvers, startLocation);
+          fullRoute.arterialAudit = audit;
+          if (!audit.passed) {
+            const trainingGoal = claudeRoute.trainingGoal || claudeRoute.trainingFocus || 'endurance';
+            const improved = await rerouteArterialSegments(route, audit, startLocation, targetDistance, {
+              profile: routingProfile,
+              preferences,
+              trainingGoal,
+              mapboxToken,
+              userSpeed: userSpeed
+            });
+            if (improved) {
+              fullRoute.coordinates = improved.coordinates;
+              fullRoute.distance = improved.distance / 1000;
+              if (improved.maneuvers) fullRoute.maneuvers = improved.maneuvers;
+              if (improved.roadClassification) fullRoute.roadClassification = improved.roadClassification;
+              fullRoute.arterialAudit.totalArterialFraction = improved.arterialFraction;
+              console.log(`✅ Claude route "${claudeRoute.name}": arterial segments improved`);
+            }
+          }
+        } catch (error) {
+          console.warn(`⚠️ Arterial audit skipped for "${claudeRoute.name}":`, error.message);
+        }
+      }
 
       // Apply smart naming if the route has a fallback name like "Claude Route 1"
       const isFallbackName = /^Claude Route \d+$/i.test(claudeRoute.name);
@@ -2120,6 +2186,227 @@ function analyzeRouteIntervalSuitability(maneuverData, routeDistanceKm) {
   };
 }
 
+/**
+ * Audit the full route for arterial roads using Overpass ground-truth data.
+ * Queries Overpass for actual OSM road classifications, then identifies
+ * contiguous arterial stretches that need rerouting.
+ *
+ * @param {Array} coordinates - Route coordinates [[lon, lat], ...]
+ * @param {Object} maneuverData - Maneuver data from extractManeuverData()
+ * @param {Array} startLocation - [lon, lat] of route start
+ * @returns {Promise<Object>} Audit result with arterial stretches and pass/fail
+ */
+async function auditFullRouteArterials(coordinates, maneuverData, startLocation) {
+  if (!coordinates || coordinates.length < 20) {
+    return { passed: true, arterialStretches: [], totalArterialFraction: 0, reason: 'insufficient data' };
+  }
+
+  // Get Overpass ground-truth arterial classification
+  const overpassData = await classifyRouteWithOverpass(coordinates);
+
+  // Also run maneuver-based classification with Overpass data for enhanced accuracy
+  if (maneuverData?.maneuvers?.length > 0) {
+    const isMetro = maneuverData.roadClassification?.isMetro || false;
+    const totalDistKm = maneuverData.maneuvers.reduce((sum, m) => sum + (m.length || 0), 0);
+    // Re-classify with Overpass data injected as Tier 0
+    const enhanced = classifyRoadSegments(maneuverData.maneuvers, totalDistKm, isMetro, overpassData);
+    // Update the maneuverData's classification with enhanced version
+    maneuverData.roadClassification = enhanced;
+  }
+
+  const arterialFraction = overpassData.arterialFraction;
+  const arterialStretches = overpassData.arterialStretches || [];
+
+  // Route fails audit if >20% arterial
+  const passed = arterialFraction <= 0.20;
+
+  if (!passed) {
+    const stretchNames = arterialStretches.flatMap(s => s.roadNames).filter((v, i, a) => a.indexOf(v) === i).slice(0, 5);
+    console.log(`⚠️ Full route arterial audit: ${(arterialFraction * 100).toFixed(0)}% arterial — FLAGGED (${stretchNames.join(', ')})`);
+  } else {
+    console.log(`✅ Full route arterial audit: ${(arterialFraction * 100).toFixed(0)}% arterial — OK`);
+  }
+
+  return {
+    passed,
+    arterialStretches,
+    totalArterialFraction: arterialFraction,
+    overpassData,
+    reason: passed
+      ? 'route has acceptable arterial fraction'
+      : `${(arterialFraction * 100).toFixed(0)}% arterial exceeds 20% threshold`
+  };
+}
+
+/**
+ * Reroute the full route to avoid arterial stretches identified by the audit.
+ * For each arterial stretch, inserts avoidance waypoints offset perpendicular
+ * to the stretch bearing, pulling the route onto quieter parallel roads.
+ *
+ * Tries both perpendicular directions and picks the one with lower arterial fraction.
+ * Maximum 2 reroute attempts total.
+ *
+ * @param {Object} route - The full route object from getSmartCyclingRoute
+ * @param {Object} audit - Result from auditFullRouteArterials()
+ * @param {Array} startLocation - [lon, lat]
+ * @param {number} targetDistanceKm - Original target distance in km
+ * @param {Object} routingOptions - Options for getSmartCyclingRoute
+ * @returns {Object|null} Improved route object, or null if reroute didn't help
+ */
+async function rerouteArterialSegments(route, audit, startLocation, targetDistanceKm, routingOptions) {
+  const { arterialStretches, totalArterialFraction } = audit;
+
+  if (!arterialStretches || arterialStretches.length === 0) return null;
+
+  // Collect the route's original logical waypoints from the coordinates
+  // We'll insert avoidance waypoints near each arterial stretch
+  // Start with start location as first waypoint
+  const originalWaypoints = [startLocation];
+
+  // Sample key points along the route (every ~3km) as intermediate waypoints
+  let cumulDist = 0;
+  let lastWpDist = 0;
+  const WP_INTERVAL_KM = 3;
+  for (let i = 1; i < route.coordinates.length; i++) {
+    const [lon1, lat1] = route.coordinates[i - 1];
+    const [lon2, lat2] = route.coordinates[i];
+    const segDist = Math.sqrt(
+      Math.pow((lat2 - lat1) * 111.32, 2) +
+      Math.pow((lon2 - lon1) * 111.32 * Math.cos(lat1 * Math.PI / 180), 2)
+    );
+    cumulDist += segDist;
+
+    if (cumulDist - lastWpDist >= WP_INTERVAL_KM) {
+      originalWaypoints.push(route.coordinates[i]);
+      lastWpDist = cumulDist;
+    }
+  }
+
+  // Close the loop back to start
+  originalWaypoints.push(startLocation);
+
+  // Try rerouting with avoidance waypoints (up to 2 attempts with opposite perpendicular directions)
+  let bestRoute = null;
+  let bestArterialFraction = totalArterialFraction;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const perpSign = attempt === 0 ? 1 : -1; // Try both perpendicular directions
+    const enhancedWaypoints = [...originalWaypoints];
+
+    // For each arterial stretch, generate avoidance waypoints
+    let insertionOffset = 0;
+    for (const stretch of arterialStretches) {
+      const { midpoint, lengthKm, startIdx, endIdx } = stretch;
+      const [midLon, midLat] = midpoint;
+
+      // Compute bearing of the arterial stretch
+      const [sLon, sLat] = route.coordinates[startIdx];
+      const [eLon, eLat] = route.coordinates[Math.min(endIdx, route.coordinates.length - 1)];
+      const stretchBearing = Math.atan2(eLon - sLon, eLat - sLat);
+
+      // Perpendicular offset: 25% of stretch length, min 0.3km, max 2km
+      const perpOffset = Math.max(0.3, Math.min(2.0, lengthKm * 0.25));
+
+      // Offset perpendicular to the stretch
+      const perpBearing = stretchBearing + (perpSign * Math.PI / 2);
+      const avoidLat = midLat + (perpOffset / 111.32) * Math.cos(perpBearing);
+      const avoidLon = midLon + (perpOffset / (111.32 * Math.cos(midLat * Math.PI / 180))) * Math.sin(perpBearing);
+
+      // Find insertion position: closest existing waypoint to the midpoint
+      let closestWpIdx = 0;
+      let closestDist = Infinity;
+      for (let i = 0; i < enhancedWaypoints.length; i++) {
+        const [wpLon, wpLat] = enhancedWaypoints[i];
+        const d = Math.sqrt((wpLon - midLon) ** 2 + (wpLat - midLat) ** 2);
+        if (d < closestDist) {
+          closestDist = d;
+          closestWpIdx = i;
+        }
+      }
+
+      // Insert avoidance waypoint after the closest waypoint
+      const insertAt = Math.min(closestWpIdx + 1, enhancedWaypoints.length - 1);
+      enhancedWaypoints.splice(insertAt + insertionOffset, 0, [avoidLon, avoidLat]);
+      insertionOffset++;
+
+      // For longer stretches (>2km), add a second avoidance waypoint
+      if (lengthKm > 2) {
+        const quarterIdx = Math.floor(startIdx + (endIdx - startIdx) * 0.25);
+        const [qLon, qLat] = route.coordinates[Math.min(quarterIdx, route.coordinates.length - 1)];
+        const avoid2Lat = qLat + (perpOffset * 0.8 / 111.32) * Math.cos(perpBearing);
+        const avoid2Lon = qLon + (perpOffset * 0.8 / (111.32 * Math.cos(qLat * Math.PI / 180))) * Math.sin(perpBearing);
+        enhancedWaypoints.splice(insertAt + insertionOffset, 0, [avoid2Lon, avoid2Lat]);
+        insertionOffset++;
+      }
+    }
+
+    // Cap total waypoints (Valhalla practical limit ~20)
+    let routeWaypoints = enhancedWaypoints;
+    if (routeWaypoints.length > 18) {
+      // Keep start, end, and evenly sample the rest
+      const start = routeWaypoints[0];
+      const end = routeWaypoints[routeWaypoints.length - 1];
+      const middle = routeWaypoints.slice(1, -1);
+      const step = Math.ceil(middle.length / 16);
+      const sampled = middle.filter((_, i) => i % step === 0);
+      routeWaypoints = [start, ...sampled, end];
+    }
+
+    try {
+      console.log(`🔄 Arterial reroute attempt ${attempt + 1}: ${routeWaypoints.length} waypoints, ${arterialStretches.length} stretch(es) to avoid`);
+      const newRoute = await getSmartCyclingRoute(routeWaypoints, {
+        profile: routingOptions.profile || 'bike',
+        preferences: routingOptions.preferences,
+        trainingGoal: routingOptions.trainingGoal,
+        mapboxToken: routingOptions.mapboxToken,
+        userSpeed: routingOptions.userSpeed
+      });
+
+      if (!newRoute || !newRoute.coordinates || newRoute.coordinates.length < 10) {
+        console.log(`❌ Arterial reroute attempt ${attempt + 1} failed — no valid route`);
+        continue;
+      }
+
+      const newDistKm = newRoute.distance / 1000;
+
+      // Allow up to 20% longer for safety
+      if (newDistKm > targetDistanceKm * 1.20) {
+        console.log(`❌ Arterial reroute attempt ${attempt + 1} too long: ${newDistKm.toFixed(1)}km vs ${targetDistanceKm.toFixed(1)}km target (${((newDistKm / targetDistanceKm - 1) * 100).toFixed(0)}% over)`);
+        continue;
+      }
+
+      // Re-audit the new route with Overpass
+      const newOverpass = await classifyRouteWithOverpass(newRoute.coordinates);
+      const newArterialFraction = newOverpass.arterialFraction;
+
+      if (newArterialFraction >= bestArterialFraction) {
+        console.log(`❌ Arterial reroute attempt ${attempt + 1} not better: ${(newArterialFraction * 100).toFixed(0)}% arterial (was ${(bestArterialFraction * 100).toFixed(0)}%)`);
+        continue;
+      }
+
+      console.log(`✅ Arterial reroute attempt ${attempt + 1}: ${(totalArterialFraction * 100).toFixed(0)}% → ${(newArterialFraction * 100).toFixed(0)}% arterial, distance ${newDistKm.toFixed(1)}km (+${((newDistKm / targetDistanceKm - 1) * 100).toFixed(0)}%)`);
+      bestRoute = newRoute;
+      bestArterialFraction = newArterialFraction;
+
+      // If good enough (<10% arterial), stop trying
+      if (newArterialFraction < 0.10) break;
+    } catch (error) {
+      console.warn(`❌ Arterial reroute attempt ${attempt + 1} error:`, error.message);
+    }
+  }
+
+  if (!bestRoute) return null;
+
+  return {
+    coordinates: bestRoute.coordinates,
+    distance: bestRoute.distance,
+    arterialFraction: bestArterialFraction,
+    maneuvers: bestRoute.maneuvers,
+    roadClassification: bestRoute.roadClassification,
+    isMetro: bestRoute.isMetro || false
+  };
+}
+
 // Score and rank routes
 async function scoreRoutes(routes, criteria) {
   const { trainingGoal, weatherData, timeAvailable, ridingPatterns, userPreferences } = criteria;
@@ -2227,6 +2514,24 @@ function getTrainingGoalScore(route, goal) {
       break;
     default:
       score = 0.1;
+  }
+
+  // Arterial penalty from Overpass ground-truth audit (applies to ALL goals)
+  // Proportional penalty based on actual arterial fraction — more reliable than metro-only check
+  if (route.arterialAudit?.totalArterialFraction > 0.15) {
+    score -= 0.2 * route.arterialAudit.totalArterialFraction;
+  }
+
+  // Metro area penalty: additional scoring in urban areas where arterials are more dangerous
+  if (route.isMetro && route.roadClassification?.arterialFraction !== undefined) {
+    const af = route.roadClassification.arterialFraction;
+    if (af <= 0.1) {
+      score += 0.15; // Excellent — mostly quiet roads through the city
+    } else if (af > 0.4) {
+      score -= 0.30; // Heavily arterial in metro — strong penalty
+    } else if (af > 0.25) {
+      score -= 0.15; // Too much arterial exposure for urban riding
+    }
   }
 
   return score;
