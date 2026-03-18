@@ -675,7 +675,7 @@ function extractManeuverData(trip, isMetro = false) {
  * @param {boolean} isMetro - Whether route passes through a metro/urban area
  * @returns {Object} Road classification with arterial fraction and distances
  */
-function classifyRoadSegments(maneuvers, totalDistanceKm, isMetro = false) {
+export function classifyRoadSegments(maneuvers, totalDistanceKm, isMetro = false) {
   const ARTERIAL_NAME_PATTERN = /\b(Highway|Hwy|US[-\s]?\d|State\s*(Route|Road|Hwy)|SR[-\s]?\d|Interstate|I-\d|County\s*(Road|Rd)|CR[-\s]?\d|Boulevard|Blvd|Expressway|Freeway|Parkway|Turnpike|Route\s+\d)/i;
 
   let highwayDistanceKm = 0;

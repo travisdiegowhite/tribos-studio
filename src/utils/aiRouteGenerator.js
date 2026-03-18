@@ -11,7 +11,7 @@ import { EnhancedContextCollector } from './enhancedContext';
 import { optimizeLoopRoute, validateLoopRoute } from './routeOptimizer';
 import { filterRoutesByInfrastructure, enhanceRouteWithInfrastructure, generateInfrastructureReport } from './infrastructureValidator';
 import { getSmartCyclingRoute, getRoutingStrategyDescription } from './smartCyclingRouter';
-import { analyzeSegmentSuitability } from './stadiaMapsRouter';
+import { analyzeSegmentSuitability, classifyRoadSegments } from './stadiaMapsRouter';
 import { generateSmartRouteName, generateAlternativeNames } from './routeNaming';
 
 // Normalize startLocation to [lng, lat] array format
@@ -806,6 +806,28 @@ async function generateMapboxLoop(startLocation, targetDistance, pattern, traini
     // Skip optimization to preserve road snapping
     console.log(`🔧 Preserving road structure for ${pattern.name}: ${route.coordinates.length} points`);
 
+    // Audit return leg safety — detect arterial shortcuts on the way back
+    if (route.maneuvers?.maneuvers?.length > 0) {
+      const audit = auditReturnLeg(route.coordinates, route.maneuvers, startLocation);
+      if (audit.returnLegUnsafe) {
+        const improved = await rerouteReturnLeg(route, audit, startLocation, targetDistance, {
+          profile: routingProfile,
+          preferences: userPreferences,
+          trainingGoal,
+          mapboxToken,
+          userSpeed
+        });
+        if (improved) {
+          route.coordinates = improved.coordinates;
+          route.distance = improved.distance;
+          // Preserve new maneuver/classification data if available
+          if (improved.maneuvers) route.maneuvers = improved.maneuvers;
+          if (improved.roadClassification) route.roadClassification = improved.roadClassification;
+          console.log(`✅ ${pattern.name}: return leg improved`);
+        }
+      }
+    }
+
     // Get elevation profile
     const elevationProfile = await fetchElevationProfile(route.coordinates, mapboxToken);
     const elevationStats = calculateElevationStats(elevationProfile);
@@ -819,7 +841,7 @@ async function generateMapboxLoop(startLocation, targetDistance, pattern, traini
 
     const smartName = generateSmartRouteName(tempRoute, pattern, trainingGoal);
 
-    return {
+    const result = {
       name: smartName,
       distance: route.distance / 1000,
       elevationGain: elevationStats.gain,
@@ -835,6 +857,17 @@ async function generateMapboxLoop(startLocation, targetDistance, pattern, traini
       elevationProfile,
       windFactor: 0.8
     };
+
+    // Propagate routing analysis data (maneuvers, road classification, traffic scores)
+    // so that scoreRoutes() can use it for ranking — matches convertClaudeToFullRoute behavior
+    if (route.maneuvers) result.maneuvers = route.maneuvers;
+    if (route.trafficScore !== undefined) result.trafficScore = route.trafficScore;
+    if (route.quietnessScore !== undefined) result.quietnessScore = route.quietnessScore;
+    if (route.roadClassification) result.roadClassification = route.roadClassification;
+    if (route.infrastructureScore !== undefined) result.infrastructureScore = route.infrastructureScore;
+    if (route.isMetro !== undefined) result.isMetro = route.isMetro;
+
+    return result;
     
   } catch (error) {
     console.warn(`Failed to generate ${pattern.name}:`, error);
@@ -1062,6 +1095,30 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
       if (route.quietnessScore !== undefined) fullRoute.quietnessScore = route.quietnessScore;
       if (route.roadClassification) fullRoute.roadClassification = route.roadClassification;
       if (route.infrastructureScore !== undefined) fullRoute.infrastructureScore = route.infrastructureScore;
+      if (route.isMetro !== undefined) fullRoute.isMetro = route.isMetro;
+
+      // Audit return leg safety for loop routes
+      const isLoop = (claudeRoute.routeType || 'loop') === 'loop';
+      if (isLoop && route.maneuvers?.maneuvers?.length > 0) {
+        const audit = auditReturnLeg(fullRoute.coordinates, route.maneuvers, startLocation);
+        if (audit.returnLegUnsafe) {
+          const trainingGoal = claudeRoute.trainingGoal || claudeRoute.trainingFocus || 'endurance';
+          const improved = await rerouteReturnLeg(route, audit, startLocation, targetDistance, {
+            profile: routingProfile,
+            preferences,
+            trainingGoal,
+            mapboxToken,
+            userSpeed: userSpeed
+          });
+          if (improved) {
+            fullRoute.coordinates = improved.coordinates;
+            fullRoute.distance = improved.distance / 1000;
+            if (improved.maneuvers) fullRoute.maneuvers = improved.maneuvers;
+            if (improved.roadClassification) fullRoute.roadClassification = improved.roadClassification;
+            console.log(`✅ Claude route "${claudeRoute.name}": return leg improved`);
+          }
+        }
+      }
 
       // Apply smart naming if the route has a fallback name like "Claude Route 1"
       const isFallbackName = /^Claude Route \d+$/i.test(claudeRoute.name);
@@ -2118,6 +2175,213 @@ function analyzeRouteIntervalSuitability(maneuverData, routeDistanceKm) {
         ? 'Route is acceptable but some segments have frequent intersections'
         : 'Route has too many interruptions for quality intervals — consider alternative'
   };
+}
+
+/**
+ * Audit the return leg of a loop route for unsafe arterial shortcuts.
+ * Splits the route at the farthest point from start and compares arterial
+ * fractions of the outbound vs return halves.
+ *
+ * @param {Array} coordinates - Route coordinates [[lon, lat], ...]
+ * @param {Object} maneuverData - Maneuver data from extractManeuverData()
+ * @param {Array} startLocation - [lon, lat] of route start
+ * @returns {Object} Audit result with returnLegUnsafe flag
+ */
+function auditReturnLeg(coordinates, maneuverData, startLocation) {
+  if (!coordinates || coordinates.length < 20 || !maneuverData?.maneuvers?.length) {
+    return { returnLegUnsafe: false, reason: 'insufficient data' };
+  }
+
+  const maneuvers = maneuverData.maneuvers;
+
+  // Find the farthest point from start
+  let maxDist = 0;
+  let farthestIdx = 0;
+  for (let i = 0; i < coordinates.length; i++) {
+    const d = calculateDistance(startLocation, coordinates[i]);
+    if (d > maxDist) {
+      maxDist = d;
+      farthestIdx = i;
+    }
+  }
+
+  // Find the cumulative distance along the route to the farthest point
+  let cumulativeDistKm = 0;
+  let farthestRouteDistKm = 0;
+  for (let i = 1; i < coordinates.length; i++) {
+    cumulativeDistKm += calculateDistance(coordinates[i - 1], coordinates[i]);
+    if (i === farthestIdx) {
+      farthestRouteDistKm = cumulativeDistKm;
+    }
+  }
+  const totalRouteDistKm = cumulativeDistKm;
+
+  // Split maneuvers into outbound and return based on cumulative length
+  let maneuverCumulativeKm = 0;
+  const outboundManeuvers = [];
+  const returnManeuvers = [];
+  for (const m of maneuvers) {
+    maneuverCumulativeKm += (m.length || 0);
+    if (maneuverCumulativeKm <= farthestRouteDistKm) {
+      outboundManeuvers.push(m);
+    } else {
+      returnManeuvers.push(m);
+    }
+  }
+
+  if (outboundManeuvers.length === 0 || returnManeuvers.length === 0) {
+    return { returnLegUnsafe: false, reason: 'cannot split route' };
+  }
+
+  const outboundDistKm = outboundManeuvers.reduce((sum, m) => sum + (m.length || 0), 0);
+  const returnDistKm = returnManeuvers.reduce((sum, m) => sum + (m.length || 0), 0);
+
+  // Use classifyRoadSegments on each half — pass isMetro from the full route classification
+  const isMetro = maneuverData.roadClassification?.isMetro || false;
+  const outboundClassification = classifyRoadSegments(outboundManeuvers, outboundDistKm, isMetro);
+  const returnClassification = classifyRoadSegments(returnManeuvers, returnDistKm, isMetro);
+
+  const outAF = outboundClassification.arterialFraction;
+  const retAF = returnClassification.arterialFraction;
+
+  // Flag as unsafe if return leg is significantly worse than outbound
+  const returnLegUnsafe = (retAF > outAF + 0.15) || (retAF > 0.3);
+
+  if (returnLegUnsafe) {
+    console.log(`⚠️ Return leg audit: outbound ${(outAF * 100).toFixed(0)}% arterial, return ${(retAF * 100).toFixed(0)}% arterial — FLAGGED`);
+  } else {
+    console.log(`✅ Return leg audit: outbound ${(outAF * 100).toFixed(0)}% arterial, return ${(retAF * 100).toFixed(0)}% arterial — OK`);
+  }
+
+  return {
+    returnLegUnsafe,
+    outboundArterialFraction: outAF,
+    returnArterialFraction: retAF,
+    farthestPointIndex: farthestIdx,
+    farthestPointCoord: coordinates[farthestIdx],
+    outboundDistKm,
+    returnDistKm,
+    reason: returnLegUnsafe
+      ? `Return leg ${(retAF * 100).toFixed(0)}% arterial vs outbound ${(outAF * 100).toFixed(0)}%`
+      : 'return leg is safe'
+  };
+}
+
+/**
+ * Reroute the return leg of a loop route to avoid arterial shortcuts.
+ * Inserts intermediate waypoints perpendicular to the direct return path,
+ * pulling the route onto quieter parallel roads.
+ *
+ * @param {Object} route - The full route object from getSmartCyclingRoute
+ * @param {Object} audit - Result from auditReturnLeg()
+ * @param {Array} startLocation - [lon, lat]
+ * @param {number} targetDistanceKm - Original target distance in km
+ * @param {Object} routingOptions - Options for getSmartCyclingRoute
+ * @returns {Object|null} Improved route object, or null if reroute didn't help
+ */
+async function rerouteReturnLeg(route, audit, startLocation, targetDistanceKm, routingOptions) {
+  const { farthestPointCoord, farthestPointIndex } = audit;
+  const [startLon, startLat] = startLocation;
+  const [farLon, farLat] = farthestPointCoord;
+
+  // Calculate the bearing from farthest point back to start
+  const dLon = startLon - farLon;
+  const dLat = startLat - farLat;
+  const directBearing = Math.atan2(dLon, dLat); // radians
+
+  // Generate 1-2 intermediate waypoints offset perpendicular to the direct return line
+  // This pulls the route onto parallel roads instead of the direct arterial
+  const directDistKm = calculateDistance(farthestPointCoord, startLocation);
+  const perpOffset = directDistKm * 0.15; // Offset 15% of direct distance perpendicular
+
+  const waypoints = [farthestPointCoord];
+
+  // Midpoint of direct return, offset perpendicular (try both sides, pick the one that's farther from the outbound)
+  const midLat = (farLat + startLat) / 2;
+  const midLon = (farLon + startLon) / 2;
+
+  // Perpendicular offset (rotate bearing 90 degrees)
+  const perpBearing = directBearing + Math.PI / 2;
+  const offsetLat = midLat + (perpOffset / 111.32) * Math.cos(perpBearing);
+  const offsetLon = midLon + (perpOffset / (111.32 * Math.cos(midLat * Math.PI / 180))) * Math.sin(perpBearing);
+
+  waypoints.push([offsetLon, offsetLat]);
+
+  // For longer returns, add a second intermediate waypoint at the 1/3 mark
+  if (directDistKm > 5) {
+    const thirdLat = farLat + (startLat - farLat) * 0.33;
+    const thirdLon = farLon + (startLon - farLon) * 0.33;
+    const offset2Lat = thirdLat + (perpOffset * 0.8 / 111.32) * Math.cos(perpBearing);
+    const offset2Lon = thirdLon + (perpOffset * 0.8 / (111.32 * Math.cos(thirdLat * Math.PI / 180))) * Math.sin(perpBearing);
+    // Insert before the midpoint waypoint
+    waypoints.splice(1, 0, [offset2Lon, offset2Lat]);
+  }
+
+  waypoints.push(startLocation);
+
+  try {
+    console.log(`🔄 Rerouting return leg with ${waypoints.length - 2} intermediate waypoints`);
+    const newReturnRoute = await getSmartCyclingRoute(waypoints, {
+      profile: routingOptions.profile || 'bike',
+      preferences: routingOptions.preferences,
+      trainingGoal: routingOptions.trainingGoal,
+      mapboxToken: routingOptions.mapboxToken,
+      userSpeed: routingOptions.userSpeed
+    });
+
+    if (!newReturnRoute || !newReturnRoute.coordinates || newReturnRoute.coordinates.length < 5) {
+      console.log(`❌ Return leg reroute failed — no valid route returned`);
+      return null;
+    }
+
+    // Check arterial fraction of the new return leg
+    const isMetro = route.isMetro || false;
+    let newReturnArterialFraction = 0;
+    if (newReturnRoute.maneuvers?.maneuvers?.length > 0) {
+      const newReturnDistKm = newReturnRoute.maneuvers.maneuvers.reduce((sum, m) => sum + (m.length || 0), 0);
+      const newClassification = classifyRoadSegments(newReturnRoute.maneuvers.maneuvers, newReturnDistKm, isMetro);
+      newReturnArterialFraction = newClassification.arterialFraction;
+    }
+
+    // Only accept if it's actually better
+    if (newReturnArterialFraction >= audit.returnArterialFraction) {
+      console.log(`❌ Rerouted return leg not better: ${(newReturnArterialFraction * 100).toFixed(0)}% arterial (was ${(audit.returnArterialFraction * 100).toFixed(0)}%)`);
+      return null;
+    }
+
+    // Check total distance with new return leg
+    const outboundDistM = audit.outboundDistKm * 1000;
+    const newReturnDistM = newReturnRoute.distance;
+    const newTotalDistKm = (outboundDistM + newReturnDistM) / 1000;
+
+    // Allow up to 15% longer for safety
+    if (newTotalDistKm > targetDistanceKm * 1.15) {
+      console.log(`❌ Rerouted return too long: ${newTotalDistKm.toFixed(1)}km vs ${targetDistanceKm.toFixed(1)}km target (${((newTotalDistKm / targetDistanceKm - 1) * 100).toFixed(0)}% over)`);
+      return null;
+    }
+
+    // Splice: keep outbound coordinates, replace return with new route
+    const splicedCoordinates = [
+      ...route.coordinates.slice(0, farthestPointIndex + 1),
+      ...newReturnRoute.coordinates.slice(1) // skip first point (duplicate of farthest)
+    ];
+
+    console.log(`✅ Return leg rerouted: ${(audit.returnArterialFraction * 100).toFixed(0)}% → ${(newReturnArterialFraction * 100).toFixed(0)}% arterial, distance ${newTotalDistKm.toFixed(1)}km`);
+
+    // Return the improved route data (coordinates + updated distance)
+    // The caller will rebuild maneuver data from the full route
+    return {
+      coordinates: splicedCoordinates,
+      distance: outboundDistM + newReturnDistM,
+      returnArterialFraction: newReturnArterialFraction,
+      maneuvers: newReturnRoute.maneuvers, // partial — caller should re-analyze if needed
+      roadClassification: newReturnRoute.roadClassification,
+      isMetro
+    };
+  } catch (error) {
+    console.warn(`❌ Return leg reroute error:`, error.message);
+    return null;
+  }
 }
 
 // Score and rank routes
