@@ -42,6 +42,7 @@ import {
   IconRun,
   IconStretching,
   IconBike,
+  IconDownload,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -50,6 +51,8 @@ import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../ut
 import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
 import { formatLocalDate, addDays, startOfMonth, endOfMonth, parsePlanStartDate } from '../utils/dateUtils';
+import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
+import { getCyclingStructure } from '../utils/trainingPlanExport';
 import RaceGoalModal from './RaceGoalModal';
 import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { FuelBadge, FuelCard } from './fueling';
@@ -1493,6 +1496,70 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             placeholder="Any notes for this workout..."
             rows={3}
           />
+
+          {/* Download for Device */}
+          {(() => {
+            const workoutDef = selectedWorkout?.workout_id ? getWorkoutById(selectedWorkout.workout_id) : null;
+            const cyclingStructure = workoutDef ? getCyclingStructure(workoutDef) : null;
+            if (!cyclingStructure || cyclingStructure.steps.length === 0) return null;
+
+            const handleDownload = (format) => {
+              try {
+                const result = exportWorkout(cyclingStructure, {
+                  format,
+                  workoutName: workoutDef.name || 'Workout',
+                  description: workoutDef.description || '',
+                });
+                downloadWorkout(result);
+                notifications.show({
+                  title: 'Workout Downloaded',
+                  message: `${workoutDef.name} exported as ${format.toUpperCase()}`,
+                  color: 'green',
+                });
+              } catch (err) {
+                notifications.show({
+                  title: 'Download Failed',
+                  message: err.message,
+                  color: 'red',
+                });
+              }
+            };
+
+            return (
+              <>
+                <Divider label="Download for Device" labelPosition="center" />
+                <Group gap="xs">
+                  <Button
+                    variant="light"
+                    size="xs"
+                    color="orange"
+                    leftSection={<IconDownload size={14} />}
+                    onClick={() => handleDownload('fit')}
+                  >
+                    FIT (Garmin/Wahoo)
+                  </Button>
+                  <Button
+                    variant="light"
+                    size="xs"
+                    color="blue"
+                    leftSection={<IconDownload size={14} />}
+                    onClick={() => handleDownload('zwo')}
+                  >
+                    ZWO (Zwift)
+                  </Button>
+                  <Button
+                    variant="light"
+                    size="xs"
+                    color="gray"
+                    leftSection={<IconDownload size={14} />}
+                    onClick={() => handleDownload('tcx')}
+                  >
+                    TCX
+                  </Button>
+                </Group>
+              </>
+            );
+          })()}
 
           <Divider />
 
