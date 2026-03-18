@@ -2229,6 +2229,21 @@ function getTrainingGoalScore(route, goal) {
       score = 0.1;
   }
 
+  // Metro area penalty: apply arterial scoring to ALL training goals when in urban areas.
+  // In metro areas, arterial roads are more dangerous due to higher traffic volume,
+  // more lanes, and faster speeds — even for goals like endurance where arterials
+  // are normally acceptable in rural/suburban settings.
+  if (route.isMetro && route.roadClassification?.arterialFraction !== undefined) {
+    const af = route.roadClassification.arterialFraction;
+    if (af <= 0.1) {
+      score += 0.15; // Excellent — mostly quiet roads through the city
+    } else if (af > 0.4) {
+      score -= 0.30; // Heavily arterial in metro — strong penalty
+    } else if (af > 0.25) {
+      score -= 0.15; // Too much arterial exposure for urban riding
+    }
+  }
+
   return score;
 }
 

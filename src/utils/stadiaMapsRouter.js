@@ -10,6 +10,220 @@ import { fetchBikeInfrastructure, INFRASTRUCTURE_TYPES } from './bikeInfrastruct
 
 const STADIA_MAPS_API_URL = 'https://api.stadiamaps.com/route/v1';
 
+// Overpass servers for metro detection (same as bikeInfrastructureService)
+const OVERPASS_SERVERS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+
+// Metro detection cache — keyed by 0.02° grid cell (~2km)
+const metroCache = new Map();
+const METRO_CACHE_TTL = 60 * 60 * 1000; // 1 hour (metro status doesn't change often)
+const METRO_GRID_SIZE = 0.02;
+
+// Threshold: number of primary/secondary/trunk road segments within 2km to classify as metro
+const METRO_ROAD_DENSITY_THRESHOLD = 8;
+
+/**
+ * Metro area costing overlay — applied on top of existing costing when route
+ * passes through urban/metro areas. Pushes Valhalla harder toward residential
+ * streets and bike paths to avoid high-traffic arterials.
+ *
+ * This is a stopgap until AADT (Annual Average Daily Traffic) data is integrated.
+ */
+const METRO_COSTING_OVERLAY = {
+  use_roads: 0,            // Maximum bike path preference in metro areas
+  use_living_streets: 1.0, // Strongly prefer residential streets
+  maneuver_penalty: 12     // Higher intersection penalty (arterials have more signals)
+};
+
+/**
+ * Additional arterial name patterns specific to metro/urban areas.
+ * These names are common arterials in cities but may be quiet roads in rural areas,
+ * so they're only applied when metro area is detected.
+ */
+const METRO_ARTERIAL_PATTERN = /\b(Broadway|Main\s*(St(reet)?|Rd|Road)|Martin Luther King|MLK|Commercial\s*(St|Dr|Ave|Blvd)|Industrial\s*(Blvd|Dr|Pkwy)|Business\s*(Route|Rte)|Central\s*Ave(nue)?|Market\s*St(reet)?|Mission\s*(St|Blvd)|Van Ness|Broad\s*St(reet)?)/i;
+
+/**
+ * Detect if a coordinate is in a metro/urban area by querying Overpass for
+ * primary/secondary/trunk road density within ~2km.
+ *
+ * Results are cached per 0.02° grid cell (~2km) for 1 hour.
+ * Non-blocking: returns { isMetro: false } on timeout or failure.
+ *
+ * @param {number} lon - Longitude
+ * @param {number} lat - Latitude
+ * @returns {Promise<{isMetro: boolean, roadDensity: number}>}
+ */
+export async function detectMetroArea(lon, lat) {
+  // Grid-cell cache key
+  const cellLon = Math.floor(lon / METRO_GRID_SIZE) * METRO_GRID_SIZE;
+  const cellLat = Math.floor(lat / METRO_GRID_SIZE) * METRO_GRID_SIZE;
+  const cacheKey = `metro:${cellLon.toFixed(3)},${cellLat.toFixed(3)}`;
+
+  // Check cache
+  const cached = metroCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < METRO_CACHE_TTL) {
+    return cached.result;
+  }
+
+  try {
+    // Query Overpass for primary/secondary/trunk roads within ~2km radius
+    const radius = 2000; // meters
+    const query = `
+[out:json][timeout:8];
+(
+  way[highway=primary](around:${radius},${lat},${lon});
+  way[highway=secondary](around:${radius},${lat},${lon});
+  way[highway=trunk](around:${radius},${lat},${lon});
+  way[highway=primary_link](around:${radius},${lat},${lon});
+  way[highway=trunk_link](around:${radius},${lat},${lon});
+);
+out count;
+`;
+
+    // Try each Overpass server
+    for (let i = 0; i < OVERPASS_SERVERS.length; i++) {
+      try {
+        const response = await fetch(OVERPASS_SERVERS[i], {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(query)}`,
+          signal: AbortSignal.timeout(5000)
+        });
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        const roadCount = data.elements?.[0]?.tags?.total || data.elements?.length || 0;
+
+        const result = {
+          isMetro: roadCount >= METRO_ROAD_DENSITY_THRESHOLD,
+          roadDensity: roadCount
+        };
+
+        // Cache the result
+        metroCache.set(cacheKey, { result, timestamp: Date.now() });
+
+        if (result.isMetro) {
+          console.log(`🏙️ Metro area detected at [${lon.toFixed(3)}, ${lat.toFixed(3)}]: ${roadCount} primary/secondary/trunk roads within 2km`);
+        }
+
+        return result;
+      } catch {
+        continue; // Try next server
+      }
+    }
+
+    // All servers failed — assume non-metro (safe default)
+    const fallback = { isMetro: false, roadDensity: 0 };
+    metroCache.set(cacheKey, { result: fallback, timestamp: Date.now() });
+    return fallback;
+  } catch {
+    return { isMetro: false, roadDensity: 0 };
+  }
+}
+
+/**
+ * Check multiple points along a route for metro areas.
+ * Checks start, end, and sampled intermediate waypoints.
+ * Returns true if ANY point is in a metro area.
+ *
+ * @param {Array<[lon, lat]>} waypoints - Route waypoints
+ * @returns {Promise<{isMetro: boolean, metroPoints: Array}>}
+ */
+export async function detectMetroAlongRoute(waypoints) {
+  if (!waypoints || waypoints.length < 2) {
+    return { isMetro: false, metroPoints: [] };
+  }
+
+  // Always check start and end
+  const pointsToCheck = [waypoints[0], waypoints[waypoints.length - 1]];
+
+  // Add intermediate waypoints (up to 3 midpoints for longer routes)
+  if (waypoints.length > 2) {
+    // Sample evenly from intermediate points
+    const intermediates = waypoints.slice(1, -1);
+    const step = Math.max(1, Math.floor(intermediates.length / 3));
+    for (let i = 0; i < intermediates.length; i += step) {
+      pointsToCheck.push(intermediates[i]);
+      if (pointsToCheck.length >= 5) break; // Cap at 5 checks
+    }
+  }
+
+  // Run all checks in parallel
+  const results = await Promise.all(
+    pointsToCheck.map(([lon, lat]) => detectMetroArea(lon, lat))
+  );
+
+  const metroPoints = [];
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].isMetro) {
+      metroPoints.push({
+        coordinates: pointsToCheck[i],
+        roadDensity: results[i].roadDensity
+      });
+    }
+  }
+
+  const isMetro = metroPoints.length > 0;
+  if (isMetro) {
+    console.log(`🏙️ Metro area detected at ${metroPoints.length}/${pointsToCheck.length} waypoints — applying urban traffic penalties`);
+  }
+
+  return { isMetro, metroPoints };
+}
+
+/**
+ * Detect metro segments post-route using maneuver density.
+ * Metro areas have denser intersections (more maneuvers per km).
+ * Uses a sliding window to identify which portions of the route are urban.
+ *
+ * @param {Array} maneuvers - Maneuver array from extractManeuverData
+ * @returns {{metroFraction: number, metroDistanceKm: number, totalDistanceKm: number}}
+ */
+function detectMetroSegmentsFromManeuvers(maneuvers) {
+  if (!maneuvers || maneuvers.length < 3) {
+    return { metroFraction: 0, metroDistanceKm: 0, totalDistanceKm: 0 };
+  }
+
+  // Sliding window: 2km segments, classify as metro if 3+ maneuvers per km
+  const WINDOW_KM = 2;
+  const METRO_MANEUVERS_PER_KM = 3;
+
+  let totalDistanceKm = 0;
+  let metroDistanceKm = 0;
+  let windowStartIdx = 0;
+  let windowDistanceKm = 0;
+  let windowManeuverCount = 0;
+
+  for (let i = 0; i < maneuvers.length; i++) {
+    const segmentKm = maneuvers[i].length || 0;
+    totalDistanceKm += segmentKm;
+    windowDistanceKm += segmentKm;
+    windowManeuverCount++;
+
+    // Shrink window from the left when it exceeds WINDOW_KM
+    while (windowDistanceKm > WINDOW_KM && windowStartIdx < i) {
+      windowDistanceKm -= (maneuvers[windowStartIdx].length || 0);
+      windowManeuverCount--;
+      windowStartIdx++;
+    }
+
+    // Classify this segment as metro if window density is high
+    if (windowDistanceKm > 0) {
+      const density = windowManeuverCount / windowDistanceKm;
+      if (density >= METRO_MANEUVERS_PER_KM) {
+        metroDistanceKm += segmentKm;
+      }
+    }
+  }
+
+  const metroFraction = totalDistanceKm > 0 ? metroDistanceKm / totalDistanceKm : 0;
+  return { metroFraction, metroDistanceKm, totalDistanceKm };
+}
+
 /**
  * Map tribos.studio route profiles to Stadia Maps Valhalla bicycle costing options
  */
@@ -233,6 +447,36 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     }
   }
 
+  // Detect metro area along route waypoints and apply urban traffic penalties
+  let isMetro = false;
+  try {
+    const metroResult = await detectMetroAlongRoute(waypoints);
+    isMetro = metroResult.isMetro;
+
+    if (isMetro) {
+      // Apply metro costing overlay — use more restrictive values
+      costing_options.bicycle.use_roads = Math.min(
+        costing_options.bicycle.use_roads ?? 0.3,
+        METRO_COSTING_OVERLAY.use_roads
+      );
+      costing_options.bicycle.use_living_streets = Math.max(
+        costing_options.bicycle.use_living_streets || 0,
+        METRO_COSTING_OVERLAY.use_living_streets
+      );
+      // Only apply metro maneuver_penalty if no training goal already set a higher one
+      if (!goalCosting || (costing_options.bicycle.maneuver_penalty || 5) < METRO_COSTING_OVERLAY.maneuver_penalty) {
+        costing_options.bicycle.maneuver_penalty = Math.max(
+          costing_options.bicycle.maneuver_penalty || 5,
+          METRO_COSTING_OVERLAY.maneuver_penalty
+        );
+      }
+      console.log(`🏙️ Applied metro costing overlay: use_roads=${costing_options.bicycle.use_roads}, use_living_streets=${costing_options.bicycle.use_living_streets}, maneuver_penalty=${costing_options.bicycle.maneuver_penalty}`);
+    }
+  } catch (error) {
+    // Non-blocking: if metro detection fails, continue without metro overlay
+    console.warn('Metro detection skipped:', error.message);
+  }
+
   // Convert waypoints to Stadia Maps format
   // Use "break" type to force routing through each waypoint
   const locations = waypoints.map(([lon, lat]) => ({
@@ -317,7 +561,7 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     const duration = totalDuration;
 
     // Extract maneuver data for intersection/turn analysis
-    const maneuvers = extractManeuverData(trip);
+    const maneuvers = extractManeuverData(trip, isMetro);
 
     // Derive traffic and quietness scores from road classification
     const roadClassification = maneuvers.roadClassification;
@@ -337,6 +581,7 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
       trafficScore,
       quietnessScore,
       roadClassification,
+      isMetro,
       raw: data // Include raw response for debugging
     };
 
@@ -353,7 +598,7 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
  * @param {Object} trip - Valhalla trip object
  * @returns {Object} Maneuver summary with per-km density and raw maneuver list
  */
-function extractManeuverData(trip) {
+function extractManeuverData(trip, isMetro = false) {
   const allManeuvers = [];
   let totalDistanceKm = 0;
 
@@ -396,7 +641,12 @@ function extractManeuverData(trip) {
     : 0;
 
   // Classify road segments for arterial detection
-  const roadClassification = classifyRoadSegments(allManeuvers, totalDistanceKm);
+  const roadClassification = classifyRoadSegments(allManeuvers, totalDistanceKm, isMetro);
+
+  // Post-route metro segment detection from maneuver density
+  const metroSegments = detectMetroSegmentsFromManeuvers(allManeuvers);
+  roadClassification.metroFraction = metroSegments.metroFraction;
+  roadClassification.metroDistanceKm = metroSegments.metroDistanceKm;
 
   if (leftTurns > 0 || rightTurns > 0) {
     console.log(`🔄 Turn analysis: ${leftTurns} left, ${rightTurns} right, ${realTurns.length - leftTurns - rightTurns} other (${turnsPerKm.toFixed(1)}/km)`);
@@ -422,13 +672,15 @@ function extractManeuverData(trip) {
  *
  * @param {Array} maneuvers - Maneuver array from extractManeuverData
  * @param {number} totalDistanceKm - Total route distance in km
+ * @param {boolean} isMetro - Whether route passes through a metro/urban area
  * @returns {Object} Road classification with arterial fraction and distances
  */
-function classifyRoadSegments(maneuvers, totalDistanceKm) {
+function classifyRoadSegments(maneuvers, totalDistanceKm, isMetro = false) {
   const ARTERIAL_NAME_PATTERN = /\b(Highway|Hwy|US[-\s]?\d|State\s*(Route|Road|Hwy)|SR[-\s]?\d|Interstate|I-\d|County\s*(Road|Rd)|CR[-\s]?\d|Boulevard|Blvd|Expressway|Freeway|Parkway|Turnpike|Route\s+\d)/i;
 
   let highwayDistanceKm = 0;
   let arterialByNameKm = 0;
+  let metroArterialByNameKm = 0;
 
   for (const m of maneuvers) {
     const segmentKm = m.length || 0;
@@ -444,15 +696,25 @@ function classifyRoadSegments(maneuvers, totalDistanceKm) {
       const isArterial = m.streetNames.some(name => ARTERIAL_NAME_PATTERN.test(name));
       if (isArterial) {
         arterialByNameKm += segmentKm;
+        continue; // Don't double-count
+      }
+
+      // Tier 3: Metro-specific arterial patterns (only in detected metro areas)
+      if (isMetro) {
+        const isMetroArterial = m.streetNames.some(name => METRO_ARTERIAL_PATTERN.test(name));
+        if (isMetroArterial) {
+          metroArterialByNameKm += segmentKm;
+        }
       }
     }
   }
 
-  const totalArterialKm = highwayDistanceKm + arterialByNameKm;
+  const totalArterialKm = highwayDistanceKm + arterialByNameKm + metroArterialByNameKm;
   const arterialFraction = totalDistanceKm > 0 ? totalArterialKm / totalDistanceKm : 0;
 
   if (arterialFraction > 0.1) {
-    console.log(`⚠️ Road classification: ${(arterialFraction * 100).toFixed(0)}% arterial (${highwayDistanceKm.toFixed(1)}km highway, ${arterialByNameKm.toFixed(1)}km by name)`);
+    const metroNote = metroArterialByNameKm > 0 ? `, ${metroArterialByNameKm.toFixed(1)}km metro arterial` : '';
+    console.log(`⚠️ Road classification: ${(arterialFraction * 100).toFixed(0)}% arterial (${highwayDistanceKm.toFixed(1)}km highway, ${arterialByNameKm.toFixed(1)}km by name${metroNote})`);
   } else {
     console.log(`✅ Road classification: ${(arterialFraction * 100).toFixed(0)}% arterial — mostly quiet roads`);
   }
@@ -461,7 +723,9 @@ function classifyRoadSegments(maneuvers, totalDistanceKm) {
     arterialFraction,
     highwayDistanceKm,
     arterialByNameKm,
-    totalDistanceKm
+    metroArterialByNameKm,
+    totalDistanceKm,
+    isMetro
   };
 }
 
