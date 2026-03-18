@@ -266,6 +266,32 @@ The production domain `www.tribos.studio` routes through **Cloudflare CDN** befo
 - `vercel.json` rewrites `/((?!api/).*) → /index.html` — missing JS files return HTML with 200, not 404
 - This means stale SW or CDN cache issues surface as MIME type errors, not clear 404s
 
+## Supabase Connection Hygiene — Critical Rules (DO NOT BREAK)
+
+On March 17, 2026, the database froze after running all day due to **connection pool exhaustion**. Root cause: 46 separate `createClient()` calls scattered across API routes and utilities, compounded by a Supabase Realtime subscription consuming 13 idle connections. See `docs/weekly-updates/` for the full postmortem.
+
+### NEVER create a new Supabase client in API code
+- **All API routes and utilities MUST use the shared singleton** from `api/utils/supabaseAdmin.js`
+- `import { supabase } from './utils/supabaseAdmin.js'` (or appropriate relative path)
+- **NEVER call `createClient()` directly** in any file under `api/` — the singleton handles initialization, connection reuse, and cleanup
+- If you see `createClient` imported from `@supabase/supabase-js` in any API file, that is a bug — fix it immediately
+
+### NEVER use Supabase Realtime subscriptions in production
+- Supabase Realtime consumes ~13 PostgreSQL connections just for being active, regardless of subscription count
+- On a free/Pro plan with 60 connections, that's 22% of budget burned on infrastructure overhead
+- **Use polling instead** — for any data that updates on user action (not streaming), 5-second polling via the existing PostgREST pool is functionally equivalent and costs zero extra connections
+- If Realtime is ever truly needed (e.g., live chat), it must be discussed and approved first
+
+### Periodic connection audit (run when adding new API routes or utilities)
+When creating or substantially modifying files in `api/`, verify connection hygiene:
+1. **Search for raw `createClient`**: `grep -r "createClient" api/ --include="*.js" --include="*.ts"` — the ONLY hit should be inside `api/utils/supabaseAdmin.js`
+2. **Search for direct imports**: `grep -r "from '@supabase/supabase-js'" api/ --include="*.js" --include="*.ts"` — the ONLY hit should be `supabaseAdmin.js`
+3. **Search for Realtime subscriptions**: `grep -r "\.channel\b\|\.on('postgres_changes'\|supabase\.realtime" src/ --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx"` — there should be zero matches
+4. **Check cron frequency**: Review `vercel.json` cron schedules — no cron should run more frequently than every 5 minutes unless there's a documented reason
+
+### Frontend Supabase client
+The frontend client in `src/lib/supabase.js` is a separate singleton and is fine — it runs in the browser (one instance per tab). The rules above apply to **server-side code** in `api/`.
+
 ## Code Conventions
 
 ### File Organization
