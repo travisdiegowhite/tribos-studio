@@ -96,6 +96,7 @@ export const useRouteOperations = ({
 
   const exportGPX = useCallback(() => exportRouteFile('gpx'), [exportRouteFile]);
   const exportTCX = useCallback(() => exportRouteFile('tcx'), [exportRouteFile]);
+  const exportFIT = useCallback(() => exportRouteFile('fit'), [exportRouteFile]);
 
   // === Import GPX ===
   const importGPX = useCallback(async (file) => {
@@ -356,6 +357,7 @@ export const useRouteOperations = ({
     // Export operations
     exportGPX,
     exportTCX,
+    exportFIT,
 
     // Import operations
     importGPX,
