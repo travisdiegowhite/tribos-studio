@@ -7,6 +7,15 @@
 // 2. Processing happens via api/garmin-webhook-process.js (cron, every minute)
 // 3. Returns 200 if at least one event was stored, 503 if ALL storage failed
 //    (so Garmin retries when the DB is down instead of silently losing events)
+//
+// FALLBACK PLAN: If Garmin disables the endpoint due to sustained 503s,
+// upgrade to a circuit breaker pattern:
+//   - Track consecutive 503 responses (module-level counter, resets on 200)
+//   - After N consecutive 503s (e.g. 10), flip to returning 200
+//   - Log a critical alert when the circuit breaker trips
+//   - This limits Garmin's exposure to failures while still getting retries
+//     for brief outages (the common case)
+//   - To re-enable a disabled endpoint: Garmin Developer Portal → re-register URL
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';

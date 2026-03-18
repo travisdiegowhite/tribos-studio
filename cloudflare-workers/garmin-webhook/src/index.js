@@ -5,6 +5,15 @@
  * Verifies signature, stores events to Supabase.
  * Returns 200 if stored, 503 if storage failed (so Garmin retries).
  * All processing happens via Vercel cron (api/garmin-webhook-process.js).
+ *
+ * FALLBACK PLAN: If Garmin disables the endpoint due to sustained 503s,
+ * upgrade to a circuit breaker pattern:
+ *   - Track consecutive 503 responses (module-level counter, resets on 200)
+ *   - After N consecutive 503s (e.g. 10), flip to returning 200
+ *   - Log a critical alert when the circuit breaker trips
+ *   - This limits Garmin's exposure to failures while still getting retries
+ *     for brief outages (the common case)
+ *   - To re-enable a disabled endpoint: Garmin Developer Portal → re-register URL
  */
 
 import { createClient } from '@supabase/supabase-js';
