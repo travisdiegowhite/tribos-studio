@@ -90,6 +90,33 @@ export default {
           }
         }
 
+        // Secondary match: PING with FIT URL but no activity_id
+        // ACTIVITY_FILE_DATA items often lack activityId/summaryId.
+        // Match to a recent PUSH event from the same user that has no FIT URL yet.
+        if (!activityId && type === 'ACTIVITY_FILE_DATA' && fileUrl) {
+          const recentWindow = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+          const { data: recentRows } = await supabase
+            .from('garmin_webhook_events')
+            .select('id, file_url, activity_id')
+            .eq('garmin_user_id', userId)
+            .is('file_url', null)
+            .gte('created_at', recentWindow)
+            .in('event_type', ['CONNECT_ACTIVITY', 'ACTIVITY_DETAIL'])
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (recentRows?.[0]) {
+            storageAttempts++;
+            await supabase.from('garmin_webhook_events')
+              .update({ file_url: fileUrl, processed: false, process_error: null, retry_count: 0, next_retry_at: null })
+              .eq('id', recentRows[0].id);
+            console.log(`[FIT:MATCH] Matched PING to recent PUSH event ${recentRows[0].activity_id} by userId+time`);
+            eventIds.push(recentRows[0].id);
+            batchIndex++;
+            continue;
+          }
+        }
+
         storageAttempts++;
         const { data: event, error } = await supabase
           .from('garmin_webhook_events')
