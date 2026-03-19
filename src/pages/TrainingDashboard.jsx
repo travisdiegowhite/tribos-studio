@@ -1073,7 +1073,7 @@ function TrainingDashboard() {
 
             {/* INSIGHTS TAB */}
             {activeTab === 'insights' && (
-              <HistoricalInsights userId={user?.id} activities={visibleActivities} />
+              <HistoricalInsights userId={user?.id} activities={visibleActivities} ftp={ftp} />
             )}
           </Box>
         </Stack>

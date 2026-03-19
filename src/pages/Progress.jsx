@@ -6,7 +6,8 @@ import PageHeader from '../components/PageHeader.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
-import { calculateCTL, calculateATL, calculateTSB, interpretTSB } from '../utils/trainingPlans';
+import { interpretTSB } from '../utils/trainingPlans';
+import { computeWeeklySnapshots } from '../utils/computeFitnessSnapshots';
 import { useSegmentLibrary } from '../hooks/useSegmentLibrary';
 import ZoneDistributionRow from '../components/progress/ZoneDistributionRow.jsx';
 import TrendInsightRow from '../components/progress/TrendInsightRow.jsx';
@@ -33,23 +34,6 @@ const ZONE_DISTRIBUTIONS = {
   5: { 2: 0.30, 3: 0.15, 4: 0.20, 5: 0.25, 6: 0.10 },
   6: { 2: 0.20, 3: 0.10, 4: 0.15, 5: 0.30, 6: 0.25 },
 };
-
-function estimateTSSFromActivity(activity, ftp) {
-  const watts = activity.average_watts || 0;
-  const duration = activity.moving_time || 0;
-  if (watts && ftp && duration) {
-    const intensity = watts / ftp;
-    return Math.round((duration / 3600) * intensity * intensity * 100);
-  }
-  // Fallback: estimate from distance and elevation
-  const distKm = (activity.distance || 0) / 1000;
-  const elev = activity.total_elevation_gain || 0;
-  const hours = duration / 3600;
-  if (hours <= 0) return 0;
-  const base = hours * 50;
-  const hillBonus = (elev / 1000) * 20;
-  return Math.round(Math.min(base + hillBonus, hours * 150));
-}
 
 function formatTimeFromSeconds(seconds) {
   if (!seconds) return '0h';
@@ -172,35 +156,20 @@ function Progress() {
     return { zones, totalTime };
   }, [activities, ftp, zoneTimeFilter]);
 
-  // Calculate CTL/ATL/TSB for trend insights
+  // Calculate CTL/ATL/TSB from full activity history
   const trainingMetrics = useMemo(() => {
-    const now = new Date();
-    const ninetyDaysAgo = new Date(now);
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-    // Build daily TSS array
-    const dailyTSS = {};
-    for (let d = new Date(ninetyDaysAgo); d <= now; d.setDate(d.getDate() + 1)) {
-      dailyTSS[d.toISOString().split('T')[0]] = 0;
+    const weeklySnapshots = computeWeeklySnapshots(activities, ftp);
+    if (weeklySnapshots.length === 0) {
+      return { ctl: 0, atl: 0, tsb: 0, interpretation: interpretTSB(0) };
     }
-
-    activities.forEach(a => {
-      const date = new Date(a.start_date).toISOString().split('T')[0];
-      if (dailyTSS[date] !== undefined) {
-        const tss = a.tss || estimateTSSFromActivity(a, ftp);
-        dailyTSS[date] += tss;
-      }
-    });
-
-    const sortedDays = Object.keys(dailyTSS).sort();
-    const tssArray = sortedDays.map(d => dailyTSS[d]);
-
-    const ctl = calculateCTL(tssArray);
-    const atl = calculateATL(tssArray);
-    const tsb = calculateTSB(ctl, atl);
-    const interpretation = interpretTSB(tsb);
-
-    return { ctl, atl, tsb, interpretation };
+    // Most recent snapshot (index 0 since sorted descending)
+    const current = weeklySnapshots[0];
+    return {
+      ctl: current.ctl,
+      atl: current.atl,
+      tsb: current.tsb,
+      interpretation: interpretTSB(current.tsb),
+    };
   }, [activities, ftp]);
 
   // Generate trend insights
