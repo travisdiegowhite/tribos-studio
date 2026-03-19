@@ -88,7 +88,7 @@ function Progress() {
         // Load user profile for FTP and units
         const { data: profile } = await supabase
           .from('user_profiles')
-          .select('ftp, units_preference')
+          .select('units_preference, ftp, power_zones, weight_kg')
           .eq('id', user.id)
           .single();
 
@@ -97,18 +97,35 @@ function Progress() {
           if (profile.units_preference) setUnitsPreference(profile.units_preference);
         }
 
-        // Load activities (last 90 days for zone/trends, all year for YTD)
-        const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString();
-        const { data: activityData } = await supabase
-          .from('activities')
-          .select('id, start_date, moving_time, distance, total_elevation_gain, average_watts, average_speed, average_heart_rate, tss, type, sport_type')
-          .eq('user_id', user.id)
-          .gte('start_date', yearStart)
-          .order('start_date', { ascending: false });
+        // Load all activities with pagination (Supabase caps at 1000 per request)
+        let allActivities = [];
+        let page = 0;
+        const pageSize = 1000;
+        let hasMore = true;
 
-        if (activityData) {
-          setActivities(activityData);
+        while (hasMore) {
+          const { data: activityData, error: activityError } = await supabase
+            .from('activities')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('start_date', { ascending: false })
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+
+          if (activityError) {
+            console.error('Error loading activities:', activityError);
+            break;
+          }
+
+          if (activityData && activityData.length > 0) {
+            allActivities = [...allActivities, ...activityData];
+            hasMore = activityData.length === pageSize;
+            page++;
+          } else {
+            hasMore = false;
+          }
         }
+
+        setActivities(allActivities);
       } catch (err) {
         console.error('Error loading progress data:', err);
       } finally {
@@ -312,8 +329,8 @@ function Progress() {
 
     return {
       totalRides: ytd.length,
-      totalDistance: ytd.reduce((s, a) => s + (a.distance || 0), 0),
-      totalElevation: ytd.reduce((s, a) => s + (a.total_elevation_gain || 0), 0),
+      totalDistance: ytd.reduce((s, a) => s + (a.distance_meters || a.distance || 0), 0),
+      totalElevation: ytd.reduce((s, a) => s + (a.elevation_gain_meters || a.total_elevation_gain || 0), 0),
       totalTime: ytd.reduce((s, a) => s + (a.moving_time || 0), 0),
     };
   }, [activities]);
