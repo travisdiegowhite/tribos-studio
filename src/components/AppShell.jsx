@@ -98,7 +98,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
           <Box
             component="header"
             style={{
-              height: 46,
+              height: 56,
               backgroundColor: '#141410',
               position: 'sticky',
               top: 0,
@@ -122,9 +122,9 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                   fw={700}
                   style={{
                     fontFamily: "'Barlow Condensed', sans-serif",
-                    fontSize: 14,
+                    fontSize: 18,
                     color: '#FFFFFF',
-                    letterSpacing: '0.04em',
+                    letterSpacing: '0.06em',
                     textTransform: 'uppercase',
                   }}
                 >
@@ -143,8 +143,8 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                         component={Link}
                         to={item.path}
                         style={{
-                          padding: '0 16px',
-                          height: 46,
+                          padding: '0 20px',
+                          height: 56,
                           display: 'flex',
                           alignItems: 'center',
                           position: 'relative',
@@ -153,11 +153,11 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                         <Text
                           style={{
                             fontFamily: "'Barlow Condensed', sans-serif",
-                            fontSize: 10,
+                            fontSize: 13,
                             fontWeight: 700,
-                            letterSpacing: '2px',
+                            letterSpacing: '1.5px',
                             textTransform: 'uppercase',
-                            color: active ? '#FFFFFF' : '#7A7970',
+                            color: active ? '#FFFFFF' : '#9A9990',
                             transition: 'color 150ms ease',
                           }}
                         >
@@ -169,8 +169,8 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                             style={{
                               position: 'absolute',
                               bottom: 0,
-                              left: 16,
-                              right: 16,
+                              left: 20,
+                              right: 20,
                               height: 2,
                               backgroundColor: 'var(--color-teal)',
                             }}
@@ -201,7 +201,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
               display: 'flex',
               height: 3,
               position: 'sticky',
-              top: 46,
+              top: 56,
               zIndex: 99,
             }}
           >
@@ -228,12 +228,12 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
 // Avatar with dropdown menu (Settings, Gear, Cafe, Dark mode, Sign out)
 function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, navigate }) {
   return (
-    <Menu shadow="md" width={200} position="bottom-end" offset={4}>
+    <Menu shadow="md" width={220} position="bottom-end" offset={8}>
       <Menu.Target>
         <UnstyledButton
           style={{
-            width: 28,
-            height: 28,
+            width: 34,
+            height: 34,
             borderRadius: '50%',
             backgroundColor: 'var(--color-teal)',
             display: 'flex',
@@ -245,7 +245,7 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
           <Text
             style={{
               fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 11,
+              fontSize: 13,
               fontWeight: 700,
               color: '#FFFFFF',
               letterSpacing: '0.5px',
@@ -259,33 +259,33 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
 
       <Menu.Dropdown>
         <Menu.Item
-          leftSection={<IconSettings size={16} />}
+          leftSection={<IconSettings size={18} />}
           onClick={() => navigate('/settings')}
         >
           Settings
         </Menu.Item>
         <Menu.Item
-          leftSection={<IconBike size={16} />}
+          leftSection={<IconBike size={18} />}
           onClick={() => navigate('/gear')}
         >
           Gear
         </Menu.Item>
         <Menu.Item
-          leftSection={<IconUsers size={16} />}
+          leftSection={<IconUsers size={18} />}
           onClick={() => navigate('/community')}
         >
           Cafe
         </Menu.Item>
         <Menu.Divider />
         <Menu.Item
-          leftSection={colorScheme === 'dark' ? <IconSun size={16} /> : <IconMoon size={16} />}
+          leftSection={colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
           onClick={toggleColorScheme}
         >
           {colorScheme === 'dark' ? 'Light mode' : 'Dark mode'}
         </Menu.Item>
         <Menu.Divider />
         <Menu.Item
-          leftSection={<IconLogout size={16} />}
+          leftSection={<IconLogout size={18} />}
           color="red"
           onClick={onSignOut}
         >
@@ -351,11 +351,11 @@ function MobileBottomNav({ navItems, isActive }) {
             <Text
               style={{
                 fontFamily: "'Barlow Condensed', sans-serif",
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: 700,
-                letterSpacing: '2px',
+                letterSpacing: '1.5px',
                 textTransform: 'uppercase',
-                color: active ? '#FFFFFF' : '#7A7970',
+                color: active ? '#FFFFFF' : '#9A9990',
               }}
             >
               {item.label}
