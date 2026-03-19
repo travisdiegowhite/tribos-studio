@@ -17,6 +17,7 @@ import {
   Paper,
   ThemeIcon,
   Alert,
+  Button,
 } from '@mantine/core';
 import {
   IconTrendingUp,
@@ -26,6 +27,7 @@ import {
   IconFlame,
   IconTrophy,
   IconAlertCircle,
+  IconRefresh,
 } from '@tabler/icons-react';
 import {
   LineChart,
@@ -535,42 +537,74 @@ function QuickStats({ snapshots, activities }) {
 function HistoricalInsights({ userId, activities }) {
   const [snapshots, setSnapshots] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [rebuilding, setRebuilding] = useState(false);
   const [error, setError] = useState(null);
   const [selectedYears, setSelectedYears] = useState([]);
 
   // Fetch fitness snapshots
-  useEffect(() => {
-    async function loadSnapshots() {
-      if (!userId) return;
+  async function loadSnapshots() {
+    if (!userId) return;
 
-      try {
-        setLoading(true);
-        setError(null);
+    try {
+      setLoading(true);
+      setError(null);
 
-        const { data, error: fetchError } = await supabase
-          .from('fitness_snapshots')
-          .select('*')
-          .eq('user_id', userId)
-          .order('snapshot_week', { ascending: false });
+      const { data, error: fetchError } = await supabase
+        .from('fitness_snapshots')
+        .select('*')
+        .eq('user_id', userId)
+        .order('snapshot_week', { ascending: false });
 
-        if (fetchError) throw fetchError;
+      if (fetchError) throw fetchError;
 
-        setSnapshots(data || []);
+      setSnapshots(data || []);
 
-        // Set default selected years (last 3 years with data)
-        const years = [...new Set(data?.map(s => new Date(s.snapshot_week).getFullYear()) || [])];
-        setSelectedYears(years.sort((a, b) => b - a).slice(0, 3));
+      // Set default selected years (last 3 years with data)
+      const years = [...new Set(data?.map(s => new Date(s.snapshot_week).getFullYear()) || [])];
+      setSelectedYears(years.sort((a, b) => b - a).slice(0, 3));
 
-      } catch (err) {
-        console.error('Error loading fitness snapshots:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+    } catch (err) {
+      console.error('Error loading fitness snapshots:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     loadSnapshots();
   }, [userId]);
+
+  // Rebuild all snapshots from activity data
+  async function handleRebuildSnapshots() {
+    if (rebuilding) return;
+    setRebuilding(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const resp = await fetch('/api/fitness-snapshots', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: 'backfill', weeksBack: 104 }),
+      });
+
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.error || 'Backfill failed');
+
+      console.log('Snapshot rebuild complete:', result);
+      // Reload snapshots after rebuild
+      await loadSnapshots();
+    } catch (err) {
+      console.error('Snapshot rebuild failed:', err);
+      setError(err.message);
+    } finally {
+      setRebuilding(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -613,6 +647,27 @@ function HistoricalInsights({ userId, activities }) {
 
   return (
     <Stack gap="md">
+      {/* Rebuild button */}
+      <Group justify="flex-end">
+        <Button
+          variant="subtle"
+          color="gray"
+          size="compact-sm"
+          leftSection={<IconRefresh size={14} />}
+          loading={rebuilding}
+          onClick={handleRebuildSnapshots}
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase',
+          }}
+        >
+          {rebuilding ? 'REBUILDING...' : 'REBUILD SNAPSHOTS'}
+        </Button>
+      </Group>
+
       {/* Quick Stats Summary */}
       <QuickStats snapshots={snapshots} activities={activities} />
 

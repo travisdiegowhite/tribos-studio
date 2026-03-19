@@ -18,6 +18,7 @@ import { buildActivityData } from './utils/garmin/activityBuilder.js';
 import { fetchGarminActivityDetails, requestActivityDetailsBackfill } from './utils/garmin/garminApiClient.js';
 import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
 import { processHealthPushData, extractAndSaveHealthMetrics } from './utils/garmin/healthDataProcessor.js';
+import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -473,6 +474,14 @@ async function downloadAndProcessActivity(event, integration) {
     } else {
       console.log(`[FIT:SKIP] No FIT URL for activity ${activity.id} (indoor: ${isIndoorActivity})`);
     }
+  }
+
+  // Update fitness snapshot for the week of this activity
+  try {
+    await updateSnapshotForActivity(supabase, integration.user_id, activity.start_date);
+    console.log('📊 Fitness snapshot updated for activity');
+  } catch (snapshotError) {
+    console.error('⚠️ Snapshot update failed (non-critical):', snapshotError.message);
   }
 
   // Track activation progress and enqueue insight
