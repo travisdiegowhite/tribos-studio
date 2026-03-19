@@ -1,0 +1,536 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+.app{background:#F4F4F2;font-family:var(--font-sans);border:0.5px solid var(--color-border-tertiary);min-height:680px;display:flex;flex-direction:column;}
+.nav{background:#141410;height:46px;display:flex;align-items:stretch;padding:0 20px;flex-shrink:0;}
+.logo{color:#F4F4F2;font-size:14px;font-weight:700;letter-spacing:4px;display:flex;align-items:center;margin-right:32px;}
+.ni{color:#7A7970;font-size:10px;letter-spacing:2px;padding:0 14px;display:flex;align-items:center;cursor:pointer;border-bottom:2px solid transparent;box-sizing:border-box;transition:color .15s;text-transform:uppercase;}
+.ni:hover{color:#C0BDB4;}
+.ni.on{color:#F4F4F2;border-bottom-color:#2A8C82;}
+.nav-r{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.av{width:26px;height:26px;background:#2A8C82;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#F4F4F2;}
+.stripe{height:3px;display:flex;flex-shrink:0;}
+.body{flex:1;overflow-y:auto;}
+.scr{display:none;padding:20px;}
+.scr.on{display:block;}
+
+/* status bar */
+.status-bar{display:flex;align-items:center;gap:0;background:#fff;border:0.5px solid #DDDDD8;margin-bottom:14px;overflow:hidden;}
+.sb-item{flex:1;padding:10px 14px;border-right:0.5px solid #DDDDD8;display:flex;flex-direction:column;gap:3px;}
+.sb-item:last-child{border-right:none;}
+.sb-label{font-size:9px;font-family:var(--font-mono);letter-spacing:1.5px;color:#7A7970;text-transform:uppercase;}
+.sb-val{font-size:16px;font-family:var(--font-mono);font-weight:700;color:#141410;line-height:1;}
+.sb-sub{font-size:9px;color:#7A7970;font-family:var(--font-mono);}
+
+/* intelligence card — the hero */
+.intel-card{background:#fff;border:0.5px solid #DDDDD8;margin-bottom:14px;overflow:hidden;}
+.ic-head{background:#141410;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;}
+.ic-title{font-size:10px;letter-spacing:2px;color:#2A8C82;font-family:var(--font-mono);text-transform:uppercase;}
+.ic-date{font-size:9px;color:#7A7970;font-family:var(--font-mono);}
+.ic-body{padding:14px;}
+.ic-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.ic-left{}
+.plan-label{font-size:9px;letter-spacing:1.5px;color:#7A7970;font-family:var(--font-mono);text-transform:uppercase;margin-bottom:6px;}
+.workout-pill{display:inline-flex;align-items:center;gap:6px;background:#141410;padding:6px 10px;margin-bottom:8px;}
+.wp-type{font-size:9px;letter-spacing:1.5px;color:#2A8C82;font-family:var(--font-mono);text-transform:uppercase;}
+.workout-name{font-size:15px;font-weight:700;color:#141410;letter-spacing:0.5px;margin-bottom:3px;}
+.workout-meta{font-size:11px;color:#7A7970;margin-bottom:10px;}
+.ic-right{border-left:0.5px solid #DDDDD8;padding-left:10px;}
+.match-label{font-size:9px;letter-spacing:1.5px;color:#7A7970;font-family:var(--font-mono);text-transform:uppercase;margin-bottom:6px;}
+.match-item{padding:8px 0;border-bottom:0.5px solid #DDDDD8;display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+.match-item:last-child{border-bottom:none;}
+.match-item:hover .mi-name{color:#2A8C82;}
+.mi-name{font-size:12px;font-weight:700;color:#141410;transition:color .15s;}
+.mi-meta{font-size:10px;color:#7A7970;font-family:var(--font-mono);}
+.mi-pct{font-size:11px;font-weight:700;color:#2A8C82;font-family:var(--font-mono);}
+.ic-footer{border-top:0.5px solid #DDDDD8;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;background:#F4F4F2;}
+.if-left{font-size:11px;color:#3D3C36;}
+.if-left strong{color:#141410;}
+.btn-p{background:#2A8C82;color:#F4F4F2;border:none;padding:9px 16px;font-size:10px;font-weight:700;letter-spacing:2px;cursor:pointer;text-transform:uppercase;}
+.btn-p:hover{background:#1d6e66;}
+
+/* coach strip */
+.coach-strip{background:#fff;border:0.5px solid #DDDDD8;border-left:3px solid #2A8C82;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start;}
+.cs-badge{font-family:var(--font-mono);font-size:9px;letter-spacing:1.5px;background:#141410;color:#2A8C82;padding:3px 7px;white-space:nowrap;flex-shrink:0;margin-top:1px;}
+.cs-msg{font-size:12px;color:#3D3C36;line-height:1.55;}
+.cs-msg span{color:#141410;font-weight:500;}
+
+/* two-col layout */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.card{background:#fff;border:0.5px solid #DDDDD8;padding:12px 14px;}
+.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.ch-label{font-size:9px;letter-spacing:1.5px;color:#7A7970;font-family:var(--font-mono);text-transform:uppercase;}
+.ch-link{font-size:9px;color:#2A8C82;cursor:pointer;font-family:var(--font-mono);letter-spacing:0.5px;}
+
+/* week bars */
+.bars{display:flex;gap:3px;align-items:flex-end;height:48px;margin-bottom:4px;}
+.bc{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;}
+.bar{width:100%;position:relative;}
+.bar-plan{background:#DDDDD8;opacity:0.5;}
+.bar-done{background:#2A8C82;}
+.bar-today{background:#D4600A;}
+.bd{font-size:8px;color:#7A7970;font-family:var(--font-mono);}
+.bd.tod{color:#D4600A;}
+
+/* fitness row */
+.fit-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-top:0.5px solid #DDDDD8;}
+.fit-row:first-child{border-top:none;}
+.fl{font-size:11px;color:#3D3C36;}
+.fb{flex:1;height:4px;background:#DDDDD8;margin:0 10px;position:relative;}
+.fb-fill{height:100%;background:#2A8C82;}
+.fv{font-size:10px;font-family:var(--font-mono);font-weight:700;color:#141410;white-space:nowrap;}
+
+/* gear alert */
+.gear-alert{background:#FEF4F4;border:0.5px solid #C43C2A;border-left:3px solid #C43C2A;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+.ga-left{font-size:11px;color:#3D3C36;}
+.ga-left strong{color:#C43C2A;}
+.ga-btn{background:#C43C2A;color:#F4F4F2;border:none;padding:5px 10px;font-size:9px;letter-spacing:1.5px;cursor:pointer;font-weight:700;}
+
+/* RIDE screen */
+.ride-builder{background:#141410;padding:14px;margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;}
+.rb-left{}
+.rb-label{font-size:9px;letter-spacing:1.5px;color:#7A7970;font-family:var(--font-mono);text-transform:uppercase;margin-bottom:6px;}
+.rb-title{font-size:16px;font-weight:700;color:#F4F4F2;letter-spacing:1px;margin-bottom:3px;}
+.rb-sub{font-size:11px;color:#7A7970;margin-bottom:12px;}
+.btn-teal-outline{background:transparent;color:#2A8C82;border:1px solid #2A8C82;padding:9px 16px;font-size:10px;font-weight:700;letter-spacing:2px;cursor:pointer;text-transform:uppercase;}
+.route-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
+.rc{background:#fff;border:0.5px solid #DDDDD8;padding:12px;cursor:pointer;transition:border-color .15s;}
+.rc:hover{border-color:#2A8C82;}
+.rc-type{font-size:9px;letter-spacing:1.5px;color:#7A7970;font-family:var(--font-mono);text-transform:uppercase;margin-bottom:4px;}
+.rc-name{font-size:13px;font-weight:700;color:#141410;margin-bottom:3px;}
+.rc-meta{font-size:10px;color:#7A7970;font-family:var(--font-mono);}
+.rc-pct{display:inline-flex;background:#E1F5EE;color:#085041;font-size:9px;font-family:var(--font-mono);font-weight:700;padding:2px 6px;margin-top:6px;}
+
+/* TRAIN screen */
+.plan-bar{background:#fff;border:0.5px solid #DDDDD8;padding:14px;margin-bottom:14px;}
+.pb-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
+.pb-title{font-size:14px;font-weight:700;color:#141410;}
+.pb-sub{font-size:11px;color:#7A7970;}
+.pb-badges{display:flex;gap:8px;margin-bottom:10px;}
+.pb-badge{font-size:9px;letter-spacing:1px;padding:3px 8px;font-family:var(--font-mono);}
+.prog-track{height:4px;background:#DDDDD8;margin-bottom:6px;}
+.prog-fill{height:100%;background:#2A8C82;}
+.pb-meta{display:flex;justify-content:space-between;font-size:10px;color:#7A7970;font-family:var(--font-mono);}
+.week-sum{background:#fff;border:0.5px solid #DDDDD8;padding:14px;margin-bottom:14px;}
+.ws-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+.ws-item{text-align:center;}
+.ws-val{font-size:14px;font-family:var(--font-mono);font-weight:700;color:#141410;}
+.ws-label{font-size:9px;color:#7A7970;font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase;}
+.ws-sub{font-size:9px;color:#7A7970;font-family:var(--font-mono);}
+.sub-nav{display:flex;gap:0;border:0.5px solid #DDDDD8;margin-bottom:14px;overflow:hidden;}
+.sni{padding:8px 14px;font-size:9px;letter-spacing:1.5px;color:#7A7970;cursor:pointer;background:#fff;border-right:0.5px solid #DDDDD8;font-family:var(--font-mono);text-transform:uppercase;transition:all .15s;}
+.sni:last-child{border-right:none;}
+.sni:hover{color:#141410;}
+.sni.on{background:#141410;color:#F4F4F2;}
+
+/* PROGRESS */
+.prog-section{background:#fff;border:0.5px solid #DDDDD8;padding:14px;margin-bottom:10px;}
+.ps-head{font-size:9px;font-family:var(--font-mono);color:#7A7970;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px;}
+.zone-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:0.5px solid #DDDDD8;}
+.zone-row:first-child{border-top:none;}
+.zn{font-size:10px;font-family:var(--font-mono);color:#7A7970;width:22px;}
+.zl{font-size:11px;color:#3D3C36;width:80px;}
+.zb{flex:1;height:6px;background:#DDDDD8;}
+.zf{height:100%;}
+.zv{font-size:10px;font-family:var(--font-mono);color:#141410;width:32px;text-align:right;}
+.trend-item{padding:8px 0;border-top:0.5px solid #DDDDD8;display:flex;align-items:flex-start;gap:8px;}
+.trend-item:first-child{border-top:none;}
+.ti-dot{width:8px;height:8px;margin-top:3px;flex-shrink:0;}
+.ti-label{font-size:12px;font-weight:700;color:#141410;margin-bottom:2px;}
+.ti-detail{font-size:10px;color:#7A7970;line-height:1.4;}
+
+/* annotation */
+.ann{font-size:9px;font-family:var(--font-mono);color:#C49A0A;letter-spacing:1px;text-transform:uppercase;display:flex;align-items:center;gap:5px;margin-bottom:6px;}
+.ann::before{content:'';display:inline-block;width:12px;height:1px;background:#C49A0A;}
+</style>
+
+<div class="app">
+  <div class="nav">
+    <div class="logo">TRIBOS</div>
+    <div class="ni on" id="n-today" onclick="show('today',this)">TODAY</div>
+    <div class="ni" id="n-ride" onclick="show('ride',this)">RIDE</div>
+    <div class="ni" id="n-train" onclick="show('train',this)">TRAIN</div>
+    <div class="ni" id="n-progress" onclick="show('progress',this)">PROGRESS</div>
+    <div class="nav-r">
+      <svg width="16" height="16" viewBox="0 0 16 16" style="cursor:pointer;opacity:0.6"><path d="M8 1Q11 1 11 5L11 11 12 12 4 12 5 11 5 5Q5 1 8 1Z" fill="#F4F4F2"/><line x1="7" y1="13" x2="9" y2="13" stroke="#D4600A" stroke-width="1.5"/><circle cx="11.5" cy="3.5" r="2.5" fill="#D4600A"/></svg>
+      <div class="av">TR</div>
+    </div>
+  </div>
+  <div class="stripe">
+    <div style="flex:3;background:#2A8C82;"></div>
+    <div style="flex:2;background:#C49A0A;"></div>
+    <div style="flex:1;background:#F4F4F2;"></div>
+    <div style="flex:2;background:#D4600A;"></div>
+    <div style="flex:2;background:#C43C2A;"></div>
+  </div>
+
+  <div class="body">
+
+    <!-- TODAY -->
+    <div class="scr on" id="s-today">
+      <div class="ann">Sketch note — the connective tissue made visible</div>
+
+      <!-- Status bar: the intelligence summary -->
+      <div class="status-bar">
+        <div class="sb-item">
+          <div class="sb-label">Form / TSB</div>
+          <div class="sb-val" style="color:#D4600A;">–11</div>
+          <div class="sb-sub" style="color:#D4600A;">TIRED</div>
+        </div>
+        <div class="sb-item">
+          <div class="sb-label">Fitness / CTL</div>
+          <div class="sb-val">31</div>
+          <div class="sb-sub" style="color:#2A8C82;">↑ building</div>
+        </div>
+        <div class="sb-item">
+          <div class="sb-label">Fatigue / ATL</div>
+          <div class="sb-val" style="color:#D4600A;">42</div>
+          <div class="sb-sub">7-day load</div>
+        </div>
+        <div class="sb-item">
+          <div class="sb-label">This week</div>
+          <div class="sb-val">9</div>
+          <div class="sb-sub">rides · 6.7h</div>
+        </div>
+      </div>
+
+      <!-- The hero: intelligence card -->
+      <div class="intel-card">
+        <div class="ic-head">
+          <div class="ic-title">Today's intelligence</div>
+          <div class="ic-date">WED MAR 18 · BOULDER ROUBAIX IN 39 DAYS</div>
+        </div>
+        <div class="ic-body">
+          <div class="ic-row">
+            <div class="ic-left">
+              <div class="plan-label">From your plan</div>
+              <div class="workout-pill">
+                <span class="wp-type">Endurance</span>
+              </div>
+              <div class="workout-name">Endurance Base Build</div>
+              <div class="workout-meta">90 min · 70 TSS · Z2 · 23–30g carbs/hr</div>
+              <div style="font-size:11px;color:#3D3C36;line-height:1.5;margin-bottom:10px;">Week 6 of 12 — Build Phase. You're 44% compliant this week. TSB is tired but trainable.</div>
+              <div style="display:flex;gap:6px;">
+                <div style="padding:4px 8px;background:#FEFAE8;font-size:9px;letter-spacing:1px;color:#854F0B;font-family:var(--font-mono);">30M</div>
+                <div style="padding:4px 8px;background:#F4F4F2;border:1px solid #DDDDD8;font-size:9px;letter-spacing:1px;color:#3D3C36;font-family:var(--font-mono);">60M</div>
+                <div style="padding:4px 8px;background:#F4F4F2;border:1px solid #DDDDD8;font-size:9px;letter-spacing:1px;color:#3D3C36;font-family:var(--font-mono);">90M</div>
+                <div style="padding:4px 8px;background:#F4F4F2;border:1px solid #DDDDD8;font-size:9px;letter-spacing:1px;color:#3D3C36;font-family:var(--font-mono);">2H+</div>
+              </div>
+            </div>
+            <div class="ic-right">
+              <div class="match-label">Routes matched to this workout</div>
+              <div style="font-size:9px;color:#7A7970;font-family:var(--font-mono);margin-bottom:8px;">58 ANALYZED FROM YOUR HISTORY</div>
+              <div class="match-item" onclick="show('ride',document.getElementById('n-ride'))">
+                <div>
+                  <div class="mi-name">Sugar Magnolia</div>
+                  <div class="mi-meta">86.8km · 766m · Flat</div>
+                </div>
+                <div class="mi-pct">100%</div>
+              </div>
+              <div class="match-item" onclick="show('ride',document.getElementById('n-ride'))">
+                <div>
+                  <div class="mi-name">Morning Gravel Ride</div>
+                  <div class="mi-meta">87.3km · 767m · Flat</div>
+                </div>
+                <div class="mi-pct">100%</div>
+              </div>
+              <div class="match-item" onclick="show('ride',document.getElementById('n-ride'))">
+                <div>
+                  <div class="mi-name">Happy New Year</div>
+                  <div class="mi-meta">88.1km · 769m · Flat</div>
+                </div>
+                <div class="mi-pct">100%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ic-footer">
+          <div class="if-left">Tribos matched <strong>3 routes</strong> from your history to today's workout. <span style="color:#2A8C82;cursor:pointer;" onclick="show('ride',document.getElementById('n-ride'))">View all 58 →</span></div>
+          <button class="btn-p" onclick="show('ride',document.getElementById('n-ride'))">RIDE TODAY →</button>
+        </div>
+      </div>
+
+      <!-- Coach interpretation — NOT the hero, supporting context -->
+      <div class="coach-strip">
+        <div class="cs-badge">THE SCIENTIST</div>
+        <div class="cs-msg">TSB at –11 with Boulder Roubaix in 39 days. Your ramp rate is <span>+4 TSS/week — optimal</span>. Today's endurance session keeps you in the trainable zone without digging deeper. I'd take the 60-minute option given yesterday's unplanned effort.</div>
+      </div>
+
+      <!-- Gear alert — surfaces because it's actionable -->
+      <div class="gear-alert">
+        <div class="ga-left"><strong>Peachy</strong> — chain needs replacement. 1,765 mi of 1,500 mi limit.</div>
+        <button class="ga-btn">LOG REPLACEMENT</button>
+      </div>
+
+      <!-- Two column: week + fitness -->
+      <div class="two-col">
+        <div class="card">
+          <div class="card-hd">
+            <div class="ch-label">This week</div>
+            <div class="ch-link" onclick="show('train',document.getElementById('n-train'))">PLAN →</div>
+          </div>
+          <div class="bars">
+            <div class="bc"><div class="bar bar-plan" style="height:20px;"></div><div class="bd">M</div></div>
+            <div class="bc"><div class="bar bar-done" style="height:30px;"></div><div class="bd">T</div></div>
+            <div class="bc"><div class="bar bar-done" style="height:38px;"></div><div class="bd">W</div></div>
+            <div class="bc"><div class="bar bar-today" style="height:10px;border:1px dashed #D4600A;background:transparent;"></div><div class="bd tod">T</div></div>
+            <div class="bc"><div class="bar bar-plan" style="height:14px;border:1px dashed #DDDDD8;background:transparent;"></div><div class="bd">F</div></div>
+            <div class="bc"><div class="bar bar-plan" style="height:42px;border:1px dashed #DDDDD8;background:transparent;"></div><div class="bd">S</div></div>
+            <div class="bc"><div class="bar bar-plan" style="height:24px;border:1px dashed #DDDDD8;background:transparent;"></div><div class="bd">S</div></div>
+          </div>
+          <div style="font-size:10px;color:#7A7970;font-family:var(--font-mono);">200 / 455 TSS · 44% compliance</div>
+        </div>
+        <div class="card">
+          <div class="card-hd">
+            <div class="ch-label">Fitness</div>
+            <div class="ch-link" onclick="show('progress',document.getElementById('n-progress'))">TRENDS →</div>
+          </div>
+          <div class="fit-row">
+            <div class="fl">CTL</div>
+            <div class="fb"><div class="fb-fill" style="width:62%;background:#2A8C82;"></div></div>
+            <div class="fv">31</div>
+          </div>
+          <div class="fit-row">
+            <div class="fl">ATL</div>
+            <div class="fb"><div class="fb-fill" style="width:80%;background:#D4600A;"></div></div>
+            <div class="fv" style="color:#D4600A;">42</div>
+          </div>
+          <div class="fit-row">
+            <div class="fl">TSB</div>
+            <div class="fb"><div class="fb-fill" style="width:35%;background:#D4600A;"></div></div>
+            <div class="fv" style="color:#D4600A;">–11</div>
+          </div>
+          <div class="fit-row">
+            <div class="fl">Ramp</div>
+            <div class="fb"><div class="fb-fill" style="width:70%;background:#2A8C82;"></div></div>
+            <div class="fv" style="color:#2A8C82;">+4</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIDE -->
+    <div class="scr" id="s-ride">
+      <div class="ann">Sketch note — route + builder unified, matched routes first</div>
+      <div class="ride-builder">
+        <div class="rb-left">
+          <div class="rb-label">Route builder</div>
+          <div class="rb-title">BUILD A NEW ROUTE</div>
+          <div class="rb-sub">Pre-filled from today's plan: 90 min · Endurance · Flat</div>
+          <button class="btn-teal-outline">CONFIGURE →</button>
+        </div>
+        <div style="font-size:9px;color:#7A7970;font-family:var(--font-mono);text-align:right;padding-top:4px;">OR USE A MATCHED<br>ROUTE BELOW</div>
+      </div>
+
+      <div class="card-hd" style="margin-bottom:8px;">
+        <div class="ch-label">Matched to today's workout — 58 analyzed</div>
+        <div style="display:flex;gap:6px;">
+          <div style="padding:4px 10px;background:#141410;color:#F4F4F2;font-size:9px;letter-spacing:1px;cursor:pointer;font-family:var(--font-mono);">WORKOUTS</div>
+          <div style="padding:4px 10px;background:#fff;border:1px solid #DDDDD8;color:#7A7970;font-size:9px;letter-spacing:1px;cursor:pointer;font-family:var(--font-mono);">ALL ROUTES</div>
+        </div>
+      </div>
+
+      <div class="route-grid">
+        <div class="rc">
+          <div class="rc-type">Best match · Flat</div>
+          <div class="rc-name">Sugar Magnolia</div>
+          <div class="rc-meta">86.8 km · 766m · Flat</div>
+          <div style="font-size:10px;color:#7A7970;margin-top:4px;line-height:1.4;">Optimal for endurance workouts · Excellent terrain · 100%</div>
+          <div class="rc-pct">100% MATCH</div>
+        </div>
+        <div class="rc">
+          <div class="rc-type">Best match · Flat</div>
+          <div class="rc-name">Morning Gravel Ride</div>
+          <div class="rc-meta">87.3 km · 767m · Flat</div>
+          <div style="font-size:10px;color:#7A7970;margin-top:4px;line-height:1.4;">Optimal for endurance workouts · Excellent terrain · 100%</div>
+          <div class="rc-pct">100% MATCH</div>
+        </div>
+        <div class="rc">
+          <div class="rc-type">Best match · Flat</div>
+          <div class="rc-name">Happy New Year</div>
+          <div class="rc-meta">88.1 km · 769m · Flat</div>
+          <div style="font-size:10px;color:#7A7970;margin-top:4px;line-height:1.4;">Optimal for endurance workouts · Excellent terrain · 100%</div>
+          <div class="rc-pct">100% MATCH</div>
+        </div>
+        <div class="rc" style="border-style:dashed;display:flex;align-items:center;justify-content:center;min-height:100px;cursor:pointer;" onclick="show('today',document.getElementById('n-today'))">
+          <div style="text-align:center;">
+            <div style="font-size:20px;color:#DDDDD8;margin-bottom:6px;">+</div>
+            <div style="font-size:10px;color:#7A7970;letter-spacing:1px;">BUILD NEW ROUTE</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-hd" style="margin-bottom:8px;margin-top:4px;">
+        <div class="ch-label">Tomorrow — Thu Mar 19</div>
+        <div style="font-size:9px;background:#FEFAE8;color:#854F0B;padding:3px 8px;font-family:var(--font-mono);letter-spacing:0.5px;">RECOVERY</div>
+      </div>
+      <div class="route-grid">
+        <div class="rc" style="opacity:0.7;">
+          <div class="rc-type">Recovery · Flat</div>
+          <div class="rc-name">ROUVY – Endurance Waves</div>
+          <div class="rc-meta">10.0 mi · 472ft · Flat</div>
+          <div class="rc-pct" style="background:#FEFAE8;color:#854F0B;">100% MATCH</div>
+        </div>
+        <div class="rc" style="opacity:0.7;">
+          <div class="rc-type">Recovery · Rolling</div>
+          <div class="rc-name">ROUVY – Winter Alt St. Johan</div>
+          <div class="rc-meta">11.0 mi · 584ft · Rolling</div>
+          <div class="rc-pct" style="background:#FEFAE8;color:#854F0B;">100% MATCH</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRAIN -->
+    <div class="scr" id="s-train">
+      <div class="ann">Sketch note — plan + calendar + deep analytics in one place</div>
+
+      <div class="plan-bar">
+        <div class="pb-top">
+          <div>
+            <div class="pb-title">Boulder Roubaix & BWR San Diego Prep</div>
+            <div class="pb-sub">Active plan · Build Phase · Week 6 of 12</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:18px;font-family:var(--font-mono);font-weight:700;color:#141410;">0%</div>
+            <div style="font-size:9px;color:#7A7970;font-family:var(--font-mono);">compliance</div>
+          </div>
+        </div>
+        <div class="pb-badges">
+          <div class="pb-badge" style="background:#E1F5EE;color:#085041;">BUILD PHASE</div>
+          <div class="pb-badge" style="background:#F4F4F2;border:1px solid #DDDDD8;color:#7A7970;">6 OF 12 WEEKS</div>
+          <div class="pb-badge" style="background:#FAEAE8;color:#712B13;">BOULDER ROUBAIX IN 39 DAYS</div>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill" style="width:50%;"></div>
+        </div>
+        <div class="pb-meta">
+          <span>Week 1</span><span>Race day</span>
+        </div>
+      </div>
+
+      <div class="week-sum">
+        <div class="card-hd">
+          <div class="ch-label">Week 6 summary</div>
+          <div style="font-size:9px;background:#F4F4F2;border:1px solid #DDDDD8;padding:3px 8px;font-family:var(--font-mono);color:#7A7970;letter-spacing:0.5px;">CURRENT WEEK</div>
+        </div>
+        <div class="ws-grid">
+          <div class="ws-item">
+            <div class="ws-val">368<span style="font-size:10px;color:#7A7970;">/ 455</span></div>
+            <div class="ws-label">TSS</div>
+          </div>
+          <div class="ws-item">
+            <div class="ws-val">402<span style="font-size:10px;color:#7A7970;">/ 505</span></div>
+            <div class="ws-label">Minutes</div>
+          </div>
+          <div class="ws-item">
+            <div class="ws-val">2<span style="font-size:10px;color:#7A7970;">/ 6</span></div>
+            <div class="ws-label">Workouts</div>
+          </div>
+          <div class="ws-item">
+            <div class="ws-val" style="color:#D4600A;">33%</div>
+            <div class="ws-label">Compliance</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub-nav">
+        <div class="sni on">Calendar</div>
+        <div class="sni">Trends</div>
+        <div class="sni">Power</div>
+        <div class="sni">History</div>
+        <div class="sni">Insights</div>
+      </div>
+
+      <div style="background:#fff;border:0.5px solid #DDDDD8;padding:14px;font-size:11px;color:#7A7970;text-align:center;">
+        Calendar, Trends, Power, History, Insights — all the deep analytics live here, one level down. Not in the primary nav.
+      </div>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="scr" id="s-progress">
+      <div class="ann">Sketch note — the reward screen, fitness as a story</div>
+
+      <div class="prog-section">
+        <div class="ps-head">Training zone distribution — last 30 days</div>
+        <div class="zone-row">
+          <div class="zn">Z1</div><div class="zl">Recovery</div>
+          <div class="zb"><div class="zf" style="width:10%;background:#2A8C82;opacity:0.4;"></div></div>
+          <div class="zv">10%</div>
+        </div>
+        <div class="zone-row">
+          <div class="zn">Z2</div><div class="zl">Endurance</div>
+          <div class="zb"><div class="zf" style="width:51%;background:#2A8C82;"></div></div>
+          <div class="zv">51%</div>
+        </div>
+        <div class="zone-row">
+          <div class="zn">Z3</div><div class="zl">Tempo</div>
+          <div class="zb"><div class="zf" style="width:25%;background:#C49A0A;"></div></div>
+          <div class="zv">25%</div>
+        </div>
+        <div class="zone-row">
+          <div class="zn">Z4</div><div class="zl">Threshold</div>
+          <div class="zb"><div class="zf" style="width:12%;background:#D4600A;"></div></div>
+          <div class="zv">12%</div>
+        </div>
+        <div class="zone-row">
+          <div class="zn">Z5</div><div class="zl">VO2max</div>
+          <div class="zb"><div class="zf" style="width:2%;background:#C43C2A;"></div></div>
+          <div class="zv">2%</div>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:#D4600A;padding:8px 10px;background:#FDF0E8;border-left:2px solid #D4600A;">Threshold distribution — medium intensity focus. Consider more Z2 to optimize aerobic base.</div>
+      </div>
+
+      <div class="prog-section">
+        <div class="ps-head">Key trends — last 6 weeks</div>
+        <div class="trend-item">
+          <div class="ti-dot" style="background:#2A8C82;"></div>
+          <div>
+            <div class="ti-label">Training ramp rate +4 TSS/week</div>
+            <div class="ti-detail">Optimal range (3–7). 4-week average +1.3/week. Sustainable fitness gains.</div>
+          </div>
+        </div>
+        <div class="trend-item">
+          <div class="ti-dot" style="background:#C49A0A;"></div>
+          <div>
+            <div class="ti-label">Aerobic efficiency 1.27 Pw:Hr</div>
+            <div class="ti-detail">+0.3% vs older rides. Moderate decoupling at 6.5% — normal for hard efforts.</div>
+          </div>
+        </div>
+        <div class="trend-item">
+          <div class="ti-dot" style="background:#D4600A;"></div>
+          <div>
+            <div class="ti-label">44% weekly plan compliance</div>
+            <div class="ti-detail">Below target. 2 of 6 workouts completed this week. Impacts taper timing for Boulder Roubaix.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-hd"><div class="ch-label">Year to date</div></div>
+          <div class="fit-row"><div class="fl">Rides</div><div style="margin-left:auto;font-family:var(--font-mono);font-size:13px;font-weight:700;">9</div></div>
+          <div class="fit-row"><div class="fl">Distance</div><div style="margin-left:auto;font-family:var(--font-mono);font-size:13px;font-weight:700;">105.5 mi</div></div>
+          <div class="fit-row"><div class="fl">Elevation</div><div style="margin-left:auto;font-family:var(--font-mono);font-size:13px;font-weight:700;">5,154 ft</div></div>
+          <div class="fit-row"><div class="fl">Time</div><div style="margin-left:auto;font-family:var(--font-mono);font-size:13px;font-weight:700;">6.7 h</div></div>
+        </div>
+        <div class="card">
+          <div class="card-hd"><div class="ch-label">Segments</div><div class="ch-link">MY SEGMENTS →</div></div>
+          <div class="fit-row"><div class="fl">Analyzed</div><div style="margin-left:auto;font-family:var(--font-mono);font-size:13px;font-weight:700;">50</div></div>
+          <div class="fit-row"><div class="fl">PRs this month</div><div style="margin-left:auto;font-family:var(--font-mono);font-size:13px;font-weight:700;color:#C49A0A;">2</div></div>
+          <div class="fit-row"><div class="fl">Top segment</div><div style="margin-left:auto;font-family:var(--font-mono);font-size:11px;font-weight:700;color:#2A8C82;">Flat 25.9km</div></div>
+          <div class="fit-row"><div class="fl">Score</div><div style="margin-left:auto;font-family:var(--font-mono);font-size:13px;font-weight:700;">93</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function show(id,el){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
+  document.getElementById('s-'+id).classList.add('on');
+  el.classList.add('on');
+}
+</script>
