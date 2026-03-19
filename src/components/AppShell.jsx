@@ -1,46 +1,40 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Group,
   Text,
   UnstyledButton,
-  Container,
+  Menu,
   ActionIcon,
-  Tooltip,
-  Anchor,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useMantineColorScheme } from '@mantine/core';
 import {
-  IconHome,
-  IconMap,
-  IconActivity,
-  IconUsers,
   IconSettings,
   IconSun,
   IconMoon,
-  IconCalendarEvent,
+  IconLogout,
+  IconBike,
+  IconUsers,
 } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
-import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
 
-// Flat navigation - 6 direct links, no dropdowns
+// Four-tab primary navigation: TODAY · RIDE · TRAIN · PROGRESS
 const navItems = [
-  { path: '/dashboard', label: 'Home', icon: IconHome },
-  { path: '/routes/new', label: 'Routes', icon: IconMap },
-  { path: '/training', label: 'Training', icon: IconActivity },
-  { path: '/planner', label: 'Planner', icon: IconCalendarEvent },
-  { path: '/community', label: 'Cafe', icon: IconUsers },
-  { path: '/settings', label: 'Settings', icon: IconSettings },
+  { path: '/today', label: 'TODAY' },
+  { path: '/ride', label: 'RIDE' },
+  { path: '/train', label: 'TRAIN' },
+  { path: '/progress', label: 'PROGRESS' },
 ];
 
 function AppShell({ children, fullWidth = false, hideNav = false }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const consentPersisted = useRef(false);
 
   // Persist pending consent from signup flow to user_profiles
@@ -63,23 +57,31 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
 
   // Check if current path matches nav item
   const isActive = (item) => {
-    // Special handling for routes - match all /routes/* paths
-    if (item.path === '/routes/new') {
-      return location.pathname.startsWith('/routes');
+    if (item.path === '/today') {
+      return location.pathname === '/today' || location.pathname === '/dashboard';
     }
-    // Training matches /training paths only
-    if (item.path === '/training') {
-      return location.pathname.startsWith('/training');
+    if (item.path === '/ride') {
+      return location.pathname.startsWith('/ride') || location.pathname.startsWith('/routes');
     }
-    // Planner matches /planner paths
-    if (item.path === '/planner') {
-      return location.pathname.startsWith('/planner');
+    if (item.path === '/train') {
+      return location.pathname.startsWith('/train') || location.pathname === '/planner';
     }
-    // Special handling for settings - also match /gear paths
-    if (item.path === '/settings') {
-      return location.pathname === '/settings' || location.pathname.startsWith('/gear');
+    if (item.path === '/progress') {
+      return location.pathname === '/progress';
     }
-    return location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+    return false;
+  };
+
+  // User initials for avatar
+  const userInitials = user?.user_metadata?.full_name
+    ? user.user_metadata.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : user?.email
+      ? user.email[0].toUpperCase()
+      : '?';
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
   };
 
   return (
@@ -90,112 +92,132 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
         paddingBottom: isMobile && !hideNav ? 64 : 0,
       }}
     >
-      {/* Header - Clean, Linear-inspired */}
-      <Box
-        component="header"
-        style={{
-          height: 56,
-          backgroundColor: 'var(--color-bg)',
-          borderBottom: '1px solid var(--tribos-border)',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        <Container size={fullWidth ? '100%' : 'xl'} h="100%" px={fullWidth ? 'md' : undefined}>
-          <Group h="100%" justify="space-between">
-            {/* Logo */}
-            <Link to="/dashboard" style={{ textDecoration: 'none' }}>
-              <Text
-                fw={700}
-                size="md"
-                style={{
-                  color: 'var(--color-text-primary)',
-                  letterSpacing: '-0.02em',
-                }}
-              >
-                TRIBOS
-              </Text>
-            </Link>
-
-            {/* Desktop Navigation */}
-            {!isMobile && (
-              <Group gap={4}>
-                {navItems.map((item) => (
-                  <DesktopNavLink
-                    key={item.path}
-                    to={item.path}
-                    label={item.label}
-                    icon={item.icon}
-                    active={isActive(item)}
-                  />
-                ))}
-                <Tooltip label={colorScheme === 'dark' ? 'Light mode' : 'Dark mode'}>
-                  <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    onClick={toggleColorScheme}
-                    ml="xs"
-                  >
-                    {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
-                  </ActionIcon>
-                </Tooltip>
-                <Box ml="xs">
-                  <BetaFeedbackWidget />
-                </Box>
-              </Group>
-            )}
-
-            {/* Mobile: Theme toggle and Feedback button in header */}
-            {isMobile && (
-              <Group gap="xs">
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  onClick={toggleColorScheme}
+      {/* Header — dark nav bar */}
+      {!hideNav && (
+        <>
+          <Box
+            component="header"
+            style={{
+              height: 46,
+              backgroundColor: '#141410',
+              position: 'sticky',
+              top: 0,
+              zIndex: 100,
+            }}
+          >
+            <Box
+              h="100%"
+              px={20}
+              style={{
+                maxWidth: fullWidth ? '100%' : 1200,
+                margin: '0 auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              {/* Left: TRIBOS wordmark */}
+              <Link to="/today" style={{ textDecoration: 'none' }}>
+                <Text
+                  fw={700}
+                  style={{
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontSize: 14,
+                    color: '#FFFFFF',
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                  }}
                 >
-                  {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
-                </ActionIcon>
-                <BetaFeedbackWidget />
+                  TRIBOS
+                </Text>
+              </Link>
+
+              {/* Center: Desktop navigation tabs */}
+              {!isMobile && (
+                <Group gap={0} style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>
+                  {navItems.map((item) => {
+                    const active = isActive(item);
+                    return (
+                      <UnstyledButton
+                        key={item.path}
+                        component={Link}
+                        to={item.path}
+                        style={{
+                          padding: '0 16px',
+                          height: 46,
+                          display: 'flex',
+                          alignItems: 'center',
+                          position: 'relative',
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: "'Barlow Condensed', sans-serif",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            letterSpacing: '2px',
+                            textTransform: 'uppercase',
+                            color: active ? '#FFFFFF' : '#7A7970',
+                            transition: 'color 150ms ease',
+                          }}
+                        >
+                          {item.label}
+                        </Text>
+                        {/* Active indicator — 2px teal underline flush to bottom */}
+                        {active && (
+                          <Box
+                            style={{
+                              position: 'absolute',
+                              bottom: 0,
+                              left: 16,
+                              right: 16,
+                              height: 2,
+                              backgroundColor: 'var(--color-teal)',
+                            }}
+                          />
+                        )}
+                      </UnstyledButton>
+                    );
+                  })}
+                </Group>
+              )}
+
+              {/* Right: Avatar dropdown */}
+              <Group gap="xs">
+                <AvatarDropdown
+                  initials={userInitials}
+                  colorScheme={colorScheme}
+                  toggleColorScheme={toggleColorScheme}
+                  onSignOut={handleSignOut}
+                  navigate={navigate}
+                />
               </Group>
-            )}
-          </Group>
-        </Container>
-      </Box>
+            </Box>
+          </Box>
+
+          {/* Retro stripe — brand signature */}
+          <Box
+            style={{
+              display: 'flex',
+              height: 3,
+              position: 'sticky',
+              top: 46,
+              zIndex: 99,
+            }}
+          >
+            <Box style={{ flex: 3, backgroundColor: '#2A8C82' }} />
+            <Box style={{ flex: 2, backgroundColor: '#C49A0A' }} />
+            <Box style={{ flex: 1, backgroundColor: '#F4F4F2' }} />
+            <Box style={{ flex: 2, backgroundColor: '#D4600A' }} />
+            <Box style={{ flex: 2, backgroundColor: '#C43C2A' }} />
+          </Box>
+        </>
+      )}
 
       {/* Main content */}
       <Box component="main">{children}</Box>
 
-      {/* Desktop Footer with Privacy Links */}
-      {!isMobile && (
-        <Box
-          component="footer"
-          py="md"
-          mt="xl"
-          style={{
-            borderTop: '1px solid var(--tribos-border)',
-          }}
-        >
-          <Container size={fullWidth ? '100%' : 'xl'} px={fullWidth ? 'md' : undefined}>
-            <Group justify="center" gap="lg">
-              <Anchor href="/privacy" size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                Privacy
-              </Anchor>
-              <Anchor href="/terms" size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                Terms
-              </Anchor>
-              <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                Contact
-              </Anchor>
-              <Anchor href="mailto:travis@tribos.studio?subject=Abuse%20Report" size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                Report Abuse
-              </Anchor>
-            </Group>
-          </Container>
-        </Box>
-      )}
-
-      {/* Mobile Bottom Tab Bar - 5 items, flat navigation */}
+      {/* Mobile Bottom Tab Bar — 4 tabs */}
       {isMobile && !hideNav && (
         <MobileBottomNav navItems={navItems} isActive={isActive} />
       )}
@@ -203,41 +225,78 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
   );
 }
 
-// Desktop nav link - simple, clean
-function DesktopNavLink({ to, label, icon: Icon, active }) {
+// Avatar with dropdown menu (Settings, Gear, Cafe, Dark mode, Sign out)
+function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, navigate }) {
   return (
-    <UnstyledButton
-      component={Link}
-      to={to}
-      style={{
-        padding: '6px 12px',
-        borderRadius: 6,
-        backgroundColor: active ? 'var(--color-bg-secondary)' : 'transparent',
-        transition: 'background-color 0.15s ease',
-      }}
-      className={!active ? 'tribos-nav-link' : undefined}
-    >
-      <Group gap={6}>
-        <Icon
-          size={16}
-          color={active ? 'var(--color-teal)' : 'var(--color-text-secondary)'}
-          stroke={1.5}
-        />
-        <Text
-          size="sm"
-          fw={active ? 500 : 400}
+    <Menu shadow="md" width={200} position="bottom-end" offset={4}>
+      <Menu.Target>
+        <UnstyledButton
           style={{
-            color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+            width: 28,
+            height: 28,
+            borderRadius: '50%',
+            backgroundColor: 'var(--color-teal)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
           }}
         >
-          {label}
-        </Text>
-      </Group>
-    </UnstyledButton>
+          <Text
+            style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#FFFFFF',
+              letterSpacing: '0.5px',
+              lineHeight: 1,
+            }}
+          >
+            {initials}
+          </Text>
+        </UnstyledButton>
+      </Menu.Target>
+
+      <Menu.Dropdown>
+        <Menu.Item
+          leftSection={<IconSettings size={16} />}
+          onClick={() => navigate('/settings')}
+        >
+          Settings
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<IconBike size={16} />}
+          onClick={() => navigate('/gear')}
+        >
+          Gear
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<IconUsers size={16} />}
+          onClick={() => navigate('/community')}
+        >
+          Cafe
+        </Menu.Item>
+        <Menu.Divider />
+        <Menu.Item
+          leftSection={colorScheme === 'dark' ? <IconSun size={16} /> : <IconMoon size={16} />}
+          onClick={toggleColorScheme}
+        >
+          {colorScheme === 'dark' ? 'Light mode' : 'Dark mode'}
+        </Menu.Item>
+        <Menu.Divider />
+        <Menu.Item
+          leftSection={<IconLogout size={16} />}
+          color="red"
+          onClick={onSignOut}
+        >
+          Sign out
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 
-// Mobile bottom nav - 5 items, direct links
+// Mobile bottom nav — 4 tabs
 function MobileBottomNav({ navItems, isActive }) {
   const navigate = useNavigate();
 
@@ -249,8 +308,7 @@ function MobileBottomNav({ navItems, isActive }) {
         left: 0,
         right: 0,
         height: 64,
-        backgroundColor: 'var(--color-bg-secondary)',
-        borderTop: '1px solid var(--tribos-border)',
+        backgroundColor: '#141410',
         zIndex: 100,
         display: 'flex',
         justifyContent: 'space-around',
@@ -259,7 +317,6 @@ function MobileBottomNav({ navItems, isActive }) {
       }}
     >
       {navItems.map((item) => {
-        const Icon = item.icon;
         const active = isActive(item);
 
         return (
@@ -274,20 +331,31 @@ function MobileBottomNav({ navItems, isActive }) {
               padding: '8px 12px',
               flex: 1,
               gap: 2,
-              minHeight: 44, // Touch target
+              minHeight: 44,
+              position: 'relative',
             }}
           >
-            <Icon
-              size={22}
-              color={active ? 'var(--color-teal)' : 'var(--color-text-secondary)'}
-              stroke={active ? 2 : 1.5}
-            />
+            {/* Active indicator — top bar */}
+            {active && (
+              <Box
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: '25%',
+                  right: '25%',
+                  height: 2,
+                  backgroundColor: 'var(--color-teal)',
+                }}
+              />
+            )}
             <Text
-              size="xs"
-              fw={active ? 500 : 400}
               style={{
-                color: active ? 'var(--color-teal)' : 'var(--color-text-secondary)',
-                fontSize: 11,
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: '2px',
+                textTransform: 'uppercase',
+                color: active ? '#FFFFFF' : '#7A7970',
               }}
             >
               {item.label}

@@ -33,7 +33,7 @@ function AuthCallback() {
 
         if (data?.session) {
           // Successfully authenticated
-          navigate('/dashboard');
+          navigate('/today');
         } else {
           // No session yet, might need to wait for auth state change
           // Listen for the auth state to update
@@ -41,7 +41,7 @@ function AuthCallback() {
             (event, session) => {
               if (session) {
                 subscription.unsubscribe();
-                navigate('/dashboard');
+                navigate('/today');
               }
             }
           );

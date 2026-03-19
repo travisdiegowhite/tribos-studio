@@ -66,7 +66,7 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// Public Route wrapper (redirects to dashboard if already logged in)
+// Public Route wrapper (redirects to today if already logged in)
 function PublicRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
 
@@ -79,7 +79,7 @@ function PublicRoute({ children }) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/today" replace />;
   }
 
   return children;
@@ -118,34 +118,29 @@ function AppRoutes() {
       <Route path="/wahoo/callback" element={<WahooCallback />} />
       <Route path="/oauth/coros/callback" element={<CorosCallback />} />
 
-      {/* Protected routes */}
+      {/* ===== PRIMARY TABS ===== */}
+
+      {/* TODAY — front door (renders existing Dashboard) */}
       <Route
-        path="/dashboard"
+        path="/today"
         element={
           <ProtectedRoute>
             <Dashboard />
           </ProtectedRoute>
         }
       />
+
+      {/* RIDE — route library (renders existing MyRoutes) */}
       <Route
-        path="/routes"
+        path="/ride"
         element={
           <ProtectedRoute>
             <MyRoutes />
           </ProtectedRoute>
         }
       />
-      {/* Redirect old /routes/list bookmarks to the routes page */}
       <Route
-        path="/routes/list"
-        element={
-          <ProtectedRoute>
-            <Navigate to="/routes" replace />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/routes/new"
+        path="/ride/new"
         element={
           <ProtectedRoute>
             <RouteBuilder />
@@ -153,40 +148,17 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/routes/:routeId"
+        path="/ride/:routeId"
         element={
           <ProtectedRoute>
             <RouteBuilder />
           </ProtectedRoute>
         }
       />
-      {/* Manual builder deprecated — redirect to unified builder */}
+
+      {/* TRAIN — training depth (renders existing TrainingDashboard) */}
       <Route
-        path="/routes/manual"
-        element={
-          <ProtectedRoute>
-            <Navigate to="/routes/new" replace />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/routes/manual/:routeId"
-        element={
-          <ProtectedRoute>
-            <Navigate to="/routes/new" replace />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/planner"
-        element={
-          <ProtectedRoute>
-            <PlannerPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/training"
+        path="/train"
         element={
           <ProtectedRoute>
             <TrainingDashboard />
@@ -194,13 +166,26 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/community"
+        path="/train/planner"
         element={
           <ProtectedRoute>
-            <CommunityPage />
+            <PlannerPage />
           </ProtectedRoute>
         }
       />
+
+      {/* PROGRESS — Phase 1: temporarily routes to Training trends tab */}
+      <Route
+        path="/progress"
+        element={
+          <ProtectedRoute>
+            <Navigate to="/train?tab=trends" replace />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ===== AVATAR DROPDOWN PAGES ===== */}
+
       <Route
         path="/settings"
         element={
@@ -225,8 +210,37 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* Updates route redirects to Settings (content moved there) */}
+      <Route
+        path="/community"
+        element={
+          <ProtectedRoute>
+            <CommunityPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ===== LEGACY REDIRECTS (preserve old bookmarks & internal links) ===== */}
+
+      <Route path="/dashboard" element={<Navigate to="/today" replace />} />
+      <Route path="/routes" element={<Navigate to="/ride" replace />} />
+      <Route path="/routes/list" element={<Navigate to="/ride" replace />} />
+      <Route path="/routes/new" element={<Navigate to="/ride/new" replace />} />
+      {/* /routes/:routeId — serve directly (can't redirect with params easily) */}
+      <Route
+        path="/routes/:routeId"
+        element={
+          <ProtectedRoute>
+            <RouteBuilder />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/routes/manual" element={<Navigate to="/ride/new" replace />} />
+      <Route path="/routes/manual/:routeId" element={<Navigate to="/ride/new" replace />} />
+      <Route path="/training" element={<Navigate to="/train" replace />} />
+      <Route path="/planner" element={<Navigate to="/train/planner" replace />} />
       <Route path="/updates" element={<Navigate to="/settings" replace />} />
+
+      {/* ===== ADMIN ===== */}
       <Route
         path="/admin"
         element={
