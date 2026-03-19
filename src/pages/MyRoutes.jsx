@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Container,
   Title,
@@ -30,6 +30,8 @@ import { garminService } from '../utils/garminService';
 import { trackFeature, EventType } from '../utils/activityTracking';
 import PageHeader from '../components/PageHeader.jsx';
 import { Brain, CloudArrowUp, DotsThreeVertical, DownloadSimple, MagnifyingGlass, MapTrifold, Path, PencilSimple, Plus, Trash, Watch, X } from '@phosphor-icons/react';
+import BuilderPromptBar from '../components/ride/BuilderPromptBar.jsx';
+import MatchedRouteCard from '../components/ride/MatchedRouteCard.jsx';
 
 function MyRoutes() {
   const { user } = useAuth();
@@ -44,6 +46,10 @@ function MyRoutes() {
   const [unitsPreference, setUnitsPreference] = useState('imperial');
   const [rideArea, setRideArea] = useState('your area');
   const [medianDistanceKm, setMedianDistanceKm] = useState(null);
+  const [viewMode, setViewMode] = useState('workouts'); // 'workouts' | 'all'
+  const [todayWorkout, setTodayWorkout] = useState(null);
+  const [matchedRoutes, setMatchedRoutes] = useState([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
 
   // Unit formatting helpers
   const isImperial = unitsPreference === 'imperial';
@@ -168,6 +174,88 @@ function MyRoutes() {
     };
     loadRideContext();
   }, [user]);
+
+  // Fetch today's planned workout
+  useEffect(() => {
+    const fetchTodayWorkout = async () => {
+      if (!user) return;
+      try {
+        // Get active plan
+        const { data: planData } = await supabase
+          .from('training_plans')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (!planData) return;
+
+        const today = new Date().toISOString().split('T')[0];
+        const { data: workoutData } = await supabase
+          .from('planned_workouts')
+          .select('*')
+          .eq('plan_id', planData.id)
+          .eq('scheduled_date', today)
+          .maybeSingle();
+
+        if (workoutData) {
+          setTodayWorkout(workoutData);
+        }
+      } catch (err) {
+        console.error('Error fetching today workout:', err);
+      }
+    };
+    fetchTodayWorkout();
+  }, [user]);
+
+  // Fetch matched routes for today's workout
+  useEffect(() => {
+    if (!todayWorkout || !user?.id) return;
+    let cancelled = false;
+
+    async function fetchMatches() {
+      setMatchesLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+
+        const workoutCategory = todayWorkout.workout_type || todayWorkout.category || 'endurance';
+        const workoutId = todayWorkout.id || 'today';
+
+        const res = await fetch('/api/route-analysis', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'get_matches',
+            workouts: [{
+              id: workoutId,
+              name: todayWorkout.title || todayWorkout.workout_type || 'Workout',
+              category: workoutCategory,
+              duration: todayWorkout.duration_minutes || 60,
+            }],
+          }),
+        });
+
+        if (cancelled) return;
+
+        if (res.ok) {
+          const data = await res.json();
+          const matches = data.matches?.[workoutId] || [];
+          setMatchedRoutes(matches);
+        }
+      } catch (err) {
+        console.error('Error fetching route matches:', err);
+      } finally {
+        if (!cancelled) setMatchesLoading(false);
+      }
+    }
+
+    fetchMatches();
+    return () => { cancelled = true; };
+  }, [todayWorkout, user?.id]);
 
   // Delete a route
   const handleDelete = async (routeId, routeName) => {
@@ -402,59 +490,227 @@ function MyRoutes() {
   return (
     <AppShell>
       <Container size="xl" py="lg">
-        <Stack gap="xl">
+        <Stack gap={14}>
           {/* Header */}
           <PageHeader
-            title="My Routes"
-            subtitle={`${filteredRoutes.length} of ${routes.length} route${routes.length !== 1 ? 's' : ''}`}
-            actions={
-              <Button
-                color="teal"
-                leftSection={<Plus size={18} />}
-                onClick={() => navigate('/routes/new')}
-              >
-                New Route
-              </Button>
+            title="Ride"
+            subtitle={viewMode === 'all'
+              ? `${filteredRoutes.length} of ${routes.length} route${routes.length !== 1 ? 's' : ''}`
+              : todayWorkout
+                ? `Matched routes for today's ${todayWorkout.title || todayWorkout.workout_type || 'workout'}`
+                : 'Route library'
             }
           />
 
-          {/* Search and Filter */}
-          {routes.length > 0 && (
-            <Group gap="md" wrap="wrap">
-              <TextInput
-                placeholder="Search routes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                leftSection={<MagnifyingGlass size={16} />}
-                rightSection={searchQuery && (
-                  <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    onClick={() => setSearchQuery('')}
+          {/* Builder Prompt Bar */}
+          <BuilderPromptBar
+            todayWorkout={todayWorkout}
+            medianDistanceKm={medianDistanceKm}
+            formatDist={formatDist}
+          />
+
+          {/* View Toggle: WORKOUTS / ALL ROUTES */}
+          <Group gap="sm">
+            <Button
+              variant={viewMode === 'workouts' ? 'filled' : 'subtle'}
+              color={viewMode === 'workouts' ? 'dark' : 'gray'}
+              size="sm"
+              onClick={() => setViewMode('workouts')}
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                fontSize: 12,
+              }}
+            >
+              WORKOUTS
+            </Button>
+            <Button
+              variant={viewMode === 'all' ? 'filled' : 'subtle'}
+              color={viewMode === 'all' ? 'dark' : 'gray'}
+              size="sm"
+              onClick={() => setViewMode('all')}
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: 700,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                fontSize: 12,
+              }}
+            >
+              ALL ROUTES
+            </Button>
+          </Group>
+
+          {/* WORKOUTS view: matched routes for today's workout */}
+          {viewMode === 'workouts' && (
+            <>
+              {matchesLoading ? (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Box key={i} style={{ border: '1px solid var(--color-border)', padding: 16 }}>
+                      <Skeleton height={16} width="60%" mb={10} />
+                      <Skeleton height={12} width="40%" mb={8} />
+                      <Skeleton height={12} width="50%" />
+                    </Box>
+                  ))}
+                </SimpleGrid>
+              ) : !todayWorkout ? (
+                <Box
+                  style={{
+                    border: '1px solid var(--color-border)',
+                    backgroundColor: 'var(--color-card)',
+                    padding: 24,
+                    textAlign: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: "'Barlow Condensed', sans-serif",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      letterSpacing: '2px',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-text-muted)',
+                      marginBottom: 8,
+                    }}
                   >
-                    <X size={14} />
-                  </ActionIcon>
-                )}
-                style={{ flex: 1, minWidth: 200, maxWidth: 400 }}
-              />
-              <SegmentedControl
-                value={filterType}
-                onChange={setFilterType}
-                size="sm"
-                data={[
-                  { label: 'All', value: 'all' },
-                  { label: 'AI Generated', value: 'ai' },
-                  { label: 'Manual', value: 'manual' }
-                ]}
-                styles={{
-                  root: { backgroundColor: 'var(--color-bg-secondary)' }
-                }}
-              />
-            </Group>
+                    NO WORKOUT SCHEDULED
+                  </Text>
+                  <Text size="sm" style={{ color: 'var(--color-text-secondary)', marginBottom: 16 }}>
+                    Set up a training plan to get route recommendations matched to your workouts.
+                  </Text>
+                  <Button
+                    component={Link}
+                    to="/train/planner?tab=browse"
+                    variant="light"
+                    color="teal"
+                    size="sm"
+                  >
+                    Browse Plans
+                  </Button>
+                </Box>
+              ) : matchedRoutes.length === 0 ? (
+                <Box
+                  style={{
+                    border: '1px solid var(--color-border)',
+                    backgroundColor: 'var(--color-card)',
+                    padding: 24,
+                    textAlign: 'center',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: "'Barlow Condensed', sans-serif",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      letterSpacing: '2px',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-text-muted)',
+                      marginBottom: 8,
+                    }}
+                  >
+                    NO MATCHED ROUTES YET
+                  </Text>
+                  <Text size="sm" style={{ color: 'var(--color-text-secondary)', marginBottom: 16 }}>
+                    Analyze your past rides to find routes that match today&apos;s {todayWorkout.title || todayWorkout.workout_type || 'workout'}.
+                  </Text>
+                  <Button
+                    component={Link}
+                    to="/train?tab=routes"
+                    variant="light"
+                    color="teal"
+                    size="sm"
+                  >
+                    Analyze Routes
+                  </Button>
+                </Box>
+              ) : (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                  {matchedRoutes.map((match, index) => (
+                    <MatchedRouteCard
+                      key={match.activity?.id || index}
+                      match={match}
+                      formatDist={formatDist}
+                      formatElev={formatElev}
+                    />
+                  ))}
+                  {/* Build new route card */}
+                  <Box
+                    style={{
+                      border: '1.5px dashed var(--color-border)',
+                      padding: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      minHeight: 100,
+                    }}
+                    onClick={() => navigate('/ride/new')}
+                  >
+                    <Stack align="center" gap={6}>
+                      <Plus size={20} color="var(--color-text-muted)" />
+                      <Text
+                        style={{
+                          fontFamily: "'Barlow Condensed', sans-serif",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          letterSpacing: '1.5px',
+                          textTransform: 'uppercase',
+                          color: 'var(--color-text-muted)',
+                        }}
+                      >
+                        BUILD NEW ROUTE
+                      </Text>
+                    </Stack>
+                  </Box>
+                </SimpleGrid>
+              )}
+            </>
+
           )}
 
-          {/* Routes Grid */}
-          {routes.length === 0 ? (
+          {/* ALL ROUTES view: existing route library */}
+          {viewMode === 'all' && (
+            <>
+              {/* Search and Filter */}
+              {routes.length > 0 && (
+                <Group gap="md" wrap="wrap">
+                  <TextInput
+                    placeholder="Search routes..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    leftSection={<MagnifyingGlass size={16} />}
+                    rightSection={searchQuery && (
+                      <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        onClick={() => setSearchQuery('')}
+                      >
+                        <X size={14} />
+                      </ActionIcon>
+                    )}
+                    style={{ flex: 1, minWidth: 200, maxWidth: 400 }}
+                  />
+                  <SegmentedControl
+                    value={filterType}
+                    onChange={setFilterType}
+                    size="sm"
+                    data={[
+                      { label: 'All', value: 'all' },
+                      { label: 'AI Generated', value: 'ai' },
+                      { label: 'Manual', value: 'manual' }
+                    ]}
+                    styles={{
+                      root: { backgroundColor: 'var(--color-bg-secondary)' }
+                    }}
+                  />
+                </Group>
+              )}
+
+              {/* Routes Grid */}
+              {routes.length === 0 ? (
             <Card p="2rem">
               <Stack align="center" gap="xl" py="xl">
                 <Path size={48} color="var(--color-teal, #2A8C82)"  />
@@ -702,6 +958,8 @@ function MyRoutes() {
                 </Card>
               ))}
             </SimpleGrid>
+          )}
+            </>
           )}
         </Stack>
       </Container>

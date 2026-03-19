@@ -1,41 +1,26 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import {
   Container,
-  Text,
-  Card,
   Stack,
-  Group,
-  Button,
-  Box,
-  Badge,
-  Skeleton,
   SimpleGrid,
-  Progress,
-  ThemeIcon,
-  CloseButton,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { tokens } from '../theme';
-import { ViewOnStravaLink } from '../components/StravaBranding';
 import AppShell from '../components/AppShell.jsx';
 import OnboardingModal from '../components/OnboardingModal.jsx';
 import WhatsNewModal, { hasSeenLatestUpdates } from '../components/WhatsNewModal.jsx';
 import PageHeader from '../components/PageHeader.jsx';
-import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
-import { stravaService } from '../utils/stravaService';
-import { notifications } from '@mantine/notifications';
-import { useCommunity } from '../hooks/useCommunity';
-import { CafeSummaryWidget, WeeklyCheckInWidget } from '../components/community';
 import { useGear } from '../hooks/useGear.ts';
 import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
 import GetStartedGuide from '../components/activation/GetStartedGuide.jsx';
 import ProactiveInsightCard from '../components/activation/ProactiveInsightCard.jsx';
-import RouteAnalysisSummaryWidget from '../components/training/RouteAnalysisSummaryWidget.tsx';
-import { ArrowsClockwise, CalendarBlank, CaretRight, ChartBar, ClockCounterClockwise, Path, Play, Target, TrendUp, UploadSimple, X } from '@phosphor-icons/react';
+import StatusBar from '../components/today/StatusBar.jsx';
+import IntelligenceCard from '../components/today/IntelligenceCard.jsx';
+import CoachStrip from '../components/today/CoachStrip.jsx';
+import WeekChart from '../components/today/WeekChart.jsx';
+import FitnessBars from '../components/today/FitnessBars.jsx';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -48,25 +33,7 @@ function Dashboard() {
   const [activePlan, setActivePlan] = useState(null);
   const [todayWorkout, setTodayWorkout] = useState(null);
   const [weekStats, setWeekStats] = useState({ rides: 0, planned: 0, distance: 0, elevation: 0 });
-  const [syncing, setSyncing] = useState(false);
-  const [checkInDismissed, setCheckInDismissed] = useState(false);
-  const [stravaConnected, setStravaConnected] = useState(false);
-  const [totalActivityCount, setTotalActivityCount] = useState(null);
-  const [importNudgeDismissed, setImportNudgeDismissed] = useState(
-    () => localStorage.getItem(`tribos_import_nudge_dismissed_${user?.id}`) === 'true'
-  );
   const [todayRouteMatch, setTodayRouteMatch] = useState(null);
-
-  // Community hook
-  const {
-    activeCafe,
-    checkIns,
-    loading: communityLoading,
-    hasCheckedInThisWeek,
-    cafeCheckInCount,
-    createCheckIn,
-    shouldPromptCheckIn,
-  } = useCommunity({ userId: user?.id });
 
   // Gear alerts hook
   const { alerts: gearAlerts, dismissAlert: dismissGearAlert } = useGear({ userId: user?.id, alertsOnly: true });
@@ -160,17 +127,6 @@ function Dashboard() {
           });
         }
 
-        // Check Strava connection and total activity count for import nudge
-        const [connectionStatus, { count: actCount }] = await Promise.all([
-          stravaService.getConnectionStatus(),
-          supabase
-            .from('activities')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id)
-        ]);
-        setStravaConnected(connectionStatus?.connected || false);
-        setTotalActivityCount(actCount || 0);
-
         // Fetch active training plan
         const { data: planData } = await supabase
           .from('training_plans')
@@ -241,7 +197,7 @@ function Dashboard() {
             setTodayRouteMatch(matches[0]);
           }
         }
-      } catch (err) {
+      } catch {
         // Non-blocking — silently fail
       }
     }
@@ -256,534 +212,29 @@ function Dashboard() {
     return 'Good evening';
   };
 
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      const status = await stravaService.getConnectionStatus();
-      if (status.connected) {
-        await stravaService.syncAllActivities();
-        notifications.show({
-          title: 'Sync Complete',
-          message: 'Activities synced from Strava',
-          color: 'terracotta',
-        });
-        // Reload activities
-        window.location.reload();
-      } else {
-        notifications.show({
-          title: 'Not Connected',
-          message: 'Connect Strava in Settings to sync',
-          color: 'gold',
-        });
-      }
-    } catch (err) {
-      notifications.show({
-        title: 'Sync Failed',
-        message: err.message || 'Failed to sync activities',
-        color: 'red',
-      });
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  // Handle check-in submission
-  const handleCheckInSubmit = async (data) => {
-    if (!activeCafe) return;
-    const success = await createCheckIn(activeCafe.cafe_id, data);
-    if (success) {
-      notifications.show({
-        title: 'Check-in shared',
-        message: 'Your cafe can now see your update',
-        color: 'terracotta',
-      });
-    }
-  };
-
-  // Navigate to find cafe
-  const handleFindCafe = () => {
-    window.location.href = '/community';
-  };
-
-  // Memoize weekly hours/TSS to avoid recalculating on every render
-  const weeklyCheckInStats = useMemo(() => {
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    let hours = 0;
-    let tss = 0;
-    for (const a of activities) {
-      if (new Date(a.start_date) >= weekAgo) {
-        hours += (a.duration_seconds || a.moving_time || 0) / 3600;
-        tss += a.tss || 0;
-      }
-    }
-    return { hours, tss };
-  }, [activities]);
-
-  const handleCloseOnboarding = useCallback(() => setShowOnboarding(false), []);
-  const handleCloseWhatsNew = useCallback(() => setShowWhatsNew(false), []);
-  const handleDismissCheckIn = useCallback(() => setCheckInDismissed(true), []);
-
-  return (
-    <AppShell>
-      <OnboardingModal
-        opened={showOnboarding}
-        onClose={handleCloseOnboarding}
-      />
-      <WhatsNewModal
-        opened={showWhatsNew}
-        onClose={handleCloseWhatsNew}
-        userId={user?.id}
-      />
-      <Container size="xl" py="lg">
-        <Stack gap="lg">
-          {/* Header */}
-          <PageHeader
-            greeting={`${getGreeting()},`}
-            title={displayName}
-            titleOrder={2}
-          />
-
-          {/* Activation Guide */}
-          <GetStartedGuide />
-          <ProactiveInsightCard />
-
-          {/* Today's Focus Card */}
-          <TodayFocusCard
-            workout={todayWorkout}
-            plan={activePlan}
-            loading={loading}
-            routeMatch={todayRouteMatch}
-          />
-
-          {/* Main Content: Map + Stats */}
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
-            {/* Map */}
-            <Box>
-              <RecentRidesMap
-                activities={activities}
-                loading={loading}
-                formatDist={formatDist}
-                formatElev={formatElev}
-                compact
-              />
-            </Box>
-
-            {/* Stats Stack */}
-            <Stack gap="md">
-              {/* This Week */}
-              <Card>
-                <Group justify="space-between" mb="sm">
-                  <Text fw={600} size="sm" style={{ color: 'var(--color-text-primary)' }}>
-                    This Week
-                  </Text>
-                  <Badge variant="light" color="teal" size="sm">
-                    {weekStats.rides}/{weekStats.planned} rides
-                  </Badge>
-                </Group>
-                <Progress
-                  value={(weekStats.rides / Math.max(weekStats.planned, 1)) * 100}
-                  color="teal"
-                  size="sm"
-                  radius="xl"
-                  mb="sm"
-                />
-                <Group gap="xl">
-                  <Box>
-                    <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Distance</Text>
-                    <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
-                      {formatDist(weekStats.distance)}
-                    </Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Elevation</Text>
-                    <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
-                      {formatElev(weekStats.elevation)}
-                    </Text>
-                  </Box>
-                </Group>
-              </Card>
-
-              {/* Fitness Trend */}
-              <Card>
-                <Group justify="space-between" mb="xs">
-                  <Text fw={600} size="sm" style={{ color: 'var(--color-text-primary)' }}>
-                    Fitness
-                  </Text>
-                  <Button
-                    component={Link}
-                    to="/training?tab=trends"
-                    variant="subtle"
-                    color="gray"
-                    size="xs"
-                    rightSection={<CaretRight size={12} />}
-                  >
-                    Details
-                  </Button>
-                </Group>
-                <FitnessMetrics activities={activities} loading={loading} />
-              </Card>
-
-              {/* Route Analysis Summary */}
-              <RouteAnalysisSummaryWidget
-                userId={user?.id}
-                todayWorkout={todayWorkout}
-                loading={loading}
-              />
-
-              {/* Gear Alerts */}
-              {gearAlerts.length > 0 && (
-                <Card>
-                  <Group justify="space-between" mb="sm">
-                    <Text fw={500} size="sm" style={{ color: 'var(--color-text-primary)' }}>Gear Alerts</Text>
-                    <Button size="xs" variant="subtle" component={Link} to="/gear">View All</Button>
-                  </Group>
-                  <GearAlertBanner alerts={gearAlerts} onDismiss={dismissGearAlert} compact />
-                </Card>
-              )}
-
-              {/* Cafe Summary Widget */}
-              <CafeSummaryWidget
-                cafe={activeCafe?.cafe}
-                memberCount={activeCafe?.cafe?.member_count || 0}
-                checkInCount={cafeCheckInCount}
-                totalMembers={activeCafe?.cafe?.member_count || 0}
-                loading={communityLoading}
-                onFindCafe={handleFindCafe}
-              />
-            </Stack>
-          </SimpleGrid>
-
-          {/* Weekly Check-In Widget - Show prominently if should prompt */}
-          {activeCafe && shouldPromptCheckIn() && !checkInDismissed && (
-            <WeeklyCheckInWidget
-              cafeName={activeCafe.cafe?.name}
-              hasCheckedIn={hasCheckedInThisWeek}
-              weekStats={{
-                rides: weekStats.rides,
-                hours: weeklyCheckInStats.hours,
-                tss: weeklyCheckInStats.tss,
-              }}
-              onSubmit={handleCheckInSubmit}
-              onDismiss={handleDismissCheckIn}
-            />
-          )}
-
-          {/* Quick Actions */}
-          <Card p="sm">
-            <Group gap="xs" wrap="wrap">
-              <Button
-                component={Link}
-                to="/routes/new"
-                variant="light"
-                color="teal"
-                size="sm"
-                leftSection={<Path size={16} />}
-              >
-                Plan Route
-              </Button>
-              <Button
-                onClick={handleSync}
-                variant="light"
-                color="gray"
-                size="sm"
-                leftSection={<ArrowsClockwise size={16} />}
-                loading={syncing}
-              >
-                Sync
-              </Button>
-              <Button
-                component={Link}
-                to="/training?tab=history"
-                variant="light"
-                color="gray"
-                size="sm"
-                leftSection={<UploadSimple size={16} />}
-              >
-                Upload
-              </Button>
-              <Button
-                component={Link}
-                to="/training?tab=routes"
-                variant="light"
-                color="gray"
-                size="sm"
-                leftSection={<ChartBar size={16} />}
-              >
-                Find Routes
-              </Button>
-            </Group>
-          </Card>
-
-          {/* Import History Nudge */}
-          {stravaConnected && !importNudgeDismissed && totalActivityCount !== null && totalActivityCount < 10 && (
-            <Card
-              style={{
-                background: 'linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-secondary) 100%)',
-                border: '1px solid var(--tribos-border)',
-              }}
-            >
-              <Group justify="space-between" align="flex-start" wrap="nowrap">
-                <Group gap="md" align="flex-start" wrap="nowrap">
-                  <ThemeIcon size="lg" variant="light" color="teal" mt={2}>
-                    <ClockCounterClockwise size={20} />
-                  </ThemeIcon>
-                  <Box>
-                    <Text fw={600} size="sm" style={{ color: 'var(--color-text-primary)' }} mb={4}>
-                      Import your ride history
-                    </Text>
-                    <Text size="sm" style={{ color: 'var(--color-text-secondary)' }} mb="sm">
-                      The Route Builder uses your past rides to suggest roads you already love, and the Training AI coach needs your history to build a plan that fits your fitness level.
-                    </Text>
-                    <Button
-                      component={Link}
-                      to="/settings"
-                      variant="light"
-                      color="teal"
-                      size="xs"
-                    >
-                      Import from Strava
-                    </Button>
-                  </Box>
-                </Group>
-                <CloseButton
-                  size="sm"
-                  onClick={() => {
-                    setImportNudgeDismissed(true);
-                    localStorage.setItem(`tribos_import_nudge_dismissed_${user?.id}`, 'true');
-                  }}
-                  style={{ color: 'var(--color-text-muted)' }}
-                />
-              </Group>
-            </Card>
-          )}
-
-          {/* Recent Activities */}
-          <Card>
-            <Group justify="space-between" mb="md">
-              <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
-                Recent Activity
-              </Text>
-              {activities.length > 0 && (
-                <Button
-                  component={Link}
-                  to="/training?tab=history"
-                  variant="subtle"
-                  color="gray"
-                  size="xs"
-                  rightSection={<CaretRight size={14} />}
-                >
-                  View all
-                </Button>
-              )}
-            </Group>
-
-            {loading ? (
-              <Stack gap="sm">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} height={60} radius="md" />
-                ))}
-              </Stack>
-            ) : activities.length === 0 ? (
-              <EmptyState />
-            ) : (
-              <Stack gap="xs">
-                {activities.slice(0, 3).map((activity) => (
-                  <ActivityRow
-                    key={activity.id}
-                    activity={activity}
-                    formatDist={formatDist}
-                    formatElev={formatElev}
-                  />
-                ))}
-              </Stack>
-            )}
-          </Card>
-        </Stack>
-      </Container>
-    </AppShell>
-  );
-}
-
-// Today's Focus Card
-function TodayFocusCard({ workout, plan, loading, routeMatch }) {
-  if (loading) {
-    return (
-      <Card>
-        <Skeleton height={80} radius="md" />
-      </Card>
-    );
-  }
-
-  if (!plan) {
-    return (
-      <Card
-        style={{
-          background: `linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-secondary) 100%)`,
-          border: `1px solid var(--tribos-border)`,
-        }}
-      >
-        <Group justify="space-between" align="center">
-          <Box>
-            <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--color-text-muted)' }} mb={4}>
-              Today's Focus
-            </Text>
-            <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
-              No active training plan
-            </Text>
-            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
-              Start a plan to get personalized workout recommendations
-            </Text>
-          </Box>
-          <Button
-            component={Link}
-            to="/planner?tab=browse"
-            variant="filled"
-            color="teal"
-            leftSection={<CalendarBlank size={16} />}
-          >
-            Browse Plans
-          </Button>
-        </Group>
-      </Card>
-    );
-  }
-
-  if (!workout) {
-    return (
-      <Card
-        style={{
-          background: `linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-secondary) 100%)`,
-          border: `1px solid var(--tribos-border)`,
-        }}
-      >
-        <Group justify="space-between" align="center">
-          <Box>
-            <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--color-text-muted)' }} mb={4}>
-              Today's Focus
-            </Text>
-            <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
-              Rest Day
-            </Text>
-            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
-              Recovery is part of the plan. Take it easy today.
-            </Text>
-          </Box>
-          <ThemeIcon size={48} radius="xl" variant="light" color="teal">
-            <Target size={24} />
-          </ThemeIcon>
-        </Group>
-      </Card>
-    );
-  }
-
-  return (
-    <Card
-      style={{
-        background: `linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-secondary) 100%)`,
-        border: `1px solid var(--color-teal)30`,
-      }}
-    >
-      <Group justify="space-between" align="center">
-        <Box>
-          <Text size="xs" tt="uppercase" fw={500} style={{ color: 'var(--color-teal)' }} mb={4}>
-            Today's Focus
-          </Text>
-          <Text fw={600} size="lg" style={{ color: 'var(--color-text-primary)' }}>
-            {workout.title || workout.workout_type || 'Workout'}
-          </Text>
-          <Group gap="md" mt={4}>
-            {workout.duration_minutes && (
-              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
-                {workout.duration_minutes} min
-              </Text>
-            )}
-            {workout.tss && (
-              <Badge variant="light" color="teal" size="sm">
-                TSS {workout.tss}
-              </Badge>
-            )}
-          </Group>
-          {routeMatch && (
-            <Group gap="xs" mt="sm">
-              <Path size={14} style={{ color: 'var(--color-teal)' }} />
-              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }} truncate>
-                Best route: {routeMatch.activity?.name}
-              </Text>
-              <Badge size="xs" color="teal" variant="light">
-                {routeMatch.matchScore}% match
-              </Badge>
-              <Button
-                component={Link}
-                to="/training?tab=routes"
-                size="xs"
-                variant="subtle"
-                color="teal"
-              >
-                View
-              </Button>
-            </Group>
-          )}
-        </Box>
-        <Group gap="sm">
-          <Button
-            component={Link}
-            to="/planner"
-            variant="light"
-            color="gray"
-            size="sm"
-          >
-            View Plan
-          </Button>
-          <Button
-            component={Link}
-            to="/planner"
-            variant="filled"
-            color="teal"
-            leftSection={<Play size={16} />}
-          >
-            Start
-          </Button>
-        </Group>
-      </Group>
-    </Card>
-  );
-}
-
-// Fitness Metrics Component - uses same calculation as FormWidget
-function FitnessMetrics({ activities, loading }) {
-  if (loading) {
-    return <Skeleton height={40} radius="md" />;
-  }
-
-  // Estimate TSS from activity if not provided
-  const estimateTSS = (activity) => {
-    if (activity.tss) return activity.tss;
-
-    const hours = (activity.duration_seconds || activity.moving_time || 0) / 3600;
-    const avgPower = activity.average_power_watts || activity.average_watts;
-
-    if (avgPower && activity.normalized_power_watts) {
-      const ftp = 200; // Default FTP estimate
-      const intensityFactor = activity.normalized_power_watts / ftp;
-      return Math.round(hours * intensityFactor * intensityFactor * 100);
-    }
-
-    const avgHR = activity.average_heart_rate || activity.average_hr;
-    if (avgHR) {
-      const intensity = avgHR / 180;
-      return Math.round(hours * intensity * 100);
-    }
-
-    // Fallback: ~50 TSS per hour
-    return Math.round(hours * 50);
-  };
-
-  // Calculate CTL/ATL using exponentially weighted averages
-  const calculateMetrics = () => {
+  // Lift CTL/ATL/TSB calculation from old FitnessMetrics component
+  const trainingMetrics = useMemo(() => {
     if (!activities || activities.length === 0) {
-      return { ctl: 0, atl: 0, form: 0 };
+      return { ctl: 0, atl: 0, tsb: 0 };
     }
+
+    // Estimate TSS from activity if not provided
+    const estimateTSS = (activity) => {
+      if (activity.tss) return activity.tss;
+      const hours = (activity.duration_seconds || activity.moving_time || 0) / 3600;
+      const avgPower = activity.average_power_watts || activity.average_watts;
+      if (avgPower && activity.normalized_power_watts) {
+        const ftp = 200;
+        const intensityFactor = activity.normalized_power_watts / ftp;
+        return Math.round(hours * intensityFactor * intensityFactor * 100);
+      }
+      const avgHR = activity.average_heart_rate || activity.average_hr;
+      if (avgHR) {
+        const intensity = avgHR / 180;
+        return Math.round(hours * intensity * 100);
+      }
+      return Math.round(hours * 50);
+    };
 
     // Build daily TSS map for the last 60 days
     const now = new Date();
@@ -796,7 +247,6 @@ function FitnessMetrics({ activities, loading }) {
       dailyTSS[key] = 0;
     }
 
-    // Sum TSS per day
     activities.forEach((activity) => {
       const date = new Date(activity.start_date).toISOString().split('T')[0];
       const tss = estimateTSS(activity);
@@ -827,136 +277,93 @@ function FitnessMetrics({ activities, loading }) {
     });
     atl = Math.round(atl * atlDecay);
 
-    const form = ctl - atl;
+    const tsb = ctl - atl;
+    return { ctl, atl, tsb };
+  }, [activities]);
 
-    return { ctl, atl, form };
-  };
-
-  const { ctl, atl, form } = calculateMetrics();
-
-  return (
-    <Group gap="xl">
-      <Box>
-        <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>CTL</Text>
-        <Group gap={4} align="baseline">
-          <Text fw={600} size="lg" style={{ color: 'var(--color-text-primary)' }}>
-            {ctl}
-          </Text>
-          {ctl > 0 && <TrendUp size={14} color="var(--color-teal)" />}
-        </Group>
-      </Box>
-      <Box>
-        <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>ATL</Text>
-        <Text fw={600} size="lg" style={{ color: 'var(--color-text-primary)' }}>
-          {atl}
-        </Text>
-      </Box>
-      <Box>
-        <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Form</Text>
-        <Text fw={600} size="lg" style={{ color: form >= 0 ? 'var(--tribos-success)' : 'var(--tribos-warning)' }}>
-          {form > 0 ? '+' : ''}{form}
-        </Text>
-      </Box>
-    </Group>
-  );
-}
-
-function EmptyState() {
-  return (
-    <Box
-      style={{
-        padding: tokens.spacing.xl,
-        textAlign: 'center',
-        borderRadius: tokens.radius.md,
-        border: `1px dashed var(--tribos-border)`,
-      }}
-    >
-      <Text size="lg" mb="sm">
-        🚴
-      </Text>
-      <Text style={{ color: 'var(--color-text-secondary)' }}>
-        No recent activities yet
-      </Text>
-      <Text size="sm" style={{ color: 'var(--color-text-muted)' }} mb="md">
-        Connect your devices or upload a file to get started
-      </Text>
-      <Group justify="center" gap="sm">
-        <Button component={Link} to="/settings" variant="light" color="teal" size="sm">
-          Connect Strava
-        </Button>
-        <Button component={Link} to="/training?tab=history" variant="outline" color="gray" size="sm">
-          Upload File
-        </Button>
-      </Group>
-    </Box>
-  );
-}
-
-function ActivityRow({ activity, formatDist, formatElev }) {
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) {
-      return date.toLocaleDateString('en-US', { weekday: 'short' });
-    }
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  const formatDuration = (seconds) => {
-    if (!seconds) return '-';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
-
-  const distanceKm = (activity.distance_meters || activity.distance || 0) / 1000;
-  const duration = activity.duration_seconds || activity.moving_time || 0;
-  const power = activity.average_power_watts || activity.average_watts || 0;
-  const stravaActivityId = activity.provider === 'strava' ? activity.provider_activity_id : null;
+  const handleCloseOnboarding = useCallback(() => setShowOnboarding(false), []);
+  const handleCloseWhatsNew = useCallback(() => setShowWhatsNew(false), []);
 
   return (
-    <Box
-      p="sm"
-      style={{
-        backgroundColor: 'var(--color-bg-secondary)',
-        borderRadius: tokens.radius.md,
-      }}
-    >
-      <Group justify="space-between" wrap="nowrap">
-        <Box style={{ flex: 1, minWidth: 0 }}>
-          <Group gap="sm" wrap="nowrap">
-            <Text fw={500} size="sm" lineClamp={1} style={{ color: 'var(--color-text-primary)' }}>
-              {activity.name || 'Ride'}
-            </Text>
-            {power > 0 && (
-              <Badge size="xs" variant="light" color="gold">
-                {Math.round(power)}W
-              </Badge>
-            )}
-          </Group>
-          <Group gap="xs">
-            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
-              {formatDate(activity.start_date)}
-            </Text>
-            {stravaActivityId && <ViewOnStravaLink activityId={stravaActivityId} />}
-          </Group>
-        </Box>
-        <Group gap="md" wrap="nowrap">
-          <Text size="sm" fw={500} style={{ color: 'var(--color-text-secondary)' }}>
-            {formatDist(distanceKm)}
-          </Text>
-          <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
-            {formatDuration(duration)}
-          </Text>
-        </Group>
-      </Group>
-    </Box>
+    <AppShell>
+      <OnboardingModal
+        opened={showOnboarding}
+        onClose={handleCloseOnboarding}
+      />
+      <WhatsNewModal
+        opened={showWhatsNew}
+        onClose={handleCloseWhatsNew}
+        userId={user?.id}
+      />
+      <Container size="xl" py="lg" px={20}>
+        <Stack gap={14}>
+          {/* Header */}
+          <PageHeader
+            greeting={`${getGreeting()},`}
+            title={displayName}
+            titleOrder={2}
+          />
+
+          {/* Activation Guide (new users) */}
+          <GetStartedGuide />
+
+          {/* Status Bar — CTL/ATL/TSB/This Week */}
+          <StatusBar
+            ctl={trainingMetrics.ctl}
+            atl={trainingMetrics.atl}
+            tsb={trainingMetrics.tsb}
+            weekRides={weekStats.rides}
+            weekPlanned={weekStats.planned}
+            loading={loading}
+          />
+
+          {/* Intelligence Card — workout + route match */}
+          <IntelligenceCard
+            workout={todayWorkout}
+            plan={activePlan}
+            routeMatch={todayRouteMatch}
+            loading={loading}
+            formatDist={formatDist}
+          />
+
+          {/* Proactive Insight */}
+          <ProactiveInsightCard />
+
+          {/* Coach Strip — contextual message */}
+          <CoachStrip
+            tsb={trainingMetrics.tsb}
+            todayWorkout={todayWorkout}
+            loading={loading}
+          />
+
+          {/* Gear Alerts */}
+          {gearAlerts.length > 0 && (
+            <GearAlertBanner
+              alerts={gearAlerts}
+              onDismiss={dismissGearAlert}
+              compact
+              useImperial={isImperial}
+            />
+          )}
+
+          {/* Bottom section: Week + Fitness */}
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={14}>
+            <WeekChart
+              weekStats={weekStats}
+              loading={loading}
+              formatDist={formatDist}
+              formatElev={formatElev}
+            />
+            <FitnessBars
+              ctl={trainingMetrics.ctl}
+              atl={trainingMetrics.atl}
+              tsb={trainingMetrics.tsb}
+              loading={loading}
+            />
+          </SimpleGrid>
+        </Stack>
+      </Container>
+    </AppShell>
   );
 }
 

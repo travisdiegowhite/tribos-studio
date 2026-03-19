@@ -193,6 +193,9 @@ async function handleQuery(req, res) {
 /**
  * Weekly cron job to compute snapshots for all active users
  * Configured in vercel.json as: "0 3 * * 1" (Monday 3am)
+ *
+ * Computes snapshots for the last 4 weeks to fill any gaps caused by
+ * missed webhook calls or debounce skips.
  */
 async function handleWeeklyCompute(req, res) {
   // Verify cron authorization (timing-safe)
@@ -206,15 +209,15 @@ async function handleWeeklyCompute(req, res) {
   }
 
   try {
-    // Get all users with recent activity (last 14 days)
-    const twoWeeksAgo = new Date();
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    // Get all users with recent activity (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const { data: recentActivities, error: actError } = await supabase
       .from('activities')
       .select('user_id')
-      .gte('start_date', twoWeeksAgo.toISOString())
-      .eq('is_hidden', false);
+      .gte('start_date', thirtyDaysAgo.toISOString())
+      .or('is_hidden.eq.false,is_hidden.is.null');
 
     if (actError) throw actError;
 
@@ -222,32 +225,42 @@ async function handleWeeklyCompute(req, res) {
 
     console.log(`Weekly snapshot compute: ${uniqueUsers.length} active users`);
 
-    const weekStart = getWeekStart(new Date());
+    // Compute snapshots for the last 4 weeks to fill any gaps
+    const weeksToCompute = [];
+    for (let i = 0; i < 4; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - (i * 7));
+      weeksToCompute.push(getWeekStart(d));
+    }
+
     let processed = 0;
     let errors = 0;
 
     for (const userId of uniqueUsers) {
-      try {
-        const snapshot = await computeWeeklySnapshot(supabase, userId, weekStart);
+      for (const weekStart of weeksToCompute) {
+        try {
+          const snapshot = await computeWeeklySnapshot(supabase, userId, weekStart);
 
-        await supabase.from('fitness_snapshots').upsert(snapshot, {
-          onConflict: 'user_id,snapshot_week'
-        });
+          await supabase.from('fitness_snapshots').upsert(snapshot, {
+            onConflict: 'user_id,snapshot_week'
+          });
 
-        processed++;
-      } catch (err) {
-        console.error(`Snapshot failed for ${userId}:`, err.message);
-        errors++;
+          processed++;
+        } catch (err) {
+          console.error(`Snapshot failed for ${userId} week ${weekStart}:`, err.message);
+          errors++;
+        }
       }
     }
 
-    console.log(`Weekly compute complete: ${processed} processed, ${errors} errors`);
+    console.log(`Weekly compute complete: ${processed} snapshots processed, ${errors} errors`);
 
     return res.json({
       success: true,
-      usersProcessed: processed,
+      usersProcessed: uniqueUsers.length,
+      snapshotsComputed: processed,
+      weeksComputed: weeksToCompute,
       errors,
-      weekStart
     });
 
   } catch (error) {

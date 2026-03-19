@@ -74,6 +74,9 @@ import { garminService } from '../utils/garminService.js';
 import PageHeader from '../components/PageHeader.jsx';
 import { useCrossTraining } from '../hooks/useCrossTraining';
 import { Barbell, Bicycle, Calendar, CalendarBlank, CaretDown, CaretRight, ChartBar, ChartLine, ChatCircle, Clock, DownloadSimple, FileArrowDown, FileArrowUp, Fire, Gear, Heart, Heartbeat, Lightning, Medal, Moon, Mountains, Path, PersonSimpleRun, Sparkle, Target, TrendDown, TrendUp, Trophy, UploadSimple, Watch } from '@phosphor-icons/react';
+import PlanProgressBar from '../components/train/PlanProgressBar.jsx';
+import WeekSummaryGrid from '../components/train/WeekSummaryGrid.jsx';
+import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
 
 // Helper to determine sport type from activity data
 const CYCLING_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
@@ -93,11 +96,11 @@ function TrainingDashboard() {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(true);
 
-  // Read tab from URL query parameter, default to 'today'
-  // Note: 'plans' tab moved to /planner page
+  // Read tab from URL query parameter, default to 'calendar'
+  // Note: 'plans' tab moved to /planner page, 'today' moved to /today, 'routes' moved to /ride
   const urlTab = searchParams.get('tab');
-  const validTabs = ['coach', 'today', 'trends', 'power', 'routes', 'history', 'insights', 'calendar'];
-  const initialTab = validTabs.includes(urlTab) ? urlTab : 'today';
+  const validTabs = ['coach', 'trends', 'power', 'history', 'insights', 'calendar'];
+  const initialTab = validTabs.includes(urlTab) ? urlTab : 'calendar';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);
@@ -949,294 +952,96 @@ function TrainingDashboard() {
             }
           />
 
-          {/* Main Tabs - Pill Style for clear visual distinction */}
-          <Tabs value={activeTab} onChange={setActiveTab} color="teal" variant="pills">
-            <Paper
-              withBorder
-              radius="xl"
-              p="xs"
-              style={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 100,
-                background: depth.panel.background,
-                boxShadow: depth.panel.boxShadow,
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              <Tabs.List grow={!isMobile} justify={isMobile ? 'center' : undefined}>
-                <Tabs.Tab
-                  value="coach"
-                  leftSection={<Sparkle size={isMobile ? 20 : 18} />}
-                >
-                  {!isMobile && 'Coach'}
-                </Tabs.Tab>
-                <Tabs.Tab
-                  value="today"
-                  leftSection={<Target size={isMobile ? 20 : 18} />}
-                >
-                  {!isMobile && 'Today'}
-                </Tabs.Tab>
-                <Tabs.Tab
-                  value="routes"
-                  leftSection={<Path size={isMobile ? 20 : 18} />}
-                >
-                  {!isMobile && 'Routes'}
-                </Tabs.Tab>
-                <Tabs.Tab
-                  value="trends"
-                  leftSection={<TrendUp size={isMobile ? 20 : 18} />}
-                >
-                  {!isMobile && 'Trends'}
-                </Tabs.Tab>
-                <Tabs.Tab
-                  value="power"
-                  leftSection={<Lightning size={isMobile ? 20 : 18} />}
-                >
-                  {!isMobile && 'Power'}
-                </Tabs.Tab>
-                <Tabs.Tab
-                  value="history"
-                  leftSection={<Clock size={isMobile ? 20 : 18} />}
-                >
-                  {!isMobile && 'History'}
-                </Tabs.Tab>
-                <Tabs.Tab
-                  value="insights"
-                  leftSection={<ChartLine size={isMobile ? 20 : 18} />}
-                >
-                  {!isMobile && 'Insights'}
-                </Tabs.Tab>
-                <Tabs.Tab
-                  value="calendar"
-                  leftSection={<Calendar size={isMobile ? 20 : 18} />}
-                >
-                  {!isMobile && 'Calendar'}
-                </Tabs.Tab>
-              </Tabs.List>
-            </Paper>
+          {/* Plan Progress Bar */}
+          <PlanProgressBar
+            activePlan={activePlan}
+            plannedWorkouts={plannedWorkouts}
+            loading={loading}
+          />
 
-            {/* Tab Panels */}
-            <Box mt="md">
-              {/* COACH TAB - AI Coaching Check-Ins */}
-              <Tabs.Panel value="coach">
-                <CheckInPage
-                  plannedWorkouts={plannedWorkouts}
-                  activities={visibleActivities}
-                  ftp={ftp}
-                  trainingContext={trainingContext}
-                />
-              </Tabs.Panel>
+          {/* Week Summary Grid */}
+          <WeekSummaryGrid
+            weeklyStats={weeklyStats}
+            actualWeeklyStats={actualWeeklyStats}
+            plannedWorkouts={plannedWorkouts}
+            formatDist={formatDist}
+            formatTime={formatTime}
+            loading={loading}
+          />
 
-              {/* TODAY TAB - Streamlined Layout */}
-              <Tabs.Panel value="today">
-                <Stack gap="md">
-                  {/* Fitness Metrics Bar - Now inside Today tab */}
-                  <FitnessMetricsBar
-                    trainingMetrics={trainingMetrics}
-                    formStatus={formStatus}
-                    weeklyStats={weeklyStats}
-                    previousMetrics={null}
-                  />
+          {/* Secondary Nav Bar */}
+          <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} />
 
-                  {/* Planner CTA */}
-                  {!activePlan ? (
-                    <Card style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #3A5A8C)' }}>
-                      <Group gap="sm" wrap="nowrap">
-                        <ThemeIcon size="lg" variant="light" color="teal" radius="xl">
-                          <CalendarBlank size={18} />
-                        </ThemeIcon>
-                        <Box style={{ flex: 1 }}>
-                          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
-                            Start a training plan
-                          </Text>
-                          <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
-                            Structure your training with a periodized plan tailored to your goals.
-                          </Text>
-                        </Box>
-                        <Button
-                          variant="light"
-                          color="teal"
-                          size="compact-sm"
-                          onClick={() => navigate('/planner')}
-                        >
-                          Get started
-                        </Button>
-                      </Group>
-                    </Card>
-                  ) : (
-                    <Card
-                      style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #3A5A8C)', cursor: 'pointer' }}
-                      onClick={() => navigate('/planner')}
-                    >
-                      <Group gap="sm" wrap="nowrap">
-                        <ThemeIcon size="sm" variant="light" color="teal" radius="xl">
-                          <CalendarBlank size={14} />
-                        </ThemeIcon>
-                        <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)', flex: 1 }}>
-                          {activePlan.name}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          View plan &rarr;
-                        </Text>
-                      </Group>
-                    </Card>
-                  )}
+          {/* Tab Content Panels */}
+          <Box>
+            {/* CALENDAR TAB */}
+            {activeTab === 'calendar' && (
+              <TrainingCalendar
+                activePlan={activePlan}
+                rides={visibleActivities}
+                formatDistance={formatDist}
+                ftp={ftp}
+                isImperial={isImperial}
+                refreshKey={calendarRefreshKey}
+                onPlanUpdated={handlePlanUpdated}
+              />
+            )}
 
-                  {/* Row 1: Today's Focus + AI Coach */}
-                  <Grid gutter="md">
-                    <Grid.Col span={{ base: 12, md: 7 }}>
-                      <TodaysFocusCard
-                        trainingMetrics={trainingMetrics}
-                        formStatus={formStatus}
-                        weeklyStats={weeklyStats}
-                        actualWeeklyStats={actualWeeklyStats}
-                        activities={visibleActivities}
-                        formatDist={formatDist}
-                        formatTime={formatTime}
-                        raceGoals={raceGoals}
-                        suggestedWorkout={suggestedWorkout}
-                        recommendationReason={recommendation.primary?.reason}
-                        recommendationSource={recommendation.primary?.source}
-                        plannedRest={recommendation.plannedRest}
-                        plannedRestReason={recommendation.plannedRestReason}
-                        focusTimeAvailable={focusTimeAvailable}
-                        onFocusTimeChange={setFocusTimeAvailable}
-                        onViewWorkout={handleViewWorkout}
-                      />
-                    </Grid.Col>
-                    <Grid.Col span={{ base: 12, md: 5 }}>
-                      <CoachCard
-                        trainingContext={trainingContext}
-                        workoutRecommendation={recommendation}
-                        onAddWorkout={handleAddWorkout}
-                      />
-                    </Grid.Col>
-                  </Grid>
+            {/* COACH TAB */}
+            {activeTab === 'coach' && (
+              <CheckInPage
+                plannedWorkouts={plannedWorkouts}
+                activities={visibleActivities}
+                ftp={ftp}
+                trainingContext={trainingContext}
+              />
+            )}
 
-                  {/* Row 2: TrainNow - Collapsible */}
-                  <Paper withBorder radius="md" p="sm">
-                    <Group
-                      justify="space-between"
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => setTrainNowExpanded(!trainNowExpanded)}
-                    >
-                      <Group gap="xs">
-                        <ThemeIcon size="sm" color="teal" variant="light">
-                          <Target size={14} />
-                        </ThemeIcon>
-                        <Text fw={600} size="sm">TrainNow Recommendations</Text>
-                        <Badge size="xs" color="gray" variant="light">
-                          TSB: {Math.round(trainingMetrics.tsb)}
-                        </Badge>
-                      </Group>
-                      <ActionIcon variant="subtle" color="gray">
-                        <CaretDown
-                          size={18}
-                          style={{
-                            transform: trainNowExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                            transition: 'transform 200ms ease',
-                          }}
-                        />
-                      </ActionIcon>
-                    </Group>
-                    <Collapse in={trainNowExpanded}>
-                      <Box mt="md">
-                        <TrainNow
-                          activities={visibleActivities}
-                          trainingMetrics={trainingMetrics}
-                          plannedWorkouts={plannedWorkouts}
-                          ftp={ftp}
-                          raceGoals={raceGoals}
-                          onSelectWorkout={(workout) => {
-                            console.log('Selected workout:', workout);
-                          }}
-                        />
-                      </Box>
-                    </Collapse>
-                  </Paper>
+            {/* TRENDS TAB */}
+            {activeTab === 'trends' && (
+              <TrendsTab
+                dailyTSSData={dailyTSSData}
+                trainingMetrics={trainingMetrics}
+                activities={visibleActivities}
+                speedProfile={speedProfile}
+                formatDist={formatDist}
+                formatElev={formatElev}
+                isImperial={isImperial}
+                ftp={ftp}
+                weight={userWeight}
+                healthHistory={healthHistory}
+                onOpenCheckIn={handleOpenCheckIn}
+              />
+            )}
 
-                </Stack>
-              </Tabs.Panel>
+            {/* POWER TAB */}
+            {activeTab === 'power' && (
+              <PowerTab
+                ftp={ftp}
+                powerZones={powerZones}
+                navigate={navigate}
+                activities={visibleActivities}
+                weight={userWeight}
+              />
+            )}
 
-              {/* ROUTES TAB - Segment Library + Route Analysis */}
-              <Tabs.Panel value="routes">
-                {activeTab === 'routes' && (
-                  <SegmentLibraryPanel
-                    plannedWorkouts={plannedWorkouts}
-                    formatDist={formatDist}
-                    formatElev={formatElev}
-                  />
-                )}
-              </Tabs.Panel>
+            {/* HISTORY TAB */}
+            {activeTab === 'history' && (
+              <RideHistoryTable
+                rides={activities}
+                formatDistance={formatDist}
+                formatElevation={formatElev}
+                maxRows={Infinity}
+                onViewRide={handleViewRide}
+                onHideRide={handleHideRide}
+              />
+            )}
 
-              {/* TRENDS TAB */}
-              <Tabs.Panel value="trends">
-                {activeTab === 'trends' && (
-                  <TrendsTab
-                    dailyTSSData={dailyTSSData}
-                    trainingMetrics={trainingMetrics}
-                    activities={visibleActivities}
-                    speedProfile={speedProfile}
-                    formatDist={formatDist}
-                    formatElev={formatElev}
-                    isImperial={isImperial}
-                    ftp={ftp}
-                    weight={userWeight}
-                    healthHistory={healthHistory}
-                    onOpenCheckIn={handleOpenCheckIn}
-                  />
-                )}
-              </Tabs.Panel>
-
-              {/* POWER TAB */}
-              <Tabs.Panel value="power">
-                {activeTab === 'power' && (
-                  <PowerTab
-                    ftp={ftp}
-                    powerZones={powerZones}
-                    navigate={navigate}
-                    activities={visibleActivities}
-                    weight={userWeight}
-                  />
-                )}
-              </Tabs.Panel>
-
-              {/* HISTORY TAB */}
-              <Tabs.Panel value="history">
-                {activeTab === 'history' && (
-                  <RideHistoryTable
-                    rides={activities}
-                    formatDistance={formatDist}
-                    formatElevation={formatElev}
-                    maxRows={Infinity}
-                    onViewRide={handleViewRide}
-                    onHideRide={handleHideRide}
-                  />
-                )}
-              </Tabs.Panel>
-
-              {/* HISTORICAL INSIGHTS TAB */}
-              <Tabs.Panel value="insights">
-                {activeTab === 'insights' && (
-                  <HistoricalInsights userId={user?.id} activities={visibleActivities} />
-                )}
-              </Tabs.Panel>
-
-              {/* CALENDAR TAB */}
-              <Tabs.Panel value="calendar" keepMounted>
-                <TrainingCalendar
-                  activePlan={activePlan}
-                  rides={visibleActivities}
-                  formatDistance={formatDist}
-                  ftp={ftp}
-                  isImperial={isImperial}
-                  refreshKey={calendarRefreshKey}
-                  onPlanUpdated={handlePlanUpdated}
-                />
-              </Tabs.Panel>
-            </Box>
-          </Tabs>
+            {/* INSIGHTS TAB */}
+            {activeTab === 'insights' && (
+              <HistoricalInsights userId={user?.id} activities={visibleActivities} ftp={ftp} />
+            )}
+          </Box>
         </Stack>
       </Container>
 

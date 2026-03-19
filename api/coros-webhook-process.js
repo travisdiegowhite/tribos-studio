@@ -9,6 +9,7 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 import { completeActivationStep, enqueueProactiveInsight } from './utils/activation.js';
 import { buildCorosActivityData } from './utils/coros/activityBuilder.js';
+import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -168,6 +169,13 @@ async function processWorkoutEvent(event, results, integrationCache) {
   results.processed++;
 
   console.log(`✅ Imported COROS activity: ${activityId} → ${inserted.id}`);
+
+  // Update fitness snapshot for the week of this activity
+  try {
+    await updateSnapshotForActivity(supabase, userId, activityData.start_date);
+  } catch (snapshotError) {
+    console.error('⚠️ Snapshot update failed (non-critical):', snapshotError.message);
+  }
 
   // Track activation and insights (non-blocking)
   await completeActivationStep(supabase, userId, 'first_activity').catch(() => {});
