@@ -19,8 +19,8 @@ import {
   ReferenceLine,
   Cell,
 } from 'recharts';
-import { IconBolt, IconTrendingUp } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Lightning, TrendUp } from '@phosphor-icons/react';
 
 /**
  * Standard durations for the power curve display

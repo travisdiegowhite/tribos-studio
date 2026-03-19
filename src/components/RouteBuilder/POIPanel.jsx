@@ -4,16 +4,16 @@
  */
 
 import { Box, Text, Badge, Group, Stack, ActionIcon, Chip, Tooltip, Loader, Divider } from '@mantine/core';
-import { IconDroplet, IconCoffee, IconTool, IconEye, IconDoor, IconX, IconExternalLink } from '@tabler/icons-react';
 import { tokens } from '../../theme';
 import { POI_CATEGORIES } from '../../utils/routePOIService';
+import { ArrowSquareOut, Coffee, Door, Drop, Eye, Wrench, X } from '@phosphor-icons/react';
 
 const ICON_MAP = {
-  water: IconDroplet,
-  food: IconCoffee,
-  bike_shop: IconTool,
-  viewpoint: IconEye,
-  restroom: IconDoor,
+  water: Drop,
+  food: Coffee,
+  bike_shop: Wrench,
+  viewpoint: Eye,
+  restroom: Door,
 };
 
 /**
@@ -71,7 +71,7 @@ export default function POIPanel({
           )}
         </Group>
         <ActionIcon size="sm" variant="subtle" onClick={onClose} color="gray">
-          <IconX size={14} />
+          <X size={14} />
         </ActionIcon>
       </Group>
 
@@ -186,7 +186,7 @@ export default function POIPanel({
                             rel="noopener"
                             onClick={e => e.stopPropagation()}
                           >
-                            <IconExternalLink size={12} />
+                            <ArrowSquareOut size={12} />
                           </ActionIcon>
                         </Tooltip>
                       )}

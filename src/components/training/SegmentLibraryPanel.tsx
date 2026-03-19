@@ -32,23 +32,6 @@ import {
   Table,
   Center,
 } from '@mantine/core';
-import {
-  IconRoute,
-  IconRefresh,
-  IconMountain,
-  IconClock,
-  IconTarget,
-  IconBolt,
-  IconMap,
-  IconCheck,
-  IconAlertCircle,
-  IconEdit,
-  IconX,
-  IconActivity,
-  IconRoad,
-  IconTrendingUp,
-  IconLayoutGrid,
-} from '@tabler/icons-react';
 import Map, { Source, Layer, Marker, Popup, GeolocateControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../../theme';
@@ -56,6 +39,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSegmentLibrary } from '../../hooks/useSegmentLibrary';
 import type { SegmentSummary, SegmentDetail, WorkoutMatch, SegmentProfile } from '../../hooks/useSegmentLibrary';
 import RouteAnalysisPanel from './RouteAnalysisPanel';
+import { ArrowsClockwise, Check, Clock, Heartbeat, Lightning, MapTrifold, Mountains, Path, PencilSimple, RoadHorizon, SquaresFour, Target, TrendUp, WarningCircle, X } from '@phosphor-icons/react';
 
 const MAPBOX_TOKEN = (import.meta as any).env.VITE_MAPBOX_TOKEN;
 
@@ -168,15 +152,15 @@ function SegmentCard({
         {/* Row 2: Stats */}
         <Group gap="xs">
           <Group gap={4}>
-            <IconRoad size={14} style={{ color: 'var(--color-text-secondary)' }} />
+            <RoadHorizon size={14} style={{ color: 'var(--color-text-secondary)' }} />
             <Text size="xs" c="dimmed">{formatDistance(segment.distance_meters)}</Text>
           </Group>
           <Group gap={4}>
-            <IconTrendingUp size={14} style={{ color: 'var(--color-text-secondary)' }} />
+            <TrendUp size={14} style={{ color: 'var(--color-text-secondary)' }} />
             <Text size="xs" c="dimmed">{segment.avg_gradient.toFixed(1)}%</Text>
           </Group>
           <Group gap={4}>
-            <IconMountain size={14} style={{ color: 'var(--color-text-secondary)' }} />
+            <Mountains size={14} style={{ color: 'var(--color-text-secondary)' }} />
             <Text size="xs" c="dimmed">{Math.round(segment.elevation_gain_meters)}m</Text>
           </Group>
         </Group>
@@ -335,7 +319,7 @@ function SegmentDetailModal({
       onClose={onClose}
       title={
         <Group gap="xs">
-          <IconMap size={20} />
+          <MapTrifold size={20} />
           <Text fw={600}>{segment.display_name || 'Segment Detail'}</Text>
         </Group>
       }
@@ -362,14 +346,14 @@ function SegmentDetailModal({
                   loading={nameSaving}
                   style={{ borderRadius: 0 }}
                 >
-                  <IconCheck size={16} />
+                  <Check size={16} />
                 </ActionIcon>
                 <ActionIcon
                   variant="subtle"
                   onClick={() => setEditingName(false)}
                   style={{ borderRadius: 0 }}
                 >
-                  <IconX size={16} />
+                  <X size={16} />
                 </ActionIcon>
               </>
             ) : (
@@ -385,7 +369,7 @@ function SegmentDetailModal({
                   }}
                   style={{ borderRadius: 0 }}
                 >
-                  <IconEdit size={16} />
+                  <PencilSimple size={16} />
                 </ActionIcon>
               </>
             )}
@@ -515,7 +499,7 @@ function SegmentDetailModal({
           {/* Data quality notice for geometry-only segments */}
           {(segment as any).data_quality_tier === 'geometry_only' && (
             <Alert
-              icon={<IconMap size={16} />}
+              icon={<MapTrifold size={16} />}
               color="gold"
               style={{ borderRadius: 0 }}
             >
@@ -649,7 +633,7 @@ function SegmentDetailModal({
                 size="xs"
                 variant="light"
                 color="teal"
-                leftSection={<IconTarget size={14} />}
+                leftSection={<Target size={14} />}
                 loading={matchesLoading}
                 onClick={onComputeMatches}
                 style={{ borderRadius: 0 }}
@@ -1137,7 +1121,7 @@ function SegmentLibraryPanel({
                 color="teal"
                 style={{ borderRadius: 0 }}
               >
-                <IconActivity size={16} />
+                <Heartbeat size={16} />
               </ThemeIcon>
               <Text fw={600} size="sm">
                 {loading ? 'Loading...' : `${segments.length} Segment${segments.length !== 1 ? 's' : ''}`}
@@ -1147,7 +1131,7 @@ function SegmentLibraryPanel({
               size="xs"
               variant="light"
               color="teal"
-              leftSection={<IconRefresh size={14} />}
+              leftSection={<ArrowsClockwise size={14} />}
               loading={analyzing}
               onClick={handleAnalyze}
               style={{ borderRadius: 0 }}
@@ -1159,7 +1143,7 @@ function SegmentLibraryPanel({
           {/* Analyze result */}
           {analyzeResult && (
             <Alert
-              icon={<IconCheck size={16} />}
+              icon={<Check size={16} />}
               color="teal"
               withCloseButton
               onClose={() => setAnalyzeResult(null)}
@@ -1172,7 +1156,7 @@ function SegmentLibraryPanel({
           {/* Error */}
           {error && (
             <Alert
-              icon={<IconAlertCircle size={16} />}
+              icon={<WarningCircle size={16} />}
               color="red"
               style={{ borderRadius: 0 }}
             >
@@ -1218,7 +1202,7 @@ function SegmentLibraryPanel({
                 style={{ borderRadius: 0 }}
                 aria-label="Card view"
               >
-                <IconLayoutGrid size={16} />
+                <SquaresFour size={16} />
               </ActionIcon>
               <ActionIcon
                 variant={displayMode === 'map' ? 'filled' : 'subtle'}
@@ -1228,7 +1212,7 @@ function SegmentLibraryPanel({
                 style={{ borderRadius: 0 }}
                 aria-label="Map view"
               >
-                <IconMap size={16} />
+                <MapTrifold size={16} />
               </ActionIcon>
             </Group>
           </Group>
@@ -1267,7 +1251,7 @@ function SegmentLibraryPanel({
             >
               <Stack align="center" gap="sm">
                 <ThemeIcon size="xl" variant="light" color="gray" style={{ borderRadius: 0 }}>
-                  <IconRoute size={24} />
+                  <Path size={24} />
                 </ThemeIcon>
                 <Text fw={600} size="sm">No segments found</Text>
                 <Text size="xs" c="dimmed" maw={400}>
@@ -1278,7 +1262,7 @@ function SegmentLibraryPanel({
                   size="sm"
                   variant="light"
                   color="teal"
-                  leftSection={<IconRefresh size={16} />}
+                  leftSection={<ArrowsClockwise size={16} />}
                   loading={analyzing}
                   onClick={handleAnalyze}
                   style={{ borderRadius: 0 }}

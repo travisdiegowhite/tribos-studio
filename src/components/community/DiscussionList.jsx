@@ -15,13 +15,9 @@ import {
   Skeleton,
   SegmentedControl,
 } from '@mantine/core';
-import {
-  IconMessageCircle,
-  IconPin,
-  IconLock,
-} from '@tabler/icons-react';
 import { tokens } from '../../theme';
 import { CATEGORY_LABELS, CATEGORY_COLORS } from '../../hooks/useDiscussions';
+import { ChatCircle, Lock, PushPin } from '@phosphor-icons/react';
 
 function DiscussionList({
   discussions,
@@ -117,10 +113,10 @@ function DiscussionCard({ discussion, onClick }) {
         <Box style={{ flex: 1, minWidth: 0 }}>
           <Group gap="xs" mb={4}>
             {discussion.is_pinned && (
-              <IconPin size={14} color={'var(--color-teal)'} />
+              <PushPin size={14} color={'var(--color-teal)'} />
             )}
             {discussion.is_locked && (
-              <IconLock size={14} color={'var(--color-text-muted)'} />
+              <Lock size={14} color={'var(--color-text-muted)'} />
             )}
             <Badge
               size="xs"
@@ -155,7 +151,7 @@ function DiscussionCard({ discussion, onClick }) {
         </Box>
 
         <Group gap={4} align="center">
-          <IconMessageCircle size={14} color={'var(--color-text-muted)'} />
+          <ChatCircle size={14} color={'var(--color-text-muted)'} />
           <Text size="xs" c="dimmed">
             {discussion.reply_count}
           </Text>

@@ -20,30 +20,6 @@ import {
   SimpleGrid,
   ThemeIcon,
 } from '@mantine/core';
-import {
-  IconChevronLeft,
-  IconChevronRight,
-  IconCheck,
-  IconCircle,
-  IconEdit,
-  IconTrash,
-  IconPlus,
-  IconX,
-  IconFlame,
-  IconClock,
-  IconRoute,
-  IconCalendarEvent,
-  IconTrendingUp,
-  IconGripVertical,
-  IconTrophy,
-  IconActivity,
-  IconBarbell,
-  IconYoga,
-  IconRun,
-  IconStretching,
-  IconBike,
-  IconDownload,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -58,6 +34,7 @@ import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { FuelBadge, FuelCard } from './fueling';
 import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
 import CrossTrainingModal from './CrossTrainingModal';
+import { Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, DotsSixVertical, DownloadSimple, Fire, Heartbeat, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Trash, TrendUp, Trophy, X } from '@phosphor-icons/react';
 
 /**
  * Enhanced Training Calendar Component
@@ -322,11 +299,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Helper to get icon for cross-training category
   const getCrossTrainingIcon = (category) => {
     switch (category) {
-      case 'strength': return <IconBarbell size={10} />;
-      case 'flexibility': return <IconYoga size={10} />;
-      case 'cardio': return <IconRun size={10} />;
-      case 'recovery': return <IconStretching size={10} />;
-      default: return <IconActivity size={10} />;
+      case 'strength': return <Barbell size={10} />;
+      case 'flexibility': return <PersonSimpleWalk size={10} />;
+      case 'cardio': return <PersonSimpleRun size={10} />;
+      case 'recovery': return <PersonSimpleWalk size={10} />;
+      default: return <Heartbeat size={10} />;
     }
   };
 
@@ -940,7 +917,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             <Box>
               <Group gap="xs">
                 <ThemeIcon size="sm" color="orange" variant="light">
-                  <IconFlame size={14} />
+                  <Fire size={14} />
                 </ThemeIcon>
                 <Text size="xs" c="dimmed">TSS</Text>
               </Group>
@@ -951,7 +928,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             <Box>
               <Group gap="xs">
                 <ThemeIcon size="sm" color="blue" variant="light">
-                  <IconClock size={14} />
+                  <Clock size={14} />
                 </ThemeIcon>
                 <Text size="xs" c="dimmed">Duration</Text>
               </Group>
@@ -962,7 +939,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             <Box>
               <Group gap="xs">
                 <ThemeIcon size="sm" color="green" variant="light">
-                  <IconCheck size={14} />
+                  <Check size={14} />
                 </ThemeIcon>
                 <Text size="xs" c="dimmed">Completed</Text>
               </Group>
@@ -973,7 +950,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             <Box>
               <Group gap="xs">
                 <ThemeIcon size="sm" color="grape" variant="light">
-                  <IconTrendingUp size={14} />
+                  <TrendUp size={14} />
                 </ThemeIcon>
                 <Text size="xs" c="dimmed">Compliance</Text>
               </Group>
@@ -994,10 +971,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{monthName}</Text>
           <Group gap="xs">
             <ActionIcon variant="subtle" onClick={previousMonth}>
-              <IconChevronLeft size={18} />
+              <CaretLeft size={18} />
             </ActionIcon>
             <ActionIcon variant="subtle" onClick={nextMonth}>
-              <IconChevronRight size={18} />
+              <CaretRight size={18} />
             </ActionIcon>
           </Group>
         </Group>
@@ -1134,7 +1111,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               toggleWorkoutCompletion(workout);
                             }}
                           >
-                            {workout.completed ? <IconCheck size={14} /> : <IconCircle size={14} />}
+                            {workout.completed ? <Check size={14} /> : <Circle size={14} />}
                           </ActionIcon>
                         )}
                       </Group>
@@ -1194,7 +1171,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                                 mt={4}
                                 onClick={(e) => handleCreateRoute(e, workout, date)}
                               >
-                                <IconRoute size={12} />
+                                <Path size={12} />
                               </ActionIcon>
                             </Tooltip>
                           )}
@@ -1229,7 +1206,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                             }}
                           >
                             <Group gap={4} wrap="nowrap">
-                              <IconTrophy
+                              <Trophy
                                 size={14}
                                 style={{
                                   color: raceGoal.priority === 'A' ? '#fa5252' :
@@ -1279,17 +1256,17 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                           <Tooltip label={dayRides.map(r => r.name || 'Activity').join(', ')}>
                             <Group gap={4}>
                               {rides.length > 0 && (
-                                <Badge size="xs" color="green" variant="filled" leftSection={<IconBike size={10} />}>
+                                <Badge size="xs" color="green" variant="filled" leftSection={<Bicycle size={10} />}>
                                   {rides.length}
                                 </Badge>
                               )}
                               {runs.length > 0 && (
-                                <Badge size="xs" color="teal" variant="filled" leftSection={<IconRun size={10} />}>
+                                <Badge size="xs" color="teal" variant="filled" leftSection={<PersonSimpleRun size={10} />}>
                                   {runs.length}
                                 </Badge>
                               )}
                               {others.length > 0 && (
-                                <Badge size="xs" color="orange" variant="filled" leftSection={<IconActivity size={10} />}>
+                                <Badge size="xs" color="orange" variant="filled" leftSection={<Heartbeat size={10} />}>
                                   {others.length}
                                 </Badge>
                               )}
@@ -1380,17 +1357,17 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
               <Group gap="md">
                 <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Race Priority:</Text>
                 <Group gap={4}>
-                  <IconTrophy size={14} style={{ color: '#fa5252' }} />
+                  <Trophy size={14} style={{ color: '#fa5252' }} />
                   <Badge size="xs" color="red" variant="filled">A</Badge>
                   <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Main Goal</Text>
                 </Group>
                 <Group gap={4}>
-                  <IconTrophy size={14} style={{ color: '#fd7e14' }} />
+                  <Trophy size={14} style={{ color: '#fd7e14' }} />
                   <Badge size="xs" color="orange" variant="filled">B</Badge>
                   <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Important</Text>
                 </Group>
                 <Group gap={4}>
-                  <IconTrophy size={14} style={{ color: '#868e96' }} />
+                  <Trophy size={14} style={{ color: '#868e96' }} />
                   <Badge size="xs" color="gray" variant="filled">C</Badge>
                   <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Training</Text>
                 </Group>
@@ -1398,7 +1375,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                   size="xs"
                   variant="light"
                   color="orange"
-                  leftSection={<IconTrophy size={14} />}
+                  leftSection={<Trophy size={14} />}
                   ml="auto"
                   onClick={() => openRaceGoalModal(null, null)}
                 >
@@ -1437,7 +1414,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         title={
           <Group gap="sm">
             <ThemeIcon size="lg" color="teal" variant="light">
-              <IconCalendarEvent size={18} />
+              <CalendarBlank size={18} />
             </ThemeIcon>
             <Text fw={600}>
               {selectedWorkout ? 'Edit Workout' : 'Add Workout'}
@@ -1533,7 +1510,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     variant="light"
                     size="xs"
                     color="orange"
-                    leftSection={<IconDownload size={14} />}
+                    leftSection={<DownloadSimple size={14} />}
                     onClick={() => handleDownload('fit')}
                   >
                     FIT (Garmin/Wahoo)
@@ -1542,7 +1519,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     variant="light"
                     size="xs"
                     color="blue"
-                    leftSection={<IconDownload size={14} />}
+                    leftSection={<DownloadSimple size={14} />}
                     onClick={() => handleDownload('zwo')}
                   >
                     ZWO (Zwift)
@@ -1551,7 +1528,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     variant="light"
                     size="xs"
                     color="gray"
-                    leftSection={<IconDownload size={14} />}
+                    leftSection={<DownloadSimple size={14} />}
                     onClick={() => handleDownload('tcx')}
                   >
                     TCX
@@ -1568,7 +1545,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
               <Button
                 variant="subtle"
                 color="red"
-                leftSection={<IconTrash size={16} />}
+                leftSection={<Trash size={16} />}
                 onClick={deleteWorkout}
                 loading={saving}
               >
@@ -1581,7 +1558,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
               </Button>
               <Button
                 color="teal"
-                leftSection={<IconCheck size={16} />}
+                leftSection={<Check size={16} />}
                 onClick={saveWorkout}
                 loading={saving}
               >

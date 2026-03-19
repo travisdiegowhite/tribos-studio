@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Container, Title, Text, Stack, Paper, List, Anchor, Group, Button, Box } from '@mantine/core';
-import { IconArrowLeft, IconRoute } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import SEO from '../components/SEO';
+import { ArrowLeft, Path } from '@phosphor-icons/react';
 
 function Terms() {
   return (
@@ -24,7 +24,7 @@ function Terms() {
       <Box py="md" px={{ base: 'md', md: 'xl' }} style={{ borderBottom: `1px solid ${'var(--tribos-border)'}` }}>
         <Group justify="space-between" align="center">
           <Group gap="sm">
-            <IconRoute size={24} color={'var(--color-teal)'} />
+            <Path size={24} color={'var(--color-teal)'} />
             <Text
               component={Link}
               to="/"
@@ -44,7 +44,7 @@ function Terms() {
             to="/"
             variant="subtle"
             color="gray"
-            leftSection={<IconArrowLeft size={16} />}
+            leftSection={<ArrowLeft size={16} />}
           >
             Back
           </Button>

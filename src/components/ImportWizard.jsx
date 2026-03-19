@@ -18,21 +18,12 @@ import {
   ThemeIcon,
   Loader,
 } from '@mantine/core';
-import {
-  IconCheck,
-  IconDownload,
-  IconBolt,
-  IconCalendar,
-  IconAlertCircle,
-  IconTrendingUp,
-  IconCircleCheck,
-  IconDeviceWatch,
-} from '@tabler/icons-react';
 import { ConnectWithStravaButton, StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
 import { tokens } from '../theme';
+import { Calendar, Check, CheckCircle, DownloadSimple, Lightning, TrendUp, WarningCircle, Watch } from '@phosphor-icons/react';
 
 /**
  * Smart Import Wizard - Guides users through hybrid Strava + Device setup
@@ -202,7 +193,7 @@ const ImportWizard = ({ opened, onClose }) => {
           {/* Step 1: Welcome */}
           <Stepper.Step label="Welcome" description="Get started">
             <Stack gap="lg" mt="xl">
-              <Alert color="blue" variant="light" icon={<IconTrendingUp size={20} />}>
+              <Alert color="blue" variant="light" icon={<TrendUp size={20} />}>
                 <Text size="sm" fw={600} mb={4}>
                   Smart Import Strategy
                 </Text>
@@ -216,7 +207,7 @@ const ImportWizard = ({ opened, onClose }) => {
                   <Stack gap="xs">
                     <Group gap="xs">
                       <ThemeIcon size="lg" radius="xl" color="orange" variant="light">
-                        <IconDownload size={18} />
+                        <DownloadSimple size={18} />
                       </ThemeIcon>
                       <div>
                         <Text size="sm" fw={600}>Step 1: Strava</Text>
@@ -233,7 +224,7 @@ const ImportWizard = ({ opened, onClose }) => {
                   <Stack gap="xs">
                     <Group gap="xs">
                       <ThemeIcon size="lg" radius="xl" color="blue" variant="light">
-                        <IconBolt size={18} />
+                        <Lightning size={18} />
                       </ThemeIcon>
                       <div>
                         <Text size="sm" fw={600}>Step 2: Device</Text>
@@ -249,7 +240,7 @@ const ImportWizard = ({ opened, onClose }) => {
                 </SimpleGrid>
               </Card>
 
-              <Alert color="cyan" variant="light" icon={<IconAlertCircle size={20} />}>
+              <Alert color="cyan" variant="light" icon={<WarningCircle size={20} />}>
                 <Text size="xs">
                   <strong>Why both?</strong> Strava excels at importing historical data, while your device
                   provides automatic real-time syncing. Together, you get complete history + effortless future updates!
@@ -279,7 +270,7 @@ const ImportWizard = ({ opened, onClose }) => {
                 </>
               ) : (
                 <>
-                  <Alert color="green" variant="light" icon={<IconCircleCheck size={20} />}>
+                  <Alert color="green" variant="light" icon={<CheckCircle size={20} />}>
                     <Text size="sm" fw={600}>Strava Connected</Text>
                   </Alert>
 
@@ -325,7 +316,7 @@ const ImportWizard = ({ opened, onClose }) => {
                   )}
 
                   {importResults && importResults.imported > 0 && (
-                    <Alert color="green" variant="light" icon={<IconCircleCheck size={20} />}>
+                    <Alert color="green" variant="light" icon={<CheckCircle size={20} />}>
                       <Text size="sm" fw={600}>Import Successful!</Text>
                       <Text size="xs">
                         Imported {importResults.imported} rides
@@ -334,7 +325,7 @@ const ImportWizard = ({ opened, onClose }) => {
                   )}
 
                   {importResults && importResults.errors > 0 && (
-                    <Alert color="red" variant="light" icon={<IconAlertCircle size={20} />}>
+                    <Alert color="red" variant="light" icon={<WarningCircle size={20} />}>
                       <Text size="sm" fw={600}>Import Failed</Text>
                       <Text size="xs">
                         {importResults.errorMessage || 'An error occurred during import.'}
@@ -371,7 +362,7 @@ const ImportWizard = ({ opened, onClose }) => {
           <Stepper.Step label="Auto-Sync" description="Device Setup">
             <Stack gap="md" mt="xl">
               {importResults && importResults.imported > 0 && (
-                <Alert color="green" variant="light" icon={<IconCheck size={20} />}>
+                <Alert color="green" variant="light" icon={<Check size={20} />}>
                   <Text size="sm" fw={600}>Historical rides imported from Strava</Text>
                   <Text size="xs">
                     Found {importResults.imported} rides from your selected time period
@@ -412,7 +403,7 @@ const ImportWizard = ({ opened, onClose }) => {
                 <Stack gap="md">
                   <Group gap="xs">
                     <ThemeIcon size="xl" radius="xl" color="blue" variant="light">
-                      <IconDeviceWatch size={24} />
+                      <Watch size={24} />
                     </ThemeIcon>
                     <div>
                       <Text size="md" fw={600}>
@@ -423,13 +414,13 @@ const ImportWizard = ({ opened, onClose }) => {
                   </Group>
 
                   <List size="sm" spacing="xs">
-                    <List.Item icon={<IconCheck size={16} color="green" />}>
+                    <List.Item icon={<Check size={16} color="green" />}>
                       Rides appear automatically after syncing your device
                     </List.Item>
-                    <List.Item icon={<IconCheck size={16} color="green" />}>
+                    <List.Item icon={<Check size={16} color="green" />}>
                       No manual sync button needed
                     </List.Item>
-                    <List.Item icon={<IconCheck size={16} color="green" />}>
+                    <List.Item icon={<Check size={16} color="green" />}>
                       Detailed metrics (power, cadence, heart rate)
                     </List.Item>
                   </List>
@@ -449,12 +440,12 @@ const ImportWizard = ({ opened, onClose }) => {
                   size="md"
                   fullWidth
                   color={selectedDevice === 'garmin' ? 'blue' : 'cyan'}
-                  leftSection={<IconDeviceWatch size={18} />}
+                  leftSection={<Watch size={18} />}
                 >
                   Connect {selectedDevice === 'garmin' ? 'Garmin' : 'Wahoo'}
                 </Button>
               ) : (
-                <Alert color="green" variant="light" icon={<IconCircleCheck size={20} />}>
+                <Alert color="green" variant="light" icon={<CheckCircle size={20} />}>
                   <Text size="sm" fw={600}>
                     {selectedDevice === 'garmin' ? 'Garmin' : 'Wahoo'} Connected
                   </Text>
@@ -486,7 +477,7 @@ const ImportWizard = ({ opened, onClose }) => {
           <Stepper.Completed>
             <Stack gap="lg" mt="xl" align="center">
               <ThemeIcon size={80} radius={80} color="green" variant="light">
-                <IconCircleCheck size={48} />
+                <CheckCircle size={48} />
               </ThemeIcon>
 
               <div style={{ textAlign: 'center' }}>
@@ -502,7 +493,7 @@ const ImportWizard = ({ opened, onClose }) => {
                 <Stack gap="md">
                   <Group>
                     <ThemeIcon size="lg" color={stravaConnected ? 'green' : 'gray'} variant="light">
-                      <IconCheck size={20} />
+                      <Check size={20} />
                     </ThemeIcon>
                     <Text size="sm" fw={500}>
                       {importResults?.imported || 0} historical rides from Strava
@@ -511,7 +502,7 @@ const ImportWizard = ({ opened, onClose }) => {
 
                   <Group>
                     <ThemeIcon size="lg" color={deviceConnected ? 'green' : 'gray'} variant="light">
-                      <IconCheck size={20} />
+                      <Check size={20} />
                     </ThemeIcon>
                     <Text size="sm" fw={500}>
                       {deviceConnected

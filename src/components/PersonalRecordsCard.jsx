@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Card, Text, Group, Stack, Badge, ThemeIcon } from '@mantine/core';
-import { IconAward, IconTrendingUp, IconBolt, IconMountain, IconRoute, IconClock } from '@tabler/icons-react';
+import { Clock, Lightning, Medal, Mountains, Path, TrendUp } from '@phosphor-icons/react';
 
 /**
  * Personal Records Card
@@ -35,7 +35,7 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
         recentPRs.push({
           type: 'Longest Ride',
           value: formatDistance(getDistance(longestRide)),
-          icon: IconRoute,
+          icon: Path,
           color: 'blue'
         });
       }
@@ -47,7 +47,7 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
         recentPRs.push({
           type: 'Most Climbing',
           value: formatElevation(getElevation(mostElevation)),
-          icon: IconMountain,
+          icon: Mountains,
           color: 'orange'
         });
       }
@@ -59,7 +59,7 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
         recentPRs.push({
           type: 'Highest Avg Power',
           value: `${Math.round(getPower(highestPower))}W`,
-          icon: IconBolt,
+          icon: Lightning,
           color: 'yellow'
         });
       }
@@ -79,7 +79,7 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
       <Card withBorder p="md">
         <Group gap="xs" mb="sm">
           <ThemeIcon size="lg" color="yellow" variant="light">
-            <IconAward size={20} />
+            <Medal size={20} />
           </ThemeIcon>
           <Text size="lg" fw={600}>Personal Records</Text>
         </Group>
@@ -93,7 +93,7 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
       <Stack gap="sm">
         <Group gap="xs">
           <ThemeIcon size="lg" color="yellow" variant="light">
-            <IconAward size={20} />
+            <Medal size={20} />
           </ThemeIcon>
           <Text size="lg" fw={600}>Personal Records</Text>
         </Group>

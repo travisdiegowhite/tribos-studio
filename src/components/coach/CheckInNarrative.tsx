@@ -3,9 +3,9 @@
  */
 
 import { Stack, Text, Paper, Box, Group, Badge } from '@mantine/core';
-import { IconAlertTriangle } from '@tabler/icons-react';
 import { PERSONAS } from '../../data/coachingPersonas';
 import type { PersonaId } from '../../types/checkIn';
+import { Warning } from '@phosphor-icons/react';
 
 interface CheckInNarrativeProps {
   narrative: string;
@@ -54,7 +54,7 @@ export default function CheckInNarrative({
           }}
         >
           <Group gap="xs" mb="xs">
-            <IconAlertTriangle size={16} color="var(--color-orange)" />
+            <Warning size={16} color="var(--color-orange)" />
             <Text size="xs" fw={700} tt="uppercase" ff="monospace" c="dimmed">
               Deviation
             </Text>

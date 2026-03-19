@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Card, Text, Group, Box, Stack, RingProgress, Badge, Skeleton } from '@mantine/core';
-import { IconTrendingUp, IconTrendingDown, IconMinus } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Minus, TrendDown, TrendUp } from '@phosphor-icons/react';
 
 /**
  * Calculate CTL, ATL, and TSB from activity history
@@ -102,7 +102,7 @@ function getFormStatus(tsb) {
       color: tokens.colors.zone2,
       colorName: 'green',
       advice: 'Great day for a hard workout or race!',
-      icon: IconTrendingUp,
+      icon: TrendUp,
     };
   } else if (tsb >= 5) {
     return {
@@ -111,7 +111,7 @@ function getFormStatus(tsb) {
       color: 'var(--color-teal)',
       colorName: 'terracotta',
       advice: 'Solid training day ahead',
-      icon: IconTrendingUp,
+      icon: TrendUp,
     };
   } else if (tsb >= -10) {
     return {
@@ -120,7 +120,7 @@ function getFormStatus(tsb) {
       color: tokens.colors.zone3,
       colorName: 'yellow',
       advice: 'Keep pushing - you\'re in the zone',
-      icon: IconMinus,
+      icon: Minus,
     };
   } else if (tsb >= -25) {
     return {
@@ -129,7 +129,7 @@ function getFormStatus(tsb) {
       color: tokens.colors.zone4,
       colorName: 'orange',
       advice: 'Consider an easy day or rest',
-      icon: IconTrendingDown,
+      icon: TrendDown,
     };
   } else {
     return {
@@ -138,7 +138,7 @@ function getFormStatus(tsb) {
       color: tokens.colors.zone5,
       colorName: 'red',
       advice: 'Recovery is critical right now',
-      icon: IconTrendingDown,
+      icon: TrendDown,
     };
   }
 }

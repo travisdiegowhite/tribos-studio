@@ -16,12 +16,8 @@ import {
   Badge,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import {
-  IconFilter,
-  IconX,
-  IconAdjustments,
-} from '@tabler/icons-react';
 import { FITNESS_LEVELS, GOAL_TYPES } from '../../utils/trainingPlans';
+import { Funnel, Sliders, X } from '@phosphor-icons/react';
 
 export default function PlanFilters({
   filters,
@@ -93,7 +89,7 @@ export default function PlanFilters({
               variant="subtle"
               size="xs"
               color="gray"
-              leftIcon={<IconX size={14} />}
+              leftIcon={<X size={14} />}
               onClick={onClear}
             >
               Clear
@@ -104,7 +100,7 @@ export default function PlanFilters({
             onClick={toggle}
             size="md"
           >
-            <IconAdjustments size={18} />
+            <Sliders size={18} />
           </ActionIcon>
         </Group>
       </Group>

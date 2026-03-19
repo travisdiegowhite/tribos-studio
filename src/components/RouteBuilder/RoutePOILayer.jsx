@@ -5,14 +5,14 @@
 
 import { Marker } from 'react-map-gl';
 import { POI_CATEGORIES } from '../../utils/routePOIService';
-import { IconDroplet, IconCoffee, IconTool, IconEye, IconDoor } from '@tabler/icons-react';
+import { Coffee, Door, Drop, Eye, Wrench } from '@phosphor-icons/react';
 
 const ICON_MAP = {
-  water: IconDroplet,
-  food: IconCoffee,
-  bike_shop: IconTool,
-  viewpoint: IconEye,
-  restroom: IconDoor,
+  water: Drop,
+  food: Coffee,
+  bike_shop: Wrench,
+  viewpoint: Eye,
+  restroom: Door,
 };
 
 /**
@@ -31,7 +31,7 @@ export default function RoutePOILayer({ pois, activeCategories, onSelect, select
     <>
       {visible.map(poi => {
         const cat = POI_CATEGORIES[poi.category];
-        const Icon = ICON_MAP[poi.category] || IconEye;
+        const Icon = ICON_MAP[poi.category] || Eye;
         const isSelected = selectedId === poi.id;
 
         return (

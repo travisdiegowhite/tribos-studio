@@ -12,17 +12,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Box, ActionIcon, Tooltip, Text, Menu } from '@mantine/core';
-import {
-  IconCurrentLocation,
-  IconRoute,
-  IconCompass,
-  IconFocus2,
-  IconPlus,
-  IconMinus,
-  IconTiltShift,
-} from '@tabler/icons-react';
 import { tokens } from '../theme';
 import { useUnits } from '../utils/units';
+import { Compass, Crosshair, Minus, Path, Plus } from '@phosphor-icons/react';
 
 /**
  * Calculate the scale bar width and label based on zoom level and unit preference
@@ -332,7 +324,7 @@ export default function MapControls({
             onClick={handleZoomIn}
             style={controlButtonStyle}
           >
-            <IconPlus size={18} />
+            <Plus size={18} />
           </ActionIcon>
         </Tooltip>
 
@@ -344,7 +336,7 @@ export default function MapControls({
             onClick={handleZoomOut}
             style={controlButtonStyle}
           >
-            <IconMinus size={18} />
+            <Minus size={18} />
           </ActionIcon>
         </Tooltip>
 
@@ -369,7 +361,7 @@ export default function MapControls({
               transition: 'transform 0.15s ease-out',
             }}
           >
-            <IconCompass
+            <Compass
               size={20}
               style={{
                 color: isRotated ? 'var(--color-teal)' : 'var(--color-text-secondary)',
@@ -386,7 +378,7 @@ export default function MapControls({
             onClick={handleResetPitch}
             style={controlButtonStyle}
           >
-            <IconTiltShift
+            <Crosshair
               size={20}
               style={{
                 color: isTilted ? 'var(--color-teal)' : 'var(--color-text-secondary)',
@@ -413,13 +405,13 @@ export default function MapControls({
                 variant="subtle"
                 style={controlButtonStyle}
               >
-                <IconFocus2 size={20} />
+                <Crosshair size={20} />
               </ActionIcon>
             </Tooltip>
           </Menu.Target>
           <Menu.Dropdown style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
             <Menu.Item
-              leftSection={<IconCurrentLocation size={16} />}
+              leftSection={<Crosshair size={16} />}
               onClick={handleRecenterUser}
               disabled={isLocating}
               style={{
@@ -429,7 +421,7 @@ export default function MapControls({
               {hasUserLocation ? 'Go to My Location' : 'Find My Location'}
             </Menu.Item>
             <Menu.Item
-              leftSection={<IconRoute size={16} />}
+              leftSection={<Path size={16} />}
               onClick={handleFitRoute}
               disabled={!hasRoute}
               style={{

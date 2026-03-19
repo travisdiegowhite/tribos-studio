@@ -23,24 +23,8 @@ import {
   Progress,
   Tooltip,
 } from '@mantine/core';
-import {
-  IconRefresh,
-  IconAlertTriangle,
-  IconUsers,
-  IconTrendingUp,
-  IconFilter,
-  IconActivity,
-  IconUserOff,
-  IconAlertCircle,
-  IconCheck,
-  IconX,
-  IconChevronUp,
-  IconChevronDown,
-  IconSelector,
-  IconTargetArrow,
-  IconHeartbeat,
-} from '@tabler/icons-react';
 import { getUserInsights } from '../../services/adminService';
+import { ArrowsClockwise, CaretDown, CaretUp, CaretUpDown, Check, Funnel, Heartbeat, Target, TrendUp, UserMinus, Users, Warning, WarningCircle, X } from '@phosphor-icons/react';
 
 export default function UserInsights() {
   const [activeTab, setActiveTab] = useState('funnel');
@@ -79,10 +63,10 @@ export default function UserInsights() {
   }
 
   function StaleSortIcon({ column }) {
-    if (staleSort.column !== column) return <IconSelector size={14} style={{ opacity: 0.3 }} />;
+    if (staleSort.column !== column) return <CaretUpDown size={14} style={{ opacity: 0.3 }} />;
     return staleSort.direction === 'asc'
-      ? <IconChevronUp size={14} />
-      : <IconChevronDown size={14} />;
+      ? <CaretUp size={14} />
+      : <CaretDown size={14} />;
   }
 
   function getStatusColor(status) {
@@ -123,7 +107,7 @@ export default function UserInsights() {
 
   if (error) {
     return (
-      <Alert icon={<IconAlertTriangle size={16} />} title="Error" color="red">
+      <Alert icon={<Warning size={16} />} title="Error" color="red">
         {error}
       </Alert>
     );
@@ -153,10 +137,10 @@ export default function UserInsights() {
   }
 
   function AdherenceSortIcon({ column }) {
-    if (adherenceSort.column !== column) return <IconSelector size={14} style={{ opacity: 0.3 }} />;
+    if (adherenceSort.column !== column) return <CaretUpDown size={14} style={{ opacity: 0.3 }} />;
     return adherenceSort.direction === 'asc'
-      ? <IconChevronUp size={14} />
-      : <IconChevronDown size={14} />;
+      ? <CaretUp size={14} />
+      : <CaretDown size={14} />;
   }
 
   function getAdherenceColor(pct) {
@@ -209,7 +193,7 @@ export default function UserInsights() {
       <SimpleGrid cols={{ base: 2, sm: 4, lg: 7 }}>
         <Card withBorder padding="md">
           <Group>
-            <IconUsers size={24} color="var(--mantine-color-blue-6)" />
+            <Users size={24} color="var(--mantine-color-blue-6)" />
             <div>
               <Text size="xl" fw={700}>{total_users}</Text>
               <Text size="xs" c="dimmed">Total Users</Text>
@@ -218,7 +202,7 @@ export default function UserInsights() {
         </Card>
         <Card withBorder padding="md">
           <Group>
-            <IconActivity size={24} color="var(--mantine-color-green-6)" />
+            <Heartbeat size={24} color="var(--mantine-color-green-6)" />
             <div>
               <Text size="xl" fw={700}>{summary.active_7d}</Text>
               <Text size="xs" c="dimmed">Signed In (7d)</Text>
@@ -227,7 +211,7 @@ export default function UserInsights() {
         </Card>
         <Card withBorder padding="md">
           <Group>
-            <IconHeartbeat size={24} color="var(--mantine-color-cyan-6)" />
+            <Heartbeat size={24} color="var(--mantine-color-cyan-6)" />
             <div>
               <Text size="xl" fw={700}>{summary.engaged_7d ?? 0}</Text>
               <Text size="xs" c="dimmed">Engaged (7d)</Text>
@@ -236,7 +220,7 @@ export default function UserInsights() {
         </Card>
         <Card withBorder padding="md">
           <Group>
-            <IconTrendingUp size={24} color="var(--mantine-color-teal-6)" />
+            <TrendUp size={24} color="var(--mantine-color-teal-6)" />
             <div>
               <Text size="xl" fw={700}>{summary.engaged_30d ?? 0}</Text>
               <Text size="xs" c="dimmed">Engaged (30d)</Text>
@@ -245,7 +229,7 @@ export default function UserInsights() {
         </Card>
         <Card withBorder padding="md">
           <Group>
-            <IconUserOff size={24} color="var(--mantine-color-red-6)" />
+            <UserMinus size={24} color="var(--mantine-color-red-6)" />
             <div>
               <Text size="xl" fw={700}>{summary.never_activated}</Text>
               <Text size="xs" c="dimmed">Never Activated</Text>
@@ -254,7 +238,7 @@ export default function UserInsights() {
         </Card>
         <Card withBorder padding="md">
           <Group>
-            <IconAlertCircle size={24} color="var(--mantine-color-orange-6)" />
+            <WarningCircle size={24} color="var(--mantine-color-orange-6)" />
             <div>
               <Text size="xl" fw={700}>{summary.churned}</Text>
               <Text size="xs" c="dimmed">Churned</Text>
@@ -263,7 +247,7 @@ export default function UserInsights() {
         </Card>
         <Card withBorder padding="md">
           <Group>
-            <IconAlertCircle size={24} color="var(--mantine-color-yellow-6)" />
+            <WarningCircle size={24} color="var(--mantine-color-yellow-6)" />
             <div>
               <Text size="xl" fw={700}>{summary.at_risk}</Text>
               <Text size="xs" c="dimmed">At Risk</Text>
@@ -274,19 +258,19 @@ export default function UserInsights() {
 
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
-          <Tabs.Tab value="funnel" leftSection={<IconFilter size={16} />}>
+          <Tabs.Tab value="funnel" leftSection={<Funnel size={16} />}>
             Activation Funnel
           </Tabs.Tab>
-          <Tabs.Tab value="adoption" leftSection={<IconTrendingUp size={16} />}>
+          <Tabs.Tab value="adoption" leftSection={<TrendUp size={16} />}>
             Feature Adoption
           </Tabs.Tab>
-          <Tabs.Tab value="retention" leftSection={<IconActivity size={16} />}>
+          <Tabs.Tab value="retention" leftSection={<Heartbeat size={16} />}>
             Retention Cohorts
           </Tabs.Tab>
-          <Tabs.Tab value="stale" leftSection={<IconUserOff size={16} />}>
+          <Tabs.Tab value="stale" leftSection={<UserMinus size={16} />}>
             Stale Users ({stale_users.length})
           </Tabs.Tab>
-          <Tabs.Tab value="adherence" leftSection={<IconTargetArrow size={16} />}>
+          <Tabs.Tab value="adherence" leftSection={<Target size={16} />}>
             Plan Adherence ({plan_adherence?.summary?.users_with_plans || 0})
           </Tabs.Tab>
         </Tabs.List>
@@ -298,7 +282,7 @@ export default function UserInsights() {
           <Group justify="space-between" mb="md">
             <Text fw={600}>Activation Funnel</Text>
             <Button
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
               variant="light"
               size="xs"
               onClick={loadData}
@@ -351,7 +335,7 @@ export default function UserInsights() {
           <Group justify="space-between" mb="md">
             <Text fw={600}>Feature Adoption Rates</Text>
             <Button
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
               variant="light"
               size="xs"
               onClick={loadData}
@@ -391,7 +375,7 @@ export default function UserInsights() {
           <Group justify="space-between" p="md" style={{ borderBottom: '1px solid var(--mantine-color-dark-4)' }}>
             <Text fw={600}>Retention by Signup Week</Text>
             <Button
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
               variant="light"
               size="xs"
               onClick={loadData}
@@ -494,7 +478,7 @@ export default function UserInsights() {
               )}
             </Group>
             <Button
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
               variant="light"
               size="xs"
               onClick={loadData}
@@ -612,7 +596,7 @@ export default function UserInsights() {
               <Badge variant="light" color="yellow">{stale_users.filter(u => u.status === 'at_risk').length} at risk</Badge>
             </Group>
             <Button
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
               variant="light"
               size="xs"
               onClick={loadData}
@@ -676,20 +660,20 @@ export default function UserInsights() {
                       <Group gap={6}>
                         <Tooltip label="Profile">
                           {user.has_profile
-                            ? <IconCheck size={14} color="var(--mantine-color-green-6)" />
-                            : <IconX size={14} color="var(--mantine-color-red-6)" />
+                            ? <Check size={14} color="var(--mantine-color-green-6)" />
+                            : <X size={14} color="var(--mantine-color-red-6)" />
                           }
                         </Tooltip>
                         <Tooltip label="Integration">
                           {user.has_integration
-                            ? <IconCheck size={14} color="var(--mantine-color-green-6)" />
-                            : <IconX size={14} color="var(--mantine-color-red-6)" />
+                            ? <Check size={14} color="var(--mantine-color-green-6)" />
+                            : <X size={14} color="var(--mantine-color-red-6)" />
                           }
                         </Tooltip>
                         <Tooltip label="Activity">
                           {user.has_activity
-                            ? <IconCheck size={14} color="var(--mantine-color-green-6)" />
-                            : <IconX size={14} color="var(--mantine-color-red-6)" />
+                            ? <Check size={14} color="var(--mantine-color-green-6)" />
+                            : <X size={14} color="var(--mantine-color-red-6)" />
                           }
                         </Tooltip>
                       </Group>

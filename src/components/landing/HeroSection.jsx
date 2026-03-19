@@ -4,9 +4,9 @@ import {
   Container, Title, Text, Button, Stack, Group, Box, Badge,
   SimpleGrid, Paper, ThemeIcon,
 } from '@mantine/core';
-import { IconChevronRight, IconChevronDown, IconSparkles, IconRobot } from '@tabler/icons-react';
 import Map, { Source, Layer } from 'react-map-gl';
 import { fullRoute, routeBounds } from './routeData';
+import { CaretDown, CaretRight, Robot, Sparkle } from '@phosphor-icons/react';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -128,7 +128,7 @@ export default function HeroSection() {
                 to="/auth"
                 size="lg"
                 color="teal"
-                rightSection={<IconChevronRight size={18} />}
+                rightSection={<CaretRight size={18} />}
               >
                 Create Free Account
               </Button>
@@ -240,7 +240,7 @@ export default function HeroSection() {
               {/* Chat header */}
               <Group gap="sm" mb="xs">
                 <ThemeIcon color="teal" variant="light" size="xs">
-                  <IconSparkles size={10} />
+                  <Sparkle size={10} />
                 </ThemeIcon>
                 <Text fw={600} size="xs" style={{ color: 'var(--color-text-primary)' }}>
                   AI Coach
@@ -275,7 +275,7 @@ export default function HeroSection() {
               {/* Coach response */}
               <Group gap={6} align="flex-start">
                 <ThemeIcon color="teal" variant="light" size="xs" mt={2}>
-                  <IconRobot size={10} />
+                  <Robot size={10} />
                 </ThemeIcon>
                 <Paper
                   px="xs"
@@ -310,7 +310,7 @@ export default function HeroSection() {
           document.getElementById('connect')?.scrollIntoView({ behavior: 'smooth' });
         }}
       >
-        <IconChevronDown size={24} color="var(--color-text-muted)" />
+        <CaretDown size={24} color="var(--color-text-muted)" />
       </Box>
     </Box>
   );

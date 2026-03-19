@@ -1,7 +1,7 @@
 import { Card, Stack, Group, Text, Badge, Button, Box, Loader } from '@mantine/core';
-import { IconRoute, IconRuler, IconMountain, IconClock } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import DifficultyBadge from './DifficultyBadge';
+import { Clock, Mountains, Path, Ruler } from '@phosphor-icons/react';
 
 /**
  * AISuggestionCard - Enhanced AI route suggestion card with metrics and visual appeal
@@ -95,7 +95,7 @@ function AISuggestionCard({
               borderRadius: tokens.radius.full,
             }}
           >
-            <IconRuler size={14} style={{ color: metricColor }} />
+            <Ruler size={14} style={{ color: metricColor }} />
             <Text size="xs" fw={600} style={{ color: metricColor }}>
               {typeof suggestion.distance === 'number'
                 ? (formatDistance ? formatDistance(suggestion.distance) : `${suggestion.distance.toFixed(1)} km`)
@@ -114,7 +114,7 @@ function AISuggestionCard({
                 borderRadius: tokens.radius.full,
               }}
             >
-              <IconMountain size={14} style={{ color: metricColor }} />
+              <Mountains size={14} style={{ color: metricColor }} />
               <Text size="xs" fw={600} style={{ color: metricColor }}>
                 {formatElevation ? formatElevation(suggestion.elevationGain) : `${suggestion.elevationGain}m`} ↗
               </Text>
@@ -132,7 +132,7 @@ function AISuggestionCard({
                 borderRadius: tokens.radius.full,
               }}
             >
-              <IconClock size={14} style={{ color: metricColor }} />
+              <Clock size={14} style={{ color: metricColor }} />
               <Text size="xs" fw={600} style={{ color: metricColor }}>
                 {suggestion.estimatedTime}min
               </Text>
@@ -149,7 +149,7 @@ function AISuggestionCard({
             isConverting ? (
               <Loader size={14} color="dark" />
             ) : (
-              <IconRoute size={16} />
+              <Path size={16} />
             )
           }
           fullWidth

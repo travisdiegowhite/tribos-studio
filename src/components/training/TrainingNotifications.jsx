@@ -17,21 +17,8 @@ import {
   ActionIcon,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import {
-  IconAlertTriangle,
-  IconCheck,
-  IconTrophy,
-  IconCalendarOff,
-  IconFlame,
-  IconTarget,
-  IconChevronDown,
-  IconChevronUp,
-  IconSparkles,
-  IconMoodSad,
-  IconMoodHappy,
-  IconRefresh,
-} from '@tabler/icons-react';
 import { TRAINING_PHASES } from '../../utils/trainingPlans';
+import { ArrowsClockwise, CalendarX, CaretDown, CaretUp, Check, Fire, SmileySad, SmileyWink, Sparkle, Target, Trophy, Warning } from '@phosphor-icons/react';
 
 // Notification types
 const NOTIFICATION_TYPES = {
@@ -84,7 +71,7 @@ function analyzeTrainingProgress({
           ? `You missed a workout from ${new Date(missedWorkouts[0].scheduled_date).toLocaleDateString()}`
           : `You have ${missedWorkouts.length} workouts from this week that weren't completed`,
       color: 'yellow',
-      icon: IconCalendarOff,
+      icon: CalendarX,
       action: 'Link rides or mark as skipped',
       data: { missedWorkouts },
     });
@@ -100,7 +87,7 @@ function analyzeTrainingProgress({
       title: 'Training Behind Schedule',
       message: `Your compliance is at ${compliance}%. Consider adjusting your plan or schedule.`,
       color: 'red',
-      icon: IconAlertTriangle,
+      icon: Warning,
       action: 'Adjust plan',
     });
   } else if (compliance < 70 && currentWeek > 1) {
@@ -110,7 +97,7 @@ function analyzeTrainingProgress({
       title: 'Slightly Behind',
       message: `You're at ${compliance}% compliance. Try to catch up this week!`,
       color: 'orange',
-      icon: IconMoodSad,
+      icon: SmileySad,
     });
   }
 
@@ -124,7 +111,7 @@ function analyzeTrainingProgress({
         title: 'Perfect Week!',
         message: `You completed 100% of Week ${currentWeek - 1} workouts. Amazing!`,
         color: 'green',
-        icon: IconTrophy,
+        icon: Trophy,
         celebrate: true,
       });
     } else if (lastWeekStats && lastWeekStats.compliancePercent >= 80) {
@@ -134,7 +121,7 @@ function analyzeTrainingProgress({
         title: `Week ${currentWeek - 1} Complete`,
         message: `Great job! You completed ${lastWeekStats.compliancePercent}% of last week.`,
         color: 'teal',
-        icon: IconCheck,
+        icon: Check,
       });
     }
   }
@@ -154,7 +141,7 @@ function analyzeTrainingProgress({
         title: `${phaseInfo?.name || previousPhase.phase} Phase Complete!`,
         message: `Moving into ${TRAINING_PHASES[thisPhase.phase]?.name || thisPhase.phase} phase.`,
         color: 'violet',
-        icon: IconSparkles,
+        icon: Sparkle,
         celebrate: true,
       });
     }
@@ -171,7 +158,7 @@ function analyzeTrainingProgress({
       title: 'Halfway There!',
       message: `You're halfway through your ${totalWeeks}-week plan. Keep going!`,
       color: 'indigo',
-      icon: IconTarget,
+      icon: Target,
       celebrate: true,
     });
   }
@@ -203,7 +190,7 @@ function analyzeTrainingProgress({
       title: `${consecutiveCompleted.count} Workout Streak!`,
       message: 'You\'re on fire! Keep the momentum going.',
       color: 'orange',
-      icon: IconFlame,
+      icon: Fire,
       celebrate: true,
     });
   }
@@ -225,7 +212,7 @@ function analyzeTrainingProgress({
         title: 'Great Comeback!',
         message: 'You bounced back strong last week. Keep it up!',
         color: 'terracotta',
-        icon: IconMoodHappy,
+        icon: SmileyWink,
         celebrate: true,
       });
     }
@@ -310,7 +297,7 @@ export default function TrainingNotifications({
                     size="xs"
                     variant="light"
                     color={notification.color}
-                    leftIcon={<IconRefresh size={14} />}
+                    leftIcon={<ArrowsClockwise size={14} />}
                     onClick={onAdjustPlan}
                   >
                     Review Plan
@@ -326,7 +313,7 @@ export default function TrainingNotifications({
           variant="subtle"
           size="xs"
           onClick={toggle}
-          leftIcon={expanded ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+          leftIcon={expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
         >
           {expanded ? 'Show Less' : `Show ${allNotifications.length - maxVisible} More`}
         </Button>

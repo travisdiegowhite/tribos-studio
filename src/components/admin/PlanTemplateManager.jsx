@@ -29,24 +29,6 @@ import {
   SimpleGrid,
   Divider,
 } from '@mantine/core';
-import {
-  IconPlus,
-  IconEdit,
-  IconTrash,
-  IconDotsVertical,
-  IconSearch,
-  IconRefresh,
-  IconCheck,
-  IconAlertCircle,
-  IconEye,
-  IconCopy,
-  IconStar,
-  IconStarFilled,
-  IconArrowUp,
-  IconArrowDown,
-  IconUpload,
-  IconDownload,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -57,6 +39,7 @@ import {
 } from '../../services/trainingTemplates';
 import { TRAINING_PLAN_TEMPLATES } from '../../data/trainingPlanTemplates';
 import { FITNESS_LEVELS, TRAINING_PHASES } from '../../utils/trainingPlans';
+import { ArrowDown, ArrowUp, ArrowsClockwise, Check, Copy, DotsThreeVertical, DownloadSimple, Eye, MagnifyingGlass, PencilSimple, Plus, Star, Trash, UploadSimple, WarningCircle } from '@phosphor-icons/react';
 
 const METHODOLOGY_OPTIONS = [
   { value: 'polarized', label: 'Polarized Training' },
@@ -208,7 +191,7 @@ export default function PlanTemplateManager() {
           title: 'Success',
           message: selectedTemplate ? 'Template updated' : 'Template created',
           color: 'sage',
-          icon: <IconCheck size={18} />,
+          icon: <Check size={18} />,
         });
         setEditModalOpen(false);
         loadTemplates();
@@ -240,7 +223,7 @@ export default function PlanTemplateManager() {
           title: 'Deleted',
           message: 'Template has been deactivated',
           color: 'sage',
-          icon: <IconCheck size={18} />,
+          icon: <Check size={18} />,
         });
         setDeleteConfirmOpen(false);
         loadTemplates();
@@ -274,7 +257,7 @@ export default function PlanTemplateManager() {
         title: 'Seeding Complete',
         message: `Imported ${successCount} templates from local files`,
         color: 'sage',
-        icon: <IconCheck size={18} />,
+        icon: <Check size={18} />,
       });
       loadTemplates();
     } catch (err) {
@@ -318,14 +301,14 @@ export default function PlanTemplateManager() {
           <Group>
             <TextInput
               placeholder="Search templates..."
-              leftSection={<IconSearch size={16} />}
+              leftSection={<MagnifyingGlass size={16} />}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               w={300}
             />
             <Button
               variant="subtle"
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
               onClick={loadTemplates}
             >
               Refresh
@@ -334,14 +317,14 @@ export default function PlanTemplateManager() {
           <Group>
             <Button
               variant="light"
-              leftSection={<IconUpload size={16} />}
+              leftSection={<UploadSimple size={16} />}
               onClick={seedFromLocalFiles}
               loading={saving}
             >
               Import from JS
             </Button>
             <Button
-              leftSection={<IconPlus size={16} />}
+              leftSection={<Plus size={16} />}
               onClick={() => openEditModal()}
             >
               New Template
@@ -446,7 +429,7 @@ export default function PlanTemplateManager() {
                             variant="subtle"
                             onClick={() => openViewModal(template)}
                           >
-                            <IconEye size={16} />
+                            <Eye size={16} />
                           </ActionIcon>
                         </Tooltip>
                         <Tooltip label="Edit">
@@ -455,18 +438,18 @@ export default function PlanTemplateManager() {
                             color="blue"
                             onClick={() => openEditModal(template)}
                           >
-                            <IconEdit size={16} />
+                            <PencilSimple size={16} />
                           </ActionIcon>
                         </Tooltip>
                         <Menu shadow="md" width={160}>
                           <Menu.Target>
                             <ActionIcon variant="subtle">
-                              <IconDotsVertical size={16} />
+                              <DotsThreeVertical size={16} />
                             </ActionIcon>
                           </Menu.Target>
                           <Menu.Dropdown>
                             <Menu.Item
-                              leftSection={<IconCopy size={14} />}
+                              leftSection={<Copy size={14} />}
                               onClick={() => {
                                 const clone = { ...template, id: `${template.id}_copy`, name: `${template.name} (Copy)` };
                                 openEditModal(clone);
@@ -477,7 +460,7 @@ export default function PlanTemplateManager() {
                             <Menu.Divider />
                             <Menu.Item
                               color="red"
-                              leftSection={<IconTrash size={14} />}
+                              leftSection={<Trash size={14} />}
                               onClick={() => openDeleteConfirm(template)}
                             >
                               Delete
@@ -615,7 +598,7 @@ export default function PlanTemplateManager() {
             onChange={(e) => setEditForm({ ...editForm, targetAudience: e.target.value })}
           />
 
-          <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light">
+          <Alert icon={<WarningCircle size={16} />} color="blue" variant="light">
             Week templates and phases can be edited in the JSON editor (coming soon).
           </Alert>
 

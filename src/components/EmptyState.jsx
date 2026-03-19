@@ -1,16 +1,7 @@
 import React from 'react';
 import { Paper, Stack, Text, Button, ThemeIcon, Group } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
-import {
-  IconRoute,
-  IconUpload,
-  IconTrendingUp,
-  IconCalendar,
-  IconActivity,
-  IconMap,
-  IconFileText,
-  IconUsers,
-} from '@tabler/icons-react';
+import { Calendar, FileText, Heartbeat, MapTrifold, Path, TrendUp, UploadSimple, Users } from '@phosphor-icons/react';
 
 /**
  * EmptyState - Reusable component for displaying helpful empty states
@@ -19,7 +10,7 @@ import {
 
 const EMPTY_STATE_CONFIGS = {
   noRides: {
-    icon: IconUpload,
+    icon: UploadSimple,
     iconColor: 'teal',
     title: 'No Rides Yet',
     description: 'Connect your devices to sync activities, or upload FIT files to get started.',
@@ -30,7 +21,7 @@ const EMPTY_STATE_CONFIGS = {
     secondaryText: 'Your ride history will appear here once synced.',
   },
   noRoutes: {
-    icon: IconRoute,
+    icon: Path,
     iconColor: 'blue',
     title: 'No Routes Yet',
     description: 'Create your first AI-powered route or import your ride history.',
@@ -44,7 +35,7 @@ const EMPTY_STATE_CONFIGS = {
     },
   },
   noTrainingData: {
-    icon: IconTrendingUp,
+    icon: TrendUp,
     iconColor: 'green',
     title: 'Not Enough Data',
     description: 'Sync at least 2 weeks of rides to see your training metrics and trends.',
@@ -55,7 +46,7 @@ const EMPTY_STATE_CONFIGS = {
     secondaryText: 'Training load, form, and fitness trends need historical data to calculate.',
   },
   noTrainingPlan: {
-    icon: IconCalendar,
+    icon: Calendar,
     iconColor: 'violet',
     title: 'No Training Plan',
     description: 'Create a personalized training plan to reach your cycling goals.',
@@ -66,7 +57,7 @@ const EMPTY_STATE_CONFIGS = {
     secondaryText: 'Plans adapt to your fitness level and available time.',
   },
   noWorkouts: {
-    icon: IconActivity,
+    icon: Heartbeat,
     iconColor: 'orange',
     title: 'No Workouts Scheduled',
     description: 'Your upcoming workouts will appear here.',
@@ -77,20 +68,20 @@ const EMPTY_STATE_CONFIGS = {
     secondaryText: 'Check your training dashboard to see workout recommendations.',
   },
   noMessages: {
-    icon: IconUsers,
+    icon: Users,
     iconColor: 'cyan',
     title: 'No Messages',
     description: 'Connect with a coach to receive personalized guidance and workouts.',
     secondaryText: 'Messages from your coach will appear here.',
   },
   noSearchResults: {
-    icon: IconFileText,
+    icon: FileText,
     iconColor: 'gray',
     title: 'No Results Found',
     description: 'Try adjusting your search or filters.',
   },
   generic: {
-    icon: IconMap,
+    icon: MapTrifold,
     iconColor: 'gray',
     title: 'Nothing Here Yet',
     description: 'Check back later or take an action to add data.',
@@ -111,7 +102,7 @@ const EmptyState = ({
   const navigate = useNavigate();
 
   const config = type ? EMPTY_STATE_CONFIGS[type] : null;
-  const Icon = CustomIcon || config?.icon || IconMap;
+  const Icon = CustomIcon || config?.icon || MapTrifold;
   const finalIconColor = iconColor || config?.iconColor || 'gray';
   const finalTitle = title || config?.title || 'No Data';
   const finalDescription = description || config?.description || '';

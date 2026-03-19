@@ -8,15 +8,8 @@ import {
   Progress,
   Box,
 } from '@mantine/core';
-import {
-  IconCheck,
-  IconTrendingUp,
-  IconAlertTriangle,
-  IconFlame,
-  IconBolt,
-  IconZzz,
-} from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Check, Fire, Lightning, Moon, TrendUp, Warning } from '@phosphor-icons/react';
 
 /**
  * Workout Difficulty Labels (TrainerRoad-inspired)
@@ -127,37 +120,37 @@ export function calculateWorkoutDifficulty(workout, athleteState) {
     level = 'Recovery';
     color = 'gray';
     variant = 'light';
-    icon = IconZzz;
+    icon = Moon;
     description = 'Easy recovery session - well below your ability';
   } else if (difficultyScore <= 40) {
     level = 'Achievable';
     color = 'gray';
     variant = 'light';
-    icon = IconCheck;
+    icon = Check;
     description = 'Should complete easily - good for building consistency';
   } else if (difficultyScore <= 55) {
     level = 'Productive';
     color = 'terracotta';
     variant = 'filled';  // Tier 1 - This is the recommended zone
-    icon = IconTrendingUp;
+    icon = TrendUp;
     description = 'Challenging but doable - optimal for fitness gains';
   } else if (difficultyScore <= 70) {
     level = 'Stretch';
     color = 'yellow';
     variant = 'outline';
-    icon = IconFlame;
+    icon = Fire;
     description = 'Hard workout - will push your limits';
   } else if (difficultyScore <= 85) {
     level = 'Breakthrough';
     color = 'orange';
     variant = 'outline';
-    icon = IconBolt;
+    icon = Lightning;
     description = 'Very challenging - potential for big fitness gain';
   } else {
     level = 'Not Recommended';
     color = 'red';
     variant = 'outline';
-    icon = IconAlertTriangle;
+    icon = Warning;
     description = 'Too hard given current fitness - consider easier option';
   }
 
@@ -277,12 +270,12 @@ export function WorkoutDifficultyMeter({
  */
 export function DifficultyLegend() {
   const levels = [
-    { level: 'Recovery', color: 'gray', variant: 'light', icon: IconZzz, range: '0-20' },
-    { level: 'Achievable', color: 'gray', variant: 'light', icon: IconCheck, range: '21-40' },
-    { level: 'Productive', color: 'terracotta', variant: 'filled', icon: IconTrendingUp, range: '41-55', highlighted: true },
-    { level: 'Stretch', color: 'yellow', variant: 'outline', icon: IconFlame, range: '56-70' },
-    { level: 'Breakthrough', color: 'orange', variant: 'outline', icon: IconBolt, range: '71-85' },
-    { level: 'Not Recommended', color: 'red', variant: 'outline', icon: IconAlertTriangle, range: '86-100' },
+    { level: 'Recovery', color: 'gray', variant: 'light', icon: Moon, range: '0-20' },
+    { level: 'Achievable', color: 'gray', variant: 'light', icon: Check, range: '21-40' },
+    { level: 'Productive', color: 'terracotta', variant: 'filled', icon: TrendUp, range: '41-55', highlighted: true },
+    { level: 'Stretch', color: 'yellow', variant: 'outline', icon: Fire, range: '56-70' },
+    { level: 'Breakthrough', color: 'orange', variant: 'outline', icon: Lightning, range: '71-85' },
+    { level: 'Not Recommended', color: 'red', variant: 'outline', icon: Warning, range: '86-100' },
   ];
 
   return (

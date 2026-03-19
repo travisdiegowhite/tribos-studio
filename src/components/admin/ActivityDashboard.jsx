@@ -26,27 +26,12 @@ import {
   Modal
 } from '@mantine/core';
 import {
-  IconRefresh,
-  IconAlertTriangle,
-  IconEye,
-  IconUpload,
-  IconCloudDownload,
-  IconClick,
-  IconUsers,
-  IconActivity,
-  IconChartBar,
-  IconClock,
-  IconUser,
-  IconChevronUp,
-  IconChevronDown,
-  IconSelector
-} from '@tabler/icons-react';
-import {
   getActivitySummary,
   getRecentActivity,
   getActivityStats,
   getUserActivity
 } from '../../services/adminService';
+import { ArrowsClockwise, CaretDown, CaretUp, CaretUpDown, ChartBar, Clock, CloudArrowDown, CursorClick, Eye, Heartbeat, UploadSimple, User, Users, Warning } from '@phosphor-icons/react';
 
 export default function ActivityDashboard() {
   const [activeTab, setActiveTab] = useState('summary');
@@ -145,17 +130,17 @@ export default function ActivityDashboard() {
   function getCategoryIcon(category) {
     switch (category) {
       case 'page_view':
-        return <IconEye size={14} />;
+        return <Eye size={14} />;
       case 'sync':
-        return <IconCloudDownload size={14} />;
+        return <CloudArrowDown size={14} />;
       case 'upload':
-        return <IconUpload size={14} />;
+        return <UploadSimple size={14} />;
       case 'feature':
-        return <IconClick size={14} />;
+        return <CursorClick size={14} />;
       case 'interaction':
-        return <IconUsers size={14} />;
+        return <Users size={14} />;
       default:
-        return <IconActivity size={14} />;
+        return <Heartbeat size={14} />;
     }
   }
 
@@ -184,10 +169,10 @@ export default function ActivityDashboard() {
   }
 
   function SummarySortIcon({ column }) {
-    if (summarySort.column !== column) return <IconSelector size={14} style={{ opacity: 0.3 }} />;
+    if (summarySort.column !== column) return <CaretUpDown size={14} style={{ opacity: 0.3 }} />;
     return summarySort.direction === 'asc'
-      ? <IconChevronUp size={14} />
-      : <IconChevronDown size={14} />;
+      ? <CaretUp size={14} />
+      : <CaretDown size={14} />;
   }
 
   const sortedSummary = [...summary].sort((a, b) => {
@@ -214,20 +199,20 @@ export default function ActivityDashboard() {
     <Stack gap="md">
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
-          <Tabs.Tab value="summary" leftSection={<IconUsers size={16} />}>
+          <Tabs.Tab value="summary" leftSection={<Users size={16} />}>
             User Summary
           </Tabs.Tab>
-          <Tabs.Tab value="recent" leftSection={<IconClock size={16} />}>
+          <Tabs.Tab value="recent" leftSection={<Clock size={16} />}>
             Recent Activity
           </Tabs.Tab>
-          <Tabs.Tab value="stats" leftSection={<IconChartBar size={16} />}>
+          <Tabs.Tab value="stats" leftSection={<ChartBar size={16} />}>
             Stats
           </Tabs.Tab>
         </Tabs.List>
       </Tabs>
 
       {error && (
-        <Alert icon={<IconAlertTriangle size={16} />} title="Error" color="red">
+        <Alert icon={<Warning size={16} />} title="Error" color="red">
           {error}
         </Alert>
       )}
@@ -238,7 +223,7 @@ export default function ActivityDashboard() {
           <Group justify="space-between" p="md" style={{ borderBottom: '1px solid var(--mantine-color-dark-4)' }}>
             <Text fw={600}>User Activity Summary</Text>
             <Button
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
               variant="light"
               size="xs"
               onClick={loadData}
@@ -329,7 +314,7 @@ export default function ActivityDashboard() {
                             variant="light"
                             onClick={() => handleViewUserActivity(user.user_id, user.email)}
                           >
-                            <IconUser size={16} />
+                            <User size={16} />
                           </ActionIcon>
                         </Tooltip>
                       </Table.Td>
@@ -371,7 +356,7 @@ export default function ActivityDashboard() {
               />
             </Group>
             <Button
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
               variant="light"
               size="xs"
               onClick={loadData}
@@ -466,7 +451,7 @@ export default function ActivityDashboard() {
                   style={{ width: 150 }}
                 />
                 <Button
-                  leftSection={<IconRefresh size={16} />}
+                  leftSection={<ArrowsClockwise size={16} />}
                   variant="light"
                   size="xs"
                   onClick={loadData}
@@ -489,7 +474,7 @@ export default function ActivityDashboard() {
               <SimpleGrid cols={{ base: 2, sm: 4 }}>
                 <Card withBorder padding="md">
                   <Group>
-                    <IconActivity size={24} color="var(--mantine-color-blue-6)" />
+                    <Heartbeat size={24} color="var(--mantine-color-blue-6)" />
                     <div>
                       <Text size="xl" fw={700}>{stats.total_events}</Text>
                       <Text size="xs" c="dimmed">Total Events</Text>
@@ -498,7 +483,7 @@ export default function ActivityDashboard() {
                 </Card>
                 <Card withBorder padding="md">
                   <Group>
-                    <IconUsers size={24} color="var(--mantine-color-green-6)" />
+                    <Users size={24} color="var(--mantine-color-green-6)" />
                     <div>
                       <Text size="xl" fw={700}>{stats.unique_users}</Text>
                       <Text size="xs" c="dimmed">Active Users</Text>
@@ -507,7 +492,7 @@ export default function ActivityDashboard() {
                 </Card>
                 <Card withBorder padding="md">
                   <Group>
-                    <IconEye size={24} color="var(--mantine-color-violet-6)" />
+                    <Eye size={24} color="var(--mantine-color-violet-6)" />
                     <div>
                       <Text size="xl" fw={700}>{stats.by_category?.page_view || 0}</Text>
                       <Text size="xs" c="dimmed">Page Views</Text>
@@ -516,7 +501,7 @@ export default function ActivityDashboard() {
                 </Card>
                 <Card withBorder padding="md">
                   <Group>
-                    <IconCloudDownload size={24} color="var(--mantine-color-orange-6)" />
+                    <CloudArrowDown size={24} color="var(--mantine-color-orange-6)" />
                     <div>
                       <Text size="xl" fw={700}>{stats.by_category?.sync || 0}</Text>
                       <Text size="xs" c="dimmed">Syncs</Text>
@@ -612,7 +597,7 @@ export default function ActivityDashboard() {
         }}
         title={
           <Group>
-            <IconUser size={20} />
+            <User size={20} />
             <Text fw={600}>Activity: {selectedUser?.email}</Text>
           </Group>
         }

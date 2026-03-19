@@ -19,15 +19,6 @@ import {
   Alert,
 } from '@mantine/core';
 import {
-  IconTrendingUp,
-  IconTrendingDown,
-  IconCalendarStats,
-  IconChartLine,
-  IconFlame,
-  IconTrophy,
-  IconAlertCircle,
-} from '@tabler/icons-react';
-import {
   LineChart,
   Line,
   AreaChart,
@@ -44,6 +35,7 @@ import {
 } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
+import { ChartLine, Fire, TrendDown, TrendUp, Trophy, WarningCircle } from '@phosphor-icons/react';
 
 /**
  * Year-over-Year CTL Comparison Chart
@@ -246,7 +238,7 @@ function FitnessProgressionChart({ snapshots }) {
         <Badge
           color={overallChange >= 0 ? 'green' : 'red'}
           variant="light"
-          leftSection={overallChange >= 0 ? <IconTrendingUp size={14} /> : <IconTrendingDown size={14} />}
+          leftSection={overallChange >= 0 ? <TrendUp size={14} /> : <TrendDown size={14} />}
         >
           {overallChange >= 0 ? '+' : ''}{percentChange}% overall
         </Badge>
@@ -326,7 +318,7 @@ function PeakFitnessCard({ snapshots }) {
       <Group justify="space-between" mb="md">
         <Group gap="xs">
           <ThemeIcon color="yellow" variant="light" size="lg">
-            <IconTrophy size={20} />
+            <Trophy size={20} />
           </ThemeIcon>
           <Title order={4}>Peak Fitness Periods</Title>
         </Group>
@@ -585,7 +577,7 @@ function HistoricalInsights({ userId, activities }) {
 
   if (error) {
     return (
-      <Alert color="red" icon={<IconAlertCircle />} title="Error loading data">
+      <Alert color="red" icon={<WarningCircle />} title="Error loading data">
         {error}
       </Alert>
     );
@@ -596,7 +588,7 @@ function HistoricalInsights({ userId, activities }) {
       <Card withBorder p="xl">
         <Stack align="center" gap="md">
           <ThemeIcon size={60} radius="xl" color="gray" variant="light">
-            <IconCalendarStats size={30} />
+            <ChartLine size={30} />
           </ThemeIcon>
           <Title order={3}>No Historical Data Yet</Title>
           <Text c="dimmed" ta="center" maw={400}>

@@ -16,32 +16,18 @@ import {
   ThemeIcon,
   Tooltip,
 } from '@mantine/core';
-import {
-  IconSend,
-  IconUser,
-  IconClock,
-  IconCalendar,
-  IconBrain,
-  IconDotsVertical,
-  IconTrash,
-  IconRefresh,
-  IconMessageCircle,
-  IconBike,
-  IconActivity,
-  IconChevronDown,
-  IconChevronRight,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import ThreadLinkBadge from './conversations/ThreadLinkBadge';
+import { ArrowsClockwise, Bicycle, Brain, Calendar, CaretDown, CaretRight, ChatCircle, Clock, DotsThreeVertical, Heartbeat, PaperPlaneRight, Trash, User } from '@phosphor-icons/react';
 
 // Pulse theme colors
 const PULSE_THEME = {
   primary: '#2A8C82', // Teal
   primaryLight: '#2A8C8233',
-  icon: IconActivity,
+  icon: Heartbeat,
   name: 'Pulse',
   coachType: 'pulse',
 };
@@ -689,7 +675,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
       <Group justify="space-between" mb="md">
         <Group gap="sm">
           <ThemeIcon size="lg" color="orange" variant="light">
-            <IconActivity size={20} />
+            <Heartbeat size={20} />
           </ThemeIcon>
           <div>
             <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
@@ -704,25 +690,25 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
           {onOpenMemories && (
             <Tooltip label="What I Remember">
               <ActionIcon variant="subtle" color="orange" onClick={onOpenMemories}>
-                <IconBrain size={18} />
+                <Brain size={18} />
               </ActionIcon>
             </Tooltip>
           )}
           <Menu>
             <Menu.Target>
               <ActionIcon variant="subtle">
-                <IconDotsVertical size={18} />
+                <DotsThreeVertical size={18} />
               </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Item
-                leftSection={<IconRefresh size={14} />}
+                leftSection={<ArrowsClockwise size={14} />}
                 onClick={loadConversationHistory}
               >
                 Refresh
               </Menu.Item>
               <Menu.Item
-                leftSection={<IconTrash size={14} />}
+                leftSection={<Trash size={14} />}
                 color="red"
                 onClick={clearHistory}
               >
@@ -753,9 +739,9 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
               <Group justify="space-between">
                 <Group gap="xs">
                   {expandedThreads[thread.id] ? (
-                    <IconChevronDown size={14} style={{ color: PULSE_THEME.primary }} />
+                    <CaretDown size={14} style={{ color: PULSE_THEME.primary }} />
                   ) : (
-                    <IconChevronRight size={14} style={{ color: 'var(--color-text-muted)' }} />
+                    <CaretRight size={14} style={{ color: 'var(--color-text-muted)' }} />
                   )}
                   <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
                     {thread.title}
@@ -794,7 +780,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
         >
           <Group justify="space-between">
             <Group gap="sm">
-              <IconBike size={18} style={{ color: PULSE_THEME.primary }} />
+              <Bicycle size={18} style={{ color: PULSE_THEME.primary }} />
               <div>
                 <Text size="sm" fw={500}>
                   Today: {todaysWorkout.workout_type} ({todaysWorkout.target_duration_mins} min)
@@ -826,7 +812,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                 border: `1px dashed ${'var(--color-bg-secondary)'}`,
               }}
             >
-              <IconActivity size={48} style={{ color: PULSE_THEME.primary, marginBottom: 12, opacity: 0.7 }} />
+              <Heartbeat size={48} style={{ color: PULSE_THEME.primary, marginBottom: 12, opacity: 0.7 }} />
               <Text style={{ color: 'var(--color-text-secondary)' }} mb="xs">
                 {getGreeting()}! I'm Pulse, your accountability partner.
               </Text>
@@ -837,9 +823,9 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                 <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Quick actions:</Text>
                 <Group gap="xs" justify="center" wrap="wrap">
                   {[
-                    { text: "What's my plan today?", icon: <IconCalendar size={14} /> },
-                    { text: "I'm ready to ride", icon: <IconBike size={14} /> },
-                    { text: "I'm not feeling it today", icon: <IconMessageCircle size={14} /> }
+                    { text: "What's my plan today?", icon: <Calendar size={14} /> },
+                    { text: "I'm ready to ride", icon: <Bicycle size={14} /> },
+                    { text: "I'm not feeling it today", icon: <ChatCircle size={14} /> }
                   ].map((suggestion) => (
                     <Button
                       key={suggestion.text}
@@ -873,9 +859,9 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                   }}
                 >
                   {msg.role === 'user' ? (
-                    <IconUser size={18} style={{ color: 'var(--color-text-secondary)' }} />
+                    <User size={18} style={{ color: 'var(--color-text-secondary)' }} />
                   ) : (
-                    <IconActivity size={18} style={{ color: 'white' }} />
+                    <Heartbeat size={18} style={{ color: 'white' }} />
                   )}
                 </Box>
                 <Box style={{ flex: 1 }}>
@@ -916,7 +902,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                   justifyContent: 'center'
                 }}
               >
-                <IconActivity size={18} style={{ color: 'white' }} />
+                <Heartbeat size={18} style={{ color: 'white' }} />
               </Box>
               <Box style={{ padding: '8px 0' }}>
                 <Loader size="sm" color="orange" type="dots" />
@@ -952,7 +938,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
           onClick={() => sendMessage()}
           disabled={!inputMessage.trim() || isLoading}
         >
-          <IconSend size={18} />
+          <PaperPlaneRight size={18} />
         </ActionIcon>
       </Group>
     </Card>

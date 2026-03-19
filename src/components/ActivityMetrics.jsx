@@ -9,14 +9,8 @@ import {
   Box,
   SimpleGrid,
 } from '@mantine/core';
-import {
-  IconBolt,
-  IconActivity,
-  IconHeart,
-  IconFlame,
-  IconGauge,
-} from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Fire, Gauge, Heart, Heartbeat, Lightning } from '@phosphor-icons/react';
 
 // FIT protocol uses 0xFFFF (65535) for "no data" - must filter before calculations
 const MAX_VALID_POWER_WATTS = 2500;
@@ -147,7 +141,7 @@ export function ActivityMetricsBadges({ activity, ftp }) {
     <Group gap="xs" wrap="wrap">
       {/* Average Power */}
       <Tooltip label="Average Power">
-        <Badge color="gray" variant="light" size="sm" leftSection={<IconBolt size={12} />}>
+        <Badge color="gray" variant="light" size="sm" leftSection={<Lightning size={12} />}>
           {metrics.avgPower}W avg
         </Badge>
       </Tooltip>
@@ -198,7 +192,7 @@ export function ActivityMetricsBadges({ activity, ftp }) {
             color={metrics.tss >= 150 ? 'orange' : 'gray'}
             variant="light"
             size="sm"
-            leftSection={<IconFlame size={12} />}
+            leftSection={<Fire size={12} />}
           >
             {metrics.tss} TSS
           </Badge>
@@ -280,7 +274,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
         {/* Power Metrics */}
         {metrics.avgPower && (
           <MetricCard
-            icon={<IconBolt size={16} color={tokens.colors.zone4} />}
+            icon={<Lightning size={16} color={tokens.colors.zone4} />}
             label="Avg Power"
             value={`${metrics.avgPower}W`}
             subValue={metrics.avgWkg ? `${metrics.avgWkg} W/kg` : null}
@@ -289,7 +283,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
 
         {metrics.np && (
           <MetricCard
-            icon={<IconActivity size={16} color={tokens.colors.zone4} />}
+            icon={<Heartbeat size={16} color={tokens.colors.zone4} />}
             label="Normalized"
             value={`${metrics.np}W`}
             subValue={metrics.npWkg ? `${metrics.npWkg} W/kg` : null}
@@ -298,7 +292,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
 
         {metrics.maxPower && (
           <MetricCard
-            icon={<IconBolt size={16} color={tokens.colors.zone5} />}
+            icon={<Lightning size={16} color={tokens.colors.zone5} />}
             label="Max Power"
             value={`${metrics.maxPower}W`}
             subValue={metrics.maxWkg ? `${metrics.maxWkg} W/kg` : null}
@@ -307,7 +301,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
 
         {metrics.intensityFactor && (
           <MetricCard
-            icon={<IconGauge size={16} color={tokens.colors.zone3} />}
+            icon={<Gauge size={16} color={tokens.colors.zone3} />}
             label="Intensity Factor"
             value={metrics.intensityFactor.toFixed(2)}
             subValue={metrics.ifZone?.name}
@@ -317,7 +311,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
 
         {metrics.vi && (
           <MetricCard
-            icon={<IconActivity size={16} color={tokens.colors.zone6} />}
+            icon={<Heartbeat size={16} color={tokens.colors.zone6} />}
             label="Variability Index"
             value={metrics.vi.toFixed(2)}
             subValue={metrics.vi <= 1.05 ? 'Steady' : metrics.vi <= 1.1 ? 'Variable' : 'Racing'}
@@ -326,7 +320,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
 
         {metrics.tss && (
           <MetricCard
-            icon={<IconFlame size={16} color={tokens.colors.zone5} />}
+            icon={<Fire size={16} color={tokens.colors.zone5} />}
             label="TSS"
             value={metrics.tss.toString()}
             subValue="Training Stress"
@@ -336,7 +330,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
         {/* Heart Rate Metrics */}
         {metrics.avgHr && (
           <MetricCard
-            icon={<IconHeart size={16} color="#C43C2A" />}
+            icon={<Heart size={16} color="#C43C2A" />}
             label="Avg HR"
             value={`${Math.round(metrics.avgHr)} bpm`}
             subValue={metrics.maxHr ? `Max: ${Math.round(metrics.maxHr)}` : null}
@@ -346,7 +340,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
         {/* Efficiency Factor */}
         {metrics.ef && (
           <MetricCard
-            icon={<IconGauge size={16} color={tokens.colors.zone2} />}
+            icon={<Gauge size={16} color={tokens.colors.zone2} />}
             label="Efficiency"
             value={metrics.ef.toFixed(2)}
             subValue="NP/HR ratio"

@@ -14,21 +14,10 @@ import {
   SegmentedControl,
   ActionIcon,
 } from '@mantine/core';
-import {
-  IconBolt,
-  IconFlame,
-  IconMountain,
-  IconRefresh,
-  IconClock,
-  IconTarget,
-  IconTrendingUp,
-  IconHeart,
-  IconZzz,
-  IconChevronRight,
-} from '@tabler/icons-react';
 import { tokens } from '../theme';
 import { WorkoutDifficultyBadge, getQuickDifficultyEstimate } from './WorkoutDifficultyBadge';
 import { getWorkoutRecommendations } from '../services/workoutRecommendation';
+import { ArrowsClockwise, CaretRight, Clock, Fire, Heart, Lightning, Moon, Mountains, Target, TrendUp } from '@phosphor-icons/react';
 
 /**
  * TrainNow Component
@@ -41,14 +30,14 @@ import { getWorkoutRecommendations } from '../services/workoutRecommendation';
 
 // Map category keys to UI presentation (icons, colors)
 const CATEGORY_UI = {
-  recovery:  { icon: IconZzz,   color: 'teal' },
-  endurance: { icon: IconHeart, color: 'blue' },
-  threshold: { icon: IconFlame, color: 'orange' },
-  vo2max:    { icon: IconBolt,  color: 'red' },
+  recovery:  { icon: Moon,   color: 'teal' },
+  endurance: { icon: Heart, color: 'blue' },
+  threshold: { icon: Fire, color: 'orange' },
+  vo2max:    { icon: Lightning,  color: 'red' },
 };
 
 function getCategoryUI(category) {
-  return CATEGORY_UI[category] || { icon: IconTarget, color: 'gray' };
+  return CATEGORY_UI[category] || { icon: Target, color: 'gray' };
 }
 
 /**
@@ -96,7 +85,7 @@ const TrainNow = ({
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconTarget size={20} color={'var(--color-teal)'} />
+          <Target size={20} color={'var(--color-teal)'} />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             TrainNow
           </Text>
@@ -207,7 +196,7 @@ const TrainNow = ({
                     color={ui.color}
                     onClick={() => onSelectWorkout?.(rec.workouts[0])}
                   >
-                    <IconChevronRight size={16} />
+                    <CaretRight size={16} />
                   </ActionIcon>
                 </Group>
               )}
@@ -295,7 +284,7 @@ export function TrainNowBadge({ trainingMetrics, onClick }) {
         variant="light"
         style={{ cursor: 'pointer' }}
         onClick={onClick}
-        leftSection={<IconTarget size={12} />}
+        leftSection={<Target size={12} />}
       >
         TrainNow: {recommendation}
       </Badge>

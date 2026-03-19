@@ -5,8 +5,8 @@
 
 import { useMemo, useState } from 'react';
 import { Box, Group, Text, Badge, Tooltip, Paper } from '@mantine/core';
-import { IconTrophy } from '@tabler/icons-react';
 import type { PlannerWorkout } from '../../types/planner';
+import { Trophy } from '@phosphor-icons/react';
 
 // Training phases
 export type TrainingPhase = 'base' | 'build' | 'peak' | 'taper' | 'recovery' | 'race';
@@ -301,7 +301,7 @@ export function PeriodizationView({
                     zIndex: 1,
                   }}
                 >
-                  <IconTrophy size={10} color="var(--mantine-color-yellow-5)" />
+                  <Trophy size={10} color="var(--mantine-color-yellow-5)" />
                 </Box>
               )}
 
@@ -399,7 +399,7 @@ export function PeriodizationView({
         </Group>
         {raceGoals.length > 0 && (
           <Group gap={4}>
-            <IconTrophy size={12} color="var(--mantine-color-yellow-5)" />
+            <Trophy size={12} color="var(--mantine-color-yellow-5)" />
             <Text size="xs" c="dimmed">
               Race
             </Text>

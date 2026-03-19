@@ -8,12 +8,12 @@ import {
   Box, Text, Group, Stack, ActionIcon, Badge, SegmentedControl,
   NumberInput, Switch, Slider, Loader, Tooltip,
 } from '@mantine/core';
-import { IconX, IconRun, IconBike } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import {
   PACE_PRESETS, CYCLING_PRESETS, REACH_COLORS,
   formatDistance, formatPace,
 } from '../utils/isochroneService';
+import { Bicycle, PersonSimpleRun, X } from '@phosphor-icons/react';
 
 /**
  * @param {Object}   props
@@ -75,7 +75,7 @@ export default function RunReachPanel({
         style={{ borderBottom: '1px solid var(--color-bg-secondary)' }}
       >
         <Group gap={6}>
-          {mode === 'running' ? <IconRun size={16} /> : <IconBike size={16} />}
+          {mode === 'running' ? <PersonSimpleRun size={16} /> : <Bicycle size={16} />}
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Run Reach
           </Text>
@@ -87,7 +87,7 @@ export default function RunReachPanel({
           )}
         </Group>
         <ActionIcon size="sm" variant="subtle" onClick={onClose} color="gray">
-          <IconX size={14} />
+          <X size={14} />
         </ActionIcon>
       </Group>
 

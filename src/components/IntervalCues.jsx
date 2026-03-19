@@ -1,7 +1,7 @@
 import { Card, Text, Stack, Group, Badge, Timeline, ThemeIcon } from '@mantine/core';
-import { IconActivity, IconTrendingUp, IconBolt, IconMountain, IconHeart } from '@tabler/icons-react';
 import { getZoneColor, getZoneName } from '../utils/intervalCues';
 import { useUnits } from '../utils/units';
+import { Heart, Heartbeat, Lightning, Mountains, TrendUp } from '@phosphor-icons/react';
 
 /**
  * IntervalCues - Displays workout structure with color-coded segments
@@ -19,12 +19,12 @@ const IntervalCues = ({ cues, formatDistance: formatDistanceProp }) => {
 
   // Get icon for cue type
   const getIcon = (type) => {
-    if (type.includes('warmup')) return <IconHeart size={16} />;
-    if (type.includes('cooldown')) return <IconHeart size={16} />;
-    if (type.includes('interval')) return <IconBolt size={16} />;
-    if (type.includes('hill')) return <IconMountain size={16} />;
-    if (type.includes('surge') || type.includes('tempo')) return <IconTrendingUp size={16} />;
-    return <IconActivity size={16} />;
+    if (type.includes('warmup')) return <Heart size={16} />;
+    if (type.includes('cooldown')) return <Heart size={16} />;
+    if (type.includes('interval')) return <Lightning size={16} />;
+    if (type.includes('hill')) return <Mountains size={16} />;
+    if (type.includes('surge') || type.includes('tempo')) return <TrendUp size={16} />;
+    return <Heartbeat size={16} />;
   };
 
   // Get color for cue type - uses zone-based colors to match map display

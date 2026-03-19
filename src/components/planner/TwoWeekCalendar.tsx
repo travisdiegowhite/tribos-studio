@@ -6,12 +6,12 @@
 
 import { useMemo, useState } from 'react';
 import { Box, Group, Text, ActionIcon, SimpleGrid, Paper, Badge, SegmentedControl, Stack, UnstyledButton, Tooltip, ThemeIcon } from '@mantine/core';
-import { IconChevronLeft, IconChevronRight, IconFlame, IconCheck, IconX, IconBike, IconHome, IconPlus, IconArrowUp, IconArrowDown, IconClock, IconRoute, IconCalendarOff, IconStar, IconTrophy } from '@tabler/icons-react';
 import { CalendarDayCell } from './CalendarDayCell';
 import { WorkoutCard } from './WorkoutCard';
 import { WorkoutDetailModal } from './WorkoutDetailModal';
 import type { PlannerWorkout } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutDefinition } from '../../types/training';
+import { ArrowDown, ArrowUp, Bicycle, CalendarX, CaretLeft, CaretRight, Check, Clock, Fire, House, Path, Plus, Star, Trophy, X } from '@phosphor-icons/react';
 
 // Race goal type for calendar display
 interface RaceGoal {
@@ -307,7 +307,7 @@ export function TwoWeekCalendar({
           <Group gap="xs">
             <Badge size="xs" color="gray" variant="light">
               <Group gap={4}>
-                <IconFlame size={10} />
+                <Fire size={10} />
                 <Text size="xs">{summary.planned} TSS planned</Text>
               </Group>
             </Badge>
@@ -358,7 +358,7 @@ export function TwoWeekCalendar({
           size="lg"
           onClick={() => onNavigate('prev')}
         >
-          <IconChevronLeft />
+          <CaretLeft />
         </ActionIcon>
 
         <Text size={isMobile ? 'md' : 'lg'} fw={600}>
@@ -370,7 +370,7 @@ export function TwoWeekCalendar({
           size="lg"
           onClick={() => onNavigate('next')}
         >
-          <IconChevronRight />
+          <CaretRight />
         </ActionIcon>
       </Group>
 
@@ -393,7 +393,7 @@ export function TwoWeekCalendar({
             />
             <Group gap="xs">
               <Badge size="xs" color="gray" variant="light">
-                <IconFlame size={10} style={{ marginRight: 4 }} />
+                <Fire size={10} style={{ marginRight: 4 }} />
                 {currentWeekSummary.planned} TSS
               </Badge>
               {currentWeekSummary.actual > 0 && (
@@ -529,7 +529,7 @@ export function TwoWeekCalendar({
                     variant="subtle"
                     onClick={() => onRemoveWorkout(selectedDay.date)}
                   >
-                    <IconX size={16} />
+                    <X size={16} />
                   </ActionIcon>
                 )}
               </Group>
@@ -551,7 +551,7 @@ export function TwoWeekCalendar({
                   >
                     <Group gap="sm" mb="xs">
                       <ThemeIcon size="lg" color="orange" variant="light">
-                        <IconTrophy size={18} />
+                        <Trophy size={18} />
                       </ThemeIcon>
                       <Box style={{ flex: 1 }}>
                         <Group gap="xs">
@@ -595,7 +595,7 @@ export function TwoWeekCalendar({
                   </Box>
                   {/* Target TSS */}
                   <Group gap="xs" mt="xs">
-                    <IconFlame size={14} color="var(--mantine-color-terracotta-5)" />
+                    <Fire size={14} color="var(--mantine-color-terracotta-5)" />
                     <Text size="sm" c="terracotta">Target: {selectedDayWorkout.targetTSS} TSS</Text>
                   </Group>
                 </Box>
@@ -612,7 +612,7 @@ export function TwoWeekCalendar({
                   }}
                   onClick={() => selectedWorkoutId && onDateClick(selectedDay.date)}
                 >
-                  <IconPlus size={24} color="var(--mantine-color-dark-3)" style={{ marginBottom: 8 }} />
+                  <Plus size={24} color="var(--mantine-color-dark-3)" style={{ marginBottom: 8 }} />
                   <Text size="sm" c="dimmed">
                     {selectedWorkoutId ? 'Tap to place workout here' : 'No workout planned'}
                   </Text>
@@ -648,9 +648,9 @@ export function TwoWeekCalendar({
                       <Group justify="space-between" mb="sm">
                         <Group gap="xs">
                           {typeInfo.isIndoor ? (
-                            <IconHome size={18} color={`var(--mantine-color-${typeInfo.color}-5)`} />
+                            <House size={18} color={`var(--mantine-color-${typeInfo.color}-5)`} />
                           ) : (
-                            <IconBike size={18} color={`var(--mantine-color-${typeInfo.color}-5)`} />
+                            <Bicycle size={18} color={`var(--mantine-color-${typeInfo.color}-5)`} />
                           )}
                           <Text size="md" fw={500}>
                             {selectedDayActivity.name || 'Activity'}
@@ -664,18 +664,18 @@ export function TwoWeekCalendar({
                       {/* Activity stats */}
                       <Group gap="lg">
                         <Group gap={4}>
-                          <IconFlame size={16} color="var(--mantine-color-orange-5)" />
+                          <Fire size={16} color="var(--mantine-color-orange-5)" />
                           <Text size="md" fw={600}>{selectedDayActivity.tss || 0} TSS</Text>
                         </Group>
                         {selectedDayActivity.duration_seconds && (
                           <Group gap={4}>
-                            <IconClock size={16} color="var(--mantine-color-gray-5)" />
+                            <Clock size={16} color="var(--mantine-color-gray-5)" />
                             <Text size="sm">{formatDuration(selectedDayActivity.duration_seconds)}</Text>
                           </Group>
                         )}
                         {selectedDayActivity.distance && (
                           <Group gap={4}>
-                            <IconRoute size={16} color="var(--mantine-color-gray-5)" />
+                            <Path size={16} color="var(--mantine-color-gray-5)" />
                             <Text size="sm">{formatDistance(selectedDayActivity.distance)}</Text>
                           </Group>
                         )}
@@ -687,17 +687,17 @@ export function TwoWeekCalendar({
                           <Group gap="xs">
                             {tssVariance >= -10 && tssVariance <= 10 ? (
                               <>
-                                <IconCheck size={16} color="var(--mantine-color-green-5)" />
+                                <Check size={16} color="var(--mantine-color-green-5)" />
                                 <Text size="sm" c="green">On target!</Text>
                               </>
                             ) : tssVariance > 10 ? (
                               <>
-                                <IconArrowUp size={16} color="var(--mantine-color-blue-5)" />
+                                <ArrowUp size={16} color="var(--mantine-color-blue-5)" />
                                 <Text size="sm" c="blue">+{tssVariance} TSS above target</Text>
                               </>
                             ) : (
                               <>
-                                <IconArrowDown size={16} color="var(--mantine-color-orange-5)" />
+                                <ArrowDown size={16} color="var(--mantine-color-orange-5)" />
                                 <Text size="sm" c="orange">{tssVariance} TSS below target</Text>
                               </>
                             )}
@@ -720,7 +720,7 @@ export function TwoWeekCalendar({
               {selectedDayWorkout && !selectedDayActivity && selectedDay.isPast && (
                 <Badge size="sm" color="red" variant="light" fullWidth mt="sm">
                   <Group gap={4} justify="center">
-                    <IconX size={12} />
+                    <X size={12} />
                     Planned workout was missed
                   </Group>
                 </Badge>

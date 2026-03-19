@@ -13,7 +13,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
-import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
+import { CaretDown, CaretRight } from '@phosphor-icons/react';
 
 /**
  * Modal for adding a new gear item (bike or shoes).
@@ -146,7 +146,7 @@ export default function AddGearModal({ opened, onClose, onSave }) {
 
         <UnstyledButton onClick={() => setShowAdvanced(!showAdvanced)}>
           <Group gap={4}>
-            {showAdvanced ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+            {showAdvanced ? <CaretDown size={14} /> : <CaretRight size={14} />}
             <Text size="sm" c="dimmed">Advanced</Text>
           </Group>
         </UnstyledButton>

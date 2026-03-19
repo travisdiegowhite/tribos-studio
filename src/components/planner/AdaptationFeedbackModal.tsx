@@ -20,22 +20,12 @@ import {
   ThemeIcon,
   Divider,
 } from '@mantine/core';
-import {
-  IconClock,
-  IconTrendingDown,
-  IconTrendingUp,
-  IconArrowsExchange,
-  IconX,
-  IconActivity,
-  IconClockMinus,
-  IconClockPlus,
-  IconCheck,
-} from '@tabler/icons-react';
 import type { WorkoutAdaptation, AdaptationReason } from '../../types/training';
 import {
   getAdaptationSummary,
   getAssessmentColor,
 } from '../../utils/adaptationTrigger';
+import { ArrowsLeftRight, Check, Clock, ClockClockwise, ClockCountdown, Heartbeat, TrendDown, TrendUp, X } from '@phosphor-icons/react';
 
 interface AdaptationFeedbackModalProps {
   adaptation: WorkoutAdaptation | null;
@@ -97,21 +87,21 @@ const REASON_OPTIONS: { value: AdaptationReason; label: string; description: str
 function getAdaptationIcon(type: string) {
   switch (type) {
     case 'completed_as_planned':
-      return IconCheck;
+      return Check;
     case 'time_truncated':
-      return IconClockMinus;
+      return ClockCountdown;
     case 'time_extended':
-      return IconClockPlus;
+      return ClockClockwise;
     case 'intensity_swap':
-      return IconArrowsExchange;
+      return ArrowsLeftRight;
     case 'upgraded':
-      return IconTrendingUp;
+      return TrendUp;
     case 'downgraded':
-      return IconTrendingDown;
+      return TrendDown;
     case 'skipped':
-      return IconX;
+      return X;
     default:
-      return IconActivity;
+      return Heartbeat;
   }
 }
 
@@ -261,7 +251,7 @@ export function AdaptationFeedbackModal({
                   </Box>
                   {selectedReason === option.value && (
                     <ThemeIcon size="sm" color="blue" variant="filled">
-                      <IconCheck size={12} />
+                      <Check size={12} />
                     </ThemeIcon>
                   )}
                 </Group>

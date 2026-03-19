@@ -1,7 +1,7 @@
 import { Card, Text, Group, Badge, Progress, Stack, Box } from '@mantine/core';
-import { IconBike, IconRun } from '@tabler/icons-react';
 import { formatDistance } from '../../utils/units';
 import { RUNNING_SHOE_THRESHOLDS } from './gearConstants';
+import { Bicycle, PersonSimpleRun } from '@phosphor-icons/react';
 
 /**
  * Card displaying a single gear item (bike or shoes).
@@ -10,7 +10,7 @@ export default function GearItemCard({ gear, onClick, useImperial = true }) {
   const distanceKm = (gear.total_distance_logged || 0) / 1000;
   const isRetired = gear.status === 'retired';
   const isShoes = gear.gear_type === 'shoes';
-  const Icon = gear.gear_type === 'bike' ? IconBike : IconRun;
+  const Icon = gear.gear_type === 'bike' ? Bicycle : PersonSimpleRun;
 
   // Shoe progress bar
   const shoeProgress = isShoes
@@ -41,7 +41,7 @@ export default function GearItemCard({ gear, onClick, useImperial = true }) {
             <Icon
               size={20}
               color="var(--color-teal)"
-              stroke={1.5}
+              
             />
             <Box style={{ minWidth: 0 }}>
               <Text fw={500} truncate>{gear.name}</Text>

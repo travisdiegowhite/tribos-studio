@@ -1,6 +1,6 @@
 import { Button, ActionIcon, Group, Kbd, Text, Box, Tooltip } from '@mantine/core';
-import { IconSparkles, IconMessageCircle } from '@tabler/icons-react';
 import { useCoachCommandBar } from './CoachCommandBarContext';
+import { ChatCircle, Sparkle } from '@phosphor-icons/react';
 
 function CoachCommandBarTrigger({
   variant = 'primary',
@@ -25,7 +25,7 @@ function CoachCommandBarTrigger({
           onClick={handleClick}
           className={className}
         >
-          <IconSparkles size={18} />
+          <Sparkle size={18} />
         </ActionIcon>
       </Tooltip>
     );
@@ -59,7 +59,7 @@ function CoachCommandBarTrigger({
             },
           }}
         >
-          <IconSparkles size={24} />
+          <Sparkle size={24} />
         </ActionIcon>
       </Tooltip>
     );
@@ -72,7 +72,7 @@ function CoachCommandBarTrigger({
       color="teal"
       onClick={handleClick}
       className={className}
-      leftSection={<IconSparkles size={18} />}
+      leftSection={<Sparkle size={18} />}
       rightSection={
         showShortcut && (
           <Kbd

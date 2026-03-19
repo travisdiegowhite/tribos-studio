@@ -24,17 +24,9 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import {
-  IconChartAreaLine,
-  IconBolt,
-  IconClock,
-  IconFlame,
-  IconChevronDown,
-  IconChevronUp,
-  IconTarget,
-} from '@tabler/icons-react';
 import { tokens } from '../theme';
 import { getPowerZone, getZoneName, getZoneColor } from '../utils/trainingPlans';
+import { CaretDown, CaretUp, ChartLineUp, Clock, Fire, Lightning, Target } from '@phosphor-icons/react';
 
 /**
  * Automatic Interval Detection Component
@@ -271,11 +263,11 @@ const IntervalDetection = ({ activity, ftp }) => {
 
   const getTypeIcon = (type) => {
     switch (type) {
-      case 'intervals': return IconBolt;
-      case 'steady_hard': return IconFlame;
-      case 'steady_endurance': return IconClock;
-      case 'recovery': return IconTarget;
-      default: return IconChartAreaLine;
+      case 'intervals': return Lightning;
+      case 'steady_hard': return Fire;
+      case 'steady_endurance': return Clock;
+      case 'recovery': return Target;
+      default: return ChartLineUp;
     }
   };
 
@@ -285,7 +277,7 @@ const IntervalDetection = ({ activity, ftp }) => {
     <Card>
       <Group justify="space-between" mb="md">
         <Group gap="sm">
-          <IconChartAreaLine size={20} color={'var(--color-teal)'} />
+          <ChartLineUp size={20} color={'var(--color-teal)'} />
           <Text size="sm" fw={600}>Workout Structure Analysis</Text>
         </Group>
         <Badge color={getTypeColor(analysis.type)} variant="light">
@@ -388,7 +380,7 @@ const IntervalDetection = ({ activity, ftp }) => {
         size="xs"
         fullWidth
         onClick={() => setShowDetails(!showDetails)}
-        rightSection={showDetails ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+        rightSection={showDetails ? <CaretUp size={14} /> : <CaretDown size={14} />}
       >
         {showDetails ? 'Hide' : 'Show'} Activity Details
       </Button>

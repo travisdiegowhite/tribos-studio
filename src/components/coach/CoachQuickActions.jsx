@@ -1,5 +1,5 @@
+import { CaretRight } from '@phosphor-icons/react';
 import { Stack, UnstyledButton, Group, Text, Box, ThemeIcon } from '@mantine/core';
-import { IconChevronRight } from '@tabler/icons-react';
 
 // Default quick actions - can be made dynamic based on user context
 const QUICK_ACTIONS = [
@@ -100,7 +100,7 @@ function CoachQuickActions({ onSelect, actions = QUICK_ACTIONS }) {
               size="sm"
               style={{ opacity: 0.5 }}
             >
-              <IconChevronRight size={16} />
+              <CaretRight size={16} />
             </ThemeIcon>
           </Group>
         </UnstyledButton>

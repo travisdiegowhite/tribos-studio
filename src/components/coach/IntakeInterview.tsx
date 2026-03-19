@@ -21,10 +21,10 @@ import {
   Divider,
   Box,
 } from '@mantine/core';
-import { IconArrowRight, IconArrowLeft, IconCheck, IconSparkles } from '@tabler/icons-react';
 import { INTAKE_QUESTIONS, PERSONAS, PERSONA_LIST } from '../../data/coachingPersonas';
 import type { PersonaId, PersonaClassification, IntakeAnswers } from '../../types/checkIn';
 import { supabase } from '../../lib/supabase';
+import { ArrowLeft, ArrowRight, Check, Sparkle } from '@phosphor-icons/react';
 
 interface IntakeInterviewProps {
   opened: boolean;
@@ -179,7 +179,7 @@ export default function IntakeInterview({ opened, onComplete, userId }: IntakeIn
           <Group justify="space-between">
             <Button
               variant="subtle"
-              leftSection={<IconArrowLeft size={16} />}
+              leftSection={<ArrowLeft size={16} />}
               onClick={handleBack}
               disabled={currentQuestion === 0}
             >
@@ -188,8 +188,8 @@ export default function IntakeInterview({ opened, onComplete, userId }: IntakeIn
             <Button
               rightSection={
                 currentQuestion === INTAKE_QUESTIONS.length - 1
-                  ? <IconSparkles size={16} />
-                  : <IconArrowRight size={16} />
+                  ? <Sparkle size={16} />
+                  : <ArrowRight size={16} />
               }
               onClick={handleNext}
               disabled={!answers[question.id]}
@@ -204,7 +204,7 @@ export default function IntakeInterview({ opened, onComplete, userId }: IntakeIn
 
       {step === 'classifying' && (
         <Stack align="center" gap="lg" py="xl">
-          <IconSparkles size={40} color="var(--color-teal)" />
+          <Sparkle size={40} color="var(--color-teal)" />
           <Text size="lg" fw={600}>Analyzing your coaching style...</Text>
           <Progress value={100} size="xs" color="var(--color-teal)" animated w="60%" />
         </Stack>
@@ -288,7 +288,7 @@ export default function IntakeInterview({ opened, onComplete, userId }: IntakeIn
               Retake Interview
             </Button>
             <Button
-              rightSection={<IconCheck size={16} />}
+              rightSection={<Check size={16} />}
               onClick={handleConfirm}
               disabled={!selectedPersona}
               color="var(--color-teal)"

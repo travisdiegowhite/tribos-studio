@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Box, Text, Button, Group, Paper, Kbd } from '@mantine/core';
-import { IconX, IconPointer, IconMapPin, IconRoute } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Cursor, MapPin, Path, X } from '@phosphor-icons/react';
 
 /**
  * MapTutorialOverlay - Interactive tutorial overlay for first-time users
@@ -16,19 +16,19 @@ function MapTutorialOverlay({ show, onDismiss, waypointCount = 0 }) {
   // Tutorial steps
   const tutorialSteps = [
     {
-      icon: <IconPointer size={24} />,
+      icon: <Cursor size={24} />,
       title: 'Click on the Map',
       description: 'Click anywhere on the map to add your first waypoint',
       position: 'center',
     },
     {
-      icon: <IconMapPin size={24} />,
+      icon: <MapPin size={24} />,
       title: 'Add More Waypoints',
       description: 'Continue clicking to add waypoints and create your route',
       position: 'center',
     },
     {
-      icon: <IconRoute size={24} />,
+      icon: <Path size={24} />,
       title: 'Route Created!',
       description: 'Your route is automatically calculated between waypoints',
       position: 'center',

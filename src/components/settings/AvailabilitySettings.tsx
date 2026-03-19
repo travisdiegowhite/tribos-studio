@@ -23,20 +23,11 @@ import {
   SegmentedControl,
   Modal,
 } from '@mantine/core';
-import {
-  IconCalendarOff,
-  IconStar,
-  IconCheck,
-  IconAlertCircle,
-  IconRefresh,
-  IconInfoCircle,
-  IconBrandGoogle,
-  IconCalendarEvent,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useUserAvailability } from '../../hooks/useUserAvailability';
 import { googleCalendarService } from '../../utils/googleCalendarService';
 import type { AvailabilityStatus, SetDayAvailabilityInput } from '../../types/training';
+import { ArrowsClockwise, CalendarBlank, CalendarX, Check, GoogleLogo, Info, Star, WarningCircle } from '@phosphor-icons/react';
 
 interface AvailabilitySettingsProps {
   userId: string | null;
@@ -47,9 +38,9 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const FULL_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const STATUS_CONFIG: Record<AvailabilityStatus, { label: string; color: string; icon: React.ReactNode }> = {
-  available: { label: 'Available', color: 'green', icon: <IconCheck size={14} /> },
-  blocked: { label: 'Blocked', color: 'red', icon: <IconCalendarOff size={14} /> },
-  preferred: { label: 'Preferred', color: 'yellow', icon: <IconStar size={14} /> },
+  available: { label: 'Available', color: 'green', icon: <Check size={14} /> },
+  blocked: { label: 'Blocked', color: 'red', icon: <CalendarX size={14} /> },
+  preferred: { label: 'Preferred', color: 'yellow', icon: <Star size={14} /> },
 };
 
 export function AvailabilitySettings({ userId, onAvailabilityChange }: AvailabilitySettingsProps) {
@@ -228,13 +219,13 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
       </Box>
 
       {error && (
-        <Alert color="red" icon={<IconAlertCircle />}>
+        <Alert color="red" icon={<WarningCircle />}>
           {error}
         </Alert>
       )}
 
       {saveSuccess && (
-        <Alert color="green" icon={<IconCheck />}>
+        <Alert color="green" icon={<Check />}>
           Settings saved successfully!
         </Alert>
       )}
@@ -244,7 +235,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
         <Paper p="md" radius="md" withBorder style={{ borderColor: 'var(--mantine-color-dark-4)' }}>
           <Group justify="space-between" wrap="nowrap">
             <Group gap="sm" wrap="nowrap">
-              <IconCalendarEvent size={20} color="var(--mantine-color-terracotta-5)" />
+              <CalendarBlank size={20} color="var(--mantine-color-terracotta-5)" />
               <Box>
                 <Text size="sm" fw={500}>Google Calendar</Text>
                 <Text size="xs" c="dimmed">
@@ -258,7 +249,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
               color="teal"
               loading={importingCalendar}
               onClick={handleImportCalendarBusyTimes}
-              leftSection={<IconBrandGoogle size={14} />}
+              leftSection={<GoogleLogo size={14} />}
             >
               Import Busy Days
             </Button>
@@ -271,10 +262,10 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
         <Group justify="space-between" mb="md">
           <Text fw={500}>Weekly Schedule</Text>
           <Group gap="xs">
-            <Badge color="red" variant="light" leftSection={<IconCalendarOff size={12} />}>
+            <Badge color="red" variant="light" leftSection={<CalendarX size={12} />}>
               {blockedCount} blocked
             </Badge>
-            <Badge color="yellow" variant="light" leftSection={<IconStar size={12} />}>
+            <Badge color="yellow" variant="light" leftSection={<Star size={12} />}>
               {preferredCount} preferred
             </Badge>
           </Group>
@@ -395,7 +386,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
             onClick={handleSavePreferences}
             loading={isSaving}
             color="teal"
-            leftSection={<IconCheck size={16} />}
+            leftSection={<Check size={16} />}
           >
             Save Preferences
           </Button>
@@ -403,7 +394,7 @@ export function AvailabilitySettings({ userId, onAvailabilityChange }: Availabil
       </Paper>
 
       {/* Info Box */}
-      <Alert icon={<IconInfoCircle />} color="blue" variant="light">
+      <Alert icon={<Info />} color="blue" variant="light">
         <Text size="sm">
           <strong>How it works:</strong> When you start a new training plan, workouts will automatically
           be redistributed away from blocked days. Key workouts like long rides and hard intervals will

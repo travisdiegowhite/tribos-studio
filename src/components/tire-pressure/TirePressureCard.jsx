@@ -22,13 +22,6 @@ import {
   Alert,
   Badge,
 } from '@mantine/core';
-import {
-  IconWheel,
-  IconSettings,
-  IconThermometer,
-  IconAlertTriangle,
-  IconBike,
-} from '@tabler/icons-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUserPreferences } from '../../contexts/UserPreferencesContext';
 import { useGear } from '../../hooks/useGear';
@@ -40,6 +33,7 @@ import {
   formatPressure,
   formatPressureSummary,
 } from '../../utils/tirePressure';
+import { Bicycle, CircleNotch, Gear, Thermometer, Warning } from '@phosphor-icons/react';
 
 const TIRE_PRESETS = [
   { label: '23c', value: '23' },
@@ -356,7 +350,7 @@ export default function TirePressureCard({
         {/* Header */}
         <Group justify="space-between">
           <Group gap="xs">
-            <IconWheel size={18} style={{ color: 'var(--color-teal)' }} />
+            <CircleNotch size={18} style={{ color: 'var(--color-teal)' }} />
             <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
               Tire Pressure
             </Text>
@@ -366,7 +360,7 @@ export default function TirePressureCard({
                   size="xs"
                   variant="light"
                   color={weather.temperatureCelsius < 5 ? 'blue' : weather.temperatureCelsius > 35 ? 'red' : 'gray'}
-                  leftSection={<IconThermometer size={10} />}
+                  leftSection={<Thermometer size={10} />}
                 >
                   {Math.round(weather.temperatureCelsius)}°C
                 </Badge>
@@ -394,7 +388,7 @@ export default function TirePressureCard({
                 px={6}
                 onClick={() => setShowSettings(!showSettings)}
               >
-                <IconSettings size={16} />
+                <Gear size={16} />
               </Button>
             </Tooltip>
           </Group>
@@ -408,7 +402,7 @@ export default function TirePressureCard({
             data={activeBikes.map((b) => ({ value: b.id, label: b.name }))}
             value={selectedBikeId}
             onChange={handleBikeChange}
-            leftSection={<IconBike size={14} />}
+            leftSection={<Bicycle size={14} />}
             comboboxProps={{ withinPortal: false }}
             styles={{
               input: { backgroundColor: 'var(--color-bg-secondary)' },
@@ -466,7 +460,7 @@ export default function TirePressureCard({
         {/* Warnings */}
         {result.warnings.length > 0 && (
           <Alert
-            icon={<IconAlertTriangle size={16} />}
+            icon={<Warning size={16} />}
             color="yellow"
             variant="light"
             p="xs"

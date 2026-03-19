@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Alert, Button, Group, Text, Stack } from '@mantine/core';
-import { IconAlertTriangle, IconRefresh, IconX } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { garminService } from '../utils/garminService';
+import { ArrowsClockwise, Warning, X } from '@phosphor-icons/react';
 
 /**
  * IntegrationAlert - Proactively alerts users about integration issues
@@ -143,7 +143,7 @@ export default function IntegrationAlert({ onDismiss }) {
 
   return (
     <Alert
-      icon={<IconAlertTriangle size={20} />}
+      icon={<Warning size={20} />}
       title={alert.title}
       color={alert.type === 'error' ? 'red' : 'yellow'}
       withCloseButton
@@ -165,7 +165,7 @@ export default function IntegrationAlert({ onDismiss }) {
             size="xs"
             variant="filled"
             color={alert.type === 'error' ? 'red' : 'yellow'}
-            leftSection={<IconRefresh size={14} />}
+            leftSection={<ArrowsClockwise size={14} />}
             onClick={handleReconnect}
           >
             {alert.action}

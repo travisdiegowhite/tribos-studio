@@ -14,20 +14,11 @@ import {
   Tooltip,
   Divider,
 } from '@mantine/core';
-import {
-  IconTrophy,
-  IconPlus,
-  IconCalendarEvent,
-  IconRoute,
-  IconMountain,
-  IconTarget,
-  IconChevronRight,
-  IconClock,
-} from '@tabler/icons-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { tokens } from '../theme';
 import RaceGoalModal from './RaceGoalModal';
+import { CalendarBlank, CaretRight, Clock, Mountains, Path, Plus, Target, Trophy } from '@phosphor-icons/react';
 
 // Race type icons and labels
 const RACE_TYPE_INFO = {
@@ -149,7 +140,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
         <Group justify="space-between" mb="md">
           <Group gap="sm">
             <ThemeIcon size="lg" color="orange" variant="light">
-              <IconTrophy size={18} />
+              <Trophy size={18} />
             </ThemeIcon>
             <div>
               <Text fw={600}>Race Goals</Text>
@@ -164,7 +155,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
             size="xs"
             variant="light"
             color="orange"
-            leftSection={<IconPlus size={14} />}
+            leftSection={<Plus size={14} />}
             onClick={openAddModal}
           >
             Add Race
@@ -180,7 +171,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
               border: `1px dashed ${'var(--color-bg-secondary)'}`,
             }}
           >
-            <IconTrophy size={32} style={{ color: 'var(--color-text-muted)', marginBottom: 8 }} />
+            <Trophy size={32} style={{ color: 'var(--color-text-muted)', marginBottom: 8 }} />
             <Text size="sm" c="dimmed" mb="xs">
               No race goals set
             </Text>
@@ -191,7 +182,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
               size="sm"
               variant="light"
               color="orange"
-              leftSection={<IconTrophy size={16} />}
+              leftSection={<Trophy size={16} />}
               onClick={openAddModal}
             >
               Add Your First Race Goal
@@ -285,7 +276,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
 
                       <Group gap="md" wrap="wrap">
                         <Group gap={4}>
-                          <IconCalendarEvent size={12} style={{ color: 'var(--color-text-muted)' }} />
+                          <CalendarBlank size={12} style={{ color: 'var(--color-text-muted)' }} />
                           <Text size="xs" c="dimmed">
                             {new Date(race.race_date + 'T00:00:00').toLocaleDateString('en-US', {
                               month: 'short',
@@ -296,7 +287,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
                         </Group>
                         {race.distance_km && (
                           <Group gap={4}>
-                            <IconRoute size={12} style={{ color: 'var(--color-text-muted)' }} />
+                            <Path size={12} style={{ color: 'var(--color-text-muted)' }} />
                             <Text size="xs" c="dimmed">
                               {isImperial
                                 ? `${Math.round(race.distance_km * 0.621371)} mi`
@@ -306,7 +297,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
                         )}
                         {race.goal_placement && (
                           <Group gap={4}>
-                            <IconTarget size={12} style={{ color: 'var(--color-text-muted)' }} />
+                            <Target size={12} style={{ color: 'var(--color-text-muted)' }} />
                             <Text size="xs" c="dimmed">{race.goal_placement}</Text>
                           </Group>
                         )}

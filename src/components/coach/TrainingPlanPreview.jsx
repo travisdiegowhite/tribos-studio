@@ -10,14 +10,7 @@ import {
   SimpleGrid,
   Loader,
 } from '@mantine/core';
-import {
-  IconCalendarPlus,
-  IconClock,
-  IconFlame,
-  IconTrophy,
-  IconX,
-  IconChartLine,
-} from '@tabler/icons-react';
+import { CalendarPlus, ChartLine, Clock, Fire, Trophy, X } from '@phosphor-icons/react';
 
 // Phase color mapping
 const PHASE_COLORS = {
@@ -64,7 +57,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
         {/* Header */}
         <Group justify="space-between" wrap="nowrap">
           <Group gap="xs" wrap="nowrap">
-            <IconChartLine size={16} style={{ color: 'var(--color-teal)' }} />
+            <ChartLine size={16} style={{ color: 'var(--color-teal)' }} />
             <Text size={compact ? 'sm' : 'md'} fw={600} lineClamp={1}>
               {plan.name}
             </Text>
@@ -77,7 +70,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
               onClick={onDismiss}
               p={0}
             >
-              <IconX size={14} />
+              <X size={14} />
             </Button>
           )}
         </Group>
@@ -101,19 +94,19 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
         {plan.summary && (
           <SimpleGrid cols={compact ? 2 : 3} spacing="xs">
             <Group gap={4} wrap="nowrap">
-              <IconCalendarPlus size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+              <CalendarPlus size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
               <Text size="xs" c="dimmed">
                 {plan.summary.total_workouts} workouts
               </Text>
             </Group>
             <Group gap={4} wrap="nowrap">
-              <IconClock size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+              <Clock size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
               <Text size="xs" c="dimmed">
                 ~{plan.summary.avg_weekly_hours} hrs/wk
               </Text>
             </Group>
             <Group gap={4} wrap="nowrap">
-              <IconFlame size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+              <Fire size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
               <Text size="xs" c="dimmed">
                 ~{plan.summary.avg_weekly_tss} TSS/wk
               </Text>
@@ -151,7 +144,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
         <Button
           color="teal"
           size={compact ? 'xs' : 'sm'}
-          leftSection={activating ? <Loader size={14} color="dark" /> : <IconTrophy size={16} />}
+          leftSection={activating ? <Loader size={14} color="dark" /> : <Trophy size={16} />}
           onClick={handleActivate}
           disabled={activating}
           fullWidth

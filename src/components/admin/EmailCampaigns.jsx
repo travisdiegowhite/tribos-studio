@@ -37,28 +37,6 @@ import {
   MultiSelect
 } from '@mantine/core';
 import {
-  IconPlus,
-  IconSend,
-  IconTrash,
-  IconRefresh,
-  IconAlertTriangle,
-  IconMail,
-  IconMailOpened,
-  IconClick,
-  IconUsers,
-  IconFilter,
-  IconEye,
-  IconEdit,
-  IconCheck,
-  IconX,
-  IconTestPipe,
-  IconChartBar,
-  IconCalendar,
-  IconUserCheck,
-  IconArrowUp,
-  IconArrowDown
-} from '@tabler/icons-react';
-import {
   listCampaigns,
   getCampaign,
   createCampaign,
@@ -68,6 +46,7 @@ import {
   sendTestEmail,
   sendCampaign
 } from '../../services/adminService';
+import { ArrowDown, ArrowUp, ArrowsClockwise, Calendar, ChartBar, Check, CursorClick, Envelope, EnvelopeOpen, Eye, Funnel, PaperPlaneRight, PencilSimple, Plus, TestTube, Trash, UserCheck, Users, Warning, X } from '@phosphor-icons/react';
 
 // Default email template
 const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
@@ -534,7 +513,7 @@ export default function EmailCampaigns() {
       {/* Error Alert */}
       {error && (
         <Alert
-          icon={<IconAlertTriangle size={16} />}
+          icon={<Warning size={16} />}
           title="Error"
           color="red"
           withCloseButton
@@ -553,14 +532,14 @@ export default function EmailCampaigns() {
           </div>
           <Group>
             <Button
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
               variant="light"
               onClick={loadCampaigns}
             >
               Refresh
             </Button>
             <Button
-              leftSection={<IconPlus size={16} />}
+              leftSection={<Plus size={16} />}
               onClick={handleNewCampaign}
             >
               New Campaign
@@ -635,19 +614,19 @@ export default function EmailCampaigns() {
                   <Group gap="xs">
                     <Tooltip label="View details">
                       <ActionIcon variant="light" onClick={() => handleViewDetails(campaign)}>
-                        <IconChartBar size={16} />
+                        <ChartBar size={16} />
                       </ActionIcon>
                     </Tooltip>
                     {campaign.status === 'draft' && (
                       <>
                         <Tooltip label="Edit">
                           <ActionIcon variant="light" onClick={() => handleEditCampaign(campaign)}>
-                            <IconEdit size={16} />
+                            <PencilSimple size={16} />
                           </ActionIcon>
                         </Tooltip>
                         <Tooltip label="Delete">
                           <ActionIcon variant="light" color="red" onClick={() => handleDeleteCampaign(campaign)}>
-                            <IconTrash size={16} />
+                            <Trash size={16} />
                           </ActionIcon>
                         </Tooltip>
                       </>
@@ -661,7 +640,7 @@ export default function EmailCampaigns() {
 
         {campaigns.length === 0 && (
           <Box p="xl" ta="center">
-            <IconMail size={48} color="var(--mantine-color-dimmed)" style={{ marginBottom: 10 }} />
+            <Envelope size={48} color="var(--mantine-color-dimmed)" style={{ marginBottom: 10 }} />
             <Text c="dimmed">No campaigns yet. Create your first campaign!</Text>
           </Box>
         )}
@@ -673,7 +652,7 @@ export default function EmailCampaigns() {
         onClose={() => setEditorOpen(false)}
         title={
           <Group>
-            <IconMail size={20} />
+            <Envelope size={20} />
             <Text fw={600}>{editingCampaign ? 'Edit Campaign' : 'New Campaign'}</Text>
           </Group>
         }
@@ -681,9 +660,9 @@ export default function EmailCampaigns() {
       >
         <Tabs defaultValue="content">
           <Tabs.List>
-            <Tabs.Tab value="content" leftSection={<IconEdit size={14} />}>Content</Tabs.Tab>
-            <Tabs.Tab value="audience" leftSection={<IconUsers size={14} />}>Audience</Tabs.Tab>
-            <Tabs.Tab value="preview" leftSection={<IconEye size={14} />}>Preview</Tabs.Tab>
+            <Tabs.Tab value="content" leftSection={<PencilSimple size={14} />}>Content</Tabs.Tab>
+            <Tabs.Tab value="audience" leftSection={<Users size={14} />}>Audience</Tabs.Tab>
+            <Tabs.Tab value="preview" leftSection={<Eye size={14} />}>Preview</Tabs.Tab>
           </Tabs.List>
 
           {/* Content Tab */}
@@ -788,11 +767,11 @@ export default function EmailCampaigns() {
                 </Group>
 
                 {selectionMode === 'filter' ? (
-                  <Alert icon={<IconFilter size={16} />} color="blue">
+                  <Alert icon={<Funnel size={16} />} color="blue">
                     Configure filters to target specific users. Leave empty to include all users in the selected audience.
                   </Alert>
                 ) : (
-                  <Alert icon={<IconUserCheck size={16} />} color="teal">
+                  <Alert icon={<UserCheck size={16} />} color="teal">
                     <Group>
                       <Text size="sm">
                         {selectedUserIds.length === 0
@@ -823,7 +802,7 @@ export default function EmailCampaigns() {
                   <Paper withBorder p="md">
                     <Group gap="xs" mb="sm">
                       <ThemeIcon size="sm" variant="light" color="teal">
-                        <IconCalendar size={14} />
+                        <Calendar size={14} />
                       </ThemeIcon>
                       <Text fw={500} size="sm">Filter by Signup Date (New Users)</Text>
                     </Group>
@@ -936,7 +915,7 @@ export default function EmailCampaigns() {
                   <Paper withBorder p="md">
                     <Group gap="xs" mb="sm">
                       <ThemeIcon size="sm" variant="light" color="orange">
-                        <IconUsers size={14} />
+                        <Users size={14} />
                       </ThemeIcon>
                       <Text fw={500} size="sm">Target by User Health Status</Text>
                     </Group>
@@ -1004,7 +983,7 @@ export default function EmailCampaigns() {
               <Divider />
 
               <Button
-                leftSection={<IconUsers size={16} />}
+                leftSection={<Users size={16} />}
                 variant="light"
                 onClick={handlePreviewRecipients}
                 loading={previewLoading}
@@ -1017,7 +996,7 @@ export default function EmailCampaigns() {
           {/* Preview Tab */}
           <Tabs.Panel value="preview" pt="md">
             <Stack gap="md">
-              <Alert icon={<IconEye size={16} />} color="blue">
+              <Alert icon={<Eye size={16} />} color="blue">
                 Preview how your email will look and send a test to yourself.
               </Alert>
 
@@ -1043,7 +1022,7 @@ export default function EmailCampaigns() {
               </Paper>
 
               <Button
-                leftSection={<IconTestPipe size={16} />}
+                leftSection={<TestTube size={16} />}
                 variant="light"
                 onClick={handleSendTest}
                 loading={sendingTest}
@@ -1071,7 +1050,7 @@ export default function EmailCampaigns() {
             {editingCampaign && editingCampaign.status === 'draft' && (
               <Button
                 color="teal"
-                leftSection={<IconSend size={16} />}
+                leftSection={<PaperPlaneRight size={16} />}
                 onClick={() => setConfirmSend(true)}
               >
                 Send Campaign
@@ -1087,7 +1066,7 @@ export default function EmailCampaigns() {
         onClose={() => setPreviewOpen(false)}
         title={
           <Group>
-            <IconUsers size={20} />
+            <Users size={20} />
             <Text fw={600}>Recipients Preview ({previewTotal} total)</Text>
           </Group>
         }
@@ -1102,7 +1081,7 @@ export default function EmailCampaigns() {
 
           {/* Selection mode info */}
           {selectionMode === 'manual' && previewRecipientsList.length > 0 && (
-            <Alert icon={<IconUserCheck size={16} />} color="blue">
+            <Alert icon={<UserCheck size={16} />} color="blue">
               <Group justify="space-between">
                 <Text size="sm">
                   Click the checkboxes to select specific users. {selectedUserIds.length} selected.
@@ -1157,8 +1136,8 @@ export default function EmailCampaigns() {
                         Email
                         {previewSortField === 'email' && (
                           previewSortDirection === 'asc'
-                            ? <IconArrowUp size={14} />
-                            : <IconArrowDown size={14} />
+                            ? <ArrowUp size={14} />
+                            : <ArrowDown size={14} />
                         )}
                       </Group>
                     </Table.Th>
@@ -1171,8 +1150,8 @@ export default function EmailCampaigns() {
                         Signed Up
                         {previewSortField === 'created_at' && (
                           previewSortDirection === 'asc'
-                            ? <IconArrowUp size={14} />
-                            : <IconArrowDown size={14} />
+                            ? <ArrowUp size={14} />
+                            : <ArrowDown size={14} />
                         )}
                       </Group>
                     </Table.Th>
@@ -1228,7 +1207,7 @@ export default function EmailCampaigns() {
             {selectionMode === 'manual' && selectedUserIds.length > 0 && (
               <Button
                 color="teal"
-                leftSection={<IconCheck size={16} />}
+                leftSection={<Check size={16} />}
                 onClick={() => setPreviewOpen(false)}
               >
                 Use {selectedUserIds.length} Selected User{selectedUserIds.length === 1 ? '' : 's'}
@@ -1244,14 +1223,14 @@ export default function EmailCampaigns() {
         onClose={() => setConfirmSend(false)}
         title={
           <Group>
-            <IconAlertTriangle size={20} color="var(--mantine-color-yellow-6)" />
+            <Warning size={20} color="var(--mantine-color-yellow-6)" />
             <Text fw={600}>Confirm Send Campaign</Text>
           </Group>
         }
         size="md"
       >
         <Stack gap="md">
-          <Alert color="yellow" icon={<IconAlertTriangle size={16} />}>
+          <Alert color="yellow" icon={<Warning size={16} />}>
             <Text fw={600}>Are you sure you want to send this campaign?</Text>
             <Text size="sm" mt="xs">
               This action cannot be undone.
@@ -1288,7 +1267,7 @@ export default function EmailCampaigns() {
           </Paper>
 
           {selectionMode === 'manual' && selectedUserIds.length === 0 && (
-            <Alert color="red" icon={<IconAlertTriangle size={16} />}>
+            <Alert color="red" icon={<Warning size={16} />}>
               <Text fw={600}>No users selected!</Text>
               <Text size="sm">You must select users before sending in Manual Selection mode.</Text>
             </Alert>
@@ -1300,7 +1279,7 @@ export default function EmailCampaigns() {
             </Button>
             <Button
               color="teal"
-              leftSection={<IconSend size={16} />}
+              leftSection={<PaperPlaneRight size={16} />}
               onClick={handleSendCampaign}
               loading={sendingCampaign}
               disabled={selectionMode === 'manual' && selectedUserIds.length === 0}
@@ -1317,7 +1296,7 @@ export default function EmailCampaigns() {
         onClose={() => setDetailsOpen(false)}
         title={
           <Group>
-            <IconChartBar size={20} />
+            <ChartBar size={20} />
             <Text fw={600}>Campaign Details</Text>
           </Group>
         }
@@ -1344,7 +1323,7 @@ export default function EmailCampaigns() {
                       onClick={() => handleViewDetails(selectedCampaign)}
                       loading={detailsLoading}
                     >
-                      <IconRefresh size={16} />
+                      <ArrowsClockwise size={16} />
                     </ActionIcon>
                   </Tooltip>
                   <Badge size="lg" color={getStatusColor(selectedCampaign.status)}>
@@ -1356,7 +1335,7 @@ export default function EmailCampaigns() {
               <SimpleGrid cols={4}>
                 <Card withBorder p="sm">
                   <Group gap="xs">
-                    <IconUsers size={20} color="var(--mantine-color-blue-6)" />
+                    <Users size={20} color="var(--mantine-color-blue-6)" />
                     <div>
                       <Text size="lg" fw={700}>{selectedCampaign.total_recipients || 0}</Text>
                       <Text size="xs" c="dimmed">Recipients</Text>
@@ -1365,7 +1344,7 @@ export default function EmailCampaigns() {
                 </Card>
                 <Card withBorder p="sm">
                   <Group gap="xs">
-                    <IconMail size={20} color="var(--mantine-color-green-6)" />
+                    <Envelope size={20} color="var(--mantine-color-green-6)" />
                     <div>
                       <Text size="lg" fw={700}>{selectedCampaign.sent_count || 0}</Text>
                       <Text size="xs" c="dimmed">Sent</Text>
@@ -1374,7 +1353,7 @@ export default function EmailCampaigns() {
                 </Card>
                 <Card withBorder p="sm">
                   <Group gap="xs">
-                    <IconMailOpened size={20} color="var(--mantine-color-violet-6)" />
+                    <EnvelopeOpen size={20} color="var(--mantine-color-violet-6)" />
                     <div>
                       <Text size="lg" fw={700}>
                         {selectedCampaign.opened_count || 0}
@@ -1390,7 +1369,7 @@ export default function EmailCampaigns() {
                 </Card>
                 <Card withBorder p="sm">
                   <Group gap="xs">
-                    <IconClick size={20} color="var(--mantine-color-orange-6)" />
+                    <CursorClick size={20} color="var(--mantine-color-orange-6)" />
                     <div>
                       <Text size="lg" fw={700}>
                         {selectedCampaign.clicked_count || 0}
@@ -1427,7 +1406,7 @@ export default function EmailCampaigns() {
                   </Group>
                   {/* Show first error message if available */}
                   {campaignRecipients.some(r => r.error_message) && (
-                    <Alert color="red" icon={<IconAlertTriangle size={16} />} mt="md">
+                    <Alert color="red" icon={<Warning size={16} />} mt="md">
                       <Text fw={600}>Error from Resend:</Text>
                       <Text size="sm">{campaignRecipients.find(r => r.error_message)?.error_message}</Text>
                       <Text size="xs" c="dimmed" mt="xs">Hover over "failed" badges in the table below to see individual errors.</Text>
@@ -1480,21 +1459,21 @@ export default function EmailCampaigns() {
                         <Table.Td>
                           {r.first_opened_at ? (
                             <Group gap={4}>
-                              <IconCheck size={14} color="var(--mantine-color-green-6)" />
+                              <Check size={14} color="var(--mantine-color-green-6)" />
                               <Text size="sm">{r.open_count}x</Text>
                             </Group>
                           ) : (
-                            <IconX size={14} color="var(--mantine-color-gray-5)" />
+                            <X size={14} color="var(--mantine-color-gray-5)" />
                           )}
                         </Table.Td>
                         <Table.Td>
                           {r.first_clicked_at ? (
                             <Group gap={4}>
-                              <IconCheck size={14} color="var(--mantine-color-green-6)" />
+                              <Check size={14} color="var(--mantine-color-green-6)" />
                               <Text size="sm">{r.click_count}x</Text>
                             </Group>
                           ) : (
-                            <IconX size={14} color="var(--mantine-color-gray-5)" />
+                            <X size={14} color="var(--mantine-color-gray-5)" />
                           )}
                         </Table.Td>
                       </Table.Tr>

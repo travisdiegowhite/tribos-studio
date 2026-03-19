@@ -12,7 +12,6 @@ import {
   UnstyledButton,
   ThemeIcon,
 } from '@mantine/core';
-import { IconPlus, IconChevronDown, IconChevronRight, IconTool } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useGear } from '../hooks/useGear.ts';
 import AppShell from '../components/AppShell.jsx';
@@ -22,6 +21,7 @@ import GearDetailView from '../components/gear/GearDetailView.jsx';
 import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
 import AddGearModal from '../components/gear/AddGearModal.jsx';
 import { notifications } from '@mantine/notifications';
+import { CaretDown, CaretRight, Plus, Wrench } from '@phosphor-icons/react';
 
 function GearPage() {
   const { user } = useAuth();
@@ -74,7 +74,7 @@ function GearPage() {
             subtitle="Track your bikes, shoes, and components"
             actions={
               <Button
-                leftSection={<IconPlus size={16} />}
+                leftSection={<Plus size={16} />}
                 onClick={() => setAddModalOpen(true)}
               >
                 Add Gear
@@ -113,7 +113,7 @@ function GearPage() {
           ) : activeGear.length === 0 ? (
             <Stack align="center" gap="sm" py="xl">
               <ThemeIcon size={48} radius="xl" variant="light" color="gray">
-                <IconTool size={24} />
+                <Wrench size={24} />
               </ThemeIcon>
               <Text c="dimmed" ta="center">
                 No {activeSport === 'cycling' ? 'bikes' : 'shoes'} tracked yet.
@@ -144,7 +144,7 @@ function GearPage() {
             <>
               <UnstyledButton onClick={() => setShowRetired(!showRetired)}>
                 <Group gap={4}>
-                  {showRetired ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                  {showRetired ? <CaretDown size={14} /> : <CaretRight size={14} />}
                   <Text size="sm" c="dimmed">
                     Retired ({retiredGear.length})
                   </Text>

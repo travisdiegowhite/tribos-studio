@@ -16,11 +16,11 @@ import {
   Badge,
   Box,
 } from '@mantine/core';
-import { IconSparkles, IconRefresh } from '@tabler/icons-react';
 import { supabase } from '../../lib/supabase';
 import { PERSONAS, PERSONA_LIST } from '../../data/coachingPersonas';
 import IntakeInterview from '../coach/IntakeInterview';
 import type { PersonaId } from '../../types/checkIn';
+import { ArrowsClockwise, Sparkle } from '@phosphor-icons/react';
 
 interface CoachPersonaSettingsProps {
   userId: string;
@@ -81,7 +81,7 @@ export default function CoachPersonaSettings({ userId }: CoachPersonaSettingsPro
     <>
       <Stack gap="md">
         <Group gap="xs">
-          <IconSparkles size={18} color="var(--color-teal)" />
+          <Sparkle size={18} color="var(--color-teal)" />
           <Text fw={600}>Coaching Persona</Text>
         </Group>
 
@@ -126,7 +126,7 @@ export default function CoachPersonaSettings({ userId }: CoachPersonaSettingsPro
         <Button
           variant="subtle"
           size="sm"
-          leftSection={<IconRefresh size={16} />}
+          leftSection={<ArrowsClockwise size={16} />}
           onClick={() => setShowIntake(true)}
         >
           {persona ? 'Retake Intake Interview' : 'Take Intake Interview'}

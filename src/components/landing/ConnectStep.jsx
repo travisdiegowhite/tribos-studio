@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Container, Text, Paper, Group, ThemeIcon, SimpleGrid, Box, Stack } from '@mantine/core';
-import { IconActivity, IconDeviceWatch, IconUpload, IconCheck } from '@tabler/icons-react';
 import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
+import { Check, Heartbeat, UploadSimple, Watch } from '@phosphor-icons/react';
 
 const integrations = [
   {
     name: 'Strava',
     subtitle: 'Auto-import rides',
-    icon: IconActivity,
+    icon: Heartbeat,
     color: '#FC4C02',
     themeColor: 'orange',
     delay: 0,
@@ -15,7 +15,7 @@ const integrations = [
   {
     name: 'Garmin',
     subtitle: 'Sync activities & routes',
-    icon: IconDeviceWatch,
+    icon: Watch,
     color: '#007CC3',
     themeColor: 'blue',
     delay: 400,
@@ -23,7 +23,7 @@ const integrations = [
   {
     name: 'Wahoo',
     subtitle: 'Sync routes to device',
-    icon: IconDeviceWatch,
+    icon: Watch,
     color: '#1A73E8',
     themeColor: 'cyan',
     delay: 800,
@@ -31,7 +31,7 @@ const integrations = [
   {
     name: 'FIT Upload',
     subtitle: 'Direct file upload',
-    icon: IconUpload,
+    icon: UploadSimple,
     color: 'var(--color-teal)',
     themeColor: 'terracotta',
     delay: 1200,
@@ -140,7 +140,7 @@ export default function ConnectStep() {
                           transition: 'opacity 0.3s ease-out, transform 0.3s ease-out',
                         }}
                       >
-                        <IconCheck size={14} color="var(--color-gold)" />
+                        <Check size={14} color="var(--color-gold)" />
                         <Text
                           size="xs"
                           fw={600}

@@ -16,16 +16,6 @@ import {
   Select,
   Divider,
 } from '@mantine/core';
-import {
-  IconRocket,
-  IconDeviceWatch,
-  IconTarget,
-  IconCheck,
-  IconChevronRight,
-  IconChevronLeft,
-  IconRoute,
-  IconActivity,
-} from '@tabler/icons-react';
 import { ConnectWithStravaButton, STRAVA_ORANGE } from './StravaBranding';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -34,6 +24,7 @@ import { tokens } from '../theme';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
+import { CaretLeft, CaretRight, Check, Heartbeat, Path, Rocket, Target, Watch } from '@phosphor-icons/react';
 
 function OnboardingModal({ opened, onClose }) {
   const navigate = useNavigate();
@@ -136,7 +127,7 @@ function OnboardingModal({ opened, onClose }) {
       title={
         <Group gap="sm">
           <ThemeIcon color="teal" variant="light" size="lg">
-            <IconRocket size={20} />
+            <Rocket size={20} />
           </ThemeIcon>
           <Text fw={600} size="lg">Welcome to tribos.studio</Text>
           <Badge color="gray" variant="light">Beta</Badge>
@@ -145,7 +136,7 @@ function OnboardingModal({ opened, onClose }) {
       closeOnClickOutside={false}
     >
       <Stepper active={active} onStepClick={setActive} color="teal" size="sm" mb="xl">
-        <Stepper.Step label="Welcome" icon={<IconRocket size={18} />}>
+        <Stepper.Step label="Welcome" icon={<Rocket size={18} />}>
           <Stack gap="lg" py="md">
             <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
               Thanks for joining the beta!
@@ -162,19 +153,19 @@ function OnboardingModal({ opened, onClose }) {
               </Text>
               <Stack gap="xs">
                 <Group gap="xs">
-                  <IconCheck size={16} color={'var(--color-text-muted)'} />
+                  <Check size={16} color={'var(--color-text-muted)'} />
                   <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                     Early access to all features
                   </Text>
                 </Group>
                 <Group gap="xs">
-                  <IconCheck size={16} color={'var(--color-text-muted)'} />
+                  <Check size={16} color={'var(--color-text-muted)'} />
                   <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                     Direct line to Travis for feedback
                   </Text>
                 </Group>
                 <Group gap="xs">
-                  <IconCheck size={16} color={'var(--color-text-muted)'} />
+                  <Check size={16} color={'var(--color-text-muted)'} />
                   <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
                     Free access during the beta period
                   </Text>
@@ -188,7 +179,7 @@ function OnboardingModal({ opened, onClose }) {
           </Stack>
         </Stepper.Step>
 
-        <Stepper.Step label="Connect" icon={<IconDeviceWatch size={18} />}>
+        <Stepper.Step label="Connect" icon={<Watch size={18} />}>
           <Stack gap="lg" py="md">
             <Box>
               <Title order={3} style={{ color: 'var(--color-text-primary)' }} mb="xs">
@@ -211,7 +202,7 @@ function OnboardingModal({ opened, onClose }) {
                 <Group justify="space-between">
                   <Group gap="sm">
                     <ThemeIcon size="lg" style={{ backgroundColor: `${STRAVA_ORANGE}20` }}>
-                      <IconActivity size={20} color={STRAVA_ORANGE} />
+                      <Heartbeat size={20} color={STRAVA_ORANGE} />
                     </ThemeIcon>
                     <Box>
                       <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>Strava</Text>
@@ -221,7 +212,7 @@ function OnboardingModal({ opened, onClose }) {
                     </Box>
                   </Group>
                   {stravaConnected ? (
-                    <Badge color="green" leftSection={<IconCheck size={12} />}>Connected</Badge>
+                    <Badge color="green" leftSection={<Check size={12} />}>Connected</Badge>
                   ) : (
                     <ConnectWithStravaButton onClick={handleConnectStrava} />
                   )}
@@ -239,7 +230,7 @@ function OnboardingModal({ opened, onClose }) {
                 <Group justify="space-between">
                   <Group gap="sm">
                     <ThemeIcon size="lg" color="blue" variant="light">
-                      <IconDeviceWatch size={20} />
+                      <Watch size={20} />
                     </ThemeIcon>
                     <Box>
                       <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>Garmin</Text>
@@ -249,7 +240,7 @@ function OnboardingModal({ opened, onClose }) {
                     </Box>
                   </Group>
                   {garminConnected ? (
-                    <Badge color="green" leftSection={<IconCheck size={12} />}>Connected</Badge>
+                    <Badge color="green" leftSection={<Check size={12} />}>Connected</Badge>
                   ) : (
                     <Button size="xs" variant="light" color="blue" onClick={handleConnectGarmin}>
                       Connect
@@ -269,7 +260,7 @@ function OnboardingModal({ opened, onClose }) {
                 <Group justify="space-between">
                   <Group gap="sm">
                     <ThemeIcon size="lg" color="cyan" variant="light">
-                      <IconDeviceWatch size={20} />
+                      <Watch size={20} />
                     </ThemeIcon>
                     <Box>
                       <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>Wahoo</Text>
@@ -279,7 +270,7 @@ function OnboardingModal({ opened, onClose }) {
                     </Box>
                   </Group>
                   {wahooConnected ? (
-                    <Badge color="green" leftSection={<IconCheck size={12} />}>Connected</Badge>
+                    <Badge color="green" leftSection={<Check size={12} />}>Connected</Badge>
                   ) : (
                     <Button size="xs" variant="light" color="cyan" onClick={handleConnectWahoo}>
                       Connect
@@ -295,7 +286,7 @@ function OnboardingModal({ opened, onClose }) {
           </Stack>
         </Stepper.Step>
 
-        <Stepper.Step label="Preferences" icon={<IconTarget size={18} />}>
+        <Stepper.Step label="Preferences" icon={<Target size={18} />}>
           <Stack gap="lg" py="md">
             <Box>
               <Title order={3} style={{ color: 'var(--color-text-primary)' }} mb="xs">
@@ -340,7 +331,7 @@ function OnboardingModal({ opened, onClose }) {
         <Stepper.Completed>
           <Stack gap="lg" py="md" align="center">
             <ThemeIcon size={80} radius="xl" color="teal" variant="light">
-              <IconCheck size={40} />
+              <Check size={40} />
             </ThemeIcon>
 
             <Title order={3} ta="center" style={{ color: 'var(--color-text-primary)' }}>
@@ -360,7 +351,7 @@ function OnboardingModal({ opened, onClose }) {
               >
                 <Stack gap="xs" align="center">
                   <ThemeIcon size="lg" color="gray" variant="light">
-                    <IconRoute size={20} />
+                    <Path size={20} />
                   </ThemeIcon>
                   <Text size="sm" fw={500} ta="center" style={{ color: 'var(--color-text-primary)' }}>
                     Create a Route
@@ -376,7 +367,7 @@ function OnboardingModal({ opened, onClose }) {
               >
                 <Stack gap="xs" align="center">
                   <ThemeIcon size="lg" color="gray" variant="light">
-                    <IconActivity size={20} />
+                    <Heartbeat size={20} />
                   </ThemeIcon>
                   <Text size="sm" fw={500} ta="center" style={{ color: 'var(--color-text-primary)' }}>
                     View Training
@@ -396,7 +387,7 @@ function OnboardingModal({ opened, onClose }) {
 
       <Group justify="space-between">
         {active > 0 && active < 3 ? (
-          <Button variant="subtle" onClick={prevStep} leftSection={<IconChevronLeft size={16} />}>
+          <Button variant="subtle" onClick={prevStep} leftSection={<CaretLeft size={16} />}>
             Back
           </Button>
         ) : (
@@ -406,7 +397,7 @@ function OnboardingModal({ opened, onClose }) {
         {active < 3 ? (
           <Button
             onClick={nextStep}
-            rightSection={<IconChevronRight size={16} />}
+            rightSection={<CaretRight size={16} />}
             color="teal"
           >
             {active === 2 ? 'Finish Setup' : 'Continue'}

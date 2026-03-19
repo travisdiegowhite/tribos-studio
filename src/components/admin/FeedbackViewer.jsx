@@ -18,23 +18,15 @@ import {
   Button,
   Box
 } from '@mantine/core';
-import {
-  IconAlertTriangle,
-  IconBug,
-  IconBulb,
-  IconRefresh,
-  IconMessage,
-  IconQuestionMark,
-  IconExternalLink
-} from '@tabler/icons-react';
 import { listFeedback } from '../../services/adminService';
+import { ArrowSquareOut, ArrowsClockwise, Bug, ChatDots, Lightbulb, Question, Warning } from '@phosphor-icons/react';
 
 const FEEDBACK_TYPE_CONFIG = {
-  bug: { color: 'red', icon: IconBug, label: 'Bug Report' },
-  feature: { color: 'blue', icon: IconBulb, label: 'Feature Request' },
-  improvement: { color: 'sage', icon: IconBulb, label: 'Improvement' },
-  question: { color: 'yellow', icon: IconQuestionMark, label: 'Question' },
-  general: { color: 'gray', icon: IconMessage, label: 'General' }
+  bug: { color: 'red', icon: Bug, label: 'Bug Report' },
+  feature: { color: 'blue', icon: Lightbulb, label: 'Feature Request' },
+  improvement: { color: 'sage', icon: Lightbulb, label: 'Improvement' },
+  question: { color: 'yellow', icon: Question, label: 'Question' },
+  general: { color: 'gray', icon: ChatDots, label: 'General' }
 };
 
 const STATUS_COLORS = {
@@ -91,7 +83,7 @@ export default function FeedbackViewer() {
   if (error) {
     return (
       <Alert
-        icon={<IconAlertTriangle size={16} />}
+        icon={<Warning size={16} />}
         title="Error"
         color="red"
       >
@@ -108,7 +100,7 @@ export default function FeedbackViewer() {
             {feedback.length} Feedback Submission{feedback.length !== 1 ? 's' : ''}
           </Text>
           <Button
-            leftSection={<IconRefresh size={16} />}
+            leftSection={<ArrowsClockwise size={16} />}
             variant="light"
             onClick={loadFeedback}
           >
@@ -120,7 +112,7 @@ export default function FeedbackViewer() {
       {feedback.length === 0 ? (
         <Paper withBorder p="xl">
           <Stack align="center">
-            <IconMessage size={48} color="var(--mantine-color-gray-5)" />
+            <ChatDots size={48} color="var(--mantine-color-gray-5)" />
             <Text c="dimmed">No feedback submissions yet</Text>
           </Stack>
         </Paper>
@@ -181,7 +173,7 @@ export default function FeedbackViewer() {
                               {item.page_url}
                             </Text>
                             <a href={item.page_url} target="_blank" rel="noopener noreferrer">
-                              <IconExternalLink size={12} />
+                              <ArrowSquareOut size={12} />
                             </a>
                           </Group>
                         </div>

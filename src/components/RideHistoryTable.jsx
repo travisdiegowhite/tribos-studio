@@ -15,11 +15,11 @@ import {
   Box,
   Pagination,
 } from '@mantine/core';
-import { IconSearch, IconEye, IconChartBar, IconChevronRight, IconChevronLeft, IconFilter, IconEyeOff, IconEyeCheck, IconUpload, IconDeviceWatch, IconRoute, IconBike, IconRun } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '@mantine/hooks';
 import { ViewOnStravaLink, StravaLogo, PoweredByStrava, STRAVA_ORANGE } from './StravaBranding';
 import { PoweredByGarmin } from './GarminBranding';
+import { Bicycle, CaretLeft, CaretRight, ChartBar, Eye, EyeSlash, Funnel, MagnifyingGlass, Path, PersonSimpleRun, UploadSimple, Watch } from '@phosphor-icons/react';
 
 /**
  * Ride History Table Component
@@ -67,14 +67,14 @@ const RideHistoryTable = ({
       case 'strava':
         return { label: 'Strava', color: 'orange', icon: StravaLogo };
       case 'garmin':
-        return { label: 'Garmin', color: 'blue', icon: IconDeviceWatch };
+        return { label: 'Garmin', color: 'blue', icon: Watch };
       case 'fit_upload':
-        return { label: 'FIT Upload', color: 'cyan', icon: IconUpload };
+        return { label: 'FIT Upload', color: 'cyan', icon: UploadSimple };
       case 'gpx_upload':
-        return { label: 'GPX Upload', color: 'green', icon: IconRoute };
+        return { label: 'GPX Upload', color: 'green', icon: Path };
       case 'manual':
       default:
-        return { label: 'Manual', color: 'gray', icon: IconUpload };
+        return { label: 'Manual', color: 'gray', icon: UploadSimple };
     }
   };
 
@@ -239,7 +239,7 @@ const RideHistoryTable = ({
                 { value: 'cycling', label: 'Cycling' },
                 { value: 'running', label: 'Running' },
               ]}
-              leftSection={sportFilter === 'running' ? <IconRun size={12} /> : sportFilter === 'cycling' ? <IconBike size={12} /> : <IconFilter size={12} />}
+              leftSection={sportFilter === 'running' ? <PersonSimpleRun size={12} /> : sportFilter === 'cycling' ? <Bicycle size={12} /> : <Funnel size={12} />}
               w={{ base: 'auto', sm: 120 }}
             />
           )}
@@ -253,12 +253,12 @@ const RideHistoryTable = ({
               { value: '30d', label: 'Last 30 Days' },
               { value: '90d', label: 'Last 90 Days' },
             ]}
-            leftSection={<IconFilter size={12} />}
+            leftSection={<Funnel size={12} />}
             w={{ base: 'auto', sm: 130 }}
           />
           <TextInput
             placeholder="Search..."
-            leftSection={<IconSearch size={14} />}
+            leftSection={<MagnifyingGlass size={14} />}
             value={searchQuery}
             onChange={handleSearchChange}
             size="xs"
@@ -294,7 +294,7 @@ const RideHistoryTable = ({
                       size="xs"
                       color={getSportType(ride) === 'running' ? 'teal' : 'blue'}
                       variant="light"
-                      leftSection={getSportType(ride) === 'running' ? <IconRun size={10} /> : <IconBike size={10} />}
+                      leftSection={getSportType(ride) === 'running' ? <PersonSimpleRun size={10} /> : <Bicycle size={10} />}
                     >
                       {getSportType(ride) === 'running' ? 'Run' : 'Ride'}
                     </Badge>
@@ -377,7 +377,7 @@ const RideHistoryTable = ({
                         onHideRide(ride);
                       }}
                     >
-                      {ride.is_hidden ? <IconEyeCheck size={16} /> : <IconEyeOff size={16} />}
+                      {ride.is_hidden ? <Eye size={16} /> : <EyeSlash size={16} />}
                     </ActionIcon>
                   </Tooltip>
                 )}
@@ -416,7 +416,7 @@ const RideHistoryTable = ({
                           size="xs"
                           color={getSportType(ride) === 'running' ? 'teal' : 'blue'}
                           variant="light"
-                          leftSection={getSportType(ride) === 'running' ? <IconRun size={10} /> : <IconBike size={10} />}
+                          leftSection={getSportType(ride) === 'running' ? <PersonSimpleRun size={10} /> : <Bicycle size={10} />}
                         >
                           {getSportType(ride) === 'running' ? 'Run' : 'Ride'}
                         </Badge>
@@ -484,7 +484,7 @@ const RideHistoryTable = ({
                           variant="subtle"
                           onClick={() => onViewRide?.(ride)}
                         >
-                          <IconEye size={16} />
+                          <Eye size={16} />
                         </ActionIcon>
                       </Tooltip>
                       {getPower(ride) > 0 && onAnalyzeRide && (
@@ -495,7 +495,7 @@ const RideHistoryTable = ({
                             color="blue"
                             onClick={() => onAnalyzeRide(ride)}
                           >
-                            <IconChartBar size={16} />
+                            <ChartBar size={16} />
                           </ActionIcon>
                         </Tooltip>
                       )}
@@ -510,7 +510,7 @@ const RideHistoryTable = ({
                             color={ride.is_hidden ? 'green' : 'gray'}
                             onClick={() => onHideRide(ride)}
                           >
-                            {ride.is_hidden ? <IconEyeCheck size={16} /> : <IconEyeOff size={16} />}
+                            {ride.is_hidden ? <Eye size={16} /> : <EyeSlash size={16} />}
                           </ActionIcon>
                         </Tooltip>
                       )}
@@ -545,7 +545,7 @@ const RideHistoryTable = ({
           variant="subtle"
           fullWidth
           mt="sm"
-          rightSection={<IconChevronRight size={16} />}
+          rightSection={<CaretRight size={16} />}
           onClick={() => navigate('/training?tab=history')}
         >
           View all {visibleRidesCount} activities

@@ -11,20 +11,16 @@ import {
   Box, Text, TextInput, Button, Group, Stack, ActionIcon, Badge,
   Tooltip, Loader, Paper, Divider, SimpleGrid,
 } from '@mantine/core';
-import {
-  IconWand, IconX, IconSend, IconMountain, IconTree,
-  IconRoad, IconBolt, IconArrowsExchange, IconCheck,
-  IconArrowBack, IconRoute, IconDroplet,
-} from '@tabler/icons-react';
 import { tokens } from '../../theme';
 import { classifyEditIntent, QUICK_ACTIONS } from '../../utils/aiRouteEditService';
+import { ArrowLeft, ArrowsLeftRight, Check, Drop, Lightning, MagicWand, Mountains, PaperPlaneRight, Path, RoadHorizon, Tree, X } from '@phosphor-icons/react';
 
 const QUICK_ACTION_ICONS = {
-  mountain: IconMountain,
-  tree: IconTree,
-  road: IconRoute,
-  bolt: IconBolt,
-  arrows: IconArrowsExchange,
+  mountain: Mountains,
+  tree: Tree,
+  road: Path,
+  bolt: Lightning,
+  arrows: ArrowsLeftRight,
 };
 
 /**
@@ -103,13 +99,13 @@ export default function AIEditPanel({
         style={{ borderBottom: '1px solid var(--color-bg-secondary)' }}
       >
         <Group gap={6}>
-          <IconWand size={16} color="var(--color-teal)" />
+          <MagicWand size={16} color="var(--color-teal)" />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             AI Route Edit
           </Text>
         </Group>
         <ActionIcon size="sm" variant="subtle" onClick={onClose} color="gray">
-          <IconX size={14} />
+          <X size={14} />
         </ActionIcon>
       </Group>
 
@@ -118,7 +114,7 @@ export default function AIEditPanel({
         {!showPreview && (
           <SimpleGrid cols={3} spacing={4}>
             {QUICK_ACTIONS.map((action) => {
-              const Icon = QUICK_ACTION_ICONS[action.icon] || IconRoute;
+              const Icon = QUICK_ACTION_ICONS[action.icon] || Path;
               return (
                 <Tooltip key={action.id} label={action.description} position="top">
                   <Button
@@ -172,7 +168,7 @@ export default function AIEditPanel({
               onClick={handleSubmit}
               disabled={!inputText.trim() || loading}
             >
-              {loading ? <Loader size={14} color="dark" /> : <IconSend size={16} />}
+              {loading ? <Loader size={14} color="dark" /> : <PaperPlaneRight size={16} />}
             </ActionIcon>
           </Group>
         )}
@@ -244,7 +240,7 @@ export default function AIEditPanel({
                 color="teal"
                 size="xs"
                 onClick={onAccept}
-                leftSection={<IconCheck size={14} />}
+                leftSection={<Check size={14} />}
               >
                 Apply
               </Button>
@@ -253,7 +249,7 @@ export default function AIEditPanel({
                 color="gray"
                 size="xs"
                 onClick={onReject}
-                leftSection={<IconArrowBack size={14} />}
+                leftSection={<ArrowLeft size={14} />}
               >
                 Undo
               </Button>

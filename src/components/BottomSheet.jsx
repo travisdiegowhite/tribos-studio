@@ -1,7 +1,7 @@
 import { useState, useRef, memo } from 'react';
 import { Box, Paper, Text } from '@mantine/core';
-import { IconChevronUp, IconChevronDown } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { CaretDown, CaretUp } from '@phosphor-icons/react';
 
 /**
  * BottomSheet - A mobile-friendly bottom sheet component
@@ -129,12 +129,12 @@ function BottomSheet({
         >
           {isExpanded ? (
             <>
-              <IconChevronDown size={14} />
+              <CaretDown size={14} />
               <Text size="xs">Swipe down to collapse</Text>
             </>
           ) : (
             <>
-              <IconChevronUp size={14} />
+              <CaretUp size={14} />
               <Text size="xs">Swipe up for options</Text>
             </>
           )}

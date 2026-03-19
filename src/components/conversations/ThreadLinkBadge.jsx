@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Badge, Tooltip, Group } from '@mantine/core';
-import { IconChartLine, IconActivity, IconLink } from '@tabler/icons-react';
 import { supabase } from '../../lib/supabase';
+import { ChartLine, Heartbeat, Link } from '@phosphor-icons/react';
 
 // Coach type configurations
 const COACH_CONFIGS = {
   strategist: {
     color: 'teal',
-    icon: IconChartLine,
+    icon: ChartLine,
     name: 'Training Strategist',
   },
   pulse: {
     color: 'terracotta',
-    icon: IconActivity,
+    icon: Heartbeat,
     name: 'Pulse',
   },
 };

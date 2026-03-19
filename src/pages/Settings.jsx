@@ -27,7 +27,6 @@ import {
   SegmentedControl,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconAlertTriangle, IconUpload, IconCheck, IconInfoCircle, IconSun, IconMoon, IconChevronDown, IconChevronRight, IconUser, IconBarbell, IconBike, IconPlugConnected, IconRoute, IconAdjustments, IconSparkles, IconDownload, IconTrash, IconPlus, IconTool } from '@tabler/icons-react';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -56,8 +55,8 @@ import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
 import AddGearModal from '../components/gear/AddGearModal.jsx';
 import IntegrationAlert from '../components/IntegrationAlert.jsx';
 import { googleCalendarService } from '../utils/googleCalendarService';
-import { IconBrandGoogle } from '@tabler/icons-react';
 import { trackInteraction, EventType } from '../utils/activityTracking';
+import { Barbell, Bicycle, CaretDown, CaretRight, Check, DownloadSimple, GoogleLogo, Info, Moon, Path, Plug, Plus, Sliders, Sparkle, Sun, Trash, UploadSimple, User, Warning, Wrench } from '@phosphor-icons/react';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -1341,7 +1340,7 @@ function Settings() {
         onClose={() => setOpenModal(null)}
         title={
           <Group gap="sm">
-            <IconAlertTriangle size={24} color="teal" />
+            <Warning size={24} color="teal" />
             <Text fw={600}>Disconnect Strava?</Text>
           </Group>
         }
@@ -1349,7 +1348,7 @@ function Settings() {
         size="md"
       >
         <Stack gap="md">
-          <Alert color="teal" variant="light" icon={<IconAlertTriangle size={18} />}>
+          <Alert color="teal" variant="light" icon={<Warning size={18} />}>
             <Text size="sm" fw={500}>
               This action will permanently delete all your Strava-synced activities and speed profile data.
             </Text>
@@ -1368,7 +1367,7 @@ function Settings() {
             }}
           >
             <Group gap="sm" mb="xs">
-              <IconUpload size={18} color={'var(--color-teal)'} />
+              <UploadSimple size={18} color={'var(--color-teal)'} />
               <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
                 Want to keep your data?
               </Text>
@@ -1416,7 +1415,7 @@ function Settings() {
         size="md"
       >
         <Stack gap="md">
-          <Alert color="red" variant="light" icon={<IconAlertTriangle size={18} />}>
+          <Alert color="red" variant="light" icon={<Warning size={18} />}>
             <Text size="sm" fw={500}>This action is permanent and cannot be undone.</Text>
           </Alert>
           <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
@@ -1467,7 +1466,7 @@ function Settings() {
         onClose={() => setOpenModal(null)}
         title={
           <Group gap="sm">
-            <IconAlertTriangle size={24} color="teal" />
+            <Warning size={24} color="teal" />
             <Text fw={600}>Reconnect Garmin</Text>
           </Group>
         }
@@ -1475,7 +1474,7 @@ function Settings() {
         size="md"
       >
         <Stack gap="md">
-          <Alert color="teal" variant="light" icon={<IconAlertTriangle size={18} />}>
+          <Alert color="teal" variant="light" icon={<Warning size={18} />}>
             <Text size="sm" fw={500}>
               Your Garmin connection has expired or become invalid. Activities are not syncing.
             </Text>
@@ -1561,22 +1560,22 @@ function Settings() {
               }}
             >
               <Tabs.List grow={!isMobile} justify={isMobile ? 'center' : undefined}>
-                <Tabs.Tab value="profile" leftSection={<IconUser size={isMobile ? 20 : 18} />}>
+                <Tabs.Tab value="profile" leftSection={<User size={isMobile ? 20 : 18} />}>
                   {!isMobile && 'Profile'}
                 </Tabs.Tab>
-                <Tabs.Tab value="training" leftSection={<IconBarbell size={isMobile ? 20 : 18} />}>
+                <Tabs.Tab value="training" leftSection={<Barbell size={isMobile ? 20 : 18} />}>
                   {!isMobile && 'Training'}
                 </Tabs.Tab>
-                <Tabs.Tab value="gear" leftSection={<IconBike size={isMobile ? 20 : 18} />}>
+                <Tabs.Tab value="gear" leftSection={<Bicycle size={isMobile ? 20 : 18} />}>
                   {!isMobile && 'Gear'}
                 </Tabs.Tab>
-                <Tabs.Tab value="integrations" leftSection={<IconPlugConnected size={isMobile ? 20 : 18} />}>
+                <Tabs.Tab value="integrations" leftSection={<Plug size={isMobile ? 20 : 18} />}>
                   {!isMobile && 'Integrations'}
                 </Tabs.Tab>
-                <Tabs.Tab value="routes" leftSection={<IconRoute size={isMobile ? 20 : 18} />}>
+                <Tabs.Tab value="routes" leftSection={<Path size={isMobile ? 20 : 18} />}>
                   {!isMobile && 'Routes'}
                 </Tabs.Tab>
-                <Tabs.Tab value="preferences" leftSection={<IconAdjustments size={isMobile ? 20 : 18} />}>
+                <Tabs.Tab value="preferences" leftSection={<Sliders size={isMobile ? 20 : 18} />}>
                   {!isMobile && 'Preferences'}
                 </Tabs.Tab>
               </Tabs.List>
@@ -1799,7 +1798,7 @@ function Settings() {
               </Text>
             </Stack>
             <Button
-              leftSection={<IconPlus size={16} />}
+              leftSection={<Plus size={16} />}
               onClick={() => setAddGearModalOpen(true)}
             >
               Add Gear
@@ -1834,7 +1833,7 @@ function Settings() {
           ) : activeGear.length === 0 ? (
             <Stack align="center" gap="sm" py="xl">
               <ThemeIcon size={48} radius="xl" variant="light" color="gray">
-                <IconTool size={24} />
+                <Wrench size={24} />
               </ThemeIcon>
               <Text c="dimmed" ta="center">
                 No {activeSport === 'cycling' ? 'bikes' : 'shoes'} tracked yet.
@@ -1864,7 +1863,7 @@ function Settings() {
             <>
               <UnstyledButton onClick={() => setShowRetired(!showRetired)}>
                 <Group gap={4}>
-                  {showRetired ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                  {showRetired ? <CaretDown size={14} /> : <CaretRight size={14} />}
                   <Text size="sm" c="dimmed">
                     Retired ({retiredGear.length})
                   </Text>
@@ -1917,7 +1916,7 @@ function Settings() {
 
               {/* Strava Info Box */}
               <Alert
-                icon={<IconInfoCircle size={18} />}
+                icon={<Info size={18} />}
                 title="About Strava Integration"
                 color="teal"
                 variant="light"
@@ -1931,13 +1930,13 @@ function Settings() {
                     Recommended: Export your data from Strava and use bulk import instead:
                   </Text>
                   <List size="sm" spacing="xs">
-                    <List.Item icon={<ThemeIcon color="teal" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="teal" size={20} radius="xl"><Check size={12} /></ThemeIcon>}>
                       Your data stays even if you disconnect Strava later
                     </List.Item>
-                    <List.Item icon={<ThemeIcon color="teal" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="teal" size={20} radius="xl"><Check size={12} /></ThemeIcon>}>
                       Full historical data with GPS tracks and power data
                     </List.Item>
-                    <List.Item icon={<ThemeIcon color="teal" size={20} radius="xl"><IconCheck size={12} /></ThemeIcon>}>
+                    <List.Item icon={<ThemeIcon color="teal" size={20} radius="xl"><Check size={12} /></ThemeIcon>}>
                       Not subject to Strava's API restrictions
                     </List.Item>
                   </List>
@@ -1948,7 +1947,7 @@ function Settings() {
                     variant="light"
                     color="teal"
                     size="sm"
-                    leftSection={<IconUpload size={16} />}
+                    leftSection={<UploadSimple size={16} />}
                     onClick={() => setOpenModal('bulkUpload')}
                     mt="xs"
                   >
@@ -2180,7 +2179,7 @@ function Settings() {
                     variant={colorScheme === 'dark' ? 'filled' : 'light'}
                     color={colorScheme === 'dark' ? 'terracotta' : 'gray'}
                     size="sm"
-                    leftSection={<IconMoon size={16} />}
+                    leftSection={<Moon size={16} />}
                     onClick={() => setColorScheme('dark')}
                   >
                     Dark
@@ -2189,7 +2188,7 @@ function Settings() {
                     variant={colorScheme === 'light' ? 'filled' : 'light'}
                     color={colorScheme === 'light' ? 'terracotta' : 'gray'}
                     size="sm"
-                    leftSection={<IconSun size={16} />}
+                    leftSection={<Sun size={16} />}
                     onClick={() => setColorScheme('light')}
                   >
                     Light
@@ -2227,7 +2226,7 @@ function Settings() {
           <Card>
             <Stack gap="md">
               <Group gap="xs">
-                <IconSparkles size={20} color="var(--color-teal)" />
+                <Sparkle size={20} color="var(--color-teal)" />
                 <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                   AI Features
                 </Title>
@@ -2278,7 +2277,7 @@ function Settings() {
                 <Button
                   variant="light"
                   color="gray"
-                  leftSection={<IconDownload size={16} />}
+                  leftSection={<DownloadSimple size={16} />}
                   loading={exportingData}
                   onClick={handleDataExport}
                 >
@@ -2295,7 +2294,7 @@ function Settings() {
               <Button
                 variant="outline"
                 color="red"
-                leftSection={<IconTrash size={16} />}
+                leftSection={<Trash size={16} />}
                 onClick={() => setOpenModal('deleteAccount')}
               >
                 Delete My Account
@@ -2636,9 +2635,9 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
             }}
           >
             {diagnosticsOpen ? (
-              <IconChevronDown size={16} color="var(--color-text-secondary)" />
+              <CaretDown size={16} color="var(--color-text-secondary)" />
             ) : (
-              <IconChevronRight size={16} color="var(--color-text-secondary)" />
+              <CaretRight size={16} color="var(--color-text-secondary)" />
             )}
             <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
               Advanced Diagnostics

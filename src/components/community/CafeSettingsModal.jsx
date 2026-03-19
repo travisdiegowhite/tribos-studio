@@ -26,19 +26,9 @@ import {
   Loader,
   Menu,
 } from '@mantine/core';
-import {
-  IconSettings,
-  IconUsers,
-  IconDoorExit,
-  IconTrash,
-  IconCrown,
-  IconUser,
-  IconDotsVertical,
-  IconAlertTriangle,
-  IconCheck,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../../theme';
+import { Check, Crown, DotsThreeVertical, Gear, SignOut, Trash, User, Users, Warning } from '@phosphor-icons/react';
 
 const GOAL_OPTIONS = [
   { value: 'general_fitness', label: 'General Fitness' },
@@ -158,7 +148,7 @@ export default function CafeSettingsModal({
           title: 'Settings saved',
           message: 'Cafe settings have been updated',
           color: 'sage',
-          icon: <IconCheck size={16} />,
+          icon: <Check size={16} />,
         });
         onClose();
       }
@@ -299,16 +289,16 @@ export default function CafeSettingsModal({
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
           {isAdmin && (
-            <Tabs.Tab value="settings" leftSection={<IconSettings size={14} />}>
+            <Tabs.Tab value="settings" leftSection={<Gear size={14} />}>
               Settings
             </Tabs.Tab>
           )}
           {isAdmin && (
-            <Tabs.Tab value="members" leftSection={<IconUsers size={14} />}>
+            <Tabs.Tab value="members" leftSection={<Users size={14} />}>
               Members
             </Tabs.Tab>
           )}
-          <Tabs.Tab value="leave" leftSection={<IconDoorExit size={14} />}>
+          <Tabs.Tab value="leave" leftSection={<SignOut size={14} />}>
             {isAdmin ? 'Danger Zone' : 'Leave'}
           </Tabs.Tab>
         </Tabs.List>
@@ -461,7 +451,7 @@ export default function CafeSettingsModal({
                                 {getMemberDisplayName(member)}
                               </Text>
                               {member.role === 'admin' && (
-                                <Badge size="xs" color="gold" variant="light" leftSection={<IconCrown size={10} />}>
+                                <Badge size="xs" color="gold" variant="light" leftSection={<Crown size={10} />}>
                                   Admin
                                 </Badge>
                               )}
@@ -482,20 +472,20 @@ export default function CafeSettingsModal({
                           <Menu position="bottom-end" withinPortal>
                             <Menu.Target>
                               <ActionIcon variant="subtle" color="gray">
-                                <IconDotsVertical size={16} />
+                                <DotsThreeVertical size={16} />
                               </ActionIcon>
                             </Menu.Target>
                             <Menu.Dropdown>
                               {member.role === 'member' ? (
                                 <Menu.Item
-                                  leftSection={<IconCrown size={14} />}
+                                  leftSection={<Crown size={14} />}
                                   onClick={() => handleUpdateRole(member.user_id, 'admin')}
                                 >
                                   Promote to Admin
                                 </Menu.Item>
                               ) : (
                                 <Menu.Item
-                                  leftSection={<IconUser size={14} />}
+                                  leftSection={<User size={14} />}
                                   onClick={() => handleUpdateRole(member.user_id, 'member')}
                                   disabled={adminCount <= 1}
                                 >
@@ -504,7 +494,7 @@ export default function CafeSettingsModal({
                               )}
                               <Menu.Divider />
                               <Menu.Item
-                                leftSection={<IconTrash size={14} />}
+                                leftSection={<Trash size={14} />}
                                 color="red"
                                 onClick={() => handleRemoveMember(member.user_id)}
                               >
@@ -536,7 +526,7 @@ export default function CafeSettingsModal({
             >
               <Stack gap="sm">
                 <Group>
-                  <IconDoorExit size={20} color={'var(--color-text-muted)'} />
+                  <SignOut size={20} color={'var(--color-text-muted)'} />
                   <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>
                     Leave Cafe
                   </Text>
@@ -594,7 +584,7 @@ export default function CafeSettingsModal({
               >
                 <Stack gap="sm">
                   <Group>
-                    <IconTrash size={20} color="#C43C2A" />
+                    <Trash size={20} color="#C43C2A" />
                     <Text fw={500} c="red">
                       Delete Cafe
                     </Text>
@@ -606,7 +596,7 @@ export default function CafeSettingsModal({
 
                   {deleteConfirm ? (
                     <Alert
-                      icon={<IconAlertTriangle size={16} />}
+                      icon={<Warning size={16} />}
                       color="red"
                       variant="light"
                     >

@@ -4,12 +4,12 @@
  */
 
 import { Tooltip, ThemeIcon, Group, Text, Badge } from '@mantine/core';
-import { IconFlame, IconDroplet } from '@tabler/icons-react';
 import {
   calculateFuelPlan,
   workoutCategoryToIntensity,
   estimateIntensityFromTSS,
 } from '../../utils/fueling';
+import { Drop, Fire } from '@phosphor-icons/react';
 
 /**
  * Small fuel indicator badge for calendar cards
@@ -65,11 +65,11 @@ export default function FuelBadge({
     <div>
       <Text size="xs" fw={500} mb={4}>Fuel Plan</Text>
       <Group spacing={8}>
-        <IconFlame size={12} />
+        <Fire size={12} />
         <Text size="xs">{plan.carbs.totalGramsMin}-{plan.carbs.totalGramsMax}g carbs</Text>
       </Group>
       <Group spacing={8}>
-        <IconDroplet size={12} />
+        <Drop size={12} />
         <Text size="xs">{plan.hydration.ozPerHour} oz/hr</Text>
       </Group>
       {isHighFuel && (
@@ -93,7 +93,7 @@ export default function FuelBadge({
         variant="light"
         style={{ cursor: showTooltip ? 'help' : 'default' }}
       >
-        <IconFlame size={iconSize} />
+        <Fire size={iconSize} />
       </ThemeIcon>
     );
 
@@ -114,7 +114,7 @@ export default function FuelBadge({
         size={size}
         color={color}
         variant="light"
-        leftSection={<IconFlame size={iconSize - 2} />}
+        leftSection={<Fire size={iconSize - 2} />}
       >
         {plan.gelsEquivalent.min}-{plan.gelsEquivalent.max} gels
       </Badge>
@@ -181,7 +181,7 @@ export function FuelIndicator({
         withArrow
       >
         <Group spacing={2}>
-          <IconFlame size={12} color="#2A8C82" />
+          <Fire size={12} color="#2A8C82" />
           <Text size="xs" c="dimmed">{plan.gelsEquivalent.min}-{plan.gelsEquivalent.max}</Text>
         </Group>
       </Tooltip>
@@ -190,7 +190,7 @@ export function FuelIndicator({
         withArrow
       >
         <Group spacing={2}>
-          <IconDroplet size={12} color="#2A8C82" />
+          <Drop size={12} color="#2A8C82" />
           <Text size="xs" c="dimmed">{plan.bottlesNeeded}</Text>
         </Group>
       </Tooltip>

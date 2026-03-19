@@ -16,19 +16,6 @@ import {
   CloseButton,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import {
-  IconChevronRight,
-  IconRoute,
-  IconRefresh,
-  IconUpload,
-  IconChartBar,
-  IconPlayerPlay,
-  IconCalendarEvent,
-  IconTrendingUp,
-  IconTarget,
-  IconHistory,
-  IconX,
-} from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { tokens } from '../theme';
 import { ViewOnStravaLink } from '../components/StravaBranding';
@@ -48,6 +35,7 @@ import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
 import GetStartedGuide from '../components/activation/GetStartedGuide.jsx';
 import ProactiveInsightCard from '../components/activation/ProactiveInsightCard.jsx';
 import RouteAnalysisSummaryWidget from '../components/training/RouteAnalysisSummaryWidget.tsx';
+import { ArrowsClockwise, CalendarBlank, CaretRight, ChartBar, ClockCounterClockwise, Path, Play, Target, TrendUp, UploadSimple, X } from '@phosphor-icons/react';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -428,7 +416,7 @@ function Dashboard() {
                     variant="subtle"
                     color="gray"
                     size="xs"
-                    rightSection={<IconChevronRight size={12} />}
+                    rightSection={<CaretRight size={12} />}
                   >
                     Details
                   </Button>
@@ -490,7 +478,7 @@ function Dashboard() {
                 variant="light"
                 color="teal"
                 size="sm"
-                leftSection={<IconRoute size={16} />}
+                leftSection={<Path size={16} />}
               >
                 Plan Route
               </Button>
@@ -499,7 +487,7 @@ function Dashboard() {
                 variant="light"
                 color="gray"
                 size="sm"
-                leftSection={<IconRefresh size={16} />}
+                leftSection={<ArrowsClockwise size={16} />}
                 loading={syncing}
               >
                 Sync
@@ -510,7 +498,7 @@ function Dashboard() {
                 variant="light"
                 color="gray"
                 size="sm"
-                leftSection={<IconUpload size={16} />}
+                leftSection={<UploadSimple size={16} />}
               >
                 Upload
               </Button>
@@ -520,7 +508,7 @@ function Dashboard() {
                 variant="light"
                 color="gray"
                 size="sm"
-                leftSection={<IconChartBar size={16} />}
+                leftSection={<ChartBar size={16} />}
               >
                 Find Routes
               </Button>
@@ -538,7 +526,7 @@ function Dashboard() {
               <Group justify="space-between" align="flex-start" wrap="nowrap">
                 <Group gap="md" align="flex-start" wrap="nowrap">
                   <ThemeIcon size="lg" variant="light" color="teal" mt={2}>
-                    <IconHistory size={20} />
+                    <ClockCounterClockwise size={20} />
                   </ThemeIcon>
                   <Box>
                     <Text fw={600} size="sm" style={{ color: 'var(--color-text-primary)' }} mb={4}>
@@ -583,7 +571,7 @@ function Dashboard() {
                   variant="subtle"
                   color="gray"
                   size="xs"
-                  rightSection={<IconChevronRight size={14} />}
+                  rightSection={<CaretRight size={14} />}
                 >
                   View all
                 </Button>
@@ -652,7 +640,7 @@ function TodayFocusCard({ workout, plan, loading, routeMatch }) {
             to="/planner?tab=browse"
             variant="filled"
             color="teal"
-            leftSection={<IconCalendarEvent size={16} />}
+            leftSection={<CalendarBlank size={16} />}
           >
             Browse Plans
           </Button>
@@ -682,7 +670,7 @@ function TodayFocusCard({ workout, plan, loading, routeMatch }) {
             </Text>
           </Box>
           <ThemeIcon size={48} radius="xl" variant="light" color="teal">
-            <IconTarget size={24} />
+            <Target size={24} />
           </ThemeIcon>
         </Group>
       </Card>
@@ -718,7 +706,7 @@ function TodayFocusCard({ workout, plan, loading, routeMatch }) {
           </Group>
           {routeMatch && (
             <Group gap="xs" mt="sm">
-              <IconRoute size={14} style={{ color: 'var(--color-teal)' }} />
+              <Path size={14} style={{ color: 'var(--color-teal)' }} />
               <Text size="sm" style={{ color: 'var(--color-text-secondary)' }} truncate>
                 Best route: {routeMatch.activity?.name}
               </Text>
@@ -752,7 +740,7 @@ function TodayFocusCard({ workout, plan, loading, routeMatch }) {
             to="/planner"
             variant="filled"
             color="teal"
-            leftSection={<IconPlayerPlay size={16} />}
+            leftSection={<Play size={16} />}
           >
             Start
           </Button>
@@ -854,7 +842,7 @@ function FitnessMetrics({ activities, loading }) {
           <Text fw={600} size="lg" style={{ color: 'var(--color-text-primary)' }}>
             {ctl}
           </Text>
-          {ctl > 0 && <IconTrendingUp size={14} color="var(--color-teal)" />}
+          {ctl > 0 && <TrendUp size={14} color="var(--color-teal)" />}
         </Group>
       </Box>
       <Box>

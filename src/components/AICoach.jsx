@@ -17,7 +17,6 @@ import {
   SimpleGrid,
   ThemeIcon,
 } from '@mantine/core';
-import { IconSend, IconRobot, IconUser, IconPlus, IconClock, IconFlame, IconCalendarPlus, IconCheck, IconCalendar, IconTrendingUp, IconTarget, IconPlayerPlay } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { getWorkoutById } from '../data/workoutLibrary';
@@ -26,6 +25,7 @@ import { supabase } from '../lib/supabase';
 import { useUserAvailability } from '../hooks/useUserAvailability';
 import { redistributeWorkouts } from '../utils/trainingPlans';
 import { trackFeature, EventType } from '../utils/activityTracking';
+import { Calendar, CalendarPlus, Check, Clock, Fire, PaperPlaneRight, Play, Plus, Robot, Target, TrendUp, User } from '@phosphor-icons/react';
 
 // Get the API base URL
 const getApiBaseUrl = () => {
@@ -480,7 +480,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         title: planCreated ? 'Plan Created & Workout Added!' : 'Workout Added!',
         message: successMessage,
         color: 'terracotta',
-        icon: <IconCalendarPlus size={18} />,
+        icon: <CalendarPlus size={18} />,
         loading: false,
         autoClose: planCreated ? 6000 : 4000
       });
@@ -687,7 +687,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         title: 'Training Plan Activated!',
         message: `${planPreview.name} is now active with ${workoutsToInsert.length} workouts scheduled through ${planPreview.end_date}${scheduleNote}`,
         color: 'terracotta',
-        icon: <IconCalendarPlus size={18} />,
+        icon: <CalendarPlus size={18} />,
         loading: false,
         autoClose: 6000
       });
@@ -726,7 +726,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       {/* Header */}
       <Group justify="space-between" mb="md">
         <Group gap="sm">
-          <IconRobot size={24} style={{ color: 'var(--color-teal)' }} />
+          <Robot size={24} style={{ color: 'var(--color-teal)' }} />
           <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
             AI Training Coach
           </Text>
@@ -758,7 +758,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                 border: `1px dashed ${'var(--color-bg-secondary)'}`,
               }}
             >
-              <IconRobot size={48} style={{ color: 'var(--color-text-muted)', marginBottom: 12 }} />
+              <Robot size={48} style={{ color: 'var(--color-text-muted)', marginBottom: 12 }} />
               <Text style={{ color: 'var(--color-text-secondary)' }} mb="xs">
                 Hi! I'm your AI training coach.
               </Text>
@@ -800,9 +800,9 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                   }}
                 >
                   {msg.role === 'user' ? (
-                    <IconUser size={18} style={{ color: 'var(--color-text-secondary)' }} />
+                    <User size={18} style={{ color: 'var(--color-text-secondary)' }} />
                   ) : (
-                    <IconRobot size={18} style={{ color: 'var(--color-bg)' }} />
+                    <Robot size={18} style={{ color: 'var(--color-bg)' }} />
                   )}
                 </Box>
                 <Box style={{ flex: 1 }}>
@@ -844,13 +844,13 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                                 </Group>
                                 <Group gap="md" mb="xs">
                                   <Group gap={4}>
-                                    <IconClock size={14} style={{ color: 'var(--color-text-muted)' }} />
+                                    <Clock size={14} style={{ color: 'var(--color-text-muted)' }} />
                                     <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                                       {workout.duration} min
                                     </Text>
                                   </Group>
                                   <Group gap={4}>
-                                    <IconFlame size={14} style={{ color: 'var(--color-text-muted)' }} />
+                                    <Fire size={14} style={{ color: 'var(--color-text-muted)' }} />
                                     <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                                       {workout.targetTSS} TSS
                                     </Text>
@@ -869,7 +869,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                                 size="lg"
                                 onClick={() => handleAddWorkout(rec)}
                               >
-                                <IconPlus size={18} />
+                                <Plus size={18} />
                               </ActionIcon>
                             </Group>
                           </Paper>
@@ -894,7 +894,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                         <Box>
                           <Group gap="xs" mb={4}>
                             <ThemeIcon size="md" color="teal" variant="light">
-                              <IconCalendar size={16} />
+                              <Calendar size={16} />
                             </ThemeIcon>
                             <Text fw={700} size="lg" style={{ color: 'var(--color-text-primary)' }}>
                               {msg.trainingPlanPreview.name}
@@ -917,21 +917,21 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                       {/* Key Stats */}
                       <SimpleGrid cols={3} spacing="xs" mb="md">
                         <Paper p="xs" withBorder ta="center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                          <IconTarget size={18} style={{ color: 'var(--color-teal)', marginBottom: 4 }} />
+                          <Target size={18} style={{ color: 'var(--color-teal)', marginBottom: 4 }} />
                           <Text size="lg" fw={700} style={{ color: 'var(--color-text-primary)' }}>
                             {msg.trainingPlanPreview.summary.total_workouts}
                           </Text>
                           <Text size="xs" c="dimmed">workouts</Text>
                         </Paper>
                         <Paper p="xs" withBorder ta="center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                          <IconClock size={18} style={{ color: 'var(--color-teal)', marginBottom: 4 }} />
+                          <Clock size={18} style={{ color: 'var(--color-teal)', marginBottom: 4 }} />
                           <Text size="lg" fw={700} style={{ color: 'var(--color-text-primary)' }}>
                             {msg.trainingPlanPreview.summary.avg_weekly_hours}
                           </Text>
                           <Text size="xs" c="dimmed">hrs/week</Text>
                         </Paper>
                         <Paper p="xs" withBorder ta="center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                          <IconTrendingUp size={18} style={{ color: 'var(--color-teal)', marginBottom: 4 }} />
+                          <TrendUp size={18} style={{ color: 'var(--color-teal)', marginBottom: 4 }} />
                           <Text size="lg" fw={700} style={{ color: 'var(--color-text-primary)' }}>
                             {msg.trainingPlanPreview.summary.avg_weekly_tss}
                           </Text>
@@ -1002,7 +1002,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                         color="teal"
                         size="md"
                         fullWidth
-                        leftSection={<IconPlayerPlay size={18} />}
+                        leftSection={<Play size={18} />}
                         onClick={() => handleActivatePlan(msg.trainingPlanPreview)}
                       >
                         Activate Plan - Add {msg.trainingPlanPreview.summary.total_workouts} Workouts to Calendar
@@ -1031,7 +1031,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                   justifyContent: 'center'
                 }}
               >
-                <IconRobot size={18} style={{ color: 'var(--color-bg)' }} />
+                <Robot size={18} style={{ color: 'var(--color-bg)' }} />
               </Box>
               <Box style={{ padding: '8px 0' }}>
                 <Loader size="sm" color="teal" type="dots" />
@@ -1067,7 +1067,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           onClick={sendMessage}
           disabled={!inputMessage.trim() || isLoading}
         >
-          <IconSend size={18} />
+          <PaperPlaneRight size={18} />
         </ActionIcon>
       </Group>
     </Card>

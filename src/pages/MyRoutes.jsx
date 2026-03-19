@@ -19,7 +19,6 @@ import {
   SegmentedControl,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconPlus, IconDotsVertical, IconTrash, IconEdit, IconDownload, IconSearch, IconX, IconDeviceWatch, IconRoute, IconCloudUpload, IconBrain, IconMap } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -30,6 +29,7 @@ import { exportAndDownloadRoute } from '../utils/routeExport';
 import { garminService } from '../utils/garminService';
 import { trackFeature, EventType } from '../utils/activityTracking';
 import PageHeader from '../components/PageHeader.jsx';
+import { Brain, CloudArrowUp, DotsThreeVertical, DownloadSimple, MagnifyingGlass, MapTrifold, Path, PencilSimple, Plus, Trash, Watch, X } from '@phosphor-icons/react';
 
 function MyRoutes() {
   const { user } = useAuth();
@@ -410,7 +410,7 @@ function MyRoutes() {
             actions={
               <Button
                 color="teal"
-                leftSection={<IconPlus size={18} />}
+                leftSection={<Plus size={18} />}
                 onClick={() => navigate('/routes/new')}
               >
                 New Route
@@ -425,14 +425,14 @@ function MyRoutes() {
                 placeholder="Search routes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                leftSection={<IconSearch size={16} />}
+                leftSection={<MagnifyingGlass size={16} />}
                 rightSection={searchQuery && (
                   <ActionIcon
                     variant="subtle"
                     size="sm"
                     onClick={() => setSearchQuery('')}
                   >
-                    <IconX size={14} />
+                    <X size={14} />
                   </ActionIcon>
                 )}
                 style={{ flex: 1, minWidth: 200, maxWidth: 400 }}
@@ -457,7 +457,7 @@ function MyRoutes() {
           {routes.length === 0 ? (
             <Card p="2rem">
               <Stack align="center" gap="xl" py="xl">
-                <IconRoute size={48} color="var(--color-teal, #2A8C82)" stroke={1.5} />
+                <Path size={48} color="var(--color-teal, #2A8C82)"  />
                 <Stack align="center" gap="xs">
                   <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                     {rideArea !== 'your area'
@@ -475,7 +475,7 @@ function MyRoutes() {
                     variant="light"
                     color="teal"
                     size="md"
-                    leftSection={<IconRoute size={18} />}
+                    leftSection={<Path size={18} />}
                     onClick={() => {
                       trackFeature(EventType.ROUTE_CREATE_FROM_EMPTY_STATE, 'empty_state_past_ride');
                       navigate('/routes/new?mode=activity');
@@ -491,7 +491,7 @@ function MyRoutes() {
                     variant="light"
                     color="teal"
                     size="md"
-                    leftSection={<IconBrain size={18} />}
+                    leftSection={<Brain size={18} />}
                     onClick={() => {
                       trackFeature(EventType.ROUTE_CREATE_FROM_EMPTY_STATE, 'empty_state_ai_route');
                       const params = new URLSearchParams({ mode: 'ai' });
@@ -513,7 +513,7 @@ function MyRoutes() {
                     variant="light"
                     color="gray"
                     size="md"
-                    leftSection={<IconMap size={18} />}
+                    leftSection={<MapTrifold size={18} />}
                     onClick={() => {
                       trackFeature(EventType.ROUTE_CREATE_FROM_EMPTY_STATE, 'empty_state_scratch');
                       navigate('/routes/new');
@@ -590,12 +590,12 @@ function MyRoutes() {
                             color="gray"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <IconDotsVertical size={16} />
+                            <DotsThreeVertical size={16} />
                           </ActionIcon>
                         </Menu.Target>
                         <Menu.Dropdown>
                           <Menu.Item
-                            leftSection={<IconEdit size={14} />}
+                            leftSection={<PencilSimple size={14} />}
                             onClick={(e) => {
                               e.stopPropagation();
                               navigate(`/routes/${route.id}`);
@@ -606,7 +606,7 @@ function MyRoutes() {
                           <Menu.Divider />
                           {garminConnected && (
                             <Menu.Item
-                              leftSection={sendingToGarmin === route.id ? <Loader size={14} /> : <IconCloudUpload size={14} />}
+                              leftSection={sendingToGarmin === route.id ? <Loader size={14} /> : <CloudArrowUp size={14} />}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleSendToGarmin(route.id);
@@ -619,7 +619,7 @@ function MyRoutes() {
                           )}
                           <Menu.Label>Download Files</Menu.Label>
                           <Menu.Item
-                            leftSection={<IconDeviceWatch size={14} />}
+                            leftSection={<Watch size={14} />}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleExportRoute(route.id, 'tcx');
@@ -628,7 +628,7 @@ function MyRoutes() {
                             TCX Course
                           </Menu.Item>
                           <Menu.Item
-                            leftSection={<IconRoute size={14} />}
+                            leftSection={<Path size={14} />}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleExportRoute(route.id, 'gpx');
@@ -639,7 +639,7 @@ function MyRoutes() {
                           <Menu.Divider />
                           <Menu.Item
                             color="red"
-                            leftSection={deletingId === route.id ? <Loader size={14} /> : <IconTrash size={14} />}
+                            leftSection={deletingId === route.id ? <Loader size={14} /> : <Trash size={14} />}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDelete(route.id, route.name);

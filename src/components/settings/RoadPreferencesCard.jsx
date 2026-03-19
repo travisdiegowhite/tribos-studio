@@ -22,21 +22,11 @@ import {
   UnstyledButton,
   Tooltip,
 } from '@mantine/core';
-import {
-  IconRoute,
-  IconRefresh,
-  IconCheck,
-  IconAlertCircle,
-  IconChevronDown,
-  IconChevronRight,
-  IconMap,
-  IconCompass,
-  IconInfoCircle,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
+import { ArrowsClockwise, CaretDown, CaretRight, Check, Compass, Info, MapTrifold, Path, WarningCircle } from '@phosphor-icons/react';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -258,7 +248,7 @@ export default function RoadPreferencesCard() {
           title: 'No Activities to Process',
           message: 'All your activities have already been processed, or no GPS data is available.',
           color: 'blue',
-          icon: <IconCheck size={16} />,
+          icon: <Check size={16} />,
           loading: false,
           autoClose: 5000,
         });
@@ -268,7 +258,7 @@ export default function RoadPreferencesCard() {
           title: 'Extraction Complete',
           message: `Processed ${totalProcessed} activities, extracted ${totalSegments} road segments`,
           color: 'sage',
-          icon: <IconCheck size={16} />,
+          icon: <Check size={16} />,
           loading: false,
           autoClose: 5000,
         });
@@ -283,7 +273,7 @@ export default function RoadPreferencesCard() {
         title: 'Extraction Failed',
         message: error.message || 'Failed to extract road segments',
         color: 'red',
-        icon: <IconAlertCircle size={16} />,
+        icon: <WarningCircle size={16} />,
         loading: false,
         autoClose: 5000,
       });
@@ -321,7 +311,7 @@ export default function RoadPreferencesCard() {
         title: 'Preferences Saved',
         message: 'Your route preferences have been updated',
         color: 'sage',
-        icon: <IconCheck size={16} />,
+        icon: <Check size={16} />,
       });
     } catch (error) {
       console.error('Failed to save preferences:', error);
@@ -329,7 +319,7 @@ export default function RoadPreferencesCard() {
         title: 'Save Failed',
         message: error.message || 'Failed to save preferences',
         color: 'red',
-        icon: <IconAlertCircle size={16} />,
+        icon: <WarningCircle size={16} />,
       });
     } finally {
       setSavingPrefs(false);
@@ -350,7 +340,7 @@ export default function RoadPreferencesCard() {
         <Group justify="space-between" align="flex-start">
           <Box>
             <Group gap="xs">
-              <IconRoute size={24} style={{ color: 'var(--tribos-accent)' }} />
+              <Path size={24} style={{ color: 'var(--tribos-accent)' }} />
               <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                 Route Learning
               </Title>
@@ -368,7 +358,7 @@ export default function RoadPreferencesCard() {
 
         {/* Info Alert */}
         <Alert
-          icon={<IconInfoCircle size={18} />}
+          icon={<Info size={18} />}
           color="cyan"
           variant="light"
         >
@@ -458,7 +448,7 @@ export default function RoadPreferencesCard() {
         {/* Migration Required Alert */}
         {needsMigration && (
           <Alert
-            icon={<IconAlertCircle size={18} />}
+            icon={<WarningCircle size={18} />}
             color="orange"
             variant="light"
           >
@@ -472,7 +462,7 @@ export default function RoadPreferencesCard() {
         {/* API Error Alert */}
         {apiError && !needsMigration && (
           <Alert
-            icon={<IconAlertCircle size={18} />}
+            icon={<WarningCircle size={18} />}
             color="red"
             variant="light"
           >
@@ -493,7 +483,7 @@ export default function RoadPreferencesCard() {
           <Group justify="space-between" align="flex-start">
             <Box>
               <Group gap="xs" mb={4}>
-                <IconMap size={20} style={{ color: 'var(--color-text-primary)' }} />
+                <MapTrifold size={20} style={{ color: 'var(--color-text-primary)' }} />
                 <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>
                   Process Activity History
                 </Text>
@@ -515,7 +505,7 @@ export default function RoadPreferencesCard() {
               onClick={handleExtractSegments}
               loading={extracting}
               disabled={needsMigration}
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
             >
               {extracting ? 'Extracting...' : unprocessedCount > 0 ? 'Extract Segments' : 'Scan Activities'}
             </Button>
@@ -586,7 +576,7 @@ export default function RoadPreferencesCard() {
         <Group justify="space-between">
           <Box>
             <Group gap="xs">
-              <IconCompass size={18} style={{ color: 'var(--color-text-primary)' }} />
+              <Compass size={18} style={{ color: 'var(--color-text-primary)' }} />
               <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
                 Explore Mode
               </Text>
@@ -621,9 +611,9 @@ export default function RoadPreferencesCard() {
             }}
           >
             {showAdvanced ? (
-              <IconChevronDown size={16} style={{ color: 'var(--color-text-secondary)' }} />
+              <CaretDown size={16} style={{ color: 'var(--color-text-secondary)' }} />
             ) : (
-              <IconChevronRight size={16} style={{ color: 'var(--color-text-secondary)' }} />
+              <CaretRight size={16} style={{ color: 'var(--color-text-secondary)' }} />
             )}
             <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
               Advanced Settings
@@ -703,7 +693,7 @@ export default function RoadPreferencesCard() {
           color="teal"
           onClick={handleSavePreferences}
           loading={savingPrefs}
-          leftSection={<IconCheck size={16} />}
+          leftSection={<Check size={16} />}
         >
           Save Preferences
         </Button>

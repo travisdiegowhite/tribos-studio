@@ -20,20 +20,6 @@ import {
   Stack,
   Badge,
 } from '@mantine/core';
-import {
-  IconSettings,
-  IconTemplate,
-  IconBike,
-  IconAlertCircle,
-  IconShieldCheck,
-  IconUsers,
-  IconMessage,
-  IconWebhook,
-  IconLock,
-  IconChartBar,
-  IconMail,
-  IconTrendingUp,
-} from '@tabler/icons-react';
 import AppShell from '../components/AppShell';
 import { useAuth } from '../contexts/AuthContext';
 import PlanTemplateManager from '../components/admin/PlanTemplateManager';
@@ -44,6 +30,7 @@ import WebhookViewer from '../components/admin/WebhookViewer';
 import ActivityDashboard from '../components/admin/ActivityDashboard';
 import UserInsights from '../components/admin/UserInsights';
 import EmailCampaigns from '../components/admin/EmailCampaigns';
+import { Bicycle, ChartBar, ChatDots, Envelope, Gear, Layout, Lock, ShieldCheck, TrendUp, Users, WarningCircle, WebhooksLogo } from '@phosphor-icons/react';
 
 // SECURITY: This is the ONLY email with admin access
 // This is enforced both here (UI) and in the backend API
@@ -62,7 +49,7 @@ export default function Admin() {
       <AppShell>
         <Container size="md" py="xl">
           <Alert
-            icon={<IconLock size={24} />}
+            icon={<Lock size={24} />}
             title="Access Denied"
             color="red"
             variant="filled"
@@ -91,7 +78,7 @@ export default function Admin() {
             <Group justify="space-between">
               <div>
                 <Group spacing="xs">
-                  <IconShieldCheck size={24} color="var(--mantine-color-green-6)" />
+                  <ShieldCheck size={24} color="var(--mantine-color-green-6)" />
                   <Title order={2}>Admin Dashboard</Title>
                   <Badge color="green" variant="light" size="sm">
                     Secure
@@ -109,7 +96,7 @@ export default function Admin() {
 
           {/* Security Notice */}
           <Alert
-            icon={<IconShieldCheck size={16} />}
+            icon={<ShieldCheck size={16} />}
             color="green"
             variant="light"
           >
@@ -121,31 +108,31 @@ export default function Admin() {
           {/* Main Content */}
           <Tabs value={activeTab} onChange={setActiveTab}>
             <Tabs.List>
-              <Tabs.Tab value="users" leftSection={<IconUsers size={16} />}>
+              <Tabs.Tab value="users" leftSection={<Users size={16} />}>
                 Users
               </Tabs.Tab>
-              <Tabs.Tab value="activity" leftSection={<IconChartBar size={16} />}>
+              <Tabs.Tab value="activity" leftSection={<ChartBar size={16} />}>
                 Activity
               </Tabs.Tab>
-              <Tabs.Tab value="insights" leftSection={<IconTrendingUp size={16} />}>
+              <Tabs.Tab value="insights" leftSection={<TrendUp size={16} />}>
                 Insights
               </Tabs.Tab>
-              <Tabs.Tab value="email" leftSection={<IconMail size={16} />}>
+              <Tabs.Tab value="email" leftSection={<Envelope size={16} />}>
                 Email
               </Tabs.Tab>
-              <Tabs.Tab value="feedback" leftSection={<IconMessage size={16} />}>
+              <Tabs.Tab value="feedback" leftSection={<ChatDots size={16} />}>
                 Feedback
               </Tabs.Tab>
-              <Tabs.Tab value="webhooks" leftSection={<IconWebhook size={16} />}>
+              <Tabs.Tab value="webhooks" leftSection={<WebhooksLogo size={16} />}>
                 Webhooks
               </Tabs.Tab>
-              <Tabs.Tab value="plans" leftSection={<IconTemplate size={16} />}>
+              <Tabs.Tab value="plans" leftSection={<Layout size={16} />}>
                 Training Plans
               </Tabs.Tab>
-              <Tabs.Tab value="workouts" leftSection={<IconBike size={16} />}>
+              <Tabs.Tab value="workouts" leftSection={<Bicycle size={16} />}>
                 Workout Library
               </Tabs.Tab>
-              <Tabs.Tab value="settings" leftSection={<IconSettings size={16} />}>
+              <Tabs.Tab value="settings" leftSection={<Gear size={16} />}>
                 Settings
               </Tabs.Tab>
             </Tabs.List>
@@ -189,7 +176,7 @@ export default function Admin() {
                   <Text c="dimmed">
                     Additional admin settings will be available here.
                   </Text>
-                  <Alert icon={<IconAlertCircle size={16} />} color="blue">
+                  <Alert icon={<WarningCircle size={16} />} color="blue">
                     Database migration status and cache management coming soon.
                   </Alert>
                 </Stack>

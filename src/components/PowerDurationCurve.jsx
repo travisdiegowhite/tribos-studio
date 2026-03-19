@@ -21,8 +21,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { IconBolt, IconTrendingUp, IconTrophy } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Lightning, TrendUp, Trophy } from '@phosphor-icons/react';
 
 /**
  * Power Duration Curve Component
@@ -210,7 +210,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconBolt size={20} color={tokens.colors.zone4} />
+          <Lightning size={20} color={tokens.colors.zone4} />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Power Duration Curve
           </Text>
@@ -337,7 +337,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
       {riderType && (
         <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs">
-            <IconTrophy size={16} color={'var(--color-teal)'} />
+            <Trophy size={16} color={'var(--color-teal)'} />
             <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
               <Text span fw={600} c={riderType.color}>{riderType.type}</Text>
               {' - '}{riderType.description}

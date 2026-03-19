@@ -16,13 +16,8 @@ import {
   Skeleton,
   ThemeIcon,
 } from '@mantine/core';
-import {
-  IconRoute,
-  IconChevronRight,
-  IconMountain,
-  IconTarget,
-} from '@tabler/icons-react';
 import { supabase } from '../../lib/supabase';
+import { CaretRight, Mountains, Path, Target } from '@phosphor-icons/react';
 
 interface RouteMatch {
   activity: {
@@ -200,7 +195,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
         <Stack gap="sm">
           <Group gap="xs">
             <ThemeIcon size="sm" variant="light" color="teal">
-              <IconRoute size={14} />
+              <Path size={14} />
             </ThemeIcon>
             <Text size="sm" fw={600}>
               Route Intelligence
@@ -218,7 +213,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
             variant="filled"
             color="teal"
             size="sm"
-            leftSection={<IconTarget size={16} />}
+            leftSection={<Target size={16} />}
           >
             Analyze Routes
           </Button>
@@ -235,7 +230,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
           <Group justify="space-between" align="flex-start">
             <Group gap="xs">
               <ThemeIcon size="sm" variant="light" color="teal">
-                <IconRoute size={14} />
+                <Path size={14} />
               </ThemeIcon>
               <Text size="sm" fw={600}>
                 Routes for Today
@@ -272,7 +267,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
                     </Text>
                     {match.activity.total_elevation_gain > 0 && (
                       <Text size="xs" c="dimmed">
-                        <IconMountain size={10} style={{ verticalAlign: 'middle' }} />{' '}
+                        <Mountains size={10} style={{ verticalAlign: 'middle' }} />{' '}
                         {Math.round(match.activity.total_elevation_gain)}m
                       </Text>
                     )}
@@ -299,7 +294,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
             to="/training?tab=routes"
             variant="subtle"
             size="xs"
-            rightSection={<IconChevronRight size={14} />}
+            rightSection={<CaretRight size={14} />}
             style={{ color: 'var(--color-text-secondary)' }}
           >
             View all matches
@@ -316,7 +311,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
         <Group justify="space-between" align="flex-start">
           <Group gap="xs">
             <ThemeIcon size="sm" variant="light" color="teal">
-              <IconRoute size={14} />
+              <Path size={14} />
             </ThemeIcon>
             <Text size="sm" fw={600}>
               Route Intelligence
@@ -350,7 +345,7 @@ function RouteAnalysisSummaryWidget({ userId, todayWorkout, loading = false }: R
           to="/training?tab=routes"
           variant="subtle"
           size="xs"
-          rightSection={<IconChevronRight size={14} />}
+          rightSection={<CaretRight size={14} />}
           style={{ color: 'var(--color-text-secondary)' }}
         >
           Explore route analysis

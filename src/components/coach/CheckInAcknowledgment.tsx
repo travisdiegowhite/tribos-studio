@@ -4,8 +4,8 @@
  */
 
 import { Paper, Text, Group } from '@mantine/core';
-import { IconMessageCheck } from '@tabler/icons-react';
 import type { PersonaId, DecisionType } from '../../types/checkIn';
+import { ChatText } from '@phosphor-icons/react';
 
 interface CheckInAcknowledgmentProps {
   personaId: PersonaId;
@@ -49,7 +49,7 @@ export default function CheckInAcknowledgment({ personaId, decision }: CheckInAc
       }}
     >
       <Group gap="xs">
-        <IconMessageCheck size={16} color="var(--color-teal)" />
+        <ChatText size={16} color="var(--color-teal)" />
         <Text size="sm" fs="italic" c="dimmed">
           {text}
         </Text>

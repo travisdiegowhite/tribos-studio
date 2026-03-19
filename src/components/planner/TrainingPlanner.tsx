@@ -25,25 +25,6 @@ import {
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import {
-  IconBrain,
-  IconDeviceFloppy,
-  IconRefresh,
-  IconAlertCircle,
-  IconCheck,
-  IconX,
-  IconBulb,
-  IconAlertTriangle,
-  IconThumbUp,
-  IconBarbell,
-  IconDotsVertical,
-  IconCalendarOff,
-  IconSettings,
-  IconLink,
-  IconTrophy,
-  IconCalendar,
-  IconLayoutList,
-} from '@tabler/icons-react';
 import { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 import { TwoWeekCalendar } from './TwoWeekCalendar';
 import { PeriodizationView } from './PeriodizationView';
@@ -62,6 +43,7 @@ import { calculateTSS, estimateTSS } from '../../utils/trainingPlans';
 import { shouldPromptForFeedback, triggerAdaptationDetection } from '../../utils/adaptationTrigger';
 import type { TrainingPlannerProps } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutAdaptation, AdaptationReason } from '../../types/training';
+import { ArrowsClockwise, Barbell, Brain, Calendar, CalendarX, Check, DotsThreeVertical, FloppyDisk, Gear, Lightbulb, Link, ListBullets, ThumbsUp, Trophy, Warning, WarningCircle, X } from '@phosphor-icons/react';
 
 // Helper to format date as YYYY-MM-DD in local timezone
 function formatLocalDate(date: Date): string {
@@ -624,7 +606,7 @@ export function TrainingPlanner({
             title,
             message,
             color,
-            icon: <IconLink size={18} />,
+            icon: <Link size={18} />,
             autoClose: 5000,
           });
 
@@ -644,7 +626,7 @@ export function TrainingPlanner({
             title: 'Activity Linked',
             message: 'Your activity has been connected to this workout.',
             color: 'green',
-            icon: <IconLink size={18} />,
+            icon: <Link size={18} />,
           });
         }
 
@@ -889,7 +871,7 @@ export function TrainingPlanner({
                           size="sm"
                           color={goal.priority === 'A' ? 'red' : goal.priority === 'B' ? 'orange' : 'gray'}
                           variant="light"
-                          leftSection={<IconTrophy size={10} />}
+                          leftSection={<Trophy size={10} />}
                           style={{ cursor: 'pointer', flexShrink: 0 }}
                           onClick={() => setRaceGoalsDrawerOpen(true)}
                         >
@@ -920,7 +902,7 @@ export function TrainingPlanner({
                   <Button
                     variant="subtle"
                     size="xs"
-                    leftSection={<IconTrophy size={14} />}
+                    leftSection={<Trophy size={14} />}
                     onClick={() => setRaceGoalsDrawerOpen(true)}
                   >
                     Races
@@ -931,7 +913,7 @@ export function TrainingPlanner({
                   <Button
                     variant="subtle"
                     size="xs"
-                    leftSection={<IconCalendarOff size={14} />}
+                    leftSection={<CalendarX size={14} />}
                     onClick={() => setAvailabilitySettingsOpen(true)}
                   >
                     Availability
@@ -941,7 +923,7 @@ export function TrainingPlanner({
                 <Button
                   variant="subtle"
                   size="xs"
-                  leftSection={<IconRefresh size={14} />}
+                  leftSection={<ArrowsClockwise size={14} />}
                   onClick={() => store.syncWithDatabase()}
                 >
                   Refresh
@@ -951,7 +933,7 @@ export function TrainingPlanner({
                   variant="light"
                   size="xs"
                   color="teal"
-                  leftSection={<IconBrain size={14} />}
+                  leftSection={<Brain size={14} />}
                   onClick={handleWeekReview}
                   loading={store.isReviewingWeek}
                 >
@@ -963,7 +945,7 @@ export function TrainingPlanner({
                     variant="filled"
                     size="xs"
                     color="teal"
-                    leftSection={<IconDeviceFloppy size={14} />}
+                    leftSection={<FloppyDisk size={14} />}
                     onClick={handleSave}
                     loading={store.isSaving}
                   >
@@ -983,36 +965,36 @@ export function TrainingPlanner({
                     onClick={handleSave}
                     loading={store.isSaving}
                   >
-                    <IconDeviceFloppy size={18} />
+                    <FloppyDisk size={18} />
                   </ActionIcon>
                 )}
                 <Menu shadow="md" width={200}>
                   <Menu.Target>
                     <ActionIcon variant="subtle">
-                      <IconDotsVertical size={18} />
+                      <DotsThreeVertical size={18} />
                     </ActionIcon>
                   </Menu.Target>
                   <Menu.Dropdown>
                     <Menu.Item
-                      leftSection={<IconTrophy size={14} />}
+                      leftSection={<Trophy size={14} />}
                       onClick={() => setRaceGoalsDrawerOpen(true)}
                     >
                       Race Goals
                     </Menu.Item>
                     <Menu.Item
-                      leftSection={<IconCalendarOff size={14} />}
+                      leftSection={<CalendarX size={14} />}
                       onClick={() => setAvailabilitySettingsOpen(true)}
                     >
                       Availability Settings
                     </Menu.Item>
                     <Menu.Item
-                      leftSection={<IconRefresh size={14} />}
+                      leftSection={<ArrowsClockwise size={14} />}
                       onClick={() => store.syncWithDatabase()}
                     >
                       Refresh
                     </Menu.Item>
                     <Menu.Item
-                      leftSection={<IconBrain size={14} />}
+                      leftSection={<Brain size={14} />}
                       onClick={handleWeekReview}
                     >
                       Review My Week
@@ -1053,7 +1035,7 @@ export function TrainingPlanner({
                 {
                   label: (
                     <Group gap={4} wrap="nowrap">
-                      <IconLayoutList size={14} />
+                      <ListBullets size={14} />
                       <span>Week Detail</span>
                     </Group>
                   ),
@@ -1062,7 +1044,7 @@ export function TrainingPlanner({
                 {
                   label: (
                     <Group gap={4} wrap="nowrap">
-                      <IconCalendar size={14} />
+                      <Calendar size={14} />
                       <span>Calendar Overview</span>
                     </Group>
                   ),
@@ -1134,7 +1116,7 @@ export function TrainingPlanner({
                   style={transitionStyles}
                   onClick={() => setSidebarOpen(true)}
                 >
-                  <IconBarbell size={28} />
+                  <Barbell size={28} />
                 </ActionIcon>
               )}
             </Transition>
@@ -1157,7 +1139,7 @@ export function TrainingPlanner({
           >
             <Group justify="space-between">
               <Group gap="xs">
-                <IconBarbell size={18} />
+                <Barbell size={18} />
                 <Text size="sm" fw={500}>
                   Tap a day to add workout
                 </Text>
@@ -1197,7 +1179,7 @@ export function TrainingPlanner({
           >
             <Group justify="space-between" mb="xs">
               <Group gap="xs">
-                <IconBulb size={16} color="var(--mantine-color-yellow-5)" />
+                <Lightbulb size={16} color="var(--mantine-color-yellow-5)" />
                 <Text size="sm" fw={500}>
                   AI Suggestions
                 </Text>
@@ -1230,13 +1212,13 @@ export function TrainingPlanner({
                   <Group justify="space-between" wrap="nowrap">
                     <Group gap="xs" wrap="nowrap">
                       {hint.type === 'warning' && (
-                        <IconAlertTriangle size={16} color="var(--mantine-color-orange-5)" />
+                        <Warning size={16} color="var(--mantine-color-orange-5)" />
                       )}
                       {hint.type === 'praise' && (
-                        <IconThumbUp size={16} color="var(--mantine-color-green-5)" />
+                        <ThumbsUp size={16} color="var(--mantine-color-green-5)" />
                       )}
                       {hint.type === 'suggestion' && (
-                        <IconBulb size={16} color="var(--mantine-color-blue-5)" />
+                        <Lightbulb size={16} color="var(--mantine-color-blue-5)" />
                       )}
                       <Text size="sm">{hint.message}</Text>
                     </Group>
@@ -1250,7 +1232,7 @@ export function TrainingPlanner({
                             variant="subtle"
                             onClick={() => store.applyHint(hint.id)}
                           >
-                            <IconCheck size={14} />
+                            <Check size={14} />
                           </ActionIcon>
                         </Tooltip>
                       )}
@@ -1261,7 +1243,7 @@ export function TrainingPlanner({
                           variant="subtle"
                           onClick={() => store.dismissHint(hint.id)}
                         >
-                          <IconX size={14} />
+                          <X size={14} />
                         </ActionIcon>
                       </Tooltip>
                     </Group>
@@ -1275,7 +1257,7 @@ export function TrainingPlanner({
         {/* No plan message */}
         {!activePlanId && (
           <Alert
-            icon={<IconAlertCircle size={16} />}
+            icon={<WarningCircle size={16} />}
             title="No Active Plan"
             color="yellow"
             m="md"
@@ -1321,7 +1303,7 @@ export function TrainingPlanner({
           >
             <Stack gap="xs">
               <Group gap="xs" wrap="nowrap">
-                <IconCalendarOff size={18} color="var(--mantine-color-terracotta-5)" />
+                <CalendarX size={18} color="var(--mantine-color-terracotta-5)" />
                 <Text size="sm" fw={500}>
                   Your availability changed
                 </Text>

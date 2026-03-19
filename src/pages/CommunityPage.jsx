@@ -32,18 +32,6 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import {
-  IconCoffee,
-  IconPlus,
-  IconCheck,
-  IconSearch,
-  IconSettings,
-  IconHeart,
-  IconMessageCircle,
-  IconTrophy,
-  IconTarget,
-  IconChevronRight,
-} from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCommunity } from '../hooks/useCommunity';
 import { useDiscussions, CATEGORY_LABELS } from '../hooks/useDiscussions';
@@ -52,6 +40,7 @@ import PageHeader from '../components/PageHeader';
 import { WeeklyCheckInWidget, DiscussionList, DiscussionThread, CafeSettingsModal } from '../components/community';
 import { tokens } from '../theme';
 import { trackFeature, trackInteraction, EventType } from '../utils/activityTracking';
+import { CaretRight, ChatCircle, Check, Coffee, Gear, Heart, MagnifyingGlass, Plus, Target, Trophy } from '@phosphor-icons/react';
 
 const GOAL_OPTIONS = [
   { value: 'general_fitness', label: 'General Fitness' },
@@ -344,7 +333,7 @@ function CommunityPage() {
               <Group justify="space-between" align="flex-start">
                 <Box>
                   <Group gap="sm" mb="xs">
-                    <IconCoffee size={24} color={'var(--color-teal)'} />
+                    <Coffee size={24} color={'var(--color-teal)'} />
                     <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
                       {cafe.name}
                     </Title>
@@ -370,7 +359,7 @@ function CommunityPage() {
                   variant="subtle"
                   size="xs"
                   color="gray"
-                  leftSection={<IconSettings size={14} />}
+                  leftSection={<Gear size={14} />}
                   onClick={openSettingsModal}
                 >
                   Settings
@@ -391,13 +380,13 @@ function CommunityPage() {
             {/* Tabs for cafe content */}
             <Tabs value={activeTab} onChange={handleTabChange}>
               <Tabs.List>
-                <Tabs.Tab value="cafe" leftSection={<IconHeart size={16} />}>
+                <Tabs.Tab value="cafe" leftSection={<Heart size={16} />}>
                   Check-Ins
                 </Tabs.Tab>
-                <Tabs.Tab value="discussions" leftSection={<IconMessageCircle size={16} />}>
+                <Tabs.Tab value="discussions" leftSection={<ChatCircle size={16} />}>
                   Discussions
                 </Tabs.Tab>
-                <Tabs.Tab value="members" leftSection={<IconCoffee size={16} />}>
+                <Tabs.Tab value="members" leftSection={<Coffee size={16} />}>
                   Members
                 </Tabs.Tab>
               </Tabs.List>
@@ -474,7 +463,7 @@ function CommunityPage() {
                   <Group justify="flex-end">
                     <Button
                       size="sm"
-                      leftSection={<IconPlus size={16} />}
+                      leftSection={<Plus size={16} />}
                       onClick={openNewDiscussionModal}
                       style={{
                         backgroundColor: 'var(--color-teal)',
@@ -573,7 +562,7 @@ function CommunityPage() {
             variant="light"
             onClick={handleSearch}
             loading={searchLoading}
-            leftSection={<IconSearch size={16} />}
+            leftSection={<MagnifyingGlass size={16} />}
           >
             Search
           </Button>
@@ -636,7 +625,7 @@ function CommunityPage() {
               closeFindModal();
               openCreateModal();
             }}
-            leftSection={<IconPlus size={16} />}
+            leftSection={<Plus size={16} />}
           >
             Create Your Own Cafe
           </Button>
@@ -826,7 +815,7 @@ function NoCafeView({ onFind, onCreate }) {
       }}
     >
       <Stack gap="lg" align="center">
-        <IconCoffee size={48} color={'var(--color-text-muted)'} />
+        <Coffee size={48} color={'var(--color-text-muted)'} />
 
         <Box>
           <Title order={3} mb="xs" style={{ color: 'var(--color-text-primary)' }}>
@@ -841,22 +830,22 @@ function NoCafeView({ onFind, onCreate }) {
 
         <SimpleGrid cols={2} spacing="md" style={{ maxWidth: 400 }}>
           <FeatureItem
-            icon={IconTarget}
+            icon={Target}
             title="Goal-Matched"
             description="Find riders with similar objectives"
           />
           <FeatureItem
-            icon={IconMessageCircle}
+            icon={ChatCircle}
             title="Weekly Check-Ins"
             description="Share reflections, not ride spam"
           />
           <FeatureItem
-            icon={IconHeart}
+            icon={Heart}
             title="Supportive"
             description="Encouragement over competition"
           />
           <FeatureItem
-            icon={IconTrophy}
+            icon={Trophy}
             title="Accountable"
             description="Stay consistent together"
           />
@@ -870,7 +859,7 @@ function NoCafeView({ onFind, onCreate }) {
               backgroundColor: 'var(--color-teal)',
               color: 'var(--color-bg)',
             }}
-            leftSection={<IconSearch size={18} />}
+            leftSection={<MagnifyingGlass size={18} />}
           >
             Find a Cafe
           </Button>
@@ -878,7 +867,7 @@ function NoCafeView({ onFind, onCreate }) {
             size="md"
             variant="outline"
             onClick={onCreate}
-            leftSection={<IconPlus size={18} />}
+            leftSection={<Plus size={18} />}
           >
             Create One
           </Button>
@@ -999,7 +988,7 @@ function CheckInCard({ checkIn, isOwn, onEncourage, compact = false }) {
                 color="dusty-rose"
                 onClick={onEncourage}
               >
-                <IconHeart size={16} />
+                <Heart size={16} />
               </ActionIcon>
             </Tooltip>
           )}

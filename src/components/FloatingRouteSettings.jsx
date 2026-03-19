@@ -20,26 +20,11 @@ import {
   Loader,
   Tooltip,
 } from '@mantine/core';
-import {
-  IconSettings,
-  IconRoute,
-  IconShield,
-  IconMountain,
-  IconCamera,
-  IconHeart,
-  IconAlertCircle,
-  IconCloud,
-  IconGauge,
-  IconX,
-  IconRefresh,
-  IconBike,
-  IconChevronDown,
-  IconChevronUp,
-} from '@tabler/icons-react';
 import { tokens } from '../theme';
 import { WEATHER_TOLERANCE_PRESETS, DEFAULT_WEATHER_PRESET, formatTemperature, formatWindSpeed } from '../utils/weather';
 import { stravaService } from '../utils/stravaService';
 import { notifications } from '@mantine/notifications';
+import { ArrowsClockwise, Bicycle, Camera, CaretDown, CaretUp, Cloud, Gauge, Gear, Heart, Mountains, Path, Shield, WarningCircle, X } from '@phosphor-icons/react';
 
 /**
  * FloatingRouteSettings - Route settings card that floats over the map
@@ -291,13 +276,13 @@ export default function FloatingRouteSettings({
         {/* Header */}
         <Group justify="space-between" align="center">
           <Group gap="xs">
-            <IconSettings size={20} style={{ color: 'var(--color-teal)' }} />
+            <Gear size={20} style={{ color: 'var(--color-teal)' }} />
             <Title order={4} style={{ color: 'var(--color-text-primary)' }}>
               Route Settings
             </Title>
           </Group>
           <ActionIcon variant="subtle" onClick={onClose}>
-            <IconX size={18} />
+            <X size={18} />
           </ActionIcon>
         </Group>
 
@@ -312,7 +297,7 @@ export default function FloatingRouteSettings({
         >
           <Group justify="space-between" align="center">
             <Group gap="xs">
-              <IconGauge size={18} style={{ color: 'var(--color-teal)' }} />
+              <Gauge size={18} style={{ color: 'var(--color-teal)' }} />
               <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
                 Your Pace
               </Text>
@@ -331,16 +316,16 @@ export default function FloatingRouteSettings({
         {/* Tabs */}
         <Tabs value={activeTab} onChange={setActiveTab} variant="pills" radius="md">
           <Tabs.List grow>
-            <Tabs.Tab value="speed" leftSection={<IconGauge size={14} />}>
+            <Tabs.Tab value="speed" leftSection={<Gauge size={14} />}>
               Speed
             </Tabs.Tab>
-            <Tabs.Tab value="routing" leftSection={<IconRoute size={14} />}>
+            <Tabs.Tab value="routing" leftSection={<Path size={14} />}>
               Route
             </Tabs.Tab>
-            <Tabs.Tab value="safety" leftSection={<IconShield size={14} />}>
+            <Tabs.Tab value="safety" leftSection={<Shield size={14} />}>
               Safety
             </Tabs.Tab>
-            <Tabs.Tab value="more" leftSection={<IconSettings size={14} />}>
+            <Tabs.Tab value="more" leftSection={<Gear size={14} />}>
               More
             </Tabs.Tab>
           </Tabs.List>
@@ -383,7 +368,7 @@ export default function FloatingRouteSettings({
 
               {/* No profile message */}
               {(!speedProfile || !speedProfile.average_speed) && !useManualSpeed && (
-                <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
+                <Alert color="yellow" icon={<WarningCircle size={16} />}>
                   <Text size="sm">
                     No ride data found. Connect Strava and sync rides, or set your pace manually below.
                   </Text>
@@ -416,7 +401,7 @@ export default function FloatingRouteSettings({
                   max={50}
                   step={0.5}
                   decimalScale={1}
-                  leftSection={<IconBike size={16} />}
+                  leftSection={<Bicycle size={16} />}
                   styles={{
                     input: {
                       backgroundColor: 'var(--color-bg-secondary)',
@@ -433,7 +418,7 @@ export default function FloatingRouteSettings({
                 <Button
                   variant="light"
                   size="sm"
-                  leftSection={recalculating ? <Loader size={14} /> : <IconRefresh size={14} />}
+                  leftSection={recalculating ? <Loader size={14} /> : <ArrowsClockwise size={14} />}
                   onClick={handleRecalculateSpeed}
                   disabled={recalculating}
                   fullWidth
@@ -588,7 +573,7 @@ export default function FloatingRouteSettings({
               {/* Scenic Section */}
               <Box>
                 <Group gap="xs" mb="xs">
-                  <IconCamera size={14} style={{ color: 'var(--color-teal)' }} />
+                  <Camera size={14} style={{ color: 'var(--color-teal)' }} />
                   <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>Scenic</Text>
                 </Group>
                 <Stack gap="xs">
@@ -630,7 +615,7 @@ export default function FloatingRouteSettings({
               {/* Training Section */}
               <Box>
                 <Group gap="xs" mb="xs">
-                  <IconHeart size={14} style={{ color: 'var(--color-teal)' }} />
+                  <Heart size={14} style={{ color: 'var(--color-teal)' }} />
                   <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>Training</Text>
                 </Group>
                 <Stack gap="xs">
@@ -673,7 +658,7 @@ export default function FloatingRouteSettings({
               {/* Weather Section */}
               <Box>
                 <Group gap="xs" mb="xs">
-                  <IconCloud size={14} style={{ color: 'var(--color-teal)' }} />
+                  <Cloud size={14} style={{ color: 'var(--color-teal)' }} />
                   <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>Weather</Text>
                 </Group>
                 <Stack gap="xs">
@@ -759,7 +744,7 @@ export function RouteSettingsButton({ onClick, speedProfile, isImperial = true }
         color="dark"
         size="md"
         onClick={onClick}
-        leftSection={<IconGauge size={18} />}
+        leftSection={<Gauge size={18} />}
         style={{
           backgroundColor: 'var(--color-bg-secondary)',
           border: `1px solid ${'var(--tribos-border)'}`,

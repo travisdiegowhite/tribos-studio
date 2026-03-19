@@ -23,19 +23,8 @@ import {
   Select,
   ActionIcon
 } from '@mantine/core';
-import {
-  IconAlertTriangle,
-  IconRefresh,
-  IconWebhook,
-  IconCheck,
-  IconX,
-  IconClock,
-  IconEye,
-  IconFilter,
-  IconFilterOff,
-  IconUser
-} from '@tabler/icons-react';
 import { listWebhooks } from '../../services/adminService';
+import { ArrowsClockwise, Check, Clock, Eye, Funnel, FunnelX, User, Warning, WebhooksLogo, X } from '@phosphor-icons/react';
 
 export default function WebhookViewer() {
   const [webhooks, setWebhooks] = useState([]);
@@ -81,11 +70,11 @@ export default function WebhookViewer() {
   function getStatusBadge(webhook) {
     if (webhook.processed) {
       if (webhook.process_error) {
-        return <Badge color="red" variant="light" leftSection={<IconX size={12} />}>Error</Badge>;
+        return <Badge color="red" variant="light" leftSection={<X size={12} />}>Error</Badge>;
       }
-      return <Badge color="teal" variant="light" leftSection={<IconCheck size={12} />}>Processed</Badge>;
+      return <Badge color="teal" variant="light" leftSection={<Check size={12} />}>Processed</Badge>;
     }
-    return <Badge color="yellow" variant="light" leftSection={<IconClock size={12} />}>Pending</Badge>;
+    return <Badge color="yellow" variant="light" leftSection={<Clock size={12} />}>Pending</Badge>;
   }
 
   // Build filter options
@@ -117,7 +106,7 @@ export default function WebhookViewer() {
   if (error) {
     return (
       <Alert
-        icon={<IconAlertTriangle size={16} />}
+        icon={<Warning size={16} />}
         title="Error"
         color="red"
       >
@@ -132,12 +121,12 @@ export default function WebhookViewer() {
       <Paper withBorder p="md">
         <Group justify="space-between" wrap="wrap">
           <Group>
-            <IconWebhook size={20} />
+            <WebhooksLogo size={20} />
             <Text fw={600}>
               {webhooks.length} Webhook Event{webhooks.length !== 1 ? 's' : ''}
             </Text>
             {filterUserId && (
-              <Badge color="blue" variant="light" leftSection={<IconFilter size={12} />}>
+              <Badge color="blue" variant="light" leftSection={<Funnel size={12} />}>
                 Filtered
               </Badge>
             )}
@@ -147,7 +136,7 @@ export default function WebhookViewer() {
             {/* User Filter */}
             <Select
               placeholder="Filter by user..."
-              leftSection={<IconUser size={16} />}
+              leftSection={<User size={16} />}
               data={filterOptions}
               value={filterUserId || ''}
               onChange={(value) => setFilterUserId(value || null)}
@@ -164,13 +153,13 @@ export default function WebhookViewer() {
                   color="gray"
                   onClick={() => setFilterUserId(null)}
                 >
-                  <IconFilterOff size={16} />
+                  <FunnelX size={16} />
                 </ActionIcon>
               </Tooltip>
             )}
 
             <Button
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
               variant="light"
               onClick={loadWebhooks}
               loading={loading}
@@ -186,17 +175,17 @@ export default function WebhookViewer() {
             <Badge color="gray" variant="outline" size="sm">Total: {statusCounts.total}</Badge>
           </Group>
           <Group gap="xs">
-            <Badge color="teal" variant="light" size="sm" leftSection={<IconCheck size={10} />}>
+            <Badge color="teal" variant="light" size="sm" leftSection={<Check size={10} />}>
               Processed: {statusCounts.processed}
             </Badge>
           </Group>
           <Group gap="xs">
-            <Badge color="red" variant="light" size="sm" leftSection={<IconX size={10} />}>
+            <Badge color="red" variant="light" size="sm" leftSection={<X size={10} />}>
               Errors: {statusCounts.errors}
             </Badge>
           </Group>
           <Group gap="xs">
-            <Badge color="yellow" variant="light" size="sm" leftSection={<IconClock size={10} />}>
+            <Badge color="yellow" variant="light" size="sm" leftSection={<Clock size={10} />}>
               Pending: {statusCounts.pending}
             </Badge>
           </Group>
@@ -206,7 +195,7 @@ export default function WebhookViewer() {
       {webhooks.length === 0 ? (
         <Paper withBorder p="xl">
           <Stack align="center">
-            <IconWebhook size={48} color="var(--mantine-color-gray-5)" />
+            <WebhooksLogo size={48} color="var(--mantine-color-gray-5)" />
             <Text c="dimmed">
               {filterUserId ? 'No webhook events for this user' : 'No webhook events recorded'}
             </Text>
@@ -285,7 +274,7 @@ export default function WebhookViewer() {
                       <Button
                         variant="subtle"
                         size="xs"
-                        leftSection={<IconEye size={14} />}
+                        leftSection={<Eye size={14} />}
                         onClick={() => setSelectedWebhook(webhook)}
                       >
                         Details
@@ -305,7 +294,7 @@ export default function WebhookViewer() {
         onClose={() => setSelectedWebhook(null)}
         title={
           <Group>
-            <IconWebhook size={20} />
+            <WebhooksLogo size={20} />
             <Text fw={600}>Webhook Details</Text>
           </Group>
         }
@@ -372,7 +361,7 @@ export default function WebhookViewer() {
             </Paper>
 
             {selectedWebhook.process_error && (
-              <Alert color="red" icon={<IconX size={16} />} title="Processing Error">
+              <Alert color="red" icon={<X size={16} />} title="Processing Error">
                 <Text size="sm">{selectedWebhook.process_error}</Text>
               </Alert>
             )}

@@ -21,14 +21,9 @@ import {
   Divider,
   Alert,
 } from '@mantine/core';
-import {
-  IconRun,
-  IconTarget,
-  IconTrophy,
-  IconInfoCircle,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../../theme';
+import { Info, PersonSimpleRun, Target, Trophy } from '@phosphor-icons/react';
 
 const STORAGE_KEY = 'runningProfile';
 
@@ -183,7 +178,7 @@ export default function RunningProfileSettings() {
     <Card>
       <Stack gap="md">
         <Group gap="sm">
-          <IconRun size={24} style={{ color: 'var(--color-teal)' }} />
+          <PersonSimpleRun size={24} style={{ color: 'var(--color-teal)' }} />
           <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
             Running Profile
           </Title>
@@ -235,7 +230,7 @@ export default function RunningProfileSettings() {
         <Divider label="Estimate from Race Result" labelPosition="center" />
 
         {/* Race PR estimation */}
-        <Alert icon={<IconInfoCircle size={16} />} color="teal" variant="light">
+        <Alert icon={<Info size={16} />} color="teal" variant="light">
           <Text size="sm">
             Enter a recent race result to estimate your VDOT and threshold pace automatically.
           </Text>
@@ -275,7 +270,7 @@ export default function RunningProfileSettings() {
           variant="light"
           color="teal"
           size="sm"
-          leftSection={<IconTrophy size={16} />}
+          leftSection={<Trophy size={16} />}
           onClick={handleEstimateFromRace}
           disabled={!raceTimeMin && !raceTimeSec}
         >
@@ -291,7 +286,7 @@ export default function RunningProfileSettings() {
             }}
           >
             <Group gap="sm">
-              <IconTarget size={16} style={{ color: 'var(--color-teal)' }} />
+              <Target size={16} style={{ color: 'var(--color-teal)' }} />
               <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                 Estimated VDOT: <Text component="span" fw={700} style={{ color: 'var(--color-teal)' }}>
                   {vdot}

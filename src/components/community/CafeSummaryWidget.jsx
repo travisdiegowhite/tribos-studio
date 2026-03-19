@@ -16,12 +16,8 @@ import {
   Box,
   Skeleton,
 } from '@mantine/core';
-import {
-  IconCoffee,
-  IconChevronRight,
-  IconPlus,
-} from '@tabler/icons-react';
 import { tokens } from '../../theme';
+import { CaretRight, Coffee, Plus } from '@phosphor-icons/react';
 
 function CafeSummaryWidget({
   cafe,
@@ -63,7 +59,7 @@ function CafeSummaryWidget({
       >
         <Stack gap="sm">
           <Group gap="xs">
-            <IconCoffee size={18} color={'var(--color-text-secondary)'} />
+            <Coffee size={18} color={'var(--color-text-secondary)'} />
             <Text size="sm" fw={500} c="dimmed">
               The Cafe
             </Text>
@@ -76,7 +72,7 @@ function CafeSummaryWidget({
           <Button
             variant="light"
             size="sm"
-            leftSection={<IconPlus size={16} />}
+            leftSection={<Plus size={16} />}
             onClick={onFindCafe}
             style={{
               backgroundColor: 'var(--color-bg-secondary)',
@@ -105,7 +101,7 @@ function CafeSummaryWidget({
         {/* Header */}
         <Group justify="space-between" align="flex-start">
           <Group gap="xs">
-            <IconCoffee size={18} color={'var(--color-teal)'} />
+            <Coffee size={18} color={'var(--color-teal)'} />
             <Text size="sm" fw={500}>
               {cafe.name}
             </Text>
@@ -146,7 +142,7 @@ function CafeSummaryWidget({
           to="/community"
           variant="subtle"
           size="xs"
-          rightSection={<IconChevronRight size={14} />}
+          rightSection={<CaretRight size={14} />}
           style={{
             color: 'var(--color-text-secondary)',
           }}

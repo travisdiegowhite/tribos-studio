@@ -12,28 +12,19 @@ import {
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useMantineColorScheme } from '@mantine/core';
-import {
-  IconHome,
-  IconMap,
-  IconActivity,
-  IconUsers,
-  IconSettings,
-  IconSun,
-  IconMoon,
-  IconCalendarEvent,
-} from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
+import { CalendarBlank, Gear, Heartbeat, House, MapTrifold, Moon, Sun, Users } from '@phosphor-icons/react';
 
 // Flat navigation - 6 direct links, no dropdowns
 const navItems = [
-  { path: '/dashboard', label: 'Home', icon: IconHome },
-  { path: '/routes/new', label: 'Routes', icon: IconMap },
-  { path: '/training', label: 'Training', icon: IconActivity },
-  { path: '/planner', label: 'Planner', icon: IconCalendarEvent },
-  { path: '/community', label: 'Cafe', icon: IconUsers },
-  { path: '/settings', label: 'Settings', icon: IconSettings },
+  { path: '/dashboard', label: 'Home', icon: House },
+  { path: '/routes/new', label: 'Routes', icon: MapTrifold },
+  { path: '/training', label: 'Training', icon: Heartbeat },
+  { path: '/planner', label: 'Planner', icon: CalendarBlank },
+  { path: '/community', label: 'Cafe', icon: Users },
+  { path: '/settings', label: 'Settings', icon: Gear },
 ];
 
 function AppShell({ children, fullWidth = false, hideNav = false }) {
@@ -137,7 +128,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                     onClick={toggleColorScheme}
                     ml="xs"
                   >
-                    {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
+                    {colorScheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                   </ActionIcon>
                 </Tooltip>
                 <Box ml="xs">
@@ -154,7 +145,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                   color="gray"
                   onClick={toggleColorScheme}
                 >
-                  {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
+                  {colorScheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                 </ActionIcon>
                 <BetaFeedbackWidget />
               </Group>
@@ -221,7 +212,7 @@ function DesktopNavLink({ to, label, icon: Icon, active }) {
         <Icon
           size={16}
           color={active ? 'var(--color-teal)' : 'var(--color-text-secondary)'}
-          stroke={1.5}
+          
         />
         <Text
           size="sm"

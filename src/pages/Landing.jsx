@@ -1,7 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Box, Group, Text, Button, Anchor, Center, Container, Stack } from '@mantine/core';
-import { IconRoute } from '@tabler/icons-react';
 import SEO, { getOrganizationSchema, getWebSiteSchema } from '../components/SEO';
 
 // Landing sections
@@ -16,6 +15,7 @@ import ProgressIndicator from '../components/landing/ProgressIndicator';
 
 // Styles
 import '../components/landing/landing.css';
+import { Path } from '@phosphor-icons/react';
 
 const SECTION_COUNT = 7;
 
@@ -76,7 +76,7 @@ function Landing() {
       <Box className="landing-nav" py="sm" px={{ base: 'md', md: 'xl' }}>
         <Group justify="space-between" align="center">
           <Group gap="sm">
-            <IconRoute size={22} color="var(--color-teal)" />
+            <Path size={22} color="var(--color-teal)" />
             <Text
               fw={700}
               size="md"
@@ -169,7 +169,7 @@ function Landing() {
             <Stack gap="sm">
               <Center>
                 <Group gap="md">
-                  <IconRoute size={20} color="var(--color-teal)" />
+                  <Path size={20} color="var(--color-teal)" />
                   <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
                     tribos.studio
                   </Text>

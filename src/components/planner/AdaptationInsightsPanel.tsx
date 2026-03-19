@@ -23,23 +23,6 @@ import {
   Divider,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import {
-  IconBulb,
-  IconAlertTriangle,
-  IconThumbUp,
-  IconCheck,
-  IconX,
-  IconChevronDown,
-  IconChevronUp,
-  IconActivity,
-  IconClockMinus,
-  IconClockPlus,
-  IconArrowsExchange,
-  IconTrendingUp,
-  IconTrendingDown,
-  IconTargetArrow,
-  IconAdjustments,
-} from '@tabler/icons-react';
 import type {
   WorkoutAdaptation,
   TrainingInsight,
@@ -47,6 +30,7 @@ import type {
   AdaptationType,
 } from '../../types/training';
 import { getAssessmentColor } from '../../utils/adaptationTrigger';
+import { ArrowsLeftRight, CaretDown, CaretUp, Check, ClockClockwise, ClockCountdown, Heartbeat, Lightbulb, Sliders, Target, ThumbsUp, TrendDown, TrendUp, Warning, X } from '@phosphor-icons/react';
 
 interface AdaptationInsightsPanelProps {
   weekStart: string;
@@ -63,21 +47,21 @@ interface AdaptationInsightsPanelProps {
 function getAdaptationIcon(type: AdaptationType) {
   switch (type) {
     case 'completed_as_planned':
-      return IconCheck;
+      return Check;
     case 'time_truncated':
-      return IconClockMinus;
+      return ClockCountdown;
     case 'time_extended':
-      return IconClockPlus;
+      return ClockClockwise;
     case 'intensity_swap':
-      return IconArrowsExchange;
+      return ArrowsLeftRight;
     case 'upgraded':
-      return IconTrendingUp;
+      return TrendUp;
     case 'downgraded':
-      return IconTrendingDown;
+      return TrendDown;
     case 'skipped':
-      return IconX;
+      return X;
     default:
-      return IconActivity;
+      return Heartbeat;
   }
 }
 
@@ -107,15 +91,15 @@ function getAdaptationColor(type: AdaptationType): string {
 function getInsightIcon(type: string) {
   switch (type) {
     case 'warning':
-      return IconAlertTriangle;
+      return Warning;
     case 'praise':
-      return IconThumbUp;
+      return ThumbsUp;
     case 'adaptation_needed':
-      return IconAdjustments;
+      return Sliders;
     case 'goal_at_risk':
-      return IconTargetArrow;
+      return Target;
     default:
-      return IconBulb;
+      return Lightbulb;
   }
 }
 
@@ -267,13 +251,13 @@ export function AdaptationInsightsPanel({
               onClick={toggleAdaptations}
             >
               <Group gap="xs">
-                <IconActivity size={16} />
+                <Heartbeat size={16} />
                 <Text size="sm" fw={500}>
                   Adaptations ({adaptations.length})
                 </Text>
               </Group>
               <ActionIcon variant="subtle" size="sm">
-                {adaptationsExpanded ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                {adaptationsExpanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
               </ActionIcon>
             </Group>
 
@@ -359,7 +343,7 @@ export function AdaptationInsightsPanel({
           <Box>
             <Group justify="space-between" mb="xs">
               <Group gap="xs">
-                <IconBulb size={16} color="var(--mantine-color-yellow-5)" />
+                <Lightbulb size={16} color="var(--mantine-color-yellow-5)" />
                 <Text size="sm" fw={500}>
                   AI Insights ({activeInsights.length})
                 </Text>
@@ -398,7 +382,7 @@ export function AdaptationInsightsPanel({
                               variant="subtle"
                               onClick={() => onApplyInsight(insight.id)}
                             >
-                              <IconCheck size={14} />
+                              <Check size={14} />
                             </ActionIcon>
                           </Tooltip>
                         )}
@@ -409,7 +393,7 @@ export function AdaptationInsightsPanel({
                             variant="subtle"
                             onClick={() => onDismissInsight(insight.id)}
                           >
-                            <IconX size={14} />
+                            <X size={14} />
                           </ActionIcon>
                         </Tooltip>
                       </Group>

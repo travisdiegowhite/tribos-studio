@@ -24,19 +24,10 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
-import {
-  IconCalendar,
-  IconSettings,
-  IconCheck,
-  IconAlertCircle,
-  IconClock,
-  IconFlame,
-  IconTarget,
-  IconPlayerPlay,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { TRAINING_PHASES, FITNESS_LEVELS } from '../../utils/trainingPlans';
 import { getWorkoutById } from '../../data/workoutLibrary';
+import { Calendar, Check, Clock, Fire, Gear, Play, Target, WarningCircle } from '@phosphor-icons/react';
 
 const DAYS_OF_WEEK = [
   { value: 0, label: 'Sunday', short: 'Sun' },
@@ -134,7 +125,7 @@ export default function PlanCustomizationModal({
         title: 'Plan Started!',
         message: `${plan.name} has been activated`,
         color: 'green',
-        icon: <IconCheck size={18} />,
+        icon: <Check size={18} />,
       });
       onClose();
     } catch (err) {
@@ -157,7 +148,7 @@ export default function PlanCustomizationModal({
       onClose={onClose}
       title={
         <Group spacing="xs">
-          <IconSettings size={20} />
+          <Gear size={20} />
           <Text fw={600}>Customize Your Plan</Text>
         </Group>
       }
@@ -191,7 +182,7 @@ export default function PlanCustomizationModal({
             onChange={setStartDate}
             minDate={new Date()}
             placeholder="Select start date"
-            leftSection={<IconCalendar size={16} />}
+            leftSection={<Calendar size={16} />}
             clearable={false}
           />
           <Text size="xs" c="dimmed" mt={4}>
@@ -225,7 +216,7 @@ export default function PlanCustomizationModal({
             ))}
           </Group>
           {restDays.length === 0 && (
-            <Alert color="yellow" mt="sm" icon={<IconAlertCircle size={16} />}>
+            <Alert color="yellow" mt="sm" icon={<WarningCircle size={16} />}>
               Consider adding at least one rest day per week for recovery.
             </Alert>
           )}
@@ -325,15 +316,15 @@ export default function PlanCustomizationModal({
               </Text>
               <Group spacing="lg" mt={4}>
                 <Group spacing={4}>
-                  <IconClock size={16} />
+                  <Clock size={16} />
                   <Text fw={500}>{Math.round(weeklyStats.duration / 60 * 10) / 10}h</Text>
                 </Group>
                 <Group spacing={4}>
-                  <IconFlame size={16} />
+                  <Fire size={16} />
                   <Text fw={500}>{weeklyStats.tss} TSS</Text>
                 </Group>
                 <Group spacing={4}>
-                  <IconTarget size={16} />
+                  <Target size={16} />
                   <Text fw={500}>{weeklyStats.workoutCount} workouts</Text>
                 </Group>
               </Group>
@@ -349,7 +340,7 @@ export default function PlanCustomizationModal({
           <Button
             onClick={handleStartPlan}
             loading={starting}
-            leftIcon={<IconPlayerPlay size={18} />}
+            leftIcon={<Play size={18} />}
             size="md"
           >
             Start Training Plan
