@@ -26,6 +26,7 @@ const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'));
 const GearPage = lazy(() => import('./pages/GearPage.jsx'));
 const Admin = lazy(() => import('./pages/Admin.jsx'));
 const MyRoutes = lazy(() => import('./pages/MyRoutes.jsx'));
+const Progress = lazy(() => import('./pages/Progress.jsx'));
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
@@ -174,12 +175,12 @@ function AppRoutes() {
         }
       />
 
-      {/* PROGRESS — Phase 1: temporarily routes to Training trends tab */}
+      {/* PROGRESS — Dedicated progress/trends page */}
       <Route
         path="/progress"
         element={
           <ProtectedRoute>
-            <Navigate to="/train?tab=trends" replace />
+            <Progress />
           </ProtectedRoute>
         }
       />
