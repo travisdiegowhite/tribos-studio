@@ -17,6 +17,7 @@ import {
   IconLogout,
   IconBike,
   IconUsers,
+  IconBell,
 } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
@@ -98,7 +99,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
           <Box
             component="header"
             style={{
-              height: 56,
+              height: 60,
               backgroundColor: '#141410',
               position: 'sticky',
               top: 0,
@@ -122,9 +123,9 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                   fw={700}
                   style={{
                     fontFamily: "'Barlow Condensed', sans-serif",
-                    fontSize: 18,
+                    fontSize: 22,
                     color: '#FFFFFF',
-                    letterSpacing: '0.06em',
+                    letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                   }}
                 >
@@ -143,8 +144,8 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                         component={Link}
                         to={item.path}
                         style={{
-                          padding: '0 20px',
-                          height: 56,
+                          padding: '0 28px',
+                          height: 60,
                           display: 'flex',
                           alignItems: 'center',
                           position: 'relative',
@@ -153,9 +154,9 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                         <Text
                           style={{
                             fontFamily: "'Barlow Condensed', sans-serif",
-                            fontSize: 13,
+                            fontSize: 16,
                             fontWeight: 700,
-                            letterSpacing: '1.5px',
+                            letterSpacing: '2px',
                             textTransform: 'uppercase',
                             color: active ? '#FFFFFF' : '#9A9990',
                             transition: 'color 150ms ease',
@@ -169,8 +170,8 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                             style={{
                               position: 'absolute',
                               bottom: 0,
-                              left: 20,
-                              right: 20,
+                              left: 28,
+                              right: 28,
                               height: 2,
                               backgroundColor: 'var(--color-teal)',
                             }}
@@ -182,8 +183,19 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                 </Group>
               )}
 
-              {/* Right: Avatar dropdown */}
-              <Group gap="xs">
+              {/* Right: Bell + Avatar dropdown */}
+              <Group gap="sm">
+                <UnstyledButton
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 36,
+                    height: 36,
+                  }}
+                >
+                  <IconBell size={20} color="#9A9990" stroke={1.5} />
+                </UnstyledButton>
                 <AvatarDropdown
                   initials={userInitials}
                   colorScheme={colorScheme}
@@ -201,7 +213,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
               display: 'flex',
               height: 3,
               position: 'sticky',
-              top: 56,
+              top: 60,
               zIndex: 99,
             }}
           >
@@ -232,8 +244,8 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
       <Menu.Target>
         <UnstyledButton
           style={{
-            width: 34,
-            height: 34,
+            width: 38,
+            height: 38,
             borderRadius: '50%',
             backgroundColor: 'var(--color-teal)',
             display: 'flex',
@@ -245,7 +257,7 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
           <Text
             style={{
               fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 13,
+              fontSize: 15,
               fontWeight: 700,
               color: '#FFFFFF',
               letterSpacing: '0.5px',
@@ -351,9 +363,9 @@ function MobileBottomNav({ navItems, isActive }) {
             <Text
               style={{
                 fontFamily: "'Barlow Condensed', sans-serif",
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: 700,
-                letterSpacing: '1.5px',
+                letterSpacing: '2px',
                 textTransform: 'uppercase',
                 color: active ? '#FFFFFF' : '#9A9990',
               }}
