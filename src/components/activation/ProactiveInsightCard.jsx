@@ -7,10 +7,10 @@ import {
   Box,
   ThemeIcon,
 } from '@mantine/core';
-import { IconBrain, IconMessageCircle } from '@tabler/icons-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useCoachCommandBar } from '../coach/CoachCommandBarContext.jsx';
 import { supabase } from '../../lib/supabase';
+import { Brain, ChatCircle } from '@phosphor-icons/react';
 
 export default function ProactiveInsightCard() {
   const { user } = useAuth();
@@ -105,7 +105,7 @@ export default function ProactiveInsightCard() {
     >
       <Group gap="sm" mb="xs" wrap="nowrap">
         <ThemeIcon size="md" variant="light" color="teal" radius="xl">
-          <IconBrain size={16} />
+          <Brain size={16} />
         </ThemeIcon>
         <Box style={{ flex: 1 }}>
           <Text
@@ -142,7 +142,7 @@ export default function ProactiveInsightCard() {
           variant="light"
           color="teal"
           size="compact-sm"
-          leftSection={<IconMessageCircle size={14} />}
+          leftSection={<ChatCircle size={14} />}
           onClick={handleTalkToCoach}
         >
           Talk to your coach

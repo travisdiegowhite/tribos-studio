@@ -24,29 +24,17 @@ import {
   RingProgress,
   ActionIcon,
 } from '@mantine/core';
-import {
-  IconBarbell,
-  IconYoga,
-  IconStretching,
-  IconCalendar,
-  IconCheck,
-  IconPlus,
-  IconAlertCircle,
-  IconClock,
-  IconInfoCircle,
-  IconChevronLeft,
-  IconChevronRight,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import { getSupplementType } from '../../utils/trainingPlans';
+import { Barbell, Calendar, CaretLeft, CaretRight, Check, Clock, Info, PersonSimpleWalk, Plus, WarningCircle } from '@phosphor-icons/react';
 
 // Group supplement workouts by category
 const SUPPLEMENT_CATEGORIES = {
   strength: {
     name: 'Strength',
     description: 'Build power and muscle endurance',
-    icon: IconBarbell,
+    icon: Barbell,
     color: 'pink',
     workouts: [
       'strength_anatomical_adaptation',
@@ -59,7 +47,7 @@ const SUPPLEMENT_CATEGORIES = {
   core: {
     name: 'Core',
     description: 'Stability and transfer of power',
-    icon: IconYoga,
+    icon: PersonSimpleWalk,
     color: 'violet',
     workouts: [
       'core_foundation',
@@ -70,7 +58,7 @@ const SUPPLEMENT_CATEGORIES = {
   flexibility: {
     name: 'Flexibility',
     description: 'Recovery and mobility',
-    icon: IconStretching,
+    icon: PersonSimpleWalk,
     color: 'teal',
     workouts: [
       'flexibility_post_ride',
@@ -150,7 +138,7 @@ export default function SupplementWorkoutModal({
           title: 'Workout Added',
           message: `${workout?.name || 'Supplement workout'} added for ${formatDate(selectedDate)}`,
           color: 'green',
-          icon: <IconCheck size={18} />,
+          icon: <Check size={18} />,
         });
 
         // Reset selections but keep modal open for adding more
@@ -186,7 +174,7 @@ export default function SupplementWorkoutModal({
       onClose={handleClose}
       title={
         <Group spacing="xs">
-          <IconBarbell size={20} />
+          <Barbell size={20} />
           <Text fw={600}>Add Supplement Workout</Text>
         </Group>
       }
@@ -194,7 +182,7 @@ export default function SupplementWorkoutModal({
     >
       <Stack spacing="md">
         {/* Info Alert */}
-        <Alert icon={<IconInfoCircle size={18} />} color="blue" variant="light">
+        <Alert icon={<Info size={18} />} color="blue" variant="light">
           Add strength, core, or flexibility workouts to complement your cycling training.
           We'll suggest the best days based on your current plan.
         </Alert>
@@ -254,7 +242,7 @@ export default function SupplementWorkoutModal({
                         </Group>
                         {isSelected && (
                           <ThemeIcon size="sm" color={cat.color} variant="filled">
-                            <IconCheck size={12} />
+                            <Check size={12} />
                           </ThemeIcon>
                         )}
                       </Group>
@@ -264,7 +252,7 @@ export default function SupplementWorkoutModal({
                       </Text>
 
                       <Group spacing="xs">
-                        <Badge size="xs" variant="light" leftSection={<IconClock size={10} />}>
+                        <Badge size="xs" variant="light" leftSection={<Clock size={10} />}>
                           {workout.duration} min
                         </Badge>
                         <Badge size="xs" variant="outline" color="gray">
@@ -292,7 +280,7 @@ export default function SupplementWorkoutModal({
                 </div>
                 {supplementType === 'heavy_strength' && (
                   <Alert
-                    icon={<IconAlertCircle size={16} />}
+                    icon={<WarningCircle size={16} />}
                     color="orange"
                     variant="light"
                     p="xs"
@@ -307,7 +295,7 @@ export default function SupplementWorkoutModal({
 
               {/* Coach Notes */}
               {selectedWorkoutDetails.coachNotes && (
-                <Alert icon={<IconInfoCircle size={16} />} color="gray" variant="light" mb="md">
+                <Alert icon={<Info size={16} />} color="gray" variant="light" mb="md">
                   <Text size="xs">{selectedWorkoutDetails.coachNotes}</Text>
                 </Alert>
               )}
@@ -398,7 +386,7 @@ export default function SupplementWorkoutModal({
               onClick={handleAddWorkout}
               loading={adding}
               disabled={!selectedWorkout || !selectedDate}
-              leftSection={<IconPlus size={18} />}
+              leftSection={<Plus size={18} />}
             >
               Add to Plan
             </Button>

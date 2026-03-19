@@ -19,19 +19,9 @@ import {
   Divider,
   Menu,
 } from '@mantine/core';
-import {
-  IconArrowLeft,
-  IconThumbUp,
-  IconMessageCircle,
-  IconDotsVertical,
-  IconEdit,
-  IconTrash,
-  IconPin,
-  IconLock,
-  IconChartBar,
-} from '@tabler/icons-react';
 import { tokens } from '../../theme';
 import { CATEGORY_LABELS, CATEGORY_COLORS } from '../../hooks/useDiscussions';
+import { ArrowLeft, ChartBar, ChatCircle, DotsThreeVertical, Lock, PencilSimple, PushPin, ThumbsUp, Trash } from '@phosphor-icons/react';
 
 function DiscussionThread({
   discussion,
@@ -73,7 +63,7 @@ function DiscussionThread({
           onClick={onBack}
           style={{ color: 'var(--color-text-secondary)' }}
         >
-          <IconArrowLeft size={18} />
+          <ArrowLeft size={18} />
         </ActionIcon>
         <Text size="sm" c="dimmed">
           Back to discussions
@@ -94,7 +84,7 @@ function DiscussionThread({
           <Group justify="space-between" align="flex-start">
             <Group gap="xs">
               {discussion.is_pinned && (
-                <Badge size="xs" variant="light" color="teal" leftSection={<IconPin size={10} />}>
+                <Badge size="xs" variant="light" color="teal" leftSection={<PushPin size={10} />}>
                   Pinned
                 </Badge>
               )}
@@ -107,14 +97,14 @@ function DiscussionThread({
               </Badge>
               {discussion.include_training_context && (
                 <Tooltip label="Includes training context">
-                  <Badge size="xs" variant="light" color="teal" leftSection={<IconChartBar size={10} />}>
+                  <Badge size="xs" variant="light" color="teal" leftSection={<ChartBar size={10} />}>
                     Context
                   </Badge>
                 </Tooltip>
               )}
             </Group>
             {discussion.is_locked && (
-              <Badge size="xs" variant="light" color="gray" leftSection={<IconLock size={10} />}>
+              <Badge size="xs" variant="light" color="gray" leftSection={<Lock size={10} />}>
                 Locked
               </Badge>
             )}
@@ -270,7 +260,7 @@ function DiscussionThread({
           }}
         >
           <Group gap="xs" justify="center">
-            <IconLock size={16} color={'var(--color-text-muted)'} />
+            <Lock size={16} color={'var(--color-text-muted)'} />
             <Text size="sm" c="dimmed">
               This discussion is locked
             </Text>
@@ -316,12 +306,12 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
             <Menu shadow="md" width={120}>
               <Menu.Target>
                 <ActionIcon variant="subtle" size="sm" color="gray">
-                  <IconDotsVertical size={14} />
+                  <DotsThreeVertical size={14} />
                 </ActionIcon>
               </Menu.Target>
               <Menu.Dropdown>
                 <Menu.Item
-                  leftSection={<IconTrash size={14} />}
+                  leftSection={<Trash size={14} />}
                   color="red"
                   onClick={onDelete}
                 >
@@ -376,7 +366,7 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
               variant={reply.has_marked_helpful ? 'light' : 'subtle'}
               size="xs"
               color={reply.has_marked_helpful ? 'sage' : 'gray'}
-              leftSection={<IconThumbUp size={14} />}
+              leftSection={<ThumbsUp size={14} />}
               onClick={reply.has_marked_helpful ? onUnmarkHelpful : onMarkHelpful}
               disabled={isOwn}
             >

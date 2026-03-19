@@ -18,17 +18,8 @@ import {
   ThemeIcon,
   Tooltip,
 } from '@mantine/core';
-import {
-  IconFlame,
-  IconClock,
-  IconActivity,
-  IconHeart,
-  IconBolt,
-  IconTrendingUp,
-  IconPlayerPlay,
-  IconRepeat,
-} from '@tabler/icons-react';
 import type { WorkoutDefinition, WorkoutSegment, WorkoutInterval, WorkoutStructure } from '../../types/training';
+import { Clock, Fire, Heart, Heartbeat, Lightning, Play, Repeat, TrendUp } from '@phosphor-icons/react';
 
 interface WorkoutDetailModalProps {
   workout: WorkoutDefinition | null;
@@ -202,18 +193,18 @@ function formatDuration(minutes: number): string {
 // Get icon for segment type
 function getSegmentIcon(segment: FlattenedSegment) {
   if (segment.type === 'warmup' || segment.type === 'cooldown') {
-    return <IconHeart size={14} />;
+    return <Heart size={14} />;
   }
   if (segment.type === 'rest') {
-    return <IconActivity size={14} />;
+    return <Heartbeat size={14} />;
   }
   if (segment.zone && segment.zone >= 5) {
-    return <IconBolt size={14} />;
+    return <Lightning size={14} />;
   }
   if (segment.isRepeat) {
-    return <IconRepeat size={14} />;
+    return <Repeat size={14} />;
   }
-  return <IconTrendingUp size={14} />;
+  return <TrendUp size={14} />;
 }
 
 // Visual power chart component
@@ -354,7 +345,7 @@ export function WorkoutDetailModal({ workout, opened, onClose }: WorkoutDetailMo
       onClose={onClose}
       title={
         <Group gap="xs">
-          <IconPlayerPlay size={18} />
+          <Play size={18} />
           <Text fw={600}>{workout.name}</Text>
         </Group>
       }
@@ -378,11 +369,11 @@ export function WorkoutDetailModal({ workout, opened, onClose }: WorkoutDetailMo
             </Group>
             <Group gap="md">
               <Group gap={4}>
-                <IconClock size={16} color="var(--mantine-color-dimmed)" />
+                <Clock size={16} color="var(--mantine-color-dimmed)" />
                 <Text size="sm" c="dimmed">{workout.duration}min</Text>
               </Group>
               <Group gap={4}>
-                <IconFlame size={16} color="var(--mantine-color-orange-5)" />
+                <Fire size={16} color="var(--mantine-color-orange-5)" />
                 <Text size="sm" fw={500}>{workout.targetTSS} TSS</Text>
               </Group>
             </Group>
@@ -394,7 +385,7 @@ export function WorkoutDetailModal({ workout, opened, onClose }: WorkoutDetailMo
 
           {intervalSummary && intervalSummary !== 'Steady effort' && (
             <Group gap="xs" mt="xs">
-              <IconRepeat size={14} color="var(--mantine-color-terracotta-5)" />
+              <Repeat size={14} color="var(--mantine-color-terracotta-5)" />
               <Text size="sm" c="terracotta" fw={500}>
                 {intervalSummary}
               </Text>

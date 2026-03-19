@@ -30,26 +30,11 @@ import {
   MultiSelect,
   JsonInput,
 } from '@mantine/core';
-import {
-  IconPlus,
-  IconEdit,
-  IconTrash,
-  IconDotsVertical,
-  IconSearch,
-  IconRefresh,
-  IconCheck,
-  IconAlertCircle,
-  IconEye,
-  IconCopy,
-  IconUpload,
-  IconBike,
-  IconFlame,
-  IconClock,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { WORKOUT_LIBRARY, getAllWorkoutIds } from '../../data/workoutLibrary';
+import { ArrowsClockwise, Bicycle, Check, Clock, Copy, DotsThreeVertical, Eye, Fire, MagnifyingGlass, PencilSimple, Plus, Trash, UploadSimple, WarningCircle } from '@phosphor-icons/react';
 
 const CATEGORY_OPTIONS = [
   { value: 'recovery', label: 'Recovery', color: 'sage' },
@@ -266,7 +251,7 @@ export default function WorkoutTemplateManager() {
         title: 'Success',
         message: selectedWorkout ? 'Workout updated' : 'Workout created',
         color: 'sage',
-        icon: <IconCheck size={18} />,
+        icon: <Check size={18} />,
       });
       setEditModalOpen(false);
       loadWorkouts();
@@ -300,7 +285,7 @@ export default function WorkoutTemplateManager() {
         title: 'Deleted',
         message: 'Workout has been deactivated',
         color: 'sage',
-        icon: <IconCheck size={18} />,
+        icon: <Check size={18} />,
       });
       setDeleteConfirmOpen(false);
       loadWorkouts();
@@ -352,7 +337,7 @@ export default function WorkoutTemplateManager() {
         title: 'Seeding Complete',
         message: `Imported ${successCount} workouts from local files`,
         color: 'sage',
-        icon: <IconCheck size={18} />,
+        icon: <Check size={18} />,
       });
       loadWorkouts();
     } catch (err) {
@@ -390,7 +375,7 @@ export default function WorkoutTemplateManager() {
           <Group>
             <TextInput
               placeholder="Search workouts..."
-              leftSection={<IconSearch size={16} />}
+              leftSection={<MagnifyingGlass size={16} />}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               w={250}
@@ -405,7 +390,7 @@ export default function WorkoutTemplateManager() {
             />
             <Button
               variant="subtle"
-              leftSection={<IconRefresh size={16} />}
+              leftSection={<ArrowsClockwise size={16} />}
               onClick={loadWorkouts}
             >
               Refresh
@@ -414,14 +399,14 @@ export default function WorkoutTemplateManager() {
           <Group>
             <Button
               variant="light"
-              leftSection={<IconUpload size={16} />}
+              leftSection={<UploadSimple size={16} />}
               onClick={seedFromLocalFiles}
               loading={saving}
             >
               Import from JS
             </Button>
             <Button
-              leftSection={<IconPlus size={16} />}
+              leftSection={<Plus size={16} />}
               onClick={() => openEditModal()}
             >
               New Workout
@@ -500,13 +485,13 @@ export default function WorkoutTemplateManager() {
                     </Table.Td>
                     <Table.Td>
                       <Group spacing={4}>
-                        <IconClock size={14} />
+                        <Clock size={14} />
                         <Text size="sm">{workout.duration} min</Text>
                       </Group>
                     </Table.Td>
                     <Table.Td>
                       <Group spacing={4}>
-                        <IconFlame size={14} />
+                        <Fire size={14} />
                         <Text size="sm">{workout.targetTSS}</Text>
                       </Group>
                     </Table.Td>
@@ -534,7 +519,7 @@ export default function WorkoutTemplateManager() {
                             variant="subtle"
                             onClick={() => openViewModal(workout)}
                           >
-                            <IconEye size={16} />
+                            <Eye size={16} />
                           </ActionIcon>
                         </Tooltip>
                         <Tooltip label="Edit">
@@ -543,18 +528,18 @@ export default function WorkoutTemplateManager() {
                             color="blue"
                             onClick={() => openEditModal(workout)}
                           >
-                            <IconEdit size={16} />
+                            <PencilSimple size={16} />
                           </ActionIcon>
                         </Tooltip>
                         <Menu shadow="md" width={160}>
                           <Menu.Target>
                             <ActionIcon variant="subtle">
-                              <IconDotsVertical size={16} />
+                              <DotsThreeVertical size={16} />
                             </ActionIcon>
                           </Menu.Target>
                           <Menu.Dropdown>
                             <Menu.Item
-                              leftSection={<IconCopy size={14} />}
+                              leftSection={<Copy size={14} />}
                               onClick={() => {
                                 const clone = { ...workout, id: `${workout.id}_copy`, name: `${workout.name} (Copy)` };
                                 openEditModal(clone);
@@ -565,7 +550,7 @@ export default function WorkoutTemplateManager() {
                             <Menu.Divider />
                             <Menu.Item
                               color="red"
-                              leftSection={<IconTrash size={14} />}
+                              leftSection={<Trash size={14} />}
                               onClick={() => openDeleteConfirm(workout)}
                             >
                               Delete
@@ -821,7 +806,7 @@ export default function WorkoutTemplateManager() {
           <Text size="sm" c="dimmed">
             This action will deactivate the workout. It can be restored later if needed.
           </Text>
-          <Alert icon={<IconAlertCircle size={16} />} color="yellow" variant="light">
+          <Alert icon={<WarningCircle size={16} />} color="yellow" variant="light">
             Training plans using this workout will fall back to local definitions.
           </Alert>
           <Group position="right" mt="md">

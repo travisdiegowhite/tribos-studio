@@ -1,11 +1,11 @@
 import { useMemo, useState, useCallback } from 'react';
 import { Card, Text, Group, Badge, Box, Stack, Skeleton, Loader, Anchor } from '@mantine/core';
-import { IconMapPin, IconRoute, IconExternalLink } from '@tabler/icons-react';
 import Map, { Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
 import { ViewOnStravaLink, PoweredByStrava, STRAVA_ORANGE } from './StravaBranding';
 import { PoweredByGarmin } from './GarminBranding';
+import { ArrowSquareOut, MapPin, Path } from '@phosphor-icons/react';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -236,7 +236,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
     return (
       <Card>
         <Stack gap="md" align="center" py="xl">
-          <IconMapPin size={48} color={'var(--color-text-muted)'} />
+          <MapPin size={48} color={'var(--color-text-muted)'} />
           <Text style={{ color: 'var(--color-text-muted)' }}>
             Map requires configuration
           </Text>
@@ -266,7 +266,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
               gap: tokens.spacing.md,
             }}
           >
-            <IconRoute size={48} color={'var(--color-text-muted)'} />
+            <Path size={48} color={'var(--color-text-muted)'} />
             <Text style={{ color: 'var(--color-text-muted)' }}>
               No rides with route data yet
             </Text>

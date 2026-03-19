@@ -4,9 +4,9 @@
  */
 
 import { Box, Text, Badge, Group, Tooltip } from '@mantine/core';
-import { IconClock, IconFlame, IconGripVertical } from '@tabler/icons-react';
 import type { WorkoutDefinition, WorkoutCategory } from '../../types/training';
 import type { DragSource } from '../../types/planner';
+import { Clock, DotsSixVertical, Fire } from '@phosphor-icons/react';
 
 interface WorkoutCardProps {
   workout: WorkoutDefinition;
@@ -156,7 +156,7 @@ export function WorkoutCard({
       className="tribos-workout-card"
     >
       <Group gap={8} wrap="nowrap" mb={6}>
-        <IconGripVertical size={14} style={{ opacity: 0.5, flexShrink: 0, color: 'var(--mantine-color-gray-5)' }} />
+        <DotsSixVertical size={14} style={{ opacity: 0.5, flexShrink: 0, color: 'var(--mantine-color-gray-5)' }} />
         <Text size="sm">{icon}</Text>
         <Text size="sm" fw={600} c="white" lineClamp={1} style={{ flex: 1 }}>
           {workout.name}
@@ -169,7 +169,7 @@ export function WorkoutCard({
         </Badge>
         {showDuration && (
           <Group gap={2}>
-            <IconClock size={12} color="var(--mantine-color-gray-5)" />
+            <Clock size={12} color="var(--mantine-color-gray-5)" />
             <Text size="xs" c="gray.4">
               {workout.duration}min
             </Text>
@@ -177,7 +177,7 @@ export function WorkoutCard({
         )}
         {showTSS && (
           <Group gap={2}>
-            <IconFlame size={12} color="var(--mantine-color-gray-5)" />
+            <Fire size={12} color="var(--mantine-color-gray-5)" />
             <Text size="xs" c="gray.4">
               {workout.targetTSS} TSS
             </Text>

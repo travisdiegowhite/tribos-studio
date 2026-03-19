@@ -23,23 +23,6 @@ import {
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { formatLocalDate, addDays, parsePlanStartDate } from '../utils/dateUtils';
-import {
-  IconTarget,
-  IconClock,
-  IconTrendingUp,
-  IconCalendar,
-  IconInfoCircle,
-  IconChevronRight,
-  IconCheck,
-  IconPlayerPlay,
-  IconPlayerPause,
-  IconTrash,
-  IconDotsVertical,
-  IconX,
-  IconRefresh,
-  IconBike,
-  IconRun,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { getAllPlans, getPlansByGoal, getPlansByFitnessLevel, getPlansByCategory } from '../data/trainingPlanTemplates';
@@ -50,6 +33,7 @@ import { RUNNING_WORKOUT_LIBRARY } from '../data/runningWorkoutLibrary';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { trackFeature, EventType } from '../utils/activityTracking';
+import { ArrowsClockwise, Bicycle, Calendar, CaretRight, Check, Clock, DotsThreeVertical, Info, Pause, PersonSimpleRun, Play, Target, Trash, TrendUp, X } from '@phosphor-icons/react';
 
 /**
  * Training Plan Browser Component
@@ -423,7 +407,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         title: 'Workouts Generated',
         message: `Created ${workouts.length} workouts for your plan`,
         color: 'terracotta',
-        icon: <IconCheck size={16} />,
+        icon: <Check size={16} />,
       });
 
       // Refresh the plan
@@ -467,7 +451,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         title: 'Plan Completed',
         message: 'Great work! Your training plan has been marked as complete.',
         color: 'terracotta',
-        icon: <IconCheck size={16} />,
+        icon: <Check size={16} />,
       });
 
       if (onPlanActivated) {
@@ -1008,7 +992,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         title: 'Plan Activated',
         message: `${plan.name} starts ${formattedDate}!`,
         color: 'terracotta',
-        icon: <IconCheck size={16} />,
+        icon: <Check size={16} />,
       });
 
       setPreviewOpen(false);
@@ -1071,7 +1055,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             size="xs"
             color={plan.sportType === 'running' ? 'teal' : 'blue'}
             variant="light"
-            leftSection={plan.sportType === 'running' ? <IconRun size={10} /> : <IconBike size={10} />}
+            leftSection={plan.sportType === 'running' ? <PersonSimpleRun size={10} /> : <Bicycle size={10} />}
           >
             {plan.sportType === 'running' ? 'Running' : 'Cycling'}
           </Badge>
@@ -1097,13 +1081,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
         <Group gap="lg">
           <Group gap={4}>
-            <IconClock size={14} style={{ color: 'var(--color-text-muted)' }} />
+            <Clock size={14} style={{ color: 'var(--color-text-muted)' }} />
             <Text size="xs" c="dimmed">
               {plan.hoursPerWeek?.min}-{plan.hoursPerWeek?.max} hrs/wk
             </Text>
           </Group>
           <Group gap={4}>
-            <IconTrendingUp size={14} style={{ color: 'var(--color-text-muted)' }} />
+            <TrendUp size={14} style={{ color: 'var(--color-text-muted)' }} />
             <Text size="xs" c="dimmed">
               {plan.weeklyTSS?.min}-{plan.weeklyTSS?.max} TSS
             </Text>
@@ -1115,7 +1099,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           color="teal"
           size="xs"
           fullWidth
-          rightSection={<IconChevronRight size={14} />}
+          rightSection={<CaretRight size={14} />}
         >
           Preview Plan
         </Button>
@@ -1146,17 +1130,17 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           {/* Key Stats */}
           <SimpleGrid cols={{ base: 3 }} spacing="xs">
             <Paper p="sm" withBorder ta="center">
-              <IconCalendar size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
+              <Calendar size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.duration}</Text>
               <Text size="xs" c="dimmed">weeks</Text>
             </Paper>
             <Paper p="sm" withBorder ta="center">
-              <IconClock size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
+              <Clock size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.hoursPerWeek?.min}-{selectedPlan.hoursPerWeek?.max}</Text>
               <Text size="xs" c="dimmed">hrs/week</Text>
             </Paper>
             <Paper p="sm" withBorder ta="center">
-              <IconTrendingUp size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
+              <TrendUp size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.weeklyTSS?.min}-{selectedPlan.weeklyTSS?.max}</Text>
               <Text size="xs" c="dimmed">weekly TSS</Text>
             </Paper>
@@ -1167,7 +1151,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             <Badge
               color={selectedPlan.sportType === 'running' ? 'teal' : 'blue'}
               variant="light"
-              leftSection={selectedPlan.sportType === 'running' ? <IconRun size={12} /> : <IconBike size={12} />}
+              leftSection={selectedPlan.sportType === 'running' ? <PersonSimpleRun size={12} /> : <Bicycle size={12} />}
             >
               {selectedPlan.sportType === 'running' ? 'Running' : 'Cycling'}
             </Badge>
@@ -1199,7 +1183,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                     key={idx}
                     bullet={
                       <ThemeIcon size={24} color={phaseInfo?.color || 'gray'} radius="xl">
-                        <IconTarget size={14} />
+                        <Target size={14} />
                       </ThemeIcon>
                     }
                     title={
@@ -1226,7 +1210,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   {Object.entries(selectedPlan.expectedGains).map(([key, value]) => (
                     <Group key={key} gap="sm">
                       <ThemeIcon size="sm" color="gray" variant="light">
-                        <IconCheck size={12} />
+                        <Check size={12} />
                       </ThemeIcon>
                       <Text size="sm">
                         <Text span fw={500}>{key.replace(/_/g, ' ')}: </Text>
@@ -1241,7 +1225,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
           {/* Target Audience */}
           {selectedPlan.targetAudience && (
-            <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
+            <Alert icon={<Info size={16} />} color="blue" variant="light">
               <Text size="sm">{selectedPlan.targetAudience}</Text>
             </Alert>
           )}
@@ -1251,7 +1235,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             color="teal"
             size="md"
             fullWidth
-            leftSection={<IconPlayerPlay size={18} />}
+            leftSection={<Play size={18} />}
             onClick={() => handleShowDatePicker(selectedPlan)}
             loading={activating}
             disabled={activePlan?.template_id === selectedPlan.id}
@@ -1280,7 +1264,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         <Group justify="space-between" mb="md">
           <Group gap="xs">
             <ThemeIcon size="md" color="gray" variant="light">
-              <IconCalendar size={16} />
+              <Calendar size={16} />
             </ThemeIcon>
             <Text fw={600} size="sm">Training Plans</Text>
           </Group>
@@ -1303,7 +1287,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   <Text size="sm" fw={500}>{plan.name}</Text>
                   <Text size="xs" c="dimmed">{plan.duration} weeks</Text>
                 </Box>
-                <IconChevronRight size={16} style={{ color: 'var(--color-text-muted)' }} />
+                <CaretRight size={16} style={{ color: 'var(--color-text-muted)' }} />
               </Group>
             </Paper>
           ))}
@@ -1408,7 +1392,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           <Group justify="space-between" mb="sm">
             <Group gap="sm">
               <ThemeIcon size="lg" color="teal" variant="light">
-                <IconPlayerPlay size={18} />
+                <Play size={18} />
               </ThemeIcon>
               <Box>
                 <Text fw={600}>{activePlan.name}</Text>
@@ -1429,28 +1413,28 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               <Menu shadow="md" width={200} position="bottom-end">
                 <Menu.Target>
                   <ActionIcon variant="subtle" color="gray">
-                    <IconDotsVertical size={16} />
+                    <DotsThreeVertical size={16} />
                   </ActionIcon>
                 </Menu.Target>
 
                 <Menu.Dropdown>
                   <Menu.Label>Plan Actions</Menu.Label>
                   <Menu.Item
-                    leftSection={activePlan.status === 'paused' ? <IconPlayerPlay size={14} /> : <IconPlayerPause size={14} />}
+                    leftSection={activePlan.status === 'paused' ? <Play size={14} /> : <Pause size={14} />}
                     onClick={handleTogglePause}
                     disabled={managingPlan}
                   >
                     {activePlan.status === 'paused' ? 'Resume Plan' : 'Pause Plan'}
                   </Menu.Item>
                   <Menu.Item
-                    leftSection={<IconCheck size={14} />}
+                    leftSection={<Check size={14} />}
                     onClick={handleEndPlan}
                     disabled={managingPlan}
                   >
                     Mark as Complete
                   </Menu.Item>
                   <Menu.Item
-                    leftSection={<IconRefresh size={14} />}
+                    leftSection={<ArrowsClockwise size={14} />}
                     onClick={handleRegenerateWorkouts}
                     disabled={managingPlan}
                   >
@@ -1459,7 +1443,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   <Menu.Divider />
                   <Menu.Item
                     color="red"
-                    leftSection={<IconTrash size={14} />}
+                    leftSection={<Trash size={14} />}
                     onClick={() => setConfirmDeleteOpen(true)}
                     disabled={managingPlan}
                   >
@@ -1524,7 +1508,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         title={
           <Group gap="sm">
             <ThemeIcon size="lg" color="teal" variant="light">
-              <IconCalendar size={18} />
+              <Calendar size={18} />
             </ThemeIcon>
             <Box>
               <Text fw={600}>Choose Start Date</Text>
@@ -1610,7 +1594,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             <Button
               color="teal"
               size="md"
-              leftSection={<IconPlayerPlay size={18} />}
+              leftSection={<Play size={18} />}
               onClick={() => handleActivatePlan(planToActivate, selectedStartDate)}
               loading={activating}
               disabled={!selectedStartDate}

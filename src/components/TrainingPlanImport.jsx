@@ -24,23 +24,9 @@ import {
   Loader,
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
-import {
-  IconUpload,
-  IconPhoto,
-  IconPencil,
-  IconCheck,
-  IconX,
-  IconAlertCircle,
-  IconBike,
-  IconClock,
-  IconCalendar,
-  IconTrash,
-  IconEdit,
-  IconPlus,
-  IconSparkles,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { Bicycle, Calendar, Check, Clock, Image, Pencil, PencilSimple, Plus, Sparkle, Trash, UploadSimple, WarningCircle, X } from '@phosphor-icons/react';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -247,7 +233,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
         title: 'Training Plan Imported',
         message: `Successfully imported ${data.workouts.length} workouts`,
         color: 'green',
-        icon: <IconCheck size={16} />,
+        icon: <Check size={16} />,
       });
 
       onImportComplete?.(data);
@@ -336,7 +322,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
         title: 'Workouts Added',
         message: `Successfully added ${data.count} workouts`,
         color: 'green',
-        icon: <IconCheck size={16} />,
+        icon: <Check size={16} />,
       });
 
       onImportComplete?.(data);
@@ -372,7 +358,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
       title={
         <Group gap="xs">
           <ThemeIcon color="orange" variant="light">
-            <IconCalendar size={18} />
+            <Calendar size={18} />
           </ThemeIcon>
           <Text fw={600}>Import Training Plan</Text>
         </Group>
@@ -381,10 +367,10 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
     >
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List mb="md">
-          <Tabs.Tab value="screenshot" leftSection={<IconPhoto size={16} />}>
+          <Tabs.Tab value="screenshot" leftSection={<Image size={16} />}>
             From Screenshot
           </Tabs.Tab>
-          <Tabs.Tab value="manual" leftSection={<IconPencil size={16} />}>
+          <Tabs.Tab value="manual" leftSection={<Pencil size={16} />}>
             Manual Entry
           </Tabs.Tab>
         </Tabs.List>
@@ -459,7 +445,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
                   ) : (
                     <Stack align="center" gap="xs">
                       <ThemeIcon size={48} variant="light" color="gray">
-                        <IconPhoto size={24} />
+                        <Image size={24} />
                       </ThemeIcon>
                       <Text fw={500}>Drop screenshot here or click to browse</Text>
                       <Text size="xs" c="dimmed">PNG, JPG up to 10MB</Text>
@@ -469,7 +455,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
 
                 {/* Error */}
                 {error && (
-                  <Alert color="red" icon={<IconAlertCircle size={16} />}>
+                  <Alert color="red" icon={<WarningCircle size={16} />}>
                     {error}
                   </Alert>
                 )}
@@ -488,7 +474,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
                 {/* Parse Button */}
                 <Button
                   color="orange"
-                  leftSection={<IconSparkles size={16} />}
+                  leftSection={<Sparkle size={16} />}
                   onClick={handleParseScreenshot}
                   disabled={!selectedImage || loading}
                   loading={loading}
@@ -500,7 +486,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
             ) : (
               <>
                 {/* Parsed Results */}
-                <Alert color="green" icon={<IconCheck size={16} />} mb="sm">
+                <Alert color="green" icon={<Check size={16} />} mb="sm">
                   Found {parsedWorkouts.length} workouts in your plan
                 </Alert>
 
@@ -572,7 +558,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
                               size="sm"
                               onClick={() => setEditingWorkout(index)}
                             >
-                              <IconEdit size={14} />
+                              <PencilSimple size={14} />
                             </ActionIcon>
                             <ActionIcon
                               variant="subtle"
@@ -580,7 +566,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
                               size="sm"
                               onClick={() => handleRemoveWorkout(index)}
                             >
-                              <IconTrash size={14} />
+                              <Trash size={14} />
                             </ActionIcon>
                           </Group>
                         </Group>
@@ -596,7 +582,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
 
                 {/* Error */}
                 {error && (
-                  <Alert color="red" icon={<IconAlertCircle size={16} />}>
+                  <Alert color="red" icon={<WarningCircle size={16} />}>
                     {error}
                   </Alert>
                 )}
@@ -614,7 +600,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
                   </Button>
                   <Button
                     color="orange"
-                    leftSection={<IconCheck size={16} />}
+                    leftSection={<Check size={16} />}
                     onClick={handleSaveParsedPlan}
                     loading={loading}
                     disabled={parsedWorkouts.length === 0}
@@ -673,7 +659,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
                         color="red"
                         onClick={() => handleRemoveManualWorkout(index)}
                       >
-                        <IconTrash size={16} />
+                        <Trash size={16} />
                       </ActionIcon>
                     </Group>
                   </Card>
@@ -684,7 +670,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
             {/* Add Workout Button */}
             <Button
               variant="outline"
-              leftSection={<IconPlus size={16} />}
+              leftSection={<Plus size={16} />}
               onClick={handleAddManualWorkout}
             >
               Add Workout
@@ -715,7 +701,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
 
             {/* Error */}
             {error && (
-              <Alert color="red" icon={<IconAlertCircle size={16} />}>
+              <Alert color="red" icon={<WarningCircle size={16} />}>
                 {error}
               </Alert>
             )}
@@ -723,7 +709,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
             {/* Save Button */}
             <Button
               color="orange"
-              leftSection={<IconCheck size={16} />}
+              leftSection={<Check size={16} />}
               onClick={handleSaveManualWorkouts}
               disabled={manualWorkouts.length === 0}
               loading={loading}

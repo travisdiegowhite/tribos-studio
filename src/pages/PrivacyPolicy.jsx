@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Container, Title, Text, Stack, Paper, List, Anchor, Group, Button, Box, Alert } from '@mantine/core';
-import { IconArrowLeft, IconRoute, IconSparkles } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import SEO from '../components/SEO';
+import { ArrowLeft, Path, Sparkle } from '@phosphor-icons/react';
 
 export default function PrivacyPolicy() {
   return (
@@ -24,7 +24,7 @@ export default function PrivacyPolicy() {
         <Box py="md" px={{ base: 'md', md: 'xl' }} style={{ borderBottom: '1px solid var(--tribos-border)' }}>
           <Group justify="space-between" align="center">
             <Group gap="sm">
-              <IconRoute size={24} color="var(--color-teal)" />
+              <Path size={24} color="var(--color-teal)" />
               <Text
                 component={Link}
                 to="/"
@@ -44,7 +44,7 @@ export default function PrivacyPolicy() {
               to="/"
               variant="subtle"
               color="gray"
-              leftSection={<IconArrowLeft size={16} />}
+              leftSection={<ArrowLeft size={16} />}
             >
               Back
             </Button>
@@ -152,7 +152,7 @@ export default function PrivacyPolicy() {
 
               {/* AI TRANSPARENCY SECTION - Conspicuous per Garmin Agreement Section 15.10 */}
               <Alert
-                icon={<IconSparkles size={20} />}
+                icon={<Sparkle size={20} />}
                 title="AI-Powered Features and Data Processing"
                 color="teal"
                 variant="light"

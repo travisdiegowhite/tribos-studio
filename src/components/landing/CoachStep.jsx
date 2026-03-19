@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Container, Text, Paper, Group, ThemeIcon, Box, Stack, Button } from '@mantine/core';
-import { IconSparkles, IconUser, IconRobot, IconPlus } from '@tabler/icons-react';
 import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
+import { Plus, Robot, Sparkle, User } from '@phosphor-icons/react';
 
 const chatMessages = [
   {
@@ -18,7 +18,7 @@ const chatMessages = [
     type: 'coach',
     text: 'Your TSB is +8 and you had a rest day yesterday \u2014 you\'re fresh. Based on your last 3 weeks of loading, I\'d recommend sweet spot intervals: 3\u00d715min at 88-93% FTP with 5min recovery between sets.',
     delay: 1800,
-    action: { icon: IconPlus, label: 'Add Sweet Spot 3\u00d715' },
+    action: { icon: Plus, label: 'Add Sweet Spot 3\u00d715' },
   },
   {
     type: 'user',
@@ -133,7 +133,7 @@ export default function CoachStep() {
                 style={{ borderBottom: '1px solid var(--color-border)' }}
               >
                 <ThemeIcon color="teal" variant="light" size="sm">
-                  <IconSparkles size={14} />
+                  <Sparkle size={14} />
                 </ThemeIcon>
                 <Text fw={600} size="sm" style={{ color: 'var(--color-text-primary)' }}>
                   AI Coach
@@ -181,7 +181,7 @@ export default function CoachStep() {
                       <Box key={index} className={`chat-message ${isVisible ? 'visible' : ''}`} mb="md">
                         <Group gap={8} align="flex-start">
                           <ThemeIcon color="teal" variant="light" size="sm" mt={2}>
-                            <IconRobot size={12} />
+                            <Robot size={12} />
                           </ThemeIcon>
                           <Stack gap="xs" style={{ flex: 1 }}>
                             <Paper
@@ -220,7 +220,7 @@ export default function CoachStep() {
                   <Box mb="md">
                     <Group gap={8} align="flex-start">
                       <ThemeIcon color="teal" variant="light" size="sm" mt={2}>
-                        <IconRobot size={12} />
+                        <Robot size={12} />
                       </ThemeIcon>
                       <Paper
                         p="xs"

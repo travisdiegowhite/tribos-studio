@@ -17,14 +17,6 @@ import {
   Anchor,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import {
-  IconSparkles,
-  IconSend,
-  IconArrowRight,
-  IconHistory,
-  IconX,
-  IconShieldCheck,
-} from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 
@@ -37,6 +29,7 @@ import CoachQuickActions from './CoachQuickActions';
 import CoachRecentQuestions from './CoachRecentQuestions';
 import CoachResponseArea from './CoachResponseArea';
 import TrainingPlanPreview from './TrainingPlanPreview';
+import { ArrowRight, ClockCounterClockwise, PaperPlaneRight, ShieldCheck, Sparkle, X } from '@phosphor-icons/react';
 
 // Get the API base URL
 const getApiBaseUrl = () => '';
@@ -488,7 +481,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                     flexShrink: 0,
                   }}
                 >
-                  <IconSparkles size={20} color="#000" />
+                  <Sparkle size={20} color="#000" />
                 </Box>
 
                 <TextInput
@@ -519,7 +512,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                     color="teal"
                     onClick={handleSubmit}
                     loading={isLoading}
-                    rightSection={<IconSend size={16} />}
+                    rightSection={<PaperPlaneRight size={16} />}
                   >
                     Ask
                   </Button>
@@ -532,7 +525,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                   aria-label="Close coach"
                   style={{ flexShrink: 0 }}
                 >
-                  <IconX size={18} />
+                  <X size={18} />
                 </ActionIcon>
               </Group>
             </Box>
@@ -551,7 +544,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                   <Alert
                     variant="light"
                     color="teal"
-                    icon={<IconShieldCheck size={20} />}
+                    icon={<ShieldCheck size={20} />}
                     title="Enable AI Coach"
                   >
                     <Stack gap="sm">
@@ -654,7 +647,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                   <Text size="xs" c="dimmed">
                     View full history
                   </Text>
-                  <IconArrowRight size={12} style={{ color: 'var(--color-text-muted)' }} />
+                  <ArrowRight size={12} style={{ color: 'var(--color-text-muted)' }} />
                 </Group>
               </UnstyledButton>
             </Group>

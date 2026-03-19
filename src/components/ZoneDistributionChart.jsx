@@ -25,9 +25,9 @@ import {
   Pie,
   Legend,
 } from 'recharts';
-import { IconChartPie, IconClock, IconFlame } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import { TRAINING_ZONES, getPowerZone, getZoneColor, getZoneName } from '../utils/trainingPlans';
+import { ChartPieSlice, Clock, Fire } from '@phosphor-icons/react';
 
 /**
  * Zone Distribution Chart Component
@@ -257,7 +257,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconChartPie size={20} color={'var(--color-teal)'} />
+          <ChartPieSlice size={20} color={'var(--color-teal)'} />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Training Zone Distribution
           </Text>
@@ -294,7 +294,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs" mb="md">
         <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs">
-            <IconClock size={14} color={'var(--color-text-muted)'} />
+            <Clock size={14} color={'var(--color-text-muted)'} />
             <Text size="xs" c="dimmed">Total Time</Text>
           </Group>
           <Text size="sm" fw={600}>{formatTime(zoneData.totalTime)}</Text>
@@ -308,7 +308,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
         </Paper>
         <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs">
-            <IconFlame size={14} color={tokens.colors.zone5} />
+            <Fire size={14} color={tokens.colors.zone5} />
             <Text size="xs" c="dimmed">High Intensity</Text>
           </Group>
           <Text size="sm" fw={600}>{Math.round(zoneData.intensityRatio)}%</Text>

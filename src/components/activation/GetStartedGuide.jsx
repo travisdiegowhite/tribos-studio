@@ -12,18 +12,11 @@ import {
   ThemeIcon,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import {
-  IconLink,
-  IconRefresh,
-  IconBrain,
-  IconMap,
-  IconCalendarEvent,
-  IconCheck,
-} from '@tabler/icons-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useActivation } from '../../hooks/useActivation';
 import { useCoachCommandBar } from '../coach/CoachCommandBarContext.jsx';
 import { supabase } from '../../lib/supabase';
+import { ArrowsClockwise, Brain, CalendarBlank, Check, Link as LinkIcon, MapTrifold } from '@phosphor-icons/react';
 
 const ACTIVATION_STEPS = [
   {
@@ -32,7 +25,7 @@ const ACTIVATION_STEPS = [
     description: 'Link Garmin, Wahoo, or Strava',
     cta: 'Connect',
     href: '/settings',
-    icon: IconLink,
+    icon: LinkIcon,
   },
   {
     key: 'first_sync',
@@ -40,7 +33,7 @@ const ACTIVATION_STEPS = [
     description: 'Your recent rides will import automatically',
     cta: 'Check sync',
     href: '/training?tab=history',
-    icon: IconRefresh,
+    icon: ArrowsClockwise,
   },
   {
     key: 'first_insight',
@@ -48,7 +41,7 @@ const ACTIVATION_STEPS = [
     description: 'AI analysis of your ride',
     cta: 'View insight',
     action: 'open-coach',
-    icon: IconBrain,
+    icon: Brain,
   },
   {
     key: 'first_route',
@@ -56,7 +49,7 @@ const ACTIVATION_STEPS = [
     description: 'Plan your next ride with AI assistance',
     cta: 'Route builder',
     href: '/routes/new',
-    icon: IconMap,
+    icon: MapTrifold,
   },
   {
     key: 'first_plan',
@@ -64,7 +57,7 @@ const ACTIVATION_STEPS = [
     description: 'Structured training based on your goals',
     cta: 'Browse plans',
     href: '/planner',
-    icon: IconCalendarEvent,
+    icon: CalendarBlank,
   },
 ];
 
@@ -211,7 +204,7 @@ export default function GetStartedGuide() {
                   radius="xl"
                 >
                   {isStepComplete ? (
-                    <IconCheck size={14} />
+                    <Check size={14} />
                   ) : (
                     <StepIcon size={14} />
                   )}

@@ -17,35 +17,21 @@ import {
   ThemeIcon,
   Divider,
 } from '@mantine/core';
-import {
-  IconBrain,
-  IconPlus,
-  IconTrash,
-  IconEdit,
-  IconCheck,
-  IconX,
-  IconTarget,
-  IconAlertCircle,
-  IconTrophy,
-  IconClock,
-  IconCalendar,
-  IconHeart,
-  IconMoodSad,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
+import { Brain, Calendar, Check, Clock, Heart, PencilSimple, Plus, SmileySad, Target, Trash, Trophy, WarningCircle, X } from '@phosphor-icons/react';
 
 const MEMORY_CATEGORIES = [
-  { value: 'goal', label: 'Goals', icon: IconTarget, color: 'blue' },
-  { value: 'context', label: 'Life Context', icon: IconHeart, color: 'pink' },
-  { value: 'obstacle', label: 'Obstacles', icon: IconAlertCircle, color: 'orange' },
-  { value: 'pattern', label: 'Patterns', icon: IconClock, color: 'violet' },
-  { value: 'win', label: 'Wins', icon: IconTrophy, color: 'terracotta' },
-  { value: 'preference', label: 'Preferences', icon: IconCalendar, color: 'cyan' },
-  { value: 'injury', label: 'Injuries', icon: IconMoodSad, color: 'red' },
-  { value: 'schedule', label: 'Schedule', icon: IconCalendar, color: 'gray' },
+  { value: 'goal', label: 'Goals', icon: Target, color: 'blue' },
+  { value: 'context', label: 'Life Context', icon: Heart, color: 'pink' },
+  { value: 'obstacle', label: 'Obstacles', icon: WarningCircle, color: 'orange' },
+  { value: 'pattern', label: 'Patterns', icon: Clock, color: 'violet' },
+  { value: 'win', label: 'Wins', icon: Trophy, color: 'terracotta' },
+  { value: 'preference', label: 'Preferences', icon: Calendar, color: 'cyan' },
+  { value: 'injury', label: 'Injuries', icon: SmileySad, color: 'red' },
+  { value: 'schedule', label: 'Schedule', icon: Calendar, color: 'gray' },
 ];
 
 const MEMORY_TYPES = [
@@ -229,7 +215,7 @@ function CoachMemories({ opened, onClose }) {
       title={
         <Group gap="xs">
           <ThemeIcon color="teal" variant="light">
-            <IconBrain size={18} />
+            <Brain size={18} />
           </ThemeIcon>
           <Text fw={600}>What I Remember</Text>
         </Group>
@@ -246,7 +232,7 @@ function CoachMemories({ opened, onClose }) {
           <Button
             variant="outline"
             color="teal"
-            leftSection={<IconPlus size={16} />}
+            leftSection={<Plus size={16} />}
             onClick={() => setIsAddingMemory(true)}
           >
             Add Something
@@ -283,7 +269,7 @@ function CoachMemories({ opened, onClose }) {
                 </Button>
                 <Button
                   color="teal"
-                  leftSection={<IconCheck size={16} />}
+                  leftSection={<Check size={16} />}
                   onClick={handleAddMemory}
                   disabled={!newMemory.content.trim()}
                 >
@@ -398,7 +384,7 @@ function CoachMemories({ opened, onClose }) {
                           size="sm"
                           onClick={() => setEditingMemory(memory.id)}
                         >
-                          <IconEdit size={14} />
+                          <PencilSimple size={14} />
                         </ActionIcon>
                         <ActionIcon
                           variant="subtle"
@@ -406,7 +392,7 @@ function CoachMemories({ opened, onClose }) {
                           color="red"
                           onClick={() => handleDeleteMemory(memory.id)}
                         >
-                          <IconTrash size={14} />
+                          <Trash size={14} />
                         </ActionIcon>
                       </Group>
                     </Group>

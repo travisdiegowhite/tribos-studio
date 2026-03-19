@@ -30,26 +30,9 @@ import {
   Loader,
   ScrollArea,
 } from '@mantine/core';
-import {
-  IconCheck,
-  IconPlus,
-  IconChevronDown,
-  IconChevronUp,
-  IconClock,
-  IconFlame,
-  IconMoodSmile,
-  IconRun,
-  IconYoga,
-  IconBarbell,
-  IconStretching,
-  IconBrain,
-  IconActivity,
-  IconSettings,
-  IconTrash,
-  IconEdit,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useCrossTraining, ActivityType, ACTIVITY_CATEGORIES, CreateActivityInput } from '../hooks/useCrossTraining';
+import { Barbell, Brain, CaretDown, CaretUp, Check, Clock, Fire, Gear, Heartbeat, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Smiley, Trash } from '@phosphor-icons/react';
 
 // Props
 interface CrossTrainingModalProps {
@@ -72,12 +55,12 @@ interface CrossTrainingModalProps {
 
 // Icon mapping for categories
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  strength: <IconBarbell size={16} />,
-  flexibility: <IconYoga size={16} />,
-  cardio: <IconRun size={16} />,
-  recovery: <IconStretching size={16} />,
-  mind_body: <IconBrain size={16} />,
-  other: <IconActivity size={16} />,
+  strength: <Barbell size={16} />,
+  flexibility: <PersonSimpleWalk size={16} />,
+  cardio: <PersonSimpleRun size={16} />,
+  recovery: <PersonSimpleWalk size={16} />,
+  mind_body: <Brain size={16} />,
+  other: <Heartbeat size={16} />,
 };
 
 // Mood scale
@@ -254,7 +237,7 @@ export default function CrossTrainingModal({
           title: editingActivity ? 'Activity Updated' : 'Activity Logged',
           message: `${selectedType?.name || 'Activity'} - ${duration} min`,
           color: 'green',
-          icon: <IconCheck size={16} />,
+          icon: <Check size={16} />,
         });
         onSave?.(result);
         onClose();
@@ -396,7 +379,7 @@ export default function CrossTrainingModal({
       title={
         <Group gap="xs">
           <ThemeIcon color="indigo" variant="light">
-            <IconActivity size={18} />
+            <Heartbeat size={18} />
           </ThemeIcon>
           <Text fw={600}>{editingActivity ? 'Edit Activity' : 'Log Cross-Training'}</Text>
         </Group>
@@ -439,7 +422,7 @@ export default function CrossTrainingModal({
               <Button
                 size="xs"
                 variant="subtle"
-                leftSection={<IconPlus size={14} />}
+                leftSection={<Plus size={14} />}
                 onClick={() => setShowCreateType(true)}
               >
                 Create Custom
@@ -518,7 +501,7 @@ export default function CrossTrainingModal({
               <Group justify="space-between">
                 <Text size="sm" fw={500}>Create Custom Activity</Text>
                 <ActionIcon size="sm" variant="subtle" onClick={() => setShowCreateType(false)}>
-                  <IconChevronUp size={14} />
+                  <CaretUp size={14} />
                 </ActionIcon>
               </Group>
               <TextInput
@@ -546,7 +529,7 @@ export default function CrossTrainingModal({
               <Button
                 onClick={handleCreateType}
                 loading={creatingType}
-                leftSection={<IconPlus size={16} />}
+                leftSection={<Plus size={16} />}
               >
                 Create & Select
               </Button>
@@ -561,7 +544,7 @@ export default function CrossTrainingModal({
           <NumberInput
             label="Duration"
             description="Minutes"
-            leftSection={<IconClock size={14} />}
+            leftSection={<Clock size={14} />}
             value={duration}
             onChange={(v) => setDuration(Number(v) || 30)}
             min={5}
@@ -600,7 +583,7 @@ export default function CrossTrainingModal({
             variant="subtle"
             size="sm"
             onClick={() => setShowAdvanced(!showAdvanced)}
-            rightSection={showAdvanced ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+            rightSection={showAdvanced ? <CaretUp size={14} /> : <CaretDown size={14} />}
           >
             {showAdvanced ? 'Hide' : 'Show'} Advanced Options
           </Button>
@@ -612,7 +595,7 @@ export default function CrossTrainingModal({
                 <Select
                   label="Mood Before"
                   placeholder="Optional"
-                  leftSection={<IconMoodSmile size={14} />}
+                  leftSection={<Smiley size={14} />}
                   value={moodBefore}
                   onChange={setMoodBefore}
                   data={MOOD_OPTIONS}
@@ -621,7 +604,7 @@ export default function CrossTrainingModal({
                 <Select
                   label="Mood After"
                   placeholder="Optional"
-                  leftSection={<IconMoodSmile size={14} />}
+                  leftSection={<Smiley size={14} />}
                   value={moodAfter}
                   onChange={setMoodAfter}
                   data={MOOD_OPTIONS}
@@ -657,7 +640,7 @@ export default function CrossTrainingModal({
             <Group justify="space-between">
               <Group gap="xs">
                 <ThemeIcon size="sm" variant="light" color="orange">
-                  <IconFlame size={14} />
+                  <Fire size={14} />
                 </ThemeIcon>
                 <Text size="sm">Estimated Training Load</Text>
               </Group>
@@ -683,7 +666,7 @@ export default function CrossTrainingModal({
             loading={saving}
             onClick={handleSave}
             disabled={!selectedTypeId}
-            leftSection={<IconCheck size={16} />}
+            leftSection={<Check size={16} />}
           >
             {editingActivity ? 'Update Activity' : 'Log Activity'}
           </Button>

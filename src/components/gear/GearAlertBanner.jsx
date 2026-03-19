@@ -1,8 +1,8 @@
 import { Alert, Stack, Group, Text, CloseButton, Badge, Anchor } from '@mantine/core';
-import { IconAlertTriangle, IconAlertCircle, IconInfoCircle } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { formatDistance } from '../../utils/units';
 import { METERS_PER_MILE } from './gearConstants';
+import { Info, Warning, WarningCircle } from '@phosphor-icons/react';
 
 function formatAlertMessage(alert, useImperial) {
   if (alert.message) return alert.message;
@@ -16,9 +16,9 @@ function formatAlertMessage(alert, useImperial) {
 }
 
 function getAlertIcon(level) {
-  if (level === 'critical') return <IconAlertCircle size={18} />;
-  if (level === 'info') return <IconInfoCircle size={18} />;
-  return <IconAlertTriangle size={18} />;
+  if (level === 'critical') return <WarningCircle size={18} />;
+  if (level === 'info') return <Info size={18} />;
+  return <Warning size={18} />;
 }
 
 function getAlertColor(level) {
@@ -45,7 +45,7 @@ export default function GearAlertBanner({ alerts, onDismiss, compact = false, us
     <Alert
       color={hasCritical ? 'red' : 'yellow'}
       variant="light"
-      icon={hasCritical ? <IconAlertCircle size={20} /> : <IconAlertTriangle size={20} />}
+      icon={hasCritical ? <WarningCircle size={20} /> : <Warning size={20} />}
       title={compact ? undefined : `${alerts.length} gear alert${alerts.length !== 1 ? 's' : ''}`}
     >
       <Stack gap="xs">

@@ -7,12 +7,6 @@ import {
 } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import {
-  IconRoute, IconDeviceFloppy, IconCurrentLocation, IconX, IconSettings,
-  IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconArrowBack,
-  IconArrowForward, IconUpload, IconShare, IconArrowsExchange, IconPlus,
-  IconGripVertical, IconMapPin, IconPoint
-} from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -42,6 +36,7 @@ import {
 // Shared hooks
 import { useRouteManipulation } from '../hooks/useRouteManipulation';
 import { useRouteOperations } from '../hooks/useRouteOperations';
+import { ArrowLeft, ArrowRight, ArrowsClockwise, ArrowsLeftRight, Bicycle, Circle, Crosshair, DotsSixVertical, DownloadSimple, FloppyDisk, Gear, MapPin, MapTrifold, Path, Plus, ShareNetwork, Trash, UploadSimple, X } from '@phosphor-icons/react';
 
 /**
  * Manual Route Builder
@@ -391,7 +386,7 @@ export default function ManualRouteBuilder() {
           <Group justify="space-between">
             <Group>
               <ThemeIcon size="lg" color="teal" variant="light">
-                <IconRoute size={20} />
+                <Path size={20} />
               </ThemeIcon>
               <div>
                 <Title order={4} style={{ color: 'var(--color-text-primary)' }}>
@@ -412,7 +407,7 @@ export default function ManualRouteBuilder() {
                   disabled={!canUndo}
                   onClick={undo}
                 >
-                  <IconArrowBack size={18} />
+                  <ArrowLeft size={18} />
                 </ActionIcon>
               </Tooltip>
 
@@ -423,7 +418,7 @@ export default function ManualRouteBuilder() {
                   disabled={!canRedo}
                   onClick={redo}
                 >
-                  <IconArrowForward size={18} />
+                  <ArrowRight size={18} />
                 </ActionIcon>
               </Tooltip>
 
@@ -432,7 +427,7 @@ export default function ManualRouteBuilder() {
               {/* Actions */}
               <Tooltip label="Import GPX">
                 <ActionIcon variant="subtle" color="gray" onClick={triggerGPXImport}>
-                  <IconUpload size={18} />
+                  <UploadSimple size={18} />
                 </ActionIcon>
               </Tooltip>
 
@@ -443,13 +438,13 @@ export default function ManualRouteBuilder() {
                   onClick={reverseRoute}
                   disabled={waypoints.length < 2}
                 >
-                  <IconArrowsExchange size={18} />
+                  <ArrowsLeftRight size={18} />
                 </ActionIcon>
               </Tooltip>
 
               <Tooltip label="Clear route">
                 <ActionIcon variant="subtle" color="red" onClick={clearRoute}>
-                  <IconTrash size={18} />
+                  <Trash size={18} />
                 </ActionIcon>
               </Tooltip>
 
@@ -467,7 +462,7 @@ export default function ManualRouteBuilder() {
 
               {/* Save */}
               <Button
-                leftSection={<IconDeviceFloppy size={16} />}
+                leftSection={<FloppyDisk size={16} />}
                 color="teal"
                 variant="filled"
                 loading={saving}
@@ -608,7 +603,7 @@ export default function ManualRouteBuilder() {
                                 }
                               }}
                             >
-                              <IconX size={14} />
+                              <X size={14} />
                             </ActionIcon>
                           </Group>
                         </Card>
@@ -620,7 +615,7 @@ export default function ManualRouteBuilder() {
                         variant="light"
                         color="teal"
                         size="sm"
-                        leftSection={<IconRefresh size={14} />}
+                        leftSection={<ArrowsClockwise size={14} />}
                         onClick={handleCalculateRoute}
                       >
                         Calculate Route
@@ -751,7 +746,7 @@ export default function ManualRouteBuilder() {
                     size="lg"
                     onClick={getUserLocation}
                   >
-                    <IconCurrentLocation size={18} />
+                    <Crosshair size={18} />
                   </ActionIcon>
                 </Tooltip>
 
@@ -780,7 +775,7 @@ export default function ManualRouteBuilder() {
                         }
                       }}
                     >
-                      <IconMap size={18} />
+                      <MapTrifold size={18} />
                     </ActionIcon>
                   </Tooltip>
                 )}
@@ -833,7 +828,7 @@ export default function ManualRouteBuilder() {
                 <Button
                   variant="light"
                   size="sm"
-                  leftSection={<IconUpload size={14} />}
+                  leftSection={<UploadSimple size={14} />}
                   onClick={triggerGPXImport}
                 >
                   Import
@@ -841,7 +836,7 @@ export default function ManualRouteBuilder() {
                 <Button
                   variant="light"
                   size="sm"
-                  leftSection={<IconDownload size={14} />}
+                  leftSection={<DownloadSimple size={14} />}
                   onClick={exportGPX}
                   disabled={!routeGeometry}
                 >

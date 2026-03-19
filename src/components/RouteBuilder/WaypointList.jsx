@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { Stack, Group, Text, ActionIcon, Tooltip, Paper } from '@mantine/core';
-import { IconGripVertical, IconTrash, IconChevronUp, IconChevronDown, IconMapPin } from '@tabler/icons-react';
+import { CaretDown, CaretUp, DotsSixVertical, MapPin, Trash } from '@phosphor-icons/react';
 
 /**
  * WaypointList — displays waypoints in the sidebar with reorder/remove controls.
@@ -87,7 +87,7 @@ const WaypointList = ({ waypoints, onReorder, onRemove, onFocus }) => {
               disabled={index === 0}
               onClick={() => onReorder(index, index - 1)}
             >
-              <IconChevronUp size={14} />
+              <CaretUp size={14} />
             </ActionIcon>
 
             {/* Move down */}
@@ -98,7 +98,7 @@ const WaypointList = ({ waypoints, onReorder, onRemove, onFocus }) => {
               disabled={index === waypoints.length - 1}
               onClick={() => onReorder(index, index + 1)}
             >
-              <IconChevronDown size={14} />
+              <CaretDown size={14} />
             </ActionIcon>
 
             {/* Remove */}
@@ -108,7 +108,7 @@ const WaypointList = ({ waypoints, onReorder, onRemove, onFocus }) => {
               size="xs"
               onClick={() => onRemove(wp.id)}
             >
-              <IconTrash size={14} />
+              <Trash size={14} />
             </ActionIcon>
           </Group>
         </Paper>

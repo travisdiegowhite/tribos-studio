@@ -4,8 +4,8 @@
  */
 
 import { Box, Text, Badge, Group, Stack, Button, ActionIcon, Tooltip, Loader, Divider } from '@mantine/core';
-import { IconArrowRight, IconX, IconMountain, IconRuler, IconClock, IconCheck } from '@tabler/icons-react';
 import { tokens } from '../../theme';
+import { ArrowRight, Check, Clock, Mountains, Ruler, X } from '@phosphor-icons/react';
 
 /**
  * @param {Object}   props
@@ -43,13 +43,13 @@ export default function SegmentAlternativesPanel({
         style={{ borderBottom: '1px solid var(--color-bg-secondary)' }}
       >
         <Group gap={6}>
-          <IconArrowRight size={16} color="var(--color-teal)" />
+          <ArrowRight size={16} color="var(--color-teal)" />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Segment Alternatives
           </Text>
         </Group>
         <ActionIcon size="sm" variant="subtle" onClick={onClose} color="gray">
-          <IconX size={14} />
+          <X size={14} />
         </ActionIcon>
       </Group>
 
@@ -59,14 +59,14 @@ export default function SegmentAlternativesPanel({
           <Group gap={12}>
             <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Current:</Text>
             <Group gap={6}>
-              <IconRuler size={12} color="var(--color-text-muted)" />
+              <Ruler size={12} color="var(--color-text-muted)" />
               <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                 {currentSegment.distanceKm} km
               </Text>
             </Group>
             {currentSegment.elevationGain > 0 && (
               <Group gap={6}>
-                <IconMountain size={12} color="var(--color-text-muted)" />
+                <Mountains size={12} color="var(--color-text-muted)" />
                 <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                   {Math.round(currentSegment.elevationGain)}m
                 </Text>
@@ -149,7 +149,7 @@ export default function SegmentAlternativesPanel({
                           onApply?.(alt);
                         }}
                       >
-                        <IconCheck size={14} />
+                        <Check size={14} />
                       </ActionIcon>
                     </Tooltip>
                   </Group>
@@ -157,7 +157,7 @@ export default function SegmentAlternativesPanel({
                   {/* Stats row */}
                   <Group gap={12} mt={4}>
                     <Group gap={4}>
-                      <IconRuler size={12} color="var(--color-text-muted)" />
+                      <Ruler size={12} color="var(--color-text-muted)" />
                       <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                         {alt.distanceKm} km
                       </Text>
@@ -174,7 +174,7 @@ export default function SegmentAlternativesPanel({
 
                     {alt.elevationGain > 0 && (
                       <Group gap={4}>
-                        <IconMountain size={12} color="var(--color-text-muted)" />
+                        <Mountains size={12} color="var(--color-text-muted)" />
                         <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                           {Math.round(alt.elevationGain)}m
                         </Text>
@@ -192,7 +192,7 @@ export default function SegmentAlternativesPanel({
 
                     {alt.durationMin > 0 && (
                       <Group gap={4}>
-                        <IconClock size={12} color="var(--color-text-muted)" />
+                        <Clock size={12} color="var(--color-text-muted)" />
                         <Text size="xs" style={{ color: 'var(--color-text-primary)' }}>
                           {alt.durationMin}m
                         </Text>

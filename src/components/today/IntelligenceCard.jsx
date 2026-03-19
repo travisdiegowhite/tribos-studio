@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Box, Group, Text, Button, Badge, Skeleton, SimpleGrid } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconRoute, IconPlayerPlay, IconCalendarEvent } from '@tabler/icons-react';
+import { Path, Play, CalendarBlank } from '@phosphor-icons/react';
 
 function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -61,7 +61,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
           to="/train/planner?tab=browse"
           variant="filled"
           color="teal"
-          leftSection={<IconCalendarEvent size={16} />}
+          leftSection={<CalendarBlank size={16} />}
         >
           BROWSE PLANS
         </Button>
@@ -188,7 +188,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
                 BEST ROUTE MATCH
               </Text>
               <Group gap="sm" align="center" mb={6}>
-                <IconRoute size={16} color="var(--color-teal)" />
+                <Path size={16} color="var(--color-teal)" />
                 <Text
                   fw={600}
                   style={{
@@ -270,7 +270,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
           variant="filled"
           color="teal"
           size="sm"
-          leftSection={<IconPlayerPlay size={16} />}
+          leftSection={<Play size={16} />}
         >
           RIDE TODAY
         </Button>

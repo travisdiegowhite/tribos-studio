@@ -16,19 +16,10 @@ import {
   Alert,
   LoadingOverlay,
 } from '@mantine/core';
-import {
-  IconSettings,
-  IconRoute,
-  IconShield,
-  IconMountain,
-  IconCamera,
-  IconHeart,
-  IconAlertCircle,
-  IconCloud,
-} from '@tabler/icons-react';
 import { WEATHER_TOLERANCE_PRESETS, DEFAULT_WEATHER_PRESET, formatTemperature, formatWindSpeed } from '../utils/weather';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { notifications } from '@mantine/notifications';
+import { Camera, Cloud, Gear, Heart, Mountains, Path, Shield, WarningCircle } from '@phosphor-icons/react';
 
 /**
  * PreferenceSettings - Route preference configuration modal
@@ -176,7 +167,7 @@ const PreferenceSettings = ({ opened, onClose }) => {
       onClose={onClose}
       title={
         <Group>
-          <IconSettings size={24} />
+          <Gear size={24} />
           <Title order={3}>Route Preferences</Title>
         </Group>
       }
@@ -186,7 +177,7 @@ const PreferenceSettings = ({ opened, onClose }) => {
       <LoadingOverlay visible={loading} />
 
       <Stack>
-        <Alert icon={<IconAlertCircle size={16} />} color="blue">
+        <Alert icon={<WarningCircle size={16} />} color="blue">
           <Text size="sm" mb="xs">
             <strong>Smart Route Preferences:</strong> Customize your route preferences to get more personalized routes that match your riding style and goals.
           </Text>
@@ -197,22 +188,22 @@ const PreferenceSettings = ({ opened, onClose }) => {
 
         <Tabs value={activeTab} onChange={setActiveTab}>
           <Tabs.List>
-            <Tabs.Tab value="routing" leftSection={<IconRoute size={16} />}>
+            <Tabs.Tab value="routing" leftSection={<Path size={16} />}>
               Routing
             </Tabs.Tab>
-            <Tabs.Tab value="surface" leftSection={<IconMountain size={16} />}>
+            <Tabs.Tab value="surface" leftSection={<Mountains size={16} />}>
               Surface
             </Tabs.Tab>
-            <Tabs.Tab value="safety" leftSection={<IconShield size={16} />}>
+            <Tabs.Tab value="safety" leftSection={<Shield size={16} />}>
               Safety
             </Tabs.Tab>
-            <Tabs.Tab value="scenic" leftSection={<IconCamera size={16} />}>
+            <Tabs.Tab value="scenic" leftSection={<Camera size={16} />}>
               Scenic
             </Tabs.Tab>
-            <Tabs.Tab value="training" leftSection={<IconHeart size={16} />}>
+            <Tabs.Tab value="training" leftSection={<Heart size={16} />}>
               Training
             </Tabs.Tab>
-            <Tabs.Tab value="weather" leftSection={<IconCloud size={16} />}>
+            <Tabs.Tab value="weather" leftSection={<Cloud size={16} />}>
               Weather
             </Tabs.Tab>
           </Tabs.List>
@@ -536,7 +527,7 @@ const PreferenceSettings = ({ opened, onClose }) => {
                 ]}
               />
 
-              <Alert icon={<IconAlertCircle size={16} />} color="gray" variant="light">
+              <Alert icon={<WarningCircle size={16} />} color="gray" variant="light">
                 <Text size="xs">
                   <strong>Note:</strong> Dangerous conditions like thunderstorms, ice, and blizzards will always show warnings regardless of your tolerance settings.
                 </Text>

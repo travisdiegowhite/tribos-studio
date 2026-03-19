@@ -3,7 +3,6 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Paper, Stack, Title, Text, Button, Group, TextInput, Textarea, SegmentedControl, NumberInput, Select, Card, Badge, Divider, Loader, Tooltip, ActionIcon, Modal, Menu, Switch } from '@mantine/core';
 import { useMediaQuery, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSparkles, IconRoute, IconDeviceFloppy, IconCurrentLocation, IconSearch, IconX, IconSettings, IconCalendar, IconRobot, IconAdjustments, IconDownload, IconTrash, IconRefresh, IconMap, IconBike, IconRefreshDot, IconScissors, IconBrain, IconFolderOpen, IconHandClick, IconRoad, IconPencil, IconMountain, IconHeartRateMonitor, IconMapPin, IconArrowRight, IconRun } from '@tabler/icons-react';
 import Map, { Marker, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
@@ -60,7 +59,6 @@ import POIPanel from '../components/RouteBuilder/POIPanel.jsx';
 import { generateSegmentAlternatives } from '../utils/segmentAlternatives';
 import SegmentAlternativesPanel from '../components/RouteBuilder/SegmentAlternativesPanel.jsx';
 import AlternativeRouteLayers from '../components/RouteBuilder/AlternativeRouteLayers.jsx';
-import { IconArrowsExchange, IconWand, IconToolsKitchen2, IconGauge } from '@tabler/icons-react';
 import { applyRouteEdit, classifyEditIntent } from '../utils/aiRouteEditService';
 import AIEditPanel from '../components/RouteBuilder/AIEditPanel.jsx';
 import RunReachLayer from '../components/RunReachLayer.jsx';
@@ -69,6 +67,7 @@ import { fetchRunReach } from '../utils/isochroneService';
 
 // Shared constants — single source of truth in components/RouteBuilder/index.js
 import { MAPBOX_TOKEN, BASEMAP_STYLES, CYCLOSM_STYLE } from '../components/RouteBuilder';
+import { ArrowClockwise, ArrowRight, ArrowsClockwise, ArrowsLeftRight, Bicycle, Brain, Calendar, Crosshair, DownloadSimple, FloppyDisk, FolderOpen, ForkKnife, Gauge, Gear, HandTap, Heartbeat, MagicWand, MagnifyingGlass, MapPin, MapTrifold, Mountains, Path, Pencil, PersonSimpleRun, RoadHorizon, Robot, Scissors, Sliders, Sparkle, Trash, X } from '@phosphor-icons/react';
 
 function RouteBuilder() {
   const { routeId } = useParams();
@@ -1938,7 +1937,7 @@ function RouteBuilder() {
           title: 'Using Map Center as Start',
           message: 'Your location could not be determined. The route will start from the center of your current map view. Click the location button or place a waypoint to set a specific start point.',
           color: 'yellow',
-          icon: <IconCurrentLocation size={16} />,
+          icon: <Crosshair size={16} />,
           autoClose: 8000
         });
       }
@@ -2366,7 +2365,7 @@ function RouteBuilder() {
         variant="outline"
         color="teal"
         size="xs"
-        leftSection={<IconFolderOpen size={14} />}
+        leftSection={<FolderOpen size={14} />}
         onClick={() => setSavedRoutesOpen(true)}
         fullWidth
         style={{
@@ -2437,7 +2436,7 @@ function RouteBuilder() {
         >
           <Group justify="space-between" align="flex-start">
             <Group gap="xs">
-              <IconCalendar size={16} style={{ color: 'var(--color-teal)' }} />
+              <Calendar size={16} style={{ color: 'var(--color-teal)' }} />
               <Box>
                 <Text size="xs" fw={600} style={{ color: 'var(--color-teal)' }}>
                   Creating route for scheduled workout
@@ -2452,7 +2451,7 @@ function RouteBuilder() {
               variant="subtle"
               onClick={() => setCalendarContext(null)}
             >
-              <IconX size={12} />
+              <X size={12} />
             </ActionIcon>
           </Group>
         </Paper>
@@ -2484,7 +2483,7 @@ function RouteBuilder() {
       >
         <Group justify="space-between" align="center">
           <Group gap="sm">
-            <IconRefreshDot
+            <ArrowClockwise
               size={20}
               style={{
                 color: useIterativeBuilder ? 'var(--color-teal)' : 'var(--color-text-muted)',
@@ -2535,7 +2534,7 @@ function RouteBuilder() {
         <Button
           onClick={handleNaturalLanguageGenerate}
           loading={generatingAI}
-          leftSection={<IconSparkles size={16} />}
+          leftSection={<Sparkle size={16} />}
           color="teal"
           variant={calendarContext ? 'filled' : 'light'}
           size="xs"
@@ -2692,7 +2691,7 @@ function RouteBuilder() {
       <Button
         onClick={handleGenerateAIRoutes}
         loading={generatingAI}
-        leftSection={useIterativeBuilder ? <IconRefreshDot size={18} /> : <IconSparkles size={18} />}
+        leftSection={useIterativeBuilder ? <ArrowClockwise size={18} /> : <Sparkle size={18} />}
         color="teal"
         fullWidth
       >
@@ -2786,7 +2785,7 @@ function RouteBuilder() {
           disabled={!routeGeometry}
           onClick={handleSaveRoute}
           loading={isSaving}
-          leftSection={<IconDeviceFloppy size={16} />}
+          leftSection={<FloppyDisk size={16} />}
         >
           {savedRouteId ? 'Update Route' : 'Save Route'}
         </Button>
@@ -2803,7 +2802,7 @@ function RouteBuilder() {
             size="sm"
             disabled={!routeGeometry && waypoints.length === 0}
             onClick={clearRoute}
-            leftSection={<IconTrash size={14} />}
+            leftSection={<Trash size={14} />}
           >
             Clear Route
           </Button>
@@ -2820,7 +2819,7 @@ function RouteBuilder() {
               setEditMode(!editMode);
               setSelectedSegment(null);
             }}
-            leftSection={<IconScissors size={16} />}
+            leftSection={<Scissors size={16} />}
           >
             {editMode ? 'Exit Edit Mode' : 'Edit Route (Remove Tangents)'}
           </Button>
@@ -2840,7 +2839,7 @@ function RouteBuilder() {
                   color="red"
                   onClick={handleRemoveSegment}
                   loading={isRemovingSegment}
-                  leftSection={<IconTrash size={14} />}
+                  leftSection={<Trash size={14} />}
                 >
                   Remove & Re-route
                 </Button>
@@ -2871,7 +2870,7 @@ function RouteBuilder() {
             size="sm"
             fullWidth
             onClick={() => altMode ? exitAltMode() : setAltMode(true)}
-            leftSection={<IconArrowsExchange size={16} />}
+            leftSection={<ArrowsLeftRight size={16} />}
           >
             {altMode ? 'Exit Alternatives' : 'Compare Segment Routes'}
           </Button>
@@ -2888,7 +2887,7 @@ function RouteBuilder() {
                 variant="light"
                 color="violet"
                 onClick={() => handleSelectAltSegment(i)}
-                leftSection={<IconArrowRight size={14} />}
+                leftSection={<ArrowRight size={14} />}
               >
                 {wp.name || `Waypoint ${i}`} → {altWaypoints[i + 1]?.name || `Waypoint ${i + 1}`}
               </Button>
@@ -2920,7 +2919,7 @@ function RouteBuilder() {
               setAiEditMode(!aiEditMode);
               if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
             }}
-            leftSection={<IconWand size={16} />}
+            leftSection={<MagicWand size={16} />}
           >
             {aiEditMode ? 'Close AI Edit' : 'AI Edit Route'}
           </Button>
@@ -2944,7 +2943,7 @@ function RouteBuilder() {
           color="gray"
           size="xs"
           onClick={handleClearSession}
-          leftSection={<IconRefresh size={14} />}
+          leftSection={<ArrowsClockwise size={14} />}
           fullWidth
         >
           New Route (Clear Session)
@@ -2991,7 +2990,7 @@ function RouteBuilder() {
           variant="light"
           color="teal"
           size="xs"
-          leftSection={<IconRobot size={14} />}
+          leftSection={<Robot size={14} />}
           onClick={() => setBuilderMode('ai')}
           fullWidth
         >
@@ -3024,7 +3023,7 @@ function RouteBuilder() {
         {/* Fuel Plan */}
         <Paper p="md" withBorder style={{ borderColor: 'var(--color-bg-secondary)', backgroundColor: 'var(--color-bg)' }} radius={0}>
           <Group gap="xs" mb="sm">
-            <IconToolsKitchen2 size={18} style={{ color: 'var(--color-teal)' }} />
+            <ForkKnife size={18} style={{ color: 'var(--color-teal)' }} />
             <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>Fuel Plan</Text>
             {routeStats.duration >= 45 && routeGeometry && (
               <Badge size="xs" variant="light" color="green">Active</Badge>
@@ -3047,7 +3046,7 @@ function RouteBuilder() {
         {/* Workout Structure */}
         <Paper p="md" withBorder style={{ borderColor: 'var(--color-bg-secondary)', backgroundColor: 'var(--color-bg)' }} radius={0}>
           <Group gap="xs" mb="sm">
-            <IconHeartRateMonitor size={18} style={{ color: 'var(--color-teal)' }} />
+            <Heartbeat size={18} style={{ color: 'var(--color-teal)' }} />
             <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>Workout Structure</Text>
             {intervalCues && intervalCues.length > 0 && (
               <Badge size="xs" variant="filled" color="teal">{intervalCues.length}</Badge>
@@ -3063,7 +3062,7 @@ function RouteBuilder() {
         {/* Tire Pressure */}
         <Paper p="md" withBorder style={{ borderColor: 'var(--color-bg-secondary)', backgroundColor: 'var(--color-bg)' }} radius={0}>
           <Group gap="xs" mb="sm">
-            <IconGauge size={18} style={{ color: 'var(--color-teal)' }} />
+            <Gauge size={18} style={{ color: 'var(--color-teal)' }} />
             <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>Tire Pressure</Text>
           </Group>
           <TirePressureCard
@@ -3444,16 +3443,16 @@ function RouteBuilder() {
                     setSearchQuery(e.target.value);
                     handleAddressSearch(e.target.value);
                   }}
-                  leftSection={<IconSearch size={16} />}
+                  leftSection={<MagnifyingGlass size={16} />}
                   rightSection={searchQuery ? (
-                    <IconX size={16} style={{ cursor: 'pointer' }} onClick={() => { setSearchQuery(''); setSearchResults([]); }} />
+                    <X size={16} style={{ cursor: 'pointer' }} onClick={() => { setSearchQuery(''); setSearchResults([]); }} />
                   ) : null}
                   style={{ flex: 1, minWidth: 120 }}
                   styles={{ input: { backgroundColor: 'var(--color-bg-secondary)' } }}
                 />
                 <Tooltip label="My Location">
                   <Button variant="filled" color="teal" size="md" onClick={handleGeolocate} loading={isLocating} style={{ padding: '0 12px', flexShrink: 0 }}>
-                    <IconCurrentLocation size={20} />
+                    <Crosshair size={20} />
                   </Button>
                 </Tooltip>
                 <Tooltip label={showBikeInfrastructure ? 'Hide Bike Lanes' : 'Show Bike Lanes'}>
@@ -3471,7 +3470,7 @@ function RouteBuilder() {
                       border: `1px solid ${'var(--color-bg-secondary)'}`,
                     }}
                   >
-                    <IconBike size={20} color={showBikeInfrastructure ? '#fff' : 'var(--color-text-primary)'} />
+                    <Bicycle size={20} color={showBikeInfrastructure ? '#fff' : 'var(--color-text-primary)'} />
                   </Button>
                 </Tooltip>
                 <Tooltip label={showRunReachPanel ? 'Hide Run Reach' : showRunReach ? 'Show Run Reach Panel' : 'Run Reach'}>
@@ -3501,7 +3500,7 @@ function RouteBuilder() {
                       border: `1px solid ${'var(--color-bg-secondary)'}`,
                     }}
                   >
-                    <IconRun size={20} color={showRunReach ? '#fff' : 'var(--color-text-primary)'} />
+                    <PersonSimpleRun size={20} color={showRunReach ? '#fff' : 'var(--color-text-primary)'} />
                   </Button>
                 </Tooltip>
                 {routeGeometry && (
@@ -3519,7 +3518,7 @@ function RouteBuilder() {
                         border: `1px solid ${'var(--color-bg-secondary)'}`,
                       }}
                     >
-                      <IconMapPin size={20} color={showPOIs ? '#fff' : 'var(--color-text-primary)'} />
+                      <MapPin size={20} color={showPOIs ? '#fff' : 'var(--color-text-primary)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -3537,7 +3536,7 @@ function RouteBuilder() {
                         color: 'var(--color-text-primary)',
                       }}
                     >
-                      <IconMap size={20} />
+                      <MapTrifold size={20} />
                     </Button>
                   </Menu.Target>
                   <Menu.Dropdown style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
@@ -3573,7 +3572,7 @@ function RouteBuilder() {
                       border: '1px solid var(--tribos-border)',
                     }}
                   >
-                    <IconBrain size={20} color="var(--color-teal)" />
+                    <Brain size={20} color="var(--color-teal)" />
                   </Button>
                 </Tooltip>
                 {routeGeometry && (
@@ -3593,7 +3592,7 @@ function RouteBuilder() {
                         border: `1px solid ${editMode ? '#3A5A8C' : 'var(--color-bg-secondary)'}`,
                       }}
                     >
-                      <IconScissors size={20} color={editMode ? '#fff' : 'var(--color-text-primary)'} />
+                      <Scissors size={20} color={editMode ? '#fff' : 'var(--color-text-primary)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -3611,7 +3610,7 @@ function RouteBuilder() {
                         border: `1px solid ${altMode ? '#6B7F94' : 'var(--color-bg-secondary)'}`,
                       }}
                     >
-                      <IconArrowsExchange size={20} color={altMode ? '#fff' : 'var(--color-text-primary)'} />
+                      <ArrowsLeftRight size={20} color={altMode ? '#fff' : 'var(--color-text-primary)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -3632,7 +3631,7 @@ function RouteBuilder() {
                         border: `1px solid ${aiEditMode ? '#3A5A8C' : 'var(--color-bg-secondary)'}`,
                       }}
                     >
-                      <IconWand size={20} color={aiEditMode ? '#fff' : 'var(--color-text-primary)'} />
+                      <MagicWand size={20} color={aiEditMode ? '#fff' : 'var(--color-text-primary)'} />
                     </Button>
                   </Tooltip>
                 )}
@@ -3739,7 +3738,7 @@ function RouteBuilder() {
                         color="dark"
                         onClick={handleRemoveSegment}
                         loading={isRemovingSegment}
-                        leftSection={<IconTrash size={16} />}
+                        leftSection={<Trash size={16} />}
                       >
                         Remove & Re-route
                       </Button>
@@ -3843,7 +3842,7 @@ function RouteBuilder() {
                 variant="outline"
                 color="teal"
                 size="xs"
-                leftSection={<IconFolderOpen size={14} />}
+                leftSection={<FolderOpen size={14} />}
                 onClick={() => setSavedRoutesOpen(true)}
                 fullWidth
                 style={{
@@ -3925,7 +3924,7 @@ function RouteBuilder() {
                 >
                   <Group justify="space-between" align="flex-start">
                     <Group gap="xs">
-                      <IconCalendar size={16} style={{ color: 'var(--color-teal)' }} />
+                      <Calendar size={16} style={{ color: 'var(--color-teal)' }} />
                       <Box>
                         <Text size="xs" fw={600} style={{ color: 'var(--color-teal)' }}>
                           Creating route for scheduled workout
@@ -3941,7 +3940,7 @@ function RouteBuilder() {
                       variant="subtle"
                       onClick={() => setCalendarContext(null)}
                     >
-                      <IconX size={12} />
+                      <X size={12} />
                     </ActionIcon>
                   </Group>
                 </Paper>
@@ -3984,7 +3983,7 @@ function RouteBuilder() {
                 }}
               >
                 <Group gap="xs" mb="md">
-                  <IconRobot size={20} style={{ color: 'var(--color-teal)' }} />
+                  <Robot size={20} style={{ color: 'var(--color-teal)' }} />
                   <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                     AI Route Generator
                   </Text>
@@ -4003,7 +4002,7 @@ function RouteBuilder() {
                   >
                     <Group justify="space-between" align="center">
                       <Group gap="sm">
-                        <IconRefreshDot
+                        <ArrowClockwise
                           size={20}
                           style={{
                             color: useIterativeBuilder ? 'var(--color-teal)' : 'var(--color-text-muted)',
@@ -4049,7 +4048,7 @@ function RouteBuilder() {
                   <Button
                     onClick={handleNaturalLanguageGenerate}
                     loading={generatingAI}
-                    leftSection={useIterativeBuilder ? <IconRefreshDot size={16} /> : <IconSparkles size={16} />}
+                    leftSection={useIterativeBuilder ? <ArrowClockwise size={16} /> : <Sparkle size={16} />}
                     color="teal"
                     variant={calendarContext ? 'filled' : 'light'}
                     size="sm"
@@ -4081,7 +4080,7 @@ function RouteBuilder() {
               {/* Manual Configuration Section - Collapsible */}
               <CollapsibleSection
                 title="Manual Configuration"
-                icon={<IconAdjustments size={18} />}
+                icon={<Sliders size={18} />}
                 defaultExpanded={!naturalLanguageInput}
               >
                 <Stack gap="sm" mt="sm">
@@ -4213,7 +4212,7 @@ function RouteBuilder() {
                   <Button
                     onClick={handleGenerateAIRoutes}
                     loading={generatingAI}
-                    leftSection={useIterativeBuilder ? <IconRefreshDot size={18} /> : <IconSparkles size={18} />}
+                    leftSection={useIterativeBuilder ? <ArrowClockwise size={18} /> : <Sparkle size={18} />}
                     color="teal"
                     fullWidth
                   >
@@ -4226,7 +4225,7 @@ function RouteBuilder() {
               {aiSuggestions.length > 0 && (
                 <CollapsibleSection
                   title="AI Suggestions"
-                  icon={<IconSparkles size={18} />}
+                  icon={<Sparkle size={18} />}
                   badge={`${aiSuggestions.length}`}
                   defaultExpanded={true}
                   accentColor={'var(--color-teal)'}
@@ -4251,7 +4250,7 @@ function RouteBuilder() {
               {/* Route Stats Section - Collapsible */}
               <CollapsibleSection
                 title="Route Stats"
-                icon={<IconRoute size={18} />}
+                icon={<Path size={18} />}
                 defaultExpanded={!!routeGeometry}
               >
                 <Box mt="sm">
@@ -4333,7 +4332,7 @@ function RouteBuilder() {
                   }}
                 >
                   <Group gap="xs" mb="xs">
-                    <IconHandClick size={18} style={{ color: '#3D8B50' }} />
+                    <HandTap size={18} style={{ color: '#3D8B50' }} />
                     <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                       Manual Route Builder
                     </Text>
@@ -4356,7 +4355,7 @@ function RouteBuilder() {
                         onClick={manualUndo}
                         disabled={!manualCanUndo}
                       >
-                        <IconRefresh size={16} style={{ transform: 'scaleX(-1)' }} />
+                        <ArrowsClockwise size={16} style={{ transform: 'scaleX(-1)' }} />
                       </ActionIcon>
                     </Tooltip>
                     <Tooltip label="Redo">
@@ -4367,7 +4366,7 @@ function RouteBuilder() {
                         onClick={manualRedo}
                         disabled={!manualCanRedo}
                       >
-                        <IconRefresh size={16} />
+                        <ArrowsClockwise size={16} />
                       </ActionIcon>
                     </Tooltip>
                     <Tooltip label="Reverse Route">
@@ -4378,7 +4377,7 @@ function RouteBuilder() {
                         onClick={manualReverse}
                         disabled={waypoints.length < 2}
                       >
-                        <IconArrowsExchange size={16} />
+                        <ArrowsLeftRight size={16} />
                       </ActionIcon>
                     </Tooltip>
                     <Tooltip label="Clear Route">
@@ -4392,7 +4391,7 @@ function RouteBuilder() {
                           setRouteStats({ distance: 0, elevation: 0, duration: 0 });
                         }}
                       >
-                        <IconTrash size={16} />
+                        <Trash size={16} />
                       </ActionIcon>
                     </Tooltip>
                   </Group>
@@ -4405,7 +4404,7 @@ function RouteBuilder() {
                     color={snapToRoads ? 'blue' : 'gray'}
                     size="xs"
                     fullWidth
-                    leftSection={snapToRoads ? <IconRoad size={16} /> : <IconPencil size={16} />}
+                    leftSection={snapToRoads ? <RoadHorizon size={16} /> : <Pencil size={16} />}
                     onClick={() => {
                       setSnapToRoads(!snapToRoads);
                       // Route will recalculate via the effect below
@@ -4461,7 +4460,7 @@ function RouteBuilder() {
                   variant="light"
                   color="teal"
                   size="xs"
-                  leftSection={<IconRobot size={14} />}
+                  leftSection={<Robot size={14} />}
                   onClick={() => setBuilderMode('ai')}
                   fullWidth
                 >
@@ -4526,7 +4525,7 @@ function RouteBuilder() {
                   radius={0}
                 >
                   <Group gap="xs" mb="sm">
-                    <IconToolsKitchen2 size={18} style={{ color: 'var(--color-teal)' }} />
+                    <ForkKnife size={18} style={{ color: 'var(--color-teal)' }} />
                     <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                       Fuel Plan
                     </Text>
@@ -4565,7 +4564,7 @@ function RouteBuilder() {
                   radius={0}
                 >
                   <Group gap="xs" mb="sm">
-                    <IconHeartRateMonitor size={18} style={{ color: 'var(--color-teal)' }} />
+                    <Heartbeat size={18} style={{ color: 'var(--color-teal)' }} />
                     <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                       Workout Structure
                     </Text>
@@ -4593,7 +4592,7 @@ function RouteBuilder() {
                   radius={0}
                 >
                   <Group gap="xs" mb="sm">
-                    <IconGauge size={18} style={{ color: 'var(--color-teal)' }} />
+                    <Gauge size={18} style={{ color: 'var(--color-teal)' }} />
                     <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                       Tire Pressure
                     </Text>
@@ -4631,7 +4630,7 @@ function RouteBuilder() {
                   disabled={!routeGeometry}
                   onClick={handleSaveRoute}
                   loading={isSaving}
-                  leftSection={<IconDeviceFloppy size={18} />}
+                  leftSection={<FloppyDisk size={18} />}
                   style={{
                     height: 44,
                     fontWeight: 600,
@@ -4666,7 +4665,7 @@ function RouteBuilder() {
                         setEditMode(!editMode);
                         setSelectedSegment(null);
                       }}
-                      leftSection={<IconScissors size={14} />}
+                      leftSection={<Scissors size={14} />}
                     >
                       {editMode ? 'Exit Edit' : 'Edit'}
                     </Button>
@@ -4676,7 +4675,7 @@ function RouteBuilder() {
                         color="blue"
                         size="xs"
                         onClick={() => { setBuilderMode('manual'); setSidebarTab('route'); }}
-                        leftSection={<IconHandClick size={14} />}
+                        leftSection={<HandTap size={14} />}
                       >
                         Manual
                       </Button>
@@ -4690,7 +4689,7 @@ function RouteBuilder() {
                           setAiEditMode(!aiEditMode);
                           if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
                         }}
-                        leftSection={<IconWand size={14} />}
+                        leftSection={<MagicWand size={14} />}
                       >
                         {aiEditMode ? 'Close AI' : 'AI Edit'}
                       </Button>
@@ -4705,7 +4704,7 @@ function RouteBuilder() {
                       size="xs"
                       fullWidth
                       onClick={() => altMode ? exitAltMode() : setAltMode(true)}
-                      leftSection={<IconArrowsExchange size={14} />}
+                      leftSection={<ArrowsLeftRight size={14} />}
                     >
                       {altMode ? 'Exit Alternatives' : 'Compare Segments'}
                     </Button>
@@ -4755,7 +4754,7 @@ function RouteBuilder() {
                   size="xs"
                   disabled={!routeGeometry && waypoints.length === 0}
                   onClick={clearRoute}
-                  leftSection={<IconTrash size={14} />}
+                  leftSection={<Trash size={14} />}
                 >
                   Clear Route
                 </Button>
@@ -4764,7 +4763,7 @@ function RouteBuilder() {
                   color="gray"
                   size="xs"
                   onClick={handleClearSession}
-                  leftSection={<IconRefresh size={14} />}
+                  leftSection={<ArrowsClockwise size={14} />}
                 >
                   New Session
                 </Button>
@@ -4798,10 +4797,10 @@ function RouteBuilder() {
                     setSearchQuery(e.target.value);
                     handleAddressSearch(e.target.value);
                   }}
-                  leftSection={<IconSearch size={16} />}
+                  leftSection={<MagnifyingGlass size={16} />}
                   rightSection={
                     searchQuery ? (
-                      <IconX
+                      <X
                         size={16}
                         style={{ cursor: 'pointer' }}
                         onClick={() => {
@@ -4868,7 +4867,7 @@ function RouteBuilder() {
                   loading={isLocating}
                   style={{ padding: '0 12px' }}
                 >
-                  <IconCurrentLocation size={20} />
+                  <Crosshair size={20} />
                 </Button>
               </Tooltip>
               <Tooltip label={showBikeInfrastructure ? 'Hide Bike Lanes' : 'Show Bike Lanes'}>
@@ -4885,7 +4884,7 @@ function RouteBuilder() {
                     border: `1px solid ${'var(--color-bg-secondary)'}`,
                   }}
                 >
-                  <IconBike size={20} color={showBikeInfrastructure ? '#fff' : 'var(--color-text-primary)'} />
+                  <Bicycle size={20} color={showBikeInfrastructure ? '#fff' : 'var(--color-text-primary)'} />
                 </Button>
               </Tooltip>
               <Tooltip label={showRunReachPanel ? 'Hide Run Reach' : showRunReach ? 'Show Run Reach Panel' : 'Run Reach'}>
@@ -4911,7 +4910,7 @@ function RouteBuilder() {
                     border: `1px solid ${'var(--color-bg-secondary)'}`,
                   }}
                 >
-                  <IconRun size={20} color={showRunReach ? '#fff' : 'var(--color-text-primary)'} />
+                  <PersonSimpleRun size={20} color={showRunReach ? '#fff' : 'var(--color-text-primary)'} />
                 </Button>
               </Tooltip>
               {routeGeometry && (
@@ -4928,7 +4927,7 @@ function RouteBuilder() {
                       border: `1px solid ${'var(--color-bg-secondary)'}`,
                     }}
                   >
-                    <IconMapPin size={20} color={showPOIs ? '#fff' : 'var(--color-text-primary)'} />
+                    <MapPin size={20} color={showPOIs ? '#fff' : 'var(--color-text-primary)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -4946,7 +4945,7 @@ function RouteBuilder() {
                         color: 'var(--color-text-primary)',
                       }}
                     >
-                      <IconMap size={20} />
+                      <MapTrifold size={20} />
                     </Button>
                   </Tooltip>
                 </Menu.Target>
@@ -4982,7 +4981,7 @@ function RouteBuilder() {
                     border: '1px solid var(--tribos-border)',
                   }}
                 >
-                  <IconBrain size={20} color="var(--color-teal)" />
+                  <Brain size={20} color="var(--color-teal)" />
                 </Button>
               </Tooltip>
               {routeGeometry && (
@@ -5001,7 +5000,7 @@ function RouteBuilder() {
                       border: `1px solid ${editMode ? '#3A5A8C' : 'var(--color-bg-secondary)'}`,
                     }}
                   >
-                    <IconScissors size={20} color={editMode ? '#fff' : 'var(--color-text-primary)'} />
+                    <Scissors size={20} color={editMode ? '#fff' : 'var(--color-text-primary)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -5018,7 +5017,7 @@ function RouteBuilder() {
                       border: `1px solid ${altMode ? '#6B7F94' : 'var(--color-bg-secondary)'}`,
                     }}
                   >
-                    <IconArrowsExchange size={20} color={altMode ? '#fff' : 'var(--color-text-primary)'} />
+                    <ArrowsLeftRight size={20} color={altMode ? '#fff' : 'var(--color-text-primary)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -5038,7 +5037,7 @@ function RouteBuilder() {
                       border: `1px solid ${aiEditMode ? '#3A5A8C' : 'var(--color-bg-secondary)'}`,
                     }}
                   >
-                    <IconWand size={20} color={aiEditMode ? '#fff' : 'var(--color-text-primary)'} />
+                    <MagicWand size={20} color={aiEditMode ? '#fff' : 'var(--color-text-primary)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -5055,7 +5054,7 @@ function RouteBuilder() {
                       border: `1px solid ${showWorkoutOverlay ? '#3A5A8C' : 'var(--color-bg-secondary)'}`,
                     }}
                   >
-                    <IconHeartRateMonitor size={20} color={showWorkoutOverlay ? '#fff' : 'var(--color-text-primary)'} />
+                    <Heartbeat size={20} color={showWorkoutOverlay ? '#fff' : 'var(--color-text-primary)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -5072,7 +5071,7 @@ function RouteBuilder() {
                       border: `1px solid ${showGradient ? '#3D8B50' : 'var(--color-bg-secondary)'}`,
                     }}
                   >
-                    <IconMountain size={20} color={showGradient ? '#fff' : 'var(--color-text-primary)'} />
+                    <Mountains size={20} color={showGradient ? '#fff' : 'var(--color-text-primary)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -5090,7 +5089,7 @@ function RouteBuilder() {
                       border: `1px solid ${showSurface ? '#D97706' : 'var(--color-bg-secondary)'}`,
                     }}
                   >
-                    <IconRoad size={20} color={showSurface ? '#fff' : 'var(--color-text-primary)'} />
+                    <RoadHorizon size={20} color={showSurface ? '#fff' : 'var(--color-text-primary)'} />
                   </Button>
                 </Tooltip>
               )}
@@ -5483,7 +5482,7 @@ function RouteBuilder() {
                         color="violet"
                         fullWidth
                         onClick={() => handleSelectAltSegment(i)}
-                        leftSection={<IconArrowRight size={14} />}
+                        leftSection={<ArrowRight size={14} />}
                       >
                         {wp.name || `Waypoint ${i}`} → {altWaypoints[i + 1]?.name || `Waypoint ${i + 1}`}
                       </Button>
@@ -5534,7 +5533,7 @@ function RouteBuilder() {
                       color="dark"
                       onClick={handleRemoveSegment}
                       loading={isRemovingSegment}
-                      leftSection={<IconTrash size={16} />}
+                      leftSection={<Trash size={16} />}
                     >
                       Remove & Re-route
                     </Button>

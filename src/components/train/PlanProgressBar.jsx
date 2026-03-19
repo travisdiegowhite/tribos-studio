@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Box, Group, Text, Badge, Progress, Button, Skeleton } from '@mantine/core';
-import { IconChevronRight, IconCalendarEvent, IconTrophy } from '@tabler/icons-react';
+import { CaretRight, CalendarBlank, Trophy } from '@phosphor-icons/react';
 
 function PlanProgressBar({ activePlan, plannedWorkouts, loading }) {
   if (loading) {
@@ -30,7 +30,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading }) {
       >
         <Group justify="space-between" align="center">
           <Group gap="sm">
-            <IconCalendarEvent size={18} color="var(--color-text-muted)" />
+            <CalendarBlank size={18} color="var(--color-text-muted)" />
             <Text
               style={{
                 fontSize: 14,
@@ -137,7 +137,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading }) {
           )}
           {daysToEvent !== null && (
             <Group gap={4}>
-              <IconTrophy size={14} color="var(--color-gold)" />
+              <Trophy size={14} color="var(--color-gold)" />
               <Text
                 style={{
                   fontFamily: "'DM Mono', monospace",
@@ -156,7 +156,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading }) {
             variant="subtle"
             color="gray"
             size="compact-xs"
-            rightSection={<IconChevronRight size={12} />}
+            rightSection={<CaretRight size={12} />}
             style={{
               fontFamily: "'Barlow Condensed', sans-serif",
               fontSize: 11,

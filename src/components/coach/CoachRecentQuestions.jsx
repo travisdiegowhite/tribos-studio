@@ -1,5 +1,5 @@
+import { CaretRight, ClockCounterClockwise } from '@phosphor-icons/react';
 import { Stack, UnstyledButton, Group, Text, Box, ThemeIcon, Loader } from '@mantine/core';
-import { IconHistory, IconChevronRight } from '@tabler/icons-react';
 
 function formatRelativeTime(timestamp) {
   const now = new Date();
@@ -86,7 +86,7 @@ function CoachRecentQuestions({
                 size="sm"
                 style={{ flexShrink: 0 }}
               >
-                <IconHistory size={14} />
+                <ClockCounterClockwise size={14} />
               </ThemeIcon>
               <Text
                 size="sm"

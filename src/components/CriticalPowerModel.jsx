@@ -25,8 +25,8 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
-import { IconBolt, IconBattery, IconFlame, IconClock, IconInfoCircle } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { BatteryMedium, Clock, Fire, Info, Lightning } from '@phosphor-icons/react';
 
 /**
  * Critical Power Model Component
@@ -300,7 +300,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconBattery size={20} color={tokens.colors.zone5} />
+          <BatteryMedium size={20} color={tokens.colors.zone5} />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Critical Power Model
           </Text>
@@ -325,7 +325,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs" mb={2}>
-            <IconBolt size={14} color={tokens.colors.zone4} />
+            <Lightning size={14} color={tokens.colors.zone4} />
             <Text size="xs" c="dimmed">Critical Power</Text>
           </Group>
           <Text size="lg" fw={700} c="orange">{cpModel.cp}W</Text>
@@ -334,7 +334,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
 
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs" mb={2}>
-            <IconBattery size={14} color={tokens.colors.zone5} />
+            <BatteryMedium size={14} color={tokens.colors.zone5} />
             <Text size="xs" c="dimmed">W' (W Prime)</Text>
           </Group>
           <Text size="lg" fw={700} c="red">{(cpModel.wPrime / 1000).toFixed(1)} kJ</Text>
@@ -343,7 +343,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
 
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs" mb={2}>
-            <IconClock size={14} color={tokens.colors.zone2} />
+            <Clock size={14} color={tokens.colors.zone2} />
             <Text size="xs" c="dimmed">TTE at 120% CP</Text>
           </Group>
           <Text size="lg" fw={700} c="blue">
@@ -354,7 +354,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
 
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs" mb={2}>
-            <IconFlame size={14} color={tokens.colors.zone3} />
+            <Fire size={14} color={tokens.colors.zone3} />
             <Text size="xs" c="dimmed">CP vs FTP</Text>
           </Group>
           <Text size="lg" fw={700} c="yellow">
@@ -410,7 +410,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
           </ResponsiveContainer>
 
           {/* Model Explanation */}
-          <Alert color="blue" variant="light" icon={<IconInfoCircle size={16} />} mt="md">
+          <Alert color="blue" variant="light" icon={<Info size={16} />} mt="md">
             <Text size="xs">
               <strong>Critical Power (CP)</strong> is the highest power you can sustain for extended periods.
               <strong> W' (W Prime)</strong> is your anaerobic work capacity above CP - like a "battery" of {(cpModel.wPrime / 1000).toFixed(1)} kJ
@@ -467,7 +467,7 @@ export function WPrimeBalanceGauge({ wBalancePercent, wPrimeKJ }) {
     <Tooltip label={`W' Balance: ${wBalancePercent.toFixed(0)}% of ${wPrimeKJ.toFixed(1)} kJ remaining`}>
       <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Group gap="xs" mb={4}>
-          <IconBattery size={14} />
+          <BatteryMedium size={14} />
           <Text size="xs">W' Balance</Text>
         </Group>
         <Progress

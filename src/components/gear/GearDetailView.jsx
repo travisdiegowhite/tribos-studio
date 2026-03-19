@@ -16,20 +16,12 @@ import {
   Box,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import {
-  IconBike,
-  IconRun,
-  IconPlus,
-  IconArchive,
-  IconTrash,
-  IconStar,
-  IconRefresh,
-} from '@tabler/icons-react';
 import { formatDistance } from '../../utils/units';
 import { RUNNING_SHOE_THRESHOLDS, METERS_PER_MILE } from './gearConstants';
 import ComponentTable from './ComponentTable';
 import AddComponentForm from './AddComponentForm';
 import { notifications } from '@mantine/notifications';
+import { Archive, ArrowsClockwise, Bicycle, PersonSimpleRun, Plus, Star, Trash } from '@phosphor-icons/react';
 
 /**
  * Full gear detail view shown as a modal.
@@ -168,7 +160,7 @@ export default function GearDetailView({
   const isShoes = gear?.gear_type === 'shoes';
   const isBike = gear?.gear_type === 'bike';
   const isRetired = gear?.status === 'retired';
-  const Icon = isBike ? IconBike : IconRun;
+  const Icon = isBike ? Bicycle : PersonSimpleRun;
 
   // Cost per mile/km
   const costPerUnit = gear?.purchase_price && gear.total_distance_logged > 0
@@ -199,7 +191,7 @@ export default function GearDetailView({
           {/* Header */}
           <Group justify="space-between" align="flex-start">
             <Group gap="sm">
-              <Icon size={24} color="var(--color-teal)" stroke={1.5} />
+              <Icon size={24} color="var(--color-teal)"  />
               <Box>
                 <Title order={3}>{gear.name}</Title>
                 {(gear.brand || gear.model) && (
@@ -270,7 +262,7 @@ export default function GearDetailView({
                   <Button
                     size="xs"
                     variant="light"
-                    leftSection={<IconPlus size={14} />}
+                    leftSection={<Plus size={14} />}
                     onClick={() => setAddCompOpen(true)}
                   >
                     Add Component
@@ -344,24 +336,24 @@ export default function GearDetailView({
             <Group gap="xs">
               {!isRetired && !gear.is_default && (
                 <Tooltip label="Set as default">
-                  <Button size="xs" variant="light" leftSection={<IconStar size={14} />} onClick={handleSetDefault}>
+                  <Button size="xs" variant="light" leftSection={<Star size={14} />} onClick={handleSetDefault}>
                     Set Default
                   </Button>
                 </Tooltip>
               )}
               <Tooltip label="Recalculate mileage from activities">
-                <Button size="xs" variant="light" color="gray" leftSection={<IconRefresh size={14} />} onClick={handleRecalculate}>
+                <Button size="xs" variant="light" color="gray" leftSection={<ArrowsClockwise size={14} />} onClick={handleRecalculate}>
                   Recalculate
                 </Button>
               </Tooltip>
             </Group>
             <Group gap="xs">
               {!isRetired && (
-                <Button size="xs" variant="light" color="yellow" leftSection={<IconArchive size={14} />} onClick={handleRetire}>
+                <Button size="xs" variant="light" color="yellow" leftSection={<Archive size={14} />} onClick={handleRetire}>
                   Retire
                 </Button>
               )}
-              <Button size="xs" variant="light" color="red" leftSection={<IconTrash size={14} />} onClick={handleDelete}>
+              <Button size="xs" variant="light" color="red" leftSection={<Trash size={14} />} onClick={handleDelete}>
                 Delete
               </Button>
             </Group>

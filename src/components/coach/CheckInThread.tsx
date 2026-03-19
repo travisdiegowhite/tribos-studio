@@ -18,9 +18,9 @@ import {
   ActionIcon,
   ScrollArea,
 } from '@mantine/core';
-import { IconSend, IconMessageCircle } from '@tabler/icons-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
+import { ChatCircle, PaperPlaneRight } from '@phosphor-icons/react';
 
 interface Message {
   id: string;
@@ -199,7 +199,7 @@ export default function CheckInThread({ checkInId, trainingContext = null }: Che
     >
       {/* Header */}
       <Group gap={6} mb={hasMessages ? 'sm' : 0}>
-        <IconMessageCircle size={14} color="var(--mantine-color-dimmed)" />
+        <ChatCircle size={14} color="var(--mantine-color-dimmed)" />
         <Text size="xs" fw={700} tt="uppercase" ff="monospace" c="dimmed">
           Ask About This Check-In
         </Text>
@@ -275,7 +275,7 @@ export default function CheckInThread({ checkInId, trainingContext = null }: Che
             onClick={handleSubmit}
             disabled={!input.trim() || loading}
           >
-            <IconSend size={14} />
+            <PaperPlaneRight size={14} />
           </ActionIcon>
         }
         styles={{

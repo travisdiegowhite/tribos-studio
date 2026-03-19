@@ -17,11 +17,11 @@ import {
   Collapse,
   UnstyledButton,
 } from '@mantine/core';
-import { IconSearch, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { WorkoutCard } from './WorkoutCard';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory } from '../../data/workoutLibrary';
 import type { WorkoutCategory, FitnessLevel, WorkoutDefinition } from '../../types/training';
 import type { SidebarFilter, DragSource } from '../../types/planner';
+import { CaretDown, CaretRight, MagnifyingGlass } from '@phosphor-icons/react';
 
 interface WorkoutLibrarySidebarProps {
   filter: SidebarFilter;
@@ -168,7 +168,7 @@ export function WorkoutLibrarySidebar({
         {/* Search */}
         <TextInput
           placeholder="Search workouts..."
-          leftSection={<IconSearch size={16} />}
+          leftSection={<MagnifyingGlass size={16} />}
           size="xs"
           value={filter.searchQuery}
           onChange={(e) => onFilterChange({ searchQuery: e.target.value })}
@@ -218,9 +218,9 @@ export function WorkoutLibrarySidebar({
                   <Group justify="space-between">
                     <Group gap="xs">
                       {isExpanded ? (
-                        <IconChevronDown size={14} />
+                        <CaretDown size={14} />
                       ) : (
-                        <IconChevronRight size={14} />
+                        <CaretRight size={14} />
                       )}
                       <Badge size="xs" color={CATEGORY_COLORS[category]} variant="filled">
                         {CATEGORY_LABELS[category]}

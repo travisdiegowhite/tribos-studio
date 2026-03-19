@@ -1,6 +1,6 @@
 import { Box, SimpleGrid, Text, Tooltip, Badge, Stack } from '@mantine/core';
-import { IconRuler, IconMountain, IconClock, IconBolt, IconUser, IconTrendingUp } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Clock, Lightning, Mountains, Ruler, TrendUp, User } from '@phosphor-icons/react';
 
 /**
  * RouteStatsPanel - Route stats with icons, grid layout, and personalized ETA
@@ -43,19 +43,19 @@ function RouteStatsPanel({
 
   const statItems = [
     {
-      icon: <IconRuler size={20} />,
+      icon: <Ruler size={20} />,
       label: 'Distance',
       value: formatDist(stats.distance),
       color: 'var(--color-teal)',
     },
     {
-      icon: <IconMountain size={20} />,
+      icon: <Mountains size={20} />,
       label: 'Elevation',
       value: stats.elevation > 0 ? `${formatElev(stats.elevation)} ↗` : '--',
       color: tokens.colors.zone4,
     },
     {
-      icon: hasETA ? <IconUser size={20} /> : <IconClock size={20} />,
+      icon: hasETA ? <User size={20} /> : <Clock size={20} />,
       label: hasETA ? 'Your ETA' : 'Est. Time',
       value: hasETA
         ? personalizedETA.formattedTime
@@ -66,7 +66,7 @@ function RouteStatsPanel({
         : null,
     },
     {
-      icon: <IconBolt size={20} />,
+      icon: <Lightning size={20} />,
       label: hasETA ? 'Eff. Speed' : 'Your Speed',
       value: hasETA
         ? formatSpd(personalizedETA.effectiveSpeed)
@@ -203,7 +203,7 @@ function ETABreakdownBar({ breakdown, isPersonalized }) {
         size="xs"
         variant="light"
         color={isPersonalized ? 'terracotta' : 'gray'}
-        leftSection={isPersonalized ? <IconUser size={10} /> : <IconTrendingUp size={10} />}
+        leftSection={isPersonalized ? <User size={10} /> : <TrendUp size={10} />}
       >
         {isPersonalized ? 'Strava-tuned' : 'Default speed'}
       </Badge>

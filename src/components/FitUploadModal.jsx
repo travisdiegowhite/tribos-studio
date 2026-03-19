@@ -14,24 +14,12 @@ import {
   Divider,
   List,
 } from '@mantine/core';
-import {
-  IconUpload,
-  IconFile,
-  IconCheck,
-  IconX,
-  IconAlertCircle,
-  IconBike,
-  IconClock,
-  IconRoute,
-  IconMountain,
-  IconHeart,
-  IconBolt,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parseFitFile, fitToActivityFormat } from '../utils/fitParser';
 import { trackUpload, EventType } from '../utils/activityTracking';
+import { Bicycle, Check, Clock, File, Heart, Lightning, Mountains, Path, UploadSimple, WarningCircle, X } from '@phosphor-icons/react';
 
 function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: formatDistanceProp, formatElevation: formatElevationProp }) {
   const { user } = useAuth();
@@ -146,7 +134,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
         title: 'Upload Complete',
         message: `Successfully uploaded ${results.success.length} activit${results.success.length === 1 ? 'y' : 'ies'}`,
         color: 'green',
-        icon: <IconCheck size={16} />,
+        icon: <Check size={16} />,
       });
     }
 
@@ -155,7 +143,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
         title: 'Some uploads failed',
         message: `${results.failed.length} file(s) could not be uploaded`,
         color: 'yellow',
-        icon: <IconAlertCircle size={16} />,
+        icon: <WarningCircle size={16} />,
       });
     }
 
@@ -215,7 +203,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
       title={
         <Group gap="xs">
           <ThemeIcon color="orange" variant="light">
-            <IconUpload size={18} />
+            <UploadSimple size={18} />
           </ThemeIcon>
           <Text fw={600}>Upload FIT File</Text>
         </Group>
@@ -251,7 +239,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
           />
           <Stack align="center" gap="xs">
             <ThemeIcon size={48} variant="light" color="gray">
-              <IconUpload size={24} />
+              <UploadSimple size={24} />
             </ThemeIcon>
             <Text fw={500}>Drop FIT files here or click to browse</Text>
             <Text size="xs" c="dimmed">Supports .fit and .fit.gz files</Text>
@@ -267,7 +255,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
             </Group>
             <List size="sm" spacing="xs">
               {selectedFiles.map((file, index) => (
-                <List.Item key={index} icon={<IconFile size={14} />}>
+                <List.Item key={index} icon={<File size={14} />}>
                   {file.name} ({(file.size / 1024).toFixed(1)} KB)
                 </List.Item>
               ))}
@@ -277,7 +265,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
 
         {/* Error */}
         {error && (
-          <Alert color="red" icon={<IconX size={16} />}>
+          <Alert color="red" icon={<X size={16} />}>
             {error}
           </Alert>
         )}
@@ -291,7 +279,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
                 <Group justify="space-between">
                   <Group gap="xs">
                     <ThemeIcon size="sm" variant="light" color="blue">
-                      <IconBike size={14} />
+                      <Bicycle size={14} />
                     </ThemeIcon>
                     <Text fw={500}>{parsedData.metadata.name}</Text>
                   </Group>
@@ -310,7 +298,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
                 <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="xs">
                   <Paper p="xs" bg="dark.6">
                     <Group gap="xs">
-                      <IconRoute size={14} color="var(--mantine-color-blue-5)" />
+                      <Path size={14} color="var(--mantine-color-blue-5)" />
                       <div>
                         <Text size="xs" c="dimmed">Distance</Text>
                         <Text size="sm" fw={500}>
@@ -322,7 +310,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
 
                   <Paper p="xs" bg="dark.6">
                     <Group gap="xs">
-                      <IconClock size={14} color="var(--mantine-color-green-5)" />
+                      <Clock size={14} color="var(--mantine-color-green-5)" />
                       <div>
                         <Text size="xs" c="dimmed">Duration</Text>
                         <Text size="sm" fw={500}>
@@ -334,7 +322,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
 
                   <Paper p="xs" bg="dark.6">
                     <Group gap="xs">
-                      <IconMountain size={14} color="var(--mantine-color-orange-5)" />
+                      <Mountains size={14} color="var(--mantine-color-orange-5)" />
                       <div>
                         <Text size="xs" c="dimmed">Elevation</Text>
                         <Text size="sm" fw={500}>
@@ -350,7 +338,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
                     {parsedData.summary.avgHeartRate && (
                       <Paper p="xs" bg="dark.6">
                         <Group gap="xs">
-                          <IconHeart size={14} color="var(--mantine-color-red-5)" />
+                          <Heart size={14} color="var(--mantine-color-red-5)" />
                           <div>
                             <Text size="xs" c="dimmed">Avg HR</Text>
                             <Text size="sm" fw={500}>
@@ -364,7 +352,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
                     {parsedData.summary.avgPower && (
                       <Paper p="xs" bg="dark.6">
                         <Group gap="xs">
-                          <IconBolt size={14} color="var(--mantine-color-yellow-5)" />
+                          <Lightning size={14} color="var(--mantine-color-yellow-5)" />
                           <div>
                             <Text size="xs" c="dimmed">Avg Power</Text>
                             <Text size="sm" fw={500}>
@@ -400,7 +388,7 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
           </Button>
           <Button
             color="orange"
-            leftSection={<IconUpload size={16} />}
+            leftSection={<UploadSimple size={16} />}
             onClick={handleUpload}
             disabled={selectedFiles.length === 0 || uploading}
             loading={uploading}

@@ -23,18 +23,6 @@ import {
   SimpleGrid,
   Box,
 } from '@mantine/core';
-import {
-  IconLink,
-  IconCheck,
-  IconX,
-  IconActivity,
-  IconClock,
-  IconFlame,
-  IconRoute,
-  IconCalendar,
-  IconSparkles,
-  IconAlertCircle,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -46,6 +34,7 @@ import {
 } from '../../utils/activityMatching';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import { formatDistance } from '../../utils/units';
+import { Calendar, Check, Clock, Fire, Heartbeat, Link, Path, Sparkle, WarningCircle, X } from '@phosphor-icons/react';
 
 export default function ActivityLinkingModal({
   opened,
@@ -174,7 +163,7 @@ export default function ActivityLinkingModal({
         title: 'Activities Linked',
         message: `Successfully linked ${linksToApply.length} activities to workouts`,
         color: 'green',
-        icon: <IconCheck size={18} />,
+        icon: <Check size={18} />,
       });
 
       onLinkComplete?.();
@@ -225,7 +214,7 @@ export default function ActivityLinkingModal({
       onClose={onClose}
       title={
         <Group spacing="xs">
-          <IconLink size={20} />
+          <Link size={20} />
           <Text fw={600}>Link Activities to Workouts</Text>
         </Group>
       }
@@ -267,7 +256,7 @@ export default function ActivityLinkingModal({
           </SimpleGrid>
 
           {stats.withMatches > 0 && (
-            <Alert icon={<IconSparkles size={18} />} color="blue" variant="light">
+            <Alert icon={<Sparkle size={18} />} color="blue" variant="light">
               Found {stats.withMatches} potential matches. Review and confirm the links below.
             </Alert>
           )}
@@ -276,7 +265,7 @@ export default function ActivityLinkingModal({
           <ScrollArea h={400}>
             <Stack spacing="sm">
               {workoutsWithMatches.length === 0 ? (
-                <Alert icon={<IconCheck size={18} />} color="teal">
+                <Alert icon={<Check size={18} />} color="teal">
                   All workouts are already linked to activities!
                 </Alert>
               ) : (
@@ -291,7 +280,7 @@ export default function ActivityLinkingModal({
                         <Group spacing={8} mt={2}>
                           <Badge size="xs" variant="light">
                             <Group spacing={4}>
-                              <IconCalendar size={10} />
+                              <Calendar size={10} />
                               {new Date(workout.scheduled_date).toLocaleDateString('en-US', {
                                 weekday: 'short',
                                 month: 'short',
@@ -312,7 +301,7 @@ export default function ActivityLinkingModal({
                         </Group>
                       </div>
                       {selected && (
-                        <Badge color="teal" leftSection={<IconCheck size={12} />}>
+                        <Badge color="teal" leftSection={<Check size={12} />}>
                           Linked
                         </Badge>
                       )}
@@ -358,7 +347,7 @@ export default function ActivityLinkingModal({
                                     color={isSelected ? 'green' : 'gray'}
                                     variant={isSelected ? 'filled' : 'light'}
                                   >
-                                    {isSelected ? <IconCheck size={12} /> : <IconActivity size={12} />}
+                                    {isSelected ? <Check size={12} /> : <Heartbeat size={12} />}
                                   </ThemeIcon>
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <Text size="sm" fw={500} lineClamp={1}>
@@ -413,7 +402,7 @@ export default function ActivityLinkingModal({
               onClick={applyLinks}
               loading={linking}
               disabled={stats.selected === 0}
-              leftIcon={<IconLink size={18} />}
+              leftIcon={<Link size={18} />}
             >
               Link {stats.selected} Activities
             </Button>

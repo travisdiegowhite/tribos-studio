@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Box, Group, Text, Button } from '@mantine/core';
-import { IconArrowRight, IconRoute } from '@tabler/icons-react';
+import { ArrowRight, Path } from '@phosphor-icons/react';
 
 function BuilderPromptBar({ todayWorkout, medianDistanceKm, formatDist }) {
   // Build context string from today's workout
@@ -29,7 +29,7 @@ function BuilderPromptBar({ todayWorkout, medianDistanceKm, formatDist }) {
       <Group justify="space-between" align="center" wrap="wrap" gap="md">
         <Box style={{ flex: 1, minWidth: 200 }}>
           <Group gap="sm" mb={6}>
-            <IconRoute size={18} color="var(--color-teal)" />
+            <Path size={18} color="var(--color-teal)" />
             <Text
               style={{
                 fontFamily: "'Barlow Condensed', sans-serif",
@@ -59,7 +59,7 @@ function BuilderPromptBar({ todayWorkout, medianDistanceKm, formatDist }) {
           to={routeLink}
           variant="filled"
           color="teal"
-          rightSection={<IconArrowRight size={16} />}
+          rightSection={<ArrowRight size={16} />}
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
             fontWeight: 700,

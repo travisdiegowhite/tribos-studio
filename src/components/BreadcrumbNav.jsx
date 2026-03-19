@@ -1,7 +1,7 @@
 import React from 'react';
 import { Breadcrumbs, Anchor, Text } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
-import { IconChevronRight } from '@tabler/icons-react';
+import { CaretRight } from '@phosphor-icons/react';
 
 /**
  * Breadcrumb Navigation Component
@@ -16,7 +16,7 @@ const BreadcrumbNav = ({ items = [] }) => {
 
   return (
     <Breadcrumbs
-      separator={<IconChevronRight size={14} color="var(--mantine-color-dimmed)" />}
+      separator={<CaretRight size={14} color="var(--mantine-color-dimmed)" />}
       mb="md"
       style={{ fontSize: '14px' }}
     >

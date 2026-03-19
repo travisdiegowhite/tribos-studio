@@ -7,8 +7,8 @@
  */
 
 import { Box, Text, Group, Stack, UnstyledButton } from '@mantine/core';
-import { IconRobot, IconHandClick, IconUpload } from '@tabler/icons-react';
 import { tokens } from '../../theme';
+import { HandTap, Robot, UploadSimple } from '@phosphor-icons/react';
 
 function ModeSelector({ onSelectMode, onImportGPX }) {
   return (
@@ -19,7 +19,7 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
 
       {/* AI Route Card */}
       <ModeCard
-        icon={<IconRobot size={24} />}
+        icon={<Robot size={24} />}
         title="Describe a Route"
         description="Tell the AI what you want and get route suggestions"
         accentColor="var(--color-teal)"
@@ -28,7 +28,7 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
 
       {/* Manual Route Card */}
       <ModeCard
-        icon={<IconHandClick size={24} />}
+        icon={<HandTap size={24} />}
         title="Draw on Map"
         description="Click to place waypoints and build a route manually"
         accentColor="#2A8C82"
@@ -48,7 +48,7 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
           }}
         >
           <Group gap="sm">
-            <IconUpload size={16} style={{ color: 'var(--color-text-muted)' }} />
+            <UploadSimple size={16} style={{ color: 'var(--color-text-muted)' }} />
             <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
               Import GPX / TCX file
             </Text>

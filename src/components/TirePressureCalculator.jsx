@@ -13,11 +13,11 @@ import {
   Tooltip,
   RingProgress,
 } from '@mantine/core';
-import { IconWheel, IconRefresh, IconSettings } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserPreferences } from '../contexts/UserPreferencesContext';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
+import { ArrowsClockwise, CircleNotch, Gear } from '@phosphor-icons/react';
 
 // Tire Pressure Calculator for Tribos
 // Based on Frank Berto's research and SRAM/Silca recommendations
@@ -239,7 +239,7 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
         {/* Header */}
         <Group justify="space-between">
           <Group gap="xs">
-            <IconWheel size={18} style={{ color: 'var(--color-teal)' }} />
+            <CircleNotch size={18} style={{ color: 'var(--color-teal)' }} />
             <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
               Tire Pressure
             </Text>
@@ -265,7 +265,7 @@ const TirePressureCalculator = ({ loading: parentLoading = false }) => {
                 px={6}
                 onClick={() => setShowSettings(!showSettings)}
               >
-                <IconSettings size={16} />
+                <Gear size={16} />
               </Button>
             </Tooltip>
           </Group>

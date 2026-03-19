@@ -6,7 +6,6 @@
 
 import { useState, useEffect } from 'react';
 import { Container, Loader, Box, Alert, Group, Text, ThemeIcon, Stack, Card, Button, Modal } from '@mantine/core';
-import { IconAlertCircle, IconTarget, IconList } from '@tabler/icons-react';
 import AppShell from '../components/AppShell.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import { TrainingPlanner } from '../components/planner';
@@ -14,6 +13,7 @@ import TrainingPlanBrowser from '../components/TrainingPlanBrowser.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { formatDistance } from '../utils/units';
+import { List, Target, WarningCircle } from '@phosphor-icons/react';
 
 // Activity type - matches the activities table schema
 // Using a flexible type since we select('*') to get all fields
@@ -161,7 +161,7 @@ export default function PlannerPage() {
     return (
       <AppShell>
         <Container size="xl" py="xl">
-          <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red">
+          <Alert icon={<WarningCircle size={16} />} title="Error" color="red">
             {error}
           </Alert>
         </Container>
@@ -181,7 +181,7 @@ export default function PlannerPage() {
                 variant="light"
                 color="teal"
                 size="compact-sm"
-                leftSection={<IconList size={14} />}
+                leftSection={<List size={14} />}
                 onClick={() => setBrowseOpen(true)}
               >
                 Browse Plans
@@ -194,7 +194,7 @@ export default function PlannerPage() {
             <Card style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #3A5A8C)' }}>
               <Group gap="sm" wrap="nowrap">
                 <ThemeIcon size="lg" variant="light" color="teal" radius="xl">
-                  <IconTarget size={18} />
+                  <Target size={18} />
                 </ThemeIcon>
                 <Box style={{ flex: 1 }}>
                   <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>

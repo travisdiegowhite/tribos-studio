@@ -27,29 +27,12 @@ import {
   Divider,
   RingProgress,
 } from '@mantine/core';
-import {
-  IconRoute,
-  IconRefresh,
-  IconCheck,
-  IconAlertCircle,
-  IconChevronRight,
-  IconMap,
-  IconCalendar,
-  IconClock,
-  IconMountain,
-  IconTrendingUp,
-  IconTarget,
-  IconX,
-  IconDownload,
-  IconPlayerPlay,
-  IconFilter,
-  IconChartBar,
-} from '@tabler/icons-react';
 import Map, { Source, Layer, Marker } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { ArrowsClockwise, Calendar, CaretRight, ChartBar, Check, Clock, DownloadSimple, Funnel, MapTrifold, Mountains, Path, Play, Target, TrendUp, WarningCircle, X } from '@phosphor-icons/react';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -274,7 +257,7 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
       onClose={onClose}
       title={
         <Group gap="xs">
-          <IconMap size={20} />
+          <MapTrifold size={20} />
           <Text fw={600}>{activity.name || 'Route Analysis'}</Text>
         </Group>
       }
@@ -448,11 +431,11 @@ function RouteMatchCard({ match, onViewMap, onSaveAsRoute, formatDist, formatEle
         {/* Stats */}
         <Group gap="md">
           <Group gap={4}>
-            <IconRoute size={14} />
+            <Path size={14} />
             <Text size="xs">{formatDist ? formatDist((activity?.distance || 0) / 1000) : `${((activity?.distance || 0) / 1000).toFixed(1)} km`}</Text>
           </Group>
           <Group gap={4}>
-            <IconMountain size={14} />
+            <Mountains size={14} />
             <Text size="xs">{formatElev ? formatElev(activity?.total_elevation_gain || 0) : `${activity?.total_elevation_gain || 0}m`}</Text>
           </Group>
           <Badge size="xs" variant="light" tt="capitalize">
@@ -465,7 +448,7 @@ function RouteMatchCard({ match, onViewMap, onSaveAsRoute, formatDist, formatEle
           <Stack gap={2}>
             {matchReasons.slice(0, 2).map((reason, i) => (
               <Group gap={4} key={i}>
-                <IconCheck size={12} color="var(--mantine-color-green-6)" />
+                <Check size={12} color="var(--mantine-color-green-6)" />
                 <Text size="xs" c="dimmed">{reason}</Text>
               </Group>
             ))}
@@ -475,7 +458,7 @@ function RouteMatchCard({ match, onViewMap, onSaveAsRoute, formatDist, formatEle
         {/* Warnings */}
         {warnings && warnings.length > 0 && (
           <Group gap={4}>
-            <IconAlertCircle size={12} color="var(--mantine-color-yellow-6)" />
+            <WarningCircle size={12} color="var(--mantine-color-yellow-6)" />
             <Text size="xs" c="yellow">{warnings[0]}</Text>
           </Group>
         )}
@@ -485,7 +468,7 @@ function RouteMatchCard({ match, onViewMap, onSaveAsRoute, formatDist, formatEle
           <Button
             size="xs"
             variant="light"
-            leftSection={<IconMap size={14} />}
+            leftSection={<MapTrifold size={14} />}
             onClick={() => onViewMap(match)}
           >
             View Map
@@ -493,7 +476,7 @@ function RouteMatchCard({ match, onViewMap, onSaveAsRoute, formatDist, formatEle
           <Button
             size="xs"
             variant="subtle"
-            leftSection={<IconDownload size={14} />}
+            leftSection={<DownloadSimple size={14} />}
             onClick={() => onSaveAsRoute(match)}
           >
             Save as Route
@@ -724,7 +707,7 @@ export default function RouteAnalysisPanel({
       <Group justify="space-between" wrap="wrap">
         <Group gap="xs">
           <ThemeIcon size="lg" radius="md" color="teal">
-            <IconRoute size={20} />
+            <Path size={20} />
           </ThemeIcon>
           <Box>
             <Text fw={600}>Route Analysis</Text>
@@ -759,7 +742,7 @@ export default function RouteAnalysisPanel({
           <Button
             size="xs"
             variant="light"
-            leftSection={analyzing ? <Loader size={14} /> : <IconRefresh size={14} />}
+            leftSection={analyzing ? <Loader size={14} /> : <ArrowsClockwise size={14} />}
             onClick={() => analyzeAll(false)}
             disabled={analyzing}
           >
@@ -771,7 +754,7 @@ export default function RouteAnalysisPanel({
                 size="xs"
                 variant="subtle"
                 color="orange"
-                leftSection={analyzing ? <Loader size={14} /> : <IconRefresh size={14} />}
+                leftSection={analyzing ? <Loader size={14} /> : <ArrowsClockwise size={14} />}
                 onClick={() => analyzeAll(true)}
                 disabled={analyzing}
               >
@@ -786,7 +769,7 @@ export default function RouteAnalysisPanel({
       {analysisProgress && (
         <Alert
           color={analysisProgress.remaining > 0 ? 'blue' : 'green'}
-          icon={analysisProgress.remaining > 0 ? <IconRefresh size={16} /> : <IconCheck size={16} />}
+          icon={analysisProgress.remaining > 0 ? <ArrowsClockwise size={16} /> : <Check size={16} />}
           onClose={() => setAnalysisProgress(null)}
           withCloseButton
         >
@@ -808,7 +791,7 @@ export default function RouteAnalysisPanel({
 
       {/* Error Alert */}
       {error && (
-        <Alert color="red" icon={<IconAlertCircle />} onClose={() => setError(null)} withCloseButton>
+        <Alert color="red" icon={<WarningCircle />} onClose={() => setError(null)} withCloseButton>
           {error}
         </Alert>
       )}
@@ -825,7 +808,7 @@ export default function RouteAnalysisPanel({
       {!loading && analyses.length === 0 && (
         <Paper withBorder p="xl" ta="center">
           <ThemeIcon size={60} radius="xl" color="gray" variant="light">
-            <IconRoute size={30} />
+            <Path size={30} />
           </ThemeIcon>
           <Text mt="md" fw={500}>No Routes Analyzed Yet</Text>
           <Text size="sm" c="dimmed" mt="xs">
@@ -833,7 +816,7 @@ export default function RouteAnalysisPanel({
           </Text>
           <Button
             mt="md"
-            leftSection={<IconRefresh size={16} />}
+            leftSection={<ArrowsClockwise size={16} />}
             onClick={analyzeAll}
             disabled={analyzing}
           >
@@ -859,7 +842,7 @@ export default function RouteAnalysisPanel({
                   {/* Workout Header */}
                   <Group justify="space-between">
                     <Group gap="xs">
-                      <IconCalendar size={16} />
+                      <Calendar size={16} />
                       <Text size="sm" c="dimmed">
                         {new Date(workout.scheduled_date).toLocaleDateString('en-US', {
                           weekday: 'short',
@@ -960,7 +943,7 @@ export default function RouteAnalysisPanel({
                     {/* Stats */}
                     <Group gap="md">
                       <Group gap={4}>
-                        <IconRoute size={14} />
+                        <Path size={14} />
                         <Text size="xs">
                           {formatDist
                             ? formatDist((activity?.distance || 0) / 1000)
@@ -968,7 +951,7 @@ export default function RouteAnalysisPanel({
                         </Text>
                       </Group>
                       <Group gap={4}>
-                        <IconMountain size={14} />
+                        <Mountains size={14} />
                         <Text size="xs">
                           {formatElev
                             ? formatElev(activity?.total_elevation_gain || 0)
@@ -990,7 +973,7 @@ export default function RouteAnalysisPanel({
                     <Button
                       size="xs"
                       variant="light"
-                      leftSection={<IconMap size={14} />}
+                      leftSection={<MapTrifold size={14} />}
                       onClick={() => handleViewMap({
                         activity,
                         analysis,

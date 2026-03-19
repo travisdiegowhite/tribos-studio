@@ -7,20 +7,11 @@
 
 import { useState, useEffect } from 'react';
 import { Menu, Button, Text, Stack, Divider, Loader } from '@mantine/core';
-import {
-  IconDownload,
-  IconFileExport,
-  IconRoute,
-  IconDeviceWatch,
-  IconChevronDown,
-  IconCloudUpload,
-  IconCheck,
-  IconFile,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { exportAndDownloadRoute } from '../utils/routeExport';
 import { garminService } from '../utils/garminService';
 import { trackFeature, EventType } from '../utils/activityTracking';
+import { CaretDown, Check, CloudArrowUp, DownloadSimple, File, FileArrowUp, Path, Watch } from '@phosphor-icons/react';
 
 /**
  * RouteExportMenu - Dropdown menu for exporting routes
@@ -69,7 +60,7 @@ export function RouteExportMenu({
       <Button
         variant={variant}
         size={size}
-        leftSection={<IconDownload size={16} />}
+        leftSection={<DownloadSimple size={16} />}
         disabled
       >
         Export
@@ -102,7 +93,7 @@ export function RouteExportMenu({
         title: 'Route Exported',
         message: `Your route has been exported as ${format.toUpperCase()}. You can now upload it to Garmin Connect or copy it to your device.`,
         color: 'green',
-        icon: <IconFileExport size={16} />,
+        icon: <FileArrowUp size={16} />,
       });
     } catch (error) {
       console.error('Export failed:', error);
@@ -130,7 +121,7 @@ export function RouteExportMenu({
           title: 'Sent to Garmin!',
           message: result.message || 'Route sent to Garmin Connect. Sync your device to download it.',
           color: 'green',
-          icon: <IconCheck size={16} />,
+          icon: <Check size={16} />,
           autoClose: 5000,
         });
       } else {
@@ -182,8 +173,8 @@ export function RouteExportMenu({
         <Button
           variant={variant}
           size={size}
-          leftSection={<IconDownload size={16} />}
-          rightSection={compact ? null : <IconChevronDown size={14} />}
+          leftSection={<DownloadSimple size={16} />}
+          rightSection={compact ? null : <CaretDown size={14} />}
           disabled={disabled}
         >
           {compact ? '' : 'Export'}
@@ -195,7 +186,7 @@ export function RouteExportMenu({
         {garminConnected && (
           <>
             <Menu.Item
-              leftSection={sendingToGarmin ? <Loader size={16} /> : <IconCloudUpload size={16} />}
+              leftSection={sendingToGarmin ? <Loader size={16} /> : <CloudArrowUp size={16} />}
               onClick={handleSendToGarmin}
               disabled={sendingToGarmin}
               color="blue"
@@ -216,7 +207,7 @@ export function RouteExportMenu({
         <Menu.Label>Download Files</Menu.Label>
 
         <Menu.Item
-          leftSection={<IconDeviceWatch size={16} />}
+          leftSection={<Watch size={16} />}
           onClick={() => handleExport('tcx')}
         >
           <Stack gap={0}>
@@ -230,7 +221,7 @@ export function RouteExportMenu({
         </Menu.Item>
 
         <Menu.Item
-          leftSection={<IconFile size={16} />}
+          leftSection={<File size={16} />}
           onClick={() => handleExport('fit')}
         >
           <Stack gap={0}>
@@ -244,7 +235,7 @@ export function RouteExportMenu({
         </Menu.Item>
 
         <Menu.Item
-          leftSection={<IconRoute size={16} />}
+          leftSection={<Path size={16} />}
           onClick={() => handleExport('gpx')}
         >
           <Stack gap={0}>

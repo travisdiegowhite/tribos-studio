@@ -12,8 +12,8 @@
 
 import { useState } from 'react';
 import { Paper, Text, Group, Button, Stack, Box, Collapse } from '@mantine/core';
-import { IconCheck, IconX, IconBulb, IconArrowRight } from '@tabler/icons-react';
 import type { CheckInRecommendation as RecommendationType, DecisionType } from '../../types/checkIn';
+import { ArrowRight, Check, Lightbulb, X } from '@phosphor-icons/react';
 
 interface CheckInRecommendationProps {
   recommendation: RecommendationType;
@@ -80,9 +80,9 @@ export default function CheckInRecommendationCard({
       >
         <Group gap="xs" mb="xs">
           {decidedAction === 'accept' ? (
-            <IconCheck size={16} color="var(--color-teal)" />
+            <Check size={16} color="var(--color-teal)" />
           ) : (
-            <IconX size={16} color="var(--color-text-muted)" />
+            <X size={16} color="var(--color-text-muted)" />
           )}
           <Text size="xs" fw={700} tt="uppercase" ff="monospace" c="dimmed">
             {decidedAction === 'accept' ? 'Accepted' : 'Dismissed'}
@@ -107,7 +107,7 @@ export default function CheckInRecommendationCard({
     >
       {/* Always visible: action label */}
       <Group gap="xs" mb={isExpanded ? 'sm' : 0}>
-        <IconBulb size={16} color="var(--color-teal)" />
+        <Lightbulb size={16} color="var(--color-teal)" />
         <Text size="sm" fw={600}>
           {recommendation.action}
         </Text>
@@ -135,7 +135,7 @@ export default function CheckInRecommendationCard({
                   style={{ borderRadius: 0 }}
                   onClick={handleConfirm}
                   loading={submitting}
-                  rightSection={<IconArrowRight size={14} />}
+                  rightSection={<ArrowRight size={14} />}
                 >
                   Confirm
                 </Button>
@@ -157,7 +157,7 @@ export default function CheckInRecommendationCard({
                 variant="light"
                 color="teal"
                 style={{ borderRadius: 0 }}
-                leftSection={<IconCheck size={14} />}
+                leftSection={<Check size={14} />}
                 onClick={() => handleInitiateAction('accept')}
               >
                 Accept
@@ -167,7 +167,7 @@ export default function CheckInRecommendationCard({
                 variant="subtle"
                 color="gray"
                 style={{ borderRadius: 0 }}
-                leftSection={<IconX size={14} />}
+                leftSection={<X size={14} />}
                 onClick={() => handleInitiateAction('dismiss')}
               >
                 Dismiss

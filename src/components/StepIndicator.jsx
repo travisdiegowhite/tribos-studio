@@ -1,6 +1,6 @@
 import { Box, Group, Text, Progress } from '@mantine/core';
-import { IconCheck } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Check } from '@phosphor-icons/react';
 
 /**
  * StepIndicator - A horizontal step indicator for the Route Builder wizard
@@ -64,7 +64,7 @@ function StepIndicator({ currentStep, steps, onStepClick }) {
                 }}
               >
                 {isCompleted ? (
-                  <IconCheck size={18} style={{ color: 'var(--color-bg)' }} />
+                  <Check size={18} style={{ color: 'var(--color-bg)' }} />
                 ) : (
                   <Text
                     size="sm"

@@ -20,37 +20,13 @@ import {
   Box,
   ActionIcon,
 } from '@mantine/core';
-import {
-  IconHeart,
-  IconMoon,
-  IconBolt,
-  IconStretching,
-  IconBrain,
-  IconScale,
-  IconCheck,
-  IconBrandSpeedtest,
-  IconInfoCircle,
-  IconRefresh,
-  IconBrandApple,
-  IconFlame,
-  IconChevronUp,
-  IconChevronDown,
-  IconDroplet,
-  IconMeat,
-  IconToolsKitchen2,
-  IconActivity,
-  IconRun,
-  IconYoga,
-  IconBarbell,
-  IconPlus,
-  IconX,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useUserPreferences } from '../contexts/UserPreferencesContext.jsx';
 import { garminService } from '../utils/garminService';
 import { useCrossTraining } from '../hooks/useCrossTraining';
+import { AppleLogo, ArrowsClockwise, Barbell, Brain, CaretDown, CaretUp, Check, Drop, Fire, ForkKnife, Heart, Heartbeat, Info, Knife, Lightning, Moon, PersonSimpleRun, PersonSimpleWalk, Plus, Scales, Speedometer, X } from '@phosphor-icons/react';
 
 const EMOJI_SCALE = {
   1: { emoji: '1', label: 'Very Low', color: 'red' },
@@ -261,7 +237,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         title: 'Garmin Data Synced',
         message: `Updated ${updatedFields} field${updatedFields !== 1 ? 's' : ''} from Garmin`,
         color: 'teal',
-        icon: <IconCheck size={16} />
+        icon: <Check size={16} />
       });
 
     } catch (error) {
@@ -349,7 +325,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
             title: 'Activities Logged',
             message: `${savedCount} cross-training activit${savedCount === 1 ? 'y' : 'ies'} recorded`,
             color: 'indigo',
-            icon: <IconActivity size={16} />,
+            icon: <Heartbeat size={16} />,
           });
         }
       }
@@ -358,7 +334,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         title: 'Check-in Saved',
         message: 'Your health metrics have been recorded',
         color: 'green',
-        icon: <IconCheck size={16} />,
+        icon: <Check size={16} />,
       });
 
       onSave?.(data);
@@ -413,7 +389,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
       title={
         <Group gap="xs">
           <ThemeIcon color="violet" variant="light">
-            <IconHeart size={18} />
+            <Heart size={18} />
           </ThemeIcon>
           <Text fw={600}>Daily Check-in</Text>
         </Group>
@@ -426,13 +402,13 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         </Text>
 
         {garminConnected ? (
-          <Alert variant="light" color="teal" icon={<IconCheck size={16} />} p="xs">
+          <Alert variant="light" color="teal" icon={<Check size={16} />} p="xs">
             <Text size="xs">
               <strong>Garmin connected</strong> - Health data (HR, sleep, HRV, weight) syncs automatically when you sync your device. Any Garmin data will appear below.
             </Text>
           </Alert>
         ) : (
-          <Alert variant="light" color="blue" icon={<IconInfoCircle size={16} />} p="xs">
+          <Alert variant="light" color="blue" icon={<Info size={16} />} p="xs">
             <Text size="xs">
               Connect Garmin in Settings to auto-sync health data, or enter values manually from your Garmin Connect app.
             </Text>
@@ -444,7 +420,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
           <NumberInput
             label="Resting HR"
             placeholder="bpm"
-            leftSection={<IconHeart size={14} />}
+            leftSection={<Heart size={14} />}
             value={formData.resting_heart_rate || ''}
             onChange={(v) => updateField('resting_heart_rate', v || null)}
             min={30}
@@ -454,7 +430,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
           <NumberInput
             label="HRV"
             placeholder="ms"
-            leftSection={<IconBrandSpeedtest size={14} />}
+            leftSection={<Speedometer size={14} />}
             value={formData.hrv_score || ''}
             onChange={(v) => updateField('hrv_score', v || null)}
             min={0}
@@ -464,7 +440,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
           <NumberInput
             label="Sleep Hours"
             placeholder="hours"
-            leftSection={<IconMoon size={14} />}
+            leftSection={<Moon size={14} />}
             value={formData.sleep_hours || ''}
             onChange={(v) => updateField('sleep_hours', v || null)}
             min={0}
@@ -478,16 +454,16 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
 
         {/* Subjective Metrics */}
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-          {renderScaleSelector('sleep_quality', 'Sleep Quality', <IconMoon size={14} />)}
-          {renderScaleSelector('energy_level', 'Energy Level', <IconBolt size={14} />)}
-          {renderScaleSelector('stress_level', 'Stress Level', <IconBrain size={14} />, {
+          {renderScaleSelector('sleep_quality', 'Sleep Quality', <Moon size={14} />)}
+          {renderScaleSelector('energy_level', 'Energy Level', <Lightning size={14} />)}
+          {renderScaleSelector('stress_level', 'Stress Level', <Brain size={14} />, {
             1: { label: 'Very Low', color: 'green' },
             2: { label: 'Low', color: 'terracotta' },
             3: { label: 'Moderate', color: 'yellow' },
             4: { label: 'High', color: 'orange' },
             5: { label: 'Very High', color: 'red' },
           })}
-          {renderScaleSelector('muscle_soreness', 'Muscle Soreness', <IconStretching size={14} />, SORENESS_SCALE)}
+          {renderScaleSelector('muscle_soreness', 'Muscle Soreness', <PersonSimpleWalk size={14} />, SORENESS_SCALE)}
         </SimpleGrid>
 
         <Divider />
@@ -496,7 +472,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
         <NumberInput
           label={`Weight (optional)`}
           placeholder={isImperial ? 'lbs' : 'kg'}
-          leftSection={<IconScale size={14} />}
+          leftSection={<Scales size={14} />}
           value={displayWeight || ''}
           onChange={handleWeightChange}
           min={isImperial ? 66 : 30}
@@ -513,7 +489,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
             size="sm"
             onClick={() => setShowFueling(!showFueling)}
             leftSection={<Text size="sm">🍌</Text>}
-            rightSection={showFueling ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+            rightSection={showFueling ? <CaretUp size={16} /> : <CaretDown size={16} />}
             style={{ marginBottom: showFueling ? 8 : 0 }}
           >
             Fueling Check (optional)
@@ -530,7 +506,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
                 <Box>
                   <Group gap="xs" mb={6}>
                     <ThemeIcon size="sm" variant="light" color="orange">
-                      <IconToolsKitchen2 size={14} />
+                      <ForkKnife size={14} />
                     </ThemeIcon>
                     <Text size="sm" fw={500}>How many meals yesterday?</Text>
                   </Group>
@@ -547,7 +523,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
                 <Box>
                   <Group gap="xs" mb={6}>
                     <ThemeIcon size="sm" variant="light" color="red">
-                      <IconMeat size={14} />
+                      <Knife size={14} />
                     </ThemeIcon>
                     <Text size="sm" fw={500}>Protein at most meals?</Text>
                   </Group>
@@ -564,7 +540,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
                 <Box>
                   <Group gap="xs" mb={6}>
                     <ThemeIcon size="sm" variant="light" color="blue">
-                      <IconDroplet size={14} />
+                      <Drop size={14} />
                     </ThemeIcon>
                     <Text size="sm" fw={500}>Hydration yesterday?</Text>
                   </Group>
@@ -581,7 +557,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
                 <Box>
                   <Group gap="xs" mb={6}>
                     <ThemeIcon size="sm" variant="light" color="teal">
-                      <IconFlame size={14} />
+                      <Fire size={14} />
                     </ThemeIcon>
                     <Text size="sm" fw={500}>Pre-workout fueling?</Text>
                   </Group>
@@ -604,8 +580,8 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
             variant="subtle"
             size="sm"
             onClick={() => setShowCrossTraining(!showCrossTraining)}
-            leftSection={<IconActivity size={16} />}
-            rightSection={showCrossTraining ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+            leftSection={<Heartbeat size={16} />}
+            rightSection={showCrossTraining ? <CaretUp size={16} /> : <CaretDown size={16} />}
             style={{ marginBottom: showCrossTraining ? 8 : 0 }}
           >
             Cross-Training Activities {quickActivities.length > 0 && `(${quickActivities.length})`}
@@ -629,10 +605,10 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
                         variant="light"
                         color="indigo"
                         leftSection={
-                          type.category === 'strength' ? <IconBarbell size={12} /> :
-                          type.category === 'flexibility' ? <IconYoga size={12} /> :
-                          type.category === 'cardio' ? <IconRun size={12} /> :
-                          <IconActivity size={12} />
+                          type.category === 'strength' ? <Barbell size={12} /> :
+                          type.category === 'flexibility' ? <PersonSimpleWalk size={12} /> :
+                          type.category === 'cardio' ? <PersonSimpleRun size={12} /> :
+                          <Heartbeat size={12} />
                         }
                         onClick={() => {
                           setQuickActivities(prev => [...prev, {
@@ -667,10 +643,10 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
                                   color: activity.activity_type.color
                                 }}
                               >
-                                {activity.activity_type.category === 'strength' ? <IconBarbell size={12} /> :
-                                 activity.activity_type.category === 'flexibility' ? <IconYoga size={12} /> :
-                                 activity.activity_type.category === 'cardio' ? <IconRun size={12} /> :
-                                 <IconActivity size={12} />}
+                                {activity.activity_type.category === 'strength' ? <Barbell size={12} /> :
+                                 activity.activity_type.category === 'flexibility' ? <PersonSimpleWalk size={12} /> :
+                                 activity.activity_type.category === 'cardio' ? <PersonSimpleRun size={12} /> :
+                                 <Heartbeat size={12} />}
                               </ThemeIcon>
                               <Text size="sm" fw={500}>{activity.activity_type.name}</Text>
                             </Group>
@@ -711,7 +687,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
                                   setQuickActivities(prev => prev.filter((_, i) => i !== index));
                                 }}
                               >
-                                <IconX size={14} />
+                                <X size={14} />
                               </ActionIcon>
                             </Group>
                           </Group>
@@ -750,7 +726,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
             color="violet"
             loading={loading}
             onClick={handleSave}
-            leftSection={<IconCheck size={16} />}
+            leftSection={<Check size={16} />}
           >
             Save Check-in
           </Button>

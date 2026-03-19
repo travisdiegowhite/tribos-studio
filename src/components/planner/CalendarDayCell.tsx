@@ -4,10 +4,10 @@
  */
 
 import { Box, Text, ActionIcon, Group, Tooltip, Badge, Progress, Stack, Menu, ThemeIcon, Button } from '@mantine/core';
-import { IconX, IconCheck, IconPlus, IconArrowUp, IconArrowDown, IconMinus, IconBike, IconHome, IconCalendarOff, IconStar, IconCalendarEvent, IconLock, IconLockOpen, IconTrophy, IconLink } from '@tabler/icons-react';
 import { WorkoutCard } from './WorkoutCard';
 import type { PlannerWorkout } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutDefinition } from '../../types/training';
+import { ArrowDown, ArrowUp, Bicycle, CalendarBlank, CalendarX, Check, House, Link, Lock, LockOpen, Minus, Plus, Star, Trophy, X } from '@phosphor-icons/react';
 
 // Race goal type for calendar display
 interface RaceGoal {
@@ -170,11 +170,11 @@ export function CalendarDayCell({
     const percentDiff = (tssVariance / (plannedWorkout?.targetTSS || 1)) * 100;
 
     if (Math.abs(percentDiff) <= 10) {
-      return { color: 'green', icon: <IconCheck size={10} />, label: 'On target' };
+      return { color: 'green', icon: <Check size={10} />, label: 'On target' };
     } else if (percentDiff > 10) {
-      return { color: 'blue', icon: <IconArrowUp size={10} />, label: 'Exceeded' };
+      return { color: 'blue', icon: <ArrowUp size={10} />, label: 'Exceeded' };
     } else {
-      return { color: 'orange', icon: <IconArrowDown size={10} />, label: 'Under target' };
+      return { color: 'orange', icon: <ArrowDown size={10} />, label: 'Under target' };
     }
   };
 
@@ -248,7 +248,7 @@ export function CalendarDayCell({
           {raceGoal && (
             <Tooltip label={`${raceGoal.name} - ${RACE_TYPE_INFO[raceGoal.race_type]?.label || 'Race'}`}>
               <Badge size="xs" color="orange" variant="filled" px={4}>
-                <IconTrophy size={10} />
+                <Trophy size={10} />
               </Badge>
             </Tooltip>
           )}
@@ -256,14 +256,14 @@ export function CalendarDayCell({
           {isBlocked && !raceGoal && (
             <Tooltip label={hasOverride ? 'Blocked (override for this date)' : 'Blocked day'}>
               <Badge size="xs" color="red" variant="light" px={4}>
-                <IconCalendarOff size={10} />
+                <CalendarX size={10} />
               </Badge>
             </Tooltip>
           )}
           {isPreferred && !raceGoal && (
             <Tooltip label={hasOverride ? 'Preferred (override for this date)' : 'Preferred day'}>
               <Badge size="xs" color="yellow" variant="light" px={4}>
-                <IconStar size={10} />
+                <Star size={10} />
               </Badge>
             </Tooltip>
           )}
@@ -272,7 +272,7 @@ export function CalendarDayCell({
         {/* Completion indicator */}
         {plannedWorkout?.completed && (
           <Badge size="xs" color="teal" variant="filled">
-            <IconCheck size={10} />
+            <Check size={10} />
           </Badge>
         )}
       </Group>
@@ -353,7 +353,7 @@ export function CalendarDayCell({
               opacity: 0.7,
             }}
           >
-            <IconX size={14} />
+            <X size={14} />
           </ActionIcon>
 
           {/* Enhanced Planned vs Actual comparison */}
@@ -444,7 +444,7 @@ export function CalendarDayCell({
                     size="compact-xs"
                     variant="light"
                     color="teal"
-                    leftSection={<IconLink size={12} />}
+                    leftSection={<Link size={12} />}
                     mt={4}
                     fullWidth
                     loading={linkingWorkoutId === plannedWorkout.id}
@@ -500,7 +500,7 @@ export function CalendarDayCell({
           }}
         >
           <Group gap={4}>
-            <IconPlus size={14} />
+            <Plus size={14} />
             <Text size="xs" c="dimmed">
               Drop workout
             </Text>
@@ -520,7 +520,7 @@ export function CalendarDayCell({
                 <Text size="xs" fw={500}>{activityName}</Text>
                 <Group gap="xs">
                   <Badge size="xs" color={typeInfo.color} variant="light">
-                    {typeInfo.isIndoor ? <IconHome size={10} style={{ marginRight: 2 }} /> : <IconBike size={10} style={{ marginRight: 2 }} />}
+                    {typeInfo.isIndoor ? <House size={10} style={{ marginRight: 2 }} /> : <Bicycle size={10} style={{ marginRight: 2 }} />}
                     {typeInfo.label}
                   </Badge>
                 </Group>
@@ -545,9 +545,9 @@ export function CalendarDayCell({
             >
               <Group gap={4} wrap="nowrap">
                 {typeInfo.isIndoor ? (
-                  <IconHome size={12} color={`var(--mantine-color-${typeInfo.color}-5)`} />
+                  <House size={12} color={`var(--mantine-color-${typeInfo.color}-5)`} />
                 ) : (
-                  <IconBike size={12} color={`var(--mantine-color-${typeInfo.color}-5)`} />
+                  <Bicycle size={12} color={`var(--mantine-color-${typeInfo.color}-5)`} />
                 )}
                 <Text size="xs" c={`${typeInfo.color}.4`} lineClamp={1} style={{ flex: 1 }}>
                   {activityName}
@@ -585,21 +585,21 @@ export function CalendarDayCell({
         <Menu.Dropdown>
           <Menu.Label>Day Availability</Menu.Label>
           <Menu.Item
-            leftSection={<IconCalendarEvent size={14} />}
+            leftSection={<CalendarBlank size={14} />}
             onClick={() => onSetAvailability(date, 'available')}
             disabled={availability?.status === 'available'}
           >
             Mark as Available
           </Menu.Item>
           <Menu.Item
-            leftSection={<IconStar size={14} color="var(--mantine-color-yellow-5)" />}
+            leftSection={<Star size={14} color="var(--mantine-color-yellow-5)" />}
             onClick={() => onSetAvailability(date, 'preferred')}
             disabled={availability?.status === 'preferred'}
           >
             Mark as Preferred
           </Menu.Item>
           <Menu.Item
-            leftSection={<IconCalendarOff size={14} color="var(--mantine-color-red-5)" />}
+            leftSection={<CalendarX size={14} color="var(--mantine-color-red-5)" />}
             onClick={() => onSetAvailability(date, 'blocked')}
             disabled={availability?.status === 'blocked'}
           >
@@ -609,7 +609,7 @@ export function CalendarDayCell({
             <>
               <Menu.Divider />
               <Menu.Item
-                leftSection={<IconLockOpen size={14} />}
+                leftSection={<LockOpen size={14} />}
                 onClick={() => onSetAvailability(date, 'available')}
                 c="dimmed"
               >

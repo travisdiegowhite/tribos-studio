@@ -11,16 +11,10 @@ import {
   Group,
   ThemeIcon,
 } from '@mantine/core';
-import {
-  IconMessageCircle,
-  IconSend,
-  IconX,
-  IconCheck,
-  IconAlertCircle,
-} from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
+import { ChatCircle, Check, PaperPlaneRight, WarningCircle, X } from '@phosphor-icons/react';
 
 /**
  * BetaFeedbackWidget - Feedback button for the app header
@@ -130,7 +124,7 @@ function BetaFeedbackWidget() {
         variant="light"
         color="blue"
         size="sm"
-        leftSection={<IconMessageCircle size={16} />}
+        leftSection={<ChatCircle size={16} />}
         onClick={() => setOpened(true)}
       >
         Feedback
@@ -143,7 +137,7 @@ function BetaFeedbackWidget() {
         title={
           <Group gap="xs">
             <ThemeIcon color="blue" variant="light">
-              <IconMessageCircle size={18} />
+              <ChatCircle size={18} />
             </ThemeIcon>
             <Text fw={600}>Send Feedback</Text>
           </Group>
@@ -151,7 +145,7 @@ function BetaFeedbackWidget() {
         size="lg"
       >
         {success ? (
-          <Alert icon={<IconCheck size={20} />} color="green" title="Feedback Sent!">
+          <Alert icon={<Check size={20} />} color="green" title="Feedback Sent!">
             <Text>
               Thank you! Your feedback helps make tribos.studio better for everyone.
               Travis will review this personally.
@@ -198,7 +192,7 @@ function BetaFeedbackWidget() {
             </Box>
 
             {error && (
-              <Alert icon={<IconAlertCircle size={20} />} color="red">
+              <Alert icon={<WarningCircle size={20} />} color="red">
                 {error}
               </Alert>
             )}
@@ -207,14 +201,14 @@ function BetaFeedbackWidget() {
               <Button
                 variant="subtle"
                 onClick={handleClose}
-                leftSection={<IconX size={18} />}
+                leftSection={<X size={18} />}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSubmit}
                 loading={loading}
-                leftSection={<IconSend size={18} />}
+                leftSection={<PaperPlaneRight size={18} />}
                 gradient={{ from: 'blue', to: 'cyan' }}
                 variant="gradient"
               >

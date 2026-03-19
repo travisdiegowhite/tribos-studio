@@ -10,8 +10,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { IconActivity, IconMoon, IconHeart, IconBrandSpeedtest } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Heart, Heartbeat, Moon, Speedometer } from '@phosphor-icons/react';
 
 // Metric configuration
 const METRICS = {
@@ -20,7 +20,7 @@ const METRICS = {
     label: 'Sleep',
     unit: 'hrs',
     color: '#C49A0A',
-    icon: IconMoon,
+    icon: Moon,
     domain: [0, 12],
     goodRange: [7, 9],
   },
@@ -29,7 +29,7 @@ const METRICS = {
     label: 'HRV',
     unit: 'ms',
     color: '#2A8C82',
-    icon: IconActivity,
+    icon: Heartbeat,
     domain: [0, 'auto'],
     description: 'Higher is better',
   },
@@ -38,7 +38,7 @@ const METRICS = {
     label: 'Resting HR',
     unit: 'bpm',
     color: '#C43C2A',
-    icon: IconHeart,
+    icon: Heart,
     domain: [40, 100],
     description: 'Lower is better (when fit)',
   },
@@ -47,7 +47,7 @@ const METRICS = {
     label: 'Readiness',
     unit: '%',
     color: '#7A7970',
-    icon: IconBrandSpeedtest,
+    icon: Speedometer,
     domain: [0, 100],
   },
 };
@@ -154,7 +154,7 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
     return (
       <Card withBorder p="xl">
         <Stack align="center" gap="md">
-          <IconActivity size={48} style={{ color: 'var(--color-text-muted)' }} />
+          <Heartbeat size={48} style={{ color: 'var(--color-text-muted)' }} />
           <Text style={{ color: 'var(--color-text-muted)' }} ta="center">
             No health data recorded yet.
           </Text>

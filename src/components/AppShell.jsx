@@ -11,14 +11,14 @@ import {
 import { useMediaQuery } from '@mantine/hooks';
 import { useMantineColorScheme } from '@mantine/core';
 import {
-  IconSettings,
-  IconSun,
-  IconMoon,
-  IconLogout,
-  IconBike,
-  IconUsers,
-  IconBell,
-} from '@tabler/icons-react';
+  Gear,
+  Sun,
+  Moon,
+  SignOut,
+  Bicycle,
+  Users,
+  Bell,
+} from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 
@@ -194,7 +194,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                     height: 36,
                   }}
                 >
-                  <IconBell size={20} color="#9A9990" stroke={1.5} />
+                  <Bell size={20} color="#9A9990" />
                 </UnstyledButton>
                 <AvatarDropdown
                   initials={userInitials}
@@ -271,33 +271,33 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
 
       <Menu.Dropdown>
         <Menu.Item
-          leftSection={<IconSettings size={18} />}
+          leftSection={<Gear size={18} />}
           onClick={() => navigate('/settings')}
         >
           Settings
         </Menu.Item>
         <Menu.Item
-          leftSection={<IconBike size={18} />}
+          leftSection={<Bicycle size={18} />}
           onClick={() => navigate('/gear')}
         >
           Gear
         </Menu.Item>
         <Menu.Item
-          leftSection={<IconUsers size={18} />}
+          leftSection={<Users size={18} />}
           onClick={() => navigate('/community')}
         >
           Cafe
         </Menu.Item>
         <Menu.Divider />
         <Menu.Item
-          leftSection={colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
+          leftSection={colorScheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           onClick={toggleColorScheme}
         >
           {colorScheme === 'dark' ? 'Light mode' : 'Dark mode'}
         </Menu.Item>
         <Menu.Divider />
         <Menu.Item
-          leftSection={<IconLogout size={18} />}
+          leftSection={<SignOut size={18} />}
           color="red"
           onClick={onSignOut}
         >

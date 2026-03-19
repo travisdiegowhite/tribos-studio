@@ -19,23 +19,10 @@ import {
   Divider,
   Alert,
 } from '@mantine/core';
-import {
-  IconDotsVertical,
-  IconPlayerPause,
-  IconPlayerPlay,
-  IconCheck,
-  IconRefresh,
-  IconTrash,
-  IconCalendar,
-  IconTarget,
-  IconTrendingUp,
-  IconAlertCircle,
-  IconBarbell,
-  IconDownload,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { TRAINING_PHASES } from '../../utils/trainingPlans';
 import { exportTrainingPlan, downloadPlanExport } from '../../utils/trainingPlanExport';
+import { ArrowsClockwise, Barbell, Calendar, Check, DotsThreeVertical, DownloadSimple, Pause, Play, Target, Trash, TrendUp, WarningCircle } from '@phosphor-icons/react';
 
 export default function ActivePlanCard({
   plan,
@@ -67,7 +54,7 @@ export default function ActivePlanCard({
       <Paper p="lg" radius="md" withBorder>
         <Stack align="center" spacing="md" py="xl">
           <ThemeIcon size={60} radius="xl" color="gray" variant="light">
-            <IconTarget size={30} />
+            <Target size={30} />
           </ThemeIcon>
           <Title order={4}>No Active Training Plan</Title>
           <Text c="dimmed" ta="center" maw={400}>
@@ -133,33 +120,33 @@ export default function ActivePlanCard({
         <Menu position="bottom-end" shadow="md">
           <Menu.Target>
             <ActionIcon variant="subtle">
-              <IconDotsVertical size={18} />
+              <DotsThreeVertical size={18} />
             </ActionIcon>
           </Menu.Target>
           <Menu.Dropdown>
             {isPaused ? (
               <Menu.Item
-                icon={<IconPlayerPlay size={16} />}
+                icon={<Play size={16} />}
                 onClick={onResume}
               >
                 Resume Plan
               </Menu.Item>
             ) : (
               <Menu.Item
-                icon={<IconPlayerPause size={16} />}
+                icon={<Pause size={16} />}
                 onClick={onPause}
               >
                 Pause Plan
               </Menu.Item>
             )}
             <Menu.Item
-              icon={<IconCheck size={16} />}
+              icon={<Check size={16} />}
               onClick={onComplete}
             >
               Mark as Complete
             </Menu.Item>
             <Menu.Item
-              icon={<IconRefresh size={16} />}
+              icon={<ArrowsClockwise size={16} />}
               onClick={onRegenerate}
             >
               Regenerate Workouts
@@ -169,7 +156,7 @@ export default function ActivePlanCard({
                 <Menu.Divider />
                 <Menu.Label>Export Plan</Menu.Label>
                 <Menu.Item
-                  icon={<IconDownload size={16} />}
+                  icon={<DownloadSimple size={16} />}
                   onClick={() => {
                     try {
                       const result = exportTrainingPlan(plan, plannedWorkouts, { format: 'csv' }, progress);
@@ -183,7 +170,7 @@ export default function ActivePlanCard({
                   Export as CSV
                 </Menu.Item>
                 <Menu.Item
-                  icon={<IconDownload size={16} />}
+                  icon={<DownloadSimple size={16} />}
                   onClick={() => {
                     try {
                       const result = exportTrainingPlan(plan, plannedWorkouts, { format: 'ical' }, progress);
@@ -200,7 +187,7 @@ export default function ActivePlanCard({
             )}
             <Menu.Divider />
             <Menu.Item
-              icon={<IconTrash size={16} />}
+              icon={<Trash size={16} />}
               color="red"
               onClick={onDelete}
             >
@@ -215,7 +202,7 @@ export default function ActivePlanCard({
         {/* Current Phase */}
         {phaseInfo && (
           <Alert
-            icon={<IconTrendingUp size={18} />}
+            icon={<TrendUp size={18} />}
             color={phaseInfo.color || 'blue'}
             variant="light"
             radius="md"
@@ -266,7 +253,7 @@ export default function ActivePlanCard({
         <Group grow>
           <Button
             variant="light"
-            leftIcon={<IconCalendar size={18} />}
+            leftIcon={<Calendar size={18} />}
             onClick={onViewCalendar}
           >
             View Calendar
@@ -275,7 +262,7 @@ export default function ActivePlanCard({
             <Button
               variant="light"
               color="pink"
-              leftIcon={<IconBarbell size={18} />}
+              leftIcon={<Barbell size={18} />}
               onClick={onAddSupplement}
             >
               Add Supplement

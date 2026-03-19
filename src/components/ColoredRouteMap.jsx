@@ -7,16 +7,10 @@ import {
   Paper,
   Skeleton,
 } from '@mantine/core';
-import {
-  IconBolt,
-  IconGauge,
-  IconMountain,
-  IconHeartbeat,
-  IconRoute,
-} from '@tabler/icons-react';
 import Map, { Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
+import { Gauge, Heartbeat, Lightning, Mountains, Path } from '@phosphor-icons/react';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -24,11 +18,11 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
  * Color modes for route rendering
  */
 const COLOR_MODES = {
-  plain: { label: 'Route', icon: IconRoute, unit: '' },
-  speed: { label: 'Speed', icon: IconGauge, unit: 'km/h' },
-  power: { label: 'Power', icon: IconBolt, unit: 'W' },
-  elevation: { label: 'Elevation', icon: IconMountain, unit: 'm' },
-  heartRate: { label: 'HR', icon: IconHeartbeat, unit: 'bpm' },
+  plain: { label: 'Route', icon: Path, unit: '' },
+  speed: { label: 'Speed', icon: Gauge, unit: 'km/h' },
+  power: { label: 'Power', icon: Lightning, unit: 'W' },
+  elevation: { label: 'Elevation', icon: Mountains, unit: 'm' },
+  heartRate: { label: 'HR', icon: Heartbeat, unit: 'bpm' },
 };
 
 /**

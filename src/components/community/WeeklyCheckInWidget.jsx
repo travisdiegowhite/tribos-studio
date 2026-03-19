@@ -20,15 +20,8 @@ import {
   ActionIcon,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import {
-  IconMessageCircle,
-  IconCheck,
-  IconChevronDown,
-  IconChevronUp,
-  IconX,
-  IconFlame,
-} from '@tabler/icons-react';
 import { tokens } from '../../theme';
+import { CaretDown, CaretUp, ChatCircle, Check, Fire, X } from '@phosphor-icons/react';
 
 const MOOD_OPTIONS = [
   { value: 'struggling', label: 'Struggling', emoji: '😓' },
@@ -137,14 +130,14 @@ function WeeklyCheckInWidget({
               color: 'var(--color-text-muted)',
             }}
           >
-            <IconX size={14} />
+            <X size={14} />
           </ActionIcon>
         )}
 
         <Stack gap="sm">
           {/* Header */}
           <Group gap="xs">
-            <IconMessageCircle size={18} color={'var(--color-teal)'} />
+            <ChatCircle size={18} color={'var(--color-teal)'} />
             <Text size="sm" fw={500}>
               Weekly Check-In
             </Text>
@@ -272,8 +265,8 @@ function WeeklyCheckInWidget({
                   variant="subtle"
                   size="sm"
                   onClick={() => setShowFueling(!showFueling)}
-                  leftSection={<IconFlame size={16} />}
-                  rightSection={showFueling ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+                  leftSection={<Fire size={16} />}
+                  rightSection={showFueling ? <CaretUp size={16} /> : <CaretDown size={16} />}
                   style={{ color: 'var(--color-text-secondary)' }}
                 >
                   Fueling Check (optional)
@@ -360,7 +353,7 @@ function WeeklyCheckInWidget({
                   onClick={handleSubmit}
                   loading={submitting}
                   disabled={!mood}
-                  leftSection={<IconCheck size={16} />}
+                  leftSection={<Check size={16} />}
                   style={{
                     backgroundColor: 'var(--color-teal)',
                     color: 'var(--color-bg)',
@@ -378,7 +371,7 @@ function WeeklyCheckInWidget({
               variant="subtle"
               size="xs"
               onClick={() => setExpanded(!expanded)}
-              rightSection={expanded ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+              rightSection={expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
               style={{
                 color: 'var(--color-text-secondary)',
               }}
@@ -488,8 +481,8 @@ function WeeklyCheckInWidget({
               variant="subtle"
               size="sm"
               onClick={() => setShowFueling(!showFueling)}
-              leftSection={<IconFlame size={16} />}
-              rightSection={showFueling ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+              leftSection={<Fire size={16} />}
+              rightSection={showFueling ? <CaretUp size={16} /> : <CaretDown size={16} />}
               style={{ color: 'var(--color-text-secondary)' }}
             >
               Fueling Check (optional)

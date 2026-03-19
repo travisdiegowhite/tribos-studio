@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Container, Title, Text, Button, Stack, Group, Box } from '@mantine/core';
-import { IconChevronRight, IconCheck } from '@tabler/icons-react';
 import { useScrollReveal } from './useScrollReveal';
+import { CaretRight, Check } from '@phosphor-icons/react';
 
 export default function FinalCTA() {
   const { ref, isVisible } = useScrollReveal({ threshold: 0.3 });
@@ -55,26 +55,26 @@ export default function FinalCTA() {
               to="/auth"
               size="xl"
               color="teal"
-              rightSection={<IconChevronRight size={20} />}
+              rightSection={<CaretRight size={20} />}
             >
               Create Free Account
             </Button>
 
             <Group className="step-content" gap="lg" justify="center" wrap="wrap">
               <Group gap={4}>
-                <IconCheck size={14} color="var(--color-gold)" />
+                <Check size={14} color="var(--color-gold)" />
                 <Text size="xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
                   Free during beta
                 </Text>
               </Group>
               <Group gap={4}>
-                <IconCheck size={14} color="var(--color-gold)" />
+                <Check size={14} color="var(--color-gold)" />
                 <Text size="xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
                   No credit card
                 </Text>
               </Group>
               <Group gap={4}>
-                <IconCheck size={14} color="var(--color-gold)" />
+                <Check size={14} color="var(--color-gold)" />
                 <Text size="xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
                   Syncs with Strava & Garmin
                 </Text>

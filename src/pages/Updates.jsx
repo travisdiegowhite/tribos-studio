@@ -12,26 +12,17 @@ import {
   Divider,
   Paper,
 } from '@mantine/core';
-import {
-  IconSparkles,
-  IconCalendarEvent,
-  IconChartBar,
-  IconRobot,
-  IconRoute,
-  IconRocket,
-  IconBulb,
-  IconArrowRight,
-} from '@tabler/icons-react';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import updatesData from '../data/updates.json';
+import { ArrowRight, CalendarBlank, ChartBar, Lightbulb, Path, Robot, Rocket, Sparkle } from '@phosphor-icons/react';
 
 // Map icon names to components
 const iconMap = {
-  'calendar-chart': IconCalendarEvent,
-  'robot': IconRobot,
-  'route': IconRoute,
-  'improvement': IconRocket,
+  'calendar-chart': CalendarBlank,
+  'robot': Robot,
+  'route': Path,
+  'improvement': Rocket,
 };
 
 function FeatureCard({ name, description, highlight }) {
@@ -67,7 +58,7 @@ function FeatureCard({ name, description, highlight }) {
 }
 
 function FeatureSection({ feature }) {
-  const IconComponent = iconMap[feature.icon] || IconSparkles;
+  const IconComponent = iconMap[feature.icon] || Sparkle;
 
   return (
     <Box mb="xl">
@@ -113,7 +104,7 @@ function FeatureSection({ feature }) {
           }}
         >
           <Group gap="xs">
-            <IconBulb size={16} color={'var(--color-teal)'} />
+            <Lightbulb size={16} color={'var(--color-teal)'} />
             <Text size="sm" c={'var(--color-text-primary)'} fw={500}>
               {feature.summary}
             </Text>
@@ -155,7 +146,7 @@ function UpdateCard({ update }) {
         <Stack gap={6}>
           {update.details.map((detail, idx) => (
             <Group key={idx} gap="xs" wrap="nowrap">
-              <IconArrowRight size={14} color={'var(--color-teal)'} style={{ flexShrink: 0 }} />
+              <ArrowRight size={14} color={'var(--color-teal)'} style={{ flexShrink: 0 }} />
               <Text size="sm" c={'var(--color-text-secondary)'}>
                 {detail}
               </Text>
@@ -177,7 +168,7 @@ function Updates() {
           {/* Welcome Section */}
           <Box mb="md">
             <Group gap="sm" mb="xs">
-              <IconSparkles size={28} color={'var(--color-teal)'} />
+              <Sparkle size={28} color={'var(--color-teal)'} />
               <Title order={1} c={'var(--color-text-primary)'}>
                 {welcome.title}
               </Title>
@@ -203,7 +194,7 @@ function Updates() {
           <Box>
             <Group gap="sm" mb="lg">
               <ThemeIcon size="lg" radius="md" variant="light" color="teal">
-                <IconRocket size={20} />
+                <Rocket size={20} />
               </ThemeIcon>
               <Title order={2} c={'var(--color-text-primary)'}>
                 Recent Updates

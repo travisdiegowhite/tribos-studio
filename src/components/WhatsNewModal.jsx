@@ -12,13 +12,9 @@ import {
   Box,
   Divider,
 } from '@mantine/core';
-import {
-  IconSparkles,
-  IconArrowRight,
-  IconX,
-} from '@tabler/icons-react';
 import { tokens } from '../theme';
 import updatesData from '../data/updates.json';
+import { ArrowRight, Sparkle, X } from '@phosphor-icons/react';
 
 // Get the latest update ID from updates data
 const getLatestUpdateId = () => {
@@ -68,7 +64,7 @@ function WhatsNewModal({ opened, onClose, userId }) {
       title={
         <Group gap="sm">
           <ThemeIcon color="teal" variant="light" size="lg">
-            <IconSparkles size={20} />
+            <Sparkle size={20} />
           </ThemeIcon>
           <Text fw={600} size="lg">What's New</Text>
         </Group>
@@ -107,7 +103,7 @@ function WhatsNewModal({ opened, onClose, userId }) {
                 <Stack gap={4} mt="xs">
                   {update.details.slice(0, 3).map((detail, idx) => (
                     <Group key={idx} gap="xs" wrap="nowrap">
-                      <IconArrowRight size={12} color={'var(--color-teal)'} style={{ flexShrink: 0 }} />
+                      <ArrowRight size={12} color={'var(--color-teal)'} style={{ flexShrink: 0 }} />
                       <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
                         {detail}
                       </Text>

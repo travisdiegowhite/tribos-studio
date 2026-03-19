@@ -23,21 +23,8 @@ import {
   Card,
   SimpleGrid
 } from '@mantine/core';
-import {
-  IconSearch,
-  IconTrash,
-  IconRefresh,
-  IconAlertTriangle,
-  IconUser,
-  IconActivity,
-  IconPlugConnected,
-  IconCheck,
-  IconInfoCircle,
-  IconChevronUp,
-  IconChevronDown,
-  IconSelector
-} from '@tabler/icons-react';
 import { listUsers, getUserDetails, cleanUserData, getStats } from '../../services/adminService';
+import { ArrowsClockwise, CaretDown, CaretUp, CaretUpDown, Check, Heartbeat, Info, MagnifyingGlass, Plug, Trash, User, Warning } from '@phosphor-icons/react';
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -131,10 +118,10 @@ export default function UserManagement() {
   };
 
   const SortIcon = ({ column }) => {
-    if (sortColumn !== column) return <IconSelector size={14} style={{ opacity: 0.3 }} />;
+    if (sortColumn !== column) return <CaretUpDown size={14} style={{ opacity: 0.3 }} />;
     return sortDirection === 'asc'
-      ? <IconChevronUp size={14} />
-      : <IconChevronDown size={14} />;
+      ? <CaretUp size={14} />
+      : <CaretDown size={14} />;
   };
 
   // Filter and sort users
@@ -184,7 +171,7 @@ export default function UserManagement() {
   if (error) {
     return (
       <Alert
-        icon={<IconAlertTriangle size={16} />}
+        icon={<Warning size={16} />}
         title="Error"
         color="red"
       >
@@ -200,7 +187,7 @@ export default function UserManagement() {
         <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
           <Card withBorder padding="md">
             <Group>
-              <IconUser size={24} color="var(--mantine-color-blue-6)" />
+              <User size={24} color="var(--mantine-color-blue-6)" />
               <div>
                 <Text size="xl" fw={700}>{stats.total_users}</Text>
                 <Text size="xs" c="dimmed">Total Users</Text>
@@ -209,7 +196,7 @@ export default function UserManagement() {
           </Card>
           <Card withBorder padding="md">
             <Group>
-              <IconActivity size={24} color="var(--mantine-color-green-6)" />
+              <Heartbeat size={24} color="var(--mantine-color-green-6)" />
               <div>
                 <Text size="xl" fw={700}>{stats.total_activities}</Text>
                 <Text size="xs" c="dimmed">Activities</Text>
@@ -218,7 +205,7 @@ export default function UserManagement() {
           </Card>
           <Card withBorder padding="md">
             <Group>
-              <IconPlugConnected size={24} color="var(--mantine-color-orange-6)" />
+              <Plug size={24} color="var(--mantine-color-orange-6)" />
               <div>
                 <Text size="xl" fw={700}>{stats.total_training_plans}</Text>
                 <Text size="xs" c="dimmed">Training Plans</Text>
@@ -227,7 +214,7 @@ export default function UserManagement() {
           </Card>
           <Card withBorder padding="md">
             <Group>
-              <IconInfoCircle size={24} color="var(--mantine-color-violet-6)" />
+              <Info size={24} color="var(--mantine-color-violet-6)" />
               <div>
                 <Text size="xl" fw={700}>{stats.total_feedback}</Text>
                 <Text size="xs" c="dimmed">Feedback Items</Text>
@@ -242,13 +229,13 @@ export default function UserManagement() {
         <Group justify="space-between">
           <TextInput
             placeholder="Search by email or ID..."
-            leftSection={<IconSearch size={16} />}
+            leftSection={<MagnifyingGlass size={16} />}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ flex: 1, maxWidth: 400 }}
           />
           <Button
-            leftSection={<IconRefresh size={16} />}
+            leftSection={<ArrowsClockwise size={16} />}
             variant="light"
             onClick={loadData}
           >
@@ -288,7 +275,7 @@ export default function UserManagement() {
                     <Text size="sm" fw={500}>{user.email}</Text>
                     {user.email_confirmed_at && (
                       <Tooltip label="Email verified">
-                        <IconCheck size={14} color="var(--mantine-color-green-6)" />
+                        <Check size={14} color="var(--mantine-color-green-6)" />
                       </Tooltip>
                     )}
                   </Group>
@@ -324,7 +311,7 @@ export default function UserManagement() {
                         variant="light"
                         onClick={() => handleViewDetails(user)}
                       >
-                        <IconInfoCircle size={16} />
+                        <Info size={16} />
                       </ActionIcon>
                     </Tooltip>
                   </Group>
@@ -351,7 +338,7 @@ export default function UserManagement() {
         }}
         title={
           <Group>
-            <IconUser size={20} />
+            <User size={20} />
             <Text fw={600}>User Details</Text>
           </Group>
         }
@@ -420,7 +407,7 @@ export default function UserManagement() {
             {/* Cleanup Result */}
             {cleanupResult && (
               <Alert
-                icon={cleanupResult.success ? <IconCheck size={16} /> : <IconAlertTriangle size={16} />}
+                icon={cleanupResult.success ? <Check size={16} /> : <Warning size={16} />}
                 color={cleanupResult.success ? 'sage' : 'red'}
                 title={cleanupResult.success ? 'Cleanup Complete' : 'Cleanup Failed'}
               >
@@ -440,7 +427,7 @@ export default function UserManagement() {
                 <Button
                   color="red"
                   variant="outline"
-                  leftSection={<IconTrash size={16} />}
+                  leftSection={<Trash size={16} />}
                   onClick={() => setShowCleanupConfirm(true)}
                   loading={cleanupLoading}
                 >
@@ -458,7 +445,7 @@ export default function UserManagement() {
         onClose={() => setShowCleanupConfirm(false)}
         title={
           <Group>
-            <IconAlertTriangle size={20} color="var(--mantine-color-red-6)" />
+            <Warning size={20} color="var(--mantine-color-red-6)" />
             <Text fw={600} c="red">Confirm Data Deletion</Text>
           </Group>
         }

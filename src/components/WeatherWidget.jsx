@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Paper, Text, Group, Badge, Stack, Box, Loader, Tooltip, Progress, ActionIcon } from '@mantine/core';
-import { IconWind, IconTemperature, IconDroplet, IconEye, IconRefresh, IconCloud } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import {
   getWeatherData,
@@ -10,6 +9,7 @@ import {
   formatWindSpeed,
   formatVisibility
 } from '../utils/weather';
+import { ArrowsClockwise, Cloud, Drop, Eye, Thermometer, Wind } from '@phosphor-icons/react';
 
 /**
  * Wind direction arrow component
@@ -47,7 +47,7 @@ export function WeatherBadge({ weather, isImperial = true, onClick }) {
         variant="filled"
         color={severity.color}
         size="lg"
-        leftSection={<IconCloud size={14} />}
+        leftSection={<Cloud size={14} />}
         style={{ cursor: onClick ? 'pointer' : 'default' }}
         onClick={onClick}
       >
@@ -260,7 +260,7 @@ const WeatherWidget = ({
         {/* Header */}
         <Group justify="space-between">
           <Group gap="xs">
-            <IconCloud size={18} style={{ color: 'var(--color-text-secondary)' }} />
+            <Cloud size={18} style={{ color: 'var(--color-text-secondary)' }} />
             <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
               Current Weather
             </Text>
@@ -274,7 +274,7 @@ const WeatherWidget = ({
             onClick={fetchWeather}
             loading={loading}
           >
-            <IconRefresh size={14} />
+            <ArrowsClockwise size={14} />
           </ActionIcon>
         </Group>
 
@@ -295,7 +295,7 @@ const WeatherWidget = ({
             : "Temperature"
           }>
             <Group gap={4}>
-              <IconTemperature size={16} style={{ color: 'var(--color-text-muted)' }} />
+              <Thermometer size={16} style={{ color: 'var(--color-text-muted)' }} />
               <Box>
                 <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                   {formatTemperature(weather.temperature, isImperial)}
@@ -323,7 +323,7 @@ const WeatherWidget = ({
 
           <Tooltip label="Humidity">
             <Group gap={4}>
-              <IconDroplet size={16} style={{ color: 'var(--color-text-muted)' }} />
+              <Drop size={16} style={{ color: 'var(--color-text-muted)' }} />
               <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                 {weather.humidity}%
               </Text>
@@ -351,7 +351,7 @@ const WeatherWidget = ({
         <Group gap="md" justify="center">
           <Tooltip label="Visibility">
             <Group gap={4}>
-              <IconEye size={14} style={{ color: 'var(--color-text-muted)' }} />
+              <Eye size={14} style={{ color: 'var(--color-text-muted)' }} />
               <Text size="xs" c="dimmed">
                 {formatVisibility(weather.visibility, isImperial)}
               </Text>

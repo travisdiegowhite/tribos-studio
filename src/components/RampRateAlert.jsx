@@ -10,14 +10,8 @@ import {
   Box,
   Tooltip,
 } from '@mantine/core';
-import {
-  IconTrendingUp,
-  IconTrendingDown,
-  IconAlertTriangle,
-  IconCheck,
-  IconInfoCircle,
-} from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Check, Info, TrendDown, TrendUp, Warning } from '@phosphor-icons/react';
 
 /**
  * Ramp Rate Alert Component
@@ -74,37 +68,37 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
     if (weeklyRampRate > 10) {
       status = 'danger';
       color = 'red';
-      icon = IconAlertTriangle;
+      icon = Warning;
       message = `Ramp rate of +${weeklyRampRate} TSS/week is dangerously high`;
       recommendation = 'Significantly reduce training load immediately. High risk of overtraining, injury, or illness.';
     } else if (weeklyRampRate > 7) {
       status = 'warning';
       color = 'orange';
-      icon = IconAlertTriangle;
+      icon = Warning;
       message = `Ramp rate of +${weeklyRampRate} TSS/week is aggressive`;
       recommendation = 'Consider backing off slightly. Monitor fatigue levels closely.';
     } else if (weeklyRampRate >= 3 && weeklyRampRate <= 7) {
       status = 'optimal';
       color = 'green';
-      icon = IconCheck;
+      icon = Check;
       message = `Ramp rate of +${weeklyRampRate} TSS/week is optimal`;
       recommendation = 'Great job! This is the ideal rate for sustainable fitness gains.';
     } else if (weeklyRampRate >= 0 && weeklyRampRate < 3) {
       status = 'maintenance';
       color = 'blue';
-      icon = IconInfoCircle;
+      icon = Info;
       message = `Ramp rate of +${weeklyRampRate} TSS/week - maintaining fitness`;
       recommendation = 'You\'re maintaining fitness. Increase load slightly if looking to improve.';
     } else if (weeklyRampRate >= -5) {
       status = 'recovery';
       color = 'teal';
-      icon = IconTrendingDown;
+      icon = TrendDown;
       message = `Ramp rate of ${weeklyRampRate} TSS/week - planned recovery`;
       recommendation = 'This could be a recovery week or taper. Normal if intentional.';
     } else {
       status = 'detraining';
       color = 'yellow';
-      icon = IconTrendingDown;
+      icon = TrendDown;
       message = `Ramp rate of ${weeklyRampRate} TSS/week - losing fitness`;
       recommendation = 'Significant fitness loss occurring. Resume training if unintentional.';
     }
@@ -211,9 +205,9 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
                   <Text size="xs" c="dimmed">Trend</Text>
                   <Group gap={4}>
                     {rampRateData.trend > 0 ? (
-                      <IconTrendingUp size={14} color={tokens.colors.zone5} />
+                      <TrendUp size={14} color={tokens.colors.zone5} />
                     ) : rampRateData.trend < 0 ? (
-                      <IconTrendingDown size={14} color={tokens.colors.zone2} />
+                      <TrendDown size={14} color={tokens.colors.zone2} />
                     ) : null}
                     <Text size="sm" fw={600}>
                       {rampRateData.trend > 0 ? '+' : ''}{rampRateData.trend}
@@ -292,9 +286,9 @@ export const RampRateBadge = ({ dailyTSSData, currentCTL }) => {
         size="sm"
         leftSection={
           rampRateData.weeklyRampRate > 0 ? (
-            <IconTrendingUp size={12} />
+            <TrendUp size={12} />
           ) : (
-            <IconTrendingDown size={12} />
+            <TrendDown size={12} />
           )
         }
       >

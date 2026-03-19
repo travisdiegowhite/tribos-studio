@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Container, Text, Paper, Group, Button, SimpleGrid, Box, Stack } from '@mantine/core';
-import { IconRuler, IconMountain, IconClock, IconActivity, IconDownload } from '@tabler/icons-react';
 import Map, { Source, Layer } from 'react-map-gl';
 import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
 import { fullRoute, routeBounds } from './routeData';
+import { Clock, DownloadSimple, Heartbeat, Mountains, Ruler } from '@phosphor-icons/react';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const routeStats = [
-  { icon: IconRuler, label: 'Distance', value: '50.6 mi', color: 'var(--color-teal)' },
-  { icon: IconMountain, label: 'Elevation', value: '1,840 ft', color: 'var(--color-coral)' },
-  { icon: IconClock, label: 'Est. Time', value: '2h 55m', color: 'var(--tribos-teal-500)' },
-  { icon: IconActivity, label: 'Workout', value: 'SS 3\u00d715', color: 'var(--tribos-mauve-500)' },
+  { icon: Ruler, label: 'Distance', value: '50.6 mi', color: 'var(--color-teal)' },
+  { icon: Mountains, label: 'Elevation', value: '1,840 ft', color: 'var(--color-coral)' },
+  { icon: Clock, label: 'Est. Time', value: '2h 55m', color: 'var(--tribos-teal-500)' },
+  { icon: Heartbeat, label: 'Workout', value: 'SS 3\u00d715', color: 'var(--tribos-mauve-500)' },
 ];
 
 export default function RouteStep() {
@@ -202,7 +202,7 @@ export default function RouteStep() {
                   <Button
                     color="teal"
                     size="sm"
-                    leftSection={<IconDownload size={14} />}
+                    leftSection={<DownloadSimple size={14} />}
                     style={{ pointerEvents: 'none' }}
                   >
                     Export to Garmin

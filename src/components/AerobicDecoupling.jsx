@@ -22,15 +22,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import {
-  IconHeart,
-  IconTrendingUp,
-  IconTrendingDown,
-  IconInfoCircle,
-  IconCheck,
-  IconAlertTriangle,
-} from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Check, Heart, Info, TrendDown, TrendUp, Warning } from '@phosphor-icons/react';
 
 /**
  * Aerobic Decoupling Analysis Component
@@ -76,7 +69,7 @@ export function interpretDecoupling(decoupling) {
     return {
       status: 'negative',
       color: 'blue',
-      icon: IconTrendingUp,
+      icon: TrendUp,
       message: 'Negative decoupling - you got stronger!',
       description: 'Heart rate dropped or power increased in the second half. Unusual but can happen with good pacing or tailwind.',
     };
@@ -84,7 +77,7 @@ export function interpretDecoupling(decoupling) {
     return {
       status: 'excellent',
       color: 'green',
-      icon: IconCheck,
+      icon: Check,
       message: 'Excellent aerobic fitness',
       description: 'Minimal cardiac drift indicates strong aerobic base and good pacing.',
     };
@@ -92,7 +85,7 @@ export function interpretDecoupling(decoupling) {
     return {
       status: 'good',
       color: 'blue',
-      icon: IconCheck,
+      icon: Check,
       message: 'Good aerobic fitness',
       description: 'Low decoupling shows solid aerobic conditioning.',
     };
@@ -100,7 +93,7 @@ export function interpretDecoupling(decoupling) {
     return {
       status: 'moderate',
       color: 'yellow',
-      icon: IconInfoCircle,
+      icon: Info,
       message: 'Moderate decoupling',
       description: 'Normal for hard efforts. For Z2 rides, indicates room for aerobic improvement.',
     };
@@ -108,7 +101,7 @@ export function interpretDecoupling(decoupling) {
     return {
       status: 'high',
       color: 'orange',
-      icon: IconAlertTriangle,
+      icon: Warning,
       message: 'High decoupling',
       description: 'Significant cardiac drift. May indicate overreaching or poor pacing.',
     };
@@ -116,7 +109,7 @@ export function interpretDecoupling(decoupling) {
     return {
       status: 'very_high',
       color: 'red',
-      icon: IconAlertTriangle,
+      icon: Warning,
       message: 'Very high decoupling',
       description: 'Excessive cardiac drift. Review pacing, hydration, and heat factors.',
     };
@@ -276,13 +269,13 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
     );
   }
 
-  const StatusIcon = analysis.interpretation?.icon || IconInfoCircle;
+  const StatusIcon = analysis.interpretation?.icon || Info;
 
   return (
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconHeart size={20} color="#2A8C82" />
+          <Heart size={20} color="#2A8C82" />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Aerobic Efficiency (Pw:Hr)
           </Text>
@@ -296,7 +289,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs" mb={2}>
-            <IconHeart size={14} color="#2A8C82" />
+            <Heart size={14} color="#2A8C82" />
             <Text size="xs" c="dimmed">Avg EF</Text>
           </Group>
           <Text size="lg" fw={700}>{analysis.avgEF}</Text>
@@ -317,9 +310,9 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs" mb={2}>
             {analysis.efTrend > 0 ? (
-              <IconTrendingUp size={14} color={'var(--tribos-success)'} />
+              <TrendUp size={14} color={'var(--tribos-success)'} />
             ) : (
-              <IconTrendingDown size={14} color={'var(--tribos-error)'} />
+              <TrendDown size={14} color={'var(--tribos-error)'} />
             )}
             <Text size="xs" c="dimmed">EF Trend</Text>
           </Group>
@@ -453,7 +446,7 @@ export function EfficiencyBadge({ avgPower, avgHR }) {
 
   return (
     <Tooltip label={`Efficiency Factor: ${ef} W/bpm - Power divided by Heart Rate`}>
-      <Badge color="pink" variant="light" size="sm" leftSection={<IconHeart size={10} />}>
+      <Badge color="pink" variant="light" size="sm" leftSection={<Heart size={10} />}>
         EF {ef}
       </Badge>
     </Tooltip>

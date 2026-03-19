@@ -14,30 +14,23 @@ import {
   Tooltip,
   SegmentedControl,
 } from '@mantine/core';
-import {
-  IconChevronDown,
-  IconChevronRight,
-  IconChartLine,
-  IconActivity,
-  IconArchive,
-  IconPlus,
-} from '@tabler/icons-react';
 import { tokens } from '../../theme';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import ThreadLinkBadge from './ThreadLinkBadge';
+import { Archive, CaretDown, CaretRight, ChartLine, Heartbeat, Plus } from '@phosphor-icons/react';
 
 // Coach type configurations
 const COACH_CONFIGS = {
   strategist: {
     color: 'teal',
-    icon: IconChartLine,
+    icon: ChartLine,
     name: 'Training Strategist',
     primary: '#2A8C82',
   },
   pulse: {
     color: 'teal',
-    icon: IconActivity,
+    icon: Heartbeat,
     name: 'Pulse',
     primary: '#2A8C82',
   },
@@ -190,7 +183,7 @@ function ConversationThreadList({
             {
               label: (
                 <Group gap={4}>
-                  <IconChartLine size={12} />
+                  <ChartLine size={12} />
                   <span>Strategist</span>
                 </Group>
               ),
@@ -199,7 +192,7 @@ function ConversationThreadList({
             {
               label: (
                 <Group gap={4}>
-                  <IconActivity size={12} />
+                  <Heartbeat size={12} />
                   <span>Pulse</span>
                 </Group>
               ),
@@ -221,7 +214,7 @@ function ConversationThreadList({
           onClick={onNewThread}
         >
           <Group gap="xs" justify="center">
-            <IconPlus size={14} style={{ color: 'var(--color-text-muted)' }} />
+            <Plus size={14} style={{ color: 'var(--color-text-muted)' }} />
             <Text size="sm" c="dimmed">New Conversation</Text>
           </Group>
         </Paper>
@@ -274,9 +267,9 @@ function ConversationThreadList({
                           color={config.color}
                         >
                           {isExpanded ? (
-                            <IconChevronDown size={14} />
+                            <CaretDown size={14} />
                           ) : (
-                            <IconChevronRight size={14} />
+                            <CaretRight size={14} />
                           )}
                         </ActionIcon>
 
@@ -299,7 +292,7 @@ function ConversationThreadList({
                       <Group gap="xs" wrap="nowrap">
                         {thread.status === 'archived' && (
                           <Tooltip label="Archived">
-                            <IconArchive size={12} style={{ color: 'var(--color-text-muted)' }} />
+                            <Archive size={12} style={{ color: 'var(--color-text-muted)' }} />
                           </Tooltip>
                         )}
 

@@ -13,14 +13,6 @@ import {
   Paper,
   ScrollArea,
 } from '@mantine/core';
-import {
-  IconSparkles,
-  IconSend,
-  IconCalendarPlus,
-  IconRefresh,
-  IconRobot,
-  IconUser,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -28,6 +20,7 @@ import { depth } from '../../theme';
 import TrainingPlanPreview from './TrainingPlanPreview';
 import { useUserAvailability } from '../../hooks/useUserAvailability';
 import { redistributeWorkouts } from '../../utils/trainingPlans';
+import { ArrowsClockwise, CalendarPlus, PaperPlaneRight, Robot, Sparkle, User } from '@phosphor-icons/react';
 
 // Generate coaching message — now includes workout recommendation for consistency
 function getCoachingMessage(trainingContext, workoutRecommendation) {
@@ -447,7 +440,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
         <Group justify="space-between">
           <Group gap="xs">
             <ThemeIcon size="lg" color="teal" variant="light" radius="md">
-              <IconSparkles size={18} />
+              <Sparkle size={18} />
             </ThemeIcon>
             <Text fw={600}>AI Coach</Text>
           </Group>
@@ -522,7 +515,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                         mt={3}
                         style={{ flexShrink: 0 }}
                       >
-                        {msg.role === 'user' ? <IconUser size={10} /> : <IconRobot size={10} />}
+                        {msg.role === 'user' ? <User size={10} /> : <Robot size={10} />}
                       </ThemeIcon>
                       <Box style={{ flex: 1, minWidth: 0 }}>
                         <Text
@@ -544,7 +537,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                                 size="compact-xs"
                                 variant="light"
                                 color="teal"
-                                leftSection={<IconCalendarPlus size={12} />}
+                                leftSection={<CalendarPlus size={12} />}
                                 onClick={() => handleAddWorkout(rec)}
                               >
                                 Add {rec.name || rec.workout_id}
@@ -561,7 +554,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                 {isLoading && (
                   <Group gap={6} align="center">
                     <ThemeIcon size="xs" variant="light" color="teal" radius="xl">
-                      <IconRobot size={10} />
+                      <Robot size={10} />
                     </ThemeIcon>
                     <Group gap={4}>
                       <Loader size="xs" color="teal" />
@@ -595,7 +588,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                     handleSubmit();
                   }}
                 >
-                  <IconRefresh size={12} />
+                  <ArrowsClockwise size={12} />
                 </ActionIcon>
               </Group>
             </Paper>
@@ -643,7 +636,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
             onClick={handleSubmit}
             disabled={!query.trim() || isLoading}
           >
-            <IconSend size={16} />
+            <PaperPlaneRight size={16} />
           </ActionIcon>
         </Group>
       </Stack>

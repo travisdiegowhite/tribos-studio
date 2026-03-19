@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Box, Group, Text, Button, Skeleton } from '@mantine/core';
-import { IconChevronRight } from '@tabler/icons-react';
+import { CaretRight } from '@phosphor-icons/react';
 
 function SegmentIntelligence({ segments, loading }) {
   if (loading) {
@@ -73,7 +73,7 @@ function SegmentIntelligence({ segments, loading }) {
           variant="subtle"
           color="gray"
           size="compact-xs"
-          rightSection={<IconChevronRight size={12} />}
+          rightSection={<CaretRight size={12} />}
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
             fontSize: 11,

@@ -12,13 +12,8 @@ import {
   Button,
   ThemeIcon,
 } from '@mantine/core';
-import {
-  IconClock,
-  IconFlame,
-  IconTarget,
-  IconCalendar,
-} from '@tabler/icons-react';
 import { GOAL_TYPES, FITNESS_LEVELS, TRAINING_PHASES } from '../../utils/trainingPlans';
+import { Calendar, Clock, Fire, Target } from '@phosphor-icons/react';
 
 // Methodology colors
 const METHODOLOGY_COLORS = {
@@ -79,7 +74,7 @@ export default function PlanCard({
             </Text>
           </div>
           <ThemeIcon size={40} radius="md" color={METHODOLOGY_COLORS[plan.methodology]} variant="light">
-            <IconTarget size={24} />
+            <Target size={24} />
           </ThemeIcon>
         </Group>
 
@@ -101,17 +96,17 @@ export default function PlanCard({
         {/* Stats */}
         <Group spacing="lg" mt="xs">
           <Group spacing={6}>
-            <IconCalendar size={16} color="var(--mantine-color-dimmed)" />
+            <Calendar size={16} color="var(--mantine-color-dimmed)" />
             <Text size="sm" c="dimmed">{plan.duration} weeks</Text>
           </Group>
           <Group spacing={6}>
-            <IconClock size={16} color="var(--mantine-color-dimmed)" />
+            <Clock size={16} color="var(--mantine-color-dimmed)" />
             <Text size="sm" c="dimmed">
               {plan.hoursPerWeek.min}-{plan.hoursPerWeek.max} hrs/wk
             </Text>
           </Group>
           <Group spacing={6}>
-            <IconFlame size={16} color="var(--mantine-color-dimmed)" />
+            <Fire size={16} color="var(--mantine-color-dimmed)" />
             <Text size="sm" c="dimmed">
               {plan.weeklyTSS.min}-{plan.weeklyTSS.max} TSS/wk
             </Text>

@@ -1,5 +1,5 @@
 import { Box, Group, Text, Badge, Stack } from '@mantine/core';
-import { IconRoute, IconMountain } from '@tabler/icons-react';
+import { Path, Mountains } from '@phosphor-icons/react';
 
 function getMatchColor(score) {
   if (score >= 90) return 'green';
@@ -30,7 +30,7 @@ function MatchedRouteCard({ match, formatDist, formatElev, onClick }) {
         {/* Route name and match score */}
         <Group justify="space-between" align="flex-start">
           <Group gap="sm" style={{ flex: 1, minWidth: 0 }}>
-            <IconRoute size={18} color="var(--color-teal)" style={{ flexShrink: 0 }} />
+            <Path size={18} color="var(--color-teal)" style={{ flexShrink: 0 }} />
             <Text
               fw={600}
               style={{

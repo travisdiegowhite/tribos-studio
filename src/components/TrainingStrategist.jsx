@@ -15,23 +15,12 @@ import {
   Collapse,
   UnstyledButton,
 } from '@mantine/core';
-import {
-  IconSend,
-  IconUser,
-  IconPlus,
-  IconClock,
-  IconCalendarPlus,
-  IconChartLine,
-  IconChevronDown,
-  IconChevronUp,
-  IconHistory,
-  IconTrash,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
+import { CalendarPlus, CaretDown, CaretUp, ChartLine, Clock, ClockCounterClockwise, PaperPlaneRight, Plus, Trash, User } from '@phosphor-icons/react';
 
 // Training Strategist theme colors
 const STRATEGIST_THEME = {
@@ -132,7 +121,7 @@ function WorkoutChip({ recommendation, onAdd }) {
       </Badge>
       <Tooltip label="Add to calendar">
         <ActionIcon size="sm" variant="light" color="blue" onClick={() => onAdd(recommendation)}>
-          <IconPlus size={14} />
+          <Plus size={14} />
         </ActionIcon>
       </Tooltip>
     </Group>
@@ -599,7 +588,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
           ? `${workout.name} replaced ${replacedWorkoutName} on ${scheduledDate}`
           : `${workout.name} → ${scheduledDate}`,
         color: 'blue',
-        icon: <IconCalendarPlus size={16} />,
+        icon: <CalendarPlus size={16} />,
         loading: false,
         autoClose: 3000
       });
@@ -669,7 +658,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                 justifyContent: 'center',
               }}
             >
-              <IconChartLine size={14} style={{ color: 'white' }} />
+              <ChartLine size={14} style={{ color: 'white' }} />
             </Box>
             <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
               {STRATEGIST_THEME.name}
@@ -681,7 +670,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
             )}
           </Group>
           <ActionIcon variant="subtle" size="sm">
-            {isExpanded ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+            {isExpanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
           </ActionIcon>
         </Group>
       </UnstyledButton>
@@ -714,7 +703,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
             onClick={sendMessage}
             disabled={!inputMessage.trim() || isLoading}
           >
-            <IconSend size={16} />
+            <PaperPlaneRight size={16} />
           </ActionIcon>
         </Group>
 
@@ -820,9 +809,9 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                       }}
                     >
                       {msg.role === 'user' ? (
-                        <IconUser size={14} style={{ color: 'var(--color-text-secondary)' }} />
+                        <User size={14} style={{ color: 'var(--color-text-secondary)' }} />
                       ) : (
-                        <IconChartLine size={14} style={{ color: 'white' }} />
+                        <ChartLine size={14} style={{ color: 'white' }} />
                       )}
                     </Box>
                     <Box style={{ flex: 1, minWidth: 0 }}>
@@ -862,7 +851,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                       onClick={() => deleteMessage(msg.id, actualIndex)}
                       style={{ opacity: 0.5, '&:hover': { opacity: 1 } }}
                     >
-                      <IconTrash size={12} />
+                      <Trash size={12} />
                     </ActionIcon>
                   </Tooltip>
                   </Group>
@@ -885,7 +874,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                     justifyContent: 'center',
                   }}
                 >
-                  <IconChartLine size={14} style={{ color: 'white' }} />
+                  <ChartLine size={14} style={{ color: 'white' }} />
                 </Box>
                 <Loader size="sm" color="blue" type="dots" />
               </Group>
@@ -902,7 +891,7 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
                   padding: '8px 0',
                 }}
               >
-                <IconHistory size={14} style={{ color: 'var(--color-text-muted)' }} />
+                <ClockCounterClockwise size={14} style={{ color: 'var(--color-text-muted)' }} />
                 <Text size="sm" c="dimmed">
                   Show {hiddenMessageCount} older messages
                 </Text>

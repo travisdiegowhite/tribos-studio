@@ -1,13 +1,5 @@
+import { ArrowsClockwise, CalendarPlus, ChartLine, Eye, Path, Sparkle, WarningCircle } from '@phosphor-icons/react';
 import { Stack, Group, Text, Button, Box, Alert, Paper } from '@mantine/core';
-import {
-  IconAlertCircle,
-  IconRefresh,
-  IconCalendarPlus,
-  IconRoute,
-  IconChartLine,
-  IconEye,
-  IconSparkles,
-} from '@tabler/icons-react';
 
 // Typing indicator with CSS animation
 function TypingIndicator() {
@@ -43,11 +35,11 @@ function TypingIndicator() {
 
 // Map action types to icons
 const ACTION_ICONS = {
-  add_to_calendar: IconCalendarPlus,
-  open_route: IconRoute,
-  create_plan: IconChartLine,
-  view_details: IconEye,
-  show_alternatives: IconSparkles,
+  add_to_calendar: CalendarPlus,
+  open_route: Path,
+  create_plan: ChartLine,
+  view_details: Eye,
+  show_alternatives: Sparkle,
 };
 
 function CoachResponseArea({
@@ -63,7 +55,7 @@ function CoachResponseArea({
       <Alert
         color="red"
         variant="light"
-        icon={<IconAlertCircle size={18} />}
+        icon={<WarningCircle size={18} />}
         title="Something went wrong"
         styles={{
           root: {
@@ -79,7 +71,7 @@ function CoachResponseArea({
               size="xs"
               variant="light"
               color="red"
-              leftSection={<IconRefresh size={14} />}
+              leftSection={<ArrowsClockwise size={14} />}
               onClick={onRetry}
             >
               Try again
@@ -133,7 +125,7 @@ function CoachResponseArea({
         {actions.length > 0 && (
           <Group gap="sm" wrap="wrap">
             {actions.map((action, index) => {
-              const ActionIcon = ACTION_ICONS[action.actionType] || IconSparkles;
+              const ActionIcon = ACTION_ICONS[action.actionType] || Sparkle;
               return (
                 <Button
                   key={action.id || index}

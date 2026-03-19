@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Container, Title, Text, Button, Stack, Box, Group } from '@mantine/core';
-import { IconRoute, IconHome, IconArrowLeft } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { ArrowLeft, House, Path } from '@phosphor-icons/react';
 
 function NotFound() {
   return (
@@ -17,7 +17,7 @@ function NotFound() {
       <Container size="sm">
         <Stack align="center" gap="xl">
           <Box style={{ textAlign: 'center' }}>
-            <IconRoute size={64} color={'var(--color-teal)'} style={{ marginBottom: 16 }} />
+            <Path size={64} color={'var(--color-teal)'} style={{ marginBottom: 16 }} />
             <Title
               order={1}
               style={{
@@ -49,7 +49,7 @@ function NotFound() {
               to="/"
               size="lg"
               color="teal"
-              leftSection={<IconHome size={20} />}
+              leftSection={<House size={20} />}
             >
               Back to Home
             </Button>
@@ -59,7 +59,7 @@ function NotFound() {
               size="lg"
               variant="outline"
               color="gray"
-              leftSection={<IconArrowLeft size={20} />}
+              leftSection={<ArrowLeft size={20} />}
             >
               Go to Dashboard
             </Button>

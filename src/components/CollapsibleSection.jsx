@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Box, Text, Group, UnstyledButton, Collapse } from '@mantine/core';
-import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { CaretDown, CaretRight } from '@phosphor-icons/react';
 
 /**
  * CollapsibleSection - A reusable collapsible section component for the Route Builder sidebar
@@ -70,7 +70,7 @@ function CollapsibleSection({
           )}
         </Group>
         <Box style={{ color: 'var(--color-text-muted)', transition: 'transform 0.2s ease' }}>
-          {isExpanded ? <IconChevronDown size={18} /> : <IconChevronRight size={18} />}
+          {isExpanded ? <CaretDown size={18} /> : <CaretRight size={18} />}
         </Box>
       </UnstyledButton>
 

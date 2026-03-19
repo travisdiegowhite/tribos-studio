@@ -5,9 +5,9 @@
 
 import { useState } from 'react';
 import { Box, Text, Paper, ActionIcon, Collapse, Stack } from '@mantine/core';
-import { IconInfoCircle, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { tokens } from '../theme';
 import { INFRASTRUCTURE_LEGEND } from './BikeInfrastructureLayer';
+import { CaretDown, CaretUp, Info } from '@phosphor-icons/react';
 
 /**
  * Line swatch component showing solid or dashed line
@@ -69,7 +69,7 @@ export default function BikeInfrastructureLegend({ visible = true }) {
           userSelect: 'none',
         }}
       >
-        <IconInfoCircle size={16} color={'var(--color-teal)'} />
+        <Info size={16} color={'var(--color-teal)'} />
         <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>
           Bike Infrastructure
         </Text>
@@ -79,9 +79,9 @@ export default function BikeInfrastructureLegend({ visible = true }) {
           style={{ marginLeft: 'auto' }}
         >
           {expanded ? (
-            <IconChevronDown size={14} color={'var(--color-text-secondary)'} />
+            <CaretDown size={14} color={'var(--color-text-secondary)'} />
           ) : (
-            <IconChevronUp size={14} color={'var(--color-text-secondary)'} />
+            <CaretUp size={14} color={'var(--color-text-secondary)'} />
           )}
         </ActionIcon>
       </Box>

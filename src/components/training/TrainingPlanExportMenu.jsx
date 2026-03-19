@@ -5,16 +5,9 @@
 
 import { useState } from 'react';
 import { Menu, Button, Text, Stack } from '@mantine/core';
-import {
-  IconDownload,
-  IconFileSpreadsheet,
-  IconCalendarEvent,
-  IconFileCode,
-  IconChevronDown,
-  IconDeviceWatch,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { exportTrainingPlan, exportTrainingPlanFit, downloadPlanExport } from '../../utils/trainingPlanExport';
+import { CalendarBlank, CaretDown, DownloadSimple, FileCode, FileXls, Watch } from '@phosphor-icons/react';
 
 export default function TrainingPlanExportMenu({
   plan,
@@ -40,7 +33,7 @@ export default function TrainingPlanExportMenu({
         title: 'Plan Exported',
         message: `Your training plan has been exported as ${formatLabels[format]}.`,
         color: 'green',
-        icon: <IconDownload size={16} />,
+        icon: <DownloadSimple size={16} />,
       });
     } catch (error) {
       console.error('Plan export failed:', error);
@@ -61,7 +54,7 @@ export default function TrainingPlanExportMenu({
         title: 'FIT Workouts Exported',
         message: 'ZIP file with structured workouts downloaded. Upload to Garmin Connect or copy to your device.',
         color: 'green',
-        icon: <IconDeviceWatch size={16} />,
+        icon: <Watch size={16} />,
       });
     } catch (error) {
       console.error('FIT export failed:', error);
@@ -81,8 +74,8 @@ export default function TrainingPlanExportMenu({
         <Button
           variant={variant}
           size={size}
-          leftSection={<IconDownload size={14} />}
-          rightSection={<IconChevronDown size={12} />}
+          leftSection={<DownloadSimple size={14} />}
+          rightSection={<CaretDown size={12} />}
           disabled={disabled || exporting}
           loading={exporting}
           color="blue"
@@ -95,7 +88,7 @@ export default function TrainingPlanExportMenu({
         <Menu.Label>For Bike Computers</Menu.Label>
 
         <Menu.Item
-          leftSection={<IconDeviceWatch size={16} />}
+          leftSection={<Watch size={16} />}
           onClick={handleFitExport}
         >
           <Stack gap={0}>
@@ -112,7 +105,7 @@ export default function TrainingPlanExportMenu({
         <Menu.Label>Other Formats</Menu.Label>
 
         <Menu.Item
-          leftSection={<IconCalendarEvent size={16} />}
+          leftSection={<CalendarBlank size={16} />}
           onClick={() => handleExport('ical')}
         >
           <Stack gap={0}>
@@ -126,7 +119,7 @@ export default function TrainingPlanExportMenu({
         </Menu.Item>
 
         <Menu.Item
-          leftSection={<IconFileSpreadsheet size={16} />}
+          leftSection={<FileXls size={16} />}
           onClick={() => handleExport('csv')}
         >
           <Stack gap={0}>
@@ -140,7 +133,7 @@ export default function TrainingPlanExportMenu({
         </Menu.Item>
 
         <Menu.Item
-          leftSection={<IconFileCode size={16} />}
+          leftSection={<FileCode size={16} />}
           onClick={() => handleExport('json')}
         >
           <Stack gap={0}>

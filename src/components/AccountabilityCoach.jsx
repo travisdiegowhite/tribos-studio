@@ -18,27 +18,11 @@ import {
   Divider,
   Tooltip,
 } from '@mantine/core';
-import {
-  IconSend,
-  IconRobot,
-  IconUser,
-  IconPlus,
-  IconClock,
-  IconCalendar,
-  IconBrain,
-  IconDotsVertical,
-  IconTrash,
-  IconRefresh,
-  IconMessageCircle,
-  IconTarget,
-  IconBike,
-  IconSun,
-  IconMoon,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
+import { ArrowsClockwise, Bicycle, Brain, Calendar, ChatCircle, Clock, DotsThreeVertical, Moon, PaperPlaneRight, Plus, Robot, Sun, Target, Trash, User } from '@phosphor-icons/react';
 
 // Get the API base URL
 const getApiBaseUrl = () => {
@@ -567,7 +551,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
       <Group justify="space-between" mb="md">
         <Group gap="sm">
           <ThemeIcon size="lg" color="teal" variant="light">
-            <IconRobot size={20} />
+            <Robot size={20} />
           </ThemeIcon>
           <div>
             <Text fw={600} style={{ color: 'var(--color-text-primary)' }}>
@@ -582,25 +566,25 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
           {onOpenMemories && (
             <Tooltip label="What I Remember">
               <ActionIcon variant="subtle" onClick={onOpenMemories}>
-                <IconBrain size={18} />
+                <Brain size={18} />
               </ActionIcon>
             </Tooltip>
           )}
           <Menu>
             <Menu.Target>
               <ActionIcon variant="subtle">
-                <IconDotsVertical size={18} />
+                <DotsThreeVertical size={18} />
               </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Item
-                leftSection={<IconRefresh size={14} />}
+                leftSection={<ArrowsClockwise size={14} />}
                 onClick={loadConversationHistory}
               >
                 Refresh
               </Menu.Item>
               <Menu.Item
-                leftSection={<IconTrash size={14} />}
+                leftSection={<Trash size={14} />}
                 color="red"
                 onClick={clearHistory}
               >
@@ -623,7 +607,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
         >
           <Group justify="space-between">
             <Group gap="sm">
-              <IconBike size={18} style={{ color: 'var(--color-teal)' }} />
+              <Bicycle size={18} style={{ color: 'var(--color-teal)' }} />
               <div>
                 <Text size="sm" fw={500}>
                   Today: {todaysWorkout.workout_type} ({todaysWorkout.target_duration_mins} min)
@@ -655,7 +639,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                 border: `1px dashed ${'var(--color-bg-secondary)'}`,
               }}
             >
-              <IconRobot size={48} style={{ color: 'var(--color-text-muted)', marginBottom: 12 }} />
+              <Robot size={48} style={{ color: 'var(--color-text-muted)', marginBottom: 12 }} />
               <Text style={{ color: 'var(--color-text-secondary)' }} mb="xs">
                 {getGreeting()}! I'm your accountability coach.
               </Text>
@@ -666,9 +650,9 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                 <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Quick actions:</Text>
                 <Group gap="xs" justify="center" wrap="wrap">
                   {[
-                    { text: "What's my plan today?", icon: <IconCalendar size={14} /> },
-                    { text: "I'm ready to ride", icon: <IconBike size={14} /> },
-                    { text: "I'm not feeling it today", icon: <IconMessageCircle size={14} /> }
+                    { text: "What's my plan today?", icon: <Calendar size={14} /> },
+                    { text: "I'm ready to ride", icon: <Bicycle size={14} /> },
+                    { text: "I'm not feeling it today", icon: <ChatCircle size={14} /> }
                   ].map((suggestion) => (
                     <Button
                       key={suggestion.text}
@@ -702,9 +686,9 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                   }}
                 >
                   {msg.role === 'user' ? (
-                    <IconUser size={18} style={{ color: 'var(--color-text-secondary)' }} />
+                    <User size={18} style={{ color: 'var(--color-text-secondary)' }} />
                   ) : (
-                    <IconRobot size={18} style={{ color: 'var(--color-bg)' }} />
+                    <Robot size={18} style={{ color: 'var(--color-bg)' }} />
                   )}
                 </Box>
                 <Box style={{ flex: 1 }}>
@@ -745,7 +729,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
                   justifyContent: 'center'
                 }}
               >
-                <IconRobot size={18} style={{ color: 'var(--color-bg)' }} />
+                <Robot size={18} style={{ color: 'var(--color-bg)' }} />
               </Box>
               <Box style={{ padding: '8px 0' }}>
                 <Loader size="sm" color="teal" type="dots" />
@@ -781,7 +765,7 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
           onClick={() => sendMessage()}
           disabled={!inputMessage.trim() || isLoading}
         >
-          <IconSend size={18} />
+          <PaperPlaneRight size={18} />
         </ActionIcon>
       </Group>
     </Card>

@@ -8,7 +8,6 @@
 
 import { useEffect, useState } from 'react';
 import { Stack, Text, Center, Loader, Paper, Group, Button } from '@mantine/core';
-import { IconSparkles } from '@tabler/icons-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useCoachCheckIn } from '../../hooks/useCoachCheckIn';
 import CheckInNarrative from './CheckInNarrative';
@@ -18,6 +17,7 @@ import CheckInAcknowledgment from './CheckInAcknowledgment';
 import CheckInThread from './CheckInThread';
 import IntakeInterview from './IntakeInterview';
 import type { PersonaId, DecisionType } from '../../types/checkIn';
+import { Sparkle } from '@phosphor-icons/react';
 
 interface CheckInPageProps {
   plannedWorkouts?: any[];
@@ -101,7 +101,7 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
         }}
       >
         <Stack align="center" gap="sm">
-          <IconSparkles size={32} color="var(--color-teal)" style={{ opacity: 0.5 }} />
+          <Sparkle size={32} color="var(--color-teal)" style={{ opacity: 0.5 }} />
           <Text size="lg" fw={600}>No check-in yet</Text>
           <Text size="sm" c="dimmed" maw={400}>
             Your coaching check-in will appear here after your next synced activity,
@@ -113,7 +113,7 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
           <Button
             variant="outline"
             color="teal"
-            leftSection={<IconSparkles size={16} />}
+            leftSection={<Sparkle size={16} />}
             loading={generating}
             onClick={requestCheckIn}
             style={{ borderRadius: 0 }}
@@ -139,7 +139,7 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
             variant="subtle"
             size="xs"
             color="teal"
-            leftSection={<IconSparkles size={14} />}
+            leftSection={<Sparkle size={14} />}
             loading={generating}
             onClick={requestCheckIn}
             style={{ borderRadius: 0 }}

@@ -17,19 +17,6 @@ import {
   Box,
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
-import {
-  IconTrophy,
-  IconCalendarEvent,
-  IconRoute,
-  IconMountain,
-  IconClock,
-  IconFlame,
-  IconCheck,
-  IconTrash,
-  IconTarget,
-  IconChevronDown,
-  IconChevronUp,
-} from '@tabler/icons-react';
 import { useDisclosure } from '@mantine/hooks';
 import { RaceFuelCard } from './fueling';
 import { notifications } from '@mantine/notifications';
@@ -37,6 +24,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { tokens } from '../theme';
 import { formatLocalDate } from '../utils/dateUtils';
+import { CalendarBlank, CaretDown, CaretUp, Check, Clock, Fire, Mountains, Path, Target, Trash, Trophy } from '@phosphor-icons/react';
 
 // Race type options
 const RACE_TYPES = [
@@ -273,7 +261,7 @@ const RaceGoalModal = ({
           title: 'Race Goal Added',
           message: `${form.name} has been added to your calendar`,
           color: 'terracotta',
-          icon: <IconTrophy size={18} />,
+          icon: <Trophy size={18} />,
         });
       }
 
@@ -332,7 +320,7 @@ const RaceGoalModal = ({
       title={
         <Group gap="sm">
           <ThemeIcon size="lg" color="orange" variant="light">
-            <IconTrophy size={18} />
+            <Trophy size={18} />
           </ThemeIcon>
           <Text fw={600}>
             {raceGoal ? 'Edit Race Goal' : 'Add Race Goal'}
@@ -374,7 +362,7 @@ const RaceGoalModal = ({
           <Paper p="sm" withBorder style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
             <Group justify="center" gap="md">
               <ThemeIcon size="lg" color={daysUntil < 14 ? 'red' : daysUntil < 30 ? 'orange' : 'terracotta'} variant="light">
-                <IconCalendarEvent size={18} />
+                <CalendarBlank size={18} />
               </ThemeIcon>
               <Box ta="center">
                 <Text size="xl" fw={700} c={daysUntil < 14 ? 'red' : daysUntil < 30 ? 'orange' : 'terracotta'}>
@@ -425,7 +413,7 @@ const RaceGoalModal = ({
             onChange={handleDistanceChange}
             min={0}
             max={1000}
-            leftSection={<IconRoute size={16} />}
+            leftSection={<Path size={16} />}
           />
           <NumberInput
             label={`Elevation (${isImperial ? 'ft' : 'm'})`}
@@ -434,7 +422,7 @@ const RaceGoalModal = ({
             onChange={handleElevationChange}
             min={0}
             max={30000}
-            leftSection={<IconMountain size={16} />}
+            leftSection={<Mountains size={16} />}
           />
         </Group>
 
@@ -457,7 +445,7 @@ const RaceGoalModal = ({
             onChange={(val) => setForm(prev => ({ ...prev, goal_time_minutes: val }))}
             min={0}
             max={1440}
-            leftSection={<IconClock size={16} />}
+            leftSection={<Clock size={16} />}
             description={form.goal_time_minutes ? formatGoalTime(form.goal_time_minutes) : null}
           />
           <NumberInput
@@ -467,7 +455,7 @@ const RaceGoalModal = ({
             onChange={(val) => setForm(prev => ({ ...prev, goal_power_watts: val }))}
             min={0}
             max={1000}
-            leftSection={<IconFlame size={16} />}
+            leftSection={<Fire size={16} />}
           />
         </Group>
 
@@ -477,7 +465,7 @@ const RaceGoalModal = ({
           placeholder="e.g., Top 10, Finish, Podium, PR"
           value={form.goal_placement}
           onChange={(e) => setForm(prev => ({ ...prev, goal_placement: e.target.value }))}
-          leftSection={<IconTarget size={16} />}
+          leftSection={<Target size={16} />}
         />
 
         <Divider label="Additional Info" labelPosition="center" />
@@ -508,7 +496,7 @@ const RaceGoalModal = ({
                 <Button
                   variant="subtle"
                   size="xs"
-                  rightSection={fuelPlanOpen ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                  rightSection={fuelPlanOpen ? <CaretUp size={14} /> : <CaretDown size={14} />}
                   onClick={toggleFuelPlan}
                   style={{ color: 'var(--color-teal)' }}
                 >
@@ -539,7 +527,7 @@ const RaceGoalModal = ({
             <Button
               variant="subtle"
               color="red"
-              leftSection={<IconTrash size={16} />}
+              leftSection={<Trash size={16} />}
               onClick={handleDelete}
               loading={deleting}
             >
@@ -552,7 +540,7 @@ const RaceGoalModal = ({
             </Button>
             <Button
               color="teal"
-              leftSection={<IconCheck size={16} />}
+              leftSection={<Check size={16} />}
               onClick={handleSave}
               loading={saving}
             >

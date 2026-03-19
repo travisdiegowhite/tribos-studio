@@ -22,21 +22,10 @@ import {
   Tooltip,
   Alert,
 } from '@mantine/core';
-import {
-  IconTarget,
-  IconTrendingUp,
-  IconCalendar,
-  IconClock,
-  IconFlame,
-  IconCheck,
-  IconAlertTriangle,
-  IconChartBar,
-  IconFlag,
-  IconPlayerPlay,
-} from '@tabler/icons-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell } from 'recharts';
 import { TRAINING_PHASES } from '../utils/trainingPlans';
 import { tokens } from '../theme';
+import { Calendar, ChartBar, Check, Clock, Fire, Flag, Play, Target, TrendUp, Warning } from '@phosphor-icons/react';
 
 export default function TrainingProgress({
   activePlan,
@@ -82,9 +71,9 @@ export default function TrainingProgress({
   // Calculate compliance status
   const complianceStatus = useMemo(() => {
     const compliance = progress?.overallCompliance || 0;
-    if (compliance >= 80) return { color: 'green', label: 'On Track', icon: IconCheck };
-    if (compliance >= 60) return { color: 'yellow', label: 'Moderate', icon: IconAlertTriangle };
-    return { color: 'red', label: 'Behind', icon: IconAlertTriangle };
+    if (compliance >= 80) return { color: 'green', label: 'On Track', icon: Check };
+    if (compliance >= 60) return { color: 'yellow', label: 'Moderate', icon: Warning };
+    return { color: 'red', label: 'Behind', icon: Warning };
   }, [progress]);
 
   // Get next workout
@@ -108,7 +97,7 @@ export default function TrainingProgress({
       <Paper p="lg" radius="md" withBorder>
         <Stack align="center" spacing="md" py="xl">
           <ThemeIcon size={60} radius="xl" color="gray" variant="light">
-            <IconTarget size={30} />
+            <Target size={30} />
           </ThemeIcon>
           <Title order={4}>No Active Training Plan</Title>
           <Text c="dimmed" ta="center">
@@ -174,7 +163,7 @@ export default function TrainingProgress({
                 </Text>
               </div>
               <ThemeIcon size={40} radius="md" color={complianceStatus.color} variant="light">
-                <IconTarget size={24} />
+                <Target size={24} />
               </ThemeIcon>
             </Group>
           </Card>
@@ -194,7 +183,7 @@ export default function TrainingProgress({
                 </Text>
               </div>
               <ThemeIcon size={40} radius="md" color="green" variant="light">
-                <IconCheck size={24} />
+                <Check size={24} />
               </ThemeIcon>
             </Group>
           </Card>
@@ -211,7 +200,7 @@ export default function TrainingProgress({
                 </Text>
               </div>
               <ThemeIcon size={40} radius="md" color="violet" variant="light">
-                <IconCalendar size={24} />
+                <Calendar size={24} />
               </ThemeIcon>
             </Group>
           </Card>
@@ -221,7 +210,7 @@ export default function TrainingProgress({
       {/* Next Workout Alert */}
       {nextWorkout && (
         <Alert
-          icon={<IconPlayerPlay size={20} />}
+          icon={<Play size={20} />}
           title={`Next Workout: ${nextWorkout.dateLabel}`}
           color="blue"
           radius="md"
@@ -253,11 +242,11 @@ export default function TrainingProgress({
               key={index}
               bullet={
                 phase.completedWeeks === phase.totalWeeks ? (
-                  <IconCheck size={14} />
+                  <Check size={14} />
                 ) : phase.isCurrent ? (
-                  <IconPlayerPlay size={14} />
+                  <Play size={14} />
                 ) : (
-                  <IconFlag size={14} />
+                  <Flag size={14} />
                 )
               }
               title={

@@ -19,19 +19,6 @@ import {
   Alert,
   Tooltip,
 } from '@mantine/core';
-import {
-  IconFlame,
-  IconDroplet,
-  IconClock,
-  IconAlertTriangle,
-  IconChevronDown,
-  IconChevronUp,
-  IconInfoCircle,
-  IconApple,
-  IconBottle,
-  IconSunHigh,
-  IconMountain,
-} from '@tabler/icons-react';
 import { useState } from 'react';
 import {
   calculateFuelPlan,
@@ -44,6 +31,7 @@ import {
   getIntensityDisplayName,
   celsiusToFahrenheit,
 } from '../../utils/fueling';
+import { Orange, Flask, CaretDown, CaretUp, Clock, Drop, Fire, Info, Mountains, SunDim, Warning } from '@phosphor-icons/react';
 
 // Intensity colors
 const INTENSITY_COLORS = {
@@ -140,7 +128,7 @@ export default function FuelCard({
       <Paper p="md" radius="md" withBorder>
         <Group spacing="xs">
           <ThemeIcon size={32} radius="md" color="teal" variant="light">
-            <IconFlame size={18} />
+            <Fire size={18} />
           </ThemeIcon>
           <div>
             <Text fw={500} size="sm">{displayTitle}</Text>
@@ -166,7 +154,7 @@ export default function FuelCard({
         <Group position="apart">
           <Group spacing="xs">
             <ThemeIcon size={28} radius="md" color={intensityColor} variant="light">
-              <IconFlame size={16} />
+              <Fire size={16} />
             </ThemeIcon>
             <div>
               <Text fw={500} size="sm">{displayTitle}</Text>
@@ -175,7 +163,7 @@ export default function FuelCard({
               </Text>
             </div>
           </Group>
-          <IconChevronDown size={16} color="gray" />
+          <CaretDown size={16} color="gray" />
         </Group>
       </Paper>
     );
@@ -189,7 +177,7 @@ export default function FuelCard({
         <Group position="apart">
           <Group spacing="sm">
             <ThemeIcon size={40} radius="md" color={intensityColor} variant="light">
-              <IconFlame size={24} />
+              <Fire size={24} />
             </ThemeIcon>
             <div>
               <Text fw={600} size="lg">{displayTitle}</Text>
@@ -199,7 +187,7 @@ export default function FuelCard({
                   {getIntensityDisplayName(plan.intensity)}
                 </Badge>
                 {weather?.temperatureCelsius !== undefined && (
-                  <Badge size="sm" variant="outline" leftSection={<IconSunHigh size={12} />}>
+                  <Badge size="sm" variant="outline" leftSection={<SunDim size={12} />}>
                     {formatTemp(weather.temperatureCelsius)}
                   </Badge>
                 )}
@@ -212,7 +200,7 @@ export default function FuelCard({
               size="xs"
               compact
               onClick={() => setExpanded(false)}
-              rightIcon={<IconChevronUp size={14} />}
+              rightIcon={<CaretUp size={14} />}
             >
               Collapse
             </Button>
@@ -227,7 +215,7 @@ export default function FuelCard({
           <Group position="apart" noWrap>
             <Group spacing="xs" noWrap>
               <ThemeIcon size={24} radius="sm" color="teal" variant="light">
-                <IconApple size={14} />
+                <Orange size={14} />
               </ThemeIcon>
               <Text size="sm" fw={500}>On-Bike Carbs</Text>
             </Group>
@@ -240,7 +228,7 @@ export default function FuelCard({
           <Group position="apart" noWrap>
             <Group spacing="xs" noWrap>
               <ThemeIcon size={24} radius="sm" color="mauve" variant="light">
-                <IconClock size={14} />
+                <Clock size={14} />
               </ThemeIcon>
               <Text size="sm" fw={500}>Start Eating</Text>
             </Group>
@@ -261,7 +249,7 @@ export default function FuelCard({
           <Group position="apart" noWrap>
             <Group spacing="xs" noWrap>
               <ThemeIcon size={24} radius="sm" color="teal" variant="light">
-                <IconDroplet size={14} />
+                <Drop size={14} />
               </ThemeIcon>
               <Text size="sm" fw={500}>Hydration</Text>
             </Group>
@@ -310,7 +298,7 @@ export default function FuelCard({
         {/* Warnings */}
         {plan.warnings.length > 0 && (
           <Alert
-            icon={<IconAlertTriangle size={16} />}
+            icon={<Warning size={16} />}
             color="gold"
             variant="light"
             p="xs"
@@ -329,7 +317,7 @@ export default function FuelCard({
           size="xs"
           compact
           onClick={() => setShowDetails(!showDetails)}
-          rightIcon={showDetails ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+          rightIcon={showDetails ? <CaretUp size={14} /> : <CaretDown size={14} />}
         >
           {showDetails ? 'Hide Details' : 'Show Details'}
         </Button>
@@ -347,7 +335,7 @@ export default function FuelCard({
             {weather?.altitudeMeters && weather.altitudeMeters > 1500 && (
               <Group position="apart">
                 <Group spacing={4}>
-                  <IconMountain size={12} />
+                  <Mountains size={12} />
                   <Text size="xs" c="dimmed">Altitude</Text>
                 </Group>
                 <Text size="xs">{Math.round(weather.altitudeMeters)}m / {Math.round(weather.altitudeMeters * 3.281)}ft</Text>
@@ -360,7 +348,7 @@ export default function FuelCard({
         {showDisclaimer && (
           <Tooltip label={plan.disclaimer} multiline width={300} withArrow>
             <Group spacing={4} style={{ cursor: 'help' }}>
-              <IconInfoCircle size={12} color="gray" />
+              <Info size={12} color="gray" />
               <Text size="xs" c="dimmed">General guidelines only</Text>
             </Group>
           </Tooltip>
@@ -438,11 +426,11 @@ export function FuelSummary({
       style={{ cursor: onClick ? 'pointer' : 'default' }}
       onClick={onClick}
     >
-      <IconFlame size={14} color="#2A8C82" />
+      <Fire size={14} color="#2A8C82" />
       <Text size="xs" c="dimmed">
         {plan.carbs.totalGramsMin}-{plan.carbs.totalGramsMax}g carbs
       </Text>
-      <IconDroplet size={14} color="#2A8C82" />
+      <Drop size={14} color="#2A8C82" />
       <Text size="xs" c="dimmed">
         {plan.hydration.ozPerHour} oz/hr
       </Text>

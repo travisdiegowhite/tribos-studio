@@ -8,9 +8,9 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, ReferenceLine, Cell, Legend,
 } from 'recharts';
-import { IconBolt, IconChartPie, IconClock, IconFlame, IconTrophy } from '@tabler/icons-react';
 import { tokens } from '../../theme';
 import { useScrollReveal, usePrefersReducedMotion } from './useScrollReveal';
+import { ChartPieSlice, Clock, Fire, Lightning, Trophy } from '@phosphor-icons/react';
 
 // ===== Cat 3 Racer Profile =====
 // FTP: 250W | Weight: 76kg | W/kg: 3.3 | Rider type: All-Rounder
@@ -295,7 +295,7 @@ function PowerDurationSection() {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconBolt size={20} color={tokens.colors.zone4} />
+          <Lightning size={20} color={tokens.colors.zone4} />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Power Duration Curve
           </Text>
@@ -374,7 +374,7 @@ function PowerDurationSection() {
       {/* Rider type description */}
       <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Group gap="xs">
-          <IconTrophy size={16} color="var(--color-teal)" />
+          <Trophy size={16} color="var(--color-teal)" />
           <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
             <Text span fw={600} c="grape">All-Rounder</Text>
             {' - '}Balanced power profile
@@ -418,7 +418,7 @@ function ZoneDistributionSection() {
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconChartPie size={20} color="var(--color-teal)" />
+          <ChartPieSlice size={20} color="var(--color-teal)" />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Training Zone Distribution
           </Text>
@@ -451,7 +451,7 @@ function ZoneDistributionSection() {
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs" mb="md">
         <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs">
-            <IconClock size={14} color="var(--color-text-muted)" />
+            <Clock size={14} color="var(--color-text-muted)" />
             <Text size="xs" c="dimmed">Total Time</Text>
           </Group>
           <Text size="sm" fw={600}>25h 0m</Text>
@@ -465,7 +465,7 @@ function ZoneDistributionSection() {
         </Paper>
         <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs">
-            <IconFlame size={14} color={tokens.colors.zone5} />
+            <Fire size={14} color={tokens.colors.zone5} />
             <Text size="xs" c="dimmed">High Intensity</Text>
           </Group>
           <Text size="sm" fw={600}>{highIntensityPct}%</Text>

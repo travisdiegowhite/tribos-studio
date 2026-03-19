@@ -31,41 +31,6 @@ import {
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  IconActivity,
-  IconTrendingUp,
-  IconTrendingDown,
-  IconBolt,
-  IconCalendar,
-  IconClock,
-  IconMountain,
-  IconRoute,
-  IconTarget,
-  IconMessageCircle,
-  IconChevronRight,
-  IconChevronDown,
-  IconFlame,
-  IconHeart,
-  IconMoon,
-  IconAward,
-  IconChartBar,
-  IconSettings,
-  IconUpload,
-  IconList,
-  IconBarbell,
-  IconDownload,
-  IconBrandZwift,
-  IconFileExport,
-  IconDeviceWatch,
-  IconBrandStrava,
-  IconFileImport,
-  IconCalendarStats,
-  IconCalendarEvent,
-  IconTrophy,
-  IconBike,
-  IconRun,
-  IconSparkles,
-} from '@tabler/icons-react';
 import { tokens, depth } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -108,6 +73,7 @@ import { PoweredByGarmin } from '../components/GarminBranding';
 import { garminService } from '../utils/garminService.js';
 import PageHeader from '../components/PageHeader.jsx';
 import { useCrossTraining } from '../hooks/useCrossTraining';
+import { Barbell, Bicycle, Calendar, CalendarBlank, CaretDown, CaretRight, ChartBar, ChartLine, ChatCircle, Clock, DownloadSimple, FileArrowDown, FileArrowUp, Fire, Gear, Heart, Heartbeat, Lightning, Medal, Moon, Mountains, Path, PersonSimpleRun, Sparkle, Target, TrendDown, TrendUp, Trophy, UploadSimple, Watch } from '@phosphor-icons/react';
 import PlanProgressBar from '../components/train/PlanProgressBar.jsx';
 import WeekSummaryGrid from '../components/train/WeekSummaryGrid.jsx';
 import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
@@ -676,11 +642,11 @@ function TrainingDashboard() {
   // Get form status styling
   const getFormStatus = () => {
     const tsb = trainingMetrics.tsb;
-    if (tsb >= 15) return { label: 'FRESH', color: 'teal', icon: IconTrendingUp, bg: 'rgba(168, 191, 168, 0.15)' };
-    if (tsb >= 5) return { label: 'READY', color: 'green', icon: IconTrendingUp, bg: 'rgba(168, 191, 168, 0.15)' };
-    if (tsb >= -10) return { label: 'OPTIMAL', color: 'terracotta', icon: IconActivity, bg: 'rgba(168, 191, 168, 0.15)' };
-    if (tsb >= -25) return { label: 'TIRED', color: 'yellow', icon: IconTrendingDown, bg: 'rgba(212, 168, 67, 0.15)' };
-    return { label: 'FATIGUED', color: 'red', icon: IconTrendingDown, bg: 'rgba(158, 90, 60, 0.15)' };
+    if (tsb >= 15) return { label: 'FRESH', color: 'teal', icon: TrendUp, bg: 'rgba(168, 191, 168, 0.15)' };
+    if (tsb >= 5) return { label: 'READY', color: 'green', icon: TrendUp, bg: 'rgba(168, 191, 168, 0.15)' };
+    if (tsb >= -10) return { label: 'OPTIMAL', color: 'terracotta', icon: Heartbeat, bg: 'rgba(168, 191, 168, 0.15)' };
+    if (tsb >= -25) return { label: 'TIRED', color: 'yellow', icon: TrendDown, bg: 'rgba(212, 168, 67, 0.15)' };
+    return { label: 'FATIGUED', color: 'red', icon: TrendDown, bg: 'rgba(158, 90, 60, 0.15)' };
   };
 
   const formStatus = getFormStatus();
@@ -903,7 +869,7 @@ function TrainingDashboard() {
                   variant="filled"
                   color="teal"
                   size="xs"
-                  leftSection={<IconCalendarEvent size={14} />}
+                  leftSection={<CalendarBlank size={14} />}
                   onClick={() => navigate('/planner')}
                 >
                   Plan
@@ -924,7 +890,7 @@ function TrainingDashboard() {
                     variant="light"
                     color="pink"
                     size="xs"
-                    leftSection={<IconBarbell size={14} />}
+                    leftSection={<Barbell size={14} />}
                     onClick={() => setSupplementModalOpen(true)}
                   >
                     Add Supplement
@@ -943,7 +909,7 @@ function TrainingDashboard() {
                       variant="light"
                       color="orange"
                       size="xs"
-                      leftSection={<IconFileImport size={14} />}
+                      leftSection={<FileArrowDown size={14} />}
                     >
                       Import
                     </Button>
@@ -951,13 +917,13 @@ function TrainingDashboard() {
                   <Menu.Dropdown>
                     <Menu.Label>Import Activities</Menu.Label>
                     <Menu.Item
-                      leftSection={<IconBrandStrava size={16} />}
+                      leftSection={<Heartbeat size={16} />}
                       onClick={() => setGpxUploadOpen(true)}
                     >
                       Strava Export (GPX)
                     </Menu.Item>
                     <Menu.Item
-                      leftSection={<IconDeviceWatch size={16} />}
+                      leftSection={<Watch size={16} />}
                       onClick={() => setFitUploadOpen(true)}
                     >
                       FIT Files (Garmin/Wahoo)
@@ -968,7 +934,7 @@ function TrainingDashboard() {
                   variant={todayHealthMetrics ? 'light' : 'filled'}
                   color="violet"
                   size="xs"
-                  leftSection={<IconHeart size={14} />}
+                  leftSection={<Heart size={14} />}
                   onClick={() => setHealthCheckInOpen(true)}
                 >
                   {todayHealthMetrics ? 'Check-in ✓' : 'Body Check-in'}
@@ -977,7 +943,7 @@ function TrainingDashboard() {
                   variant="light"
                   color="teal"
                   size="xs"
-                  leftSection={<IconSettings size={14} />}
+                  leftSection={<Gear size={14} />}
                   onClick={() => navigate('/settings')}
                 >
                   Settings
@@ -1263,7 +1229,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
           {plannedRest && (
             <Box mt="md">
               <Group gap="xs" mb="xs">
-                <Badge size="sm" variant="light" color="blue" leftSection={<IconCalendarEvent size={12} />}>
+                <Badge size="sm" variant="light" color="blue" leftSection={<CalendarBlank size={12} />}>
                   Training Plan
                 </Badge>
               </Group>
@@ -1276,7 +1242,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             <Box mt="md">
               {recommendationSource === 'plan' && (
                 <Group gap="xs" mb="xs">
-                  <Badge size="sm" variant="light" color="blue" leftSection={<IconCalendarEvent size={12} />}>
+                  <Badge size="sm" variant="light" color="blue" leftSection={<CalendarBlank size={12} />}>
                     Training Plan
                   </Badge>
                 </Group>
@@ -1288,7 +1254,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
                 <Button
                   variant="light"
                   color="teal"
-                  rightSection={<IconChevronRight size={16} />}
+                  rightSection={<CaretRight size={16} />}
                   onClick={() => onViewWorkout(suggestedWorkout)}
                 >
                   {suggestedWorkout.name || 'View Suggested Workout'}
@@ -1358,7 +1324,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
           <Group justify="space-between">
             <Group gap="sm">
               <ThemeIcon size="lg" variant="light" color={lastActivitySport === 'running' ? 'teal' : lastActivitySport === 'other' ? 'orange' : 'gray'}>
-                {lastActivitySport === 'running' ? <IconRun size={18} /> : lastActivitySport === 'other' ? <IconActivity size={18} /> : <IconRoute size={18} />}
+                {lastActivitySport === 'running' ? <PersonSimpleRun size={18} /> : lastActivitySport === 'other' ? <Heartbeat size={18} /> : <Path size={18} />}
               </ThemeIcon>
               <Box>
                 <Text size="sm" fw={500}>{lastActivity.name}</Text>
@@ -1405,7 +1371,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
           <Divider my="md" />
           <Group gap="md">
             <ThemeIcon size="lg" variant="light" color="orange">
-              <IconTrophy size={18} />
+              <Trophy size={18} />
             </ThemeIcon>
             <Group gap="lg" style={{ flex: 1 }}>
               {raceGoals.slice(0, 3).map((race) => {
@@ -1459,7 +1425,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
           <Box style={{ flex: 1, minWidth: 200 }}>
             <Group gap="sm" mb="sm">
               <ThemeIcon size="lg" color="violet" variant="light">
-                <IconHeart size={18} />
+                <Heart size={18} />
               </ThemeIcon>
               <Text fw={600}>Body Check-in</Text>
               {hasCheckedIn && (
@@ -1575,17 +1541,17 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
       <Card withBorder p="md">
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconTrendingUp size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
+            <TrendUp size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="teal">+{Math.round(trainingMetrics.ctl * 0.12)}%</Text>
             <Text size="sm" c="dimmed">Fitness vs 90 days ago</Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconRoute size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
+            <Path size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="blue">{activities.length}</Text>
             <Text size="sm" c="dimmed">Rides in 90 days</Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <IconAward size={24} color="#D4820A" style={{ marginBottom: 8 }} />
+            <Medal size={24} color="#D4820A" style={{ marginBottom: 8 }} />
             <Text size="xl" fw={700} c="yellow">
               {speedProfile ? `${(speedProfile.average_speed * (isImperial ? 0.621371 : 1)).toFixed(1)}` : '--'}
             </Text>
@@ -1616,7 +1582,7 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
         <Card withBorder p="md">
           <Group gap="xs" mb="md">
             <ThemeIcon size="md" color="grape" variant="light">
-              <IconChartBar size={16} />
+              <ChartBar size={16} />
             </ThemeIcon>
             <Text fw={600}>Riding Patterns</Text>
           </Group>
@@ -1674,7 +1640,7 @@ const PowerTab = React.memo(function PowerTab({ ftp, powerZones, navigate, activ
   if (!ftp) {
     return (
       <EmptyState
-        icon={IconBolt}
+        icon={Lightning}
         iconColor="yellow"
         title="Set Your FTP"
         description="Enter your Functional Threshold Power to see personalized power zones and training recommendations."
@@ -1821,7 +1787,7 @@ function BodyCheckInCard({ todayHealthMetrics, onOpenHealthCheckIn }) {
         <Box>
           <Group gap="sm" mb="sm">
             <ThemeIcon size="lg" color="violet" variant="light">
-              <IconHeart size={18} />
+              <Heart size={18} />
             </ThemeIcon>
             <Text fw={600}>Body Check-in</Text>
             {hasCheckedIn && (
@@ -1884,7 +1850,7 @@ function WeeklySportSummary({ weeklyStats }) {
     const lines = [];
     if (hasCycling) {
       lines.push({
-        icon: <IconBike size={11} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />,
+        icon: <Bicycle size={11} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />,
         label: [
           `${weeklyStats.cycling.count}`,
           formatDist(weeklyStats.cycling.distance),
@@ -1895,7 +1861,7 @@ function WeeklySportSummary({ weeklyStats }) {
     }
     if (hasRunning) {
       lines.push({
-        icon: <IconRun size={11} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />,
+        icon: <PersonSimpleRun size={11} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />,
         label: [
           `${weeklyStats.running.count}`,
           formatDist(weeklyStats.running.distance),
@@ -1906,7 +1872,7 @@ function WeeklySportSummary({ weeklyStats }) {
     }
     if (hasOther) {
       lines.push({
-        icon: <IconActivity size={11} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />,
+        icon: <Heartbeat size={11} style={{ color: 'var(--mantine-color-dimmed)', flexShrink: 0 }} />,
         label: [
           `${weeklyStats.other.count} other`,
           weeklyStats.other.distance > 0 ? formatDist(weeklyStats.other.distance) : null,
@@ -1941,7 +1907,7 @@ function WeeklySportSummary({ weeklyStats }) {
     return (
       <Tooltip label={`${weeklyStats.activityCount} runs this week`} position="bottom">
         <Group gap={4} style={{ cursor: 'default' }}>
-          <IconRun size={11} style={{ color: 'var(--mantine-color-dimmed)' }} />
+          <PersonSimpleRun size={11} style={{ color: 'var(--mantine-color-dimmed)' }} />
           <Text size="xs" c="dimmed">{label}</Text>
         </Group>
       </Tooltip>
@@ -1958,7 +1924,7 @@ function WeeklySportSummary({ weeklyStats }) {
     return (
       <Tooltip label={`${weeklyStats.activityCount} sessions this week`} position="bottom">
         <Group gap={4} style={{ cursor: 'default' }}>
-          <IconActivity size={11} style={{ color: 'var(--mantine-color-dimmed)' }} />
+          <Heartbeat size={11} style={{ color: 'var(--mantine-color-dimmed)' }} />
           <Text size="xs" c="dimmed">{label}</Text>
         </Group>
       </Tooltip>
@@ -1995,8 +1961,8 @@ function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousM
   const tsb = trainingMetrics.tsb;
 
   const getTrendIcon = (trend) => {
-    if (trend > 2) return IconTrendingUp;
-    if (trend < -2) return IconTrendingDown;
+    if (trend > 2) return TrendUp;
+    if (trend < -2) return TrendDown;
     return null;
   };
 
@@ -2141,7 +2107,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
       title={
         <Group gap="sm">
           <ThemeIcon size="lg" color={getCategoryColor(workout.category)} variant="light">
-            <IconTarget size={18} />
+            <Target size={18} />
           </ThemeIcon>
           <Text fw={600} size="lg">{workout.name}</Text>
         </Group>
@@ -2229,21 +2195,21 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
             <Group justify="space-between" align="center">
               <Box>
                 <Group gap="xs" mb={4}>
-                  <IconFileExport size={16} />
+                  <FileArrowUp size={16} />
                   <Text fw={500} size="sm">Export to Bike Computer</Text>
                 </Group>
                 <Text size="xs" c="dimmed">Download this workout for Zwift, TrainerRoad, or other apps</Text>
               </Box>
               <Menu shadow="md" width={200}>
                 <Menu.Target>
-                  <Button variant="light" color="cyan" leftSection={<IconDownload size={16} />}>
+                  <Button variant="light" color="cyan" leftSection={<DownloadSimple size={16} />}>
                     Export
                   </Button>
                 </Menu.Target>
                 <Menu.Dropdown>
                   <Menu.Label>Choose Format</Menu.Label>
                   <Menu.Item
-                    leftSection={<IconBrandZwift size={16} />}
+                    leftSection={<Bicycle size={16} />}
                     onClick={() => {
                       try {
                         const result = exportWorkout(workout.cyclingStructure, {
@@ -2269,7 +2235,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
                     Zwift (.zwo)
                   </Menu.Item>
                   <Menu.Item
-                    leftSection={<IconDeviceWatch size={16} />}
+                    leftSection={<Watch size={16} />}
                     onClick={() => {
                       try {
                         const result = exportWorkout(workout.cyclingStructure, {
@@ -2295,7 +2261,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
                     Garmin (.tcx)
                   </Menu.Item>
                   <Menu.Item
-                    leftSection={<IconDeviceWatch size={16} />}
+                    leftSection={<Watch size={16} />}
                     onClick={() => {
                       try {
                         const result = exportWorkout(workout.cyclingStructure, {
@@ -2321,7 +2287,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
                     Garmin/Wahoo FIT (.fit)
                   </Menu.Item>
                   <Menu.Item
-                    leftSection={<IconFileExport size={16} />}
+                    leftSection={<FileArrowUp size={16} />}
                     onClick={() => {
                       try {
                         const result = exportWorkout(workout.cyclingStructure, {
@@ -2348,7 +2314,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
                   </Menu.Item>
                   <Menu.Divider />
                   <Menu.Item
-                    leftSection={<IconDownload size={16} />}
+                    leftSection={<DownloadSimple size={16} />}
                     onClick={() => {
                       try {
                         const result = exportWorkout(workout.cyclingStructure, {
@@ -2389,7 +2355,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
           <Group justify="space-between" align="center">
             <Box>
               <Group gap="xs" mb={4}>
-                <IconRoute size={16} />
+                <Path size={16} />
                 <Text fw={500} size="sm">Find Matching Routes</Text>
               </Group>
               <Text size="xs" c="dimmed">
@@ -2399,7 +2365,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
             <Button
               variant="light"
               color="teal"
-              leftSection={<IconRoute size={16} />}
+              leftSection={<Path size={16} />}
               onClick={() => {
                 onClose();
                 // Navigate to Routes tab - setActiveTab will be called via props

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Card, Text, Group, Box, Stack, Progress, SimpleGrid, Skeleton } from '@mantine/core';
-import { IconBike, IconClock, IconMountain, IconFlame, IconActivity } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { Bicycle, Clock, Fire, Heartbeat, Mountains } from '@phosphor-icons/react';
 
 /**
  * WeekSummary Component
@@ -88,7 +88,7 @@ const WeekSummary = ({
         <SimpleGrid cols={2} spacing="md">
           {/* Distance */}
           <StatBox
-            icon={IconBike}
+            icon={Bicycle}
             label="Distance"
             value={formatDist ? formatDist(weekStats.distance) : `${weekStats.distance} km`}
             progress={distanceProgress}
@@ -98,7 +98,7 @@ const WeekSummary = ({
 
           {/* Time */}
           <StatBox
-            icon={IconClock}
+            icon={Clock}
             label="Time"
             value={`${weekStats.time}h`}
             progress={timeProgress}
@@ -108,7 +108,7 @@ const WeekSummary = ({
 
           {/* Elevation */}
           <StatBox
-            icon={IconMountain}
+            icon={Mountains}
             label="Elevation"
             value={formatElev ? formatElev(weekStats.elevation) : `${weekStats.elevation}m`}
             iconColor={tokens.colors.zone4}
@@ -116,7 +116,7 @@ const WeekSummary = ({
 
           {/* Calories */}
           <StatBox
-            icon={IconFlame}
+            icon={Fire}
             label="Calories"
             value={weekStats.calories > 0 ? weekStats.calories.toLocaleString() : '-'}
             iconColor={tokens.colors.zone5}

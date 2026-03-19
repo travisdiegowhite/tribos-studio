@@ -19,25 +19,6 @@ import {
   Tabs,
   ScrollArea,
 } from '@mantine/core';
-import {
-  IconUpload,
-  IconFile,
-  IconCheck,
-  IconX,
-  IconAlertCircle,
-  IconBike,
-  IconClock,
-  IconRoute,
-  IconMountain,
-  IconFileZip,
-  IconExternalLink,
-  IconInfoCircle,
-  IconChevronRight,
-  IconBrandStrava,
-  IconFolderOpen,
-  IconFiles,
-  IconAlertTriangle,
-} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -47,6 +28,7 @@ import { formatDistance as formatDistanceUnit, formatElevation as formatElevatio
 import { trackUpload, EventType } from '../utils/activityTracking';
 import JSZip from 'jszip';
 import pako from 'pako';
+import { ArrowSquareOut, Bicycle, CaretRight, Check, Clock, File, FileZip, Files, FolderOpen, Info, Mountains, Path, UploadSimple, Warning, WarningCircle, X } from '@phosphor-icons/react';
 
 function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   const { user } = useAuth();
@@ -521,7 +503,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
         title: 'Import Complete',
         message: `Successfully imported ${uploadResults.success.length} activit${uploadResults.success.length === 1 ? 'y' : 'ies'}`,
         color: 'green',
-        icon: <IconCheck size={16} />,
+        icon: <Check size={16} />,
       });
     }
 
@@ -530,7 +512,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
         title: 'Some imports failed',
         message: `${uploadResults.failed.length} file(s) could not be imported`,
         color: 'yellow',
-        icon: <IconAlertCircle size={16} />,
+        icon: <WarningCircle size={16} />,
       });
     }
 
@@ -605,7 +587,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
       title={
         <Group gap="xs">
           <ThemeIcon color="orange" variant="light" size="lg">
-            <IconBrandStrava size={20} />
+            <Heartbeat size={20} />
           </ThemeIcon>
           <div>
             <Text fw={600}>Import from Strava Export</Text>
@@ -619,12 +601,12 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     >
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List mb="md">
-          <Tabs.Tab value="guide" leftSection={<IconInfoCircle size={16} />}>
+          <Tabs.Tab value="guide" leftSection={<Info size={16} />}>
             How to Export
           </Tabs.Tab>
           <Tabs.Tab
             value="upload"
-            leftSection={<IconUpload size={16} />}
+            leftSection={<UploadSimple size={16} />}
             rightSection={selectedFiles.length > 0 ? (
               <Badge size="xs" circle>{selectedFiles.length}</Badge>
             ) : null}
@@ -637,7 +619,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
         <Tabs.Panel value="guide">
           <Stack gap="md">
             <Alert
-              icon={<IconInfoCircle size={18} />}
+              icon={<Info size={18} />}
               color="blue"
               variant="light"
             >
@@ -662,7 +644,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                     color="orange"
                     size="xs"
                     mt="xs"
-                    rightSection={<IconExternalLink size={14} />}
+                    rightSection={<ArrowSquareOut size={14} />}
                   >
                     Strava Data Export Page
                   </Button>
@@ -705,7 +687,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
             <Accordion variant="contained">
               <Accordion.Item value="what-gets-imported">
-                <Accordion.Control icon={<IconBike size={18} />}>
+                <Accordion.Control icon={<Bicycle size={18} />}>
                   What gets imported?
                 </Accordion.Control>
                 <Accordion.Panel>
@@ -721,7 +703,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
               </Accordion.Item>
 
               <Accordion.Item value="duplicates">
-                <Accordion.Control icon={<IconAlertTriangle size={18} />}>
+                <Accordion.Control icon={<Warning size={18} />}>
                   What about duplicates?
                 </Accordion.Control>
                 <Accordion.Panel>
@@ -734,7 +716,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
               </Accordion.Item>
 
               <Accordion.Item value="file-types">
-                <Accordion.Control icon={<IconFile size={18} />}>
+                <Accordion.Control icon={<File size={18} />}>
                   Supported file types
                 </Accordion.Control>
                 <Accordion.Panel>
@@ -754,7 +736,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
             <Group justify="flex-end">
               <Button
                 variant="light"
-                rightSection={<IconChevronRight size={16} />}
+                rightSection={<CaretRight size={16} />}
                 onClick={() => setActiveTab('upload')}
               >
                 Continue to Upload
@@ -792,7 +774,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
               />
               <Stack align="center" gap="xs">
                 <ThemeIcon size={48} variant="light" color="orange">
-                  <IconFileZip size={24} />
+                  <FileZip size={24} />
                 </ThemeIcon>
                 <Text fw={500}>
                   {currentFile || 'Drop your Strava export ZIP here'}
@@ -805,7 +787,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
             {/* Error */}
             {error && (
-              <Alert color="red" icon={<IconX size={16} />}>
+              <Alert color="red" icon={<X size={16} />}>
                 {error}
               </Alert>
             )}
@@ -815,7 +797,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
               <Paper withBorder p="sm">
                 <Group justify="space-between" mb="xs">
                   <Group gap="xs">
-                    <IconFolderOpen size={16} />
+                    <FolderOpen size={16} />
                     <Text size="sm" fw={500}>Files Ready for Import</Text>
                   </Group>
                   <Group gap="xs">
@@ -828,7 +810,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                   <ScrollArea h={selectedFiles.length > 5 ? 150 : 'auto'}>
                     <List size="sm" spacing={4}>
                       {selectedFiles.map((file, index) => (
-                        <List.Item key={index} icon={<IconFile size={12} />}>
+                        <List.Item key={index} icon={<File size={12} />}>
                           <Text size="xs" lineClamp={1}>{file.name}</Text>
                         </List.Item>
                       ))}
@@ -853,7 +835,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                         <Group justify="space-between" mb="xs">
                           <Group gap="xs">
                             <ThemeIcon size="sm" variant="light" color="blue">
-                              <IconBike size={14} />
+                              <Bicycle size={14} />
                             </ThemeIcon>
                             <Text size="sm" fw={500} lineClamp={1}>
                               {activity.metadata?.name || activity.fileName}
@@ -865,15 +847,15 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                         </Group>
                         <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
                           <Group gap={4}>
-                            <IconRoute size={12} color="var(--mantine-color-blue-5)" />
+                            <Path size={12} color="var(--mantine-color-blue-5)" />
                             <Text size="xs">{formatDistance(activity.summary?.totalDistance)}</Text>
                           </Group>
                           <Group gap={4}>
-                            <IconClock size={12} color="var(--mantine-color-green-5)" />
+                            <Clock size={12} color="var(--mantine-color-green-5)" />
                             <Text size="xs">{formatDuration(activity.summary?.totalMovingTime)}</Text>
                           </Group>
                           <Group gap={4}>
-                            <IconMountain size={12} color="var(--mantine-color-orange-5)" />
+                            <Mountains size={12} color="var(--mantine-color-orange-5)" />
                             <Text size="xs">{formatElevation(activity.summary?.totalAscent)}</Text>
                           </Group>
                           <Text size="xs" c="dimmed">
@@ -924,7 +906,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                   {results.skipped.length > 0 && (
                     <Accordion variant="contained" defaultValue="">
                       <Accordion.Item value="skipped">
-                        <Accordion.Control icon={<IconAlertCircle size={16} />}>
+                        <Accordion.Control icon={<WarningCircle size={16} />}>
                           Skipped Files ({results.skipped.length})
                         </Accordion.Control>
                         <Accordion.Panel>
@@ -955,7 +937,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                   {results.failed.length > 0 && (
                     <Accordion variant="contained" defaultValue="failed">
                       <Accordion.Item value="failed">
-                        <Accordion.Control icon={<IconX size={16} />}>
+                        <Accordion.Control icon={<X size={16} />}>
                           Failed Files ({results.failed.length})
                         </Accordion.Control>
                         <Accordion.Panel>
@@ -1004,7 +986,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                   </Button>
                   <Button
                     color="orange"
-                    leftSection={<IconUpload size={16} />}
+                    leftSection={<UploadSimple size={16} />}
                     onClick={handleUpload}
                     disabled={selectedFiles.length === 0 || uploading}
                     loading={uploading}

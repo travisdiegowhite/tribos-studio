@@ -1,7 +1,7 @@
 import { Table, Badge, Group, Text, Button, ActionIcon, Tooltip } from '@mantine/core';
-import { IconRefresh, IconTrash } from '@tabler/icons-react';
 import { formatDistance } from '../../utils/units';
 import { getComponentLabel } from './gearConstants';
+import { ArrowsClockwise, Trash } from '@phosphor-icons/react';
 
 function getStatusInfo(componentDistance, warningThreshold, replaceThreshold) {
   if (replaceThreshold && componentDistance >= replaceThreshold) {
@@ -93,7 +93,7 @@ export default function ComponentTable({
                         color="blue"
                         onClick={() => onReplace?.(comp)}
                       >
-                        <IconRefresh size={14} />
+                        <ArrowsClockwise size={14} />
                       </ActionIcon>
                     </Tooltip>
                     <Tooltip label="Delete component">
@@ -103,7 +103,7 @@ export default function ComponentTable({
                         color="red"
                         onClick={() => onDelete?.(comp)}
                       >
-                        <IconTrash size={14} />
+                        <Trash size={14} />
                       </ActionIcon>
                     </Tooltip>
                   </Group>

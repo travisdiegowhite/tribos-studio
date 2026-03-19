@@ -14,15 +14,8 @@ import {
   Table,
   Select,
 } from '@mantine/core';
-import {
-  IconTrophy,
-  IconChartBar,
-  IconUsers,
-  IconFlame,
-  IconMountain,
-  IconBolt,
-} from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { ChartBar, Fire, Lightning, Mountains, Trophy, Users } from '@phosphor-icons/react';
 
 /**
  * Athlete Benchmarking Component
@@ -94,7 +87,7 @@ const RIDER_TYPES = {
     name: 'Sprinter',
     description: 'Explosive power specialist - dominates short efforts',
     color: 'pink',
-    icon: IconBolt,
+    icon: Lightning,
     profile: {
       // 5s/5min ratio > 3.5
       sprintRatio: { min: 3.5, max: 5.0 },
@@ -108,7 +101,7 @@ const RIDER_TYPES = {
     name: 'Pursuiter',
     description: 'Strong in 3-8 minute efforts - good track rider',
     color: 'orange',
-    icon: IconFlame,
+    icon: Fire,
     profile: {
       sprintRatio: { min: 2.8, max: 3.5 },
       enduranceRatio: { min: 0.8, max: 0.9 },
@@ -120,7 +113,7 @@ const RIDER_TYPES = {
     name: 'Time Trialist',
     description: 'Excellent sustained power - specialist against the clock',
     color: 'blue',
-    icon: IconChartBar,
+    icon: ChartBar,
     profile: {
       sprintRatio: { min: 2.2, max: 3.0 },
       enduranceRatio: { min: 0.92, max: 1.0 },
@@ -132,7 +125,7 @@ const RIDER_TYPES = {
     name: 'Climber',
     description: 'High power-to-weight - excels on long ascents',
     color: 'green',
-    icon: IconMountain,
+    icon: Mountains,
     profile: {
       sprintRatio: { min: 2.0, max: 2.8 },
       enduranceRatio: { min: 0.9, max: 1.0 },
@@ -145,7 +138,7 @@ const RIDER_TYPES = {
     name: 'All-Rounder',
     description: 'Balanced power profile - competitive in most situations',
     color: 'grape',
-    icon: IconTrophy,
+    icon: Trophy,
     profile: {
       sprintRatio: { min: 2.5, max: 3.5 },
       enduranceRatio: { min: 0.85, max: 0.95 },
@@ -335,13 +328,13 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
     );
   }
 
-  const RiderIcon = analysis.riderTypeData?.icon || IconTrophy;
+  const RiderIcon = analysis.riderTypeData?.icon || Trophy;
 
   return (
     <Card>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="sm">
-          <IconUsers size={20} color={'var(--color-teal)'} />
+          <Users size={20} color={'var(--color-teal)'} />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
             Athlete Benchmarking
           </Text>

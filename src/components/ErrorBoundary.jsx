@@ -1,7 +1,7 @@
 import React from 'react';
 import { Container, Stack, Title, Text, Button, Card, Group, Code } from '@mantine/core';
-import { IconAlertTriangle, IconRefresh, IconHome } from '@tabler/icons-react';
 import { tokens } from '../theme';
+import { ArrowsClockwise, House, Warning } from '@phosphor-icons/react';
 
 /**
  * ErrorBoundary - Catches JavaScript errors in child component tree
@@ -70,7 +70,7 @@ class ErrorBoundary extends React.Component {
               }}
             >
               <Stack align="center" gap="lg">
-                <IconAlertTriangle
+                <Warning
                   size={64}
                   style={{ color: 'var(--tribos-warning)' }}
                 />
@@ -127,14 +127,14 @@ class ErrorBoundary extends React.Component {
                   <Button
                     variant="light"
                     color="gray"
-                    leftSection={<IconHome size={18} />}
+                    leftSection={<House size={18} />}
                     onClick={this.handleGoHome}
                   >
                     Go Home
                   </Button>
                   <Button
                     color="teal"
-                    leftSection={<IconRefresh size={18} />}
+                    leftSection={<ArrowsClockwise size={18} />}
                     onClick={this.handleRefresh}
                   >
                     Refresh Page

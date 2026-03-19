@@ -20,19 +20,8 @@ import {
   SimpleGrid,
   Tooltip,
 } from '@mantine/core';
-import {
-  IconTarget,
-  IconPlus,
-  IconX,
-  IconChevronDown,
-  IconChevronUp,
-  IconCalendar,
-  IconTrophy,
-  IconBike,
-  IconMountain,
-  IconClock,
-} from '@tabler/icons-react';
 import type { PlannerGoal } from '../../types/planner';
+import { Bicycle, Calendar, CaretDown, CaretUp, Clock, Mountains, Plus, Target, Trophy, X } from '@phosphor-icons/react';
 
 // ============================================================
 // GOAL TEMPLATES
@@ -52,7 +41,7 @@ const GOAL_TEMPLATES: GoalTemplate[] = [
     id: 'gran-fondo',
     name: 'Gran Fondo',
     description: 'Prepare for a long-distance cycling event (100+ miles)',
-    icon: <IconMountain size={20} />,
+    icon: <Mountains size={20} />,
     color: 'blue',
     suggestedDuration: 12,
   },
@@ -60,7 +49,7 @@ const GOAL_TEMPLATES: GoalTemplate[] = [
     id: 'century',
     name: 'Century Ride',
     description: 'Build endurance for your first 100-mile ride',
-    icon: <IconBike size={20} />,
+    icon: <Bicycle size={20} />,
     color: 'green',
     suggestedDuration: 10,
   },
@@ -68,7 +57,7 @@ const GOAL_TEMPLATES: GoalTemplate[] = [
     id: 'crit-racing',
     name: 'Criterium Racing',
     description: 'Sharpen speed and handling for criterium races',
-    icon: <IconTrophy size={20} />,
+    icon: <Trophy size={20} />,
     color: 'red',
     suggestedDuration: 8,
   },
@@ -76,7 +65,7 @@ const GOAL_TEMPLATES: GoalTemplate[] = [
     id: 'road-race',
     name: 'Road Race',
     description: 'Prepare for competitive road racing',
-    icon: <IconTrophy size={20} />,
+    icon: <Trophy size={20} />,
     color: 'orange',
     suggestedDuration: 10,
   },
@@ -84,7 +73,7 @@ const GOAL_TEMPLATES: GoalTemplate[] = [
     id: 'time-trial',
     name: 'Time Trial',
     description: 'Maximize power output for time trials',
-    icon: <IconClock size={20} />,
+    icon: <Clock size={20} />,
     color: 'violet',
     suggestedDuration: 8,
   },
@@ -92,7 +81,7 @@ const GOAL_TEMPLATES: GoalTemplate[] = [
     id: 'base-building',
     name: 'Base Building',
     description: 'Build aerobic foundation for the season',
-    icon: <IconBike size={20} />,
+    icon: <Bicycle size={20} />,
     color: 'cyan',
     suggestedDuration: 8,
   },
@@ -217,7 +206,7 @@ export function GoalInput({
         style={{ cursor: 'pointer' }}
       >
         <Group gap="xs">
-          <IconTarget size={18} color="var(--mantine-color-terracotta-5)" />
+          <Target size={18} color="var(--mantine-color-terracotta-5)" />
           <Text size="sm" fw={600}>
             Training Goals
           </Text>
@@ -228,7 +217,7 @@ export function GoalInput({
           )}
         </Group>
         <ActionIcon variant="subtle" size="sm">
-          {isExpanded ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+          {isExpanded ? <CaretUp size={16} /> : <CaretDown size={16} />}
         </ActionIcon>
       </Group>
 
@@ -250,7 +239,7 @@ export function GoalInput({
                     onRemoveGoal(goal.id);
                   }}
                 >
-                  <IconX size={12} />
+                  <X size={12} />
                 </ActionIcon>
               }
             >
@@ -287,7 +276,7 @@ export function GoalInput({
                     <Group gap="xs">
                       {goal.targetDate && (
                         <Text size="xs" c="dimmed">
-                          <IconCalendar size={12} style={{ marginRight: 4 }} />
+                          <Calendar size={12} style={{ marginRight: 4 }} />
                           {new Date(goal.targetDate).toLocaleDateString()}
                         </Text>
                       )}
@@ -297,7 +286,7 @@ export function GoalInput({
                         color="red"
                         onClick={() => onRemoveGoal(goal.id)}
                       >
-                        <IconX size={14} />
+                        <X size={14} />
                       </ActionIcon>
                     </Group>
                   </Group>
@@ -363,7 +352,7 @@ export function GoalInput({
               <Button
                 variant="subtle"
                 size="xs"
-                leftSection={<IconPlus size={14} />}
+                leftSection={<Plus size={14} />}
                 onClick={() => setShowFreeform(true)}
                 mt="sm"
                 fullWidth
@@ -404,7 +393,7 @@ export function GoalInput({
                     value={templateDate}
                     onChange={(e) => setTemplateDate(e.target.value)}
                     size="sm"
-                    leftSection={<IconCalendar size={14} />}
+                    leftSection={<Calendar size={14} />}
                   />
                 </Box>
 
@@ -459,7 +448,7 @@ export function GoalInput({
                   value={freeformDate}
                   onChange={(e) => setFreeformDate(e.target.value)}
                   size="sm"
-                  leftSection={<IconCalendar size={14} />}
+                  leftSection={<Calendar size={14} />}
                 />
                 <Select
                   data={[

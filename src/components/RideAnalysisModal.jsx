@@ -15,21 +15,6 @@ import {
   Tooltip,
 } from '@mantine/core';
 import {
-  IconRoute,
-  IconMountain,
-  IconClock,
-  IconBolt,
-  IconHeart,
-  IconFlame,
-  IconMapOff,
-  IconRefresh,
-  IconBrandStrava,
-  IconDeviceWatch,
-  IconGauge,
-  IconArrowRight,
-  IconActivity,
-} from '@tabler/icons-react';
-import {
   estimateNormalizedPower,
   calculateIF,
   calculateVI,
@@ -45,6 +30,7 @@ import RideStreamsChart from './RideStreamsChart';
 import RideZonesChart from './RideZonesChart';
 import RidePacingChart from './RidePacingChart';
 import { trackFeature, EventType } from '../utils/activityTracking';
+import { ArrowRight, ArrowsClockwise, Clock, Fire, Gauge, Heart, Heartbeat, Lightning, MapTrifold, Mountains, Path, Watch } from '@phosphor-icons/react';
 
 // FIT protocol uses 0xFFFF (65535) for "no data" - must filter before display
 const MAX_VALID_POWER_WATTS = 2500;
@@ -298,9 +284,9 @@ const RideAnalysisModal = ({
       return { icon: StravaLogo, color: '#FC4C02', name: 'Strava' };
     }
     if (provider === 'garmin') {
-      return { icon: IconDeviceWatch, color: '#007dcd', name: 'Garmin' };
+      return { icon: Watch, color: '#007dcd', name: 'Garmin' };
     }
-    return { icon: IconActivity, color: 'gray', name: provider || 'Manual' };
+    return { icon: Heartbeat, color: 'gray', name: provider || 'Manual' };
   };
 
   const providerInfo = getProviderInfo();
@@ -319,7 +305,7 @@ const RideAnalysisModal = ({
       title={
         <Group gap="sm">
           <ThemeIcon size="lg" color="teal" variant="light">
-            <IconRoute size={18} />
+            <Path size={18} />
           </ThemeIcon>
           <Box>
             <Text fw={600} size="lg" lineClamp={1}>
@@ -350,7 +336,7 @@ const RideAnalysisModal = ({
               ta="center"
               style={{ backgroundColor: 'var(--color-card)' }}
             >
-              <IconMapOff size={48} style={{ opacity: 0.3, marginBottom: 8 }} />
+              <MapTrifold size={48} style={{ opacity: 0.3, marginBottom: 8 }} />
               <Text c="dimmed" size="sm">
                 No GPS data available for this ride
               </Text>
@@ -360,7 +346,7 @@ const RideAnalysisModal = ({
                   color="blue"
                   size="xs"
                   mt="sm"
-                  leftSection={<IconRefresh size={14} />}
+                  leftSection={<ArrowsClockwise size={14} />}
                   onClick={() => onBackfillGps(ride)}
                   loading={isBackfilling}
                 >
@@ -375,7 +361,7 @@ const RideAnalysisModal = ({
         <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
           <Paper p="md" withBorder ta="center">
             <ThemeIcon size="lg" variant="light" color="blue" mb="xs">
-              <IconRoute size={18} />
+              <Path size={18} />
             </ThemeIcon>
             <Text size="xl" fw={700}>
               {formatDistance ? formatDistance(metrics?.distance) : `${metrics?.distance?.toFixed(1)} km`}
@@ -385,7 +371,7 @@ const RideAnalysisModal = ({
 
           <Paper p="md" withBorder ta="center">
             <ThemeIcon size="lg" variant="light" color="orange" mb="xs">
-              <IconMountain size={18} />
+              <Mountains size={18} />
             </ThemeIcon>
             <Text size="xl" fw={700}>
               {formatElevation ? formatElevation(metrics?.elevation) : `${Math.round(metrics?.elevation || 0)}m`}
@@ -395,7 +381,7 @@ const RideAnalysisModal = ({
 
           <Paper p="md" withBorder ta="center">
             <ThemeIcon size="lg" variant="light" color="cyan" mb="xs">
-              <IconClock size={18} />
+              <Clock size={18} />
             </ThemeIcon>
             <Text size="xl" fw={700}>
               {formatDuration(metrics?.duration)}
@@ -405,7 +391,7 @@ const RideAnalysisModal = ({
 
           <Paper p="md" withBorder ta="center">
             <ThemeIcon size="lg" variant="light" color="teal" mb="xs">
-              <IconFlame size={18} />
+              <Fire size={18} />
             </ThemeIcon>
             <Text size="xl" fw={700}>
               {metrics?.powerTSS || metrics?.estimatedTSS || '-'}
@@ -424,7 +410,7 @@ const RideAnalysisModal = ({
                 <Group gap="xs">
                   <Text size="sm">Power Analysis</Text>
                   {metrics.deviceWatts && (
-                    <Badge size="xs" color="teal" variant="light" leftSection={<IconGauge size={10} />}>
+                    <Badge size="xs" color="teal" variant="light" leftSection={<Gauge size={10} />}>
                       Power Meter
                     </Badge>
                   )}
@@ -446,7 +432,7 @@ const RideAnalysisModal = ({
                       )}
                     </Group>
                   </Box>
-                  <IconBolt size={20} style={{ color: 'var(--color-teal)' }} />
+                  <Lightning size={20} style={{ color: 'var(--color-teal)' }} />
                 </Group>
               </Paper>
 
@@ -579,7 +565,7 @@ const RideAnalysisModal = ({
                     <Text size="xs" c="dimmed">Avg HR</Text>
                     <Text fw={600}>{Math.round(metrics.avgHR)} bpm</Text>
                   </Box>
-                  <IconHeart size={20} style={{ color: '#ff6b6b' }} />
+                  <Heart size={20} style={{ color: '#ff6b6b' }} />
                 </Group>
               </Paper>
 
@@ -653,7 +639,7 @@ const RideAnalysisModal = ({
               <Button
                 color="teal"
                 size="compact-sm"
-                rightSection={<IconArrowRight size={14} />}
+                rightSection={<ArrowRight size={14} />}
                 onClick={() => {
                   trackFeature(EventType.ROUTE_CREATE_FROM_ACTIVITY_NUDGE, 'activity_nudge_click', { activityId: ride.id });
                   onClose();
@@ -679,7 +665,7 @@ const RideAnalysisModal = ({
                   providerInfo.name === 'Strava' ? (
                     <StravaLogo size={12} />
                   ) : (
-                    <IconDeviceWatch size={12} />
+                    <Watch size={12} />
                   )
                 }
               >

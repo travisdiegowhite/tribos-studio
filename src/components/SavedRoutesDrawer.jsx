@@ -16,23 +16,13 @@ import {
   Skeleton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import {
-  IconSearch,
-  IconX,
-  IconDotsVertical,
-  IconTrash,
-  IconEdit,
-  IconRoute,
-  IconDeviceWatch,
-  IconCloudUpload,
-  IconFolderOpen,
-} from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { listRoutes, deleteRoute, getRoute } from '../utils/routesService';
 import { formatDistance, formatElevation } from '../utils/units';
 import { supabase } from '../lib/supabase';
 import { exportAndDownloadRoute } from '../utils/routeExport';
 import { garminService } from '../utils/garminService';
+import { CloudArrowUp, DotsThreeVertical, FolderOpen, MagnifyingGlass, Path, PencilSimple, Trash, Watch, X } from '@phosphor-icons/react';
 
 function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
   const { user } = useAuth();
@@ -289,7 +279,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
       onClose={onClose}
       title={
         <Group gap="xs">
-          <IconFolderOpen size={20} style={{ color: 'var(--color-teal)' }} />
+          <FolderOpen size={20} style={{ color: 'var(--color-teal)' }} />
           <Text fw={600}>My Routes</Text>
           {!loading && (
             <Badge size="sm" variant="light" color="gray">
@@ -316,10 +306,10 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
             placeholder="Search routes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            leftSection={<IconSearch size={14} />}
+            leftSection={<MagnifyingGlass size={14} />}
             rightSection={searchQuery && (
               <ActionIcon variant="subtle" size="xs" onClick={() => setSearchQuery('')}>
-                <IconX size={12} />
+                <X size={12} />
               </ActionIcon>
             )}
             size="sm"
@@ -448,12 +438,12 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
                           size="sm"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <IconDotsVertical size={14} />
+                          <DotsThreeVertical size={14} />
                         </ActionIcon>
                       </Menu.Target>
                       <Menu.Dropdown>
                         <Menu.Item
-                          leftSection={<IconEdit size={14} />}
+                          leftSection={<PencilSimple size={14} />}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRouteClick(route.id);
@@ -464,7 +454,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
                         <Menu.Divider />
                         {garminConnected && (
                           <Menu.Item
-                            leftSection={sendingToGarmin === route.id ? <Loader size={14} /> : <IconCloudUpload size={14} />}
+                            leftSection={sendingToGarmin === route.id ? <Loader size={14} /> : <CloudArrowUp size={14} />}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleSendToGarmin(route.id);
@@ -477,7 +467,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
                         )}
                         <Menu.Label>Download</Menu.Label>
                         <Menu.Item
-                          leftSection={<IconDeviceWatch size={14} />}
+                          leftSection={<Watch size={14} />}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleExportRoute(route.id, 'tcx');
@@ -486,7 +476,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
                           TCX Course
                         </Menu.Item>
                         <Menu.Item
-                          leftSection={<IconRoute size={14} />}
+                          leftSection={<Path size={14} />}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleExportRoute(route.id, 'gpx');
@@ -497,7 +487,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
                         <Menu.Divider />
                         <Menu.Item
                           color="red"
-                          leftSection={deletingId === route.id ? <Loader size={14} /> : <IconTrash size={14} />}
+                          leftSection={deletingId === route.id ? <Loader size={14} /> : <Trash size={14} />}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDelete(route.id, route.name);

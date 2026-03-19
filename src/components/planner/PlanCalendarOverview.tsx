@@ -7,9 +7,9 @@
 import { useMemo, useState } from 'react';
 import { Box, Group, Text, Paper, ActionIcon, Tooltip } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconChevronLeft, IconChevronRight, IconTrophy, IconCheck, IconX } from '@tabler/icons-react';
 import type { PlannerWorkout } from '../../types/planner';
 import { calculatePhase, formatLocalDate, parseLocalDate, addDays } from './PeriodizationView';
+import { CaretLeft, CaretRight, Check, Trophy, X } from '@phosphor-icons/react';
 
 // Workout category colors — matches WorkoutCard.tsx
 const CATEGORY_COLORS: Record<string, string> = {
@@ -265,13 +265,13 @@ export function PlanCalendarOverview({
       {/* Month Navigation */}
       <Group justify="space-between" mb="md">
         <ActionIcon variant="subtle" size="lg" onClick={goToPrevMonth}>
-          <IconChevronLeft size={20} />
+          <CaretLeft size={20} />
         </ActionIcon>
         <Text size="lg" fw={700} tt="uppercase" style={{ letterSpacing: 1 }}>
           {monthLabel}
         </Text>
         <ActionIcon variant="subtle" size="lg" onClick={goToNextMonth}>
-          <IconChevronRight size={20} />
+          <CaretRight size={20} />
         </ActionIcon>
       </Group>
 
@@ -366,7 +366,7 @@ export function PlanCalendarOverview({
               alignItems: 'center',
               gap: 2,
             }}>
-              <IconCheck size={8} color="white" />
+              <Check size={8} color="white" />
               <Text size={10} fw={600} c="white">Done</Text>
             </Box>
             <Text size="xs" c="dimmed">Completed</Text>
@@ -381,13 +381,13 @@ export function PlanCalendarOverview({
               alignItems: 'center',
               gap: 2,
             }}>
-              <IconX size={8} color="#ff6b6b" />
+              <X size={8} color="#ff6b6b" />
               <Text size={10} fw={600} c="red.4">Miss</Text>
             </Box>
             <Text size="xs" c="dimmed">Missed</Text>
           </Group>
           <Group gap={4}>
-            <IconTrophy size={14} color="var(--mantine-color-yellow-5)" />
+            <Trophy size={14} color="var(--mantine-color-yellow-5)" />
             <Text size="xs" c="dimmed">Race Day</Text>
           </Group>
         </Group>
@@ -549,7 +549,7 @@ function DayCell({
         {/* Race goal */}
         {day.raceGoal && (
           <Group gap={3} wrap="nowrap" style={{ overflow: 'hidden' }}>
-            <IconTrophy size={12} color="var(--mantine-color-yellow-5)" style={{ flexShrink: 0 }} />
+            <Trophy size={12} color="var(--mantine-color-yellow-5)" style={{ flexShrink: 0 }} />
             <Text size={10} c="yellow" fw={600} lineClamp={1} lh={1}>
               {day.raceGoal.name}
             </Text>
@@ -574,7 +574,7 @@ function DayCell({
                   gap: 3,
                 }}
               >
-                <IconCheck size={9} color="white" style={{ flexShrink: 0 }} />
+                <Check size={9} color="white" style={{ flexShrink: 0 }} />
                 <Text size={10} fw={600} c="white" lineClamp={1} lh={1.2}>
                   {isMobile ? categoryLabel.slice(0, 3) : categoryLabel}
                 </Text>
@@ -594,7 +594,7 @@ function DayCell({
                   gap: 3,
                 }}
               >
-                <IconX size={9} color="#ff6b6b" style={{ flexShrink: 0 }} />
+                <X size={9} color="#ff6b6b" style={{ flexShrink: 0 }} />
                 <Text size={10} fw={600} c="red.4" lineClamp={1} lh={1.2}>
                   {isMobile ? categoryLabel.slice(0, 3) : categoryLabel}
                 </Text>
