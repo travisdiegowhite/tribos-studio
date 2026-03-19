@@ -118,7 +118,7 @@ function Auth() {
         if (error) throw error;
         // Mark beta signup as activated on successful login
         await markBetaSignupActivated(email);
-        navigate('/dashboard');
+        navigate('/today');
       }
     } catch (err) {
       console.error('Auth error:', err);

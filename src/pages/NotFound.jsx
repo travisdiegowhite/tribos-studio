@@ -55,7 +55,7 @@ function NotFound() {
             </Button>
             <Button
               component={Link}
-              to="/dashboard"
+              to="/today"
               size="lg"
               variant="outline"
               color="gray"

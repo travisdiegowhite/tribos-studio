@@ -17,6 +17,7 @@ import {
   Paper,
   ThemeIcon,
   Alert,
+  Button,
 } from '@mantine/core';
 import {
   IconTrendingUp,
@@ -26,6 +27,7 @@ import {
   IconFlame,
   IconTrophy,
   IconAlertCircle,
+  IconRefresh,
 } from '@tabler/icons-react';
 import {
   LineChart,
@@ -44,6 +46,7 @@ import {
 } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
+import { computeWeeklySnapshots } from '../utils/computeFitnessSnapshots';
 
 /**
  * Year-over-Year CTL Comparison Chart
@@ -532,47 +535,113 @@ function QuickStats({ snapshots, activities }) {
 /**
  * Main Historical Insights Component
  */
-function HistoricalInsights({ userId, activities }) {
-  const [snapshots, setSnapshots] = useState([]);
-  const [loading, setLoading] = useState(true);
+function HistoricalInsights({ userId, activities, ftp }) {
+  const [serverSnapshots, setServerSnapshots] = useState([]);
+  const [serverLoading, setServerLoading] = useState(true);
+  const [rebuilding, setRebuilding] = useState(false);
   const [error, setError] = useState(null);
   const [selectedYears, setSelectedYears] = useState([]);
 
-  // Fetch fitness snapshots
-  useEffect(() => {
-    async function loadSnapshots() {
-      if (!userId) return;
+  // Client-side computation from activity data (synchronous, ~1ms for 2+ years)
+  const clientSnapshots = useMemo(() => {
+    if (!activities || activities.length === 0) return [];
+    return computeWeeklySnapshots(activities, ftp);
+  }, [activities, ftp]);
 
-      try {
-        setLoading(true);
-        setError(null);
+  // Merge: client data takes priority, server fills gaps (advanced fields)
+  const snapshots = useMemo(() => {
+    if (clientSnapshots.length === 0 && serverSnapshots.length === 0) return [];
+    if (clientSnapshots.length === 0) return serverSnapshots;
+    if (serverSnapshots.length === 0) return clientSnapshots;
 
-        const { data, error: fetchError } = await supabase
-          .from('fitness_snapshots')
-          .select('*')
-          .eq('user_id', userId)
-          .order('snapshot_week', { ascending: false });
-
-        if (fetchError) throw fetchError;
-
-        setSnapshots(data || []);
-
-        // Set default selected years (last 3 years with data)
-        const years = [...new Set(data?.map(s => new Date(s.snapshot_week).getFullYear()) || [])];
-        setSelectedYears(years.sort((a, b) => b - a).slice(0, 3));
-
-      } catch (err) {
-        console.error('Error loading fitness snapshots:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
+    const byWeek = new Map();
+    // Server first (lower priority for core metrics)
+    serverSnapshots.forEach(s => byWeek.set(s.snapshot_week, s));
+    // Client overwrites core metrics (higher priority, guaranteed complete)
+    clientSnapshots.forEach(s => {
+      const existing = byWeek.get(s.snapshot_week);
+      if (existing) {
+        // Merge: keep server's advanced fields, overwrite core metrics
+        byWeek.set(s.snapshot_week, { ...existing, ...s });
+      } else {
+        byWeek.set(s.snapshot_week, s);
       }
-    }
+    });
 
-    loadSnapshots();
+    return Array.from(byWeek.values())
+      .sort((a, b) => new Date(b.snapshot_week) - new Date(a.snapshot_week));
+  }, [clientSnapshots, serverSnapshots]);
+
+  // Set selected years when snapshots change
+  useEffect(() => {
+    if (snapshots.length > 0) {
+      const years = [...new Set(snapshots.map(s => new Date(s.snapshot_week).getFullYear()))];
+      setSelectedYears(prev => prev.length > 0 ? prev : years.sort((a, b) => b - a).slice(0, 3));
+    }
+  }, [snapshots]);
+
+  // Fetch server snapshots (supplementary — charts work without these)
+  async function loadServerSnapshots() {
+    if (!userId) return;
+
+    try {
+      setServerLoading(true);
+
+      const { data, error: fetchError } = await supabase
+        .from('fitness_snapshots')
+        .select('*')
+        .eq('user_id', userId)
+        .order('snapshot_week', { ascending: false });
+
+      if (fetchError) throw fetchError;
+      setServerSnapshots(data || []);
+
+    } catch (err) {
+      console.error('Error loading server snapshots:', err);
+      // Non-fatal: client snapshots still work
+    } finally {
+      setServerLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadServerSnapshots();
   }, [userId]);
 
-  if (loading) {
+  // Rebuild server snapshots from activity data
+  async function handleRebuildSnapshots() {
+    if (rebuilding) return;
+    setRebuilding(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const resp = await fetch('/api/fitness-snapshots', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: 'backfill', weeksBack: 104 }),
+      });
+
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.error || 'Backfill failed');
+
+      console.log('Snapshot rebuild complete:', result);
+      await loadServerSnapshots();
+    } catch (err) {
+      console.error('Snapshot rebuild failed:', err);
+      setError(err.message);
+    } finally {
+      setRebuilding(false);
+    }
+  }
+
+  // Only show loading if BOTH client and server have nothing yet
+  const isLoading = serverLoading && clientSnapshots.length === 0;
+
+  if (isLoading) {
     return (
       <Card withBorder p="xl">
         <Stack align="center" gap="md">
@@ -583,7 +652,7 @@ function HistoricalInsights({ userId, activities }) {
     );
   }
 
-  if (error) {
+  if (error && snapshots.length === 0) {
     return (
       <Alert color="red" icon={<IconAlertCircle />} title="Error loading data">
         {error}
@@ -600,11 +669,8 @@ function HistoricalInsights({ userId, activities }) {
           </ThemeIcon>
           <Title order={3}>No Historical Data Yet</Title>
           <Text c="dimmed" ta="center" maw={400}>
-            Historical fitness snapshots will be generated when you ask the AI coach about
-            your training history, or they'll build up automatically over time as you train.
-          </Text>
-          <Text size="sm" c="dimmed">
-            Try asking the AI coach: "How does my fitness compare to last year?"
+            Sync activities from Strava, Garmin, or COROS to see your fitness history.
+            Data will appear here as soon as activities are imported.
           </Text>
         </Stack>
       </Card>
@@ -613,6 +679,27 @@ function HistoricalInsights({ userId, activities }) {
 
   return (
     <Stack gap="md">
+      {/* Rebuild button */}
+      <Group justify="flex-end">
+        <Button
+          variant="subtle"
+          color="gray"
+          size="compact-sm"
+          leftSection={<IconRefresh size={14} />}
+          loading={rebuilding}
+          onClick={handleRebuildSnapshots}
+          style={{
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase',
+          }}
+        >
+          {rebuilding ? 'REBUILDING...' : 'REBUILD SNAPSHOTS'}
+        </Button>
+      </Group>
+
       {/* Quick Stats Summary */}
       <QuickStats snapshots={snapshots} activities={activities} />
 
