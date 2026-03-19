@@ -11,7 +11,7 @@ function FitnessBar({ label, value, maxValue, color }) {
         <Text
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 9,
+            fontSize: 11,
             fontWeight: 700,
             letterSpacing: '2px',
             textTransform: 'uppercase',
@@ -23,7 +23,7 @@ function FitnessBar({ label, value, maxValue, color }) {
         <Text
           style={{
             fontFamily: "'DM Mono', monospace",
-            fontSize: 14,
+            fontSize: 16,
             fontWeight: 700,
             color,
           }}
@@ -83,7 +83,7 @@ function FitnessBars({ ctl, atl, tsb, loading }) {
         <Text
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 11,
+            fontSize: 13,
             fontWeight: 700,
             letterSpacing: '2px',
             textTransform: 'uppercase',
@@ -101,7 +101,7 @@ function FitnessBars({ ctl, atl, tsb, loading }) {
           rightSection={<IconChevronRight size={12} />}
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 10,
+            fontSize: 11,
             fontWeight: 700,
             letterSpacing: '1.5px',
             textTransform: 'uppercase',

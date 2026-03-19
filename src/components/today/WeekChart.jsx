@@ -32,7 +32,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
         <Text
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 11,
+            fontSize: 13,
             fontWeight: 700,
             letterSpacing: '2px',
             textTransform: 'uppercase',
@@ -44,7 +44,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
         <Text
           style={{
             fontFamily: "'DM Mono', monospace",
-            fontSize: 11,
+            fontSize: 13,
             fontWeight: 500,
             color: 'var(--color-teal)',
           }}
@@ -66,7 +66,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
           <Text
             style={{
               fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 9,
+              fontSize: 11,
               fontWeight: 700,
               letterSpacing: '2px',
               textTransform: 'uppercase',
@@ -79,7 +79,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
           <Text
             style={{
               fontFamily: "'DM Mono', monospace",
-              fontSize: 16,
+              fontSize: 20,
               fontWeight: 700,
               color: 'var(--color-text-primary)',
             }}
@@ -91,7 +91,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
           <Text
             style={{
               fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 9,
+              fontSize: 11,
               fontWeight: 700,
               letterSpacing: '2px',
               textTransform: 'uppercase',
@@ -104,7 +104,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
           <Text
             style={{
               fontFamily: "'DM Mono', monospace",
-              fontSize: 16,
+              fontSize: 20,
               fontWeight: 700,
               color: 'var(--color-text-primary)',
             }}

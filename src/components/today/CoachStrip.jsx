@@ -54,7 +54,7 @@ function CoachStrip({ tsb, todayWorkout, loading }) {
       <Text
         style={{
           fontFamily: "'Barlow', sans-serif",
-          fontSize: 13,
+          fontSize: 15,
           lineHeight: 1.55,
           color: 'var(--color-text-secondary)',
         }}

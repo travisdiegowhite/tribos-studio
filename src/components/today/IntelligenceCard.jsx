@@ -33,7 +33,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
         <Text
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 9,
+            fontSize: 11,
             fontWeight: 700,
             letterSpacing: '2px',
             textTransform: 'uppercase',
@@ -46,7 +46,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
         <Text
           fw={600}
           style={{
-            fontSize: 18,
+            fontSize: 20,
             color: 'var(--color-text-primary)',
             marginBottom: 4,
           }}
@@ -82,7 +82,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
         <Text
           style={{
             fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 9,
+            fontSize: 11,
             fontWeight: 700,
             letterSpacing: '2px',
             textTransform: 'uppercase',
@@ -95,7 +95,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
         <Text
           fw={600}
           style={{
-            fontSize: 18,
+            fontSize: 20,
             color: 'var(--color-text-primary)',
             marginBottom: 4,
           }}
@@ -124,7 +124,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
           <Text
             style={{
               fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 9,
+              fontSize: 11,
               fontWeight: 700,
               letterSpacing: '2px',
               textTransform: 'uppercase',
@@ -137,7 +137,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
           <Text
             fw={700}
             style={{
-              fontSize: 18,
+              fontSize: 20,
               color: 'var(--color-text-primary)',
               marginBottom: 6,
             }}
@@ -149,7 +149,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
               <Text
                 style={{
                   fontFamily: "'DM Mono', monospace",
-                  fontSize: 14,
+                  fontSize: 16,
                   color: 'var(--color-text-secondary)',
                 }}
               >
@@ -160,7 +160,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
               <Text
                 style={{
                   fontFamily: "'DM Mono', monospace",
-                  fontSize: 14,
+                  fontSize: 16,
                   color: 'var(--color-text-muted)',
                 }}
               >
@@ -177,7 +177,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
               <Text
                 style={{
                   fontFamily: "'Barlow Condensed', sans-serif",
-                  fontSize: 9,
+                  fontSize: 11,
                   fontWeight: 700,
                   letterSpacing: '2px',
                   textTransform: 'uppercase',
@@ -192,7 +192,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
                 <Text
                   fw={600}
                   style={{
-                    fontSize: 14,
+                    fontSize: 16,
                     color: 'var(--color-text-primary)',
                   }}
                   lineClamp={1}
@@ -213,7 +213,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
                   <Text
                     style={{
                       fontFamily: "'DM Mono', monospace",
-                      fontSize: 12,
+                      fontSize: 14,
                       color: 'var(--color-text-muted)',
                     }}
                   >
@@ -227,7 +227,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
               <Text
                 style={{
                   fontFamily: "'Barlow Condensed', sans-serif",
-                  fontSize: 9,
+                  fontSize: 11,
                   fontWeight: 700,
                   letterSpacing: '2px',
                   textTransform: 'uppercase',

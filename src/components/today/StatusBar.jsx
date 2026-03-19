@@ -60,7 +60,7 @@ function StatusBar({ ctl, atl, tsb, weekRides, weekPlanned, loading }) {
           <Text
             style={{
               fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 9,
+              fontSize: 11,
               fontWeight: 700,
               letterSpacing: '2px',
               textTransform: 'uppercase',
@@ -73,7 +73,7 @@ function StatusBar({ ctl, atl, tsb, weekRides, weekPlanned, loading }) {
           <Text
             style={{
               fontFamily: "'DM Mono', monospace",
-              fontSize: 20,
+              fontSize: 24,
               fontWeight: 700,
               color: cell.color,
               lineHeight: 1.2,
