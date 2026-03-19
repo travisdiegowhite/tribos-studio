@@ -241,14 +241,6 @@ async function processActivityEvent(event, integrationCache) {
     }
   }
 
-  // Handle orphaned PING events: activity_id is null but file_url exists.
-  // These are ACTIVITY_FILE_DATA webhooks that couldn't be correlated in the webhook handler.
-  // Try to match them to a recently imported activity for the same user.
-  if (!event.activity_id && event.file_url && event.event_type === 'ACTIVITY_FILE_DATA') {
-    await handleOrphanedPing(event, integration);
-    return;
-  }
-
   // Process new activity
   await downloadAndProcessActivity(event, integration);
 
@@ -658,35 +650,6 @@ async function processFitFile(activityId, fitFileUrl, accessToken) {
   } catch (fitError) {
     console.error('⚠️ FIT file processing failed (activity still saved):', fitError.message);
   }
-}
-
-/**
- * Handle orphaned PING events — ACTIVITY_FILE_DATA with no activity_id.
- * Find the most recent Garmin activity for this user that's missing FIT data,
- * then download and merge the FIT file.
- */
-async function handleOrphanedPing(event, integration) {
-  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-
-  const { data: recentActivity } = await supabase
-    .from('activities')
-    .select('id, map_summary_polyline, average_watts, normalized_power, power_curve_summary, activity_streams, ride_analytics')
-    .eq('user_id', integration.user_id)
-    .eq('provider', 'garmin')
-    .gte('created_at', twoHoursAgo)
-    .or('map_summary_polyline.is.null,activity_streams.is.null')
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  const activity = recentActivity?.[0];
-  if (!activity) {
-    await markEventProcessed(event.id, 'Orphaned PING: no recent activity missing FIT data found');
-    return;
-  }
-
-  console.log(`[FIT:ORPHAN] Matched orphaned PING to activity ${activity.id}, downloading FIT file`);
-  await processFitFile(activity.id, event.file_url, integration.access_token);
-  await markEventProcessed(event.id, `Orphaned PING: FIT data merged into activity ${activity.id}`, activity.id);
 }
 
 async function markEventProcessed(eventId, error = null, activityId = null) {
