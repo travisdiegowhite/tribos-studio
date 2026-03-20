@@ -1,4 +1,5 @@
 import { Box, Text, Skeleton } from '@mantine/core';
+import { translateTSB } from '../../lib/fitness/translate';
 
 function getCoachMessage(tsb, todayWorkout) {
   const workoutType = todayWorkout?.title || todayWorkout?.workout_type || 'session';
@@ -11,16 +12,18 @@ function getCoachMessage(tsb, todayWorkout) {
     return 'Rest day — recovery is training too. Your body adapts during rest, not during the ride.';
   }
 
-  if (tsb > 25) {
+  // Use canonical thresholds from translate.ts
+  const { label } = translateTSB(tsb);
+  if (label === 'Tapered — ready to go') {
     return `You're fresh and ready. Today's ${workoutType} will be quality work. Make it count.`;
   }
-  if (tsb > 5) {
+  if (label === 'Primed to perform') {
     return `Good form. You're in a strong position for today's ${workoutType}. Trust the process.`;
   }
-  if (tsb > -10) {
+  if (label === 'Training sweet spot') {
     return `Balanced training load. Stay consistent with today's ${workoutType} and you'll keep building.`;
   }
-  if (tsb > -30) {
+  if (label === 'Digging in') {
     return `Building fatigue — this is normal during a training block. Today's ${workoutType} keeps the stimulus going.`;
   }
   return `High fatigue detected. Consider reducing today's intensity or swapping for an easier session.`;

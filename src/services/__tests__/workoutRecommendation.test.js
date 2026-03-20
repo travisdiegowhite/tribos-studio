@@ -242,14 +242,16 @@ describe('detectZoneGaps', () => {
 
 describe('getFormStatus', () => {
   it('returns fresh for TSB >= 15', () => expect(getFormStatus(20)).toBe('fresh'));
-  it('returns ready for TSB 5-14', () => expect(getFormStatus(10)).toBe('ready'));
-  it('returns optimal for TSB -10 to 4', () => expect(getFormStatus(0)).toBe('optimal'));
-  it('returns tired for TSB -25 to -11', () => expect(getFormStatus(-15)).toBe('tired'));
-  it('returns fatigued for TSB < -25', () => expect(getFormStatus(-30)).toBe('fatigued'));
-  it('handles boundary at 15', () => expect(getFormStatus(15)).toBe('fresh'));
-  it('handles boundary at 5', () => expect(getFormStatus(5)).toBe('ready'));
-  it('handles boundary at -10', () => expect(getFormStatus(-10)).toBe('optimal'));
-  it('handles boundary at -25', () => expect(getFormStatus(-25)).toBe('tired'));
+  // Canonical thresholds from translate.ts: 15, 2, -10, -20
+  it('returns fresh for TSB > 15', () => expect(getFormStatus(16)).toBe('fresh'));
+  it('returns ready for TSB 3-15', () => expect(getFormStatus(10)).toBe('ready'));
+  it('returns optimal for TSB -9 to 2', () => expect(getFormStatus(0)).toBe('optimal'));
+  it('returns tired for TSB -19 to -10', () => expect(getFormStatus(-15)).toBe('tired'));
+  it('returns fatigued for TSB <= -20', () => expect(getFormStatus(-25)).toBe('fatigued'));
+  it('handles boundary at 15', () => expect(getFormStatus(15)).toBe('ready'));
+  it('handles boundary at 2', () => expect(getFormStatus(2)).toBe('optimal'));
+  it('handles boundary at -10', () => expect(getFormStatus(-10)).toBe('tired'));
+  it('handles boundary at -20', () => expect(getFormStatus(-20)).toBe('fatigued'));
 });
 
 // ─── analyzeTrainingNeeds ─────────────────────────────────────────────────────
