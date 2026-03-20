@@ -1,25 +1,41 @@
 import { Link } from 'react-router-dom';
-import { Box, Group, Text, Button, Skeleton } from '@mantine/core';
+import { Box, Group, Text, Button, Skeleton, Tooltip } from '@mantine/core';
 import { CaretRight } from '@phosphor-icons/react';
+import { translateCTL, translateATL, translateTSB, colorToVar } from '../../lib/fitness/translate';
+import { METRIC_TOOLTIPS } from '../../lib/fitness/tooltips';
 
-function FitnessBar({ label, value, maxValue, color }) {
+function FitnessBar({ label, value, maxValue, color, statusLabel, statusColor, tooltip }) {
   const width = maxValue > 0 ? Math.min((Math.abs(value) / maxValue) * 100, 100) : 0;
 
-  return (
-    <Box mb={10}>
+  const bar = (
+    <Box mb={10} style={{ cursor: tooltip ? 'help' : 'default' }}>
       <Group justify="space-between" mb={4}>
-        <Text
-          style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: '2px',
-            textTransform: 'uppercase',
-            color: 'var(--color-text-muted)',
-          }}
-        >
-          {label}
-        </Text>
+        <Group gap={8} align="center">
+          <Text
+            style={{
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '2px',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            {label}
+          </Text>
+          {statusLabel && (
+            <Text
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontSize: 11,
+                fontWeight: 600,
+                color: statusColor,
+              }}
+            >
+              {statusLabel}
+            </Text>
+          )}
+        </Group>
         <Text
           style={{
             fontFamily: "'DM Mono', monospace",
@@ -49,6 +65,32 @@ function FitnessBar({ label, value, maxValue, color }) {
       </Box>
     </Box>
   );
+
+  if (tooltip) {
+    return (
+      <Tooltip
+        label={tooltip}
+        multiline
+        w={280}
+        withArrow
+        position="right"
+        styles={{
+          tooltip: {
+            fontSize: 13,
+            lineHeight: 1.5,
+            padding: '10px 14px',
+            backgroundColor: 'var(--color-card)',
+            color: 'var(--color-text-secondary)',
+            border: '1px solid var(--color-border)',
+          },
+        }}
+      >
+        {bar}
+      </Tooltip>
+    );
+  }
+
+  return bar;
 }
 
 function FitnessBars({ ctl, atl, tsb, loading }) {
@@ -111,13 +153,32 @@ function FitnessBars({ ctl, atl, tsb, loading }) {
         </Button>
       </Group>
 
-      <FitnessBar label="CTL" value={ctl} maxValue={maxValue} color="var(--color-teal)" />
-      <FitnessBar label="ATL" value={atl} maxValue={maxValue} color="var(--color-orange)" />
+      <FitnessBar
+        label="CTL"
+        value={ctl}
+        maxValue={maxValue}
+        color="var(--color-teal)"
+        statusLabel={translateCTL(ctl).label}
+        statusColor={colorToVar(translateCTL(ctl).color)}
+        tooltip={METRIC_TOOLTIPS.ctl(ctl)}
+      />
+      <FitnessBar
+        label="ATL"
+        value={atl}
+        maxValue={maxValue}
+        color="var(--color-orange)"
+        statusLabel={translateATL(atl, ctl).label}
+        statusColor={colorToVar(translateATL(atl, ctl).color)}
+        tooltip={METRIC_TOOLTIPS.atl(atl, ctl)}
+      />
       <FitnessBar
         label="FORM"
         value={tsb}
         maxValue={maxValue}
         color={tsb >= 0 ? 'var(--color-teal)' : 'var(--color-orange)'}
+        statusLabel={translateTSB(tsb).label}
+        statusColor={colorToVar(translateTSB(tsb).color)}
+        tooltip={METRIC_TOOLTIPS.tsb(tsb)}
       />
     </Box>
   );

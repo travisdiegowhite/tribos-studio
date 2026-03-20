@@ -19,6 +19,7 @@ import IntelligenceCard from '../components/today/IntelligenceCard.jsx';
 import { CoachCard } from '../components/coach';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import WeekChart from '../components/today/WeekChart.jsx';
+import FitnessSummary from '../components/today/FitnessSummary.jsx';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -324,6 +325,15 @@ function Dashboard() {
             weekPlanned={weekStats.planned}
             loading={loading}
           />
+
+          {/* AI Fitness Summary — plain-language context */}
+          {!loading && (
+            <FitnessSummary
+              ctl={trainingMetrics.ctl}
+              atl={trainingMetrics.atl}
+              tsb={trainingMetrics.tsb}
+            />
+          )}
 
           {/* Intelligence Card — workout + route match */}
           <IntelligenceCard
