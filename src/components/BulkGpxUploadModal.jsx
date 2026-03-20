@@ -28,7 +28,7 @@ import { formatDistance as formatDistanceUnit, formatElevation as formatElevatio
 import { trackUpload, EventType } from '../utils/activityTracking';
 import JSZip from 'jszip';
 import pako from 'pako';
-import { ArrowSquareOut, Bicycle, CaretRight, Check, Clock, File, FileZip, Files, FolderOpen, Info, Mountains, Path, UploadSimple, Warning, WarningCircle, X } from '@phosphor-icons/react';
+import { ArrowSquareOut, Bicycle, CaretRight, Check, Clock, File, FileZip, Files, FolderOpen, Heartbeat, Info, Mountains, Path, UploadSimple, Warning, WarningCircle, X } from '@phosphor-icons/react';
 
 function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   const { user } = useAuth();
