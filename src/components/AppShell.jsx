@@ -6,7 +6,9 @@ import {
   Text,
   UnstyledButton,
   Menu,
-  ActionIcon,
+  Badge,
+  Stack,
+  CloseButton,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useMantineColorScheme } from '@mantine/core';
@@ -18,9 +20,13 @@ import {
   Bicycle,
   Users,
   Bell,
+  Warning,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
+import { useGear } from '../hooks/useGear.ts';
+import { formatDistance } from '../utils/units';
 
 // Four-tab primary navigation: TODAY · RIDE · TRAIN · PROGRESS
 const navItems = [
@@ -37,6 +43,9 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const { user, signOut } = useAuth();
   const consentPersisted = useRef(false);
+
+  // Gear maintenance alerts for notification bell
+  const { alerts: gearAlerts = [], dismissAlert: dismissGearAlert } = useGear({ userId: user?.id, alertsOnly: true });
 
   // Persist pending consent from signup flow to user_profiles
   useEffect(() => {
@@ -183,19 +192,13 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                 </Group>
               )}
 
-              {/* Right: Bell + Avatar dropdown */}
+              {/* Right: Notification bell + Avatar dropdown */}
               <Group gap="sm">
-                <UnstyledButton
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 36,
-                    height: 36,
-                  }}
-                >
-                  <Bell size={20} color="#9A9990" />
-                </UnstyledButton>
+                <NotificationBell
+                  gearAlerts={gearAlerts}
+                  onDismissAlert={dismissGearAlert}
+                  navigate={navigate}
+                />
                 <AvatarDropdown
                   initials={userInitials}
                   colorScheme={colorScheme}
@@ -234,6 +237,107 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
         <MobileBottomNav navItems={navItems} isActive={isActive} />
       )}
     </Box>
+  );
+}
+
+// Notification bell with gear alerts
+function NotificationBell({ gearAlerts = [], onDismissAlert, navigate }) {
+  const alertCount = gearAlerts.length;
+  const hasCritical = gearAlerts.some(a => a.level === 'critical');
+
+  return (
+    <Menu shadow="md" width={320} position="bottom-end" offset={8}>
+      <Menu.Target>
+        <UnstyledButton
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 36,
+            height: 36,
+            position: 'relative',
+          }}
+        >
+          <Bell size={20} color={alertCount > 0 ? '#FFFFFF' : '#9A9990'} />
+          {alertCount > 0 && (
+            <Badge
+              size="xs"
+              variant="filled"
+              color={hasCritical ? 'red' : 'orange'}
+              style={{
+                position: 'absolute',
+                top: 2,
+                right: 2,
+                padding: '0 4px',
+                minWidth: 16,
+                height: 16,
+                fontSize: 10,
+                fontWeight: 700,
+                pointerEvents: 'none',
+              }}
+            >
+              {alertCount}
+            </Badge>
+          )}
+        </UnstyledButton>
+      </Menu.Target>
+
+      <Menu.Dropdown>
+        {alertCount === 0 ? (
+          <Menu.Item disabled>
+            <Text size="sm" c="dimmed">No alerts</Text>
+          </Menu.Item>
+        ) : (
+          <>
+            <Menu.Label>
+              <Group justify="space-between">
+                <Text size="xs" fw={700} tt="uppercase" style={{ letterSpacing: '1px' }}>
+                  Gear Alerts
+                </Text>
+                <Text
+                  size="xs"
+                  c="teal"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => navigate('/gear')}
+                >
+                  View all
+                </Text>
+              </Group>
+            </Menu.Label>
+            {gearAlerts.slice(0, 5).map((alert) => {
+              const key = `${alert.gearItemId}-${alert.componentId || 'item'}-${alert.type}`;
+              const isCrit = alert.level === 'critical';
+              return (
+                <Menu.Item
+                  key={key}
+                  leftSection={isCrit ? <WarningCircle size={16} color="var(--mantine-color-red-6)" /> : <Warning size={16} color="var(--mantine-color-orange-6)" />}
+                  rightSection={
+                    onDismissAlert && (
+                      <CloseButton
+                        size="xs"
+                        onClick={(e) => { e.stopPropagation(); onDismissAlert(alert); }}
+                      />
+                    )
+                  }
+                  onClick={() => navigate('/gear')}
+                >
+                  <Text size="sm" fw={500} truncate>{alert.gearName}</Text>
+                  <Text size="xs" c="dimmed" truncate>
+                    {alert.componentType ? `${alert.componentType} — ` : ''}
+                    {alert.type === 'replace' ? 'needs replacement' : 'maintenance due'}
+                  </Text>
+                </Menu.Item>
+              );
+            })}
+            {alertCount > 5 && (
+              <Menu.Item onClick={() => navigate('/gear')}>
+                <Text size="xs" c="teal">+{alertCount - 5} more</Text>
+              </Menu.Item>
+            )}
+          </>
+        )}
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 
