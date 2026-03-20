@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Container,
   Stack,
-  SimpleGrid,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -12,15 +11,12 @@ import WhatsNewModal, { hasSeenLatestUpdates } from '../components/WhatsNewModal
 import PageHeader from '../components/PageHeader.jsx';
 import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
-import { useGear } from '../hooks/useGear.ts';
-import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
 import GetStartedGuide from '../components/activation/GetStartedGuide.jsx';
 import ProactiveInsightCard from '../components/activation/ProactiveInsightCard.jsx';
 import StatusBar from '../components/today/StatusBar.jsx';
 import IntelligenceCard from '../components/today/IntelligenceCard.jsx';
-import CoachStrip from '../components/today/CoachStrip.jsx';
+import { CoachCard } from '../components/coach';
 import WeekChart from '../components/today/WeekChart.jsx';
-import FitnessBars from '../components/today/FitnessBars.jsx';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -34,9 +30,6 @@ function Dashboard() {
   const [todayWorkout, setTodayWorkout] = useState(null);
   const [weekStats, setWeekStats] = useState({ rides: 0, planned: 0, distance: 0, elevation: 0 });
   const [todayRouteMatch, setTodayRouteMatch] = useState(null);
-
-  // Gear alerts hook
-  const { alerts: gearAlerts, dismissAlert: dismissGearAlert } = useGear({ userId: user?.id, alertsOnly: true });
 
   // Check if onboarding is needed and load user profile
   useEffect(() => {
@@ -281,6 +274,19 @@ function Dashboard() {
     return { ctl, atl, tsb };
   }, [activities]);
 
+  // Build training context string for CoachCard
+  const trainingContext = useMemo(() => {
+    const parts = [];
+    parts.push(`CTL: ${trainingMetrics.ctl}, ATL: ${trainingMetrics.atl}, TSB: ${trainingMetrics.tsb}`);
+    if (weekStats.rides > 0) {
+      parts.push(`This week: ${weekStats.rides} rides, ${formatDist(weekStats.distance)}, ${formatElev(weekStats.elevation)}`);
+    }
+    if (todayWorkout) {
+      parts.push(`Today's planned workout: ${todayWorkout.title || todayWorkout.workout_type || 'Training'}`);
+    }
+    return parts.join('. ');
+  }, [trainingMetrics, weekStats, todayWorkout, formatDist, formatElev]);
+
   const handleCloseOnboarding = useCallback(() => setShowOnboarding(false), []);
   const handleCloseWhatsNew = useCallback(() => setShowWhatsNew(false), []);
 
@@ -329,38 +335,19 @@ function Dashboard() {
           {/* Proactive Insight */}
           <ProactiveInsightCard />
 
-          {/* Coach Strip — contextual message */}
-          <CoachStrip
-            tsb={trainingMetrics.tsb}
-            todayWorkout={todayWorkout}
-            loading={loading}
+          {/* AI Coach — conversation card */}
+          <CoachCard
+            trainingContext={trainingContext}
+            workoutRecommendation={todayWorkout ? { primary: { workout: todayWorkout, reason: todayWorkout.description || '', source: 'plan' } } : null}
           />
 
-          {/* Gear Alerts */}
-          {gearAlerts.length > 0 && (
-            <GearAlertBanner
-              alerts={gearAlerts}
-              onDismiss={dismissGearAlert}
-              compact
-              useImperial={isImperial}
-            />
-          )}
-
-          {/* Bottom section: Week + Fitness */}
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={14}>
-            <WeekChart
-              weekStats={weekStats}
-              loading={loading}
-              formatDist={formatDist}
-              formatElev={formatElev}
-            />
-            <FitnessBars
-              ctl={trainingMetrics.ctl}
-              atl={trainingMetrics.atl}
-              tsb={trainingMetrics.tsb}
-              loading={loading}
-            />
-          </SimpleGrid>
+          {/* This Week */}
+          <WeekChart
+            weekStats={weekStats}
+            loading={loading}
+            formatDist={formatDist}
+            formatElev={formatElev}
+          />
         </Stack>
       </Container>
     </AppShell>
