@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Container,
+  SimpleGrid,
   Stack,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
@@ -16,6 +17,7 @@ import ProactiveInsightCard from '../components/activation/ProactiveInsightCard.
 import StatusBar from '../components/today/StatusBar.jsx';
 import IntelligenceCard from '../components/today/IntelligenceCard.jsx';
 import { CoachCard } from '../components/coach';
+import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import WeekChart from '../components/today/WeekChart.jsx';
 
 function Dashboard() {
@@ -335,11 +337,19 @@ function Dashboard() {
           {/* Proactive Insight */}
           <ProactiveInsightCard />
 
-          {/* AI Coach — conversation card */}
-          <CoachCard
-            trainingContext={trainingContext}
-            workoutRecommendation={todayWorkout ? { primary: { workout: todayWorkout, reason: todayWorkout.description || '', source: 'plan' } } : null}
-          />
+          {/* Map + Coach — side-by-side visual anchors */}
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing={14}>
+            <RecentRidesMap
+              activities={activities}
+              loading={loading}
+              formatDist={formatDist}
+              formatElev={formatElev}
+            />
+            <CoachCard
+              trainingContext={trainingContext}
+              workoutRecommendation={todayWorkout ? { primary: { workout: todayWorkout, reason: todayWorkout.description || '', source: 'plan' } } : null}
+            />
+          </SimpleGrid>
 
           {/* This Week */}
           <WeekChart
