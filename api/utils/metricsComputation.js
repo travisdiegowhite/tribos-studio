@@ -517,12 +517,16 @@ export async function computeAndStoreTCAS(supabase, userId) {
   // Fetch last 8 weeks of fitness snapshots (need current + 6 weeks ago)
   const { data: snapshots, error: snapErr } = await supabase
     .from('fitness_snapshots')
-    .select('snapshot_week, ctl, atl, weekly_tss, weekly_hours, weekly_rides')
+    .select('snapshot_week, ctl, atl, weekly_tss, weekly_hours, weekly_ride_count')
     .eq('user_id', userId)
     .order('snapshot_week', { ascending: false })
     .limit(8);
 
-  if (snapErr || !snapshots || snapshots.length < 4) {
+  if (snapErr) {
+    console.error(`[metrics:tcas] Snapshot query failed:`, snapErr.message);
+    return false;
+  }
+  if (!snapshots || snapshots.length < 4) {
     console.log(`[metrics:tcas] Insufficient snapshots (${snapshots?.length || 0}), need 4+`);
     return false;
   }
