@@ -314,3 +314,245 @@ function normalizeZoneDistribution(hrZones) {
     Z5: (hrZones.zone5 || hrZones.Z5 || 0) / total,
   };
 }
+
+// ─── Backfill — Lazy compute on first dashboard read ─────────────────────────
+
+/**
+ * Backfill proprietary metrics for a user from existing activity data.
+ * Called from the GET /api/metrics endpoint when no stored metrics exist
+ * but the user has qualifying data. One-time cost per user — subsequent
+ * reads will find the stored rows.
+ *
+ * @param {object} supabase - Supabase admin client (service role)
+ * @param {string} userId - User ID
+ * @returns {{ twlBackfilled: number, efiBackfilled: number, tcasBackfilled: boolean }}
+ */
+export async function backfillMetricsForUser(supabase, userId) {
+  console.log(`[metrics:backfill] Starting backfill for user ${userId}`);
+  const result = { twlBackfilled: 0, efiBackfilled: 0, tcasBackfilled: false };
+
+  // Fetch last 10 activities with TSS > 0 (most recent first)
+  const { data: activities, error: actErr } = await supabase
+    .from('activities')
+    .select('id, matched_planned_workout_id')
+    .eq('user_id', userId)
+    .or('is_hidden.eq.false,is_hidden.is.null')
+    .is('duplicate_of', null)
+    .gt('tss', 0)
+    .order('start_date', { ascending: false })
+    .limit(10);
+
+  if (actErr || !activities?.length) {
+    console.log(`[metrics:backfill] No qualifying activities found`);
+    return result;
+  }
+
+  // Compute TWL and EFI for each activity
+  for (const act of activities) {
+    try {
+      await computeAndStoreMetrics(supabase, userId, act.id);
+      result.twlBackfilled++;
+      if (act.matched_planned_workout_id) {
+        result.efiBackfilled++;
+      }
+    } catch (err) {
+      console.error(`[metrics:backfill] Failed for activity ${act.id}:`, err.message);
+    }
+  }
+
+  // Compute TCAS from fitness snapshots
+  try {
+    const tcasComputed = await computeAndStoreTCAS(supabase, userId);
+    result.tcasBackfilled = tcasComputed;
+  } catch (err) {
+    console.error(`[metrics:backfill] TCAS computation failed:`, err.message);
+  }
+
+  console.log(`[metrics:backfill] Done. TWL: ${result.twlBackfilled}, EFI: ${result.efiBackfilled}, TCAS: ${result.tcasBackfilled}`);
+  return result;
+}
+
+// ─── TCAS — Time-Constrained Adaptation Score ────────────────────────────────
+
+/**
+ * Compute and store TCAS from fitness_snapshots data.
+ * Requires at least 4 weeks of snapshot history.
+ *
+ * @param {object} supabase - Supabase admin client
+ * @param {string} userId - User ID
+ * @returns {boolean} whether TCAS was successfully computed
+ */
+export async function computeAndStoreTCAS(supabase, userId) {
+  // Fetch last 8 weeks of fitness snapshots (need current + 6 weeks ago)
+  const { data: snapshots, error: snapErr } = await supabase
+    .from('fitness_snapshots')
+    .select('snapshot_week, ctl, atl, weekly_tss, weekly_hours, weekly_rides')
+    .eq('user_id', userId)
+    .order('snapshot_week', { ascending: false })
+    .limit(8);
+
+  if (snapErr || !snapshots || snapshots.length < 4) {
+    console.log(`[metrics:tcas] Insufficient snapshots (${snapshots?.length || 0}), need 4+`);
+    return false;
+  }
+
+  const currentSnapshot = snapshots[0];
+  const sixWeeksAgo = snapshots.length >= 7 ? snapshots[6] : snapshots[snapshots.length - 1];
+
+  const ctlNow = currentSnapshot.ctl || 0;
+  const ctl6wAgo = sixWeeksAgo.ctl || 0;
+
+  // Average weekly hours across the window
+  const avgWeeklyHours = snapshots.reduce((sum, s) => sum + (s.weekly_hours || 0), 0) / snapshots.length;
+
+  // Fetch user profile for training years
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('years_training, experience_level')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  let yearsTraining = profile?.years_training || 3;
+  // Infer from experience level if years_training not set
+  if (!profile?.years_training && profile?.experience_level) {
+    const levelYears = { beginner: 1, intermediate: 3, advanced: 7, racer: 10 };
+    yearsTraining = levelYears[profile.experience_level] || 3;
+  }
+
+  // Fetch latest activities for EF and power data
+  const { data: recentActivities } = await supabase
+    .from('activities')
+    .select('ride_analytics, normalized_power, average_heartrate, power_curve_summary, start_date')
+    .eq('user_id', userId)
+    .or('is_hidden.eq.false,is_hidden.is.null')
+    .is('duplicate_of', null)
+    .gt('tss', 0)
+    .order('start_date', { ascending: false })
+    .limit(20);
+
+  if (!recentActivities || recentActivities.length < 2) {
+    console.log(`[metrics:tcas] Insufficient recent activities for AQ sub-scores`);
+    return false;
+  }
+
+  // Split activities into recent (last 2 weeks) and older (4-6 weeks ago)
+  const now = new Date();
+  const twoWeeksAgo = new Date(now); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+  const fourWeeksAgo = new Date(now); fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+
+  const recentGroup = recentActivities.filter(a => new Date(a.start_date) >= twoWeeksAgo);
+  const olderGroup = recentActivities.filter(a => {
+    const d = new Date(a.start_date);
+    return d < fourWeeksAgo;
+  });
+
+  // EF (Efficiency Factor) — NP / avg HR
+  const efNow = avgEF(recentGroup);
+  const ef6wAgo = avgEF(olderGroup);
+
+  // Pa:Hr (aerobic decoupling) — from ride_analytics if available
+  const paHrNow = avgDecoupling(recentGroup);
+  const paHr6wAgo = avgDecoupling(olderGroup);
+
+  // 20-min power — from power_curve_summary
+  const p20minNow = avgPeakPower(recentGroup, 1200);
+  const p20min6wAgo = avgPeakPower(olderGroup, 1200);
+
+  // Compute TCAS using inline formula (mirrors src/lib/metrics/tcas.ts)
+  const fv = (ctlNow - ctl6wAgo) / 6;
+  const he = Math.min(2.0, Math.max(0, avgWeeklyHours > 0 ? fv / (avgWeeklyHours * 0.30) : 0));
+
+  const eft = ef6wAgo > 0
+    ? Math.min(2.0, (efNow - ef6wAgo) / (ef6wAgo * 0.02))
+    : 0;
+  const deltaDecoupling = paHrNow - paHr6wAgo;
+  const adi = Math.min(1.0, -deltaDecoupling / 10);
+  const deltaP20Pct = p20min6wAgo > 0
+    ? ((p20minNow - p20min6wAgo) / p20min6wAgo) * 100
+    : 0;
+  const ppd = Math.min(1.5, Math.max(0, deltaP20Pct * 0.10));
+  const aq = Math.min(1.2, Math.max(0, 0.40 * eft + 0.30 * adi + 0.30 * ppd));
+
+  const taa = 1 + (0.05 * Math.max(0, yearsTraining));
+  const raw = (0.55 * he + 0.45 * aq) * taa;
+  const tcas = Math.min(100, Math.max(0, Math.round(raw * 50 * 10) / 10));
+
+  // Store
+  const weekEnding = currentSnapshot.snapshot_week;
+
+  const { error: upsertErr } = await supabase
+    .from('weekly_tcas')
+    .upsert({
+      user_id: userId,
+      week_ending: weekEnding,
+      ctl_now: ctlNow,
+      ctl_6w_ago: ctl6wAgo,
+      avg_weekly_hours: Math.round(avgWeeklyHours * 100) / 100,
+      fv: Math.round(fv * 10000) / 10000,
+      ef_now: Math.round(efNow * 10000) / 10000,
+      ef_6w_ago: Math.round(ef6wAgo * 10000) / 10000,
+      pa_hr_now: Math.round(paHrNow * 10000) / 10000,
+      pa_hr_6w_ago: Math.round(paHr6wAgo * 10000) / 10000,
+      p20min_now: Math.round(p20minNow * 100) / 100,
+      p20min_6w_ago: Math.round(p20min6wAgo * 100) / 100,
+      years_training: yearsTraining,
+      he: Math.round(he * 10000) / 10000,
+      eft: Math.round(eft * 10000) / 10000,
+      adi: Math.round(adi * 10000) / 10000,
+      ppd: Math.round(ppd * 10000) / 10000,
+      aq: Math.round(aq * 10000) / 10000,
+      taa: Math.round(taa * 10000) / 10000,
+      tcas,
+      computed_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,week_ending' });
+
+  if (upsertErr) {
+    console.error('[metrics:tcas] Upsert failed:', upsertErr.message);
+    return false;
+  }
+
+  console.log(`[metrics:tcas] Stored TCAS ${tcas} for week ${weekEnding}`);
+  return true;
+}
+
+// ─── TCAS helper functions ───────────────────────────────────────────────────
+
+function avgEF(activities) {
+  const efValues = activities
+    .filter(a => a.normalized_power && a.average_heartrate && a.average_heartrate > 0)
+    .map(a => {
+      // Check ride_analytics first
+      if (a.ride_analytics?.efficiency_factor) return a.ride_analytics.efficiency_factor;
+      return a.normalized_power / a.average_heartrate;
+    });
+  return efValues.length > 0 ? efValues.reduce((a, b) => a + b, 0) / efValues.length : 1.0;
+}
+
+function avgDecoupling(activities) {
+  const values = activities
+    .filter(a => a.ride_analytics?.aerobic_decoupling != null)
+    .map(a => a.ride_analytics.aerobic_decoupling);
+  // Default to 5% if no decoupling data
+  return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 5.0;
+}
+
+function avgPeakPower(activities, durationSec) {
+  const values = activities
+    .filter(a => {
+      const curve = a.power_curve_summary;
+      return curve && (curve[String(durationSec)] || curve[`${durationSec}s`]);
+    })
+    .map(a => {
+      const curve = a.power_curve_summary;
+      return curve[String(durationSec)] || curve[`${durationSec}s`] || 0;
+    });
+  if (values.length > 0) return values.reduce((a, b) => a + b, 0) / values.length;
+  // Fallback: try 300s (5-min) power if 20-min not available
+  const fallback = activities
+    .filter(a => a.power_curve_summary && (a.power_curve_summary['300'] || a.power_curve_summary['300s']))
+    .map(a => a.power_curve_summary['300'] || a.power_curve_summary['300s']);
+  if (fallback.length > 0) return (fallback.reduce((a, b) => a + b, 0) / fallback.length) * 0.95;
+  // Last resort: use normalized_power
+  const npValues = activities.filter(a => a.normalized_power).map(a => a.normalized_power);
+  return npValues.length > 0 ? npValues.reduce((a, b) => a + b, 0) / npValues.length : 0;
+}
