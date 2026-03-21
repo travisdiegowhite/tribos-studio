@@ -147,6 +147,40 @@ export default async function handler(req, res) {
       }
     }
 
+    // ─── TCAS backfill: run independently if TCAS is missing ─────────────
+    // This is separate from the main backfill because EFI/TWL may already
+    // exist while TCAS still needs fitness snapshots generated.
+    // Only attempt once per day to avoid running expensive backfill on every load.
+    if (!tcasResult.data && hasProvider) {
+      try {
+        // Check if we have any snapshots created recently (cooldown)
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const { data: recentSnapshot } = await supabase
+          .from('fitness_snapshots')
+          .select('id')
+          .eq('user_id', userId)
+          .gte('snapshot_date', oneDayAgo)
+          .limit(1)
+          .maybeSingle();
+
+        if (!recentSnapshot) {
+          const { backfillSnapshots } = await import('./utils/fitnessSnapshots.js');
+          const { computeAndStoreTCAS } = await import('./utils/metricsComputation.js');
+
+          // Generate fitness snapshots from activity history
+          await backfillSnapshots(supabase, userId, 8);
+
+          // Attempt TCAS computation with the new snapshots
+          const computed = await computeAndStoreTCAS(supabase, userId);
+          if (computed) {
+            tcasResult = await fetchTCAS(userId);
+          }
+        }
+      } catch (tcasErr) {
+        console.error('[metrics] TCAS backfill failed (non-critical):', tcasErr.message);
+      }
+    }
+
     // ─── TCAS days remaining ─────────────────────────────────────────────
     let tcasDaysRemaining = 0;
     if (!tcasResult.data && hasProvider) {
