@@ -139,6 +139,59 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   const ftp = profile.ftp || 200;
   const weightKg = profile.weight_kg || 75;
 
+  // --- Proprietary metrics (EFI, TWL, TCAS) ---
+  let proprietaryMetrics = null;
+  try {
+    const [efiRow, twlRow, tcasRow] = await Promise.all([
+      supabase
+        .from('activity_efi')
+        .select('efi, efi_28d, vf, ifs, cf')
+        .eq('user_id', userId)
+        .order('computed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('activity_twl')
+        .select('twl, base_tss, m_terrain')
+        .eq('user_id', userId)
+        .order('computed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('weekly_tcas')
+        .select('tcas, he, aq, taa')
+        .eq('user_id', userId)
+        .order('week_ending', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const efi = efiRow.data;
+    const twl = twlRow.data;
+    const tcas = tcasRow.data;
+
+    if (efi || twl || tcas) {
+      const sections = ['## Tribos Custom Metrics (current)', ''];
+      if (efi) {
+        sections.push(`**EFI (Execution Fidelity):** ${efi.efi_28d ?? efi.efi}/100 (28-day rolling)`);
+        sections.push(`  - Volume Fidelity: ${pctFmt(efi.vf)}, Intensity Fidelity: ${pctFmt(efi.ifs)}, Consistency: ${pctFmt(efi.cf)}`);
+        sections.push('');
+      }
+      if (twl) {
+        sections.push(`**TWL (Terrain-Weighted Load, last ride):** ${twl.twl} (base TSS: ${twl.base_tss}, multiplier: ${twl.m_terrain?.toFixed(3)}×)`);
+        sections.push('');
+      }
+      if (tcas) {
+        sections.push(`**TCAS (Time-Constrained Adaptation):** ${tcas.tcas}/100`);
+        sections.push(`  - Hours Efficiency: ${tcas.he?.toFixed(2)}, Adaptation Quality: ${tcas.aq?.toFixed(2)}, Training Age Adj: ${tcas.taa?.toFixed(2)}×`);
+      }
+      proprietaryMetrics = sections.join('\n');
+    }
+  } catch (metricsErr) {
+    // Non-critical — don't fail context assembly
+    console.error('[assembleFitnessContext] Proprietary metrics fetch failed:', metricsErr.message);
+  }
+
   return {
     snapshot: {
       ctl: clientMetrics.ctl,
@@ -170,6 +223,7 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       wkg: parseFloat((ftp / weightKg).toFixed(1)),
       experience_level: profile.experience_level || 'intermediate',
     },
+    proprietary_metrics: proprietaryMetrics,
   };
 }
 
@@ -265,4 +319,9 @@ export function buildCacheKey(context) {
     context.coach_context.upcoming_key_workout || 'none',
   ];
   return parts.join(':');
+}
+
+function pctFmt(v) {
+  if (v == null) return 'N/A';
+  return `${(v * 100).toFixed(0)}%`;
 }

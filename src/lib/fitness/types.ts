@@ -36,6 +36,7 @@ export interface FitnessContext {
     wkg: number;
     experience_level: 'beginner' | 'intermediate' | 'advanced' | 'racer';
   };
+  proprietary_metrics: string | null;
 }
 
 export type MetricColor = 'teal' | 'orange' | 'gold' | 'coral' | 'muted';

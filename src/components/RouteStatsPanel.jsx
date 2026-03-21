@@ -1,6 +1,7 @@
 import { Box, SimpleGrid, Text, Tooltip, Badge, Stack } from '@mantine/core';
 import { tokens } from '../theme';
 import { Clock, Lightning, Mountains, Ruler, TrendUp, User } from '@phosphor-icons/react';
+import { projectTWLForRoute } from '../lib/metrics/twl';
 
 /**
  * RouteStatsPanel - Route stats with icons, grid layout, and personalized ETA
@@ -132,6 +133,11 @@ function RouteStatsPanel({
         ))}
       </SimpleGrid>
 
+      {/* TWL projection (if route has elevation data) */}
+      {stats.elevation > 0 && stats.distance > 0 && (
+        <TWLProjection stats={stats} hasETA={hasETA} personalizedETA={personalizedETA} />
+      )}
+
       {/* Personalized ETA breakdown bar */}
       {hasETA && (
         <ETABreakdownBar breakdown={personalizedETA.breakdown} isPersonalized={personalizedETA.isPersonalized} />
@@ -212,6 +218,71 @@ function ETABreakdownBar({ breakdown, isPersonalized }) {
           {f.label}
         </Badge>
       ))}
+    </Box>
+  );
+}
+
+/**
+ * TWL projection row — shows estimated terrain-weighted load alongside TSS
+ */
+function TWLProjection({ stats, hasETA, personalizedETA }) {
+  // Estimate TSS from duration and intensity
+  const durationHours = hasETA
+    ? personalizedETA.totalSeconds / 3600
+    : (stats.duration > 0 ? stats.duration / 60 : 2);
+  // Conservative TSS estimate: ~50 TSS/hour for endurance pace
+  const estimatedTSS = Math.round(durationHours * 50);
+  // GVI estimate from elevation gain and distance
+  const distKm = stats.distance;
+  const avgGradePct = distKm > 0 ? (stats.elevation / (distKm * 1000)) * 100 : 0;
+  const estimatedGVI = Math.min(12, avgGradePct * 1.5);
+  // Mean elevation estimate (rough midpoint heuristic)
+  const estimatedMeanElev = stats.elevation > 500 ? 1200 : 500;
+
+  const twlResult = projectTWLForRoute(
+    estimatedTSS,
+    stats.elevation,
+    durationHours,
+    estimatedGVI,
+    estimatedMeanElev,
+  );
+
+  if (twlResult.overagePercent <= 0) return null;
+
+  return (
+    <Box
+      style={{
+        marginTop: tokens.spacing.sm,
+        padding: '8px 12px',
+        backgroundColor: 'var(--tribos-bg-elevated)',
+        border: '1px solid var(--color-border)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 12,
+      }}
+    >
+      <Tooltip
+        label={`Terrain adds ~${twlResult.overagePercent}% extra load vs flat equivalent. Climbing, gradient changes, and altitude all contribute.`}
+        multiline
+        w={260}
+        position="top"
+      >
+        <Box style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <Text size="xs" c="dimmed" style={{ fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
+            Est. load
+          </Text>
+          <Text size="sm" c="dimmed" style={{ fontFamily: "'DM Mono', monospace" }}>
+            TSS ~{estimatedTSS}
+          </Text>
+          <Text size="sm" fw={700} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-teal)' }}>
+            TWL ~{Math.round(twlResult.twl)}
+          </Text>
+          <Badge size="xs" variant="light" color="orange">
+            +{twlResult.overagePercent}% terrain
+          </Badge>
+        </Box>
+      </Tooltip>
     </Box>
   );
 }

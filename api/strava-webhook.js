@@ -423,6 +423,15 @@ async function handleActivityCreate(eventId, webhookData, integration) {
       console.error('⚠️ Snapshot update failed (non-critical):', snapshotError.message);
     }
 
+    // Compute proprietary metrics (EFI, TWL)
+    try {
+      const { computeAndStoreMetrics } = await import('./utils/metricsComputation.js');
+      await computeAndStoreMetrics(supabase, integration.user_id, savedActivity.id);
+      console.log('📊 Proprietary metrics computed for activity');
+    } catch (metricsError) {
+      console.error('⚠️ Metrics computation failed (non-critical):', metricsError.message);
+    }
+
     // Track activation progress and enqueue insight
     try {
       await completeActivationStep(supabase, integration.user_id, 'first_sync');
