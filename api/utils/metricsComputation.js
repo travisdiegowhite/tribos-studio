@@ -480,6 +480,17 @@ export async function backfillMetricsForUser(supabase, userId) {
     }
   }
 
+  // Backfill fitness snapshots from activity history before computing TCAS.
+  // TCAS requires 4+ weekly snapshots which may not exist yet if the weekly
+  // cron hasn't run enough times.
+  try {
+    const { backfillSnapshots } = await import('./fitnessSnapshots.js');
+    const snapResult = await backfillSnapshots(supabase, userId, 8);
+    console.log(`[metrics:backfill] Fitness snapshots: ${snapResult.snapshotsCreated} created`);
+  } catch (snapErr) {
+    console.error(`[metrics:backfill] Snapshot backfill failed (non-critical):`, snapErr.message);
+  }
+
   // Compute TCAS from fitness snapshots
   try {
     const tcasComputed = await computeAndStoreTCAS(supabase, userId);
