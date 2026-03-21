@@ -213,13 +213,21 @@ export function analyzeTrainingNeeds({
 }
 
 // ─── Form Status ─────────────────────────────────────────────────────────────
+// Delegates to canonical translate.ts thresholds, maps to legacy tokens
+
+import { translateTSB } from '../lib/fitness/translate';
+
+const FORM_STATUS_MAP = {
+  'Tapered — ready to go': 'fresh',
+  'Primed to perform': 'ready',
+  'Training sweet spot': 'optimal',
+  'Digging in': 'tired',
+  'In the hole': 'fatigued',
+};
 
 export function getFormStatus(tsb) {
-  if (tsb >= 15) return 'fresh';
-  if (tsb >= 5) return 'ready';
-  if (tsb >= -10) return 'optimal';
-  if (tsb >= -25) return 'tired';
-  return 'fatigued';
+  const t = translateTSB(tsb);
+  return FORM_STATUS_MAP[t.label] || 'optimal';
 }
 
 // ─── Recommendation Building ─────────────────────────────────────────────────

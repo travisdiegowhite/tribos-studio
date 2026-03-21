@@ -66,6 +66,7 @@ import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/
 import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
+import { translateTSB } from '../lib/fitness/translate';
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { PoweredByStrava } from '../components/StravaBranding';
@@ -639,14 +640,13 @@ function TrainingDashboard() {
     return `${minutes}m`;
   };
 
-  // Get form status styling
+  // Get form status styling — delegates to canonical translate.ts thresholds
   const getFormStatus = () => {
-    const tsb = trainingMetrics.tsb;
-    if (tsb >= 15) return { label: 'FRESH', color: 'teal', icon: TrendUp, bg: 'rgba(168, 191, 168, 0.15)' };
-    if (tsb >= 5) return { label: 'READY', color: 'green', icon: TrendUp, bg: 'rgba(168, 191, 168, 0.15)' };
-    if (tsb >= -10) return { label: 'OPTIMAL', color: 'terracotta', icon: Heartbeat, bg: 'rgba(168, 191, 168, 0.15)' };
-    if (tsb >= -25) return { label: 'TIRED', color: 'yellow', icon: TrendDown, bg: 'rgba(212, 168, 67, 0.15)' };
-    return { label: 'FATIGUED', color: 'red', icon: TrendDown, bg: 'rgba(158, 90, 60, 0.15)' };
+    const t = translateTSB(trainingMetrics.tsb);
+    const colorMap = { gold: 'teal', teal: 'green', orange: 'yellow', coral: 'red', muted: 'gray' };
+    const iconMap = { gold: TrendUp, teal: TrendUp, orange: TrendDown, coral: TrendDown, muted: Heartbeat };
+    const bgMap = { gold: 'rgba(168, 191, 168, 0.15)', teal: 'rgba(168, 191, 168, 0.15)', orange: 'rgba(212, 168, 67, 0.15)', coral: 'rgba(158, 90, 60, 0.15)', muted: 'rgba(168, 191, 168, 0.15)' };
+    return { label: t.label.toUpperCase(), color: colorMap[t.color], icon: iconMap[t.color], bg: bgMap[t.color] };
   };
 
   const formStatus = getFormStatus();
@@ -1974,10 +1974,9 @@ function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousM
       <Group justify="space-between" wrap="wrap" gap="xs">
         {/* Form Badge - Only Tier 1 colored element */}
         <Tooltip label={
-          formStatus.label === 'FRESH' ? 'Ready for hard training' :
-          formStatus.label === 'READY' ? 'Quality session day' :
-          formStatus.label === 'OPTIMAL' ? 'Sweet spot training' :
-          formStatus.label === 'TIRED' ? 'Consider recovery' : 'Recovery needed'
+          formStatus.color === 'teal' || formStatus.color === 'green' ? 'Ready for hard training' :
+          formStatus.color === 'yellow' ? 'Consider recovery' :
+          formStatus.color === 'red' ? 'Recovery needed' : 'Quality session day'
         } position="bottom">
           <Badge size="sm" color={formStatus.color} variant="filled">
             {formStatus.label}

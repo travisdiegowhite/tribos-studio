@@ -156,6 +156,7 @@ function Settings() {
   const [ftp, setFtp] = useState(null);
   const [weightKg, setWeightKg] = useState(null);
   const [powerZones, setPowerZones] = useState(null);
+  const [experienceLevel, setExperienceLevel] = useState('intermediate');
 
   // Load profile data directly from Supabase
   useEffect(() => {
@@ -180,6 +181,7 @@ function Settings() {
           setFtp(data.ftp || null);
           setWeightKg(data.weight_kg || null);
           setPowerZones(data.power_zones || null);
+          setExperienceLevel(data.experience_level || 'intermediate');
           setAiConsentEnabled(!!data.ai_consent_granted_at && !data.ai_consent_withdrawn_at);
         }
       } catch (error) {
@@ -321,6 +323,7 @@ function Settings() {
           timezone: timezone,
           ftp: ftp || null,
           weight_kg: weightKg || null,
+          experience_level: experienceLevel,
         })
         .select()
         .single();
@@ -1716,6 +1719,20 @@ function Settings() {
                   </Text>
                 </Box>
               )}
+
+              <Select
+                label="Experience Level"
+                description="Adjusts the tone and detail level of AI fitness insights"
+                value={experienceLevel}
+                onChange={setExperienceLevel}
+                data={[
+                  { value: 'beginner', label: 'Beginner — new to structured training' },
+                  { value: 'intermediate', label: 'Intermediate — comfortable with training plans' },
+                  { value: 'advanced', label: 'Advanced — data-driven, competitive amateur' },
+                  { value: 'racer', label: 'Racer — focused on race outcomes' },
+                ]}
+                allowDeselect={false}
+              />
 
               {powerZones && (
                 <Box>

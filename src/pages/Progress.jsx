@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
 import { interpretTSB } from '../utils/trainingPlans';
 import { computeWeeklySnapshots } from '../utils/computeFitnessSnapshots';
+import { translateCTL, translateTSB } from '../lib/fitness/translate';
+import { ctlTooltip, tsbTooltip } from '../lib/fitness/tooltips';
 import { useSegmentLibrary } from '../hooks/useSegmentLibrary';
 import ZoneDistributionRow from '../components/progress/ZoneDistributionRow.jsx';
 import TrendInsightRow from '../components/progress/TrendInsightRow.jsx';
@@ -176,50 +178,25 @@ function Progress() {
   const trendInsights = useMemo(() => {
     const insights = [];
 
-    // CTL trend
+    // CTL trend — canonical thresholds from translate.ts
     if (trainingMetrics.ctl > 0) {
-      const ctlLevel = trainingMetrics.ctl >= 80 ? 'strong'
-        : trainingMetrics.ctl >= 50 ? 'solid'
-        : trainingMetrics.ctl >= 25 ? 'developing'
-        : 'low';
-
+      const ctlTranslation = translateCTL(trainingMetrics.ctl);
       insights.push({
         title: `Fitness (CTL): ${trainingMetrics.ctl}`,
-        detail: ctlLevel === 'strong' ? 'Your chronic training load is high — you have a strong aerobic engine.'
-          : ctlLevel === 'solid' ? 'Solid fitness base. Consistent training will keep this climbing.'
-          : ctlLevel === 'developing' ? 'Fitness is building. Stay consistent with your plan.'
-          : 'Early stage fitness. Focus on regular, easy rides to build your base.',
-        sentiment: ctlLevel === 'strong' || ctlLevel === 'solid' ? 'positive' : 'neutral',
+        detail: ctlTooltip(trainingMetrics.ctl),
+        sentiment: ctlTranslation.color === 'teal' || ctlTranslation.color === 'gold' ? 'positive' : 'neutral',
       });
     }
 
-    // Form / TSB
+    // Form / TSB — canonical thresholds from translate.ts
     const tsb = trainingMetrics.tsb;
-    if (tsb > 15) {
-      insights.push({
-        title: 'Form: Fresh',
-        detail: 'You\'re well-rested and ready for a hard effort or race.',
-        sentiment: 'positive',
-      });
-    } else if (tsb > -10) {
-      insights.push({
-        title: 'Form: Balanced',
-        detail: 'Training load is manageable. Good position for consistent work.',
-        sentiment: 'neutral',
-      });
-    } else if (tsb > -30) {
-      insights.push({
-        title: 'Form: Fatigued',
-        detail: 'Fatigue is accumulating — this is normal in a build block. Plan recovery soon.',
-        sentiment: 'attention',
-      });
-    } else {
-      insights.push({
-        title: 'Form: High Fatigue',
-        detail: 'Training stress is very high. Consider backing off to avoid overtraining.',
-        sentiment: 'urgent',
-      });
-    }
+    const tsbTranslation = translateTSB(tsb);
+    insights.push({
+      title: `Form: ${tsbTranslation.label}`,
+      detail: tsbTooltip(tsb),
+      sentiment: tsbTranslation.color === 'gold' || tsbTranslation.color === 'teal' ? 'positive'
+        : tsbTranslation.color === 'orange' ? 'attention' : 'urgent',
+    });
 
     // Volume trend (last 7d vs previous 7d)
     const now = new Date();
