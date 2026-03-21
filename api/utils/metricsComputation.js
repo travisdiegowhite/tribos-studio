@@ -251,19 +251,23 @@ export async function computeAndStoreMetrics(supabase, userId, activityId) {
 
 async function computeAndStoreEFI(supabase, userId, activityId, activity, workoutId) {
   // Fetch the planned workout
-  const { data: workout } = await supabase
+  const { data: workout, error: wErr } = await supabase
     .from('planned_workouts')
-    .select('target_tss, zone_distribution')
+    .select('target_tss')
     .eq('id', workoutId)
     .single();
 
-  if (!workout?.target_tss) return;
+  if (wErr || !workout?.target_tss) {
+    if (wErr) console.error('[metrics] EFI: failed to fetch workout:', wErr.message);
+    return;
+  }
 
   const plannedTSS = workout.target_tss;
   const actualTSS = activity.tss || 0;
 
-  // Zone distributions
-  const plannedZones = workout.zone_distribution || { Z1: 0.4, Z2: 0.3, Z3: 0.1, Z4: 0.1, Z5: 0.1 };
+  // Zone distributions — planned_workouts doesn't store zone data,
+  // so use defaults based on workout type (endurance-heavy distribution)
+  const plannedZones = { Z1: 0.4, Z2: 0.3, Z3: 0.1, Z4: 0.1, Z5: 0.1 };
 
   // Derive actual zones from ride_analytics if available
   const analytics = activity.ride_analytics;
