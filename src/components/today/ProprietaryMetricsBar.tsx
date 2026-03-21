@@ -99,7 +99,7 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
                 ? 'Connect Strava or Garmin'
                 : 'Complete matched workouts to see EFI'
           }
-          emptyLink={!readiness?.has_training_plan ? '/train' : '/settings'}
+          emptyLink={!readiness?.has_training_plan ? '/train' : !readiness?.has_provider ? '/settings' : '/training'}
           isExpanded={expanded === 'efi'}
           onToggle={() => toggleExpand('efi')}
         />

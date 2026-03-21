@@ -126,19 +126,26 @@ export default async function handler(req, res) {
     const hasTrainingPlan = !!planResult.data;
 
     // ─── Lazy backfill: compute from existing data on first read ─────────
-    const needsBackfill = hasProvider && !efiResult.data && !twlResult.data && !tcasResult.data;
+    // Run backfill if any metric is missing (not just when all are missing),
+    // so that e.g. EFI gets computed even when TWL already exists.
+    const needsBackfill = hasProvider && (
+      !efiResult.data || !twlResult.data || !tcasResult.data
+    );
 
     if (needsBackfill) {
       try {
         const { backfillMetricsForUser } = await import('./utils/metricsComputation.js');
         await backfillMetricsForUser(supabase, userId);
 
-        // Re-query freshly computed metrics
-        [efiResult, twlResult, tcasResult] = await Promise.all([
-          fetchEFI(userId),
-          fetchTWL(userId),
-          fetchTCAS(userId),
+        // Re-query only the missing metrics
+        const [newEfi, newTwl, newTcas] = await Promise.all([
+          !efiResult.data ? fetchEFI(userId) : Promise.resolve(efiResult),
+          !twlResult.data ? fetchTWL(userId) : Promise.resolve(twlResult),
+          !tcasResult.data ? fetchTCAS(userId) : Promise.resolve(tcasResult),
         ]);
+        efiResult = newEfi;
+        twlResult = newTwl;
+        tcasResult = newTcas;
       } catch (backfillError) {
         console.error('[metrics] Backfill failed (non-critical):', backfillError.message);
       }
