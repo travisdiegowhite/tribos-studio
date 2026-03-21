@@ -208,11 +208,30 @@ export async function computeAndStoreMetrics(supabase, userId, activityId) {
   // --- EFI (only if activity matched a planned workout) ---
   let workoutId = activity.matched_planned_workout_id;
 
-  // Auto-match: if no workout is linked, try to find one by date + TSS proximity
+  // Check reverse link: planner sets planned_workouts.activity_id but not
+  // activities.matched_planned_workout_id — look it up from the workout side
+  if (!workoutId) {
+    const { data: linkedWorkout } = await supabase
+      .from('planned_workouts')
+      .select('id')
+      .eq('activity_id', activityId)
+      .maybeSingle();
+
+    if (linkedWorkout) {
+      workoutId = linkedWorkout.id;
+      // Sync the reverse pointer so future reads don't need this lookup
+      await supabase
+        .from('activities')
+        .update({ matched_planned_workout_id: workoutId })
+        .eq('id', activityId);
+      console.log(`[metrics] Synced reverse link: activity ${activityId} → workout ${workoutId}`);
+    }
+  }
+
+  // Auto-match: if still no workout linked, try to find one by date + TSS proximity
   if (!workoutId && activity.tss > 0) {
     workoutId = await tryAutoMatchWorkout(supabase, userId, activity);
     if (workoutId) {
-      // Persist the match on the activity so future reads find it
       await supabase
         .from('activities')
         .update({ matched_planned_workout_id: workoutId })
