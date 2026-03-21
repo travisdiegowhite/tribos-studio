@@ -206,7 +206,21 @@ export async function computeAndStoreMetrics(supabase, userId, activityId) {
   }
 
   // --- EFI (only if activity matched a planned workout) ---
-  const workoutId = activity.matched_planned_workout_id;
+  let workoutId = activity.matched_planned_workout_id;
+
+  // Auto-match: if no workout is linked, try to find one by date + TSS proximity
+  if (!workoutId && activity.tss > 0) {
+    workoutId = await tryAutoMatchWorkout(supabase, userId, activity);
+    if (workoutId) {
+      // Persist the match on the activity so future reads find it
+      await supabase
+        .from('activities')
+        .update({ matched_planned_workout_id: workoutId })
+        .eq('id', activityId);
+      console.log(`[metrics] Auto-matched activity ${activityId} to workout ${workoutId}`);
+    }
+  }
+
   if (workoutId) {
     try {
       await computeAndStoreEFI(supabase, userId, activityId, activity, workoutId);
@@ -301,6 +315,81 @@ async function computeAndStoreEFI(supabase, userId, activityId, activity, workou
   if (efiErr) {
     console.error('[metrics] EFI upsert failed:', efiErr.message);
   }
+}
+
+/**
+ * Try to auto-match an activity to a planned workout.
+ * Matches by date proximity (±1 day) and TSS similarity (within 40%).
+ * Returns the workout ID if a good match is found, null otherwise.
+ */
+async function tryAutoMatchWorkout(supabase, userId, activity) {
+  const activityDate = activity.start_date
+    ? new Date(activity.start_date).toISOString().split('T')[0]
+    : null;
+  if (!activityDate) return null;
+
+  // Find planned workouts within ±1 day that aren't already matched
+  const dayBefore = new Date(activityDate);
+  dayBefore.setDate(dayBefore.getDate() - 1);
+  const dayAfter = new Date(activityDate);
+  dayAfter.setDate(dayAfter.getDate() + 1);
+
+  const { data: candidates } = await supabase
+    .from('planned_workouts')
+    .select('id, scheduled_date, target_tss, target_duration, workout_type')
+    .eq('user_id', userId)
+    .gte('scheduled_date', dayBefore.toISOString().split('T')[0])
+    .lte('scheduled_date', dayAfter.toISOString().split('T')[0])
+    .is('activity_id', null)
+    .neq('workout_type', 'rest')
+    .order('scheduled_date', { ascending: true });
+
+  if (!candidates || candidates.length === 0) return null;
+
+  // Score each candidate
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const workout of candidates) {
+    let score = 0;
+
+    // Date match: exact = 40pts, ±1 day = 20pts
+    if (workout.scheduled_date === activityDate) {
+      score += 40;
+    } else {
+      score += 20;
+    }
+
+    // TSS match (30pts max)
+    if (workout.target_tss && activity.tss) {
+      const tssDiffPct = Math.abs(activity.tss - workout.target_tss) / workout.target_tss * 100;
+      if (tssDiffPct <= 15) score += 30;
+      else if (tssDiffPct <= 30) score += 20;
+      else if (tssDiffPct <= 40) score += 10;
+    } else {
+      // No TSS comparison possible — give partial credit
+      score += 10;
+    }
+
+    // Duration match (30pts max)
+    const actDurationMin = (activity.moving_time || activity.elapsed_time || 0) / 60;
+    if (workout.target_duration && actDurationMin > 0) {
+      const durDiffPct = Math.abs(actDurationMin - workout.target_duration) / workout.target_duration * 100;
+      if (durDiffPct <= 15) score += 30;
+      else if (durDiffPct <= 30) score += 20;
+      else if (durDiffPct <= 40) score += 10;
+    } else {
+      score += 10;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = workout;
+    }
+  }
+
+  // Require at least 40 points for a match (same threshold as client-side matching)
+  return bestScore >= 40 ? bestMatch.id : null;
 }
 
 function normalizeZoneDistribution(hrZones) {
