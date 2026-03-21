@@ -27,6 +27,7 @@ const GearPage = lazy(() => import('./pages/GearPage.jsx'));
 const Admin = lazy(() => import('./pages/Admin.jsx'));
 const MyRoutes = lazy(() => import('./pages/MyRoutes.jsx'));
 const Progress = lazy(() => import('./pages/Progress.jsx'));
+const MetricsCalculatorPage = lazy(() => import('./pages/MetricsCalculatorPage.tsx'));
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
@@ -102,6 +103,7 @@ function AppRoutes() {
       <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/learn/metrics" element={<MetricsCalculatorPage />} />
       <Route
         path="/auth"
         element={

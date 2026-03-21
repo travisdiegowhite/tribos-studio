@@ -781,6 +781,12 @@ export function useTrainingPlan({
 
         if (updateError) throw updateError;
 
+        // Set reverse pointer so EFI computation can find the linked workout
+        await supabase
+          .from('activities')
+          .update({ matched_planned_workout_id: workoutId })
+          .eq('id', activityId);
+
         // Trigger adaptation detection (async, non-blocking)
         if (userId) {
           fetchTrainingContext(userId).then((context) => {

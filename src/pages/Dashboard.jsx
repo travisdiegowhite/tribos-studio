@@ -20,6 +20,7 @@ import { CoachCard } from '../components/coach';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import WeekChart from '../components/today/WeekChart.jsx';
 import FitnessSummary from '../components/today/FitnessSummary.jsx';
+import ProprietaryMetricsBar from '../components/today/ProprietaryMetricsBar.tsx';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -33,6 +34,8 @@ function Dashboard() {
   const [todayWorkout, setTodayWorkout] = useState(null);
   const [weekStats, setWeekStats] = useState({ rides: 0, planned: 0, distance: 0, elevation: 0 });
   const [todayRouteMatch, setTodayRouteMatch] = useState(null);
+  const [proprietaryMetrics, setProprietaryMetrics] = useState(null);
+  const [metricsLoading, setMetricsLoading] = useState(true);
 
   // Check if onboarding is needed and load user profile
   useEffect(() => {
@@ -201,6 +204,35 @@ function Dashboard() {
     return () => { cancelled = true; };
   }, [todayWorkout, user?.id]);
 
+  // Fetch proprietary metrics (EFI, TWL, TCAS)
+  useEffect(() => {
+    if (!user?.id) {
+      setMetricsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    async function fetchMetrics() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token || cancelled) return;
+        const res = await fetch('/api/metrics', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` },
+        });
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          setProprietaryMetrics(data);
+        }
+      } catch {
+        // Non-blocking — silently fail
+      } finally {
+        if (!cancelled) setMetricsLoading(false);
+      }
+    }
+    fetchMetrics();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -315,6 +347,12 @@ function Dashboard() {
 
           {/* Activation Guide (new users) */}
           <GetStartedGuide />
+
+          {/* Proprietary Metrics — EFI/TWL/TCAS */}
+          <ProprietaryMetricsBar
+            metrics={proprietaryMetrics}
+            loading={metricsLoading}
+          />
 
           {/* Status Bar — CTL/ATL/TSB/This Week */}
           <StatusBar
