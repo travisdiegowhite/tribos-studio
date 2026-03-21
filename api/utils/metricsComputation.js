@@ -315,9 +315,17 @@ async function computeAndStoreEFI(supabase, userId, activityId, activity, workou
     ? Math.round((allEFIScores.reduce((a, b) => a + b, 0) / allEFIScores.length) * 10) / 10
     : efiResult.efi;
 
+  // Delete any existing EFI row for this activity, then insert fresh.
+  // NOTE: activity_efi lacks a UNIQUE constraint on activity_id, so upsert
+  // with onConflict would silently fail. Delete+insert is safe and idempotent.
+  await supabase
+    .from('activity_efi')
+    .delete()
+    .eq('activity_id', activityId);
+
   const { error: efiErr } = await supabase
     .from('activity_efi')
-    .upsert({
+    .insert({
       user_id: userId,
       activity_id: activityId,
       workout_id: workoutId,
@@ -329,7 +337,7 @@ async function computeAndStoreEFI(supabase, userId, activityId, activity, workou
       ...efiResult,
       efi_28d: efi28d,
       computed_at: new Date().toISOString(),
-    }, { onConflict: 'activity_id' });
+    });
 
   if (efiErr) {
     console.error('[metrics] EFI upsert failed:', efiErr.message);
