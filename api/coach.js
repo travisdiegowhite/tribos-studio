@@ -44,6 +44,176 @@ const PERSONA_DATA = {
   },
 };
 
+// Resolve relative date strings (today, tomorrow, this_monday, next_tuesday, YYYY-MM-DD) to YYYY-MM-DD
+function resolveScheduledDate(dateStr) {
+  if (!dateStr) return new Date().toISOString().split('T')[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+
+  const today = new Date();
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+  if (dateStr === 'today') return today.toISOString().split('T')[0];
+  if (dateStr === 'tomorrow') {
+    today.setDate(today.getDate() + 1);
+    return today.toISOString().split('T')[0];
+  }
+
+  const match = dateStr.match(/^(this|next)_(\w+)$/);
+  if (match) {
+    const [, prefix, dayName] = match;
+    const targetDay = dayNames.indexOf(dayName.toLowerCase());
+    if (targetDay >= 0) {
+      const currentDay = today.getDay();
+      let diff = targetDay - currentDay;
+      if (prefix === 'this') {
+        if (diff <= 0) diff += 7;
+      } else {
+        if (diff <= 0) diff += 7;
+        diff += 7;
+      }
+      today.setDate(today.getDate() + diff);
+      return today.toISOString().split('T')[0];
+    }
+  }
+
+  return dateStr;
+}
+
+// Handle schedule adjustment tool calls — modifies existing active plan workouts
+async function handleScheduleAdjustment(userId, input) {
+  const { adjustments, summary } = input;
+  const results = [];
+
+  // Get the active plan
+  const { data: activePlan, error: planError } = await supabase
+    .from('training_plans')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (planError || !activePlan) {
+    return { success: false, error: 'No active training plan found. The athlete needs to create or activate a plan first.' };
+  }
+
+  for (const adj of adjustments) {
+    try {
+      const sourceDate = resolveScheduledDate(adj.source_date);
+
+      switch (adj.action) {
+        case 'move': {
+          const targetDate = resolveScheduledDate(adj.target_date);
+          const { data: moved, error } = await supabase
+            .from('planned_workouts')
+            .update({
+              scheduled_date: targetDate,
+              day_of_week: new Date(targetDate + 'T12:00:00').getDay()
+            })
+            .eq('plan_id', activePlan.id)
+            .eq('scheduled_date', sourceDate)
+            .eq('completed', false)
+            .select('id, name');
+          results.push({
+            action: 'move', from: sourceDate, to: targetDate,
+            success: !error, workouts_affected: moved?.length || 0,
+            error: error?.message
+          });
+          break;
+        }
+        case 'swap': {
+          const targetDate = resolveScheduledDate(adj.target_date);
+          // Fetch workouts on both dates
+          const { data: workouts } = await supabase
+            .from('planned_workouts')
+            .select('id, scheduled_date, day_of_week')
+            .eq('plan_id', activePlan.id)
+            .in('scheduled_date', [sourceDate, targetDate])
+            .eq('completed', false);
+
+          const sourceWorkouts = workouts?.filter(w => w.scheduled_date === sourceDate) || [];
+          const targetWorkouts = workouts?.filter(w => w.scheduled_date === targetDate) || [];
+
+          if (sourceWorkouts.length > 0 || targetWorkouts.length > 0) {
+            // Move source workouts to target date
+            for (const w of sourceWorkouts) {
+              await supabase.from('planned_workouts')
+                .update({ scheduled_date: targetDate, day_of_week: new Date(targetDate + 'T12:00:00').getDay() })
+                .eq('id', w.id);
+            }
+            // Move target workouts to source date
+            for (const w of targetWorkouts) {
+              await supabase.from('planned_workouts')
+                .update({ scheduled_date: sourceDate, day_of_week: new Date(sourceDate + 'T12:00:00').getDay() })
+                .eq('id', w.id);
+            }
+            results.push({ action: 'swap', dates: [sourceDate, targetDate], success: true });
+          } else {
+            results.push({ action: 'swap', success: false, error: 'No workouts found on either date' });
+          }
+          break;
+        }
+        case 'replace': {
+          const updateData = { workout_id: adj.new_workout_id };
+          if (adj.new_workout_id) {
+            updateData.name = adj.new_workout_id;
+          }
+          const { data: replaced, error } = await supabase
+            .from('planned_workouts')
+            .update(updateData)
+            .eq('plan_id', activePlan.id)
+            .eq('scheduled_date', sourceDate)
+            .eq('completed', false)
+            .select('id');
+          results.push({
+            action: 'replace', date: sourceDate, new_workout: adj.new_workout_id,
+            success: !error, workouts_affected: replaced?.length || 0,
+            error: error?.message
+          });
+          break;
+        }
+        case 'remove':
+        case 'add_rest': {
+          const { data: updated, error } = await supabase
+            .from('planned_workouts')
+            .update({
+              workout_type: 'rest',
+              workout_id: null,
+              name: 'Rest Day',
+              target_tss: 0,
+              target_duration: 0,
+              duration_minutes: 0
+            })
+            .eq('plan_id', activePlan.id)
+            .eq('scheduled_date', sourceDate)
+            .eq('completed', false)
+            .select('id');
+          results.push({
+            action: adj.action, date: sourceDate,
+            success: !error, workouts_affected: updated?.length || 0,
+            error: error?.message
+          });
+          break;
+        }
+        default:
+          results.push({ action: adj.action, success: false, error: `Unknown action: ${adj.action}` });
+      }
+    } catch (err) {
+      results.push({ action: adj.action, source_date: adj.source_date, success: false, error: err.message });
+    }
+  }
+
+  const successCount = results.filter(r => r.success).length;
+  return {
+    success: successCount > 0,
+    summary,
+    total_adjustments: adjustments.length,
+    successful: successCount,
+    adjustments: results
+  };
+}
+
 // Base coaching knowledge (date context added dynamically)
 const COACHING_KNOWLEDGE = `You are an expert endurance sports coach with deep knowledge of:
 - Training periodization and load management for BOTH cycling and running
@@ -169,6 +339,38 @@ When an athlete asks for a complete training plan (not just a single workout), y
 - If athlete has a race in their calendar, use target_event_date to periodize the plan
 - Always set start_date to 'next_monday' unless they specify otherwise
 - NEVER just describe a training plan - ALWAYS call the tool so the athlete can activate it
+
+**ADJUSTING THE EXISTING SCHEDULE:**
+
+When an athlete wants to modify their CURRENT active training plan (not create a new one), you MUST use the adjust_schedule tool. This tool makes real changes to their calendar immediately.
+
+**Trigger phrases that REQUIRE calling adjust_schedule:**
+- "move my workout", "swap workouts", "change my schedule"
+- "I can't train on [day]", "move [day]'s workout to [day]"
+- "replace [workout] with [workout]"
+- "I need a rest day on [day]"
+- "adjust my plan", "modify my schedule"
+- "shift this week's workouts"
+- Any request to change, move, swap, or remove workouts from the current plan
+
+**Available adjustment actions:**
+- move: Change a workout's date (e.g., move Thursday's workout to Friday)
+- swap: Exchange two workouts' dates (e.g., swap Monday and Wednesday)
+- replace: Change the workout itself (e.g., replace intervals with recovery spin)
+- remove: Delete a workout from the plan
+- add_rest: Convert a workout day to a rest day
+
+**How to use adjust_schedule:**
+1. Identify which workouts need to change based on the athlete's request
+2. Call adjust_schedule with an array of adjustments
+3. The changes are applied IMMEDIATELY to their active plan
+4. Confirm what was changed in your response text
+
+**Important:**
+- Use adjust_schedule for modifying existing plans — NOT create_training_plan
+- Multiple adjustments can be made in a single tool call
+- Only incomplete (not yet done) workouts can be modified
+- NEVER just describe schedule changes in text — ALWAYS call the tool so changes actually happen
 
 **HISTORICAL FITNESS ANALYSIS:**
 
@@ -699,6 +901,7 @@ ${conversationSummary}
     const planCreationUses = toolUses.filter(tool => tool.name === 'create_training_plan');
     const fuelPlanUses = toolUses.filter(tool => tool.name === 'generate_fuel_plan');
     const memoryUses = toolUses.filter(tool => tool.name === 'save_coach_memory');
+    const scheduleAdjustUses = toolUses.filter(tool => tool.name === 'adjust_schedule');
 
     // Detailed logging for debugging
     console.log(`🤖 Coach response: ${toolUses.length} tool uses`);
@@ -707,6 +910,7 @@ ${conversationSummary}
     console.log(`   - Training data queries: ${trainingDataUses.length}`);
     console.log(`   - Plan creations: ${planCreationUses.length}`);
     console.log(`   - Memory saves: ${memoryUses.length}`);
+    console.log(`   - Schedule adjustments: ${scheduleAdjustUses.length}`);
     if (planCreationUses.length > 0) {
       console.log(`   - Plan creation input:`, JSON.stringify(planCreationUses[0].input, null, 2));
     }
@@ -714,7 +918,7 @@ ${conversationSummary}
     // Handle server-side tool calls that require a continuation turn
     // (fitness history and training data queries need server-side processing)
     // Memory saves are also processed here so Claude gets confirmation before responding.
-    const serverSideTools = [...fitnessHistoryUses, ...trainingDataUses, ...memoryUses];
+    const serverSideTools = [...fitnessHistoryUses, ...trainingDataUses, ...memoryUses, ...scheduleAdjustUses];
 
     if (serverSideTools.length > 0 && verifiedUserId) {
       const toolResults = [];
@@ -753,6 +957,10 @@ ${conversationSummary}
             } else {
               result = { success: true, saved: tool.input.content };
             }
+          } else if (tool.name === 'adjust_schedule') {
+            console.log(`📅 Schedule adjustment requested:`, JSON.stringify(tool.input, null, 2));
+            result = await handleScheduleAdjustment(verifiedUserId, tool.input);
+            console.log(`📅 Schedule adjustment result:`, JSON.stringify(result));
           }
           toolResults.push({
             type: 'tool_result',
@@ -913,6 +1121,7 @@ ${conversationSummary}
       workoutRecommendations: workoutRecommendations.length > 0 ? workoutRecommendations : null,
       trainingPlanPreview: trainingPlanPreview,
       fuelPlan: fuelPlan,
+      scheduleAdjusted: scheduleAdjustUses.length > 0,
       suggestedActions: suggestedActions,
       usage: response.usage
     });

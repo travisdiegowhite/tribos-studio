@@ -385,7 +385,11 @@ function TrainingDashboard() {
     };
 
     window.addEventListener('training-plan-activated', handlePlanActivated);
-    return () => window.removeEventListener('training-plan-activated', handlePlanActivated);
+    window.addEventListener('training-plan-updated', handlePlanActivated);
+    return () => {
+      window.removeEventListener('training-plan-activated', handlePlanActivated);
+      window.removeEventListener('training-plan-updated', handlePlanActivated);
+    };
   }, [user]);
 
   // Automatic Garmin sync - recover failed events and backfill GPS on load
