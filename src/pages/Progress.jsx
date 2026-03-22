@@ -94,6 +94,8 @@ function Progress() {
             .from('activities')
             .select('*')
             .eq('user_id', user.id)
+            .is('duplicate_of', null)
+            .or('is_hidden.eq.false,is_hidden.is.null')
             .order('start_date', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
 

@@ -50,6 +50,7 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .from('activities')
       .select('start_date, tss, moving_time, average_watts, normalized_power')
       .eq('user_id', userId)
+      .is('duplicate_of', null)
       .gte('start_date', twentyEightDaysAgo.toISOString())
       .order('start_date', { ascending: true }),
 
@@ -58,6 +59,7 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .from('activities')
       .select('id, start_date')
       .eq('user_id', userId)
+      .is('duplicate_of', null)
       .gte('start_date', weekStart.toISOString()),
 
     // 3. This week's planned workouts (for spike guard)

@@ -242,6 +242,7 @@ function TrainingDashboard() {
             .from('activities')
             .select('*')
             .eq('user_id', user.id)
+            .is('duplicate_of', null)
             .order('start_date', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -414,6 +415,7 @@ function TrainingDashboard() {
               .from('activities')
               .select('*')
               .eq('user_id', user.id)
+              .is('duplicate_of', null)
               .order('start_date', { ascending: false })
               .limit(2000);
             if (activityData) {
@@ -435,6 +437,7 @@ function TrainingDashboard() {
               .from('activities')
               .select('*')
               .eq('user_id', user.id)
+              .is('duplicate_of', null)
               .order('start_date', { ascending: false })
               .limit(2000);
             if (activityData) {
@@ -455,6 +458,7 @@ function TrainingDashboard() {
               .from('activities')
               .select('*')
               .eq('user_id', user.id)
+              .is('duplicate_of', null)
               .order('start_date', { ascending: false })
               .limit(2000);
             if (activityData) {

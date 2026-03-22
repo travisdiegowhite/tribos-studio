@@ -105,6 +105,8 @@ function Dashboard() {
           .from('activities')
           .select('*')
           .eq('user_id', user.id)
+          .is('duplicate_of', null)
+          .or('is_hidden.eq.false,is_hidden.is.null')
           .gte('start_date', ninetyDaysAgo.toISOString())
           .order('start_date', { ascending: false });
 

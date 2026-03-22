@@ -115,6 +115,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   const activityQuery = activityId
     ? supabase.from('activities').select('*').eq('id', activityId).maybeSingle()
     : supabase.from('activities').select('*').eq('user_id', userId)
+        .is('duplicate_of', null)
         .order('start_date', { ascending: false }).limit(1).maybeSingle();
 
   // Run independent queries in parallel
