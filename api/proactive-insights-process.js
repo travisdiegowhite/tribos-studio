@@ -123,6 +123,7 @@ async function generateInsight(userId, activityId) {
     .from('activities')
     .select('name, start_date, distance_meters, distance, duration_seconds, moving_time, elevation_gain_meters, total_elevation_gain, average_power_watts, average_watts, average_heart_rate, average_hr, type')
     .eq('user_id', userId)
+    .is('duplicate_of', null)
     .order('start_date', { ascending: false })
     .limit(10);
 
