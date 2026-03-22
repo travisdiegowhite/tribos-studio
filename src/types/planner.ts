@@ -30,6 +30,9 @@ export interface PlannerWorkout {
   actualDuration: number | null;
   // Enriched from workout library
   workout?: WorkoutDefinition;
+  // History tracking — what was originally planned before coach adjustments
+  originalScheduledDate?: string | null; // Original date before move/swap
+  originalWorkoutId?: string | null; // Original workout_id before replace
 }
 
 // ============================================================

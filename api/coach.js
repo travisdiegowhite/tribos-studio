@@ -79,6 +79,32 @@ function resolveScheduledDate(dateStr) {
   return dateStr;
 }
 
+// Swap two workouts' dates atomically, using a null parking date to avoid unique constraint violation.
+// The planned_workouts table has UNIQUE(plan_id, scheduled_date), so we can't have two rows
+// with the same plan_id and date at the same time. We park one row at NULL first.
+async function swapWorkoutDates(planId, sourceId, sourceDate, targetId, targetDate) {
+  // Step 1: Park source workout at NULL date (breaks the constraint lock)
+  await supabase.from('planned_workouts')
+    .update({ scheduled_date: null })
+    .eq('id', sourceId);
+
+  // Step 2: Move target workout to source date (now free)
+  await supabase.from('planned_workouts')
+    .update({
+      scheduled_date: sourceDate,
+      day_of_week: new Date(sourceDate + 'T12:00:00').getDay()
+    })
+    .eq('id', targetId);
+
+  // Step 3: Move source workout from NULL to target date (now free)
+  await supabase.from('planned_workouts')
+    .update({
+      scheduled_date: targetDate,
+      day_of_week: new Date(targetDate + 'T12:00:00').getDay()
+    })
+    .eq('id', sourceId);
+}
+
 // Handle schedule adjustment tool calls — modifies existing active plan workouts
 async function handleScheduleAdjustment(userId, input) {
   const { adjustments, summary } = input;
@@ -105,21 +131,57 @@ async function handleScheduleAdjustment(userId, input) {
       switch (adj.action) {
         case 'move': {
           const targetDate = resolveScheduledDate(adj.target_date);
-          const { data: moved, error } = await supabase
+
+          // Fetch source workout and check if target date is occupied
+          const { data: involved } = await supabase
             .from('planned_workouts')
-            .update({
-              scheduled_date: targetDate,
-              day_of_week: new Date(targetDate + 'T12:00:00').getDay()
-            })
+            .select('id, scheduled_date, name, workout_id, workout_type, original_scheduled_date, original_workout_id')
             .eq('plan_id', activePlan.id)
-            .eq('scheduled_date', sourceDate)
-            .eq('completed', false)
-            .select('id, name');
-          results.push({
-            action: 'move', from: sourceDate, to: targetDate,
-            success: !error, workouts_affected: moved?.length || 0,
-            error: error?.message
-          });
+            .in('scheduled_date', [sourceDate, targetDate])
+            .eq('completed', false);
+
+          const sourceWorkout = involved?.find(w => w.scheduled_date === sourceDate);
+          const targetWorkout = involved?.find(w => w.scheduled_date === targetDate);
+
+          if (!sourceWorkout) {
+            results.push({ action: 'move', from: sourceDate, to: targetDate, success: false, error: `No incomplete workout found on ${sourceDate}` });
+            break;
+          }
+
+          // Track original date if not already tracked
+          if (!sourceWorkout.original_scheduled_date) {
+            await supabase.from('planned_workouts')
+              .update({ original_scheduled_date: sourceDate })
+              .eq('id', sourceWorkout.id);
+          }
+
+          if (targetWorkout) {
+            // Target date is occupied — auto-swap instead of failing
+            if (!targetWorkout.original_scheduled_date) {
+              await supabase.from('planned_workouts')
+                .update({ original_scheduled_date: targetDate })
+                .eq('id', targetWorkout.id);
+            }
+            await swapWorkoutDates(activePlan.id, sourceWorkout.id, sourceDate, targetWorkout.id, targetDate);
+            results.push({
+              action: 'move', from: sourceDate, to: targetDate,
+              success: true, auto_swapped: true,
+              detail: `Swapped: "${sourceWorkout.name}" moved to ${targetDate}, "${targetWorkout.name}" moved to ${sourceDate}`
+            });
+          } else {
+            // Target date is free — simple move
+            const { error } = await supabase
+              .from('planned_workouts')
+              .update({
+                scheduled_date: targetDate,
+                day_of_week: new Date(targetDate + 'T12:00:00').getDay()
+              })
+              .eq('id', sourceWorkout.id);
+            results.push({
+              action: 'move', from: sourceDate, to: targetDate,
+              success: !error, error: error?.message
+            });
+          }
           break;
         }
         case 'swap': {
@@ -127,37 +189,65 @@ async function handleScheduleAdjustment(userId, input) {
           // Fetch workouts on both dates
           const { data: workouts } = await supabase
             .from('planned_workouts')
-            .select('id, scheduled_date, day_of_week')
+            .select('id, scheduled_date, day_of_week, name, original_scheduled_date')
             .eq('plan_id', activePlan.id)
             .in('scheduled_date', [sourceDate, targetDate])
             .eq('completed', false);
 
-          const sourceWorkouts = workouts?.filter(w => w.scheduled_date === sourceDate) || [];
-          const targetWorkouts = workouts?.filter(w => w.scheduled_date === targetDate) || [];
+          const sourceWorkout = workouts?.find(w => w.scheduled_date === sourceDate);
+          const targetWorkout = workouts?.find(w => w.scheduled_date === targetDate);
 
-          if (sourceWorkouts.length > 0 || targetWorkouts.length > 0) {
-            // Move source workouts to target date
-            for (const w of sourceWorkouts) {
-              await supabase.from('planned_workouts')
-                .update({ scheduled_date: targetDate, day_of_week: new Date(targetDate + 'T12:00:00').getDay() })
-                .eq('id', w.id);
-            }
-            // Move target workouts to source date
-            for (const w of targetWorkouts) {
-              await supabase.from('planned_workouts')
-                .update({ scheduled_date: sourceDate, day_of_week: new Date(sourceDate + 'T12:00:00').getDay() })
-                .eq('id', w.id);
-            }
-            results.push({ action: 'swap', dates: [sourceDate, targetDate], success: true });
-          } else {
+          if (!sourceWorkout && !targetWorkout) {
             results.push({ action: 'swap', success: false, error: 'No workouts found on either date' });
+            break;
           }
+
+          // Track original dates if not already tracked
+          if (sourceWorkout && !sourceWorkout.original_scheduled_date) {
+            await supabase.from('planned_workouts')
+              .update({ original_scheduled_date: sourceDate })
+              .eq('id', sourceWorkout.id);
+          }
+          if (targetWorkout && !targetWorkout.original_scheduled_date) {
+            await supabase.from('planned_workouts')
+              .update({ original_scheduled_date: targetDate })
+              .eq('id', targetWorkout.id);
+          }
+
+          if (sourceWorkout && targetWorkout) {
+            // Both dates have workouts — use atomic swap
+            await swapWorkoutDates(activePlan.id, sourceWorkout.id, sourceDate, targetWorkout.id, targetDate);
+          } else if (sourceWorkout) {
+            // Only source has a workout — simple move
+            await supabase.from('planned_workouts')
+              .update({ scheduled_date: targetDate, day_of_week: new Date(targetDate + 'T12:00:00').getDay() })
+              .eq('id', sourceWorkout.id);
+          } else {
+            // Only target has a workout — simple move
+            await supabase.from('planned_workouts')
+              .update({ scheduled_date: sourceDate, day_of_week: new Date(sourceDate + 'T12:00:00').getDay() })
+              .eq('id', targetWorkout.id);
+          }
+          results.push({ action: 'swap', dates: [sourceDate, targetDate], success: true });
           break;
         }
         case 'replace': {
+          // Fetch current workout to save original workout_id
+          const { data: current } = await supabase
+            .from('planned_workouts')
+            .select('id, workout_id, original_workout_id')
+            .eq('plan_id', activePlan.id)
+            .eq('scheduled_date', sourceDate)
+            .eq('completed', false)
+            .maybeSingle();
+
           const updateData = { workout_id: adj.new_workout_id };
           if (adj.new_workout_id) {
             updateData.name = adj.new_workout_id;
+          }
+          // Track original workout_id if not already tracked
+          if (current && !current.original_workout_id) {
+            updateData.original_workout_id = current.workout_id;
           }
           const { data: replaced, error } = await supabase
             .from('planned_workouts')
@@ -175,16 +265,30 @@ async function handleScheduleAdjustment(userId, input) {
         }
         case 'remove':
         case 'add_rest': {
+          // Fetch current workout to save original values
+          const { data: currentWorkout } = await supabase
+            .from('planned_workouts')
+            .select('id, workout_id, original_workout_id')
+            .eq('plan_id', activePlan.id)
+            .eq('scheduled_date', sourceDate)
+            .eq('completed', false)
+            .maybeSingle();
+
+          const restUpdate = {
+            workout_type: 'rest',
+            workout_id: null,
+            name: 'Rest Day',
+            target_tss: 0,
+            target_duration: 0,
+            duration_minutes: 0
+          };
+          // Track original workout_id if not already tracked
+          if (currentWorkout && !currentWorkout.original_workout_id && currentWorkout.workout_id) {
+            restUpdate.original_workout_id = currentWorkout.workout_id;
+          }
           const { data: updated, error } = await supabase
             .from('planned_workouts')
-            .update({
-              workout_type: 'rest',
-              workout_id: null,
-              name: 'Rest Day',
-              target_tss: 0,
-              target_duration: 0,
-              duration_minutes: 0
-            })
+            .update(restUpdate)
             .eq('plan_id', activePlan.id)
             .eq('scheduled_date', sourceDate)
             .eq('completed', false)
