@@ -34,7 +34,7 @@ import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { FuelBadge, FuelCard } from './fueling';
 import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
 import CrossTrainingModal from './CrossTrainingModal';
-import { Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, DotsSixVertical, DownloadSimple, Fire, Heartbeat, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Trash, TrendUp, Trophy, X } from '@phosphor-icons/react';
+import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, DotsSixVertical, DownloadSimple, Fire, Heartbeat, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Trash, TrendUp, Trophy, X } from '@phosphor-icons/react';
 
 /**
  * Enhanced Training Calendar Component
@@ -1161,6 +1161,36 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               variant="text"
                             />
                           </Group>
+                          {/* Coach adjustment indicator */}
+                          {(workout.original_scheduled_date || workout.original_workout_id) && (
+                            <Tooltip
+                              label={
+                                <Stack gap={2}>
+                                  <Text size="xs" fw={600}>Coach adjusted</Text>
+                                  {workout.original_scheduled_date && (
+                                    <Text size="xs">Originally: {workout.original_scheduled_date}</Text>
+                                  )}
+                                  {workout.original_workout_id && (
+                                    <Text size="xs">
+                                      Was: {getWorkoutById(workout.original_workout_id)?.name || workout.original_workout_id}
+                                    </Text>
+                                  )}
+                                </Stack>
+                              }
+                              position="bottom"
+                              withArrow
+                            >
+                              <Badge
+                                size="xs"
+                                variant="light"
+                                color="yellow"
+                                leftSection={<ArrowsLeftRight size={10} />}
+                                style={{ cursor: 'help' }}
+                              >
+                                Adjusted
+                              </Badge>
+                            </Tooltip>
+                          )}
                           {/* Create Route button - only for today or future workouts */}
                           {!isPast && (
                             <Tooltip label="Create route for this workout" withArrow>

@@ -253,6 +253,11 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         setSuggestedActions(data.suggestedActions);
       }
 
+      // If the coach adjusted the schedule server-side, notify dashboard to refresh
+      if (data.scheduleAdjusted) {
+        window.dispatchEvent(new CustomEvent('training-plan-updated'));
+      }
+
       // Update in-session conversation history
       setConversationHistory((prev) => [
         ...prev,
@@ -380,15 +385,106 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
     }
   }, [user?.id, onAddWorkout]);
 
-  // Handle action button clicks
-  const handleActionClick = (action) => {
+  // Resolve relative date strings (today, tomorrow, this_monday, next_tuesday, YYYY-MM-DD) to YYYY-MM-DD
+  const resolveScheduledDate = (dateStr) => {
+    if (!dateStr) return new Date().toISOString().split('T')[0];
+    // Already a YYYY-MM-DD date
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+
+    const today = new Date();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+    if (dateStr === 'today') return today.toISOString().split('T')[0];
+    if (dateStr === 'tomorrow') {
+      today.setDate(today.getDate() + 1);
+      return today.toISOString().split('T')[0];
+    }
+
+    // Handle this_monday, next_tuesday, etc.
+    const match = dateStr.match(/^(this|next)_(\w+)$/);
+    if (match) {
+      const [, prefix, dayName] = match;
+      const targetDay = dayNames.indexOf(dayName.toLowerCase());
+      if (targetDay >= 0) {
+        const currentDay = today.getDay();
+        let diff = targetDay - currentDay;
+        if (prefix === 'this') {
+          if (diff <= 0) diff += 7;
+        } else {
+          // next = always at least 7 days out
+          if (diff <= 0) diff += 7;
+          diff += 7;
+        }
+        today.setDate(today.getDate() + diff);
+        return today.toISOString().split('T')[0];
+      }
+    }
+
+    return dateStr; // Fallback
+  };
+
+  // Handle action button clicks (direct DB writes — CoachCommandBar is a global modal with no parent callbacks)
+  const handleActionClick = async (action) => {
     if (action.actionType === 'add_to_calendar' && action.payload) {
-      onAddWorkout?.(action.payload);
-      notifications.show({
-        title: 'Workout Added',
-        message: `Added to your calendar`,
-        color: 'sage',
-      });
+      try {
+        // Find active plan to attach workout to
+        const { data: activePlan } = await supabase
+          .from('training_plans')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!activePlan) {
+          notifications.show({
+            title: 'No Active Plan',
+            message: 'You need an active training plan to add workouts. Ask your coach to create one!',
+            color: 'yellow',
+          });
+          return;
+        }
+
+        const scheduledDate = resolveScheduledDate(action.payload.scheduled_date);
+        const dateObj = new Date(scheduledDate + 'T12:00:00');
+        const dayOfWeek = dateObj.getDay();
+
+        const { error } = await supabase
+          .from('planned_workouts')
+          .insert({
+            plan_id: activePlan.id,
+            user_id: user.id,
+            scheduled_date: scheduledDate,
+            day_of_week: dayOfWeek,
+            week_number: 1,
+            workout_type: action.payload.workout_type || 'endurance',
+            workout_id: action.payload.workout_id,
+            name: action.payload.name || action.payload.workout_id || 'Workout',
+            target_tss: action.payload.target_tss || null,
+            target_duration: action.payload.duration_minutes || null,
+            duration_minutes: action.payload.duration_minutes || 0,
+            completed: false,
+          });
+
+        if (error) throw error;
+
+        notifications.show({
+          title: 'Workout Added',
+          message: `Added to your calendar for ${scheduledDate}`,
+          color: 'sage',
+        });
+
+        // Notify dashboard to refresh
+        window.dispatchEvent(new CustomEvent('training-plan-updated'));
+      } catch (err) {
+        console.error('Error adding workout:', err);
+        notifications.show({
+          title: 'Error',
+          message: 'Failed to add workout to calendar. Please try again.',
+          color: 'red',
+        });
+      }
     }
   };
 

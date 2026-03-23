@@ -413,11 +413,72 @@ export const SAVE_COACH_MEMORY_TOOL = {
   }
 };
 
-// Combined tools for AI coach (includes workout, fitness history, plan creation, fueling, training data, and memory)
+// Schedule Adjustment Tool - lets the AI modify an existing active training plan
+export const ADJUST_SCHEDULE_TOOL = {
+  name: "adjust_schedule",
+  description: `Modify the athlete's existing active training plan schedule. Use this when the athlete wants to move, swap, replace, or remove workouts from their current plan.
+
+Use this tool when the athlete says things like:
+- "move my workout from Thursday to Friday"
+- "swap Monday's and Wednesday's workouts"
+- "I can't train on Tuesday, move it"
+- "replace tomorrow's ride with a recovery spin"
+- "I need a rest day on Wednesday"
+- "adjust my schedule this week"
+- "move the hard workout to Saturday"
+
+Do NOT use this for creating new plans (use create_training_plan) or adding individual workouts that aren't part of the current plan (use recommend_workout).
+
+The adjustments are applied immediately to the athlete's active plan. Always confirm what was changed in your response.`,
+  input_schema: {
+    type: "object",
+    properties: {
+      adjustments: {
+        type: "array",
+        description: "List of schedule adjustments to make",
+        items: {
+          type: "object",
+          properties: {
+            action: {
+              type: "string",
+              enum: ["move", "swap", "replace", "remove", "add_rest"],
+              description: "Type of adjustment: move (change workout date), swap (exchange two workouts' dates), replace (change the workout_id to a different workout), remove (delete the workout), add_rest (convert to a rest day)"
+            },
+            source_date: {
+              type: "string",
+              description: "The date of the workout to modify. Use YYYY-MM-DD format, or relative: 'today', 'tomorrow', 'this_monday', 'next_tuesday', etc."
+            },
+            target_date: {
+              type: "string",
+              description: "For 'move' and 'swap' actions: the destination date. Use same format as source_date."
+            },
+            new_workout_id: {
+              type: "string",
+              description: "For 'replace' action: the workout_id from the library to replace with (e.g., 'recovery_spin', 'three_by_ten_sst')"
+            },
+            reason: {
+              type: "string",
+              description: "Brief explanation for this specific adjustment"
+            }
+          },
+          required: ["action", "source_date", "reason"]
+        }
+      },
+      summary: {
+        type: "string",
+        description: "Brief summary of all adjustments being made and the overall rationale"
+      }
+    },
+    required: ["adjustments", "summary"]
+  }
+};
+
+// Combined tools for AI coach (includes workout, fitness history, plan creation, fueling, training data, memory, and schedule adjustment)
 export const ALL_COACH_TOOLS = [
   ...WORKOUT_TOOLS,
   FITNESS_HISTORY_TOOL,
   CREATE_PLAN_TOOL,
+  ADJUST_SCHEDULE_TOOL,
   FUEL_PLAN_TOOL,
   TRAINING_DATA_TOOL,
   SAVE_COACH_MEMORY_TOOL

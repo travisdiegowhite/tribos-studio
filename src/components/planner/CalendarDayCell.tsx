@@ -7,7 +7,8 @@ import { Box, Text, ActionIcon, Group, Tooltip, Badge, Progress, Stack, Menu, Th
 import { WorkoutCard } from './WorkoutCard';
 import type { PlannerWorkout } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutDefinition } from '../../types/training';
-import { ArrowDown, ArrowUp, Bicycle, CalendarBlank, CalendarX, Check, House, Link, Lock, LockOpen, Minus, Plus, Star, Trophy, X } from '@phosphor-icons/react';
+import { ArrowDown, ArrowUp, ArrowsLeftRight, Bicycle, CalendarBlank, CalendarX, Check, House, Link, Lock, LockOpen, Minus, Plus, Star, Trophy, X } from '@phosphor-icons/react';
+import { WORKOUT_LIBRARY } from '../../data/workoutLibrary';
 
 // Race goal type for calendar display
 interface RaceGoal {
@@ -339,6 +340,37 @@ export function CalendarDayCell({
               showTSS
             />
           </Box>
+
+          {/* Originally planned indicator — shows what was originally scheduled before coach adjustments */}
+          {(plannedWorkout.originalScheduledDate || plannedWorkout.originalWorkoutId) && (
+            <Tooltip
+              label={
+                <Stack gap={2}>
+                  <Text size="xs" fw={600}>Coach adjusted</Text>
+                  {plannedWorkout.originalScheduledDate && (
+                    <Text size="xs">Originally scheduled: {plannedWorkout.originalScheduledDate}</Text>
+                  )}
+                  {plannedWorkout.originalWorkoutId && (
+                    <Text size="xs">
+                      Original workout: {WORKOUT_LIBRARY[plannedWorkout.originalWorkoutId as keyof typeof WORKOUT_LIBRARY]?.name || plannedWorkout.originalWorkoutId}
+                    </Text>
+                  )}
+                </Stack>
+              }
+              position="bottom"
+              withArrow
+            >
+              <Badge
+                size="xs"
+                variant="light"
+                color="yellow"
+                leftSection={<ArrowsLeftRight size={10} />}
+                style={{ cursor: 'help', marginTop: 2 }}
+              >
+                Adjusted
+              </Badge>
+            </Tooltip>
+          )}
 
           {/* Remove button */}
           <ActionIcon
