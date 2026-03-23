@@ -560,7 +560,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
           >
             {/* Hidden title for accessibility */}
             <Text id="coach-command-bar-title" style={{ display: 'none' }}>
-              AI Coach Command Bar
+              Coach Command Bar
             </Text>
 
             {/* Input Section */}
@@ -642,20 +642,20 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                     variant="light"
                     color="teal"
                     icon={<ShieldCheck size={20} />}
-                    title="Enable AI Coach"
+                    title="Enable Coach"
                   >
                     <Stack gap="sm">
                       <Text size="sm">
-                        AI Coach uses Anthropic's Claude to analyze your training data and provide
-                        personalized insights. Your activity summaries and fitness profile are sent
-                        to the AI — raw GPS data and personal info are not shared.
+                        Coach uses smart analysis to review your training data and provide
+                        personalized insights. Your activity summaries and fitness profile are processed
+                        securely — raw GPS data and personal info are not shared.
                       </Text>
                       <Text size="sm">
                         See our{' '}
                         <Anchor component={Link} to="/privacy#ai" onClick={close} style={{ color: 'var(--color-teal)' }}>
                           Privacy Policy
                         </Anchor>{' '}
-                        for full details. You can disable AI features anytime in Settings.
+                        for full details. You can disable smart features anytime in Settings.
                       </Text>
                       <Group gap="sm">
                         <Button
@@ -664,7 +664,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                           loading={consentGranting}
                           onClick={grantAiConsent}
                         >
-                          Enable AI Coach
+                          Enable Coach
                         </Button>
                         <Button size="sm" variant="subtle" color="gray" onClick={close}>
                           Not Now

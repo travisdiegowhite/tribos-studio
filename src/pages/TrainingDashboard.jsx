@@ -1242,7 +1242,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
                 </Badge>
               </Group>
               <Text size="sm" c="dimmed" fs="italic">{plannedRestReason || 'Rest day scheduled.'}</Text>
-              <Text size="xs" c="dimmed" mt="xs">Ask the AI Coach if you want to adjust today's plan.</Text>
+              <Text size="xs" c="dimmed" mt="xs">Ask the Coach if you want to adjust today's plan.</Text>
             </Box>
           )}
 
@@ -1272,7 +1272,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
                 )}
               </Group>
               {recommendationSource === 'plan' && (
-                <Text size="xs" c="dimmed" mt="xs">Ask the AI Coach if you want to adjust today's plan.</Text>
+                <Text size="xs" c="dimmed" mt="xs">Ask the Coach if you want to adjust today's plan.</Text>
               )}
             </Box>
           )}
@@ -1441,7 +1441,7 @@ function TodayTab({ trainingMetrics, weeklyStats, actualWeeklyStats, activities,
               )}
             </Group>
             <Text size="sm" c="dimmed">
-              {hasCheckedIn ? 'Today\'s metrics recorded' : 'Log your daily metrics for better AI coaching recommendations'}
+              {hasCheckedIn ? 'Today\'s metrics recorded' : 'Log your daily metrics for better coaching recommendations'}
             </Text>
           </Box>
           <Group gap="md" wrap="wrap">

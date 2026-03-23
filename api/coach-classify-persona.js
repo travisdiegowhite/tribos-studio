@@ -67,7 +67,7 @@ export default async function handler(req, res) {
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ error: 'AI service not configured' });
+      return res.status(500).json({ error: 'Service not configured' });
     }
 
     const { answers, userId } = req.body;

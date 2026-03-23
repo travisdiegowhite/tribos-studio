@@ -101,7 +101,7 @@ export default function AIEditPanel({
         <Group gap={6}>
           <MagicWand size={16} color="var(--color-teal)" />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
-            AI Route Edit
+            Smart Route Edit
           </Text>
         </Group>
         <ActionIcon size="sm" variant="subtle" onClick={onClose} color="gray">

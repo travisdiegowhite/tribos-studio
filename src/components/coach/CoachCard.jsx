@@ -442,7 +442,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
             <ThemeIcon size="lg" color="teal" variant="light" radius="md">
               <Sparkle size={18} />
             </ThemeIcon>
-            <Text fw={600}>AI Coach</Text>
+            <Text fw={600}>Coach</Text>
           </Group>
         </Group>
 

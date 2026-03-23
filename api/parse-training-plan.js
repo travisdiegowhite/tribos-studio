@@ -121,7 +121,7 @@ async function parseScreenshot(req, res, { imageData, imageUrl, userId }) {
   // Validate API key
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'AI service not configured' });
+    return res.status(500).json({ error: 'Service not configured' });
   }
 
   try {
@@ -175,7 +175,7 @@ async function parseScreenshot(req, res, { imageData, imageUrl, userId }) {
     // Extract the JSON response
     const textContent = response.content.find(block => block.type === 'text');
     if (!textContent) {
-      throw new Error('No response from AI');
+      throw new Error('No response from service');
     }
 
     // Parse the JSON (Claude should return clean JSON)

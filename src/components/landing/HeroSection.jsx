@@ -119,7 +119,7 @@ export default function HeroSection() {
                 lineHeight: 1.6,
               }}
             >
-              Watch what happens when your cycling data meets an AI that actually understands training.
+              Watch what happens when your cycling data meets a coach that actually understands training.
             </Text>
 
             <Group gap="md" justify={{ base: 'center', md: 'flex-start' }}>
@@ -243,7 +243,7 @@ export default function HeroSection() {
                   <Sparkle size={10} />
                 </ThemeIcon>
                 <Text fw={600} size="xs" style={{ color: 'var(--color-text-primary)' }}>
-                  AI Coach
+                  Coach
                 </Text>
                 <Box
                   style={{

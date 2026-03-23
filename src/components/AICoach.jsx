@@ -585,7 +585,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           duration_minutes: w.duration_minutes,
           target_duration: w.duration_minutes,
           target_tss: w.target_tss,
-          notes: `AI Coach: ${planPreview.methodology} training - ${w.phase} phase`,
+          notes: `Coach: ${planPreview.methodology} training - ${w.phase} phase`,
           completed: false
         }));
 
@@ -760,7 +760,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
             >
               <Robot size={48} style={{ color: 'var(--color-text-muted)', marginBottom: 12 }} />
               <Text style={{ color: 'var(--color-text-secondary)' }} mb="xs">
-                Hi! I'm your AI training coach.
+                Hi! I'm your training coach.
               </Text>
               <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
                 Ask me about workouts, training plans, recovery, or get personalized recommendations.

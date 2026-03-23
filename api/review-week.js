@@ -412,7 +412,7 @@ export default async function handler(req, res) {
         {
           type: 'warning',
           title: 'Service Unavailable',
-          message: 'AI review is temporarily unavailable. Please try again later.',
+          message: 'Review is temporarily unavailable. Please try again later.',
           priority: 'medium',
         },
       ],

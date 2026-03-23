@@ -17,7 +17,7 @@ function CoachCommandBarTrigger({
   // Minimal variant - just an icon button
   if (variant === 'minimal') {
     return (
-      <Tooltip label="Ask AI Coach (Ctrl+K)" position="bottom">
+      <Tooltip label="Ask Coach (Ctrl+K)" position="bottom">
         <ActionIcon
           size="lg"
           variant="light"
@@ -34,7 +34,7 @@ function CoachCommandBarTrigger({
   // Floating variant - fixed position button
   if (variant === 'floating') {
     return (
-      <Tooltip label="Ask AI Coach (Ctrl+K)" position="left">
+      <Tooltip label="Ask Coach (Ctrl+K)" position="left">
         <ActionIcon
           size={56}
           radius="xl"
@@ -103,7 +103,7 @@ function CoachCommandBarTrigger({
         },
       }}
     >
-      Ask AI Coach
+      Ask Coach
     </Button>
   );
 }

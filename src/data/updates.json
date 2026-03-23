@@ -1,8 +1,8 @@
 {
   "welcome": {
     "title": "Welcome to Tribos",
-    "subtitle": "Your AI-powered training companion for cyclists",
-    "description": "Tribos helps you train smarter by combining route planning, workout scheduling, and AI coaching into one seamless experience. Whether you're preparing for your first century or your next race, we've got the tools to help you get there."
+    "subtitle": "Your smart training companion for cyclists",
+    "description": "Tribos helps you train smarter by combining route planning, workout scheduling, and coaching into one seamless experience. Whether you're preparing for your first century or your next race, we've got the tools to help you get there."
   },
   "features": [
     {
@@ -26,10 +26,10 @@
     },
     {
       "id": "ai-coaches",
-      "category": "AI Features",
-      "title": "Meet Your AI Coaches",
+      "category": "Coaching Features",
+      "title": "Meet Your Coaches",
       "icon": "robot",
-      "description": "Three distinct AI personalities, each designed for a specific part of your training journey.",
+      "description": "Three distinct coaching personalities, each designed for a specific part of your training journey.",
       "items": [
         {
           "name": "Training Coach",
@@ -54,7 +54,7 @@
       "id": "coach-check-in",
       "date": "2026-03",
       "type": "new",
-      "title": "AI Coaching Check-ins",
+      "title": "Coaching Check-ins",
       "description": "Your coach now checks in on you proactively. Each coach persona has a distinct voice and reviews your week — giving you feedback, accountability, and next steps without you having to ask.",
       "details": [
         "Persona system with distinct coach voices and personalities",
@@ -79,11 +79,11 @@
       "date": "2026-03",
       "type": "new",
       "title": "Multi-Sport Activity Tracking",
-      "description": "Tribos now tracks running and other activities alongside your rides. Sport-specific metrics show up in your dashboard and your AI coach understands your full training picture.",
+      "description": "Tribos now tracks running and other activities alongside your rides. Sport-specific metrics show up in your dashboard and your coach understands your full training picture.",
       "details": [
         "Running and cross-training activities synced and displayed",
         "Sport-specific metrics in your dashboard and Today's Focus card",
-        "AI coaching context includes all your activities, not just cycling"
+        "Coaching context includes all your activities, not just cycling"
       ]
     },
     {
@@ -102,8 +102,8 @@
       "id": "ai-route-editing",
       "date": "2026-02",
       "type": "new",
-      "title": "AI-Assisted Route Editing",
-      "description": "Edit your routes with natural language. Tell the AI what you want — add a hill, avoid a road, extend the loop — and watch it adjust your route in real time.",
+      "title": "Smart Route Editing",
+      "description": "Edit your routes with natural language. Describe what you want — add a hill, avoid a road, extend the loop — and watch it adjust your route in real time.",
       "details": [
         "Natural language commands to reshape your route",
         "Smart POIs along your route — water, food, bike shops, viewpoints",
@@ -115,9 +115,9 @@
       "date": "2026-02",
       "type": "new",
       "title": "Training Plans on Your Calendar",
-      "description": "Your AI coach can now build structured training plans and place them directly onto your calendar. Plans adapt to your schedule and the coach remembers your history across sessions.",
+      "description": "Your coach can now build structured training plans and place them directly onto your calendar. Plans adapt to your schedule and the coach remembers your history across sessions.",
       "details": [
-        "AI-generated plans dropped straight onto your training calendar",
+        "Coach-generated plans dropped straight onto your training calendar",
         "Coach memory across sessions for smarter recommendations",
         "Schedule-aware planning that respects your availability"
       ]
@@ -126,7 +126,7 @@
       "id": "coach-redesign",
       "date": "2026-02",
       "type": "improvement",
-      "title": "AI Coach Experience Redesign",
+      "title": "Coach Experience Redesign",
       "description": "A faster, more integrated coaching experience. Access your coach from a spotlight-style command bar and get proactive suggestions right on your dashboard.",
       "details": [
         "Spotlight-style command bar for quick coach access",

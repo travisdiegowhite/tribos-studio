@@ -1389,7 +1389,7 @@ function RouteBuilder() {
     setAiEditPrevGeometry(null);
     notifications.show({
       title: 'Route updated',
-      message: 'AI edit applied successfully',
+      message: 'Smart edit applied successfully',
       color: 'terracotta',
       autoClose: 3000,
     });
@@ -2469,7 +2469,7 @@ function RouteBuilder() {
         />
       </Box>
 
-      <Divider label="AI Route Generator" labelPosition="center" />
+      <Divider label="Smart Route Generator" labelPosition="center" />
 
       {/* Iterative Builder Toggle - Prominent placement */}
       <Paper
@@ -2695,7 +2695,7 @@ function RouteBuilder() {
         color="teal"
         fullWidth
       >
-        {generatingAI ? 'Generating Routes...' : (useIterativeBuilder ? 'Generate Iterative Routes' : 'Generate AI Routes')}
+        {generatingAI ? 'Generating Routes...' : (useIterativeBuilder ? 'Generate Iterative Routes' : 'Generate Routes')}
       </Button>
 
       {/* AI Suggestions */}
@@ -2921,7 +2921,7 @@ function RouteBuilder() {
             }}
             leftSection={<MagicWand size={16} />}
           >
-            {aiEditMode ? 'Close AI Edit' : 'AI Edit Route'}
+            {aiEditMode ? 'Close Smart Edit' : 'Smart Edit Route'}
           </Button>
         )}
 
@@ -3615,7 +3615,7 @@ function RouteBuilder() {
                   </Tooltip>
                 )}
                 {routeGeometry && !editMode && (
-                  <Tooltip label={aiEditMode ? 'Close AI Edit' : 'AI Edit Route'}>
+                  <Tooltip label={aiEditMode ? 'Close Smart Edit' : 'Smart Edit Route'}>
                     <Button
                       variant={aiEditMode ? 'filled' : 'default'}
                       color={aiEditMode ? 'terracotta' : 'dark'}
@@ -3985,7 +3985,7 @@ function RouteBuilder() {
                 <Group gap="xs" mb="md">
                   <Robot size={20} style={{ color: 'var(--color-teal)' }} />
                   <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
-                    AI Route Generator
+                    Smart Route Generator
                   </Text>
                 </Group>
 
@@ -4216,15 +4216,15 @@ function RouteBuilder() {
                     color="teal"
                     fullWidth
                   >
-                    {generatingAI ? 'Generating Routes...' : (useIterativeBuilder ? 'Generate Iterative Routes' : 'Generate AI Routes')}
+                    {generatingAI ? 'Generating Routes...' : (useIterativeBuilder ? 'Generate Iterative Routes' : 'Generate Routes')}
                   </Button>
                 </Stack>
               </CollapsibleSection>
 
-              {/* AI Suggestions Section - Collapsible with enhanced cards */}
+              {/* Route Suggestions Section - Collapsible with enhanced cards */}
               {aiSuggestions.length > 0 && (
                 <CollapsibleSection
-                  title="AI Suggestions"
+                  title="Route Suggestions"
                   icon={<Sparkle size={18} />}
                   badge={`${aiSuggestions.length}`}
                   defaultExpanded={true}
@@ -4691,7 +4691,7 @@ function RouteBuilder() {
                         }}
                         leftSection={<MagicWand size={14} />}
                       >
-                        {aiEditMode ? 'Close AI' : 'AI Edit'}
+                        {aiEditMode ? 'Close Smart Edit' : 'Smart Edit'}
                       </Button>
                     )}
                   </Group>
@@ -5022,7 +5022,7 @@ function RouteBuilder() {
                 </Tooltip>
               )}
               {routeGeometry && !editMode && (
-                <Tooltip label={aiEditMode ? 'Close AI Edit' : 'AI Edit Route'}>
+                <Tooltip label={aiEditMode ? 'Close Smart Edit' : 'Smart Edit Route'}>
                   <Button
                     variant={aiEditMode ? 'filled' : 'default'}
                     color={aiEditMode ? 'terracotta' : 'dark'}

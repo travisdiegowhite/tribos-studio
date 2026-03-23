@@ -699,7 +699,7 @@ function MyRoutes() {
                     size="sm"
                     data={[
                       { label: 'All', value: 'all' },
-                      { label: 'AI Generated', value: 'ai' },
+                      { label: 'Smart Generated', value: 'ai' },
                       { label: 'Manual', value: 'manual' }
                     ]}
                     styles={{
@@ -757,7 +757,7 @@ function MyRoutes() {
                     styles={{ root: { height: 'auto', padding: '12px 16px' } }}
                   >
                     <Stack gap={2} align="flex-start">
-                      <Text size="sm" fw={600}>Get an AI-suggested route</Text>
+                      <Text size="sm" fw={600}>Get a smart route suggestion</Text>
                       <Text size="xs" c="dimmed">
                         {medianDistanceKm
                           ? `Based on your typical ${formatDist(medianDistanceKm)} rides`
@@ -950,7 +950,7 @@ function MyRoutes() {
                       )}
                       {route.generated_by === 'ai' && (
                         <Badge size="sm" variant="light" color="violet">
-                          AI Generated
+                          Smart Generated
                         </Badge>
                       )}
                     </Group>

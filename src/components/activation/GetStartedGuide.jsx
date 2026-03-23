@@ -38,7 +38,7 @@ const ACTIVATION_STEPS = [
   {
     key: 'first_insight',
     label: 'See what your coach thinks',
-    description: 'AI analysis of your ride',
+    description: 'Smart analysis of your ride',
     cta: 'View insight',
     action: 'open-coach',
     icon: Brain,
@@ -46,7 +46,7 @@ const ACTIVATION_STEPS = [
   {
     key: 'first_route',
     label: 'Build a route',
-    description: 'Plan your next ride with AI assistance',
+    description: 'Plan your next ride with smart assistance',
     cta: 'Route builder',
     href: '/routes/new',
     icon: MapTrifold,
