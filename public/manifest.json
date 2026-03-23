@@ -1,7 +1,7 @@
 {
   "name": "tribos.studio",
   "short_name": "Tribos",
-  "description": "Cycling training platform - AI route planning, training analytics, and device sync",
+  "description": "Cycling training platform - smart route planning, training analytics, and device sync",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
