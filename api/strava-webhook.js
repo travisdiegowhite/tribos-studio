@@ -11,6 +11,7 @@ import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
+import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
 
 // Initialize Supabase (server-side with service key for webhook processing)
 const supabase = getSupabaseAdmin();
@@ -447,6 +448,9 @@ async function handleActivityCreate(eventId, webhookData, integration) {
           body: JSON.stringify({ checkInId }),
         }).catch(() => {});
       }
+
+      // Enqueue deviation analysis (fire-and-forget)
+      enqueueDeviationAnalysis(supabase, integration.user_id, savedActivity.id).catch(() => {});
     } catch (activationError) {
       console.error('⚠️ Activation tracking failed (non-critical):', activationError.message);
     }

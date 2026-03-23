@@ -9,6 +9,7 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
+import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
 import { updateBackfillChunkIfApplicable } from './utils/garminBackfill.js';
 import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
 
@@ -508,6 +509,9 @@ async function downloadAndProcessActivity(event, integration) {
         body: JSON.stringify({ checkInId }),
       }).catch(() => {});
     }
+
+    // Enqueue deviation analysis (fire-and-forget)
+    enqueueDeviationAnalysis(supabase, integration.user_id, activity.id).catch(() => {});
   } catch (activationError) {
     console.error('⚠️ Activation tracking failed (non-critical):', activationError.message);
   }

@@ -182,6 +182,9 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
+        body: JSON.stringify({
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
       });
 
       const result = await response.json();

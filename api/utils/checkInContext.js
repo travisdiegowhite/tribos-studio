@@ -97,7 +97,8 @@ function weekScheduleToText(weekSchedule) {
       const tssInfo = w.target_tss
         ? `planned=${w.target_tss}${w.actual_tss ? ` actual=${w.actual_tss}` : ''}`
         : '';
-      return `${w.day}: ${w.name} [${status}] ${tssInfo}`.trim();
+      const dateLabel = w.scheduled_date ? ` (${w.scheduled_date})` : '';
+      return `${w.day}${dateLabel}: ${w.name} [${status}] ${tssInfo}`.trim();
     })
     .join('\n');
 }
@@ -129,6 +130,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     healthResult,
     memoryResult,
     recentConversationsResult,
+    userProfileResult,
   ] = await Promise.all([
     activityQuery,
 
@@ -196,6 +198,13 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
       .in('role', ['user', 'coach'])
       .order('timestamp', { ascending: false })
       .limit(10),
+
+    // User timezone
+    supabase
+      .from('user_profiles')
+      .select('timezone')
+      .eq('id', userId)
+      .maybeSingle(),
   ]);
 
   const activity = activityResult.data;
@@ -207,6 +216,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   const health = healthResult.data;
   const memories = memoryResult.data || [];
   const recentConversations = recentConversationsResult.data || [];
+  const userTimezone = userProfileResult?.data?.timezone || 'America/New_York';
 
   // Get matched planned workout (if any)
   let plannedWorkout = null;
@@ -247,6 +257,22 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     deviationPercent = Math.round(((actualTss - plannedTss) / plannedTss) * 100);
   }
 
+  // Fetch structured deviation records (unresolved)
+  let structuredDeviations = [];
+  try {
+    const { data: deviationRows } = await supabase
+      .from('plan_deviations')
+      .select('id, deviation_date, planned_tss, actual_tss, tss_delta, deviation_type, severity_score, options_json')
+      .eq('user_id', userId)
+      .is('resolved_at', null)
+      .order('deviation_date', { ascending: false })
+      .limit(5);
+    structuredDeviations = deviationRows || [];
+  } catch (devError) {
+    // Non-critical — proceed without deviation data
+    console.warn('Failed to fetch structured deviations:', devError.message);
+  }
+
   // Build power summary
   const powerSummary = activity
     ? [
@@ -285,10 +311,41 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   // Flag whether this is an activity-based or general check-in
   const hasActivity = !!activity;
 
+  // Compute user-local date using their timezone
+  let userLocalDateStr = '';
+  let userLocalDayOfWeek = '';
+  try {
+    const now = new Date();
+    userLocalDateStr = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone: userTimezone,
+    });
+    userLocalDayOfWeek = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      timeZone: userTimezone,
+    });
+  } catch (tzError) {
+    // Fallback to UTC if timezone is invalid
+    const now = new Date();
+    userLocalDateStr = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    userLocalDayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
+  }
+
   return {
     rider_name: coachSettings?.user_preferred_name || 'Rider',
     persona_id: coachSettings?.coaching_persona || 'pragmatist',
     has_activity: hasActivity,
+    user_timezone: userTimezone,
+    user_local_date: userLocalDateStr,
+    user_local_day: userLocalDayOfWeek,
 
     goal_event: raceGoal
       ? `${raceGoal.name} (${raceGoal.race_type}, ${raceGoal.race_date}, Priority ${raceGoal.priority})`
@@ -337,5 +394,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
           .map((m) => `${m.role === 'coach' ? 'Coach' : 'Athlete'}: ${m.message.length > 200 ? m.message.substring(0, 200) + '...' : m.message}`)
           .join('\n')
       : '',
+
+    structured_deviations: structuredDeviations,
   };
 }

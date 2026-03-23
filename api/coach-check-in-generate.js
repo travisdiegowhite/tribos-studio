@@ -65,7 +65,12 @@ const PERSONA_DATA = {
 function buildSystemPrompt(personaId, context) {
   const persona = PERSONA_DATA[personaId] || PERSONA_DATA.pragmatist;
 
-  return `## ROLE
+  return `## CURRENT DATE & TIME CONTEXT
+TODAY IS: ${context.user_local_date || new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+Athlete's timezone: ${context.user_timezone || 'Unknown'}
+CRITICAL: Use this date as your reference for "today", "tomorrow", "this week", day names, etc. Do NOT guess the day — use the date above.
+
+## ROLE
 You are a cycling coach AI for Tribos. You are currently acting as ${persona.name}.
 
 ## YOUR COACHING PHILOSOPHY
@@ -119,10 +124,15 @@ ${context.recent_conversations}` : ''}
 ## DECISION HISTORY (last 5)
 ${context.decision_history}
 
+${context.structured_deviations && context.structured_deviations.length > 0 ? `## RECENT PLAN DEVIATIONS (unresolved)
+The following deviations from the training plan have been detected but not yet resolved. Use this data to inform your deviation_callout and recommendation. If a deviation has adjustment options in its options_json, you may reference specific options (modify, swap, insert_rest, drop) in your recommendation.
+
+${context.structured_deviations.map(d => `- ${d.deviation_date}: ${d.deviation_type} | Planned TSS: ${d.planned_tss} → Actual TSS: ${d.actual_tss} (delta: ${d.tss_delta > 0 ? '+' : ''}${d.tss_delta}) | Severity: ${d.severity_score}/10${d.options_json ? ` | Options: ${Object.keys(d.options_json).filter(k => k !== 'planned').join(', ')}` : ''}`).join('\n')}` : ''}
+
 ## GUARDRAILS
 - SAFETY FLOOR: Never recommend load exceeding physiologically safe parameters regardless of persona.
 - INJURY SIGNALS: If data suggests potential injury (repeated pain, sharp power drops, missed sessions with injury keywords), exit persona voice and recommend rest + professional consultation.
-- DEVIATION THRESHOLD: Only include deviation_callout when planned vs actual TSS differs by >20% or a session was missed entirely.
+- DEVIATION THRESHOLD: Only include deviation_callout when planned vs actual TSS differs by >20% or a session was missed entirely. If structured deviation data is available above, use it to provide more specific guidance.
 - RECOMMENDATION NULLABILITY: If execution was clean and no adjustment is warranted, return null for recommendation. Over-suggesting degrades trust.
 
 ## YOUR TASK

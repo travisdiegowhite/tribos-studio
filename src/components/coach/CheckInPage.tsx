@@ -10,13 +10,17 @@ import { useEffect, useState } from 'react';
 import { Stack, Text, Center, Loader, Paper, Group, Button } from '@mantine/core';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useCoachCheckIn } from '../../hooks/useCoachCheckIn';
+import { useDeviations } from '../../hooks/useDeviations';
 import CheckInNarrative from './CheckInNarrative';
 import CheckInWeekBar from './CheckInWeekBar';
 import CheckInRecommendationCard from './CheckInRecommendation';
 import CheckInAcknowledgment from './CheckInAcknowledgment';
 import CheckInThread from './CheckInThread';
+import DeviationCard from './DeviationCard';
+import FatigueCheckinCard from './FatigueCheckinCard';
 import IntakeInterview from './IntakeInterview';
 import type { PersonaId, DecisionType } from '../../types/checkIn';
+import type { AdjustmentOption, CoachPersona } from '../../lib/training/types';
 import { Sparkle } from '@phosphor-icons/react';
 
 interface CheckInPageProps {
@@ -43,7 +47,17 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
     generateError,
   } = useCoachCheckIn(userId);
 
+  const {
+    deviations,
+    resolveDeviation,
+    resolving: deviationResolving,
+  } = useDeviations(userId);
+
   const [showIntake, setShowIntake] = useState(false);
+
+  const handleDeviationResolve = (deviationId: string, option: AdjustmentOption) => {
+    resolveDeviation(deviationId, option);
+  };
 
   // Show intake interview if user hasn't completed it
   useEffect(() => {
@@ -91,37 +105,56 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
   // No check-in available
   if (!currentCheckIn) {
     return (
-      <Paper
-        p="xl"
-        withBorder
-        style={{
-          borderRadius: 0,
-          borderColor: 'var(--tribos-border-default)',
-          textAlign: 'center',
-        }}
-      >
-        <Stack align="center" gap="sm">
-          <Sparkle size={32} color="var(--color-teal)" style={{ opacity: 0.5 }} />
-          <Text size="lg" fw={600}>No check-in yet</Text>
-          <Text size="sm" c="dimmed" maw={400}>
-            Your coaching check-in will appear here after your next synced activity,
-            or you can request one now based on your latest ride.
-          </Text>
-          {generateError && (
-            <Text size="sm" c="red">{generateError}</Text>
-          )}
-          <Button
-            variant="outline"
-            color="teal"
-            leftSection={<Sparkle size={16} />}
-            loading={generating}
-            onClick={requestCheckIn}
-            style={{ borderRadius: 0 }}
-          >
-            Request Check-In
-          </Button>
-        </Stack>
-      </Paper>
+      <Stack gap="lg">
+        {/* Morning readiness check-in */}
+        <FatigueCheckinCard />
+
+        {/* Deviation cards (shown even without a check-in) */}
+        {deviations.map(dev => (
+          <DeviationCard
+            key={dev.id}
+            deviation={dev}
+            persona={(persona || 'pragmatist') as CoachPersona}
+            daysToQuality={2}
+            swapFeasible={true}
+            isNearRace={false}
+            onResolve={handleDeviationResolve}
+            resolving={deviationResolving}
+          />
+        ))}
+
+        <Paper
+          p="xl"
+          withBorder
+          style={{
+            borderRadius: 0,
+            borderColor: 'var(--tribos-border-default)',
+            textAlign: 'center',
+          }}
+        >
+          <Stack align="center" gap="sm">
+            <Sparkle size={32} color="var(--color-teal)" style={{ opacity: 0.5 }} />
+            <Text size="lg" fw={600}>No check-in yet</Text>
+            <Text size="sm" c="dimmed" maw={400}>
+              Your coaching check-in will appear here after your next synced activity,
+              or you can request one now based on your latest ride.
+            </Text>
+            {generateError && (
+              <Text size="sm" c="red">{generateError}</Text>
+            )}
+            <Button
+              variant="outline"
+              color="teal"
+              leftSection={<Sparkle size={16} />}
+              loading={generating}
+              onClick={requestCheckIn}
+              style={{ borderRadius: 0 }}
+            >
+              Request Check-In
+            </Button>
+          </Stack>
+        </Paper>
+      </Stack>
     );
   }
 
@@ -165,6 +198,20 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
         activities={activities}
         ftp={ftp}
       />
+
+      {/* Plan deviation cards */}
+      {deviations.map(dev => (
+        <DeviationCard
+          key={dev.id}
+          deviation={dev}
+          persona={(persona || 'pragmatist') as CoachPersona}
+          daysToQuality={2}
+          swapFeasible={true}
+          isNearRace={false}
+          onResolve={handleDeviationResolve}
+          resolving={deviationResolving}
+        />
+      ))}
 
       {/* Coaching narrative + deviation callout */}
       <CheckInNarrative
