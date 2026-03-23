@@ -745,15 +745,24 @@ export default async function handler(req, res) {
             .eq('user_id', verifiedUserId)
             .maybeSingle()
         : Promise.resolve({ data: null }),
+      // Fetch recent unresolved plan deviations for deviation-aware coaching
+      supabase
+        .from('plan_deviations')
+        .select('id, deviation_date, planned_tss, actual_tss, tss_delta, deviation_type, severity_score, options_json')
+        .eq('user_id', verifiedUserId)
+        .is('resolved_at', null)
+        .order('deviation_date', { ascending: false })
+        .limit(5),
     ];
 
-    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult] = await Promise.all(parallelFetches);
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult] = await Promise.all(parallelFetches);
 
     const coachSettings = coachSettingsResult.data;
     const activeCheckIn = checkInResult?.data || null;
     const coachMemories = coachMemoryResult.data || [];
     const recentCheckIns = recentCheckInsResult.data || [];
     const calendarContext = calendarContextResult;
+    const unresolvedDeviations = deviationsResult?.data || [];
 
     // Build system message with date context FIRST
     // Use user's local date if provided, otherwise fall back to server date
@@ -914,6 +923,16 @@ IMPORTANT:
 - The athlete may ask "why did you say X?" or "what do you mean by Y?" — answer directly from this check-in.
 - If they ask for alternatives or disagree with the recommendation, engage thoughtfully.
 - You have the full context that was used to generate this check-in — use it.`;
+    }
+
+    // Inject recent unresolved plan deviations
+    if (unresolvedDeviations.length > 0) {
+      systemPrompt += `\n\n=== RECENT PLAN DEVIATIONS (unresolved) ===
+The athlete has recent deviations from their training plan that haven't been resolved yet. Reference these when the athlete asks about their training load, deviations, or what adjustments to make.
+
+${unresolvedDeviations.map(d => `- ${d.deviation_date}: ${d.deviation_type} | Planned TSS: ${d.planned_tss} → Actual TSS: ${d.actual_tss} (delta: ${d.tss_delta > 0 ? '+' : ''}${d.tss_delta}) | Severity: ${d.severity_score}/10${d.options_json ? ` | Available adjustments: ${Object.keys(d.options_json).filter(k => k !== 'planned').join(', ')}` : ''}`).join('\n')}
+
+When discussing deviations, you may suggest specific adjustment options (modify next quality session, swap workout dates, insert a rest day, or drop a session) based on the options available above.`;
     }
 
     systemPrompt += `\n\n=== INSTRUCTIONS ===

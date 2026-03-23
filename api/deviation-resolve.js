@@ -71,14 +71,179 @@ export default async function handler(req, res) {
       throw updateError;
     }
 
-    // TODO: If option requires plan modification (swap, insert_rest, drop),
-    // call plan mutation service to update planned_workouts table.
-    // For now, we just record the decision. Plan mutation can be wired up
-    // to the existing reshufflePlan() logic in useTrainingPlan.
+    // Apply plan mutations based on selected option
+    let mutationResult = null;
+    if (selected_option !== 'no_adjust') {
+      mutationResult = await applyPlanMutation(supabase, user.id, deviation, selected_option);
+    }
 
-    return res.status(200).json({ status: 'resolved', selected_option });
+    return res.status(200).json({
+      status: 'resolved',
+      selected_option,
+      mutation: mutationResult,
+    });
   } catch (error) {
     console.error('deviation-resolve error:', error);
     return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Apply plan mutations to planned_workouts based on the selected deviation option.
+ */
+async function applyPlanMutation(supabase, userId, deviation, option) {
+  const deviationDate = deviation.deviation_date;
+  const today = new Date().toISOString().split('T')[0];
+
+  // Find the user's active plan
+  const { data: plan } = await supabase
+    .from('training_plans')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .limit(1)
+    .single();
+
+  if (!plan) {
+    return { applied: false, reason: 'no_active_plan' };
+  }
+
+  // Fetch upcoming planned workouts (from tomorrow onward)
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+  const { data: upcoming } = await supabase
+    .from('planned_workouts')
+    .select('id, scheduled_date, name, workout_type, target_tss, target_duration, is_quality')
+    .eq('plan_id', plan.id)
+    .eq('user_id', userId)
+    .gte('scheduled_date', tomorrowStr)
+    .eq('completed', false)
+    .order('scheduled_date', { ascending: true })
+    .limit(14);
+
+  if (!upcoming || upcoming.length === 0) {
+    return { applied: false, reason: 'no_upcoming_workouts' };
+  }
+
+  const nextQuality = upcoming.find(w => w.is_quality === true);
+  const tomorrowWorkout = upcoming.find(w => w.scheduled_date === tomorrowStr);
+
+  switch (option) {
+    case 'modify': {
+      // Reduce next quality workout TSS and duration by 30%
+      const target = nextQuality || upcoming[0];
+      const newTss = target.target_tss ? Math.round(target.target_tss * 0.7) : null;
+      const newDuration = target.target_duration ? Math.round(target.target_duration * 0.7) : null;
+
+      const updates = {};
+      if (newTss !== null) updates.target_tss = newTss;
+      if (newDuration !== null) updates.target_duration = newDuration;
+
+      if (Object.keys(updates).length > 0) {
+        await supabase
+          .from('planned_workouts')
+          .update(updates)
+          .eq('id', target.id)
+          .eq('user_id', userId);
+      }
+
+      return {
+        applied: true,
+        action: 'modify',
+        workout_id: target.id,
+        workout_name: target.name,
+        original_tss: target.target_tss,
+        new_tss: newTss,
+      };
+    }
+
+    case 'swap': {
+      // Swap the next quality workout with a workout 2 days later
+      if (!nextQuality) {
+        return { applied: false, reason: 'no_quality_workout_found' };
+      }
+
+      const qualityDate = new Date(nextQuality.scheduled_date);
+      const swapDate = new Date(qualityDate);
+      swapDate.setDate(swapDate.getDate() + 2);
+      const swapDateStr = swapDate.toISOString().split('T')[0];
+
+      const swapTarget = upcoming.find(w => w.scheduled_date === swapDateStr);
+      if (!swapTarget) {
+        return { applied: false, reason: 'no_workout_at_swap_date' };
+      }
+
+      // Swap scheduled dates
+      await Promise.all([
+        supabase
+          .from('planned_workouts')
+          .update({ scheduled_date: swapDateStr })
+          .eq('id', nextQuality.id)
+          .eq('user_id', userId),
+        supabase
+          .from('planned_workouts')
+          .update({ scheduled_date: nextQuality.scheduled_date })
+          .eq('id', swapTarget.id)
+          .eq('user_id', userId),
+      ]);
+
+      return {
+        applied: true,
+        action: 'swap',
+        swapped: [
+          { id: nextQuality.id, name: nextQuality.name, moved_to: swapDateStr },
+          { id: swapTarget.id, name: swapTarget.name, moved_to: nextQuality.scheduled_date },
+        ],
+      };
+    }
+
+    case 'insert_rest': {
+      // Convert tomorrow's workout to a rest day
+      if (!tomorrowWorkout) {
+        return { applied: false, reason: 'no_workout_tomorrow' };
+      }
+
+      await supabase
+        .from('planned_workouts')
+        .update({
+          target_tss: 0,
+          workout_type: 'rest',
+          name: 'Rest Day (deviation adjustment)',
+        })
+        .eq('id', tomorrowWorkout.id)
+        .eq('user_id', userId);
+
+      return {
+        applied: true,
+        action: 'insert_rest',
+        workout_id: tomorrowWorkout.id,
+        original_name: tomorrowWorkout.name,
+        date: tomorrowStr,
+      };
+    }
+
+    case 'drop': {
+      // Delete the next quality workout
+      const target = nextQuality || upcoming[0];
+
+      await supabase
+        .from('planned_workouts')
+        .delete()
+        .eq('id', target.id)
+        .eq('user_id', userId);
+
+      return {
+        applied: true,
+        action: 'drop',
+        workout_id: target.id,
+        workout_name: target.name,
+        date: target.scheduled_date,
+      };
+    }
+
+    default:
+      return { applied: false, reason: 'unknown_option' };
   }
 }

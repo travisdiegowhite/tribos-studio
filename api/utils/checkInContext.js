@@ -247,6 +247,22 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     deviationPercent = Math.round(((actualTss - plannedTss) / plannedTss) * 100);
   }
 
+  // Fetch structured deviation records (unresolved)
+  let structuredDeviations = [];
+  try {
+    const { data: deviationRows } = await supabase
+      .from('plan_deviations')
+      .select('id, deviation_date, planned_tss, actual_tss, tss_delta, deviation_type, severity_score, options_json')
+      .eq('user_id', userId)
+      .is('resolved_at', null)
+      .order('deviation_date', { ascending: false })
+      .limit(5);
+    structuredDeviations = deviationRows || [];
+  } catch (devError) {
+    // Non-critical — proceed without deviation data
+    console.warn('Failed to fetch structured deviations:', devError.message);
+  }
+
   // Build power summary
   const powerSummary = activity
     ? [
@@ -337,5 +353,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
           .map((m) => `${m.role === 'coach' ? 'Coach' : 'Athlete'}: ${m.message.length > 200 ? m.message.substring(0, 200) + '...' : m.message}`)
           .join('\n')
       : '',
+
+    structured_deviations: structuredDeviations,
   };
 }

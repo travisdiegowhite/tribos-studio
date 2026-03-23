@@ -8,6 +8,7 @@ import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
+import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
 
 // Initialize Supabase (server-side)
 const supabase = getSupabaseAdmin();
@@ -388,6 +389,9 @@ async function processWahooWorkout(integration, workout, webhookData, webhookSum
         body: JSON.stringify({ checkInId }),
       }).catch(() => {});
     }
+
+    // Enqueue deviation analysis (fire-and-forget)
+    enqueueDeviationAnalysis(supabase, integration.user_id, activity.id).catch(() => {});
   } catch (activationError) {
     console.error('⚠️ Activation tracking failed (non-critical):', activationError.message);
   }
