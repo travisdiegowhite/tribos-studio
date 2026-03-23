@@ -176,7 +176,7 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
               No race goals set
             </Text>
             <Text size="xs" c="dimmed" mb="md">
-              Add a race goal to help your AI coach plan your training
+              Add a race goal to help your coach plan your training
             </Text>
             <Button
               size="sm"

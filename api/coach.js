@@ -637,7 +637,7 @@ export default async function handler(req, res) {
       console.error('MISSING ANTHROPIC_API_KEY');
       return res.status(500).json({
         success: false,
-        error: 'AI coaching service not configured'
+        error: 'Coaching service not configured'
       });
     }
 
@@ -1279,14 +1279,14 @@ ${conversationSummary}
   } catch (error) {
     console.error('Claude API Error:', error);
 
-    let clientError = 'AI coaching request failed';
+    let clientError = 'Coaching request failed';
     let statusCode = 500;
 
     if (error.status === 429) {
       clientError = 'Too many requests. Please try again in a minute.';
       statusCode = 429;
     } else if (error.status === 401 || error.status === 403) {
-      clientError = 'AI service authentication error';
+      clientError = 'Service authentication error';
       statusCode = 500;
     } else if (error.status === 400) {
       clientError = 'Invalid request. Please try a different question.';

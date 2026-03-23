@@ -322,7 +322,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
             fullWidth
             data={[
               { label: 'All', value: 'all' },
-              { label: 'AI', value: 'ai' },
+              { label: 'Smart', value: 'ai' },
               { label: 'Manual', value: 'manual' },
             ]}
             styles={{
@@ -424,7 +424,7 @@ function SavedRoutesDrawer({ opened, onClose, onRouteSelect }) {
                           </Badge>
                         )}
                         {route.generated_by === 'ai' && (
-                          <Badge size="xs" variant="light" color="violet">AI</Badge>
+                          <Badge size="xs" variant="light" color="violet">Smart</Badge>
                         )}
                       </Group>
                     </Box>

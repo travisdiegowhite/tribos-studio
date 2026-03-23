@@ -68,8 +68,8 @@ export default function PrivacyPolicy() {
                 <Text style={{ color: 'var(--color-text-secondary)' }}>
                   This Privacy Policy describes how tribos.studio ("we", "us", "our") collects, uses, and protects
                   your personal information when you use our cycling training platform. We are committed to
-                  transparency about our data practices, including our use of artificial intelligence and
-                  third-party integrations like Garmin Connect.
+                  transparency about our data practices, including how we process your data and
+                  our third-party integrations like Garmin Connect.
                 </Text>
               </div>
 
@@ -118,7 +118,7 @@ export default function PrivacyPolicy() {
                 <List style={{ color: 'var(--color-text-secondary)' }}>
                   <List.Item><strong>Route Planning:</strong> Generate personalized cycling routes based on your preferences and history</List.Item>
                   <List.Item><strong>Training Analysis:</strong> Provide insights into your riding patterns, performance, and fitness trends</List.Item>
-                  <List.Item><strong>AI Coaching:</strong> Offer AI-powered training recommendations (with your explicit consent — see Section 4)</List.Item>
+                  <List.Item><strong>Coaching:</strong> Offer smart training recommendations (with your explicit consent — see Section 4)</List.Item>
                   <List.Item><strong>Sync:</strong> Automatically import activities from connected devices and services</List.Item>
                   <List.Item><strong>Service Improvement:</strong> Analyze aggregate, anonymized data to improve our algorithms</List.Item>
                 </List>
@@ -150,33 +150,33 @@ export default function PrivacyPolicy() {
                 </Text>
               </div>
 
-              {/* AI TRANSPARENCY SECTION - Conspicuous per Garmin Agreement Section 15.10 */}
+              {/* TRANSPARENCY SECTION - Conspicuous per Garmin Agreement Section 15.10 */}
               <Alert
                 icon={<Sparkle size={20} />}
-                title="AI-Powered Features and Data Processing"
+                title="Smart Features and Data Processing"
                 color="teal"
                 variant="light"
                 radius="md"
               >
                 <Text size="sm" fw={500} mb="xs">
-                  tribos.studio uses artificial intelligence to provide coaching, training analysis, and route generation features.
-                  This section explains how AI processes your data.
+                  tribos.studio uses advanced technology to provide coaching, training analysis, and route generation features.
+                  This section explains how your data is processed.
                 </Text>
               </Alert>
 
               <div id="ai">
                 <Title order={2} size="h3" mb="sm" style={{ color: 'var(--color-text-primary)' }}>
-                  4. AI-Powered Features and Data Processing
+                  4. Smart Features and Data Processing
                 </Title>
 
                 <Title order={3} size="h4" mt="md" mb="sm" style={{ color: 'var(--color-text-primary)' }}>
-                  4.1 How We Use AI
+                  4.1 How Smart Features Work
                 </Title>
                 <Text mb="sm" style={{ color: 'var(--color-text-secondary)' }}>
-                  tribos.studio uses AI technology powered by Anthropic's Claude to provide several features:
+                  tribos.studio uses technology powered by Anthropic's Claude to provide several features:
                 </Text>
                 <List style={{ color: 'var(--color-text-secondary)' }}>
-                  <List.Item><strong>AI Coach:</strong> Provides personalized training advice and answers cycling-related questions based on your training data, activity history, and fitness profile</List.Item>
+                  <List.Item><strong>Coach:</strong> Provides personalized training advice and answers cycling-related questions based on your training data, activity history, and fitness profile</List.Item>
                   <List.Item><strong>Route Generation:</strong> Creates cycling routes based on your preferences, location, and fitness level</List.Item>
                   <List.Item><strong>Training Insights:</strong> Analyzes your activity patterns to generate proactive coaching recommendations</List.Item>
                   <List.Item><strong>Training Plan Generation:</strong> Creates personalized training plans based on your goals and current fitness</List.Item>
@@ -184,33 +184,33 @@ export default function PrivacyPolicy() {
                 </List>
 
                 <Title order={3} size="h4" mt="md" mb="sm" style={{ color: 'var(--color-text-primary)' }}>
-                  4.2 What Data AI Processes
+                  4.2 What Data Smart Features Process
                 </Title>
                 <Text mb="sm" style={{ color: 'var(--color-text-secondary)' }}>
-                  When you use AI-powered features, the following data may be sent to Anthropic's API for processing:
+                  When you use smart features, the following data may be sent to Anthropic's API for processing:
                 </Text>
                 <List style={{ color: 'var(--color-text-secondary)' }}>
                   <List.Item>Your recent activity summaries (distance, duration, intensity metrics)</List.Item>
                   <List.Item>Your fitness profile (FTP, weight, fitness level, training goals)</List.Item>
-                  <List.Item>Your conversation history with the AI coach</List.Item>
+                  <List.Item>Your conversation history with the coach</List.Item>
                   <List.Item>Your training plan details and compliance data</List.Item>
                   <List.Item>Route preferences and location context</List.Item>
                 </List>
                 <Text mt="sm" fw={500} style={{ color: 'var(--color-text-secondary)' }}>
                   Important: Raw GPS coordinates, your exact home location, and personally identifiable
-                  information (email, full name) are NOT sent to the AI. Data sent to Anthropic is processed
-                  in accordance with Anthropic's data usage policies and is not used to train AI models.
+                  information (email, full name) are NOT sent for processing. Data sent to Anthropic is processed
+                  in accordance with Anthropic's data usage policies and is not used to train models.
                 </Text>
 
                 <Title order={3} size="h4" mt="md" mb="sm" style={{ color: 'var(--color-text-primary)' }}>
-                  4.3 AI Consent
+                  4.3 Consent
                 </Title>
                 <Text style={{ color: 'var(--color-text-secondary)' }}>
-                  AI-powered features require your explicit opt-in consent before any data is processed by AI systems.
-                  You will be prompted for consent the first time you use an AI feature. You can grant or withdraw
-                  AI consent at any time from Settings. Withdrawing consent will immediately stop all AI processing
-                  of your data — the AI Coach, AI-generated route suggestions, and proactive training insights will
-                  be disabled. Your existing data, activity history, and all non-AI features will remain unaffected.
+                  Smart features require your explicit opt-in consent before any data is processed.
+                  You will be prompted for consent the first time you use a smart feature. You can grant or withdraw
+                  consent at any time from Settings. Withdrawing consent will immediately stop all smart processing
+                  of your data — the Coach, smart route suggestions, and proactive training insights will
+                  be disabled. Your existing data, activity history, and all other features will remain unaffected.
                 </Text>
               </div>
 
@@ -292,11 +292,11 @@ export default function PrivacyPolicy() {
                     {' '}&mdash; Activity sync
                   </List.Item>
                   <List.Item>
-                    <strong>Anthropic (Claude AI):</strong>{' '}
+                    <strong>Anthropic (Claude):</strong>{' '}
                     <Anchor href="https://www.anthropic.com/privacy" target="_blank" style={{ color: 'var(--color-teal)' }}>
                       Anthropic Privacy Policy
                     </Anchor>
-                    {' '}&mdash; AI-powered coaching, route generation, and training insights
+                    {' '}&mdash; Coaching, route generation, and training insights
                   </List.Item>
                   <List.Item>
                     <strong>Mapbox:</strong>{' '}
@@ -346,7 +346,7 @@ export default function PrivacyPolicy() {
                 <List style={{ color: 'var(--color-text-secondary)' }}>
                   <List.Item><strong>With your consent:</strong> When you explicitly authorize sharing (e.g., connecting Garmin Connect or Strava)</List.Item>
                   <List.Item><strong>Service providers:</strong> Infrastructure partners necessary to provide the service (hosting, database, error monitoring)</List.Item>
-                  <List.Item><strong>AI processing:</strong> Activity summaries sent to Anthropic's API when you consent to AI features (see Section 4)</List.Item>
+                  <List.Item><strong>Data processing:</strong> Activity summaries sent to Anthropic's API when you consent to smart features (see Section 4)</List.Item>
                   <List.Item><strong>Legal requirements:</strong> When required by law or to protect rights and safety</List.Item>
                 </List>
               </div>
@@ -366,7 +366,7 @@ export default function PrivacyPolicy() {
                   <List.Item><strong>Restriction:</strong> Request restriction of processing of your data</List.Item>
                   <List.Item><strong>Objection:</strong> Object to processing based on legitimate interest</List.Item>
                   <List.Item><strong>Disconnect:</strong> Revoke third-party integrations at any time</List.Item>
-                  <List.Item><strong>AI Opt-out:</strong> Disable AI processing of your data at any time in Settings</List.Item>
+                  <List.Item><strong>Opt-out:</strong> Disable smart data processing at any time in Settings</List.Item>
                 </List>
               </div>
 
@@ -377,7 +377,7 @@ export default function PrivacyPolicy() {
                 <List style={{ color: 'var(--color-text-secondary)' }}>
                   <List.Item>Account data: Retained while your account is active</List.Item>
                   <List.Item>Activity data: Retained until you delete it or close your account</List.Item>
-                  <List.Item>AI conversation history: Retained while your account is active; deleted on account deletion</List.Item>
+                  <List.Item>Coach conversation history: Retained while your account is active; deleted on account deletion</List.Item>
                   <List.Item>OAuth tokens: Automatically deleted when you disconnect a service</List.Item>
                   <List.Item>Deleted data: Permanently removed within 30 days of deletion request</List.Item>
                 </List>
@@ -438,7 +438,7 @@ export default function PrivacyPolicy() {
                   14.1 Legal Basis for Processing
                 </Title>
                 <List style={{ color: 'var(--color-text-secondary)' }}>
-                  <List.Item><strong>Consent:</strong> Connecting third-party services (Garmin, Strava, Wahoo), using AI-powered features, analytics</List.Item>
+                  <List.Item><strong>Consent:</strong> Connecting third-party services (Garmin, Strava, Wahoo), using smart features, analytics</List.Item>
                   <List.Item><strong>Contract performance:</strong> Providing the core service (route planning, training tracking, activity storage)</List.Item>
                   <List.Item><strong>Legitimate interest:</strong> Service improvement, security monitoring, fraud prevention</List.Item>
                 </List>

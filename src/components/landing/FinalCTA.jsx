@@ -46,7 +46,7 @@ export default function FinalCTA() {
                 lineHeight: 1.6,
               }}
             >
-              Connect your accounts, and the AI coach already knows what you should ride tomorrow.
+              Connect your accounts, and your coach already knows what you should ride tomorrow.
             </Text>
 
             <Button

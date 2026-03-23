@@ -1181,7 +1181,7 @@ export function TrainingPlanner({
               <Group gap="xs">
                 <Lightbulb size={16} color="var(--mantine-color-yellow-5)" />
                 <Text size="sm" fw={500}>
-                  AI Suggestions
+                  Suggestions
                 </Text>
               </Group>
               <Button

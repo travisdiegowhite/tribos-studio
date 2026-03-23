@@ -136,7 +136,7 @@ export default function CoachStep() {
                   <Sparkle size={14} />
                 </ThemeIcon>
                 <Text fw={600} size="sm" style={{ color: 'var(--color-text-primary)' }}>
-                  AI Coach
+                  Coach
                 </Text>
                 <Box
                   style={{

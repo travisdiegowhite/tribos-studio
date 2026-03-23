@@ -177,7 +177,7 @@ export default async function handler(req, res) {
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ error: 'config', message: 'AI coaching service not configured.' });
+      return res.status(500).json({ error: 'config', message: 'Coaching service not configured.' });
     }
 
     // Guard: persona set
@@ -330,7 +330,7 @@ export default async function handler(req, res) {
     console.error('Coach check-in error:', error);
 
     if (error.status === 429) {
-      return res.status(429).json({ error: 'rate_limited', message: 'AI service busy. Try again in a minute.' });
+      return res.status(429).json({ error: 'rate_limited', message: 'Service busy. Try again in a minute.' });
     }
 
     return res.status(500).json({ error: 'internal_error', message: 'Something went wrong generating your check-in.' });

@@ -24,7 +24,7 @@ export default async function handler(req, res) {
       console.error('🚨 MISSING ANTHROPIC_API_KEY - Check Vercel environment variables!');
       return res.status(500).json({
         success: false,
-        error: 'Server configuration error - AI service not configured'
+        error: 'Server configuration error - service not configured'
       });
     }
 
@@ -92,13 +92,13 @@ export default async function handler(req, res) {
       clientError = 'Rate limit exceeded. Please try again in a minute.';
       statusCode = 429;
     } else if (error.status === 401 || error.status === 403) {
-      clientError = 'AI service authentication error. Please contact support.';
+      clientError = 'Service authentication error. Please contact support.';
       statusCode = 500;
     } else if (error.status === 400) {
       clientError = 'Invalid request. Please try a simpler prompt.';
       statusCode = 400;
     } else if (error.status >= 500) {
-      clientError = 'AI service temporarily unavailable. Please try again.';
+      clientError = 'Service temporarily unavailable. Please try again.';
       statusCode = 503;
     }
 

@@ -6,9 +6,9 @@ import PropTypes from 'prop-types';
  * Optimized for cycling training platform with focus on organic search and social sharing
  */
 export default function SEO({
-  title = 'tribos.studio - AI-Powered Cycling Training Platform',
-  description = 'Elevate your cycling performance with tribos.studio. AI route planning, training analytics, and seamless device sync for Strava, Garmin, and Wahoo.',
-  keywords = 'cycling training app, AI cycling routes, bike training planner, cycling analytics, strava sync, garmin connect, cycling performance',
+  title = 'tribos.studio - Smart Cycling Training Platform',
+  description = 'Elevate your cycling performance with tribos.studio. Smart route planning, training analytics, and seamless device sync for Strava, Garmin, and Wahoo.',
+  keywords = 'cycling training app, cycling routes, bike training planner, cycling analytics, strava sync, garmin connect, cycling performance',
   image = 'https://tribos.studio/og-image.svg',
   url = 'https://tribos.studio',
   type = 'website',
@@ -90,9 +90,9 @@ export function getOrganizationSchema() {
       priceCurrency: 'USD',
     },
     description:
-      'AI-powered cycling training platform with route planning, training analytics, and device synchronization for Strava, Garmin, and Wahoo.',
+      'Smart cycling training platform with route planning, training analytics, and device synchronization for Strava, Garmin, and Wahoo.',
     featureList: [
-      'AI Route Planning',
+      'Smart Route Planning',
       'Training Analytics',
       'Strava Integration',
       'Garmin Connect Sync',
@@ -118,7 +118,7 @@ export function getWebSiteSchema() {
     '@type': 'WebSite',
     name: 'tribos.studio',
     url: 'https://tribos.studio',
-    description: 'AI-powered cycling training platform for route planning and performance analytics',
+    description: 'Smart cycling training platform for route planning and performance analytics',
     potentialAction: {
       '@type': 'SearchAction',
       target: {

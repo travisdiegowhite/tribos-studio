@@ -98,7 +98,7 @@ function Terms() {
                 <List.Item>Activity tracking and performance analysis</List.Item>
                 <List.Item>Integration with third-party cycling platforms (Strava, Garmin, Wahoo)</List.Item>
                 <List.Item>Training load and recovery tracking</List.Item>
-                <List.Item>AI-powered training insights and recommendations</List.Item>
+                <List.Item>Smart training insights and recommendations</List.Item>
               </List>
             </div>
 
@@ -209,18 +209,18 @@ function Terms() {
               </List>
 
               <Title order={3} size="h4" mt="md" mb="sm" style={{ color: 'var(--color-text-primary)' }}>
-                8.1 AI-Powered Features Disclaimer
+                8.1 Smart Features Disclaimer
               </Title>
               <Text style={{ color: 'var(--color-text-secondary)' }} mb="sm">
-                Our Service includes AI-powered features (coaching, route generation, training insights)
-                powered by third-party AI technology. You acknowledge that:
+                Our Service includes smart features (coaching, route generation, training insights)
+                powered by third-party technology. You acknowledge that:
               </Text>
               <List style={{ color: 'var(--color-text-secondary)' }}>
-                <List.Item>AI-generated content is provided for informational purposes only</List.Item>
-                <List.Item>AI recommendations do NOT constitute professional medical, fitness, or coaching advice</List.Item>
+                <List.Item>Smart analysis outputs are provided for informational purposes only</List.Item>
+                <List.Item>Coaching recommendations do NOT constitute professional medical, fitness, or coaching advice</List.Item>
                 <List.Item>You should consult qualified professionals before making significant changes to your training, diet, or exercise regimen</List.Item>
-                <List.Item>AI outputs may contain errors or inaccuracies — always verify important information independently</List.Item>
-                <List.Item>AI features require your explicit opt-in consent and can be disabled at any time in Settings</List.Item>
+                <List.Item>Smart analysis outputs may contain errors or inaccuracies — always verify important information independently</List.Item>
+                <List.Item>Smart features require your explicit opt-in consent and can be disabled at any time in Settings</List.Item>
               </List>
             </div>
 
@@ -275,7 +275,7 @@ function Terms() {
               <Text style={{ color: 'var(--color-text-secondary)' }}>
                 We do not guarantee the accuracy, completeness, or reliability of any data displayed
                 in the Service, including data sourced from Garmin Connect, Strava, Wahoo, or generated
-                by AI features. Activity metrics, route data, elevation profiles, and AI-generated
+                by smart features. Activity metrics, route data, elevation profiles, and generated
                 analysis are provided on a best-effort basis and may contain errors.
               </Text>
             </div>

@@ -357,7 +357,7 @@ function ConversationThreadList({
                 No conversations yet
               </Text>
               <Text size="xs" c="dimmed" mt="xs">
-                Start chatting with your AI coaches!
+                Start chatting with your coaches!
               </Text>
             </Box>
           )}

@@ -387,15 +387,15 @@ function Settings() {
       if (error) throw error;
       setAiConsentEnabled(enabled);
       notifications.show({
-        title: enabled ? 'AI Features Enabled' : 'AI Features Disabled',
+        title: enabled ? 'Smart Features Enabled' : 'Smart Features Disabled',
         message: enabled
-          ? 'AI Coach and insights are now active.'
-          : 'AI features have been turned off.',
+          ? 'Coach and insights are now active.'
+          : 'Smart features have been turned off.',
         color: enabled ? 'sage' : 'gray',
       });
     } catch (err) {
       console.error('Error updating AI consent:', err);
-      notifications.show({ title: 'Error', message: 'Failed to update AI preferences.', color: 'red' });
+      notifications.show({ title: 'Error', message: 'Failed to update preferences.', color: 'red' });
     } finally {
       setAiConsentLoading(false);
     }
@@ -1428,7 +1428,7 @@ function Settings() {
             <List.Item>Your profile and preferences</List.Item>
             <List.Item>All activities and routes</List.Item>
             <List.Item>Training plans and workout history</List.Item>
-            <List.Item>AI coach conversations</List.Item>
+            <List.Item>Coach conversations</List.Item>
             <List.Item>Gear and component data</List.Item>
             <List.Item>Connected service tokens (Strava, Garmin, Wahoo)</List.Item>
           </List>
@@ -1722,7 +1722,7 @@ function Settings() {
 
               <Select
                 label="Experience Level"
-                description="Adjusts the tone and detail level of AI fitness insights"
+                description="Adjusts the tone and detail level of fitness insights"
                 value={experienceLevel}
                 onChange={setExperienceLevel}
                 data={[
@@ -2239,22 +2239,22 @@ function Settings() {
             </Stack>
           </Card>
 
-          {/* AI Features */}
+          {/* Smart Features */}
           <Card>
             <Stack gap="md">
               <Group gap="xs">
                 <Sparkle size={20} color="var(--color-teal)" />
                 <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
-                  AI Features
+                  Smart Features
                 </Title>
               </Group>
 
               <Group justify="space-between">
                 <Box style={{ flex: 1 }}>
-                  <Text style={{ color: 'var(--color-text-primary)' }}>AI Coach & Insights</Text>
+                  <Text style={{ color: 'var(--color-text-primary)' }}>Coach & Insights</Text>
                   <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
-                    Enable AI-powered coaching, training insights, and route suggestions.
-                    Your data is processed by Anthropic's Claude AI.{' '}
+                    Enable smart coaching, training insights, and route suggestions.
+                    Your data is processed by Anthropic's Claude.{' '}
                     <Link to="/privacy#ai" style={{ color: 'var(--color-teal)' }}>
                       Learn more
                     </Link>

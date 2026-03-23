@@ -125,7 +125,7 @@ export default function UserInsights() {
     { key: 'first_activity', label: 'First Activity Synced', color: 'green' },
     { key: 'route_created', label: 'Route Created', color: 'lime' },
     { key: 'training_plan', label: 'Training Plan', color: 'yellow' },
-    { key: 'coach_used', label: 'AI Coach Used', color: 'orange' },
+    { key: 'coach_used', label: 'Coach Used', color: 'orange' },
   ];
 
   // Adherence sort helpers

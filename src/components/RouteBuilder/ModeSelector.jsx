@@ -21,7 +21,7 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
       <ModeCard
         icon={<Robot size={24} />}
         title="Describe a Route"
-        description="Tell the AI what you want and get route suggestions"
+        description="Describe what you want and get route suggestions"
         accentColor="var(--color-teal)"
         onClick={() => onSelectMode('ai')}
       />

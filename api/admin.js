@@ -648,7 +648,7 @@ async function getUserInsights(req, res, adminUser) {
     wahoo: { users: 0, label: 'Wahoo Connected' },
     route_builder: { users: routeUserSet.size, label: 'Route Builder' },
     training_plans: { users: planUserSet.size, label: 'Training Plans' },
-    ai_coach: { users: coachUserSet.size, label: 'AI Coach' },
+    ai_coach: { users: coachUserSet.size, label: 'Coach' },
     file_uploads: { users: 0, label: 'File Uploads' },
     community: { users: 0, label: 'Community' }
   };

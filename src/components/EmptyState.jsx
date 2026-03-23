@@ -24,7 +24,7 @@ const EMPTY_STATE_CONFIGS = {
     icon: Path,
     iconColor: 'blue',
     title: 'No Routes Yet',
-    description: 'Create your first AI-powered route or import your ride history.',
+    description: 'Create your first route or import your ride history.',
     primaryAction: {
       label: 'Create a Route',
       path: '/routes/new',

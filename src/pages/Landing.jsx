@@ -61,9 +61,9 @@ function Landing() {
   return (
     <>
       <SEO
-        title="tribos.studio - Cycling Route Builder, AI Coach & Training Platform"
-        description="Build smarter cycling routes with AI, get personalized coaching from your ride history, and follow structured training plans. Syncs with Strava, Garmin, and Wahoo."
-        keywords="cycling route builder, cycling route planner, AI cycling coach, cycling training platform, bike route builder, cycling training plans, strava route builder, garmin route sync, cycling analytics, cycling power analysis"
+        title="tribos.studio - Cycling Route Builder, Coach & Training Platform"
+        description="Build smarter cycling routes, get personalized coaching from your ride history, and follow structured training plans. Syncs with Strava, Garmin, and Wahoo."
+        keywords="cycling route builder, cycling route planner, cycling coach, cycling training platform, bike route builder, cycling training plans, strava route builder, garmin route sync, cycling analytics, cycling power analysis"
         url="https://tribos.studio"
         image="https://tribos.studio/og-image.svg"
         structuredData={{
