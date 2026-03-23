@@ -70,7 +70,14 @@ export default async function handler(req, res) {
     const calibration = cal ?? { trimp_to_tss: 0.85, srpe_to_tss: 0.55, sample_count: 0 };
 
     // 3. Fetch planned workouts for next 14 days
-    const today = new Date().toISOString().split('T')[0];
+    // Use user's timezone for accurate "today"
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('timezone')
+      .eq('id', userId)
+      .maybeSingle();
+    const tz = profile?.timezone || 'America/New_York';
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: tz });
     const { data: upcoming } = await supabase
       .from('planned_workouts')
       .select('scheduled_date, target_tss, workout_type, is_quality, session_type, name')

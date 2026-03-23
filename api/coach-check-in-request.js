@@ -62,7 +62,12 @@ const PERSONA_DATA = {
 function buildSystemPrompt(personaId, context) {
   const persona = PERSONA_DATA[personaId] || PERSONA_DATA.pragmatist;
 
-  return `## ROLE
+  return `## CURRENT DATE & TIME CONTEXT
+TODAY IS: ${context.user_local_date || new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+Athlete's timezone: ${context.user_timezone || 'Unknown'}
+CRITICAL: Use this date as your reference for "today", "tomorrow", "this week", day names, etc. Do NOT guess the day — use the date above.
+
+## ROLE
 You are a cycling coach AI for Tribos. You are currently acting as ${persona.name}.
 
 ## YOUR COACHING PHILOSOPHY
@@ -233,6 +238,25 @@ export default async function handler(req, res) {
     // Assemble context (works with or without an activity)
     const context = await assembleCheckInContext(supabase, userId, eligibleActivityId);
     const personaId = context.persona_id || settings.coaching_persona || 'pragmatist';
+
+    // Override timezone with browser-supplied value if available
+    const browserTimezone = req.body?.timezone;
+    if (browserTimezone) {
+      try {
+        // Validate the timezone is a real IANA timezone
+        new Date().toLocaleDateString('en-US', { timeZone: browserTimezone });
+        context.user_timezone = browserTimezone;
+        context.user_local_date = new Date().toLocaleDateString('en-US', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+          timeZone: browserTimezone,
+        });
+        context.user_local_day = new Date().toLocaleDateString('en-US', {
+          weekday: 'long', timeZone: browserTimezone,
+        });
+      } catch (e) {
+        // Invalid timezone, keep DB value
+      }
+    }
 
     // Build prompt and call Claude
     const systemPrompt = buildSystemPrompt(personaId, context);

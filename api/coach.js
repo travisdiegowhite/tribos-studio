@@ -753,9 +753,15 @@ export default async function handler(req, res) {
         .is('resolved_at', null)
         .order('deviation_date', { ascending: false })
         .limit(5),
+      // Fetch user timezone
+      supabase
+        .from('user_profiles')
+        .select('timezone')
+        .eq('id', verifiedUserId)
+        .maybeSingle(),
     ];
 
-    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult] = await Promise.all(parallelFetches);
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult] = await Promise.all(parallelFetches);
 
     const coachSettings = coachSettingsResult.data;
     const activeCheckIn = checkInResult?.data || null;
@@ -763,9 +769,13 @@ export default async function handler(req, res) {
     const recentCheckIns = recentCheckInsResult.data || [];
     const calendarContext = calendarContextResult;
     const unresolvedDeviations = deviationsResult?.data || [];
+    const userDbTimezone = userProfileResult?.data?.timezone || null;
+
+    // Resolve the user's timezone: prefer browser-supplied, then DB, then UTC
+    const resolvedTimezone = userLocalDate?.timezone || userDbTimezone || 'UTC';
 
     // Build system message with date context FIRST
-    // Use user's local date if provided, otherwise fall back to server date
+    // Use user's local date if provided, otherwise compute from their timezone
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -783,13 +793,28 @@ export default async function handler(req, res) {
       todayMonth = userLocalDate.month;
       todayYear = userLocalDate.year;
     } else {
-      // Fallback to server date (UTC)
+      // Fallback: compute date in the user's timezone (from DB or UTC)
       const today = new Date();
-      dateStr = `${dayNames[today.getDay()]}, ${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`;
-      dayOfWeek = today.getDay();
-      todayDate = today.getDate();
-      todayMonth = today.getMonth();
-      todayYear = today.getFullYear();
+      try {
+        dateStr = today.toLocaleDateString('en-US', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+          timeZone: resolvedTimezone,
+        });
+        dayOfWeek = parseInt(today.toLocaleDateString('en-US', { weekday: 'narrow', timeZone: resolvedTimezone }), 10);
+        // Use a more reliable approach for dayOfWeek
+        const dayName = today.toLocaleDateString('en-US', { weekday: 'long', timeZone: resolvedTimezone });
+        dayOfWeek = dayNames.indexOf(dayName);
+        todayDate = parseInt(today.toLocaleDateString('en-US', { day: 'numeric', timeZone: resolvedTimezone }), 10);
+        todayMonth = today.toLocaleDateString('en-US', { month: 'long', timeZone: resolvedTimezone });
+        todayYear = parseInt(today.toLocaleDateString('en-US', { year: 'numeric', timeZone: resolvedTimezone }), 10);
+      } catch (tzError) {
+        // Invalid timezone, fall back to UTC
+        dateStr = `${dayNames[today.getDay()]}, ${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`;
+        dayOfWeek = today.getDay();
+        todayDate = today.getDate();
+        todayMonth = today.getMonth();
+        todayYear = today.getFullYear();
+      }
     }
 
     // Calculate this week's date range using user's local date
@@ -797,7 +822,8 @@ export default async function handler(req, res) {
     const mondayDate = todayDate + mondayOffset;
     const sundayDate = mondayDate + 6;
     // Simplified week range display
-    const weekRangeStr = `Week of ${monthNames[todayMonth]} ${mondayDate > 0 ? mondayDate : todayDate}, ${todayYear}`;
+    const monthStr = typeof todayMonth === 'string' ? todayMonth : monthNames[todayMonth];
+    const weekRangeStr = `Week of ${monthStr} ${mondayDate > 0 ? mondayDate : todayDate}, ${todayYear}`;
 
     // Determine persona
     const personaId = coachSettings?.coaching_persona && coachSettings.coaching_persona !== 'pending'
@@ -810,6 +836,7 @@ export default async function handler(req, res) {
     let systemPrompt = `=== CURRENT DATE & TIME CONTEXT ===
 TODAY IS: ${dateStr}
 ${weekRangeStr}
+Athlete's timezone: ${resolvedTimezone}
 
 CRITICAL: The conversation history below may contain outdated references to past dates (weeks or months ago).
 You MUST use the current date above as your reference point. When the athlete asks about "this week", "tomorrow", "Monday", etc., calculate from TODAY'S DATE shown above.

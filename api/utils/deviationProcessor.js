@@ -31,8 +31,14 @@ export async function enqueueDeviationAnalysis(supabase, userId, activityId) {
       return { enqueued: false, reason: 'no_active_plan' };
     }
 
-    // Guard: check if there's a planned workout for today
-    const today = new Date().toISOString().split('T')[0];
+    // Guard: check if there's a planned workout for today (using user's timezone)
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('timezone')
+      .eq('id', userId)
+      .maybeSingle();
+    const tz = profile?.timezone || 'America/New_York';
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: tz });
     const { data: todayWorkout } = await supabase
       .from('planned_workouts')
       .select('id')

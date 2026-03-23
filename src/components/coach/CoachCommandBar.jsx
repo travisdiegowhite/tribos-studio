@@ -204,6 +204,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
           month: 'long',
           day: 'numeric',
         }),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       };
 
       const { data: { session } } = await supabase.auth.getSession();

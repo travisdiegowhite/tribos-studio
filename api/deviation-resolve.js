@@ -93,7 +93,21 @@ export default async function handler(req, res) {
  */
 async function applyPlanMutation(supabase, userId, deviation, option) {
   const deviationDate = deviation.deviation_date;
-  const today = new Date().toISOString().split('T')[0];
+
+  // Get user's timezone for accurate "today"/"tomorrow"
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('timezone')
+    .eq('id', userId)
+    .maybeSingle();
+  const tz = profile?.timezone || 'America/New_York';
+
+  // Compute today and tomorrow in the user's timezone
+  const now = new Date();
+  const today = now.toLocaleDateString('en-CA', { timeZone: tz }); // en-CA gives YYYY-MM-DD format
+  const tomorrowDate = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowStr = tomorrowDate.toLocaleDateString('en-CA', { timeZone: tz });
 
   // Find the user's active plan
   const { data: plan } = await supabase
@@ -107,11 +121,6 @@ async function applyPlanMutation(supabase, userId, deviation, option) {
   if (!plan) {
     return { applied: false, reason: 'no_active_plan' };
   }
-
-  // Fetch upcoming planned workouts (from tomorrow onward)
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
   const { data: upcoming } = await supabase
     .from('planned_workouts')

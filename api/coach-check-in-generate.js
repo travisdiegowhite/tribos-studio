@@ -65,7 +65,12 @@ const PERSONA_DATA = {
 function buildSystemPrompt(personaId, context) {
   const persona = PERSONA_DATA[personaId] || PERSONA_DATA.pragmatist;
 
-  return `## ROLE
+  return `## CURRENT DATE & TIME CONTEXT
+TODAY IS: ${context.user_local_date || new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+Athlete's timezone: ${context.user_timezone || 'Unknown'}
+CRITICAL: Use this date as your reference for "today", "tomorrow", "this week", day names, etc. Do NOT guess the day — use the date above.
+
+## ROLE
 You are a cycling coach AI for Tribos. You are currently acting as ${persona.name}.
 
 ## YOUR COACHING PHILOSOPHY
