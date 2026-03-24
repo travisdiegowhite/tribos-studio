@@ -11,7 +11,28 @@ import { WorkoutCard } from './WorkoutCard';
 import { WorkoutDetailModal } from './WorkoutDetailModal';
 import type { PlannerWorkout } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutDefinition } from '../../types/training';
-import { ArrowDown, ArrowUp, Bicycle, CalendarX, CaretLeft, CaretRight, Check, Clock, Fire, House, Path, Plus, Star, Trophy, X } from '@phosphor-icons/react';
+import type { DailyForecast } from '../../types/weather';
+import { getWeatherSeverity, formatTemperature, formatWindSpeed } from '../../utils/weather';
+import { useUnits } from '../../utils/units';
+import { ArrowDown, ArrowUp, Bicycle, CalendarX, CaretLeft, CaretRight, Check, Clock, Cloud, CloudLightning, CloudRain, CloudSun, Fire, House, Moon, Path, Plus, Snowflake, Star, Sun, Trophy, Wind, X } from '@phosphor-icons/react';
+
+// Map OpenWeatherMap icon codes to Phosphor icons
+function getWeatherIcon(iconCode: string, size = 14) {
+  const code = iconCode?.slice(0, 2);
+  const isNight = iconCode?.endsWith('n');
+  switch (code) {
+    case '01': return isNight ? <Moon size={size} /> : <Sun size={size} />;
+    case '02': return isNight ? <Cloud size={size} /> : <CloudSun size={size} />;
+    case '03': return <Cloud size={size} />;
+    case '04': return <Cloud size={size} weight="fill" />;
+    case '09': return <CloudRain size={size} />;
+    case '10': return <CloudRain size={size} />;
+    case '11': return <CloudLightning size={size} />;
+    case '13': return <Snowflake size={size} />;
+    case '50': return <Wind size={size} />;
+    default: return <Cloud size={size} />;
+  }
+}
 
 // Race goal type for calendar display
 interface RaceGoal {
@@ -65,6 +86,7 @@ interface TwoWeekCalendarProps {
   linkingWorkoutId?: string | null; // Which workout is currently being linked (for loading state)
   isMobile?: boolean;
   selectedWorkoutId?: string | null; // For mobile tap-to-assign visual feedback
+  weatherForecast?: Record<string, DailyForecast>;
 }
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -131,7 +153,9 @@ export function TwoWeekCalendar({
   linkingWorkoutId = null,
   isMobile = false,
   selectedWorkoutId = null,
+  weatherForecast,
 }: TwoWeekCalendarProps) {
+  const { useImperial } = useUnits();
   // For mobile: track which week is currently shown (1 or 2)
   const [mobileWeek, setMobileWeek] = useState<'1' | '2'>('1');
   // For mobile: track which day is selected for detail view (index 0-6 within current week)
@@ -343,6 +367,7 @@ export function TwoWeekCalendar({
             onWorkoutClick={handleWorkoutClick}
             onLinkActivity={onLinkActivity}
             linkingWorkoutId={linkingWorkoutId}
+            weather={weatherForecast?.[day.date]}
           />
         ))}
       </SimpleGrid>
@@ -533,6 +558,34 @@ export function TwoWeekCalendar({
                   </ActionIcon>
                 )}
               </Group>
+
+              {/* Weather Forecast */}
+              {selectedDay && weatherForecast?.[selectedDay.date] && (() => {
+                const weather = weatherForecast[selectedDay.date];
+                const severity = getWeatherSeverity(weather, null, useImperial);
+                return (
+                  <Group
+                    gap="xs"
+                    mb="sm"
+                    px="xs"
+                    py={6}
+                    style={{
+                      borderRadius: 4,
+                      backgroundColor: `color-mix(in srgb, var(--mantine-color-${severity.color}-6) 12%, transparent)`,
+                    }}
+                  >
+                    {getWeatherIcon(weather.icon, 18)}
+                    <Text size="sm" tt="capitalize">{weather.description}</Text>
+                    <Text size="sm" fw={500}>
+                      {formatTemperature(weather.temperatureHigh, useImperial).replace(/°[FC]/, '')}/{formatTemperature(weather.temperatureLow, useImperial)}
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      {weather.windDirection} {formatWindSpeed(weather.windSpeed, useImperial)}
+                    </Text>
+                    <Badge size="xs" color={severity.color} variant="light">{severity.level}</Badge>
+                  </Group>
+                );
+              })()}
 
               {/* Race Goal Display */}
               {selectedDayRaceGoal && (() => {

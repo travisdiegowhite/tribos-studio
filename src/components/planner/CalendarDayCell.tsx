@@ -7,8 +7,11 @@ import { Box, Text, ActionIcon, Group, Tooltip, Badge, Progress, Stack, Menu, Th
 import { WorkoutCard } from './WorkoutCard';
 import type { PlannerWorkout } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutDefinition } from '../../types/training';
-import { ArrowDown, ArrowUp, ArrowsLeftRight, Bicycle, CalendarBlank, CalendarX, Check, House, Link, Lock, LockOpen, Minus, Plus, Star, Trophy, X } from '@phosphor-icons/react';
+import { ArrowDown, ArrowUp, ArrowsLeftRight, Bicycle, CalendarBlank, CalendarX, Check, Cloud, CloudLightning, CloudRain, CloudSnow, CloudSun, House, Link, Lock, LockOpen, Minus, Moon, Plus, Snowflake, Star, Sun, Trophy, Wind, X } from '@phosphor-icons/react';
 import { WORKOUT_LIBRARY } from '../../data/workoutLibrary';
+import type { DailyForecast } from '../../types/weather';
+import { getWeatherSeverity, formatTemperature, formatWindSpeed } from '../../utils/weather';
+import { useUnits } from '../../utils/units';
 
 // Race goal type for calendar display
 interface RaceGoal {
@@ -64,6 +67,7 @@ interface CalendarDayCellProps {
   onWorkoutClick?: (workout: WorkoutDefinition) => void;
   onLinkActivity?: (workoutId: string, activityId: string) => void;
   linkingWorkoutId?: string | null; // Which workout is currently being linked (for loading state)
+  weather?: DailyForecast;
 }
 
 // Helper to format distance (in meters to km/mi)
@@ -97,6 +101,24 @@ function getActivityTypeInfo(type?: string, trainer?: boolean): { label: string;
   }
 }
 
+// Map OpenWeatherMap icon codes to Phosphor icons
+function getWeatherIcon(iconCode: string, size = 14) {
+  const code = iconCode?.slice(0, 2);
+  const isNight = iconCode?.endsWith('n');
+  switch (code) {
+    case '01': return isNight ? <Moon size={size} /> : <Sun size={size} />;
+    case '02': return isNight ? <Cloud size={size} /> : <CloudSun size={size} />;
+    case '03': return <Cloud size={size} />;
+    case '04': return <Cloud size={size} weight="fill" />;
+    case '09': return <CloudRain size={size} />;
+    case '10': return <CloudRain size={size} />;
+    case '11': return <CloudLightning size={size} />;
+    case '13': return <Snowflake size={size} />;
+    case '50': return <Wind size={size} />;
+    default: return <Cloud size={size} />;
+  }
+}
+
 export function CalendarDayCell({
   date,
   dayOfWeek,
@@ -117,10 +139,16 @@ export function CalendarDayCell({
   onWorkoutClick,
   onLinkActivity,
   linkingWorkoutId,
+  weather,
 }: CalendarDayCellProps) {
+  const { useImperial } = useUnits();
   const isBlocked = availability?.status === 'blocked';
   const isPreferred = availability?.status === 'preferred';
   const hasOverride = availability?.isOverride;
+
+  // Weather severity assessment
+  const weatherSeverity = weather ? getWeatherSeverity(weather, undefined, useImperial) : null;
+
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -277,6 +305,40 @@ export function CalendarDayCell({
           </Badge>
         )}
       </Group>
+
+      {/* Weather Forecast Strip */}
+      {weather && weatherSeverity && (
+        <Tooltip
+          label={
+            <Stack gap={2}>
+              <Text size="xs" fw={600} tt="capitalize">{weather.description}</Text>
+              <Text size="xs">Humidity: {weather.humidity}%</Text>
+              <Text size="xs">{weatherSeverity.message}</Text>
+            </Stack>
+          }
+          multiline
+          w={200}
+        >
+          <Group
+            gap={4}
+            mb={4}
+            px={4}
+            py={2}
+            style={{
+              borderRadius: 4,
+              backgroundColor: `color-mix(in srgb, var(--mantine-color-${weatherSeverity.color}-6) 12%, transparent)`,
+            }}
+          >
+            {getWeatherIcon(weather.icon)}
+            <Text size="10px" c="dimmed" style={{ lineHeight: 1.2 }}>
+              {formatTemperature(weather.temperatureHigh, useImperial).replace(/°[FC]/, '')}/{formatTemperature(weather.temperatureLow, useImperial)}
+            </Text>
+            <Text size="10px" c="dimmed" style={{ lineHeight: 1.2 }}>
+              {weather.windDirection} {formatWindSpeed(weather.windSpeed, useImperial)}
+            </Text>
+          </Group>
+        </Tooltip>
+      )}
 
       {/* Race Goal Display */}
       {raceGoal && (() => {
