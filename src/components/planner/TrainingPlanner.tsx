@@ -38,6 +38,8 @@ import { useTrainingPlannerStore } from '../../stores/trainingPlannerStore';
 import { useUserAvailability } from '../../hooks/useUserAvailability';
 import { useTrainingPlan } from '../../hooks/useTrainingPlan';
 import { useWorkoutAdaptations } from '../../hooks/useWorkoutAdaptations';
+import { useWeatherForecast } from '../../hooks/useWeatherForecast';
+import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import { calculateTSS, estimateTSS } from '../../utils/trainingPlans';
 import { shouldPromptForFeedback, triggerAdaptationDetection } from '../../utils/adaptationTrigger';
@@ -135,6 +137,10 @@ export function TrainingPlanner({
   onPlanUpdated,
 }: TrainingPlannerProps) {
   const store = useTrainingPlannerStore();
+
+  // Weather forecast for calendar — use location from route builder store
+  const viewport = useRouteBuilderStore((s: { viewport: { latitude: number; longitude: number } }) => s.viewport);
+  const { forecast: weatherForecast } = useWeatherForecast(viewport?.latitude ?? null, viewport?.longitude ?? null);
 
   // Mobile detection
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -1075,6 +1081,7 @@ export function TrainingPlanner({
                 linkingWorkoutId={linkingWorkoutId}
                 isMobile={isMobile}
                 selectedWorkoutId={selectedWorkoutId}
+                weatherForecast={weatherForecast ?? undefined}
               />
             </Box>
           )}
