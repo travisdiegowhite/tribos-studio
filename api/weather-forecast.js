@@ -7,11 +7,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { lat, lon } = req.query;
+    const { lat, lon, tz } = req.query;
 
     if (!lat || !lon) {
       return res.status(400).json({ error: 'Missing lat or lon parameters' });
     }
+
+    // Timezone offset in minutes (from Date.getTimezoneOffset()), default 0 (UTC)
+    const tzOffsetMinutes = parseInt(tz, 10) || 0;
 
     const API_KEY = process.env.OPENWEATHER_API_KEY;
 
@@ -19,7 +22,7 @@ export default async function handler(req, res) {
       console.warn('[weather-forecast] OpenWeather API key not configured');
       return res.status(200).json({
         success: true,
-        data: getMockForecastData(),
+        data: getMockForecastData(tzOffsetMinutes),
         source: 'mock'
       });
     }
@@ -45,7 +48,7 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
-    const dailySummaries = aggregateToDailySummaries(data.list);
+    const dailySummaries = aggregateToDailySummaries(data.list, tzOffsetMinutes);
 
     console.log(`[weather-forecast] Successfully fetched ${Object.keys(dailySummaries).length} days of forecast`);
 
@@ -70,12 +73,18 @@ export default async function handler(req, res) {
 }
 
 // Aggregate 3-hour intervals into daily summaries
-function aggregateToDailySummaries(intervals) {
+// tzOffsetMinutes: browser's getTimezoneOffset() value (e.g., 420 for UTC-7)
+function aggregateToDailySummaries(intervals, tzOffsetMinutes = 0) {
   const days = {};
 
   for (const interval of intervals) {
-    // Group by UTC date (YYYY-MM-DD)
-    const date = interval.dt_txt.split(' ')[0];
+    // Convert UTC timestamp to local date using the client's timezone offset
+    // getTimezoneOffset() returns minutes AHEAD of UTC (negative for east, positive for west)
+    // So UTC-7 (PDT) = 420, UTC+1 (CET) = -60
+    const utcMs = interval.dt * 1000;
+    const localMs = utcMs - (tzOffsetMinutes * 60 * 1000);
+    const localDate = new Date(localMs);
+    const date = localDate.toISOString().split('T')[0];
 
     if (!days[date]) {
       days[date] = {
@@ -150,14 +159,16 @@ function getWindDirection(degrees) {
 }
 
 // Mock forecast data for development
-function getMockForecastData() {
+// tzOffsetMinutes: browser's getTimezoneOffset() value
+function getMockForecastData(tzOffsetMinutes = 0) {
   const result = {};
-  const now = new Date();
+  // Calculate "now" in the caller's local timezone
+  const nowUtcMs = Date.now();
+  const localNowMs = nowUtcMs - (tzOffsetMinutes * 60 * 1000);
 
   for (let i = 0; i < 5; i++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() + i);
-    const dateStr = date.toISOString().split('T')[0];
+    const localMs = localNowMs + (i * 24 * 60 * 60 * 1000);
+    const dateStr = new Date(localMs).toISOString().split('T')[0];
 
     const baseTemp = 18 + Math.sin(i * 0.8) * 4;
     result[dateStr] = {

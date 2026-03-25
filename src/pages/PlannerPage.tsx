@@ -48,6 +48,7 @@ export default function PlannerPage() {
   const [ftp, setFtp] = useState<number | null>(null);
   const [activePlan, setActivePlan] = useState<TrainingPlan | null>(null);
   const [unitsPreference, setUnitsPreference] = useState<string>('imperial');
+  const [userLocation, setUserLocation] = useState<string | null>(null);
   const [browseOpen, setBrowseOpen] = useState(false);
 
   useEffect(() => {
@@ -62,7 +63,7 @@ export default function PlannerPage() {
         // Fetch user profile for FTP and units preference
         const { data: profileData, error: profileError } = await supabase
           .from('user_profiles')
-          .select('ftp, units_preference')
+          .select('ftp, units_preference, location')
           .eq('id', userId)
           .single();
 
@@ -74,6 +75,9 @@ export default function PlannerPage() {
         }
         if (profileData?.units_preference) {
           setUnitsPreference(profileData.units_preference);
+        }
+        if (profileData?.location) {
+          setUserLocation(profileData.location);
         }
 
         // Fetch activities (last 90 days for context)
@@ -225,6 +229,7 @@ export default function PlannerPage() {
               activities={activities}
               ftp={ftp}
               onPlanUpdated={handlePlanUpdated}
+              userLocation={userLocation}
             />
           </Box>
         </Stack>

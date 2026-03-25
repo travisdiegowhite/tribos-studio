@@ -135,12 +135,60 @@ export function TrainingPlanner({
   activities = [],
   ftp,
   onPlanUpdated,
+  userLocation,
 }: TrainingPlannerProps) {
   const store = useTrainingPlannerStore();
 
-  // Weather forecast for calendar — use location from route builder store
+  // Weather forecast — geocode user's profile location, fall back to route builder viewport
   const viewport = useRouteBuilderStore((s: { viewport: { latitude: number; longitude: number } }) => s.viewport);
-  const { forecast: weatherForecast } = useWeatherForecast(viewport?.latitude ?? null, viewport?.longitude ?? null);
+  const [weatherCoords, setWeatherCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const geocodedLocationRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!userLocation) {
+      // Fall back to route builder viewport
+      if (viewport?.latitude && viewport?.longitude) {
+        setWeatherCoords({ lat: viewport.latitude, lon: viewport.longitude });
+      }
+      return;
+    }
+
+    // Skip if already geocoded this location
+    if (geocodedLocationRef.current === userLocation) return;
+
+    const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+    if (!mapboxToken) {
+      // No token — fall back to viewport
+      if (viewport?.latitude && viewport?.longitude) {
+        setWeatherCoords({ lat: viewport.latitude, lon: viewport.longitude });
+      }
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(userLocation)}.json?access_token=${mapboxToken}&limit=1`)
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        const feature = data.features?.[0];
+        if (feature?.center) {
+          // Mapbox returns [lon, lat]
+          setWeatherCoords({ lat: feature.center[1], lon: feature.center[0] });
+          geocodedLocationRef.current = userLocation;
+        } else if (viewport?.latitude && viewport?.longitude) {
+          setWeatherCoords({ lat: viewport.latitude, lon: viewport.longitude });
+        }
+      })
+      .catch(() => {
+        if (!cancelled && viewport?.latitude && viewport?.longitude) {
+          setWeatherCoords({ lat: viewport.latitude, lon: viewport.longitude });
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [userLocation, viewport?.latitude, viewport?.longitude]);
+
+  const { forecast: weatherForecast } = useWeatherForecast(weatherCoords?.lat ?? null, weatherCoords?.lon ?? null);
 
   // Mobile detection
   const isMobile = useMediaQuery('(max-width: 768px)');

@@ -38,7 +38,8 @@ export function useWeatherForecast(
     let cancelled = false;
     setLoading(true);
 
-    fetch(`/api/weather-forecast?lat=${lat}&lon=${lon}`)
+    const tz = new Date().getTimezoneOffset();
+    fetch(`/api/weather-forecast?lat=${lat}&lon=${lon}&tz=${tz}`)
       .then(res => res.json())
       .then(json => {
         if (cancelled) return;
