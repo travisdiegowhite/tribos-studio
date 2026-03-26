@@ -25,6 +25,8 @@ import {
 } from '@mantine/core';
 import { getUserInsights } from '../../services/adminService';
 import { ArrowsClockwise, CaretDown, CaretUp, CaretUpDown, Check, Funnel, Heartbeat, Target, TrendUp, UserMinus, Users, Warning, WarningCircle, X } from '@phosphor-icons/react';
+import AnalyticsExportBar from './AnalyticsExportBar';
+import { exportInsightsCSV } from '../../utils/adminExport';
 
 export default function UserInsights() {
   const [activeTab, setActiveTab] = useState('funnel');
@@ -255,6 +257,24 @@ export default function UserInsights() {
           </Group>
         </Card>
       </SimpleGrid>
+
+      <Group justify="space-between">
+        <AnalyticsExportBar
+          onExport={() => exportInsightsCSV(insights)}
+          exportFilename="tribos-insights"
+          analyticsData={insights}
+          analysisType="insights_deep_dive"
+        />
+        <Button
+          leftSection={<ArrowsClockwise size={16} />}
+          variant="light"
+          size="xs"
+          onClick={loadData}
+          loading={loading}
+        >
+          Refresh
+        </Button>
+      </Group>
 
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>

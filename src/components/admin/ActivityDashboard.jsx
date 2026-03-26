@@ -32,6 +32,8 @@ import {
   getUserActivity
 } from '../../services/adminService';
 import { ArrowsClockwise, CaretDown, CaretUp, CaretUpDown, ChartBar, Clock, CloudArrowDown, CursorClick, Eye, Heartbeat, UploadSimple, User, Users, Warning } from '@phosphor-icons/react';
+import AnalyticsExportBar from './AnalyticsExportBar';
+import { exportActivityCSV } from '../../utils/adminExport';
 
 export default function ActivityDashboard() {
   const [activeTab, setActiveTab] = useState('summary');
@@ -222,15 +224,23 @@ export default function ActivityDashboard() {
         <Paper withBorder>
           <Group justify="space-between" p="md" style={{ borderBottom: '1px solid var(--mantine-color-dark-4)' }}>
             <Text fw={600}>User Activity Summary</Text>
-            <Button
-              leftSection={<ArrowsClockwise size={16} />}
-              variant="light"
-              size="xs"
-              onClick={loadData}
-              loading={loading}
-            >
-              Refresh
-            </Button>
+            <Group gap="xs">
+              <AnalyticsExportBar
+                onExport={() => exportActivityCSV(summary)}
+                exportFilename="tribos-activity"
+                analyticsData={{ summary, stats }}
+                analysisType="activity_analysis"
+              />
+              <Button
+                leftSection={<ArrowsClockwise size={16} />}
+                variant="light"
+                size="xs"
+                onClick={loadData}
+                loading={loading}
+              >
+                Refresh
+              </Button>
+            </Group>
           </Group>
 
           {loading ? (

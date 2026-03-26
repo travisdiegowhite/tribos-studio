@@ -25,6 +25,8 @@ import {
 } from '@mantine/core';
 import { listUsers, getUserDetails, cleanUserData, getStats } from '../../services/adminService';
 import { ArrowsClockwise, CaretDown, CaretUp, CaretUpDown, Check, Heartbeat, Info, MagnifyingGlass, Plug, Trash, User, Warning } from '@phosphor-icons/react';
+import AnalyticsExportBar from './AnalyticsExportBar';
+import { exportUsersCSV } from '../../utils/adminExport';
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -234,13 +236,21 @@ export default function UserManagement() {
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ flex: 1, maxWidth: 400 }}
           />
-          <Button
-            leftSection={<ArrowsClockwise size={16} />}
-            variant="light"
-            onClick={loadData}
-          >
-            Refresh
-          </Button>
+          <Group gap="xs">
+            <AnalyticsExportBar
+              onExport={() => exportUsersCSV(users)}
+              exportFilename="tribos-users"
+              analyticsData={{ users, stats }}
+              analysisType="user_overview"
+            />
+            <Button
+              leftSection={<ArrowsClockwise size={16} />}
+              variant="light"
+              onClick={loadData}
+            >
+              Refresh
+            </Button>
+          </Group>
         </Group>
       </Paper>
 

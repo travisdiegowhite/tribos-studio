@@ -185,6 +185,39 @@ export async function getUserInsights() {
 }
 
 // ============================================================================
+// Analytics Analysis Functions
+// ============================================================================
+
+/**
+ * Send analytics data to Claude for AI-powered analysis
+ */
+export async function analyzeAnalytics(analyticsData, analysisType = 'overview') {
+  const token = await getAccessToken();
+
+  const response = await fetch(`${API_BASE}/api/admin-analysis`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ analyticsData, analysisType })
+  });
+
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error(`Server error (${response.status}): non-JSON response`);
+  }
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Analysis API request failed');
+  }
+
+  return result;
+}
+
+// ============================================================================
 // Email Campaign Functions
 // ============================================================================
 
@@ -278,6 +311,8 @@ export default {
   getRecentActivity,
   getActivityStats,
   getUserActivity,
+  // Analytics analysis
+  analyzeAnalytics,
   // Email campaigns
   listCampaigns,
   getCampaign,
