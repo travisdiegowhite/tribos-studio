@@ -59,11 +59,7 @@ export default async function handler(req, res) {
   }
 
   // Rate limit: 5 requests per 5 minutes
-  const rateLimited = await rateLimitMiddleware(req, res, {
-    maxRequests: 5,
-    windowMs: 5 * 60 * 1000,
-    keyPrefix: 'admin-analysis',
-  });
+  const rateLimited = await rateLimitMiddleware(req, res, 'admin-analysis', 5, 5);
   if (rateLimited) return;
 
   const { user, error: authError } = await verifyAdminAccess(req);
