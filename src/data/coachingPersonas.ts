@@ -181,3 +181,26 @@ export const INTAKE_QUESTIONS: IntakeQuestion[] = [
     ],
   },
 ];
+
+// ── Experience Level Question ─────────────────────────────────
+// Separate from persona — modifies coaching communication style.
+
+export type ExperienceLevel = 'just_starting' | 'developing' | 'experienced' | 'competitive';
+
+export const EXPERIENCE_LEVEL_QUESTION: IntakeQuestion = {
+  id: 'experience',
+  question: 'How long have you been training with structure?',
+  options: [
+    { label: 'Just getting started (less than 1 year)', value: 'just_starting' },
+    { label: 'Developing (1–3 years)', value: 'developing' },
+    { label: 'Experienced (3+ years)', value: 'experienced' },
+    { label: 'Competitive / Racing', value: 'competitive' },
+  ],
+};
+
+export const EXPERIENCE_LEVELS: { value: ExperienceLevel; label: string }[] = [
+  { value: 'just_starting', label: 'Just getting started (< 1 year)' },
+  { value: 'developing', label: 'Developing (1–3 years)' },
+  { value: 'experienced', label: 'Experienced (3+ years)' },
+  { value: 'competitive', label: 'Competitive / Racing' },
+];

@@ -715,7 +715,7 @@ export default async function handler(req, res) {
     const parallelFetches = [
       supabase
         .from('user_coach_settings')
-        .select('coaching_persona, user_preferred_name')
+        .select('coaching_persona, user_preferred_name, coaching_experience_level')
         .eq('user_id', verifiedUserId)
         .maybeSingle(),
       supabase
@@ -855,6 +855,23 @@ ${riderName ? `The athlete's preferred name is: ${riderName}` : ''}
 IMPORTANT: You also generate coaching check-ins that appear on the athlete's training dashboard.
 Those check-ins use this same voice and persona. When the athlete references something from a check-in,
 you should respond as the same coach who wrote it — maintain continuity.`;
+    }
+
+    // Inject experience level context (modifies communication style)
+    const experienceLevel = coachSettings?.coaching_experience_level || 'experienced';
+    if (experienceLevel === 'just_starting' || experienceLevel === 'developing') {
+      systemPrompt += `\n\n=== COACHING COMMUNICATION LEVEL: ${experienceLevel === 'just_starting' ? 'BEGINNER' : 'DEVELOPING'} ===
+This athlete is ${experienceLevel === 'just_starting' ? 'new to structured training (< 1 year)' : 'developing as a structured cyclist (1-3 years)'}. Adapt your communication:
+
+1. EXPLAIN JARGON ON FIRST USE: When you mention TSS, CTL, ATL, TSB, FTP, NP, IF, or any training acronym, add a brief parenthetical explanation the first time. Example: "TSS (training stress score — a measure of how hard today's ride was)." Only explain each term once per conversation.
+
+2. CELEBRATE MILESTONES: Call out achievements explicitly — biggest ride ever, first week hitting all planned workouts, first structured interval session completed, consistency streaks. These matter more at this stage.
+
+3. LEAD WITH WHY: Frame the purpose before the prescription. Instead of "Do a 45-minute Zone 2 ride today," say "Your body needs time to absorb this week's harder efforts — a 45-minute easy ride today accelerates that recovery."
+
+4. TRANSLATE METRICS: Never open with raw numbers. Instead of "Your ATL is 52 and TSB is -19," say "You've put in a big week — your body's carrying some fatigue right now, which is normal and expected."
+
+5. FRAME PROGRESS FROM START: When showing adherence or fitness metrics, contextualise against where the athlete started, not just the target. Example: "Your fitness score was 28 four weeks ago — 38 now is real progress even if the target is 50."`;
     }
 
     // Inject coach memory (persistent behavioral insights)

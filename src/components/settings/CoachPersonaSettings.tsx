@@ -17,7 +17,8 @@ import {
   Box,
 } from '@mantine/core';
 import { supabase } from '../../lib/supabase';
-import { PERSONAS, PERSONA_LIST } from '../../data/coachingPersonas';
+import { PERSONAS, PERSONA_LIST, EXPERIENCE_LEVELS } from '../../data/coachingPersonas';
+import type { ExperienceLevel } from '../../data/coachingPersonas';
 import IntakeInterview from '../coach/IntakeInterview';
 import type { PersonaId } from '../../types/checkIn';
 import { ArrowsClockwise, Sparkle } from '@phosphor-icons/react';
@@ -29,19 +30,23 @@ interface CoachPersonaSettingsProps {
 export default function CoachPersonaSettings({ userId }: CoachPersonaSettingsProps) {
   const [persona, setPersona] = useState<PersonaId | null>(null);
   const [setBy, setSetBy] = useState<string | null>(null);
+  const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel>('experienced');
   const [loading, setLoading] = useState(true);
   const [showIntake, setShowIntake] = useState(false);
 
   const fetchPersona = useCallback(async () => {
     const { data } = await supabase
       .from('user_coach_settings')
-      .select('coaching_persona, persona_set_by')
+      .select('coaching_persona, persona_set_by, coaching_experience_level')
       .eq('user_id', userId)
       .maybeSingle();
 
     if (data?.coaching_persona && data.coaching_persona !== 'pending') {
       setPersona(data.coaching_persona as PersonaId);
       setSetBy(data.persona_set_by);
+    }
+    if (data?.coaching_experience_level) {
+      setExperienceLevel(data.coaching_experience_level as ExperienceLevel);
     }
     setLoading(false);
   }, [userId]);
@@ -65,6 +70,20 @@ export default function CoachPersonaSettings({ userId }: CoachPersonaSettingsPro
 
     setPersona(personaId);
     setSetBy('manual');
+  };
+
+  const handleExperienceChange = async (value: string | null) => {
+    if (!value) return;
+    const level = value as ExperienceLevel;
+
+    await supabase
+      .from('user_coach_settings')
+      .upsert({
+        user_id: userId,
+        coaching_experience_level: level,
+      }, { onConflict: 'user_id' });
+
+    setExperienceLevel(level);
   };
 
   const handleIntakeComplete = (personaId: PersonaId) => {
@@ -118,6 +137,20 @@ export default function CoachPersonaSettings({ userId }: CoachPersonaSettingsPro
             data={PERSONA_LIST.map((p) => ({
               value: p.id,
               label: `${p.name} — ${p.tagline}`,
+            }))}
+            styles={{ input: { borderRadius: 0 } }}
+          />
+        </Box>
+
+        <Box>
+          <Select
+            label="Experience level"
+            description="Adjusts how technical the coach communicates — less jargon for newer cyclists"
+            value={experienceLevel}
+            onChange={handleExperienceChange}
+            data={EXPERIENCE_LEVELS.map((l) => ({
+              value: l.value,
+              label: l.label,
             }))}
             styles={{ input: { borderRadius: 0 } }}
           />

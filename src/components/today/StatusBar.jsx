@@ -1,15 +1,15 @@
-import { Box, Group, Text, Skeleton, SimpleGrid, Tooltip } from '@mantine/core';
+import { Box, Text, Skeleton, SimpleGrid, Tooltip } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { translateCTL, translateATL, translateTSB, colorToVar } from '../../lib/fitness/translate';
+import { translateCTL, translateATL, translateTSB, translateTrend, colorToVar } from '../../lib/fitness/translate';
 import { METRIC_TOOLTIPS } from '../../lib/fitness/tooltips';
 
-function StatusBar({ ctl, atl, tsb, weekRides, weekPlanned, loading }) {
+function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   if (loading) {
     return (
-      <SimpleGrid cols={isMobile ? 2 : 4} spacing={0}>
-        {[1, 2, 3, 4].map((i) => (
+      <SimpleGrid cols={isMobile ? 2 : 5} spacing={0}>
+        {[1, 2, 3, 4, 5].map((i) => (
           <Box
             key={i}
             style={{
@@ -28,10 +28,12 @@ function StatusBar({ ctl, atl, tsb, weekRides, weekPlanned, loading }) {
   const formTranslation = translateTSB(tsb);
   const fitnessTranslation = translateCTL(ctl);
   const fatigueTranslation = translateATL(atl, ctl);
+  const trendTranslation = translateTrend(ctlDeltaPct ?? 0, ctl);
 
   const cells = [
     {
       label: 'FORM',
+      sublabel: 'TSB \u2014 freshness',
       value: tsb > 0 ? `+${tsb}` : String(tsb),
       color: tsb >= 0 ? 'var(--color-teal)' : 'var(--color-orange)',
       status: formTranslation.label,
@@ -40,6 +42,7 @@ function StatusBar({ ctl, atl, tsb, weekRides, weekPlanned, loading }) {
     },
     {
       label: 'FITNESS',
+      sublabel: 'CTL \u2014 chronic training load',
       value: String(ctl),
       color: 'var(--color-teal)',
       status: fitnessTranslation.label,
@@ -48,6 +51,7 @@ function StatusBar({ ctl, atl, tsb, weekRides, weekPlanned, loading }) {
     },
     {
       label: 'FATIGUE',
+      sublabel: 'ATL \u2014 recent training load',
       value: String(atl),
       color: 'var(--color-orange)',
       status: fatigueTranslation.label,
@@ -55,7 +59,17 @@ function StatusBar({ ctl, atl, tsb, weekRides, weekPlanned, loading }) {
       tooltip: METRIC_TOOLTIPS.atl(atl, ctl),
     },
     {
+      label: 'TREND',
+      sublabel: null,
+      value: trendTranslation.label,
+      color: colorToVar(trendTranslation.color),
+      status: trendTranslation.subtitle,
+      statusColor: 'var(--color-text-muted)',
+      tooltip: 'Your fitness trajectory over the past 4 weeks, based on how your chronic training load (CTL) is changing.',
+    },
+    {
       label: 'THIS WEEK',
+      sublabel: null,
       value: `${weekRides}/${weekPlanned}`,
       color: 'var(--color-teal)',
       status: null,
@@ -65,7 +79,7 @@ function StatusBar({ ctl, atl, tsb, weekRides, weekPlanned, loading }) {
   ];
 
   return (
-    <SimpleGrid cols={isMobile ? 2 : 4} spacing={0}>
+    <SimpleGrid cols={isMobile ? 2 : 5} spacing={0}>
       {cells.map((cell) => {
         const content = (
           <Box
@@ -85,11 +99,24 @@ function StatusBar({ ctl, atl, tsb, weekRides, weekPlanned, loading }) {
                 letterSpacing: '2px',
                 textTransform: 'uppercase',
                 color: 'var(--color-text-muted)',
-                marginBottom: 4,
+                marginBottom: cell.sublabel ? 1 : 4,
               }}
             >
               {cell.label}
             </Text>
+            {cell.sublabel && (
+              <Text
+                style={{
+                  fontFamily: "'DM Mono', monospace",
+                  fontSize: 9,
+                  color: '#7A7970',
+                  letterSpacing: '0.5px',
+                  marginBottom: 4,
+                }}
+              >
+                {cell.sublabel}
+              </Text>
+            )}
             <Text
               style={{
                 fontFamily: "'DM Mono', monospace",

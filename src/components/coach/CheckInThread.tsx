@@ -21,6 +21,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
 import { ChatCircle, PaperPlaneRight } from '@phosphor-icons/react';
+import { CoachMarkdown } from './CoachMarkdown';
 
 interface Message {
   id: string;
@@ -235,12 +236,18 @@ export default function CheckInThread({ checkInId, trainingContext = null }: Che
                     }`,
                   }}
                 >
-                  <Text
-                    size="sm"
-                    style={{ lineHeight: 1.5, whiteSpace: 'pre-wrap' }}
-                  >
-                    {msg.message}
-                  </Text>
+                  {msg.role === 'user' ? (
+                    <Text
+                      size="sm"
+                      style={{ lineHeight: 1.5, whiteSpace: 'pre-wrap' }}
+                    >
+                      {msg.message}
+                    </Text>
+                  ) : (
+                    <CoachMarkdown size="sm">
+                      {msg.message}
+                    </CoachMarkdown>
+                  )}
                 </Paper>
               </Box>
             ))}

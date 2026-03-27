@@ -21,6 +21,7 @@ import TrainingPlanPreview from './TrainingPlanPreview';
 import { useUserAvailability } from '../../hooks/useUserAvailability';
 import { redistributeWorkouts } from '../../utils/trainingPlans';
 import { ArrowsClockwise, CalendarPlus, PaperPlaneRight, Robot, Sparkle, User } from '@phosphor-icons/react';
+import { CoachMarkdown } from './CoachMarkdown';
 
 // Generate coaching message — now includes workout recommendation for consistency
 function getCoachingMessage(trainingContext, workoutRecommendation) {
@@ -518,16 +519,25 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                         {msg.role === 'user' ? <User size={10} /> : <Robot size={10} />}
                       </ThemeIcon>
                       <Box style={{ flex: 1, minWidth: 0 }}>
-                        <Text
-                          size="xs"
-                          style={{
-                            whiteSpace: 'pre-wrap',
-                            lineHeight: 1.5,
-                            color: msg.role === 'user' ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
-                          }}
-                        >
-                          {msg.content}
-                        </Text>
+                        {msg.role === 'user' ? (
+                          <Text
+                            size="xs"
+                            style={{
+                              whiteSpace: 'pre-wrap',
+                              lineHeight: 1.5,
+                              color: 'var(--color-text-secondary)',
+                            }}
+                          >
+                            {msg.content}
+                          </Text>
+                        ) : (
+                          <CoachMarkdown
+                            size="xs"
+                            color="var(--color-text-primary)"
+                          >
+                            {msg.content}
+                          </CoachMarkdown>
+                        )}
                         {/* Workout action buttons on coach messages */}
                         {msg.workoutRecommendations?.length > 0 && (
                           <Group gap={4} mt={4}>

@@ -6,6 +6,7 @@ import { Stack, Text, Paper, Box, Group, Badge } from '@mantine/core';
 import { PERSONAS } from '../../data/coachingPersonas';
 import type { PersonaId } from '../../types/checkIn';
 import { Warning } from '@phosphor-icons/react';
+import { CoachMarkdown } from './CoachMarkdown';
 
 interface CheckInNarrativeProps {
   narrative: string;
@@ -37,9 +38,9 @@ export default function CheckInNarrative({
       </Group>
 
       {/* Main narrative */}
-      <Text size="lg" lh={1.6} style={{ maxWidth: 640 }}>
-        {narrative}
-      </Text>
+      <div style={{ maxWidth: 640 }}>
+        <CoachMarkdown size="lg">{narrative}</CoachMarkdown>
+      </div>
 
       {/* Deviation callout */}
       {deviationCallout && (

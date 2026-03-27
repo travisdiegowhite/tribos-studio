@@ -308,7 +308,19 @@ function Dashboard() {
     atl = Math.round(atl * atlDecay);
 
     const tsb = ctl - atl;
-    return { ctl, atl, tsb };
+
+    // CTL trend: compute CTL at 28 days ago for comparison
+    const cutoffIndex = Math.max(0, tssValues.length - 28);
+    const tssValues28dAgo = tssValues.slice(0, cutoffIndex);
+    let ctl28dAgo = 0;
+    tssValues28dAgo.forEach((tss, index) => {
+      const weight = Math.exp(-ctlDecay * (tssValues28dAgo.length - index - 1));
+      ctl28dAgo += tss * weight;
+    });
+    ctl28dAgo = Math.round(ctl28dAgo * ctlDecay);
+    const ctlDeltaPct = ctl28dAgo > 0 ? ((ctl - ctl28dAgo) / ctl28dAgo) * 100 : 0;
+
+    return { ctl, atl, tsb, ctlDeltaPct };
   }, [activities]);
 
   // Build training context string for CoachCard
@@ -361,6 +373,7 @@ function Dashboard() {
             ctl={trainingMetrics.ctl}
             atl={trainingMetrics.atl}
             tsb={trainingMetrics.tsb}
+            ctlDeltaPct={trainingMetrics.ctlDeltaPct}
             weekRides={weekStats.rides}
             weekPlanned={weekStats.planned}
             loading={loading}
