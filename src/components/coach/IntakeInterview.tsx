@@ -21,7 +21,8 @@ import {
   Divider,
   Box,
 } from '@mantine/core';
-import { INTAKE_QUESTIONS, PERSONAS, PERSONA_LIST } from '../../data/coachingPersonas';
+import { INTAKE_QUESTIONS, EXPERIENCE_LEVEL_QUESTION, PERSONAS, PERSONA_LIST } from '../../data/coachingPersonas';
+import type { ExperienceLevel } from '../../data/coachingPersonas';
 import type { PersonaId, PersonaClassification, IntakeAnswers } from '../../types/checkIn';
 import { supabase } from '../../lib/supabase';
 import { ArrowLeft, ArrowRight, Check, Sparkle } from '@phosphor-icons/react';
@@ -42,15 +43,17 @@ export default function IntakeInterview({ opened, onComplete, userId }: IntakeIn
   const [selectedPersona, setSelectedPersona] = useState<PersonaId | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const question = INTAKE_QUESTIONS[currentQuestion];
-  const progress = ((currentQuestion + 1) / INTAKE_QUESTIONS.length) * 100;
+  // Combine persona questions + experience level question
+  const allQuestions = [...INTAKE_QUESTIONS, EXPERIENCE_LEVEL_QUESTION];
+  const question = allQuestions[currentQuestion];
+  const progress = ((currentQuestion + 1) / allQuestions.length) * 100;
 
   const handleAnswer = (value: string) => {
     setAnswers((prev) => ({ ...prev, [question.id]: value }));
   };
 
   const handleNext = () => {
-    if (currentQuestion < INTAKE_QUESTIONS.length - 1) {
+    if (currentQuestion < allQuestions.length - 1) {
       setCurrentQuestion((prev) => prev + 1);
     } else {
       handleSubmit();
@@ -93,6 +96,18 @@ export default function IntakeInterview({ opened, onComplete, userId }: IntakeIn
       const data = await response.json();
       setClassification(data.classification);
       setSelectedPersona(data.classification.persona);
+
+      // Store experience level separately
+      const experienceLevel = answers.experience as ExperienceLevel | undefined;
+      if (experienceLevel) {
+        await supabase
+          .from('user_coach_settings')
+          .upsert({
+            user_id: userId,
+            coaching_experience_level: experienceLevel,
+          }, { onConflict: 'user_id' });
+      }
+
       setStep('result');
     } catch (err) {
       console.error('Intake classification error:', err);
@@ -140,7 +155,7 @@ export default function IntakeInterview({ opened, onComplete, userId }: IntakeIn
               c="dimmed"
               mb={4}
             >
-              Coaching Style · Question {currentQuestion + 1} of {INTAKE_QUESTIONS.length}
+              Coaching Style · Question {currentQuestion + 1} of {allQuestions.length}
             </Text>
             <Progress value={progress} size="xs" color="var(--color-teal)" />
           </Box>
@@ -187,7 +202,7 @@ export default function IntakeInterview({ opened, onComplete, userId }: IntakeIn
             </Button>
             <Button
               rightSection={
-                currentQuestion === INTAKE_QUESTIONS.length - 1
+                currentQuestion === allQuestions.length - 1
                   ? <Sparkle size={16} />
                   : <ArrowRight size={16} />
               }

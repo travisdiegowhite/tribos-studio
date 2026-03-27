@@ -33,6 +33,48 @@ export function translateTSB(tsb: number): MetricTranslation {
   return { label: 'In the hole', color: 'coral' };
 }
 
+/** Trend direction — CTL trajectory over 4 weeks */
+export interface TrendTranslation extends MetricTranslation {
+  direction: 'building' | 'peaking' | 'maintaining' | 'recovering';
+  subtitle: string;
+}
+
+export function translateTrend(ctlDeltaPct: number, ctl: number): TrendTranslation {
+  const absDelta = Math.abs(ctlDeltaPct);
+  const deltaStr = `${absDelta < 1 ? '<1' : Math.round(absDelta)}%`;
+
+  if (ctlDeltaPct > 8) {
+    return {
+      direction: 'building',
+      label: 'Building',
+      color: 'teal',
+      subtitle: `Fitness up ${deltaStr} over 4 weeks`,
+    };
+  }
+  if (ctlDeltaPct > 2) {
+    return {
+      direction: 'maintaining',
+      label: 'Maintaining',
+      color: 'gold',
+      subtitle: `Fitness steady — up ${deltaStr}`,
+    };
+  }
+  if (ctlDeltaPct >= -2) {
+    return {
+      direction: 'maintaining',
+      label: 'Maintaining',
+      color: 'gold',
+      subtitle: 'Fitness holding steady',
+    };
+  }
+  return {
+    direction: 'recovering',
+    label: 'Recovering',
+    color: 'orange',
+    subtitle: `Fitness down ${deltaStr} — absorbing load`,
+  };
+}
+
 /** TSS (Last Ride) — single ride training stress */
 export function translateTSS(tss: number): MetricTranslation {
   if (tss > 200) return { label: 'Epic — rest incoming', color: 'coral' };

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Card, Text, Group, Badge, SegmentedControl } from '@mantine/core';
+import { Box, Card, Text, Group, Badge, SegmentedControl } from '@mantine/core';
 import {
   LineChart,
   Line,
@@ -123,11 +123,26 @@ const TrainingLoadChart = ({ data }) => {
         </Group>
       </Group>
 
-      {/* Legend */}
-      <Group gap="xs" mb="md">
-        <Badge color="gold" variant="light" size="sm">CTL (Fitness)</Badge>
-        <Badge color="coral" variant="light" size="sm">ATL (Fatigue)</Badge>
-        <Badge color="teal" variant="light" size="sm">TSB (Form)</Badge>
+      {/* Legend with plain-language sublabels */}
+      <Group gap="md" mb="md">
+        <Box>
+          <Badge color="gold" variant="light" size="sm">CTL (Fitness)</Badge>
+          <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
+            Aerobic base — built over ~6 weeks
+          </Text>
+        </Box>
+        <Box>
+          <Badge color="coral" variant="light" size="sm">ATL (Fatigue)</Badge>
+          <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
+            Recent fatigue — last 7–10 days
+          </Text>
+        </Box>
+        <Box>
+          <Badge color="teal" variant="light" size="sm">TSB (Form)</Badge>
+          <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
+            Freshness — how ready you are today
+          </Text>
+        </Box>
       </Group>
 
       {/* Daily TSS Bar Chart */}
@@ -204,8 +219,8 @@ const TrainingLoadChart = ({ data }) => {
         </LineChart>
       </ResponsiveContainer>
 
-      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt="xs">
-        CTL = Long-term fitness (42-day) | ATL = Recent fatigue (7-day) | TSB = Freshness/Form (CTL - ATL)
+      <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 6 }}>
+        TSS = Today&apos;s training load | FTP = Your current threshold power
       </Text>
     </Card>
   );
