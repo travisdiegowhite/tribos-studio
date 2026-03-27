@@ -31,6 +31,10 @@
     {
       "path": "/api/fitness-snapshots?action=compute-weekly",
       "schedule": "0 3 * * 1"
+    },
+    {
+      "path": "/api/workout-preview-cron",
+      "schedule": "0 * * * *"
     }
   ],
   "functions": {
@@ -50,6 +54,9 @@
       "maxDuration": 60
     },
     "api/fitness-snapshots.js": {
+      "maxDuration": 60
+    },
+    "api/workout-preview-cron.js": {
       "maxDuration": 60
     }
   },

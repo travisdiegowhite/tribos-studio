@@ -8,6 +8,7 @@
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 import { completeActivationStep, enqueueProactiveInsight } from './utils/activation.js';
+import { sendPushToUser, buildPostRideMessage } from './utils/pushNotification.js';
 import { buildCorosActivityData } from './utils/coros/activityBuilder.js';
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 
@@ -188,6 +189,27 @@ async function processWorkoutEvent(event, results, integrationCache) {
     });
   } catch (insightErr) {
     // Non-blocking
+  }
+
+  // Send post-ride push notification (fire-and-forget)
+  try {
+    const { data: latestLoad } = await supabase
+      .from('training_load_daily')
+      .select('ctl, atl, tsb')
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const message = buildPostRideMessage(latestLoad);
+    sendPushToUser(userId, {
+      ...message,
+      url: '/dashboard',
+      notificationType: 'post_ride_insight',
+      referenceId: inserted.id,
+    }).catch((e) => console.error('⚠️ Push notification failed (non-fatal):', e.message));
+  } catch (pushError) {
+    console.error('⚠️ Push notification failed (non-fatal):', pushError.message);
   }
 }
 

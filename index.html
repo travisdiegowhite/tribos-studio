@@ -93,16 +93,16 @@
   </head>
   <body>
     <script>
-      // Kill stale service workers that cause infinite spinner after deployments
+      // Kill legacy/stale service workers, but preserve our push-only SW (/sw.js)
+      // See docs/postmortem-2026-03-13-cloudflare-pwa-outage.md
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(r) {
-          r.forEach(function(reg) { reg.unregister(); });
-        });
-        if ('caches' in window) {
-          caches.keys().then(function(n) {
-            n.forEach(function(name) { caches.delete(name); });
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(reg) {
+            // Keep our push-only SW, kill everything else
+            if (reg.active && reg.active.scriptURL === location.origin + '/sw.js') return;
+            reg.unregister();
           });
-        }
+        });
       }
     </script>
     <div id="root">
