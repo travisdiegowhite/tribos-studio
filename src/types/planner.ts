@@ -247,6 +247,7 @@ export interface TrainingPlannerProps {
   }>;
   ftp?: number | null;
   onPlanUpdated?: () => void;
+  userLocation?: string | null;
 }
 
 export interface WorkoutCardProps {
