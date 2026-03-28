@@ -122,6 +122,49 @@ export function toNoonUTC(date) {
 }
 
 /**
+ * Resolve relative date strings to YYYY-MM-DD format in local timezone.
+ * Handles: "today", "tomorrow", "this_monday", "next_tuesday", or already-formatted YYYY-MM-DD.
+ *
+ * @param {string} dateStr - Relative or absolute date string
+ * @returns {string} Date in YYYY-MM-DD format
+ */
+export function resolveScheduledDate(dateStr) {
+  if (!dateStr) return formatLocalDate(new Date());
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+
+  const today = new Date();
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+  if (dateStr === 'today') return formatLocalDate(today);
+  if (dateStr === 'tomorrow') {
+    today.setDate(today.getDate() + 1);
+    return formatLocalDate(today);
+  }
+
+  // Handle this_monday, next_tuesday, etc.
+  const match = dateStr.match(/^(this|next)_(\w+)$/);
+  if (match) {
+    const [, prefix, dayName] = match;
+    const targetDay = dayNames.indexOf(dayName.toLowerCase());
+    if (targetDay >= 0) {
+      const currentDay = today.getDay();
+      let diff = targetDay - currentDay;
+      if (prefix === 'this') {
+        if (diff <= 0) diff += 7;
+      } else {
+        // next = always at least 7 days out
+        if (diff <= 0) diff += 7;
+        diff += 7;
+      }
+      today.setDate(today.getDate() + diff);
+      return formatLocalDate(today);
+    }
+  }
+
+  return dateStr;
+}
+
+/**
  * Parse a timestamp string (from database) and return a Date at midnight LOCAL time.
  * This handles both old-style timestamps (midnight local stored as UTC) and
  * new-style timestamps (noon UTC).
