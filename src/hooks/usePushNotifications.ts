@@ -17,10 +17,14 @@ interface PushNotificationState {
   isSubscribed: boolean;
   /** Whether the browser supports push notifications */
   isSupported: boolean;
+  /** Whether push is fully configured (VAPID key set) */
+  isConfigured: boolean;
   /** Whether an iOS device needs home screen install first */
   needsHomeScreenInstall: boolean;
   /** Loading state during subscribe/unsubscribe */
   loading: boolean;
+  /** Error message from last subscribe/unsubscribe attempt */
+  error: string | null;
   /** Subscribe to push notifications (registers SW, requests permission, saves subscription) */
   subscribe: () => Promise<boolean>;
   /** Unsubscribe from push notifications */
@@ -31,12 +35,15 @@ export function usePushNotifications(): PushNotificationState {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const isSupported =
     typeof window !== 'undefined' &&
     'serviceWorker' in navigator &&
     'PushManager' in window &&
     'Notification' in window;
+
+  const isConfigured = !!VAPID_PUBLIC_KEY;
 
   // iOS Safari requires home screen installation before push works
   const isIOS =
@@ -69,8 +76,22 @@ export function usePushNotifications(): PushNotificationState {
   }
 
   const subscribe = useCallback(async (): Promise<boolean> => {
-    if (!isSupported || !VAPID_PUBLIC_KEY) return false;
-    if (needsHomeScreenInstall) return false;
+    setError(null);
+
+    if (!isSupported) {
+      setError('Push notifications are not supported in this browser. Try Chrome, Edge, or Safari 16+.');
+      return false;
+    }
+
+    if (!VAPID_PUBLIC_KEY) {
+      setError('Push notifications are not configured yet. VAPID key is missing — contact the admin.');
+      return false;
+    }
+
+    if (needsHomeScreenInstall) {
+      setError('On iOS, push notifications require the app to be installed to your home screen first.');
+      return false;
+    }
 
     setLoading(true);
     try {
@@ -81,7 +102,14 @@ export function usePushNotifications(): PushNotificationState {
       // Request notification permission
       const result = await Notification.requestPermission();
       setPermission(result);
-      if (result !== 'granted') return false;
+      if (result !== 'granted') {
+        setError(
+          result === 'denied'
+            ? 'Notification permission was denied. You\'ll need to re-enable it in your browser settings.'
+            : 'Notification permission was dismissed. Click the button to try again.'
+        );
+        return false;
+      }
 
       // Subscribe to push via PushManager
       const subscription = await reg.pushManager.subscribe({
@@ -91,14 +119,14 @@ export function usePushNotifications(): PushNotificationState {
 
       const json = subscription.toJSON();
       if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
-        console.error('Push subscription missing required keys');
+        setError('Browser returned an incomplete push subscription. Try again or use a different browser.');
         return false;
       }
 
       // Save to backend via API endpoint
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        console.error('No auth session for push subscription');
+        setError('You need to be logged in to enable notifications.');
         return false;
       }
 
@@ -117,14 +145,17 @@ export function usePushNotifications(): PushNotificationState {
       });
 
       if (!response.ok) {
-        console.error('Failed to save push subscription:', await response.text());
+        const text = await response.text();
+        console.error('Failed to save push subscription:', text);
+        setError('Failed to save subscription to server. Please try again.');
         return false;
       }
 
       setIsSubscribed(true);
       return true;
-    } catch (error) {
-      console.error('Push subscription failed:', error);
+    } catch (err) {
+      console.error('Push subscription failed:', err);
+      setError(`Push subscription failed: ${(err as Error).message}`);
       return false;
     } finally {
       setLoading(false);
@@ -132,6 +163,7 @@ export function usePushNotifications(): PushNotificationState {
   }, [isSupported, needsHomeScreenInstall]);
 
   const unsubscribe = useCallback(async () => {
+    setError(null);
     setLoading(true);
     try {
       const reg = await navigator.serviceWorker.getRegistration('/sw.js');
@@ -158,8 +190,9 @@ export function usePushNotifications(): PushNotificationState {
       }
 
       setIsSubscribed(false);
-    } catch (error) {
-      console.error('Push unsubscribe failed:', error);
+    } catch (err) {
+      console.error('Push unsubscribe failed:', err);
+      setError(`Failed to unsubscribe: ${(err as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -169,8 +202,10 @@ export function usePushNotifications(): PushNotificationState {
     permission,
     isSubscribed,
     isSupported,
+    isConfigured,
     needsHomeScreenInstall,
     loading,
+    error,
     subscribe,
     unsubscribe,
   };
