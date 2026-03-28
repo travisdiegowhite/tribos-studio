@@ -54,9 +54,10 @@ import CoachPersonaSettings from '../components/settings/CoachPersonaSettings.ts
 import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
 import AddGearModal from '../components/gear/AddGearModal.jsx';
 import IntegrationAlert from '../components/IntegrationAlert.jsx';
+import NotificationSettings from '../components/settings/NotificationSettings.jsx';
 import { googleCalendarService } from '../utils/googleCalendarService';
 import { trackInteraction, EventType } from '../utils/activityTracking';
-import { Barbell, Bicycle, CaretDown, CaretRight, Check, DownloadSimple, GoogleLogo, Info, Moon, Path, Plug, Plus, Sliders, Sparkle, Sun, Trash, UploadSimple, User, Warning, Wrench } from '@phosphor-icons/react';
+import { Barbell, Bell, Bicycle, CaretDown, CaretRight, Check, DownloadSimple, GoogleLogo, Info, Moon, Path, Plug, Plus, Sliders, Sparkle, Sun, Trash, UploadSimple, User, Warning, Wrench } from '@phosphor-icons/react';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -75,7 +76,7 @@ function Settings() {
 
   // Tab state with URL parameter support
   const urlTab = searchParams.get('tab');
-  const validTabs = ['profile', 'training', 'gear', 'integrations', 'routes', 'preferences'];
+  const validTabs = ['profile', 'training', 'gear', 'integrations', 'routes', 'preferences', 'notifications'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'profile';
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -1581,6 +1582,9 @@ function Settings() {
                 <Tabs.Tab value="preferences" leftSection={<Sliders size={isMobile ? 20 : 18} />}>
                   {!isMobile && 'Preferences'}
                 </Tabs.Tab>
+                <Tabs.Tab value="notifications" leftSection={<Bell size={isMobile ? 20 : 18} />}>
+                  {!isMobile && 'Notifications'}
+                </Tabs.Tab>
               </Tabs.List>
             </Paper>
 
@@ -2320,6 +2324,11 @@ function Settings() {
           </Card>
 
                 </Stack>
+              </Tabs.Panel>
+
+              {/* Notifications Tab */}
+              <Tabs.Panel value="notifications">
+                <NotificationSettings userId={user?.id} />
               </Tabs.Panel>
             </Box>
           </Tabs>

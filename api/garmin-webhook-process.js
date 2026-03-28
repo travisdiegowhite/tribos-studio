@@ -10,6 +10,7 @@ import { downloadAndParseFitFile } from './utils/fitParser.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
 import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
+import { sendPushToUser, buildPostRideMessage } from './utils/pushNotification.js';
 import { updateBackfillChunkIfApplicable } from './utils/garminBackfill.js';
 import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
 
@@ -514,6 +515,27 @@ async function downloadAndProcessActivity(event, integration) {
     enqueueDeviationAnalysis(supabase, integration.user_id, activity.id).catch(() => {});
   } catch (activationError) {
     console.error('⚠️ Activation tracking failed (non-critical):', activationError.message);
+  }
+
+  // Send post-ride push notification (fire-and-forget)
+  try {
+    const { data: latestLoad } = await supabase
+      .from('training_load_daily')
+      .select('ctl, atl, tsb')
+      .eq('user_id', integration.user_id)
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const message = buildPostRideMessage(latestLoad);
+    sendPushToUser(integration.user_id, {
+      ...message,
+      url: '/dashboard',
+      notificationType: 'post_ride_insight',
+      referenceId: activity.id,
+    }).catch((e) => console.error('⚠️ Push notification failed (non-fatal):', e.message));
+  } catch (pushError) {
+    console.error('⚠️ Push notification failed (non-fatal):', pushError.message);
   }
 
   await supabase

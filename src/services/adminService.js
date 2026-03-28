@@ -299,6 +299,63 @@ export async function sendCampaign(campaignId) {
   return emailToolFetch('send_campaign', { campaignId });
 }
 
+// ============================================================================
+// Push Notification Admin
+// ============================================================================
+
+/**
+ * Make an authenticated push tool API call
+ */
+async function pushToolFetch(action, data = {}) {
+  const token = await getAccessToken();
+
+  const response = await fetch(`${API_BASE}/api/push-tool`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ action, ...data })
+  });
+
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error(`Server error (${response.status}): non-JSON response`);
+  }
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error || 'Push tool API request failed');
+  }
+
+  return result;
+}
+
+export async function getPushStats() {
+  return pushToolFetch('get_stats');
+}
+
+export async function sendTestPush({ title, body, url, targetEmails }) {
+  return pushToolFetch('send_test', { title, body, url, targetEmails });
+}
+
+export async function sendPushToUsers({ title, body, url, notificationType, userIds, emails }) {
+  return pushToolFetch('send_to_users', { title, body, url, notificationType, userIds, emails });
+}
+
+export async function sendPushBroadcast({ title, body, url, notificationType }) {
+  return pushToolFetch('send_broadcast', { title, body, url, notificationType });
+}
+
+export async function listPushSubscriptions() {
+  return pushToolFetch('list_subscriptions');
+}
+
+export async function listRecentPushNotifications() {
+  return pushToolFetch('list_recent_notifications');
+}
+
 export default {
   listUsers,
   getUserDetails,
@@ -321,5 +378,12 @@ export default {
   deleteCampaign,
   previewRecipients,
   sendTestEmail,
-  sendCampaign
+  sendCampaign,
+  // Push notifications
+  getPushStats,
+  sendTestPush,
+  sendPushToUsers,
+  sendPushBroadcast,
+  listPushSubscriptions,
+  listRecentPushNotifications,
 };

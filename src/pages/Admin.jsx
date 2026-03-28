@@ -30,7 +30,8 @@ import WebhookViewer from '../components/admin/WebhookViewer';
 import ActivityDashboard from '../components/admin/ActivityDashboard';
 import UserInsights from '../components/admin/UserInsights';
 import EmailCampaigns from '../components/admin/EmailCampaigns';
-import { Bicycle, ChartBar, ChatDots, Envelope, Gear, Layout, Lock, ShieldCheck, TrendUp, Users, WarningCircle, WebhooksLogo } from '@phosphor-icons/react';
+import PushNotificationAdmin from '../components/admin/PushNotificationAdmin';
+import { Bell, Bicycle, ChartBar, ChatDots, Envelope, Gear, Layout, Lock, ShieldCheck, TrendUp, Users, WarningCircle, WebhooksLogo } from '@phosphor-icons/react';
 
 // SECURITY: This is the ONLY email with admin access
 // This is enforced both here (UI) and in the backend API
@@ -120,6 +121,9 @@ export default function Admin() {
               <Tabs.Tab value="email" leftSection={<Envelope size={16} />}>
                 Email
               </Tabs.Tab>
+              <Tabs.Tab value="push" leftSection={<Bell size={16} />}>
+                Push
+              </Tabs.Tab>
               <Tabs.Tab value="feedback" leftSection={<ChatDots size={16} />}>
                 Feedback
               </Tabs.Tab>
@@ -151,6 +155,10 @@ export default function Admin() {
 
             <Tabs.Panel value="email" pt="lg">
               <EmailCampaigns />
+            </Tabs.Panel>
+
+            <Tabs.Panel value="push" pt="lg">
+              <PushNotificationAdmin />
             </Tabs.Panel>
 
             <Tabs.Panel value="feedback" pt="lg">

@@ -12,6 +12,7 @@ import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
 import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
+import { sendPushToUser, buildPostRideMessage } from './utils/pushNotification.js';
 
 // Initialize Supabase (server-side with service key for webhook processing)
 const supabase = getSupabaseAdmin();
@@ -453,6 +454,27 @@ async function handleActivityCreate(eventId, webhookData, integration) {
       enqueueDeviationAnalysis(supabase, integration.user_id, savedActivity.id).catch(() => {});
     } catch (activationError) {
       console.error('⚠️ Activation tracking failed (non-critical):', activationError.message);
+    }
+
+    // Send post-ride push notification (fire-and-forget)
+    try {
+      const { data: latestLoad } = await supabase
+        .from('training_load_daily')
+        .select('ctl, atl, tsb')
+        .eq('user_id', integration.user_id)
+        .order('date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const message = buildPostRideMessage(latestLoad);
+      sendPushToUser(integration.user_id, {
+        ...message,
+        url: '/dashboard',
+        notificationType: 'post_ride_insight',
+        referenceId: savedActivity.id,
+      }).catch((e) => console.error('⚠️ Push notification failed (non-fatal):', e.message));
+    } catch (pushError) {
+      console.error('⚠️ Push notification failed (non-fatal):', pushError.message);
     }
 
     // Update webhook event
