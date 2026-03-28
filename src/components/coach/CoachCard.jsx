@@ -22,6 +22,8 @@ import { useUserAvailability } from '../../hooks/useUserAvailability';
 import { redistributeWorkouts } from '../../utils/trainingPlans';
 import { ArrowsClockwise, CalendarPlus, PaperPlaneRight, Robot, Sparkle, User } from '@phosphor-icons/react';
 import { CoachMarkdown } from './CoachMarkdown';
+import { getWorkoutById } from '../../data/workoutLibrary';
+import { resolveScheduledDate } from '../../utils/dateUtils';
 
 // Generate coaching message — now includes workout recommendation for consistency
 function getCoachingMessage(trainingContext, workoutRecommendation) {
@@ -263,13 +265,107 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
     }
   };
 
-  const handleAddWorkout = (workout) => {
-    if (onAddWorkout) {
-      onAddWorkout(workout);
+  const handleAddWorkout = async (recommendation) => {
+    if (!user?.id) return;
+
+    try {
+      // Resolve workout from library, fall back to recommendation fields
+      const workout = getWorkoutById(recommendation.workout_id);
+      const workoutName = workout?.name || recommendation.name || recommendation.workout_id || 'Workout';
+
+      // Find or create an active training plan
+      let planId;
+
+      const { data: activePlan } = await supabase
+        .from('training_plans')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (activePlan) {
+        planId = activePlan.id;
+      } else {
+        // Auto-create a plan so the user isn't blocked
+        const today = new Date();
+        const startDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+        const { data: newPlan, error: planError } = await supabase
+          .from('training_plans')
+          .insert({
+            user_id: user.id,
+            template_id: 'coach_recommended',
+            name: 'Coach Recommended Workouts',
+            duration_weeks: 52,
+            methodology: 'coach_guided',
+            goal: 'general_fitness',
+            fitness_level: 'intermediate',
+            started_at: startDateStr,
+            start_date: startDateStr,
+            status: 'active',
+          })
+          .select()
+          .single();
+
+        if (planError) throw planError;
+        planId = newPlan.id;
+      }
+
+      // Resolve date and compute day-of-week
+      const scheduledDate = resolveScheduledDate(recommendation.scheduled_date);
+      const dateObj = new Date(scheduledDate + 'T12:00:00');
+      const dayOfWeek = dateObj.getDay();
+
+      // Map workout type to valid DB enum
+      const validWorkoutTypes = [
+        'endurance', 'tempo', 'threshold', 'intervals', 'recovery',
+        'sweet_spot', 'vo2max', 'anaerobic', 'sprint', 'rest',
+      ];
+      const normalizedType = (workout?.workoutType || workout?.category || recommendation.workout_type || '')
+        .toLowerCase().replace(/[\s-]/g, '_');
+      const dbWorkoutType = validWorkoutTypes.includes(normalizedType) ? normalizedType : 'endurance';
+
+      const { error: dbError } = await supabase
+        .from('planned_workouts')
+        .insert({
+          plan_id: planId,
+          user_id: user.id,
+          scheduled_date: scheduledDate,
+          day_of_week: dayOfWeek,
+          week_number: 1,
+          workout_type: dbWorkoutType,
+          workout_id: recommendation.workout_id,
+          name: workoutName,
+          target_tss: workout?.targetTSS || recommendation.target_tss || null,
+          target_duration: workout?.duration || recommendation.duration_minutes || null,
+          duration_minutes: workout?.duration || recommendation.duration_minutes || 0,
+          notes: recommendation.reason ? `Coach recommendation: ${recommendation.reason}` : '',
+          completed: false,
+        });
+
+      if (dbError) throw dbError;
+
       notifications.show({
         title: 'Workout Added',
-        message: `${workout.name || workout.workout_id} added to your calendar`,
+        message: `${workoutName} added to your calendar for ${scheduledDate}`,
         color: 'sage',
+      });
+
+      // Notify other components (Training Dashboard) to refresh
+      window.dispatchEvent(new CustomEvent('training-plan-updated'));
+
+      // Optional parent callback
+      if (onAddWorkout) {
+        onAddWorkout({ ...recommendation, scheduledDate, name: workoutName });
+      }
+    } catch (err) {
+      console.error('Error adding workout:', err);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to add workout to calendar. Please try again.',
+        color: 'red',
       });
     }
   };
