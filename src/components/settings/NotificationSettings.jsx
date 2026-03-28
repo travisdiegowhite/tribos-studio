@@ -19,7 +19,7 @@ import {
   Loader,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { Bell, BellSlash, DeviceMobile, Info, Warning } from '@phosphor-icons/react';
+import { Bell, BellSlash, DeviceMobile, Info, Warning, WarningCircle } from '@phosphor-icons/react';
 import { supabase } from '../../lib/supabase';
 import { usePushNotifications } from '../../hooks/usePushNotifications.ts';
 import { tokens } from '../../theme';
@@ -60,8 +60,10 @@ export default function NotificationSettings({ userId }) {
     permission,
     isSubscribed,
     isSupported,
+    isConfigured,
     needsHomeScreenInstall,
     loading: pushLoading,
+    error: pushError,
     subscribe,
     unsubscribe,
   } = usePushNotifications();
@@ -119,6 +121,7 @@ export default function NotificationSettings({ userId }) {
         color: 'green',
       });
     }
+    // Error feedback is handled via pushError state below
   };
 
   const handleUnsubscribe = async () => {
@@ -146,9 +149,24 @@ export default function NotificationSettings({ userId }) {
           <Text size="sm" mt={4}>
             On iOS, push notifications only work when tribos.studio is installed
             to your home screen. Tap the share button (
-            <Box component="span" style={{ display: 'inline' }}>⎙</Box>
+            <Box component="span" style={{ display: 'inline' }}>&#x2399;</Box>
             ) then "Add to Home Screen".
           </Text>
+        </Alert>
+      )}
+
+      {/* Error from subscribe/unsubscribe attempt */}
+      {pushError && (
+        <Alert icon={<WarningCircle size={16} />} color="red" variant="light">
+          {pushError}
+        </Alert>
+      )}
+
+      {/* Not configured warning (missing VAPID key) */}
+      {isSupported && !isConfigured && !pushError && (
+        <Alert icon={<Warning size={16} />} color="yellow" variant="light">
+          Push notifications are not configured yet. The VAPID public key
+          needs to be set in the environment variables.
         </Alert>
       )}
 
@@ -196,9 +214,10 @@ export default function NotificationSettings({ userId }) {
                   variant="filled"
                   onClick={handleSubscribe}
                   loading={pushLoading}
+                  disabled={!isConfigured}
                   leftSection={<Bell size={14} />}
                   style={{
-                    backgroundColor: tokens.colors.terracotta,
+                    backgroundColor: isConfigured ? tokens.colors.terracotta : undefined,
                     borderRadius: 0,
                   }}
                 >
