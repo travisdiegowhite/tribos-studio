@@ -94,7 +94,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
             <Text
               style={{
                 fontFamily: "'Barlow Condensed', sans-serif",
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 700,
                 letterSpacing: '2px',
                 textTransform: 'uppercase',
@@ -108,7 +108,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
               <Text
                 style={{
                   fontFamily: "'DM Mono', monospace",
-                  fontSize: 11,
+                  fontSize: 12,
                   color: '#7A7970',
                   letterSpacing: '0.5px',
                   marginBottom: 4,
@@ -120,7 +120,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
             <Text
               style={{
                 fontFamily: "'DM Mono', monospace",
-                fontSize: 32,
+                fontSize: 24,
                 fontWeight: 700,
                 color: cell.color,
                 lineHeight: 1.2,
