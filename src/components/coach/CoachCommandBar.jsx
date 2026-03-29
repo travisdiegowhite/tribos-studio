@@ -450,10 +450,19 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         const scheduledDate = resolveScheduledDate(action.payload.scheduled_date);
         const dateObj = new Date(scheduledDate + 'T12:00:00');
         const dayOfWeek = dateObj.getDay();
+        const workoutName = action.payload.name || action.payload.workout_id || 'Workout';
+
+        // Check if there's an existing workout on this date
+        const { data: existingWorkout } = await supabase
+          .from('planned_workouts')
+          .select('id, name')
+          .eq('plan_id', activePlan.id)
+          .eq('scheduled_date', scheduledDate)
+          .maybeSingle();
 
         const { error } = await supabase
           .from('planned_workouts')
-          .insert({
+          .upsert({
             plan_id: activePlan.id,
             user_id: user.id,
             scheduled_date: scheduledDate,
@@ -461,18 +470,23 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
             week_number: 1,
             workout_type: action.payload.workout_type || 'endurance',
             workout_id: action.payload.workout_id,
-            name: action.payload.name || action.payload.workout_id || 'Workout',
+            name: workoutName,
             target_tss: action.payload.target_tss || null,
             target_duration: action.payload.duration_minutes || null,
             duration_minutes: action.payload.duration_minutes || 0,
             completed: false,
+          }, {
+            onConflict: 'plan_id,scheduled_date',
+            ignoreDuplicates: false,
           });
 
         if (error) throw error;
 
         notifications.show({
-          title: 'Workout Added',
-          message: `Added to your calendar for ${scheduledDate}`,
+          title: existingWorkout ? 'Workout Replaced' : 'Workout Added',
+          message: existingWorkout
+            ? `${workoutName} replaced ${existingWorkout.name} on ${scheduledDate}`
+            : `${workoutName} added to your calendar for ${scheduledDate}`,
           color: 'sage',
         });
 

@@ -327,9 +327,17 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
         .toLowerCase().replace(/[\s-]/g, '_');
       const dbWorkoutType = validWorkoutTypes.includes(normalizedType) ? normalizedType : 'endurance';
 
+      // Check if there's an existing workout on this date
+      const { data: existingWorkout } = await supabase
+        .from('planned_workouts')
+        .select('id, name')
+        .eq('plan_id', planId)
+        .eq('scheduled_date', scheduledDate)
+        .maybeSingle();
+
       const { error: dbError } = await supabase
         .from('planned_workouts')
-        .insert({
+        .upsert({
           plan_id: planId,
           user_id: user.id,
           scheduled_date: scheduledDate,
@@ -343,13 +351,18 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
           duration_minutes: workout?.duration || recommendation.duration_minutes || 0,
           notes: recommendation.reason ? `Coach recommendation: ${recommendation.reason}` : '',
           completed: false,
+        }, {
+          onConflict: 'plan_id,scheduled_date',
+          ignoreDuplicates: false,
         });
 
       if (dbError) throw dbError;
 
       notifications.show({
-        title: 'Workout Added',
-        message: `${workoutName} added to your calendar for ${scheduledDate}`,
+        title: existingWorkout ? 'Workout Replaced' : 'Workout Added',
+        message: existingWorkout
+          ? `${workoutName} replaced ${existingWorkout.name} on ${scheduledDate}`
+          : `${workoutName} added to your calendar for ${scheduledDate}`,
         color: 'sage',
       });
 
