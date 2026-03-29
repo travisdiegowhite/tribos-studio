@@ -21,6 +21,8 @@ import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import WeekChart from '../components/today/WeekChart.jsx';
 import FitnessSummary from '../components/today/FitnessSummary.jsx';
 import ProprietaryMetricsBar from '../components/today/ProprietaryMetricsBar.tsx';
+import { calculateCTL, calculateATL, calculateTSB } from '../utils/trainingPlans';
+import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 
 function Dashboard() {
   const { user } = useAuth();
@@ -46,7 +48,7 @@ function Dashboard() {
       try {
         const { data } = await supabase
           .from('user_profiles')
-          .select('onboarding_completed, display_name, units_preference')
+          .select('onboarding_completed, display_name, units_preference, ftp')
           .eq('id', user.id)
           .single();
 
@@ -121,8 +123,8 @@ function Dashboard() {
           );
 
           setWeekStats({
-            rides: weekActivities.length,
-            planned: 5, // TODO: Get from active plan
+            activities: weekActivities.length,
+            planned: 0, // Updated below if active plan exists
             distance: weekActivities.reduce((sum, a) => sum + ((a.distance_meters || a.distance || 0) / 1000), 0),
             elevation: weekActivities.reduce((sum, a) => sum + (a.elevation_gain_meters || a.total_elevation_gain || 0), 0),
           });
@@ -153,6 +155,23 @@ function Dashboard() {
           if (workoutData) {
             setTodayWorkout(workoutData);
           }
+
+          // Fetch planned workouts for this week
+          const weekStart = new Date();
+          const dayOfWeek = weekStart.getDay();
+          weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+          weekStart.setHours(0, 0, 0, 0);
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekEnd.getDate() + 7);
+
+          const { data: plannedWorkouts } = await supabase
+            .from('planned_workouts')
+            .select('id')
+            .eq('plan_id', planData.id)
+            .gte('scheduled_date', weekStart.toISOString().split('T')[0])
+            .lt('scheduled_date', weekEnd.toISOString().split('T')[0]);
+
+          setWeekStats(prev => ({ ...prev, planned: plannedWorkouts?.length || 0 }));
         }
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -242,93 +261,55 @@ function Dashboard() {
     return 'Good evening';
   };
 
-  // Lift CTL/ATL/TSB calculation from old FitnessMetrics component
+  // CTL/ATL/TSB using canonical formulas (matches TrainingDashboard)
   const trainingMetrics = useMemo(() => {
     if (!activities || activities.length === 0) {
-      return { ctl: 0, atl: 0, tsb: 0 };
+      return { ctl: 0, atl: 0, tsb: 0, ctlDeltaPct: 0 };
     }
 
-    // Estimate TSS from activity if not provided
-    const estimateTSS = (activity) => {
-      if (activity.tss) return activity.tss;
-      const hours = (activity.duration_seconds || activity.moving_time || 0) / 3600;
-      const avgPower = activity.average_power_watts || activity.average_watts;
-      if (avgPower && activity.normalized_power_watts) {
-        const ftp = 200;
-        const intensityFactor = activity.normalized_power_watts / ftp;
-        return Math.round(hours * intensityFactor * intensityFactor * 100);
-      }
-      const avgHR = activity.average_heart_rate || activity.average_hr;
-      if (avgHR) {
-        const intensity = avgHR / 180;
-        return Math.round(hours * intensity * 100);
-      }
-      return Math.round(hours * 50);
-    };
+    const userFtp = userProfile?.ftp || 200;
 
-    // Build daily TSS map for the last 60 days
+    // Build daily TSS map for the last 90 days
     const now = new Date();
-    const sixtyDaysAgo = new Date(now);
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    const ninetyDaysAgo = new Date(now);
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
     const dailyTSS = {};
-    for (let d = new Date(sixtyDaysAgo); d <= now; d.setDate(d.getDate() + 1)) {
+    for (let d = new Date(ninetyDaysAgo); d <= now; d.setDate(d.getDate() + 1)) {
       const key = d.toISOString().split('T')[0];
       dailyTSS[key] = 0;
     }
 
     activities.forEach((activity) => {
-      const date = new Date(activity.start_date).toISOString().split('T')[0];
-      const tss = estimateTSS(activity);
-      if (dailyTSS[date] !== undefined) {
-        dailyTSS[date] += tss;
+      const dateStr = activity.start_date?.split('T')[0];
+      if (dateStr && dailyTSS[dateStr] !== undefined) {
+        const tss = Math.min(estimateActivityTSS(activity, userFtp), 500);
+        dailyTSS[dateStr] += tss;
       }
     });
 
     const days = Object.keys(dailyTSS).sort();
     const tssValues = days.map((d) => dailyTSS[d]);
 
-    // CTL: 42-day exponentially weighted average
-    const ctlDecay = 1 / 42;
-    let ctl = 0;
-    tssValues.forEach((tss, index) => {
-      const weight = Math.exp(-ctlDecay * (tssValues.length - index - 1));
-      ctl += tss * weight;
-    });
-    ctl = Math.round(ctl * ctlDecay);
+    const ctl = calculateCTL(tssValues);
+    const atl = calculateATL(tssValues);
+    const tsb = calculateTSB(ctl, atl);
 
-    // ATL: 7-day exponentially weighted average
-    const recentTSS = tssValues.slice(-7);
-    const atlDecay = 1 / 7;
-    let atl = 0;
-    recentTSS.forEach((tss, index) => {
-      const weight = Math.exp(-atlDecay * (recentTSS.length - index - 1));
-      atl += tss * weight;
-    });
-    atl = Math.round(atl * atlDecay);
-
-    const tsb = ctl - atl;
-
-    // CTL trend: compute CTL at 28 days ago for comparison
+    // CTL trend: compare current CTL vs CTL 28 days ago
     const cutoffIndex = Math.max(0, tssValues.length - 28);
     const tssValues28dAgo = tssValues.slice(0, cutoffIndex);
-    let ctl28dAgo = 0;
-    tssValues28dAgo.forEach((tss, index) => {
-      const weight = Math.exp(-ctlDecay * (tssValues28dAgo.length - index - 1));
-      ctl28dAgo += tss * weight;
-    });
-    ctl28dAgo = Math.round(ctl28dAgo * ctlDecay);
+    const ctl28dAgo = calculateCTL(tssValues28dAgo);
     const ctlDeltaPct = ctl28dAgo > 0 ? ((ctl - ctl28dAgo) / ctl28dAgo) * 100 : 0;
 
     return { ctl, atl, tsb, ctlDeltaPct };
-  }, [activities]);
+  }, [activities, userProfile]);
 
   // Build training context string for CoachCard
   const trainingContext = useMemo(() => {
     const parts = [];
     parts.push(`CTL: ${trainingMetrics.ctl}, ATL: ${trainingMetrics.atl}, TSB: ${trainingMetrics.tsb}`);
-    if (weekStats.rides > 0) {
-      parts.push(`This week: ${weekStats.rides} rides, ${formatDist(weekStats.distance)}, ${formatElev(weekStats.elevation)}`);
+    if (weekStats.activities > 0) {
+      parts.push(`This week: ${weekStats.activities} activities, ${formatDist(weekStats.distance)}, ${formatElev(weekStats.elevation)}`);
     }
     if (todayWorkout) {
       parts.push(`Today's planned workout: ${todayWorkout.title || todayWorkout.workout_type || 'Training'}`);
@@ -374,7 +355,7 @@ function Dashboard() {
             atl={trainingMetrics.atl}
             tsb={trainingMetrics.tsb}
             ctlDeltaPct={trainingMetrics.ctlDeltaPct}
-            weekRides={weekStats.rides}
+            weekRides={weekStats.activities}
             weekPlanned={weekStats.planned}
             loading={loading}
           />
