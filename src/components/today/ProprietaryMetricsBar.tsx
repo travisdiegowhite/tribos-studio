@@ -66,7 +66,7 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
     return (
       <SimpleGrid cols={isMobile ? 1 : 3} spacing={0}>
         {[1, 2, 3].map((i) => (
-          <Box key={i} style={{ padding: '14px 16px', border: '0.5px solid var(--color-border)' }}>
+          <Box key={i} style={{ padding: '16px 20px', border: '0.5px solid var(--color-border)' }}>
             <Skeleton height={12} width={40} mb={6} />
             <Skeleton height={24} width={50} />
           </Box>
@@ -88,6 +88,7 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
         <MetricCell
           label="EFI"
           subtitle="28-day"
+          description="Execution Fidelity — how closely you follow your plan"
           value={metrics?.efi ? String(Math.round(metrics.efi.score)) : null}
           color={metrics?.efi ? scoreHex(metrics.efi.score) : undefined}
           status={metrics?.efi ? translateEFI(metrics.efi.score) : undefined}
@@ -108,6 +109,7 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
         <MetricCell
           label="TWL"
           subtitle="last ride"
+          description="Terrain-Weighted Load — terrain stress beyond TSS"
           value={metrics?.twl ? String(Math.round(metrics.twl.score)) : null}
           color={metrics?.twl ? scoreHex(
             // Map overage to a score-like value for coloring
@@ -132,6 +134,7 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
         <MetricCell
           label="TCAS"
           subtitle="6-week"
+          description="Training Capacity — fitness gained per hour trained"
           value={metrics?.tcas ? String(Math.round(metrics.tcas.score)) : null}
           color={metrics?.tcas ? scoreHex(metrics.tcas.score) : undefined}
           status={metrics?.tcas ? translateTCAS(metrics.tcas.score) : undefined}
@@ -168,6 +171,7 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
 interface MetricCellProps {
   label: string;
   subtitle: string;
+  description?: string;
   value: string | null;
   color?: string;
   badge?: string;
@@ -180,7 +184,7 @@ interface MetricCellProps {
 }
 
 function MetricCell({
-  label, subtitle, value, color, badge, status, tooltip,
+  label, subtitle, description, value, color, badge, status, tooltip,
   emptyMessage, emptyLink, isExpanded, onToggle,
 }: MetricCellProps) {
   const hasData = value !== null;
@@ -189,7 +193,7 @@ function MetricCell({
     <Box
       onClick={hasData ? onToggle : undefined}
       style={{
-        padding: '14px 16px',
+        padding: '16px 20px',
         border: '0.5px solid var(--color-border)',
         backgroundColor: isExpanded ? 'var(--color-bg-secondary)' : 'var(--color-card)',
         cursor: hasData ? 'pointer' : 'default',
@@ -198,13 +202,13 @@ function MetricCell({
     >
       <Text style={{
         fontFamily: "'Barlow Condensed', sans-serif",
-        fontSize: 11, fontWeight: 700, letterSpacing: '2px',
+        fontSize: 13, fontWeight: 700, letterSpacing: '2px',
         textTransform: 'uppercase',
         color: 'var(--color-text-muted)',
         marginBottom: 4,
       }}>
         {label}
-        <span style={{ fontSize: 9, letterSpacing: '1px', marginLeft: 6, fontWeight: 600 }}>
+        <span style={{ fontSize: 11, letterSpacing: '1px', marginLeft: 6, fontWeight: 600 }}>
           {subtitle}
         </span>
       </Text>
@@ -213,7 +217,7 @@ function MetricCell({
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <Text style={{
             fontFamily: "'DM Mono', monospace",
-            fontSize: 24, fontWeight: 700,
+            fontSize: 32, fontWeight: 700,
             color: color || 'var(--color-text-primary)',
             lineHeight: 1.2,
           }}>
@@ -222,7 +226,7 @@ function MetricCell({
           {badge && (
             <Text style={{
               fontFamily: "'DM Mono', monospace",
-              fontSize: 12, fontWeight: 600,
+              fontSize: 14, fontWeight: 600,
               color: 'var(--color-text-muted)',
             }}>
               {badge}
@@ -233,7 +237,7 @@ function MetricCell({
         <div>
           <Text style={{
             fontFamily: "'Barlow', sans-serif",
-            fontSize: 13, color: 'var(--color-text-muted)',
+            fontSize: 14, color: 'var(--color-text-muted)',
             lineHeight: 1.4,
           }}>
             {emptyMessage}
@@ -251,11 +255,23 @@ function MetricCell({
       {hasData && status && (
         <Text style={{
           fontFamily: "'Barlow Condensed', sans-serif",
-          fontSize: 12, fontWeight: 600, letterSpacing: '0.5px',
+          fontSize: 14, fontWeight: 600, letterSpacing: '0.5px',
           color: colorToVar(status.color as 'teal' | 'orange' | 'gold' | 'coral' | 'muted'),
           marginTop: 4,
         }}>
           {status.label}
+        </Text>
+      )}
+
+      {description && (
+        <Text style={{
+          fontFamily: "'Barlow', sans-serif",
+          fontSize: 11, color: 'var(--color-text-muted)',
+          marginTop: 8,
+          lineHeight: 1.3,
+          opacity: 0.7,
+        }}>
+          {description}
         </Text>
       )}
     </Box>
