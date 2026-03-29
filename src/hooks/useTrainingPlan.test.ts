@@ -105,6 +105,18 @@ vi.mock('../data/workoutLibrary', () => ({
   }),
 }));
 
+// Mock plan compression
+vi.mock('../utils/planCompression', () => ({
+  compressPlan: vi.fn((template: any, _options: any) => ({
+    template,
+    originalDuration: template.duration,
+    compressedDuration: template.duration,
+    removedWeeks: [],
+    warnings: [],
+    wasCompressed: false,
+  })),
+}));
+
 // Mock training plan utils
 vi.mock('../utils/trainingPlans', () => ({
   findOptimalSupplementDays: vi.fn(() => []),
@@ -114,18 +126,25 @@ vi.mock('../utils/trainingPlans', () => ({
 // Helper to create chainable mock
 function createQueryChain(finalData: any = null, finalError: any = null) {
   const chain: any = {};
-  const methods = ['select', 'insert', 'update', 'delete', 'eq', 'in', 'order'];
+  const methods = ['select', 'insert', 'update', 'delete', 'eq', 'in', 'order', 'limit', 'gte', 'lte'];
 
   methods.forEach((method) => {
     chain[method] = vi.fn(() => chain);
   });
 
   chain.single = vi.fn(() => Promise.resolve({ data: finalData, error: finalError }));
+  chain.maybeSingle = vi.fn(() => Promise.resolve({ data: finalData, error: finalError }));
 
-  // For non-single queries, make the chain thenable
+  // For non-single queries (array results), make the chain thenable
+  // loadActivePlan now expects array results (no .single())
   chain.then = (resolve: Function) => resolve({ data: finalData, error: finalError });
 
   return chain;
+}
+
+// Helper for "no active plans" mock — returns empty array (not PGRST116 error)
+function createEmptyArrayChain() {
+  return createQueryChain([], null);
 }
 
 describe('useTrainingPlan', () => {
@@ -137,7 +156,7 @@ describe('useTrainingPlan', () => {
 
   describe('initialization', () => {
     it('should start with loading false when autoLoad is false', () => {
-      mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
+      mockSupabaseFrom.mockReturnValue(createEmptyArrayChain());
 
       const { result } = renderHook(() =>
         useTrainingPlan({ userId: mockUserId, autoLoad: false })
@@ -149,7 +168,7 @@ describe('useTrainingPlan', () => {
     });
 
     it('should have empty plannedWorkouts initially', () => {
-      mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
+      mockSupabaseFrom.mockReturnValue(createEmptyArrayChain());
 
       const { result } = renderHook(() =>
         useTrainingPlan({ userId: mockUserId, autoLoad: false })
@@ -159,7 +178,7 @@ describe('useTrainingPlan', () => {
     });
 
     it('should return 0 for compliancePercent when no plan', () => {
-      mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
+      mockSupabaseFrom.mockReturnValue(createEmptyArrayChain());
 
       const { result } = renderHook(() =>
         useTrainingPlan({ userId: mockUserId, autoLoad: false })
@@ -169,7 +188,7 @@ describe('useTrainingPlan', () => {
     });
 
     it('should return null progress when no plan', () => {
-      mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
+      mockSupabaseFrom.mockReturnValue(createEmptyArrayChain());
 
       const { result } = renderHook(() =>
         useTrainingPlan({ userId: mockUserId, autoLoad: false })
@@ -179,7 +198,7 @@ describe('useTrainingPlan', () => {
     });
 
     it('should return 1 for currentWeek when no plan', () => {
-      mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
+      mockSupabaseFrom.mockReturnValue(createEmptyArrayChain());
 
       const { result } = renderHook(() =>
         useTrainingPlan({ userId: mockUserId, autoLoad: false })
@@ -189,7 +208,7 @@ describe('useTrainingPlan', () => {
     });
 
     it('should return null for currentPhase when no plan', () => {
-      mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
+      mockSupabaseFrom.mockReturnValue(createEmptyArrayChain());
 
       const { result } = renderHook(() =>
         useTrainingPlan({ userId: mockUserId, autoLoad: false })
@@ -201,7 +220,7 @@ describe('useTrainingPlan', () => {
 
   describe('utility functions without active plan', () => {
     beforeEach(() => {
-      mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
+      mockSupabaseFrom.mockReturnValue(createEmptyArrayChain());
     });
 
     it('getPlanStartDate should return null when no plan', () => {
@@ -250,7 +269,7 @@ describe('useTrainingPlan', () => {
 
   describe('operations without active plan', () => {
     beforeEach(() => {
-      mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
+      mockSupabaseFrom.mockReturnValue(createEmptyArrayChain());
     });
 
     it('pausePlan should return false when no active plan', async () => {
@@ -317,7 +336,7 @@ describe('useTrainingPlan', () => {
     });
 
     it('should set error when template not found', async () => {
-      mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
+      mockSupabaseFrom.mockReturnValue(createEmptyArrayChain());
 
       const { result } = renderHook(() =>
         useTrainingPlan({ userId: mockUserId, autoLoad: false })
@@ -336,7 +355,7 @@ describe('useTrainingPlan', () => {
 
   describe('null userId handling', () => {
     it('should not call supabase when userId is null', () => {
-      mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
+      mockSupabaseFrom.mockReturnValue(createEmptyArrayChain());
 
       renderHook(() =>
         useTrainingPlan({ userId: null, autoLoad: true })
@@ -350,7 +369,7 @@ describe('useTrainingPlan', () => {
   describe('loadActivePlan', () => {
     it('should handle no active plan gracefully', async () => {
       // PGRST116 means no rows found - not an error
-      mockSupabaseFrom.mockReturnValue(createQueryChain(null, { code: 'PGRST116' }));
+      mockSupabaseFrom.mockReturnValue(createEmptyArrayChain());
 
       const { result } = renderHook(() =>
         useTrainingPlan({ userId: mockUserId, autoLoad: true })
@@ -406,6 +425,9 @@ describe('useTrainingPlan', () => {
         compliance_percentage: 0,
         custom_start_day: null,
         auto_adjust_enabled: false,
+        sport_type: 'cycling',
+        priority: 'primary',
+        target_event_date: null,
         notes: null,
         created_at: startDate.toISOString(),
         updated_at: startDate.toISOString(),
@@ -414,7 +436,7 @@ describe('useTrainingPlan', () => {
       // Setup mock to return plan for training_plans, empty array for planned_workouts
       mockSupabaseFrom.mockImplementation((table: string) => {
         if (table === 'training_plans') {
-          return createQueryChain(mockPlan, null);
+          return createQueryChain([mockPlan], null);
         }
         if (table === 'planned_workouts') {
           const chain = createQueryChain([], null);
@@ -464,6 +486,9 @@ describe('useTrainingPlan', () => {
         compliance_percentage: 0,
         custom_start_day: null,
         auto_adjust_enabled: false,
+        sport_type: 'cycling',
+        priority: 'primary',
+        target_event_date: null,
         notes: null,
         created_at: startDate.toISOString(),
         updated_at: startDate.toISOString(),
@@ -471,7 +496,7 @@ describe('useTrainingPlan', () => {
 
       mockSupabaseFrom.mockImplementation((table: string) => {
         if (table === 'training_plans') {
-          return createQueryChain(mockPlan, null);
+          return createQueryChain([mockPlan], null);
         }
         if (table === 'planned_workouts') {
           const chain = createQueryChain([], null);
@@ -519,6 +544,9 @@ describe('useTrainingPlan', () => {
         compliance_percentage: 25,
         custom_start_day: null,
         auto_adjust_enabled: false,
+        sport_type: 'cycling',
+        priority: 'primary',
+        target_event_date: null,
         notes: null,
         created_at: startDate.toISOString(),
         updated_at: startDate.toISOString(),
@@ -526,7 +554,7 @@ describe('useTrainingPlan', () => {
 
       mockSupabaseFrom.mockImplementation((table: string) => {
         if (table === 'training_plans') {
-          return createQueryChain(mockPlan, null);
+          return createQueryChain([mockPlan], null);
         }
         if (table === 'planned_workouts') {
           const chain = createQueryChain([], null);
@@ -572,6 +600,9 @@ describe('useTrainingPlan', () => {
         compliance_percentage: 25,
         custom_start_day: null,
         auto_adjust_enabled: false,
+        sport_type: 'cycling',
+        priority: 'primary',
+        target_event_date: null,
         notes: null,
         created_at: startDate.toISOString(),
         updated_at: startDate.toISOString(),
@@ -579,7 +610,7 @@ describe('useTrainingPlan', () => {
 
       mockSupabaseFrom.mockImplementation((table: string) => {
         if (table === 'training_plans') {
-          return createQueryChain(mockPlan, null);
+          return createQueryChain([mockPlan], null);
         }
         if (table === 'planned_workouts') {
           const chain = createQueryChain([], null);
@@ -623,6 +654,9 @@ describe('useTrainingPlan', () => {
         compliance_percentage: 50,
         custom_start_day: null,
         auto_adjust_enabled: false,
+        sport_type: 'cycling',
+        priority: 'primary',
+        target_event_date: null,
         notes: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -630,7 +664,7 @@ describe('useTrainingPlan', () => {
 
       mockSupabaseFrom.mockImplementation((table: string) => {
         if (table === 'training_plans') {
-          return createQueryChain(mockPlan, null);
+          return createQueryChain([mockPlan], null);
         }
         if (table === 'planned_workouts') {
           const chain = createQueryChain([], null);

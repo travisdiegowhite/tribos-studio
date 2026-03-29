@@ -21,6 +21,7 @@ import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import WeekChart from '../components/today/WeekChart.jsx';
 import FitnessSummary from '../components/today/FitnessSummary.jsx';
 import ProprietaryMetricsBar from '../components/today/ProprietaryMetricsBar.tsx';
+import { ActivePlanCard } from '../components/training';
 import { calculateCTL, calculateATL, calculateTSB } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 
@@ -32,7 +33,7 @@ function Dashboard() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
-  const [activePlan, setActivePlan] = useState(null);
+  const [activePlans, setActivePlans] = useState([]);
   const [todayWorkout, setTodayWorkout] = useState(null);
   const [weekStats, setWeekStats] = useState({ rides: 0, planned: 0, distance: 0, elevation: 0 });
   const [todayRouteMatch, setTodayRouteMatch] = useState(null);
@@ -130,33 +131,34 @@ function Dashboard() {
           });
         }
 
-        // Fetch active training plan
-        const { data: planData } = await supabase
+        // Fetch active training plans
+        const { data: plansData } = await supabase
           .from('training_plans')
           .select('*')
           .eq('user_id', user.id)
           .eq('status', 'active')
-          .order('started_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .order('started_at', { ascending: false });
 
-        if (planData) {
-          setActivePlan(planData);
+        if (plansData && plansData.length > 0) {
+          setActivePlans(plansData);
 
-          // Fetch today's workout
+          const planIds = plansData.map(p => p.id);
+
+          // Fetch today's workout across all active plans
           const today = new Date().toISOString().split('T')[0];
           const { data: workoutData } = await supabase
             .from('planned_workouts')
             .select('*')
-            .eq('plan_id', planData.id)
+            .in('plan_id', planIds)
             .eq('scheduled_date', today)
+            .limit(1)
             .maybeSingle();
 
           if (workoutData) {
             setTodayWorkout(workoutData);
           }
 
-          // Fetch planned workouts for this week
+          // Fetch planned workouts for this week across all active plans
           const weekStart = new Date();
           const dayOfWeek = weekStart.getDay();
           weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
@@ -167,7 +169,7 @@ function Dashboard() {
           const { data: plannedWorkouts } = await supabase
             .from('planned_workouts')
             .select('id')
-            .eq('plan_id', planData.id)
+            .in('plan_id', planIds)
             .gte('scheduled_date', weekStart.toISOString().split('T')[0])
             .lt('scheduled_date', weekEnd.toISOString().split('T')[0]);
 
@@ -372,11 +374,21 @@ function Dashboard() {
           {/* Intelligence Card — workout + route match */}
           <IntelligenceCard
             workout={todayWorkout}
-            plan={activePlan}
+            plan={activePlans[0] || null}
+            plans={activePlans}
             routeMatch={todayRouteMatch}
             loading={loading}
             formatDist={formatDist}
           />
+
+          {/* Active Training Plans */}
+          {activePlans.length > 0 && activePlans.map((plan) => (
+            <ActivePlanCard
+              key={plan.id}
+              plan={plan}
+              compact
+            />
+          ))}
 
           {/* Proactive Insight */}
           <ProactiveInsightCard />

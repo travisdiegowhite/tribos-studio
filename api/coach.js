@@ -106,19 +106,26 @@ async function swapWorkoutDates(planId, sourceId, sourceDate, targetId, targetDa
 }
 
 // Handle schedule adjustment tool calls — modifies existing active plan workouts
-async function handleScheduleAdjustment(userId, input) {
+async function handleScheduleAdjustment(userId, input, targetPlanId = null) {
   const { adjustments, summary } = input;
   const results = [];
 
-  // Get the active plan
-  const { data: activePlan, error: planError } = await supabase
+  // Get the target plan — use specific plan_id if provided, otherwise fall back to most recent active plan
+  let planQuery = supabase
     .from('training_plans')
     .select('id')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq('user_id', userId);
+
+  if (targetPlanId) {
+    planQuery = planQuery.eq('id', targetPlanId);
+  } else {
+    planQuery = planQuery
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1);
+  }
+
+  const { data: activePlan, error: planError } = await planQuery.maybeSingle();
 
   if (planError || !activePlan) {
     return { success: false, error: 'No active training plan found. The athlete needs to create or activate a plan first.' };
@@ -657,6 +664,7 @@ export default async function handler(req, res) {
       quickMode = false,
       userAvailability = null,
       checkInId = null,
+      planId = null,
     } = req.body;
 
     if (!message || typeof message !== 'string') {
@@ -759,9 +767,17 @@ export default async function handler(req, res) {
         .select('timezone')
         .eq('id', verifiedUserId)
         .maybeSingle(),
+      // Fetch all active training plans for multi-plan context
+      supabase
+        .from('training_plans')
+        .select('id, name, sport_type, priority, status, start_date, end_date, created_at')
+        .eq('user_id', verifiedUserId)
+        .eq('status', 'active')
+        .order('priority', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false }),
     ];
 
-    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult] = await Promise.all(parallelFetches);
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult] = await Promise.all(parallelFetches);
 
     const coachSettings = coachSettingsResult.data;
     const activeCheckIn = checkInResult?.data || null;
@@ -770,6 +786,7 @@ export default async function handler(req, res) {
     const calendarContext = calendarContextResult;
     const unresolvedDeviations = deviationsResult?.data || [];
     const userDbTimezone = userProfileResult?.data?.timezone || null;
+    const allActivePlans = allActivePlansResult?.data || [];
 
     // Resolve the user's timezone: prefer browser-supplied, then DB, then UTC
     const resolvedTimezone = userLocalDate?.timezone || userDbTimezone || 'UTC';
@@ -900,6 +917,28 @@ ${checkInLines}`;
 IMPORTANT: You have DIRECT ACCESS to all information below. This includes their race goals, event dates, distances, and performance targets. Reference this data directly in your responses.
 
 ${trainingContext}`;
+    }
+
+    // Add multi-plan context when the athlete has multiple active training plans
+    if (allActivePlans.length > 1) {
+      const planLines = allActivePlans.map((p, i) => {
+        const priority = p.priority ? ` (priority: ${p.priority})` : '';
+        const dates = p.start_date && p.end_date ? ` | ${p.start_date} to ${p.end_date}` : '';
+        const selected = planId && p.id === planId ? ' [CURRENTLY SELECTED]' : '';
+        return `  ${i + 1}. "${p.name}" — ${p.sport_type || 'cycling'}${priority}${dates}${selected} (id: ${p.id})`;
+      }).join('\n');
+
+      systemPrompt += `\n\n=== ACTIVE TRAINING PLANS (MULTIPLE) ===
+This athlete has ${allActivePlans.length} active training plans:
+${planLines}
+
+${planId ? `The athlete is currently viewing/discussing plan id "${planId}". Focus schedule adjustments and workout queries on this plan unless they specify otherwise.` : 'No specific plan is selected. When discussing workouts or schedule changes, ask which plan the athlete is referring to if it is ambiguous.'}
+IMPORTANT: When adjusting schedules, ensure you are modifying the correct plan. If the athlete mentions a specific sport or plan name, match it to the correct plan above.`;
+    } else if (allActivePlans.length === 1 && !planId) {
+      // Single active plan — note it for context but no ambiguity
+      const p = allActivePlans[0];
+      systemPrompt += `\n\n=== ACTIVE TRAINING PLAN ===
+Active plan: "${p.name}" — ${p.sport_type || 'cycling'} (id: ${p.id})`;
     }
 
     // Add schedule availability context if provided
@@ -1141,7 +1180,7 @@ ${conversationSummary}
             }
           } else if (tool.name === 'adjust_schedule') {
             console.log(`📅 Schedule adjustment requested:`, JSON.stringify(tool.input, null, 2));
-            result = await handleScheduleAdjustment(verifiedUserId, tool.input);
+            result = await handleScheduleAdjustment(verifiedUserId, tool.input, planId);
             console.log(`📅 Schedule adjustment result:`, JSON.stringify(result));
           }
           toolResults.push({

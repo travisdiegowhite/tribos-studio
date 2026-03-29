@@ -22,7 +22,18 @@ import {
 import { notifications } from '@mantine/notifications';
 import { TRAINING_PHASES } from '../../utils/trainingPlans';
 import { exportTrainingPlan, downloadPlanExport } from '../../utils/trainingPlanExport';
-import { ArrowsClockwise, Barbell, Calendar, Check, DotsThreeVertical, DownloadSimple, Pause, Play, Target, Trash, TrendUp, WarningCircle } from '@phosphor-icons/react';
+import { ArrowsClockwise, Barbell, Bicycle, Calendar, Check, DotsThreeVertical, DownloadSimple, Pause, PersonSimpleRun, Play, Star, Target, Trash, TrendUp, WarningCircle } from '@phosphor-icons/react';
+
+// Sport type display helpers
+const SPORT_ICONS = {
+  cycling: Bicycle,
+  running: PersonSimpleRun,
+};
+
+const SPORT_COLORS = {
+  cycling: 'orange',
+  running: 'green',
+};
 
 export default function ActivePlanCard({
   plan,
@@ -37,6 +48,7 @@ export default function ActivePlanCard({
   onDelete,
   onViewCalendar,
   onAddSupplement,
+  onSetPrimary,
   compact = false,
 }) {
   const isPaused = plan?.status === 'paused';
@@ -65,13 +77,25 @@ export default function ActivePlanCard({
     );
   }
 
+  const SportIcon = SPORT_ICONS[plan.sport_type] || Target;
+  const sportColor = SPORT_COLORS[plan.sport_type] || 'gray';
+  const isPrimary = plan.priority === 'primary';
+
   if (compact) {
     return (
-      <Paper p="md" radius="md" withBorder>
+      <Paper p="md" radius="md" withBorder style={isPrimary ? { borderLeft: `3px solid var(--mantine-color-${sportColor}-6)` } : undefined}>
         <Group position="apart">
           <div style={{ flex: 1 }}>
             <Group spacing="xs">
+              <ThemeIcon size={20} color={sportColor} variant="light" radius="xl">
+                <SportIcon size={12} />
+              </ThemeIcon>
               <Text fw={600}>{plan.name}</Text>
+              {isPrimary && (
+                <Badge size="xs" color={sportColor} variant="light" leftSection={<Star size={10} weight="fill" />}>
+                  Primary
+                </Badge>
+              )}
               <Badge size="sm" color={isPaused ? 'yellow' : 'green'}>
                 {isPaused ? 'Paused' : 'Active'}
               </Badge>
@@ -107,7 +131,26 @@ export default function ActivePlanCard({
       <Group position="apart" mb="md">
         <div>
           <Group spacing="sm">
+            <ThemeIcon size={24} color={sportColor} variant="light" radius="xl">
+              <SportIcon size={14} />
+            </ThemeIcon>
             <Title order={4}>{plan.name}</Title>
+            {isPrimary && (
+              <Badge size="sm" color={sportColor} variant="light" leftSection={<Star size={10} weight="fill" />}>
+                Primary
+              </Badge>
+            )}
+            {!isPrimary && onSetPrimary && (
+              <Badge
+                size="sm"
+                color="gray"
+                variant="outline"
+                style={{ cursor: 'pointer' }}
+                onClick={() => onSetPrimary(plan.id)}
+              >
+                Make Primary
+              </Badge>
+            )}
             <Badge size="lg" color={isPaused ? 'yellow' : 'green'} variant="light">
               {isPaused ? 'Paused' : 'Active'}
             </Badge>
