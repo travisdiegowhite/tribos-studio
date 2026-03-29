@@ -134,7 +134,12 @@ function Progress() {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
 
-    const filtered = activities.filter(a => new Date(a.start_date) >= cutoff);
+    const NON_CYCLING_TYPES = ['run', 'virtualrun', 'trailrun', 'swim', 'walk', 'hike'];
+    const filtered = activities.filter(a => {
+      if (new Date(a.start_date) < cutoff) return false;
+      const type = (a.sport_type || a.type || '').toLowerCase();
+      return !NON_CYCLING_TYPES.includes(type);
+    });
     if (filtered.length === 0) return { zones: [], totalTime: 0 };
 
     const zoneTimes = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };

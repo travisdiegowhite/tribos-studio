@@ -243,6 +243,7 @@ function TrainingDashboard() {
             .select('*')
             .eq('user_id', user.id)
             .is('duplicate_of', null)
+            .or('is_hidden.eq.false,is_hidden.is.null')
             .order('start_date', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -611,6 +612,13 @@ function TrainingDashboard() {
 
     return stats;
   }, [visibleActivities, timeRange, ftp]);
+
+  // Count activities in last 90 days (for display)
+  const ninetyDayActivityCount = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    return visibleActivities.filter(a => new Date(a.start_date) >= cutoff).length;
+  }, [visibleActivities]);
 
   // Calculate true weekly stats (Monday-Sunday of current week)
   const actualWeeklyStats = useMemo(() => {
@@ -1555,8 +1563,8 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
             <Path size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
-            <Text size="xl" fw={700} c="blue">{activities.length}</Text>
-            <Text size="sm" c="dimmed">Rides in 90 days</Text>
+            <Text size="xl" fw={700} c="blue">{ninetyDayActivityCount}</Text>
+            <Text size="sm" c="dimmed">Activities in 90 days</Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
             <Medal size={24} color="#D4820A" style={{ marginBottom: 8 }} />
