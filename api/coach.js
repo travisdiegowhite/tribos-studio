@@ -1087,8 +1087,23 @@ ${conversationSummary}
     // Memory saves are also processed here so Claude gets confirmation before responding.
     const serverSideTools = [...fitnessHistoryUses, ...trainingDataUses, ...memoryUses, ...scheduleAdjustUses];
 
+    // Preserve client-side tool calls (recommend_workout, create_training_plan, generate_fuel_plan)
+    // from the first response — these would be lost when toolUses is overwritten by the continuation.
+    const clientSideToolNames = new Set(['recommend_workout', 'create_training_plan', 'generate_fuel_plan']);
+    const firstResponseClientTools = toolUses.filter(tool => clientSideToolNames.has(tool.name));
+
     if (serverSideTools.length > 0 && verifiedUserId) {
       const toolResults = [];
+
+      // Send acknowledgment tool_results for client-side tools from the first response
+      // so the Claude API doesn't reject the continuation (all tool_use blocks need results).
+      for (const tool of firstResponseClientTools) {
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: tool.id,
+          content: JSON.stringify({ success: true, note: 'Client-side tool — will be processed after response.' })
+        });
+      }
 
       for (const tool of serverSideTools) {
         try {
@@ -1163,8 +1178,10 @@ ${conversationSummary}
         tools: ALL_COACH_TOOLS
       });
 
-      // Update tool uses from the continued response
-      toolUses = response.content.filter(block => block.type === 'tool_use');
+      // Merge client-side tools from the first response with any new tools from continuation.
+      // Without this, recommend_workout/create_training_plan calls from the first response are lost.
+      const continuationToolUses = response.content.filter(block => block.type === 'tool_use');
+      toolUses = [...firstResponseClientTools, ...continuationToolUses];
     }
 
     // Extract text response
