@@ -113,15 +113,21 @@ function Dashboard() {
           .gte('start_date', ninetyDaysAgo.toISOString())
           .order('start_date', { ascending: false });
 
+        // Calculate calendar week boundaries (Monday–Sunday)
+        const weekStart = new Date();
+        const dayOfWeek = weekStart.getDay();
+        weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+
         if (!error) {
           setActivities(activityData || []);
 
-          // Calculate week stats
-          const weekAgo = new Date();
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          const weekActivities = (activityData || []).filter(a =>
-            new Date(a.start_date) >= weekAgo
-          );
+          const weekActivities = (activityData || []).filter(a => {
+            const d = new Date(a.start_date);
+            return d >= weekStart && d < weekEnd;
+          });
 
           setWeekStats({
             activities: weekActivities.length,
@@ -159,13 +165,6 @@ function Dashboard() {
           }
 
           // Fetch planned workouts for this week across all active plans
-          const weekStart = new Date();
-          const dayOfWeek = weekStart.getDay();
-          weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-          weekStart.setHours(0, 0, 0, 0);
-          const weekEnd = new Date(weekStart);
-          weekEnd.setDate(weekEnd.getDate() + 7);
-
           const { data: plannedWorkouts } = await supabase
             .from('planned_workouts')
             .select('id')
