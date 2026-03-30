@@ -26,7 +26,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
 import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
-import { formatLocalDate, addDays, startOfMonth, endOfMonth, parsePlanStartDate } from '../utils/dateUtils';
+import { formatLocalDate, addDays, parsePlanStartDate } from '../utils/dateUtils';
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
 import { getCyclingStructure } from '../utils/trainingPlanExport';
 import RaceGoalModal from './RaceGoalModal';
@@ -44,7 +44,16 @@ import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight
 const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false, refreshKey = 0 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // Anchor = Monday of last week (rolling 4-week view starts here)
+  const [anchorDate, setAnchorDate] = useState(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dow = today.getDay(); // 0=Sun, 1=Mon...
+    const daysBack = dow === 0 ? 13 : dow + 6; // back to last week's Monday
+    const lastMonday = new Date(today);
+    lastMonday.setDate(today.getDate() - daysBack);
+    return lastMonday;
+  });
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
@@ -77,12 +86,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Helper to get plan start date (supports both old and new schema)
   const getPlanStartDate = (plan) => plan?.started_at || plan?.start_date;
 
-  // Load planned workouts for current month
+  // Load planned workouts for current 4-week view
   // refreshKey allows parent to force a reload when workouts are added externally
   useEffect(() => {
     if (!user?.id || !activePlan?.id) return;
     loadPlannedWorkouts();
-  }, [user?.id, activePlan?.id, currentDate, refreshKey]);
+  }, [user?.id, activePlan?.id, anchorDate, refreshKey]);
 
   const loadPlannedWorkouts = async () => {
     // Early return if no active plan
@@ -91,17 +100,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
 
     try {
-      // Calculate date range for current month view (with buffer for prev/next month days shown)
-      const monthStart = startOfMonth(currentDate);
-      const monthEnd = endOfMonth(currentDate);
-
-      // Add buffer for calendar view (may show days from prev/next month)
-      const rangeStart = addDays(monthStart, -7);
-      const rangeEnd = addDays(monthEnd, 7);
-
-      // Use formatLocalDate to avoid timezone issues
-      const startDateStr = formatLocalDate(rangeStart);
-      const endDateStr = formatLocalDate(rangeEnd);
+      // Calculate date range for the 4-week rolling view
+      const startDateStr = formatLocalDate(anchorDate);
+      const endDateStr = formatLocalDate(addDays(anchorDate, 28));
 
       // Query by scheduled_date range for simpler, more reliable matching
       const { data } = await supabase
@@ -123,18 +124,13 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   useEffect(() => {
     if (!user?.id) return;
     loadRaceGoals();
-  }, [user?.id, currentDate]);
+  }, [user?.id, anchorDate]);
 
   const loadRaceGoals = async () => {
     try {
-      // Calculate date range for current month view (with buffer)
-      const monthStart = startOfMonth(currentDate);
-      const monthEnd = endOfMonth(currentDate);
-      const rangeStart = addDays(monthStart, -7);
-      const rangeEnd = addDays(monthEnd, 7);
-
-      const startDateStr = formatLocalDate(rangeStart);
-      const endDateStr = formatLocalDate(rangeEnd);
+      // Calculate date range for the 4-week rolling view
+      const startDateStr = formatLocalDate(anchorDate);
+      const endDateStr = formatLocalDate(addDays(anchorDate, 28));
 
       console.log('Calendar loading race goals for range:', startDateStr, 'to', endDateStr);
 
@@ -172,24 +168,19 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     return raceGoals.find(r => r.race_date === dateStr);
   };
 
-  // Load cross-training activities for current month
+  // Load cross-training activities for current 4-week view
   useEffect(() => {
     if (!user?.id) return;
 
-    const monthStart = startOfMonth(currentDate);
-    const monthEnd = endOfMonth(currentDate);
-    const rangeStart = addDays(monthStart, -7);
-    const rangeEnd = addDays(monthEnd, 7);
-
-    const startDateStr = formatLocalDate(rangeStart);
-    const endDateStr = formatLocalDate(rangeEnd);
+    const startDateStr = formatLocalDate(anchorDate);
+    const endDateStr = formatLocalDate(addDays(anchorDate, 28));
 
     // Fetch activities using the hook
     fetchActivities(startDateStr, endDateStr).catch(err => {
       // Table might not exist yet - fail silently
       console.log('Cross-training activities not available:', err.message);
     });
-  }, [user?.id, currentDate, fetchActivities]);
+  }, [user?.id, anchorDate, fetchActivities]);
 
   // Open cross-training modal
   const openCrossTrainingModal = (date) => {
@@ -242,25 +233,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     navigate(`/routes/new?${params.toString()}`);
   };
 
-  // Get days in month
-  const getDaysInMonth = () => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
+  // Get 28 days for the rolling 4-week view (always starts on a Monday)
+  const getRolling4Weeks = () => {
     const days = [];
-    // Add empty cells for days before month starts
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
+    for (let i = 0; i < 28; i++) {
+      days.push(addDays(anchorDate, i));
     }
-    // Add days of month
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(new Date(year, month, day));
-    }
-
     return days;
   };
 
@@ -407,13 +385,24 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     return { name: 'Taper', color: 'green' };
   };
 
-  // Navigate months
-  const previousMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+  // Navigate by 1 week
+  const previousWeek = () => {
+    setAnchorDate(prev => addDays(prev, -7));
   };
 
-  const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+  const nextWeek = () => {
+    setAnchorDate(prev => addDays(prev, 7));
+  };
+
+  // Reset to default rolling view (last week's Monday)
+  const goToToday = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dow = today.getDay();
+    const daysBack = dow === 0 ? 13 : dow + 6;
+    const lastMonday = new Date(today);
+    lastMonday.setDate(today.getDate() - daysBack);
+    setAnchorDate(lastMonday);
   };
 
   // Toggle workout completion
@@ -852,8 +841,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     return `${km.toFixed(1)} km`;
   });
 
-  const days = getDaysInMonth();
-  const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const days = getRolling4Weeks();
+  const rangeLabel = `${anchorDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${addDays(anchorDate, 27).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
   const currentWeek = getCurrentWeekNumber();
   const currentPhase = getCurrentPhase();
 
@@ -968,12 +957,15 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       <Card>
         {/* Calendar Header */}
         <Group justify="space-between" mb="md">
-          <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{monthName}</Text>
+          <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{rangeLabel}</Text>
           <Group gap="xs">
-            <ActionIcon variant="subtle" onClick={previousMonth}>
+            <Button variant="subtle" size="compact-xs" onClick={goToToday} style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              Today
+            </Button>
+            <ActionIcon variant="subtle" onClick={previousWeek}>
               <CaretLeft size={18} />
             </ActionIcon>
-            <ActionIcon variant="subtle" onClick={nextMonth}>
+            <ActionIcon variant="subtle" onClick={nextWeek}>
               <CaretRight size={18} />
             </ActionIcon>
           </Group>
@@ -996,7 +988,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
               gap: '4px',
               marginBottom: '8px'
             }}>
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
                 <Text key={day} size="xs" fw={600} style={{ color: 'var(--color-text-muted)' }} ta="center">
                   {day}
                 </Text>
@@ -1623,12 +1615,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         }}
         selectedDate={crossTrainingDate}
         onSave={() => {
-          // Refresh cross-training activities for current month
-          const monthStart = startOfMonth(currentDate);
-          const monthEnd = endOfMonth(currentDate);
-          const rangeStart = addDays(monthStart, -7);
-          const rangeEnd = addDays(monthEnd, 7);
-          fetchActivities(formatLocalDate(rangeStart), formatLocalDate(rangeEnd));
+          // Refresh cross-training activities for current 4-week view
+          fetchActivities(formatLocalDate(anchorDate), formatLocalDate(addDays(anchorDate, 28)));
         }}
       />
     </Stack>
