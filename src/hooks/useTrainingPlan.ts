@@ -37,11 +37,14 @@ import type {
   PlannedWorkoutWithDetails,
   ActivePlan,
   PlanStatus,
+  PlanPriority,
   DayOfWeek,
   DayAvailability,
   WorkoutRedistributionResult,
+  SportType,
 } from '../types/training';
 import type { PlannedWorkoutInsert, TrainingPlanInsert } from '../types/database';
+import { compressPlan, type CompressionOptions } from '../utils/planCompression';
 
 // Day mapping for workout generation
 const DAY_MAP: DayOfWeek[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -65,14 +68,29 @@ interface ActivatePlanWithAvailabilityOptions {
   };
 }
 
+/**
+ * Options for activating a plan with target date compression
+ */
+interface ActivatePlanOptions {
+  templateId: string;
+  startDate: Date;
+  /** If set, plan will be compressed to fit this target event date */
+  targetDate?: Date;
+  /** Override priority (defaults to 'primary' if no other active plan, 'secondary' otherwise) */
+  priority?: PlanPriority;
+}
+
 interface UseTrainingPlanReturn {
-  // State
-  activePlan: ActivePlan | null;
+  // State — multi-plan aware
+  activePlan: ActivePlan | null; // Currently selected plan (backward compat)
+  activePlans: ActivePlan[]; // All active plans
+  selectedPlanId: string | null; // ID of the currently selected plan
+  primaryPlan: ActivePlan | null; // The primary plan (if any)
   plannedWorkouts: PlannedWorkoutWithDetails[];
   loading: boolean;
   error: string | null;
 
-  // Progress
+  // Progress (for selected plan)
   progress: PlanProgress | null;
   currentWeek: number;
   currentPhase: TrainingPhase | null;
@@ -80,15 +98,17 @@ interface UseTrainingPlanReturn {
 
   // Operations
   loadActivePlan: () => Promise<void>;
-  activatePlan: (templateId: string, startDate: Date) => Promise<ActivePlan | null>;
+  selectPlan: (planId: string | null) => void;
+  setPlanPriority: (planId: string, priority: PlanPriority) => Promise<boolean>;
+  activatePlan: (templateIdOrOptions: string | ActivatePlanOptions, startDate?: Date) => Promise<ActivePlan | null>;
   activatePlanWithAvailability: (options: ActivatePlanWithAvailabilityOptions) => Promise<{
     plan: ActivePlan | null;
     redistributions: WorkoutRedistributionResult[];
   }>;
-  pausePlan: () => Promise<boolean>;
-  resumePlan: () => Promise<boolean>;
-  completePlan: () => Promise<boolean>;
-  cancelPlan: () => Promise<boolean>;
+  pausePlan: (planId?: string) => Promise<boolean>;
+  resumePlan: (planId?: string) => Promise<boolean>;
+  completePlan: (planId?: string) => Promise<boolean>;
+  cancelPlan: (planId?: string) => Promise<boolean>;
   reshufflePlan: (options: {
     weeklyAvailability: DayAvailability[];
     dateOverrides?: Map<string, { status: 'available' | 'blocked' | 'preferred' }>;
@@ -117,13 +137,82 @@ export function useTrainingPlan({
   userId,
   autoLoad = true,
 }: UseTrainingPlanOptions): UseTrainingPlanReturn {
-  const [activePlan, setActivePlan] = useState<ActivePlan | null>(null);
+  const [activePlans, setActivePlans] = useState<ActivePlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkoutWithDetails[]>([]);
   const [loading, setLoading] = useState(autoLoad);
   const [error, setError] = useState<string | null>(null);
 
+  // Derived: currently selected plan (backward compatible with single-plan consumers)
+  const activePlan = useMemo((): ActivePlan | null => {
+    if (selectedPlanId) {
+      return activePlans.find(p => p.id === selectedPlanId) || activePlans[0] || null;
+    }
+    // Default: select the primary plan, or the first plan
+    return activePlans.find(p => p.priority === 'primary') || activePlans[0] || null;
+  }, [activePlans, selectedPlanId]);
+
+  // Derived: primary plan
+  const primaryPlan = useMemo((): ActivePlan | null => {
+    return activePlans.find(p => p.priority === 'primary') || null;
+  }, [activePlans]);
+
+  // Select a specific plan to view/manage
+  const selectPlan = useCallback((planId: string | null) => {
+    setSelectedPlanId(planId);
+  }, []);
+
   // ============================================================
-  // LOAD ACTIVE PLAN
+  // SET PLAN PRIORITY
+  // ============================================================
+  const setPlanPriority = useCallback(async (planId: string, priority: PlanPriority): Promise<boolean> => {
+    if (!userId) return false;
+
+    try {
+      // If setting to primary, demote any existing primary plan of the same sport type
+      if (priority === 'primary') {
+        const targetPlan = activePlans.find(p => p.id === planId);
+        if (targetPlan) {
+          const existingPrimary = activePlans.find(
+            p => p.id !== planId && p.priority === 'primary' && p.sport_type === targetPlan.sport_type
+          );
+          if (existingPrimary) {
+            await supabase
+              .from('training_plans')
+              .update({ priority: 'secondary' })
+              .eq('id', existingPrimary.id);
+          }
+        }
+      }
+
+      const { error: updateError } = await supabase
+        .from('training_plans')
+        .update({ priority })
+        .eq('id', planId);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setActivePlans(prev => prev.map(p => {
+        if (p.id === planId) return { ...p, priority };
+        // Demote same sport type if we promoted this one
+        const targetPlan = prev.find(plan => plan.id === planId);
+        if (priority === 'primary' && p.priority === 'primary' && p.sport_type === targetPlan?.sport_type) {
+          return { ...p, priority: 'secondary' as PlanPriority };
+        }
+        return p;
+      }));
+
+      return true;
+    } catch (err: any) {
+      console.error('Error setting plan priority:', err);
+      setError(err.message || 'Failed to set plan priority');
+      return false;
+    }
+  }, [userId, activePlans]);
+
+  // ============================================================
+  // LOAD ACTIVE PLANS (supports multiple)
   // ============================================================
   const loadActivePlan = useCallback(async () => {
     if (!userId) {
@@ -140,27 +229,34 @@ export function useTrainingPlan({
         .select('*')
         .eq('user_id', userId)
         .eq('status', 'active')
-        .single();
+        .order('priority', { ascending: true }) // 'primary' sorts before 'secondary'
+        .order('started_at', { ascending: false });
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        // PGRST116 = no rows found, which is fine
-        throw fetchError;
-      }
+      if (fetchError) throw fetchError;
 
-      if (data) {
-        // Attach template if available
-        const template = data.template_id ? getPlanTemplate(data.template_id) : undefined;
-        setActivePlan({ ...data, template });
+      if (data && data.length > 0) {
+        const plans: ActivePlan[] = data.map(plan => {
+          const template = plan.template_id ? getPlanTemplate(plan.template_id) : undefined;
+          return { ...plan, template };
+        });
+        setActivePlans(plans);
+
+        // Auto-select primary plan if nothing is selected
+        if (!selectedPlanId || !plans.find(p => p.id === selectedPlanId)) {
+          const primary = plans.find(p => p.priority === 'primary');
+          setSelectedPlanId(primary?.id || plans[0].id);
+        }
       } else {
-        setActivePlan(null);
+        setActivePlans([]);
+        setSelectedPlanId(null);
       }
     } catch (err: any) {
-      console.error('Error loading active plan:', err);
-      setError(err.message || 'Failed to load training plan');
+      console.error('Error loading active plans:', err);
+      setError(err.message || 'Failed to load training plans');
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, selectedPlanId]);
 
   // ============================================================
   // LOAD PLANNED WORKOUTS
@@ -203,13 +299,20 @@ export function useTrainingPlan({
   );
 
   // ============================================================
-  // ACTIVATE PLAN
+  // ACTIVATE PLAN (multi-plan aware, with optional compression)
   // ============================================================
   const activatePlan = useCallback(
-    async (templateId: string, startDate: Date): Promise<ActivePlan | null> => {
+    async (templateIdOrOptions: string | ActivatePlanOptions, startDateArg?: Date): Promise<ActivePlan | null> => {
       if (!userId) return null;
 
-      const template = getPlanTemplate(templateId);
+      // Support both old signature (templateId, startDate) and new options object
+      const options: ActivatePlanOptions = typeof templateIdOrOptions === 'string'
+        ? { templateId: templateIdOrOptions, startDate: startDateArg! }
+        : templateIdOrOptions;
+
+      const { templateId, startDate, targetDate, priority: requestedPriority } = options;
+
+      let template = getPlanTemplate(templateId);
       if (!template) {
         setError('Training plan template not found');
         return null;
@@ -219,12 +322,31 @@ export function useTrainingPlan({
         setLoading(true);
         setError(null);
 
-        // Mark any existing active plan as completed
-        await supabase
-          .from('training_plans')
-          .update({ status: 'completed', ended_at: new Date().toISOString() })
-          .eq('user_id', userId)
-          .eq('status', 'active');
+        // Apply plan compression if target date is set and plan is too long
+        let compressedFrom: number | null = null;
+        if (targetDate) {
+          const compressionResult = compressPlan(template, {
+            targetDate,
+            startDate,
+            fitnessLevel: template.fitnessLevel,
+          });
+          if (compressionResult.wasCompressed) {
+            template = compressionResult.template;
+            compressedFrom = compressionResult.originalDuration;
+          }
+        }
+
+        // Determine priority: use requested, or auto-detect
+        let priority: PlanPriority = requestedPriority || 'primary';
+        if (!requestedPriority) {
+          // Check if there's already a primary plan of the same sport type
+          const existingPrimary = activePlans.find(
+            p => p.priority === 'primary' && p.sport_type === (template!.sportType || 'cycling')
+          );
+          if (existingPrimary) {
+            priority = 'secondary';
+          }
+        }
 
         // Calculate total workouts
         let totalWorkouts = 0;
@@ -235,16 +357,19 @@ export function useTrainingPlan({
           }
         }
 
-        // Create new plan
+        // Create new plan (no longer auto-completing existing plans)
         const planInsert = {
           user_id: userId,
           template_id: templateId,
           name: template.name,
+          sport_type: template.sportType || 'cycling',
           duration_weeks: template.duration,
           methodology: template.methodology,
           goal: template.goal,
           fitness_level: template.fitnessLevel,
           status: 'active',
+          priority,
+          target_event_date: targetDate ? targetDate.toISOString().split('T')[0] : null,
           start_date: startDate.toISOString(),
           current_week: 1,
           workouts_completed: 0,
@@ -308,7 +433,9 @@ export function useTrainingPlan({
           template,
         };
 
-        setActivePlan(activePlanWithTemplate);
+        // Add to active plans list (don't replace)
+        setActivePlans(prev => [...prev, activePlanWithTemplate]);
+        setSelectedPlanId(newPlan.id);
 
         // Track activation step for first plan
         try {
@@ -339,7 +466,7 @@ export function useTrainingPlan({
         setLoading(false);
       }
     },
-    [userId]
+    [userId, activePlans]
   );
 
   // ============================================================
@@ -370,12 +497,11 @@ export function useTrainingPlan({
         setLoading(true);
         setError(null);
 
-        // Mark any existing active plan as completed
-        await supabase
-          .from('training_plans')
-          .update({ status: 'completed', ended_at: new Date().toISOString() })
-          .eq('user_id', userId)
-          .eq('status', 'active');
+        // Determine priority for the new plan
+        const existingPrimary = activePlans.find(
+          p => p.priority === 'primary' && p.sport_type === (template!.sportType || 'cycling')
+        );
+        const priority: PlanPriority = existingPrimary ? 'secondary' : 'primary';
 
         // Generate initial workout schedule
         const initialWorkouts: WorkoutForRedistribution[] = [];
@@ -428,16 +554,18 @@ export function useTrainingPlan({
           if (w.workoutId) totalWorkouts++;
         }
 
-        // Create new plan
+        // Create new plan (multi-plan aware — no longer auto-completing existing plans)
         const planInsert = {
           user_id: userId,
           template_id: templateId,
           name: template.name,
+          sport_type: template.sportType || 'cycling',
           duration_weeks: template.duration,
           methodology: template.methodology,
           goal: template.goal,
           fitness_level: template.fitnessLevel,
           status: 'active',
+          priority,
           start_date: startDate.toISOString(),
           current_week: 1,
           workouts_completed: 0,
@@ -490,7 +618,9 @@ export function useTrainingPlan({
           template,
         };
 
-        setActivePlan(activePlanWithTemplate);
+        // Add to active plans list (don't replace)
+        setActivePlans(prev => [...prev, activePlanWithTemplate]);
+        setSelectedPlanId(newPlan.id);
         return {
           plan: activePlanWithTemplate,
           redistributions: redistributions.filter((r) => r.originalDate !== r.newDate),
@@ -503,14 +633,15 @@ export function useTrainingPlan({
         setLoading(false);
       }
     },
-    [userId]
+    [userId, activePlans]
   );
 
   // ============================================================
   // PAUSE PLAN
   // ============================================================
-  const pausePlan = useCallback(async (): Promise<boolean> => {
-    if (!activePlan) return false;
+  const pausePlan = useCallback(async (planId?: string): Promise<boolean> => {
+    const targetPlan = planId ? activePlans.find(p => p.id === planId) : activePlan;
+    if (!targetPlan) return false;
 
     try {
       const { error: updateError } = await supabase
@@ -519,24 +650,27 @@ export function useTrainingPlan({
           status: 'paused',
           paused_at: new Date().toISOString(),
         })
-        .eq('id', activePlan.id);
+        .eq('id', targetPlan.id);
 
       if (updateError) throw updateError;
 
-      setActivePlan((prev) => (prev ? { ...prev, status: 'paused' } : null));
+      setActivePlans(prev => prev.map(p =>
+        p.id === targetPlan.id ? { ...p, status: 'paused' as PlanStatus } : p
+      ));
       return true;
     } catch (err: any) {
       console.error('Error pausing plan:', err);
       setError(err.message || 'Failed to pause plan');
       return false;
     }
-  }, [activePlan]);
+  }, [activePlan, activePlans]);
 
   // ============================================================
   // RESUME PLAN
   // ============================================================
-  const resumePlan = useCallback(async (): Promise<boolean> => {
-    if (!activePlan) return false;
+  const resumePlan = useCallback(async (planId?: string): Promise<boolean> => {
+    const targetPlan = planId ? activePlans.find(p => p.id === planId) : activePlan;
+    if (!targetPlan) return false;
 
     try {
       const { error: updateError } = await supabase
@@ -545,24 +679,27 @@ export function useTrainingPlan({
           status: 'active',
           paused_at: null,
         })
-        .eq('id', activePlan.id);
+        .eq('id', targetPlan.id);
 
       if (updateError) throw updateError;
 
-      setActivePlan((prev) => (prev ? { ...prev, status: 'active', paused_at: null } : null));
+      setActivePlans(prev => prev.map(p =>
+        p.id === targetPlan.id ? { ...p, status: 'active' as PlanStatus, paused_at: null } : p
+      ));
       return true;
     } catch (err: any) {
       console.error('Error resuming plan:', err);
       setError(err.message || 'Failed to resume plan');
       return false;
     }
-  }, [activePlan]);
+  }, [activePlan, activePlans]);
 
   // ============================================================
   // COMPLETE PLAN
   // ============================================================
-  const completePlan = useCallback(async (): Promise<boolean> => {
-    if (!activePlan) return false;
+  const completePlan = useCallback(async (planId?: string): Promise<boolean> => {
+    const targetPlan = planId ? activePlans.find(p => p.id === planId) : activePlan;
+    if (!targetPlan) return false;
 
     try {
       const { error: updateError } = await supabase
@@ -571,25 +708,33 @@ export function useTrainingPlan({
           status: 'completed',
           ended_at: new Date().toISOString(),
         })
-        .eq('id', activePlan.id);
+        .eq('id', targetPlan.id);
 
       if (updateError) throw updateError;
 
-      setActivePlan(null);
-      setPlannedWorkouts([]);
+      setActivePlans(prev => prev.filter(p => p.id !== targetPlan.id));
+      // If we just completed the selected plan, auto-select another
+      if (selectedPlanId === targetPlan.id) {
+        const remaining = activePlans.filter(p => p.id !== targetPlan.id);
+        setSelectedPlanId(remaining[0]?.id || null);
+      }
+      if (activePlans.length <= 1) {
+        setPlannedWorkouts([]);
+      }
       return true;
     } catch (err: any) {
       console.error('Error completing plan:', err);
       setError(err.message || 'Failed to complete plan');
       return false;
     }
-  }, [activePlan]);
+  }, [activePlan, activePlans, selectedPlanId]);
 
   // ============================================================
   // CANCEL PLAN
   // ============================================================
-  const cancelPlan = useCallback(async (): Promise<boolean> => {
-    if (!activePlan) return false;
+  const cancelPlan = useCallback(async (planId?: string): Promise<boolean> => {
+    const targetPlan = planId ? activePlans.find(p => p.id === planId) : activePlan;
+    if (!targetPlan) return false;
 
     try {
       const { error: updateError } = await supabase
@@ -598,19 +743,25 @@ export function useTrainingPlan({
           status: 'cancelled',
           ended_at: new Date().toISOString(),
         })
-        .eq('id', activePlan.id);
+        .eq('id', targetPlan.id);
 
       if (updateError) throw updateError;
 
-      setActivePlan(null);
-      setPlannedWorkouts([]);
+      setActivePlans(prev => prev.filter(p => p.id !== targetPlan.id));
+      if (selectedPlanId === targetPlan.id) {
+        const remaining = activePlans.filter(p => p.id !== targetPlan.id);
+        setSelectedPlanId(remaining[0]?.id || null);
+      }
+      if (activePlans.length <= 1) {
+        setPlannedWorkouts([]);
+      }
       return true;
     } catch (err: any) {
       console.error('Error cancelling plan:', err);
       setError(err.message || 'Failed to cancel plan');
       return false;
     }
-  }, [activePlan]);
+  }, [activePlan, activePlans, selectedPlanId]);
 
   // ============================================================
   // RESHUFFLE PLAN (when availability changes)
@@ -1062,8 +1213,11 @@ export function useTrainingPlan({
   }, [activePlan?.id, loadPlannedWorkouts]);
 
   return {
-    // State
+    // State — multi-plan aware
     activePlan,
+    activePlans,
+    selectedPlanId,
+    primaryPlan,
     plannedWorkouts,
     loading,
     error,
@@ -1076,6 +1230,8 @@ export function useTrainingPlan({
 
     // Operations
     loadActivePlan,
+    selectPlan,
+    setPlanPriority,
     activatePlan,
     activatePlanWithAvailability,
     pausePlan,

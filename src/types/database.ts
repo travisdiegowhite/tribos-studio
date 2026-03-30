@@ -10,6 +10,8 @@ import type {
   TrainingGoal,
   FitnessLevel,
   PlanStatus,
+  PlanPriority,
+  SportType,
 } from './training';
 
 // ============================================================
@@ -52,11 +54,14 @@ export interface TrainingPlanInsert {
   user_id: string;
   template_id?: string | null;
   name: string;
+  sport_type?: SportType | null;
   duration_weeks: number;
   methodology?: TrainingMethodology | null;
   goal?: TrainingGoal | null;
   fitness_level?: FitnessLevel | null;
   status?: PlanStatus;
+  priority?: PlanPriority;
+  target_event_date?: string | null;
   started_at: string;
   ended_at?: string | null;
   paused_at?: string | null;
@@ -72,11 +77,14 @@ export interface TrainingPlanInsert {
 export interface TrainingPlanUpdate {
   template_id?: string | null;
   name?: string;
+  sport_type?: SportType | null;
   duration_weeks?: number;
   methodology?: TrainingMethodology | null;
   goal?: TrainingGoal | null;
   fitness_level?: FitnessLevel | null;
   status?: PlanStatus;
+  priority?: PlanPriority;
+  target_event_date?: string | null;
   started_at?: string;
   ended_at?: string | null;
   paused_at?: string | null;
