@@ -34,7 +34,10 @@ import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { FuelBadge, FuelCard } from './fueling';
 import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
 import CrossTrainingModal from './CrossTrainingModal';
-import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, DotsSixVertical, DownloadSimple, Fire, Heartbeat, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Trash, TrendUp, Trophy, X } from '@phosphor-icons/react';
+import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, DownloadSimple, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
+import { useWeatherForecast } from '../hooks/useWeatherForecast';
+import { useRouteBuilderStore } from '../stores/routeBuilderStore';
+import { getWeatherSeverity, formatTemperature } from '../utils/weather';
 
 /**
  * Enhanced Training Calendar Component
@@ -44,6 +47,30 @@ import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight
 const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false, refreshKey = 0 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Weather forecast for calendar days
+  const viewport = useRouteBuilderStore.getState().viewport;
+  const { forecast: weatherForecast } = useWeatherForecast(
+    viewport?.latitude ?? null,
+    viewport?.longitude ?? null
+  );
+
+  // Map OpenWeatherMap icon codes to Phosphor icons
+  const getWeatherIcon = (iconCode, size = 12) => {
+    const code = iconCode?.slice(0, 2);
+    const isNight = iconCode?.endsWith('n');
+    switch (code) {
+      case '01': return isNight ? <Moon size={size} /> : <Sun size={size} />;
+      case '02': return isNight ? <Cloud size={size} /> : <CloudSun size={size} />;
+      case '03': return <Cloud size={size} />;
+      case '04': return <Cloud size={size} weight="fill" />;
+      case '09': case '10': return <CloudRain size={size} />;
+      case '11': return <CloudLightning size={size} />;
+      case '13': return <Snowflake size={size} />;
+      default: return <Cloud size={size} />;
+    }
+  };
+
   // Anchor = Monday of last week (rolling 4-week view starts here)
   const [anchorDate, setAnchorDate] = useState(() => {
     const today = new Date();
@@ -1013,6 +1040,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 const isPast = date < new Date() && !isToday;
                 const isFuture = date > new Date();
 
+                // Weather for this day
+                const dayWeather = weatherForecast?.[formatLocalDate(date)];
+                const weatherSev = dayWeather && !isPast ? getWeatherSeverity(dayWeather, undefined, isImperial) : null;
+
                 // Calculate day's TSS (including cycling and cross-training)
                 let dayTSS = 0;
                 dayRides.forEach(ride => {
@@ -1107,6 +1138,22 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                           </ActionIcon>
                         )}
                       </Group>
+
+                      {/* Weather forecast strip */}
+                      {dayWeather && weatherSev && (
+                        <Tooltip label={`${dayWeather.description} · Humidity: ${dayWeather.humidity}% · ${weatherSev.message}`}>
+                          <Group gap={4} style={{
+                            borderRadius: 4,
+                            backgroundColor: `color-mix(in srgb, var(--mantine-color-${weatherSev.color}-6) 12%, transparent)`,
+                            padding: '1px 4px',
+                          }}>
+                            {getWeatherIcon(dayWeather.icon)}
+                            <Text size="10px" c="dimmed" style={{ lineHeight: 1.2 }}>
+                              {formatTemperature(dayWeather.temperatureHigh, isImperial).replace(/°[FC]/, '')}/{formatTemperature(dayWeather.temperatureLow, isImperial)}
+                            </Text>
+                          </Group>
+                        </Tooltip>
+                      )}
 
                       {/* Workout info - visible at a glance */}
                       {workout && workout.workout_type !== 'rest' && (
