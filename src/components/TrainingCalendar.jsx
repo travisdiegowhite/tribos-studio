@@ -1148,7 +1148,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                             padding: '3px 6px',
                           }}>
                             {getWeatherIcon(dayWeather.icon, 14)}
-                            <Text size="xs" fw={500} style={{ lineHeight: 1.2, color: `var(--mantine-color-${weatherSev.color}-4)` }}>
+                            <Text size="xs" fw={500} c="dimmed" style={{ lineHeight: 1.2 }}>
                               {formatTemperature(dayWeather.temperatureHigh, isImperial).replace(/°[FC]/, '')}/{formatTemperature(dayWeather.temperatureLow, isImperial)}
                             </Text>
                           </Group>

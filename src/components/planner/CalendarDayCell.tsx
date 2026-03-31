@@ -330,10 +330,10 @@ export function CalendarDayCell({
             }}
           >
             {getWeatherIcon(weather.icon)}
-            <Text size="xs" fw={500} style={{ lineHeight: 1.2, color: `var(--mantine-color-${weatherSeverity.color}-4)` }}>
+            <Text size="xs" fw={500} c="dimmed" style={{ lineHeight: 1.2 }}>
               {formatTemperature(weather.temperatureHigh, useImperial).replace(/°[FC]/, '')}/{formatTemperature(weather.temperatureLow, useImperial)}
             </Text>
-            <Text size="xs" fw={500} style={{ lineHeight: 1.2, color: `var(--mantine-color-${weatherSeverity.color}-4)` }}>
+            <Text size="xs" fw={500} c="dimmed" style={{ lineHeight: 1.2 }}>
               {weather.windDirection} {formatWindSpeed(weather.windSpeed, useImperial)}
             </Text>
           </Group>
