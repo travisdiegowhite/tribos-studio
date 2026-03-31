@@ -676,19 +676,23 @@ async function generateMapboxLoops(startLocation, targetDistance, trainingGoal, 
     });
   }
 
-  for (let i = 0; i < Math.min(3, loopPatterns.length); i++) {
-    const pattern = loopPatterns[i];
+  // Generate all candidates in parallel — they're independent patterns
+  const results = await Promise.allSettled(
+    loopPatterns.slice(0, 3).map(pattern =>
+      generateMapboxLoop(startLocation, targetDistance, pattern, trainingGoal, mapboxToken, userPreferences, userSpeed)
+    )
+  );
 
-    try {
-      const route = await generateMapboxLoop(startLocation, targetDistance, pattern, trainingGoal, mapboxToken, userPreferences, userSpeed);
-      if (route && route.coordinates && route.coordinates.length > 20) {
-        routes.push(route);
-        console.log(`✅ Successfully generated ${pattern.name} with ${route.coordinates.length} points`);
-      } else {
-        console.warn(`⚠️ ${pattern.name} returned null or insufficient coordinates`);
-      }
-    } catch (error) {
-      console.warn(`❌ Failed to generate ${pattern.name}:`, error);
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const pattern = loopPatterns[i];
+    if (result.status === 'fulfilled' && result.value?.coordinates?.length > 20) {
+      routes.push(result.value);
+      console.log(`✅ Successfully generated ${pattern.name} with ${result.value.coordinates.length} points`);
+    } else if (result.status === 'rejected') {
+      console.warn(`❌ Failed to generate ${pattern.name}:`, result.reason);
+    } else {
+      console.warn(`⚠️ ${pattern.name} returned null or insufficient coordinates`);
     }
   }
 
@@ -720,20 +724,24 @@ async function generateMapboxOutAndBack(startLocation, targetDistance, trainingG
     });
   }
 
-  for (let i = 0; i < Math.min(3, directions.length); i++) {
-    const direction = directions[i];
+  // Generate all candidates in parallel — they're independent directions
+  const results = await Promise.allSettled(
+    directions.slice(0, 3).map(direction =>
+      generateMapboxOutBack(startLocation, targetDistance, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences, userSpeed)
+    )
+  );
 
-    try {
-      const route = await generateMapboxOutBack(startLocation, targetDistance, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences, userSpeed);
-      if (route && route.coordinates && route.coordinates.length > 10) {
-        routes.push(route);
-        console.log(`Successfully generated ${direction.name} with ${route.coordinates.length} points`);
-      }
-    } catch (error) {
-      console.warn(`Failed to generate ${direction.name}:`, error);
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const direction = directions[i];
+    if (result.status === 'fulfilled' && result.value?.coordinates?.length > 10) {
+      routes.push(result.value);
+      console.log(`Successfully generated ${direction.name} with ${result.value.coordinates.length} points`);
+    } else if (result.status === 'rejected') {
+      console.warn(`Failed to generate ${direction.name}:`, result.reason);
     }
   }
-  
+
   return routes;
 }
 
