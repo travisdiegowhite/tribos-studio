@@ -320,6 +320,33 @@ export async function generateAIRoutes(params) {
     userPreferences
   });
 
+  // Arterial audit on best route only — runs Overpass once instead of per-candidate
+  if (scoredRoutes.length > 0) {
+    const best = scoredRoutes[0];
+    try {
+      const audit = await auditFullRouteArterials(best.coordinates, best.maneuvers, startLocation);
+      best.arterialAudit = audit;
+      if (!audit.passed) {
+        const improved = await rerouteArterialSegments(best, audit, startLocation, targetDistance, {
+          profile: best.profile || 'road',
+          preferences: userPreferences,
+          trainingGoal,
+          mapboxToken: import.meta.env.VITE_MAPBOX_TOKEN,
+          userSpeed: speedProfile?.road_speed || speedProfile?.average_speed || null
+        });
+        if (improved) {
+          best.coordinates = improved.coordinates;
+          best.distance = improved.distance;
+          if (improved.maneuvers) best.maneuvers = improved.maneuvers;
+          if (improved.roadClassification) best.roadClassification = improved.roadClassification;
+          best.arterialAudit.totalArterialFraction = improved.arterialFraction;
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Post-scoring arterial audit skipped:', e.message);
+    }
+  }
+
   // Filter out geometric fallback routes (they have very few coordinates, typically 8-10)
   const realRoutes = scoredRoutes.filter(route => {
     const isGeometric = route.coordinates && route.coordinates.length < 50;
@@ -806,30 +833,8 @@ async function generateMapboxLoop(startLocation, targetDistance, pattern, traini
     // Skip optimization to preserve road snapping
     console.log(`🔧 Preserving road structure for ${pattern.name}: ${route.coordinates.length} points`);
 
-    // Full-route arterial audit — detect busy roads using Overpass ground truth
-    try {
-      const audit = await auditFullRouteArterials(route.coordinates, route.maneuvers, startLocation);
-      route.arterialAudit = audit;
-      if (!audit.passed) {
-        const improved = await rerouteArterialSegments(route, audit, startLocation, targetDistance, {
-          profile: routingProfile,
-          preferences: userPreferences,
-          trainingGoal,
-          mapboxToken,
-          userSpeed
-        });
-        if (improved) {
-          route.coordinates = improved.coordinates;
-          route.distance = improved.distance;
-          if (improved.maneuvers) route.maneuvers = improved.maneuvers;
-          if (improved.roadClassification) route.roadClassification = improved.roadClassification;
-          route.arterialAudit.totalArterialFraction = improved.arterialFraction;
-          console.log(`✅ ${pattern.name}: arterial segments improved`);
-        }
-      }
-    } catch (error) {
-      console.warn(`⚠️ Arterial audit skipped for ${pattern.name}:`, error.message);
-    }
+    // NOTE: Arterial audit moved to post-scoring in generateAIRoutes() to avoid
+    // N×Overpass calls during candidate generation. Only the winning route gets audited.
 
     // Get elevation profile
     const elevationProfile = await fetchElevationProfile(route.coordinates, mapboxToken);
@@ -1100,34 +1105,8 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
       if (route.infrastructureScore !== undefined) fullRoute.infrastructureScore = route.infrastructureScore;
       if (route.isMetro !== undefined) fullRoute.isMetro = route.isMetro;
 
-      // Full-route arterial audit for loop routes
-      const isLoop = (claudeRoute.routeType || 'loop') === 'loop';
-      if (isLoop) {
-        try {
-          const audit = await auditFullRouteArterials(fullRoute.coordinates, route.maneuvers, startLocation);
-          fullRoute.arterialAudit = audit;
-          if (!audit.passed) {
-            const trainingGoal = claudeRoute.trainingGoal || claudeRoute.trainingFocus || 'endurance';
-            const improved = await rerouteArterialSegments(route, audit, startLocation, targetDistance, {
-              profile: routingProfile,
-              preferences,
-              trainingGoal,
-              mapboxToken,
-              userSpeed: userSpeed
-            });
-            if (improved) {
-              fullRoute.coordinates = improved.coordinates;
-              fullRoute.distance = improved.distance / 1000;
-              if (improved.maneuvers) fullRoute.maneuvers = improved.maneuvers;
-              if (improved.roadClassification) fullRoute.roadClassification = improved.roadClassification;
-              fullRoute.arterialAudit.totalArterialFraction = improved.arterialFraction;
-              console.log(`✅ Claude route "${claudeRoute.name}": arterial segments improved`);
-            }
-          }
-        } catch (error) {
-          console.warn(`⚠️ Arterial audit skipped for "${claudeRoute.name}":`, error.message);
-        }
-      }
+      // NOTE: Arterial audit moved to post-scoring in generateAIRoutes() to avoid
+      // N×Overpass calls during candidate generation. Only the winning route gets audited.
 
       // Apply smart naming if the route has a fallback name like "Claude Route 1"
       const isFallbackName = /^Claude Route \d+$/i.test(claudeRoute.name);
