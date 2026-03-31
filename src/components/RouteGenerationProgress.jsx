@@ -1,12 +1,11 @@
 import { Box, Text, Stack, Transition } from '@mantine/core';
-import { IconMapSearch, IconRoute, IconStarFilled, IconShieldCheck, IconSparkles } from '@tabler/icons-react';
 
 const STEPS = [
-  { key: 'analyzing', label: 'Analyzing terrain & roads', icon: IconMapSearch },
-  { key: 'generating', label: 'Building route candidates', icon: IconRoute },
-  { key: 'scoring', label: 'Scoring & ranking routes', icon: IconStarFilled },
-  { key: 'safety', label: 'Checking road safety', icon: IconShieldCheck },
-  { key: 'optimizing', label: 'Optimizing final routes', icon: IconSparkles },
+  { key: 'analyzing', label: 'Analyzing terrain & roads' },
+  { key: 'generating', label: 'Building route candidates' },
+  { key: 'scoring', label: 'Scoring & ranking routes' },
+  { key: 'safety', label: 'Checking road safety' },
+  { key: 'optimizing', label: 'Optimizing final routes' },
 ];
 
 export default function RouteGenerationProgress({ currentStep, visible }) {
@@ -68,7 +67,6 @@ export default function RouteGenerationProgress({ currentStep, visible }) {
                 const isActive = idx === currentIdx;
                 const isDone = idx < currentIdx;
                 const isPending = idx > currentIdx;
-                const Icon = step.icon;
 
                 return (
                   <Box
@@ -106,7 +104,15 @@ export default function RouteGenerationProgress({ currentStep, visible }) {
                           }}
                         />
                       ) : (
-                        <Icon size={16} style={{ opacity: 0.4 }} />
+                        <Box
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            backgroundColor: 'currentColor',
+                            opacity: 0.3,
+                          }}
+                        />
                       )}
                     </Box>
                     <Text
