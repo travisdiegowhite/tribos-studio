@@ -1142,13 +1142,13 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       {/* Weather forecast strip */}
                       {dayWeather && weatherSev && (
                         <Tooltip label={`${dayWeather.description} · Humidity: ${dayWeather.humidity}% · ${weatherSev.message}`}>
-                          <Group gap={4} style={{
+                          <Group gap={6} style={{
                             borderRadius: 4,
-                            backgroundColor: `color-mix(in srgb, var(--mantine-color-${weatherSev.color}-6) 12%, transparent)`,
-                            padding: '1px 4px',
+                            backgroundColor: `color-mix(in srgb, var(--mantine-color-${weatherSev.color}-6) 20%, transparent)`,
+                            padding: '3px 6px',
                           }}>
-                            {getWeatherIcon(dayWeather.icon)}
-                            <Text size="10px" c="dimmed" style={{ lineHeight: 1.2 }}>
+                            {getWeatherIcon(dayWeather.icon, 14)}
+                            <Text size="xs" fw={500} style={{ lineHeight: 1.2, color: `var(--mantine-color-${weatherSev.color}-4)` }}>
                               {formatTemperature(dayWeather.temperatureHigh, isImperial).replace(/°[FC]/, '')}/{formatTemperature(dayWeather.temperatureLow, isImperial)}
                             </Text>
                           </Group>
