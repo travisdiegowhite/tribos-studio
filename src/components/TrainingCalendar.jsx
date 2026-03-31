@@ -1123,6 +1123,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       <Group justify="space-between" align="center">
                         <Text size="sm" fw={700} style={{ color: 'var(--color-text-primary)' }}>
                           {date.getDate()}
+                          <Text span size="xs" fw={400} c="dimmed" ml={4}>
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]}
+                          </Text>
                         </Text>
                         {workout && workout.workout_type !== 'rest' && (
                           <ActionIcon
