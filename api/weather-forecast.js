@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       console.error('[weather-forecast] OpenWeather error:', response.status, errorText);
       return res.status(200).json({
         success: true,
-        data: getMockForecastData(),
+        data: getMockForecastData(tzOffsetMinutes),
         source: 'mock',
         warning: 'Using mock data due to API error'
       });
@@ -65,7 +65,7 @@ export default async function handler(req, res) {
     console.error('[weather-forecast] Error:', error);
     return res.status(200).json({
       success: true,
-      data: getMockForecastData(),
+      data: getMockForecastData(tzOffsetMinutes),
       source: 'mock',
       warning: 'Using mock data due to error'
     });
