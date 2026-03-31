@@ -320,20 +320,20 @@ export function CalendarDayCell({
           w={200}
         >
           <Group
-            gap={4}
+            gap={6}
             mb={4}
-            px={4}
-            py={2}
+            px={6}
+            py={3}
             style={{
               borderRadius: 4,
-              backgroundColor: `color-mix(in srgb, var(--mantine-color-${weatherSeverity.color}-6) 12%, transparent)`,
+              backgroundColor: `color-mix(in srgb, var(--mantine-color-${weatherSeverity.color}-6) 20%, transparent)`,
             }}
           >
             {getWeatherIcon(weather.icon)}
-            <Text size="10px" c="dimmed" style={{ lineHeight: 1.2 }}>
+            <Text size="xs" fw={500} style={{ lineHeight: 1.2, color: `var(--mantine-color-${weatherSeverity.color}-4)` }}>
               {formatTemperature(weather.temperatureHigh, useImperial).replace(/°[FC]/, '')}/{formatTemperature(weather.temperatureLow, useImperial)}
             </Text>
-            <Text size="10px" c="dimmed" style={{ lineHeight: 1.2 }}>
+            <Text size="xs" fw={500} style={{ lineHeight: 1.2, color: `var(--mantine-color-${weatherSeverity.color}-4)` }}>
               {weather.windDirection} {formatWindSpeed(weather.windSpeed, useImperial)}
             </Text>
           </Group>
