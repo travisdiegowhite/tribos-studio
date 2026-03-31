@@ -26,6 +26,7 @@ import WeatherWidget from '../components/WeatherWidget.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
 import { DEFAULT_ROUTE_COLOR } from '../components/ui/zoneColors';
+import RouteGenerationProgress from '../components/RouteGenerationProgress.jsx';
 import { detectRouteClick, findNearestPointOnRoute, findSegmentToRemove, removeSegmentAndReroute, getSegmentHighlight, getRemovalStats } from '../utils/routeEditor';
 import { getElevationData, calculateElevationStats, calculateCumulativeDistances } from '../utils/elevation';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
@@ -148,6 +149,7 @@ function RouteBuilder() {
 
   // AI Route Generation transient state
   const [generatingAI, setGeneratingAI] = useState(false);
+  const [routeGenStep, setRouteGenStep] = useState(null);
   const [convertingRoute, setConvertingRoute] = useState(null); // Index of suggestion being converted
   const [naturalLanguageInput, setNaturalLanguageInput] = useState('');
   // Iterative route builder - persisted to localStorage, enabled by default
@@ -1664,6 +1666,7 @@ function RouteBuilder() {
   // Generate AI Routes using the comprehensive aiRouteGenerator or iterative builder
   const handleGenerateAIRoutes = useCallback(async () => {
     setGeneratingAI(true);
+    setRouteGenStep('analyzing');
     try {
       let routes;
 
@@ -1688,6 +1691,7 @@ function RouteBuilder() {
           console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
         }
 
+        setRouteGenStep('generating');
         routes = await generateIterativeRouteVariations({
           startLocation: [viewportRef.current.longitude, viewportRef.current.latitude],
           targetDistanceKm,
@@ -1718,7 +1722,7 @@ function RouteBuilder() {
           userId: user?.id,
           speedProfile,
           speedModifier: 1.0
-        });
+        }, (progress) => setRouteGenStep(progress.step));
       }
 
       // Score routes against user's riding history and rank by composite score
@@ -1769,6 +1773,7 @@ function RouteBuilder() {
       });
     } finally {
       setGeneratingAI(false);
+      setRouteGenStep(null);
     }
   }, [timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm, accessToken]); // viewport read from viewportRef
 
@@ -1856,6 +1861,7 @@ function RouteBuilder() {
     }
 
     setGeneratingAI(true);
+    setRouteGenStep('analyzing');
 
     try {
       console.log('🗣️ Processing natural language request:', naturalLanguageInput);
@@ -1893,6 +1899,7 @@ function RouteBuilder() {
       }
 
       // Step 3: Parse Claude's response to get waypoint names
+      setRouteGenStep('generating');
       const parsed = parseNaturalLanguageResponse(data.content);
       console.log('📍 Parsed route request:', parsed);
 
@@ -2243,6 +2250,7 @@ function RouteBuilder() {
       });
     } finally {
       setGeneratingAI(false);
+      setRouteGenStep(null);
     }
   }, [naturalLanguageInput, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext, accessToken]); // viewport read from viewportRef
 
@@ -3117,6 +3125,7 @@ function RouteBuilder() {
   if (isMobile) {
     return (
       <AppShell fullWidth hideNav>
+        <RouteGenerationProgress visible={generatingAI} currentStep={routeGenStep} />
         <Box style={{ height: 'calc(100dvh - 60px)', minHeight: 'calc(100vh - 60px)', position: 'relative' }}>
           {/* Full-screen map */}
           <Box style={{ width: '100%', height: '100%' }}>
@@ -3823,6 +3832,7 @@ function RouteBuilder() {
   // Desktop layout
   return (
     <AppShell fullWidth>
+      <RouteGenerationProgress visible={generatingAI} currentStep={routeGenStep} />
       <Box style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
         {/* Sidebar */}
         <Paper

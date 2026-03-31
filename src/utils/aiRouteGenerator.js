@@ -38,7 +38,7 @@ function normalizeStartLocation(location) {
 }
 
 // Main AI route generation function
-export async function generateAIRoutes(params) {
+export async function generateAIRoutes(params, onProgress = null) {
   const {
     startLocation: rawStartLocation,
     timeAvailable,
@@ -142,6 +142,7 @@ export async function generateAIRoutes(params) {
   }
   
   // Priority 0: Generate Claude AI route suggestions first
+  onProgress?.({ step: 'analyzing', message: 'Analyzing terrain & roads' });
   console.log('🧠 Generating intelligent routes with Claude AI...');
   console.log('Claude parameters:', { startLocation, timeAvailable, trainingGoal, routeType, targetDistance });
   
@@ -188,23 +189,26 @@ export async function generateAIRoutes(params) {
       console.log(`📊 ${validClaudeRoutes.length}/${claudeRoutes.length} Claude routes passed validation`);
 
       if (validClaudeRoutes.length > 0) {
-        console.log(`Converting ${validClaudeRoutes.length} Claude suggestions to full routes...`);
-        // Convert Claude suggestions to full routes with coordinates
-        for (const claudeRoute of validClaudeRoutes) {
-          console.log('Converting Claude route:', claudeRoute.name);
-          // Pass route type and riding patterns to the conversion
-          const routeWithContext = {
-            ...claudeRoute,
-            routeType,
-            pastRidePatterns: ridingPatterns
-          };
-          const userSpeed = speedProfile?.road_speed || speedProfile?.average_speed || null;
-          const enhancedRoute = await convertClaudeToFullRoute(routeWithContext, startLocation, targetDistance, userPreferences, userSpeed);
-          if (enhancedRoute) {
-            console.log(`✅ Successfully converted: ${enhancedRoute.name}`);
-            routes.push(enhancedRoute);
-          } else {
-            console.warn(`❌ Failed to convert: ${claudeRoute.name}`);
+        console.log(`Converting ${validClaudeRoutes.length} Claude suggestions to full routes (parallel)...`);
+        // Convert Claude suggestions to full routes with coordinates — in parallel
+        const userSpeed = speedProfile?.road_speed || speedProfile?.average_speed || null;
+        const conversionResults = await Promise.allSettled(
+          validClaudeRoutes.map(claudeRoute => {
+            console.log('Converting Claude route:', claudeRoute.name);
+            const routeWithContext = {
+              ...claudeRoute,
+              routeType,
+              pastRidePatterns: ridingPatterns
+            };
+            return convertClaudeToFullRoute(routeWithContext, startLocation, targetDistance, userPreferences, userSpeed);
+          })
+        );
+        for (const result of conversionResults) {
+          if (result.status === 'fulfilled' && result.value) {
+            console.log(`✅ Successfully converted: ${result.value.name}`);
+            routes.push(result.value);
+          } else if (result.status === 'rejected') {
+            console.warn(`❌ Failed to convert Claude route:`, result.reason?.message);
           }
         }
         console.log(`✅ Total routes after Claude conversion: ${routes.length}`);
@@ -281,6 +285,7 @@ export async function generateAIRoutes(params) {
   
   // Priority 3: Use Mapbox-based routing (NO geometric patterns)
   if (routes.length < 3) {
+    onProgress?.({ step: 'generating', message: 'Building route candidates' });
     console.log(`Only found ${routes.length} routes from history, generating Mapbox-based routes`);
     const mapboxRoutes = await generateMapboxBasedRoutes({
       startLocation,
@@ -312,6 +317,7 @@ export async function generateAIRoutes(params) {
   }
 
   // Score and rank routes
+  onProgress?.({ step: 'scoring', message: 'Scoring & ranking routes' });
   const scoredRoutes = await scoreRoutes(validRoutes, {
     trainingGoal,
     weatherData,
@@ -321,6 +327,7 @@ export async function generateAIRoutes(params) {
   });
 
   // Arterial audit on best route only — runs Overpass once instead of per-candidate
+  onProgress?.({ step: 'safety', message: 'Checking road safety' });
   if (scoredRoutes.length > 0) {
     const best = scoredRoutes[0];
     try {
@@ -347,6 +354,7 @@ export async function generateAIRoutes(params) {
     }
   }
 
+  onProgress?.({ step: 'optimizing', message: 'Optimizing final routes' });
   // Filter out geometric fallback routes (they have very few coordinates, typically 8-10)
   const realRoutes = scoredRoutes.filter(route => {
     const isGeometric = route.coordinates && route.coordinates.length < 50;
@@ -541,9 +549,11 @@ async function generateMapboxBasedRoutes(params) {
       const outBackRoutes = await generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
       routes.push(...outBackRoutes);
     } else {
-      // Generate both types
-      const loopRoutes = await generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
-      const outBackRoutes = await generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
+      // Generate both types in parallel
+      const [loopRoutes, outBackRoutes] = await Promise.all([
+        generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed),
+        generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed)
+      ]);
       routes.push(...loopRoutes.slice(0, 2), ...outBackRoutes.slice(0, 1));
     }
     
