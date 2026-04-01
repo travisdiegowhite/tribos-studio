@@ -43,7 +43,7 @@ import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import { calculateTSS, estimateTSS } from '../../utils/trainingPlans';
 import { shouldPromptForFeedback, triggerAdaptationDetection } from '../../utils/adaptationTrigger';
-import type { TrainingPlannerProps } from '../../types/planner';
+import type { TrainingPlannerProps, PlannerWorkout } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutAdaptation, AdaptationReason } from '../../types/training';
 import { ArrowsClockwise, Barbell, Brain, Calendar, CalendarX, Check, DotsThreeVertical, FloppyDisk, Gear, Lightbulb, Link, ListBullets, ThumbsUp, Trophy, Warning, WarningCircle, X } from '@phosphor-icons/react';
 
@@ -275,7 +275,8 @@ export function TrainingPlanner({
       const duration = activity.moving_time || activity.duration_seconds || 0;
 
       // Check if this activity is already linked to a planned workout
-      const plannedWorkout = store.plannedWorkouts[date];
+      const plannedWorkoutsForDate = store.plannedWorkouts[date] || [];
+      const plannedWorkout = plannedWorkoutsForDate.find((w: PlannerWorkout) => w.planId === store.activePlanId) || plannedWorkoutsForDate[0];
       const isLinked = plannedWorkout?.activityId === activity.id;
 
       // Take the activity with highest TSS for the day
@@ -303,6 +304,17 @@ export function TrainingPlanner({
 
     return result;
   }, [activities, ftp, store.plannedWorkouts]);
+
+  // Flatten multi-plan workouts map to single-workout-per-date for calendar components
+  const flattenedWorkouts = useMemo(() => {
+    const result: Record<string, PlannerWorkout> = {};
+    for (const [date, workoutsArr] of Object.entries(store.plannedWorkouts)) {
+      if (!workoutsArr || workoutsArr.length === 0) continue;
+      const match = workoutsArr.find((w: PlannerWorkout) => w.planId === store.activePlanId) || workoutsArr[0];
+      if (match) result[date] = match;
+    }
+    return result;
+  }, [store.plannedWorkouts, store.activePlanId]);
 
   // Build availability by date for the current 2-week view
   const availabilityByDate = useMemo(() => {
@@ -420,7 +432,8 @@ export function TrainingPlanner({
         const date = getLocalDateString(activity);
         if (!date) continue;
 
-        const plannedWorkout = plannedWorkouts[date];
+        const plannedWorkoutsForDay = plannedWorkouts[date] || [];
+        const plannedWorkout = plannedWorkoutsForDay.find((w: PlannerWorkout) => w.planId === store.activePlanId) || plannedWorkoutsForDay[0];
 
         // Check if there's a planned workout that isn't already linked
         if (plannedWorkout && plannedWorkout.id && !plannedWorkout.activityId) {
@@ -562,7 +575,7 @@ export function TrainingPlanner({
         }
 
         // Get the planned workout details for context
-        const plannedWorkout = Object.values(store.plannedWorkouts).find(w => w.id === workoutId);
+        const plannedWorkout = Object.values(store.plannedWorkouts).flat().find((w: PlannerWorkout) => w.id === workoutId);
 
         // Calculate actual TSS
         const actualTss = getActivityTSS(activity, ftp);
@@ -1052,7 +1065,7 @@ export function TrainingPlanner({
             planStartDate={store.planStartDate}
             planDurationWeeks={store.planDurationWeeks}
             focusedWeekStart={store.focusedWeekStart}
-            plannedWorkouts={store.plannedWorkouts}
+            plannedWorkouts={flattenedWorkouts}
             activities={activitiesByDate}
             onWeekClick={(weekStart) => {
               handleWeekClick(weekStart);
@@ -1098,7 +1111,7 @@ export function TrainingPlanner({
             <Box mt="xs">
               <TwoWeekCalendar
                 startDate={store.focusedWeekStart}
-                workouts={store.plannedWorkouts}
+                workouts={flattenedWorkouts}
                 activities={activitiesByDate}
                 raceGoals={raceGoalsByDate}
                 dropTargetDate={store.dropTargetDate}
@@ -1125,7 +1138,7 @@ export function TrainingPlanner({
               <PlanCalendarOverview
                 planStartDate={store.planStartDate}
                 planDurationWeeks={store.planDurationWeeks}
-                workouts={store.plannedWorkouts}
+                workouts={flattenedWorkouts}
                 activities={activitiesByDate}
                 raceGoals={raceGoalsByDate}
                 onDayClick={(date) => {

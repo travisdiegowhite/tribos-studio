@@ -151,7 +151,8 @@ function Dashboard() {
           const planIds = plansData.map(p => p.id);
 
           // Fetch today's workout across all active plans
-          const today = new Date().toISOString().split('T')[0];
+          const todayDate = new Date();
+          const today = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
           const { data: workoutData } = await supabase
             .from('planned_workouts')
             .select('*')
@@ -165,12 +166,15 @@ function Dashboard() {
           }
 
           // Fetch planned workouts for this week across all active plans
+          const wsKey = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
+          const weKey = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`;
           const { data: plannedWorkouts } = await supabase
             .from('planned_workouts')
-            .select('id')
+            .select('id, target_tss')
             .in('plan_id', planIds)
-            .gte('scheduled_date', weekStart.toISOString().split('T')[0])
-            .lt('scheduled_date', weekEnd.toISOString().split('T')[0]);
+            .gte('scheduled_date', wsKey)
+            .lt('scheduled_date', weKey)
+            .gt('target_tss', 0);
 
           setWeekStats(prev => ({ ...prev, planned: plannedWorkouts?.length || 0 }));
         }
@@ -277,7 +281,7 @@ function Dashboard() {
 
     const dailyTSS = {};
     for (let d = new Date(ninetyDaysAgo); d <= now; d.setDate(d.getDate() + 1)) {
-      const key = d.toISOString().split('T')[0];
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       dailyTSS[key] = 0;
     }
 
