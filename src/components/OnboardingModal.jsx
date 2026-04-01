@@ -1,4 +1,21 @@
-import { useState, useEffect } from 'react';
+/**
+ * OnboardingModal — Unified onboarding flow (v2).
+ *
+ * 11 screens: Welcome → 6 questions → Connect Device → Fitness Baseline → Coach Reveal → Ready
+ *
+ * Questions serve dual purpose:
+ *   - Profile data (experience_level, primary_goal, weekly_hours, terrain) → user_profiles
+ *   - Persona classification signals → api/onboarding-complete → user_coach_settings
+ *
+ * On Screen 9, calls /api/onboarding-complete which:
+ *   1. Classifies persona from Q3+Q5 (with Q1+Q2+Q4 as context)
+ *   2. Generates a personalized opening message via Claude
+ *   3. Saves all profile + persona data
+ *   4. Saves opening message to coach_conversations
+ *   5. Sends welcome email
+ */
+
+import { useState, useEffect, useCallback } from 'react';
 import {
   Modal,
   Stepper,
@@ -17,25 +34,18 @@ import {
   Divider,
   Radio,
   Progress,
-  SegmentedControl,
   Chip,
   TextInput,
 } from '@mantine/core';
-import { DatePickerInput } from '@mantine/dates';
+import { DateInput } from '@mantine/dates';
 import { ConnectWithStravaButton, STRAVA_ORANGE } from './StravaBranding';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
-import {
-  INTAKE_QUESTIONS,
-  EXPERIENCE_LEVEL_QUESTION,
-  PERSONAS,
-  PERSONA_LIST,
-  DEFAULT_PERSONA,
-} from '../data/coachingPersonas';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
+import { PERSONAS } from '../data/coachingPersonas';
 import {
   CaretLeft,
   CaretRight,
@@ -46,22 +56,80 @@ import {
   Target,
   Watch,
   Sparkle,
-  Barbell,
-  Mountains,
-  ArrowLeft,
-  ArrowRight,
 } from '@phosphor-icons/react';
 
-// Weekly hours midpoint mapping
-const HOURS_MAP = { '<5': 3.5, '5-8': 6.5, '8-12': 10, '12+': 14 };
+// ── Question definitions ──────────────────────────────────────
 
-// Weekly TSS estimate mapping
-const TSS_MAP = {
-  starting: 100,
-  moderate: 250,
-  high: 450,
-  very_high: 650,
-};
+const ONBOARDING_QUESTIONS = [
+  {
+    id: 'experience',
+    title: 'How would you describe yourself as a cyclist?',
+    options: [
+      { value: 'beginner', label: 'Just getting started', description: 'New to structured training' },
+      { value: 'intermediate', label: 'Recreational rider', description: 'Riding regularly, no race goals' },
+      { value: 'advanced', label: 'Competitive amateur', description: 'Racing or event-focused' },
+      { value: 'racer', label: 'Returning rider', description: 'Coming back after a break' },
+    ],
+  },
+  {
+    id: 'goal',
+    title: 'What are you training for this season?',
+    options: [
+      { value: 'event', label: 'A specific event', description: 'Race, gran fondo, or target ride' },
+      { value: 'fitness', label: 'General fitness', description: 'Build base, stay healthy' },
+      { value: 'performance', label: 'Getting faster', description: 'Push FTP and performance' },
+      { value: 'comeback', label: 'Getting back into it', description: 'Returning from injury or time off' },
+    ],
+    hasEventFollowUp: true,
+  },
+  {
+    id: 'coaching_style',
+    title: 'When you miss a workout, what\'s most helpful to hear?',
+    options: [
+      { value: 'hammer_competitor', label: 'Push me to make it up', description: 'I need accountability' },
+      { value: 'scientist', label: 'Explain why it matters', description: 'Help me understand the impact' },
+      { value: 'encourager', label: 'Tell me it\'s okay', description: 'And help me move forward' },
+      { value: 'pragmatist', label: 'Just adjust the plan', description: 'No lecture needed' },
+    ],
+  },
+  {
+    id: 'hours',
+    title: 'How many hours per week can you realistically train?',
+    options: [
+      { value: '3.5', label: 'Under 5 hours', description: null },
+      { value: '6.5', label: '5\u20138 hours', description: null },
+      { value: '10', label: '8\u201312 hours', description: null },
+      { value: '14', label: '12+ hours', description: null },
+    ],
+  },
+  {
+    id: 'coach_role',
+    title: 'What does a good coach do for you?',
+    options: [
+      { value: 'hammer_competitor', label: 'Pushes me beyond what I\'d do alone', description: null },
+      { value: 'scientist', label: 'Gives me the data and lets me decide', description: null },
+      { value: 'encourager', label: 'Keeps me motivated and consistent', description: null },
+      { value: 'pragmatist', label: 'Keeps things simple and tells me what to do', description: null },
+    ],
+  },
+  {
+    id: 'terrain',
+    title: 'What kind of riding do you do?',
+    isMultiSelect: true,
+    options: [
+      { value: 'road', label: 'Road' },
+      { value: 'gravel', label: 'Gravel' },
+      { value: 'mountain', label: 'Mountain' },
+      { value: 'mixed', label: 'Mixed' },
+    ],
+    optional: true,
+  },
+];
+
+const HOURS_TO_TSS = { '3.5': 100, '6.5': 250, '10': 450, '14': 650 };
+
+// Total stepper steps: 0-9 are Stepper.Step, 10 is Stepper.Completed
+const TOTAL_STEPS = 10;
 
 function OnboardingModal({ opened, onClose }) {
   const navigate = useNavigate();
@@ -69,35 +137,26 @@ function OnboardingModal({ opened, onClose }) {
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Step 1 — About Your Riding
-  const [experienceLevel, setExperienceLevel] = useState(null);
-  const [weeklyHours, setWeeklyHours] = useState(null);
-  const [preferredTerrain, setPreferredTerrain] = useState([]);
+  // Fitness baseline (existing)
+  const [ftp, setFtp] = useState(null);
+  const [unitsPreference, setUnitsPreference] = useState('imperial');
 
-  // Step 2 — Your Goal
-  const [primaryGoal, setPrimaryGoal] = useState(null);
-  const [targetEventName, setTargetEventName] = useState('');
-  const [targetEventDate, setTargetEventDate] = useState(null);
-
-  // Step 3 — Meet Your Coach (inlined intake)
-  const allIntakeQuestions = [...INTAKE_QUESTIONS, EXPERIENCE_LEVEL_QUESTION];
-  const [intakeAnswers, setIntakeAnswers] = useState({});
-  const [intakeQuestion, setIntakeQuestion] = useState(0);
-  const [personaStep, setPersonaStep] = useState('questions');
-  const [classification, setClassification] = useState(null);
-  const [selectedPersona, setSelectedPersona] = useState(null);
-
-  // Step 4 — Connect Device
+  // Device connections (existing)
   const [stravaConnected, setStravaConnected] = useState(false);
   const [garminConnected, setGarminConnected] = useState(false);
   const [wahooConnected, setWahooConnected] = useState(false);
 
-  // Step 5 — Fitness Baseline
-  const [ftp, setFtp] = useState(null);
-  const [unitsPreference, setUnitsPreference] = useState('imperial');
-  const [weeklyTssEstimate, setWeeklyTssEstimate] = useState(null);
+  // Question answers
+  const [answers, setAnswers] = useState({});
+  const [targetEventName, setTargetEventName] = useState('');
+  const [targetEventDate, setTargetEventDate] = useState(null);
+  const [selectedTerrain, setSelectedTerrain] = useState([]);
 
-  // Check device connections on mount
+  // Coach reveal (screen 9)
+  const [classifying, setClassifying] = useState(false);
+  const [classificationResult, setClassificationResult] = useState(null);
+
+  // Check device connection status on mount
   useEffect(() => {
     const checkConnections = async () => {
       if (!user) return;
@@ -117,133 +176,6 @@ function OnboardingModal({ opened, onClose }) {
     if (opened) checkConnections();
   }, [user, opened]);
 
-  // ── Persona Classification ───────────────────────────────────
-  const handleClassify = async () => {
-    setPersonaStep('classifying');
-
-    try {
-      const intakePayload = {
-        q1: intakeAnswers.q1 || '',
-        q2: intakeAnswers.q2 || '',
-        q3: intakeAnswers.q3 || '',
-        q4: intakeAnswers.q4 || '',
-        q5: intakeAnswers.q5 || '',
-      };
-
-      const { data: { session } } = await supabase.auth.getSession();
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-
-      const response = await fetch('/api/coach-classify-persona', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({ answers: intakePayload, userId: user?.id }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-
-      if (!response.ok) throw new Error('Classification failed');
-
-      const data = await response.json();
-      setClassification(data.classification);
-      setSelectedPersona(data.classification.persona);
-
-      // Store experience level from intake
-      const expLevel = intakeAnswers.experience;
-      if (expLevel && user?.id) {
-        await supabase
-          .from('user_coach_settings')
-          .upsert({ user_id: user.id, coaching_experience_level: expLevel }, { onConflict: 'user_id' });
-      }
-
-      setPersonaStep('result');
-    } catch (err) {
-      console.error('Classification error:', err);
-      // Fallback: assign pragmatist silently
-      setClassification(null);
-      setSelectedPersona(DEFAULT_PERSONA);
-      setPersonaStep('result');
-    }
-  };
-
-  // ── Save persona to user_coach_settings ─────────────────────
-  const savePersona = async (personaId) => {
-    if (!user?.id || !personaId) return;
-    await supabase
-      .from('user_coach_settings')
-      .upsert(
-        {
-          user_id: user.id,
-          coaching_persona: personaId,
-          persona_set_at: new Date().toISOString(),
-          persona_set_by: 'intake',
-        },
-        { onConflict: 'user_id' }
-      );
-  };
-
-  // ── Completion ──────────────────────────────────────────────
-  const handleComplete = async () => {
-    if (!user) return;
-    setLoading(true);
-
-    try {
-      // Save persona first
-      if (selectedPersona) {
-        await savePersona(selectedPersona);
-      }
-
-      // Call completion endpoint
-      const { data: { session } } = await supabase.auth.getSession();
-      await fetch('/api/onboarding-complete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          experience_level: experienceLevel,
-          weekly_hours_available: weeklyHours ? HOURS_MAP[weeklyHours] : null,
-          preferred_terrain: preferredTerrain.length > 0 ? preferredTerrain : null,
-          primary_goal: primaryGoal,
-          target_event_date: targetEventDate ? targetEventDate.toISOString().split('T')[0] : null,
-          target_event_name: targetEventName || null,
-          ftp: ftp || null,
-          units_preference: unitsPreference,
-          weekly_tss_estimate: weeklyTssEstimate ? TSS_MAP[weeklyTssEstimate] : null,
-          persona_id: selectedPersona,
-        }),
-      });
-    } catch (err) {
-      console.error('Error completing onboarding:', err);
-    } finally {
-      setLoading(false);
-      onClose();
-    }
-  };
-
-  // ── Step Navigation ─────────────────────────────────────────
-  const canAdvance = () => {
-    switch (active) {
-      case 1: return !!experienceLevel;
-      case 2: return !!primaryGoal;
-      case 3: return !!selectedPersona && personaStep === 'result';
-      default: return true;
-    }
-  };
-
-  const nextStep = () => {
-    setActive((current) => (current < 5 ? current + 1 : current));
-  };
-
-  const prevStep = () => {
-    setActive((current) => (current > 0 ? current - 1 : current));
-  };
-
   // Device connection handlers
   const handleConnectStrava = () => {
     window.location.href = stravaService.getAuthorizationUrl();
@@ -257,9 +189,200 @@ function OnboardingModal({ opened, onClose }) {
     window.location.href = wahooService.getAuthorizationUrl();
   };
 
-  // Current intake question
-  const currentIntakeQ = allIntakeQuestions[intakeQuestion];
-  const intakeProgress = ((intakeQuestion + 1) / allIntakeQuestions.length) * 100;
+  const handleAnswer = useCallback((questionId, value) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: value }));
+  }, []);
+
+  const canAdvance = useCallback(() => {
+    if (active === 0) return true;
+    if (active >= 1 && active <= 6) {
+      const q = ONBOARDING_QUESTIONS[active - 1];
+      if (q.isMultiSelect || q.optional) return true;
+      return !!answers[q.id];
+    }
+    if (active === 7 || active === 8) return true;
+    if (active === 9) return !!classificationResult;
+    return true;
+  }, [active, answers, classificationResult]);
+
+  // Fire classification + onboarding-complete on entering Screen 9
+  const handleClassification = useCallback(async () => {
+    if (classificationResult || classifying) return;
+    setClassifying(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('No session');
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
+      const res = await fetch('/api/onboarding-complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          experience_level: answers.experience || null,
+          primary_goal: answers.goal || null,
+          target_event_name: targetEventName || null,
+          target_event_date: targetEventDate ? targetEventDate.toISOString().split('T')[0] : null,
+          weekly_hours_available: answers.hours ? parseFloat(answers.hours) : null,
+          weekly_tss_estimate: answers.hours ? HOURS_TO_TSS[answers.hours] || null : null,
+          preferred_terrain: selectedTerrain.length > 0 ? selectedTerrain : null,
+          ftp: ftp || null,
+          units_preference: unitsPreference,
+          coaching_style_answer: answers.coaching_style || null,
+          coach_role_answer: answers.coach_role || null,
+        }),
+      });
+
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error('API failed');
+
+      const data = await res.json();
+      setClassificationResult(data);
+    } catch (err) {
+      console.error('Onboarding classification error:', err);
+      setClassificationResult({
+        persona: 'pragmatist',
+        personaName: 'The Pragmatist',
+        openingMessage: 'Good to meet you. Let\u2019s figure out what matters most and build from there.',
+        confidence: 0.5,
+        secondary: null,
+      });
+    } finally {
+      setClassifying(false);
+    }
+  }, [answers, targetEventName, targetEventDate, selectedTerrain, ftp, unitsPreference, classificationResult, classifying]);
+
+  useEffect(() => {
+    if (active === 9 && !classificationResult && !classifying) {
+      handleClassification();
+    }
+  }, [active, classificationResult, classifying, handleClassification]);
+
+  const handleComplete = useCallback(async () => {
+    setLoading(true);
+    try {
+      await supabase
+        .from('user_profiles')
+        .upsert({ id: user.id, onboarding_completed: true });
+    } catch (err) {
+      console.error('Error completing onboarding:', err);
+    } finally {
+      setLoading(false);
+      onClose();
+    }
+  }, [user, onClose]);
+
+  const nextStep = () => {
+    if (active < TOTAL_STEPS) setActive((prev) => prev + 1);
+  };
+  const prevStep = () => {
+    if (active > 0) setActive((prev) => prev - 1);
+  };
+
+  // Render a question screen (Screens 1-6)
+  const renderQuestion = (questionIndex) => {
+    const q = ONBOARDING_QUESTIONS[questionIndex];
+    if (!q) return null;
+
+    return (
+      <Stack gap="lg" py="md">
+        <Box>
+          <Text size="xs" fw={700} tt="uppercase" ff="monospace" c="dimmed" mb={4}>
+            Question {questionIndex + 1} of 6
+          </Text>
+          <Progress value={((questionIndex + 1) / 6) * 100} size="xs" color="var(--color-teal)" />
+        </Box>
+
+        <Title order={4} style={{ color: 'var(--color-text-primary)' }}>
+          {q.title}
+        </Title>
+
+        {q.isMultiSelect ? (
+          <Stack gap="sm">
+            <Chip.Group multiple value={selectedTerrain} onChange={setSelectedTerrain}>
+              <Group gap="sm">
+                {q.options.map((opt) => (
+                  <Chip
+                    key={opt.value}
+                    value={opt.value}
+                    color="teal"
+                    variant="outline"
+                    size="md"
+                    styles={{ label: { cursor: 'pointer' } }}
+                  >
+                    {opt.label}
+                  </Chip>
+                ))}
+              </Group>
+            </Chip.Group>
+            <Text size="xs" c="dimmed">Pick all that apply, or skip this one.</Text>
+          </Stack>
+        ) : (
+          <Radio.Group
+            value={answers[q.id] || ''}
+            onChange={(value) => handleAnswer(q.id, value)}
+          >
+            <Stack gap="sm">
+              {q.options.map((opt) => (
+                <Paper
+                  key={opt.value}
+                  p="sm"
+                  withBorder
+                  style={{
+                    borderRadius: 0,
+                    cursor: 'pointer',
+                    borderColor: answers[q.id] === opt.value ? 'var(--color-teal)' : undefined,
+                  }}
+                  onClick={() => handleAnswer(q.id, opt.value)}
+                >
+                  <Radio
+                    value={opt.value}
+                    label={
+                      <Box>
+                        <Text size="sm" fw={500}>{opt.label}</Text>
+                        {opt.description && <Text size="xs" c="dimmed">{opt.description}</Text>}
+                      </Box>
+                    }
+                    styles={{ radio: { cursor: 'pointer' }, label: { cursor: 'pointer' } }}
+                  />
+                </Paper>
+              ))}
+            </Stack>
+          </Radio.Group>
+        )}
+
+        {q.hasEventFollowUp && answers.goal === 'event' && (
+          <Paper p="md" withBorder style={{ borderRadius: 0, borderColor: 'var(--color-teal-border)' }}>
+            <Stack gap="sm">
+              <Text size="xs" fw={600} tt="uppercase" c="dimmed">Event details (optional)</Text>
+              <TextInput
+                label="Event name"
+                placeholder="e.g., Boulder Roubaix"
+                value={targetEventName}
+                onChange={(e) => setTargetEventName(e.currentTarget.value)}
+                styles={{ input: { borderRadius: 0 } }}
+              />
+              <DateInput
+                label="Event date"
+                placeholder="Pick a date"
+                value={targetEventDate}
+                onChange={setTargetEventDate}
+                minDate={new Date()}
+                styles={{ input: { borderRadius: 0 } }}
+                clearable
+              />
+            </Stack>
+          </Paper>
+        )}
+      </Stack>
+    );
+  };
 
   return (
     <Modal
@@ -276,18 +399,25 @@ function OnboardingModal({ opened, onClose }) {
         </Group>
       }
       closeOnClickOutside={false}
+      withCloseButton={false}
     >
-      <Stepper active={active} onStepClick={setActive} color="teal" size="sm" mb="xl">
-        {/* ── Step 0: Welcome ────────────────────────────── */}
-        <Stepper.Step label="Welcome" icon={<Rocket size={18} />}>
+      <Stepper
+        active={active}
+        color="teal"
+        size="xs"
+        mb="xl"
+        styles={{ steps: { display: 'none' } }}
+      >
+        {/* Screen 0: Welcome */}
+        <Stepper.Step>
           <Stack gap="lg" py="md">
             <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
               Thanks for joining the beta!
             </Title>
 
             <Text style={{ color: 'var(--color-text-secondary)' }}>
-              This takes about 3 minutes. We&apos;ll use your answers to personalize
-              your training, your routes, and your coach from day one.
+              Six quick questions. We&apos;ll use your answers to set up your coach and
+              personalize your training from day one.
             </Text>
 
             <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
@@ -303,307 +433,35 @@ function OnboardingModal({ opened, onClose }) {
                 ))}
               </Stack>
             </Paper>
+
+            <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
+              This takes about 3 minutes.
+            </Text>
           </Stack>
         </Stepper.Step>
 
-        {/* ── Step 1: About Your Riding ──────────────────── */}
-        <Stepper.Step label="Riding" icon={<Mountains size={18} />}>
+        {/* Screens 1-6: Questions */}
+        {ONBOARDING_QUESTIONS.map((_, idx) => (
+          <Stepper.Step key={idx}>
+            {renderQuestion(idx)}
+          </Stepper.Step>
+        ))}
+
+        {/* Screen 7: Connect Device */}
+        <Stepper.Step>
           <Stack gap="lg" py="md">
             <Box>
               <Title order={3} style={{ color: 'var(--color-text-primary)' }} mb="xs">
-                About Your Riding
+                Connect Your Device
               </Title>
               <Text style={{ color: 'var(--color-text-secondary)' }}>
-                Help us understand where you are so we can meet you there.
-              </Text>
-            </Box>
-
-            <Radio.Group
-              label="Experience level"
-              value={experienceLevel || ''}
-              onChange={setExperienceLevel}
-              withAsterisk
-            >
-              <Stack gap="xs" mt="xs">
-                {[
-                  { value: 'beginner', label: 'Just getting started — New to structured training' },
-                  { value: 'intermediate', label: 'Recreational rider — Riding regularly, no race goals' },
-                  { value: 'advanced', label: 'Competitive amateur — Racing or event-focused' },
-                  { value: 'racer', label: 'Ex-racer / returning — Coming back after a break' },
-                ].map((opt) => (
-                  <Paper
-                    key={opt.value}
-                    p="sm"
-                    withBorder
-                    style={{
-                      cursor: 'pointer',
-                      borderColor: experienceLevel === opt.value ? 'var(--color-teal)' : undefined,
-                    }}
-                    onClick={() => setExperienceLevel(opt.value)}
-                  >
-                    <Radio value={opt.value} label={opt.label} styles={{ label: { cursor: 'pointer' } }} />
-                  </Paper>
-                ))}
-              </Stack>
-            </Radio.Group>
-
-            <Box>
-              <Text size="sm" fw={500} mb="xs">Hours available per week</Text>
-              <SegmentedControl
-                fullWidth
-                value={weeklyHours || ''}
-                onChange={setWeeklyHours}
-                data={[
-                  { label: '< 5 hrs', value: '<5' },
-                  { label: '5–8 hrs', value: '5-8' },
-                  { label: '8–12 hrs', value: '8-12' },
-                  { label: '12+ hrs', value: '12+' },
-                ]}
-              />
-            </Box>
-
-            <Box>
-              <Text size="sm" fw={500} mb="xs">Preferred terrain (pick 1–3)</Text>
-              <Chip.Group multiple value={preferredTerrain} onChange={setPreferredTerrain}>
-                <Group gap="sm">
-                  {['road', 'gravel', 'mountain', 'mixed'].map((t) => (
-                    <Chip key={t} value={t} variant="outline" color="teal">
-                      {t.charAt(0).toUpperCase() + t.slice(1)}
-                    </Chip>
-                  ))}
-                </Group>
-              </Chip.Group>
-            </Box>
-          </Stack>
-        </Stepper.Step>
-
-        {/* ── Step 2: Your Goal ──────────────────────────── */}
-        <Stepper.Step label="Goal" icon={<Target size={18} />}>
-          <Stack gap="lg" py="md">
-            <Box>
-              <Title order={3} style={{ color: 'var(--color-text-primary)' }} mb="xs">
-                Your Goal
-              </Title>
-              <Text style={{ color: 'var(--color-text-secondary)' }}>
-                What are you training for?
-              </Text>
-            </Box>
-
-            <Radio.Group value={primaryGoal || ''} onChange={setPrimaryGoal}>
-              <Stack gap="xs">
-                {[
-                  { value: 'event', label: 'A specific event', desc: 'Race, gran fondo, or target ride', icon: <Target size={18} /> },
-                  { value: 'fitness', label: 'General fitness', desc: 'Stay fit, build base', icon: <Heartbeat size={18} /> },
-                  { value: 'performance', label: 'Performance gains', desc: 'Push FTP, get faster', icon: <Barbell size={18} /> },
-                  { value: 'comeback', label: 'Getting back', desc: 'Returning from injury or time off', icon: <ArrowRight size={18} /> },
-                ].map((opt) => (
-                  <Paper
-                    key={opt.value}
-                    p="md"
-                    withBorder
-                    style={{
-                      cursor: 'pointer',
-                      borderColor: primaryGoal === opt.value ? 'var(--color-teal)' : undefined,
-                    }}
-                    onClick={() => setPrimaryGoal(opt.value)}
-                  >
-                    <Group gap="sm">
-                      <ThemeIcon size="md" variant="light" color="gray">{opt.icon}</ThemeIcon>
-                      <Box>
-                        <Radio value={opt.value} label={opt.label} styles={{ label: { cursor: 'pointer', fontWeight: 500 } }} />
-                        <Text size="xs" c="dimmed" ml={26}>{opt.desc}</Text>
-                      </Box>
-                    </Group>
-                  </Paper>
-                ))}
-              </Stack>
-            </Radio.Group>
-
-            {primaryGoal === 'event' && (
-              <Paper p="md" withBorder style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                <Stack gap="sm">
-                  <TextInput
-                    label="Event name"
-                    placeholder="e.g., Gran Fondo New York"
-                    value={targetEventName}
-                    onChange={(e) => setTargetEventName(e.target.value)}
-                  />
-                  <DatePickerInput
-                    label="Event date"
-                    placeholder="Pick a date"
-                    value={targetEventDate}
-                    onChange={setTargetEventDate}
-                    minDate={new Date()}
-                    clearable
-                  />
-                </Stack>
-              </Paper>
-            )}
-          </Stack>
-        </Stepper.Step>
-
-        {/* ── Step 3: Meet Your Coach ────────────────────── */}
-        <Stepper.Step label="Coach" icon={<Sparkle size={18} />}>
-          <Stack gap="lg" py="md">
-            {personaStep === 'questions' && (
-              <>
-                <Box>
-                  <Text size="xs" fw={700} tt="uppercase" ff="monospace" c="dimmed" mb={4}>
-                    Coaching Style · Question {intakeQuestion + 1} of {allIntakeQuestions.length}
-                  </Text>
-                  <Progress value={intakeProgress} size="xs" color="var(--color-teal)" />
-                </Box>
-
-                <Title order={4}>{currentIntakeQ.question}</Title>
-
-                <Radio.Group
-                  value={intakeAnswers[currentIntakeQ.id] || ''}
-                  onChange={(value) => setIntakeAnswers((prev) => ({ ...prev, [currentIntakeQ.id]: value }))}
-                >
-                  <Stack gap="sm">
-                    {currentIntakeQ.options.map((option) => (
-                      <Paper
-                        key={option.value}
-                        p="sm"
-                        withBorder
-                        style={{
-                          borderRadius: 0,
-                          cursor: 'pointer',
-                          borderColor: intakeAnswers[currentIntakeQ.id] === option.value ? 'var(--color-teal)' : undefined,
-                        }}
-                        onClick={() => setIntakeAnswers((prev) => ({ ...prev, [currentIntakeQ.id]: option.value }))}
-                      >
-                        <Radio value={option.value} label={option.label} styles={{ label: { cursor: 'pointer' } }} />
-                      </Paper>
-                    ))}
-                  </Stack>
-                </Radio.Group>
-
-                <Group justify="space-between">
-                  <Button
-                    variant="subtle"
-                    leftSection={<ArrowLeft size={16} />}
-                    onClick={() => setIntakeQuestion((prev) => Math.max(0, prev - 1))}
-                    disabled={intakeQuestion === 0}
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    rightSection={intakeQuestion === allIntakeQuestions.length - 1 ? <Sparkle size={16} /> : <ArrowRight size={16} />}
-                    onClick={() => {
-                      if (intakeQuestion < allIntakeQuestions.length - 1) {
-                        setIntakeQuestion((prev) => prev + 1);
-                      } else {
-                        handleClassify();
-                      }
-                    }}
-                    disabled={!intakeAnswers[currentIntakeQ.id]}
-                    color="var(--color-teal)"
-                    style={{ borderRadius: 0 }}
-                  >
-                    {intakeQuestion === allIntakeQuestions.length - 1 ? 'Find My Coach' : 'Next'}
-                  </Button>
-                </Group>
-              </>
-            )}
-
-            {personaStep === 'classifying' && (
-              <Stack align="center" gap="lg" py="xl">
-                <Sparkle size={40} color="var(--color-teal)" />
-                <Text size="lg" fw={600}>Analyzing your coaching style...</Text>
-                <Progress value={100} size="xs" color="var(--color-teal)" animated w="60%" />
-              </Stack>
-            )}
-
-            {personaStep === 'result' && (
-              <>
-                <Text size="xs" fw={700} tt="uppercase" ff="monospace" c="dimmed">
-                  Your Coaching Match
-                </Text>
-
-                {classification?.reasoning && (
-                  <Text size="sm" c="dimmed">
-                    {classification.reasoning}
-                    {classification.confidence < 0.75 && classification.secondary && (
-                      <> We also considered <strong>{PERSONAS[classification.secondary]?.name}</strong> as a close match.</>
-                    )}
-                  </Text>
-                )}
-
-                <Radio.Group value={selectedPersona || ''} onChange={setSelectedPersona}>
-                  <Stack gap="sm">
-                    {PERSONA_LIST.map((persona) => {
-                      const isRecommended = classification?.persona === persona.id;
-                      return (
-                        <Paper
-                          key={persona.id}
-                          p="md"
-                          withBorder
-                          style={{
-                            borderRadius: 0,
-                            cursor: 'pointer',
-                            borderColor: selectedPersona === persona.id ? 'var(--color-teal)' : undefined,
-                            borderWidth: isRecommended ? 2 : undefined,
-                          }}
-                          onClick={() => setSelectedPersona(persona.id)}
-                        >
-                          <Group justify="space-between" mb={4}>
-                            <Group gap="xs">
-                              <Radio value={persona.id} label={persona.name} fw={600} />
-                              {isRecommended && (
-                                <Badge size="xs" variant="light" color="teal">Recommended</Badge>
-                              )}
-                            </Group>
-                          </Group>
-                          <Text size="xs" c="dimmed" ml={26}>{persona.tagline}</Text>
-                          <Text size="sm" mt={4} ml={26} lineClamp={2}>
-                            &ldquo;{persona.philosophy}&rdquo;
-                          </Text>
-                        </Paper>
-                      );
-                    })}
-                  </Stack>
-                </Radio.Group>
-
-                <Button
-                  variant="subtle"
-                  size="xs"
-                  onClick={() => {
-                    setIntakeQuestion(0);
-                    setIntakeAnswers({});
-                    setClassification(null);
-                    setSelectedPersona(null);
-                    setPersonaStep('questions');
-                  }}
-                >
-                  Retake Interview
-                </Button>
-              </>
-            )}
-          </Stack>
-        </Stepper.Step>
-
-        {/* ── Step 4: Connect Device ─────────────────────── */}
-        <Stepper.Step label="Connect" icon={<Watch size={18} />}>
-          <Stack gap="lg" py="md">
-            <Box>
-              <Title order={3} style={{ color: 'var(--color-text-primary)' }} mb="xs">
-                Connect Your Devices
-              </Title>
-              <Text style={{ color: 'var(--color-text-secondary)' }}>
-                Sync your activities from Strava, Garmin, or Wahoo to unlock training insights.
+                Sync your activities to unlock training insights. No device yet? No problem — your
+                coach and training plans work without it.
               </Text>
             </Box>
 
             <SimpleGrid cols={1} spacing="sm">
-              <Paper
-                p="md"
-                withBorder
-                style={{
-                  borderColor: stravaConnected ? 'var(--color-teal)' : 'var(--tribos-border)',
-                  backgroundColor: stravaConnected ? 'var(--color-teal)10' : 'var(--color-bg-secondary)',
-                }}
-              >
+              <Paper p="md" withBorder style={{ borderColor: stravaConnected ? 'var(--color-teal)' : 'var(--tribos-border)', backgroundColor: stravaConnected ? 'var(--color-teal)10' : 'var(--color-bg-secondary)' }}>
                 <Group justify="space-between">
                   <Group gap="sm">
                     <ThemeIcon size="lg" style={{ backgroundColor: `${STRAVA_ORANGE}20` }}>
@@ -622,19 +480,10 @@ function OnboardingModal({ opened, onClose }) {
                 </Group>
               </Paper>
 
-              <Paper
-                p="md"
-                withBorder
-                style={{
-                  borderColor: garminConnected ? 'var(--color-teal)' : 'var(--tribos-border)',
-                  backgroundColor: garminConnected ? 'var(--color-teal)10' : 'var(--color-bg-secondary)',
-                }}
-              >
+              <Paper p="md" withBorder style={{ borderColor: garminConnected ? 'var(--color-teal)' : 'var(--tribos-border)', backgroundColor: garminConnected ? 'var(--color-teal)10' : 'var(--color-bg-secondary)' }}>
                 <Group justify="space-between">
                   <Group gap="sm">
-                    <ThemeIcon size="lg" color="blue" variant="light">
-                      <Watch size={20} />
-                    </ThemeIcon>
+                    <ThemeIcon size="lg" color="blue" variant="light"><Watch size={20} /></ThemeIcon>
                     <Box>
                       <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>Garmin</Text>
                       <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Auto-sync from your Garmin device</Text>
@@ -648,19 +497,10 @@ function OnboardingModal({ opened, onClose }) {
                 </Group>
               </Paper>
 
-              <Paper
-                p="md"
-                withBorder
-                style={{
-                  borderColor: wahooConnected ? 'var(--color-teal)' : 'var(--tribos-border)',
-                  backgroundColor: wahooConnected ? 'var(--color-teal)10' : 'var(--color-bg-secondary)',
-                }}
-              >
+              <Paper p="md" withBorder style={{ borderColor: wahooConnected ? 'var(--color-teal)' : 'var(--tribos-border)', backgroundColor: wahooConnected ? 'var(--color-teal)10' : 'var(--color-bg-secondary)' }}>
                 <Group justify="space-between">
                   <Group gap="sm">
-                    <ThemeIcon size="lg" color="cyan" variant="light">
-                      <Watch size={20} />
-                    </ThemeIcon>
+                    <ThemeIcon size="lg" color="cyan" variant="light"><Watch size={20} /></ThemeIcon>
                     <Box>
                       <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>Wahoo</Text>
                       <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Sync with Wahoo devices</Text>
@@ -675,21 +515,21 @@ function OnboardingModal({ opened, onClose }) {
               </Paper>
             </SimpleGrid>
 
-            <Text size="xs" ta="center" style={{ color: 'var(--color-text-muted)' }}>
-              No device yet? No problem — you can connect later. Your coach and training plans work without it.
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
+              You can always connect devices later in Settings.
             </Text>
           </Stack>
         </Stepper.Step>
 
-        {/* ── Step 5: Fitness Baseline ───────────────────── */}
-        <Stepper.Step label="Baseline" icon={<Barbell size={18} />}>
+        {/* Screen 8: Fitness Baseline */}
+        <Stepper.Step>
           <Stack gap="lg" py="md">
             <Box>
               <Title order={3} style={{ color: 'var(--color-text-primary)' }} mb="xs">
-                Your Fitness Baseline
+                Fitness Baseline
               </Title>
               <Text style={{ color: 'var(--color-text-secondary)' }}>
-                These help us calibrate your training metrics from day one.
+                Help us calibrate your training zones and display preferences.
               </Text>
             </Box>
 
@@ -715,30 +555,75 @@ function OnboardingModal({ opened, onClose }) {
               suffix=" W"
             />
 
-            <Box>
-              <Text size="sm" fw={500} mb="xs">Current weekly training load</Text>
-              <SegmentedControl
-                fullWidth
-                value={weeklyTssEstimate || ''}
-                onChange={setWeeklyTssEstimate}
-                data={[
-                  { label: 'Just starting', value: 'starting' },
-                  { label: 'Moderate', value: 'moderate' },
-                  { label: 'High', value: 'high' },
-                  { label: 'Very high', value: 'very_high' },
-                ]}
-              />
-              <Text size="xs" c="dimmed" mt={4}>
-                {weeklyTssEstimate === 'starting' && '< 3 hrs/week'}
-                {weeklyTssEstimate === 'moderate' && '3–6 hrs/week'}
-                {weeklyTssEstimate === 'high' && '6–10 hrs/week'}
-                {weeklyTssEstimate === 'very_high' && '10+ hrs/week'}
+            <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+              <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
+                <strong>Tip:</strong> If you don&apos;t know your FTP, you can set it later.
+                We can also estimate it from your ride data once you&apos;ve connected a device.
               </Text>
-            </Box>
+            </Paper>
           </Stack>
         </Stepper.Step>
 
-        {/* ── Completed ─────────────────────────────────── */}
+        {/* Screen 9: Coach Reveal */}
+        <Stepper.Step>
+          <Stack gap="lg" py="xl">
+            {classifying && (
+              <Stack align="center" gap="lg" py="xl">
+                <Sparkle size={40} color="var(--color-teal)" />
+                <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>
+                  Setting up your coach...
+                </Text>
+                <Progress value={100} size="xs" color="var(--color-teal)" animated w="60%" />
+              </Stack>
+            )}
+
+            {classificationResult && !classifying && (
+              <Stack gap="lg">
+                <Text size="xs" fw={700} tt="uppercase" ff="monospace" c="dimmed">
+                  Your Coach
+                </Text>
+
+                <Box>
+                  <Title order={2} style={{ color: 'var(--color-text-primary)' }}>
+                    {classificationResult.personaName || PERSONAS[classificationResult.persona]?.name || 'The Pragmatist'}
+                  </Title>
+                  <Text size="sm" c="dimmed" mt={4}>
+                    &ldquo;{PERSONAS[classificationResult.persona]?.philosophy || ''}&rdquo;
+                  </Text>
+                </Box>
+
+                {classificationResult.confidence < 0.75 && classificationResult.secondary && (
+                  <Text size="xs" c="dimmed">
+                    You also have some {PERSONAS[classificationResult.secondary]?.name} in you — you can explore this in Settings.
+                  </Text>
+                )}
+
+                <Divider />
+
+                <Paper
+                  p="md"
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    borderLeft: '3px solid var(--color-teal)',
+                  }}
+                >
+                  <Text
+                    size="sm"
+                    style={{
+                      color: 'var(--color-text-primary)',
+                      lineHeight: 1.7,
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    {classificationResult.openingMessage}
+                  </Text>
+                </Paper>
+              </Stack>
+            )}
+          </Stack>
+        </Stepper.Step>
+
+        {/* Screen 10: You're Ready */}
         <Stepper.Completed>
           <Stack gap="lg" py="md" align="center">
             <ThemeIcon size={80} radius="xl" color="teal" variant="light">
@@ -746,14 +631,12 @@ function OnboardingModal({ opened, onClose }) {
             </ThemeIcon>
 
             <Title order={3} ta="center" style={{ color: 'var(--color-text-primary)' }}>
-              You&apos;re All Set!
+              You&apos;re all set{user?.user_metadata?.full_name ? `, ${user.user_metadata.full_name.split(' ')[0]}` : ''}.
             </Title>
 
-            {selectedPersona && PERSONAS[selectedPersona] && (
-              <Text ta="center" style={{ color: 'var(--color-text-secondary)' }}>
-                Your coach is <strong>{PERSONAS[selectedPersona].name}</strong>
-              </Text>
-            )}
+            <Text ta="center" size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+              Your coach is ready. Here&apos;s what to do next:
+            </Text>
 
             <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md" style={{ width: '100%' }}>
               <Paper
@@ -764,7 +647,7 @@ function OnboardingModal({ opened, onClose }) {
               >
                 <Stack gap="xs" align="center">
                   <ThemeIcon size="lg" color="teal" variant="light">
-                    <Rocket size={20} />
+                    <Sparkle size={20} />
                   </ThemeIcon>
                   <Text size="sm" fw={500} ta="center" style={{ color: 'var(--color-text-primary)' }}>
                     See your TODAY screen
@@ -776,57 +659,66 @@ function OnboardingModal({ opened, onClose }) {
                 p="md"
                 withBorder
                 style={{ backgroundColor: 'var(--color-bg-secondary)', cursor: 'pointer' }}
-                onClick={async () => { await handleComplete(); navigate('/train/planner?tab=browse'); }}
+                onClick={() => { handleComplete(); navigate('/train/planner?tab=browse'); }}
               >
                 <Stack gap="xs" align="center">
                   <ThemeIcon size="lg" color="gray" variant="light">
-                    <Path size={20} />
+                    <Heartbeat size={20} />
                   </ThemeIcon>
                   <Text size="sm" fw={500} ta="center" style={{ color: 'var(--color-text-primary)' }}>
-                    Start a training plan
+                    Browse training plans
                   </Text>
                 </Stack>
               </Paper>
             </SimpleGrid>
+
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
+              Use the feedback button (bottom right) to send suggestions or report issues!
+            </Text>
           </Stack>
         </Stepper.Completed>
       </Stepper>
 
-      <Divider mb="md" />
+      {/* Navigation buttons */}
+      {active < TOTAL_STEPS && (
+        <>
+          <Divider mb="md" />
+          <Group justify="space-between">
+            {active > 0 && active <= 9 ? (
+              <Button
+                variant="subtle"
+                onClick={prevStep}
+                leftSection={<CaretLeft size={16} />}
+                disabled={active === 9 && classifying}
+              >
+                Back
+              </Button>
+            ) : (
+              <div />
+            )}
 
-      <Group justify="space-between">
-        {active > 0 && active < 6 ? (
-          <Button
-            variant="subtle"
-            onClick={active === 3 && personaStep !== 'result' ? undefined : prevStep}
-            leftSection={<CaretLeft size={16} />}
-            disabled={active === 3 && personaStep !== 'result'}
-          >
-            Back
-          </Button>
-        ) : (
-          <div />
-        )}
-
-        {active < 5 ? (
-          <Button
-            onClick={nextStep}
-            rightSection={<CaretRight size={16} />}
-            color="teal"
-            disabled={!canAdvance()}
-          >
-            Continue
-          </Button>
-        ) : active === 5 ? (
-          <Button
-            onClick={nextStep}
-            rightSection={<CaretRight size={16} />}
-            color="teal"
-          >
-            Finish Setup
-          </Button>
-        ) : null}
-      </Group>
+            {active < 9 ? (
+              <Button
+                onClick={nextStep}
+                rightSection={<CaretRight size={16} />}
+                color="teal"
+                disabled={!canAdvance()}
+              >
+                {active === 0 ? 'Get Started' : active === 8 ? 'Meet Your Coach' : 'Next'}
+              </Button>
+            ) : active === 9 ? (
+              <Button
+                onClick={nextStep}
+                rightSection={<CaretRight size={16} />}
+                color="teal"
+                disabled={!classificationResult || classifying}
+              >
+                Sounds good
+              </Button>
+            ) : null}
+          </Group>
+        </>
+      )}
     </Modal>
   );
 }

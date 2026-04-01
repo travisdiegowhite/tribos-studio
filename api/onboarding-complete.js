@@ -1,15 +1,40 @@
 /**
  * POST /api/onboarding-complete
  *
- * Called when the user finishes the expanded 6-step onboarding.
- * Saves all profile data, sends the welcome email, and marks onboarding complete.
+ * Called from the OnboardingModal on Screen 9 (Coach Reveal).
+ * Performs all onboarding completion in one atomic call:
+ *   1. Classifies coaching persona from answers (Claude call)
+ *   2. Generates a personalized opening message (Claude call)
+ *   3. Saves all profile data to user_profiles
+ *   4. Saves persona to user_coach_settings
+ *   5. Saves opening message to coach_conversations
+ *   6. Sends welcome email (persona-aware)
+ *
+ * Returns: { persona, personaName, openingMessage, confidence, secondary }
  */
 
+import Anthropic from '@anthropic-ai/sdk';
 import { Resend } from 'resend';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 
 const supabase = getSupabaseAdmin();
+
+const PERSONA_NAMES = {
+  hammer: 'The Hammer',
+  scientist: 'The Scientist',
+  encourager: 'The Encourager',
+  pragmatist: 'The Pragmatist',
+  competitor: 'The Competitor',
+};
+
+const PERSONA_VOICES = {
+  hammer: 'Direct, brief, no filler. Short declarative sentences. Uses imperatives.',
+  scientist: 'Calm, precise, explanatory. Uses physiological terminology naturally.',
+  encourager: 'Warm, process-focused, affirming without being saccharine.',
+  pragmatist: 'Grounded, conversational, practical and forward-focused.',
+  competitor: 'Focused, forward-looking, frames everything in terms of results.',
+};
 
 const WELCOME_SUBJECTS = {
   hammer: (name) => `Time to get to work, ${name}`,
@@ -19,6 +44,34 @@ const WELCOME_SUBJECTS = {
   competitor: (name) => `Ready to push limits, ${name}?`,
 };
 
+const VALID_PERSONAS = ['hammer', 'scientist', 'encourager', 'pragmatist', 'competitor'];
+
+const CLASSIFICATION_PROMPT = `You are classifying a cyclist's coaching preference based on their onboarding answers.
+
+PERSONA OPTIONS:
+- hammer: Demanding, accountability-focused, high expectations
+- scientist: Analytical, physiological, data-driven explanation
+- encourager: Warm, process-focused, consistency over perfection
+- pragmatist: Realistic, life-aware, forward-looking
+- competitor: Race-focused, results-driven, competitive framing
+
+ANSWERS:
+Experience level: {experience}
+Training goal: {goal}
+Coaching style preference: {coaching_style}
+Weekly hours: {hours}
+Coach role preference: {coach_role}
+
+PRIMARY SIGNALS come from coaching_style and coach_role. Experience and goal provide context.
+
+Return ONLY valid JSON. No preamble.
+{
+  "persona": "<persona_id>",
+  "confidence": <0.0-1.0>,
+  "reasoning": "<one sentence explaining the assignment>",
+  "secondary": "<second-best persona_id if confidence < 0.75, else null>"
+}`;
+
 export default async function handler(req, res) {
   if (setupCors(req, res)) return;
 
@@ -26,7 +79,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Auth
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -40,25 +92,104 @@ export default async function handler(req, res) {
 
   const {
     experience_level,
-    weekly_hours_available,
-    preferred_terrain,
     primary_goal,
-    target_event_date,
     target_event_name,
+    target_event_date,
+    weekly_hours_available,
+    weekly_tss_estimate,
+    preferred_terrain,
     ftp,
     units_preference,
-    weekly_tss_estimate,
-    persona_id,
+    coaching_style_answer,
+    coach_role_answer,
   } = req.body;
 
   try {
-    // 1. Upsert user_profiles
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const claude = apiKey ? new Anthropic({ apiKey }) : null;
+
+    // ── 1. Classify persona ──
+    let persona = 'pragmatist';
+    let confidence = 0.5;
+    let secondary = null;
+    let reasoning = '';
+
+    if (claude && coaching_style_answer && coach_role_answer) {
+      try {
+        const prompt = CLASSIFICATION_PROMPT
+          .replace('{experience}', experience_level || 'not provided')
+          .replace('{goal}', primary_goal || 'not provided')
+          .replace('{coaching_style}', coaching_style_answer)
+          .replace('{hours}', weekly_hours_available ? `${weekly_hours_available} hrs/week` : 'not provided')
+          .replace('{coach_role}', coach_role_answer);
+
+        const response = await claude.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 256,
+          messages: [{ role: 'user', content: prompt }],
+        });
+
+        const text = response.content[0]?.text || '';
+        const classification = JSON.parse(text);
+
+        if (VALID_PERSONAS.includes(classification.persona)) {
+          persona = classification.persona;
+        }
+        confidence = typeof classification.confidence === 'number' ? classification.confidence : 0.5;
+        secondary = classification.secondary && VALID_PERSONAS.includes(classification.secondary) ? classification.secondary : null;
+        reasoning = classification.reasoning || '';
+      } catch (classifyErr) {
+        console.error('Persona classification failed, using pragmatist:', classifyErr.message);
+      }
+    }
+
+    // ── 2. Generate opening message ──
+    let openingMessage = 'Welcome. Let\u2019s take a look at where you are and figure out the best path forward.';
+
+    if (claude) {
+      try {
+        const voice = PERSONA_VOICES[persona] || PERSONA_VOICES.pragmatist;
+        const userContext = [
+          experience_level && `Experience: ${experience_level}`,
+          primary_goal && `Goal: ${primary_goal}`,
+          target_event_name && `Target event: ${target_event_name}`,
+          target_event_date && `Event date: ${target_event_date}`,
+          weekly_hours_available && `Hours/week: ${weekly_hours_available}`,
+          ftp && `FTP: ${ftp}W`,
+        ].filter(Boolean).join('\n');
+
+        const msgResponse = await claude.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 200,
+          system: `You are ${PERSONA_NAMES[persona]}, a cycling coach. Voice: ${voice}`,
+          messages: [{
+            role: 'user',
+            content: `Generate a brief, personal opening message (2-3 sentences) for a new user who just joined Tribos.
+
+Their answers:
+${userContext}
+
+Write in your coaching voice. Reference something specific from their answers.
+Do not introduce yourself — they already know who you are.
+Do not use generic welcome language. Be direct and specific.
+Maximum 3 sentences.`,
+          }],
+        });
+
+        const msgText = msgResponse.content[0]?.text?.trim();
+        if (msgText) openingMessage = msgText;
+      } catch (msgErr) {
+        console.error('Opening message generation failed:', msgErr.message);
+      }
+    }
+
+    // ── 3. Save user_profiles ──
     const profileUpdate = {
       id: user.id,
       onboarding_completed: true,
       units_preference: units_preference || 'imperial',
+      onboarding_persona_set: true,
     };
-
     if (experience_level) profileUpdate.experience_level = experience_level;
     if (weekly_hours_available != null) profileUpdate.weekly_hours_available = weekly_hours_available;
     if (preferred_terrain) profileUpdate.preferred_terrain = preferred_terrain;
@@ -67,7 +198,6 @@ export default async function handler(req, res) {
     if (target_event_name) profileUpdate.target_event_name = target_event_name;
     if (ftp != null) profileUpdate.ftp = ftp;
     if (weekly_tss_estimate != null) profileUpdate.weekly_tss_estimate = weekly_tss_estimate;
-    if (persona_id) profileUpdate.onboarding_persona_set = true;
 
     const { error: profileError } = await supabase
       .from('user_profiles')
@@ -77,19 +207,51 @@ export default async function handler(req, res) {
       console.error('Profile upsert error:', profileError);
     }
 
-    // 2. Send welcome email
+    // ── 4. Save persona to user_coach_settings ──
+    const { error: personaError } = await supabase
+      .from('user_coach_settings')
+      .upsert({
+        user_id: user.id,
+        coaching_persona: persona,
+        persona_set_at: new Date().toISOString(),
+        persona_set_by: 'onboarding',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+
+    if (personaError) {
+      console.error('Persona save error:', personaError);
+    }
+
+    // ── 5. Save opening message to coach_conversations ──
+    const { error: msgError } = await supabase
+      .from('coach_conversations')
+      .insert({
+        user_id: user.id,
+        role: 'coach',
+        message: openingMessage,
+        message_type: 'chat',
+        context_snapshot: { coach_type: 'training', source: 'onboarding' },
+        coach_type: 'strategist',
+        timestamp: new Date().toISOString(),
+      });
+
+    if (msgError) {
+      console.error('Opening message save error:', msgError);
+    }
+
+    // ── 6. Send welcome email (non-blocking) ──
     const resendKey = process.env.RESEND_API_KEY;
     if (resendKey && user.email) {
       try {
         const resend = new Resend(resendKey);
         const displayName = user.user_metadata?.full_name || user.email.split('@')[0];
-        const subjectFn = WELCOME_SUBJECTS[persona_id] || WELCOME_SUBJECTS.pragmatist;
+        const subjectFn = WELCOME_SUBJECTS[persona] || WELCOME_SUBJECTS.pragmatist;
 
         await resend.emails.send({
           from: 'Tribos Studio <onboarding@tribos.studio>',
           to: [user.email],
           subject: subjectFn(displayName),
-          html: getWelcomeHtml(displayName, persona_id),
+          html: getWelcomeHtml(displayName, persona, openingMessage),
         });
 
         await supabase
@@ -97,12 +259,18 @@ export default async function handler(req, res) {
           .update({ welcome_email_sent: true })
           .eq('id', user.id);
       } catch (emailErr) {
-        // Non-blocking — don't fail onboarding if email fails
-        console.error('Welcome email failed:', emailErr);
+        console.error('Welcome email failed:', emailErr.message);
       }
     }
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({
+      persona,
+      personaName: PERSONA_NAMES[persona],
+      openingMessage,
+      confidence,
+      secondary,
+      reasoning,
+    });
   } catch (error) {
     console.error('Onboarding complete error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -114,16 +282,10 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function getWelcomeHtml(name, personaId) {
+function getWelcomeHtml(name, personaId, openingMessage) {
   const safeName = escapeHtml(name);
-  const personaNames = {
-    hammer: 'The Hammer',
-    scientist: 'The Scientist',
-    encourager: 'The Encourager',
-    pragmatist: 'The Pragmatist',
-    competitor: 'The Competitor',
-  };
-  const coachName = personaNames[personaId] || 'your AI coach';
+  const safeMessage = escapeHtml(openingMessage);
+  const coachName = PERSONA_NAMES[personaId] || 'your AI coach';
 
   return `<!DOCTYPE html>
 <html>
@@ -148,14 +310,21 @@ function getWelcomeHtml(name, personaId) {
               <p style="color: #a0a0b0; line-height: 1.6; margin: 0 0 20px;">
                 Your account is set up and ${coachName} is ready to work with you.
               </p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #1a1a2e; border-left: 3px solid #10b981; margin: 0 0 24px;">
+                <tr>
+                  <td style="padding: 16px;">
+                    <p style="color: #10b981; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 8px; font-weight: 700;">${coachName}</p>
+                    <p style="color: #d0d0d8; font-size: 15px; line-height: 1.7; margin: 0; font-style: italic;">${safeMessage}</p>
+                  </td>
+                </tr>
+              </table>
               <p style="color: #a0a0b0; line-height: 1.6; margin: 0 0 20px;">
                 Here&apos;s how to get the most out of tribos:
               </p>
               <ul style="color: #a0a0b0; line-height: 1.8; padding-left: 20px; margin: 0 0 30px;">
-                <li><strong style="color: #e0e0e0;">Connect your device</strong> — Sync Strava, Garmin, or Wahoo to import your rides</li>
+                <li><strong style="color: #e0e0e0;">Check your TODAY screen</strong> — Your daily briefing with workout + route match</li>
                 <li><strong style="color: #e0e0e0;">Start a training plan</strong> — Choose from 13+ structured cycling plans</li>
                 <li><strong style="color: #e0e0e0;">Build a route</strong> — AI-powered route building that matches your training</li>
-                <li><strong style="color: #e0e0e0;">Check your TODAY screen</strong> — Your daily briefing with workout + route match</li>
               </ul>
               <a href="https://www.tribos.studio/today" style="display: inline-block; background: #10b981; color: #fff; text-decoration: none; padding: 14px 28px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-size: 14px;">
                 Go to your TODAY screen
