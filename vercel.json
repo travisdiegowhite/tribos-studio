@@ -35,6 +35,10 @@
     {
       "path": "/api/workout-preview-cron",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/activation-nudge",
+      "schedule": "0 10 * * *"
     }
   ],
   "functions": {

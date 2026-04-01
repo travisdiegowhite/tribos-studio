@@ -134,6 +134,24 @@ export function useActivation(userId: string | undefined) {
     }
   }, [userId]);
 
+  const undismissGuide = useCallback(async () => {
+    if (!userId) return;
+
+    const { error } = await supabase
+      .from('user_activation')
+      .update({
+        guide_dismissed: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+
+    if (!error) {
+      setActivation((prev) =>
+        prev ? { ...prev, guide_dismissed: false } : prev
+      );
+    }
+  }, [userId]);
+
   return {
     activation,
     loading,
@@ -143,6 +161,7 @@ export function useActivation(userId: string | undefined) {
     isDismissed,
     completeStep,
     dismissGuide,
+    undismissGuide,
     refetch: fetchActivation,
     setActivation,
   };

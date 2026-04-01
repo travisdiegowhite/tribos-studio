@@ -244,7 +244,7 @@ export default function GetStartedGuide() {
                             } else {
                               openCoach('What should I work on based on my recent rides?');
                             }
-                            completeStep('first_insight');
+                            // Step completed by proactive-insights-process cron, not by click
                           }
                         },
                       }

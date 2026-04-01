@@ -26,7 +26,9 @@ import {
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { useGear } from '../hooks/useGear.ts';
+import { useActivation } from '../hooks/useActivation.ts';
 import { formatDistance } from '../utils/units';
+import { ListChecks } from '@phosphor-icons/react';
 
 // Four-tab primary navigation: TODAY · RIDE · TRAIN · PROGRESS
 const navItems = [
@@ -46,6 +48,9 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
 
   // Gear maintenance alerts for notification bell
   const { alerts: gearAlerts = [], dismissAlert: dismissGearAlert } = useGear({ userId: user?.id, alertsOnly: true });
+
+  // Activation guide — undismiss support
+  const { isDismissed: guideIsDismissed, isComplete: guideIsComplete, undismissGuide } = useActivation(user?.id);
 
   // Persist pending consent from signup flow to user_profiles
   useEffect(() => {
@@ -205,6 +210,8 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                   toggleColorScheme={toggleColorScheme}
                   onSignOut={handleSignOut}
                   navigate={navigate}
+                  showChecklist={guideIsDismissed && !guideIsComplete}
+                  onUndismissGuide={undismissGuide}
                 />
               </Group>
             </Box>
@@ -342,7 +349,7 @@ function NotificationBell({ gearAlerts = [], onDismissAlert, navigate }) {
 }
 
 // Avatar with dropdown menu (Settings, Gear, Cafe, Dark mode, Sign out)
-function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, navigate }) {
+function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, navigate, showChecklist, onUndismissGuide }) {
   return (
     <Menu shadow="md" width={220} position="bottom-end" offset={8}>
       <Menu.Target>
@@ -392,6 +399,14 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
         >
           Cafe
         </Menu.Item>
+        {showChecklist && (
+          <Menu.Item
+            leftSection={<ListChecks size={18} />}
+            onClick={() => { onUndismissGuide?.(); navigate('/today'); }}
+          >
+            Setup checklist
+          </Menu.Item>
+        )}
         <Menu.Divider />
         <Menu.Item
           leftSection={colorScheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}

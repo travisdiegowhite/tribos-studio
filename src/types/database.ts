@@ -286,6 +286,16 @@ export interface UserProfileInsert {
   garmin_data_consent_at?: string | null;
   account_deletion_requested_at?: string | null;
   data_export_requested_at?: string | null;
+  // Onboarding profile
+  experience_level?: 'beginner' | 'intermediate' | 'advanced' | 'racer' | null;
+  primary_goal?: 'fitness' | 'event' | 'performance' | 'comeback' | null;
+  target_event_date?: string | null;
+  target_event_name?: string | null;
+  preferred_terrain?: string[] | null;
+  weekly_tss_estimate?: number | null;
+  onboarding_persona_set?: boolean;
+  welcome_email_sent?: boolean;
+  activation_nudge_sent?: boolean;
 }
 
 export interface UserProfileUpdate {
@@ -312,6 +322,16 @@ export interface UserProfileUpdate {
   garmin_data_consent_at?: string | null;
   account_deletion_requested_at?: string | null;
   data_export_requested_at?: string | null;
+  // Onboarding profile
+  experience_level?: 'beginner' | 'intermediate' | 'advanced' | 'racer' | null;
+  primary_goal?: 'fitness' | 'event' | 'performance' | 'comeback' | null;
+  target_event_date?: string | null;
+  target_event_name?: string | null;
+  preferred_terrain?: string[] | null;
+  weekly_tss_estimate?: number | null;
+  onboarding_persona_set?: boolean;
+  welcome_email_sent?: boolean;
+  activation_nudge_sent?: boolean;
 }
 
 // ============================================================
