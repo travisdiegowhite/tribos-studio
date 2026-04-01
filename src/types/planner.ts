@@ -180,7 +180,7 @@ export interface TrainingPlannerActions {
   // Persistence — multi-plan aware
   loadPlan: (planId: string) => Promise<void>;
   unloadPlan: (planId: string) => void;
-  loadAllActivePlans: (userId: string) => Promise<void>;
+  loadAllActivePlans: (userId: string, preferredActivePlanId?: string) => Promise<void>;
   loadWorkoutsForDateRange: (startDate: string, endDate: string) => Promise<void>;
   savePendingChanges: () => Promise<void>;
   syncWithDatabase: () => Promise<void>;
