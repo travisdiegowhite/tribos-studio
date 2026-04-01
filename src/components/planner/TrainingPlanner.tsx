@@ -342,12 +342,24 @@ export function TrainingPlanner({
     [setDateOverride]
   );
 
-  // Load plan on mount or when activePlanId changes
+  // Load plan workouts on mount or when activePlanId changes
   useEffect(() => {
-    if (activePlanId && activePlanId !== store.activePlanId) {
-      store.loadPlan(activePlanId);
+    if (!activePlanId) return;
+
+    const hasWorkoutsForPlan = store.loadedPlanIds.includes(activePlanId);
+
+    if (!hasWorkoutsForPlan) {
+      // First load: fetch all active plans in one go (2 queries vs N+1)
+      if (userId && store.loadedPlanIds.length === 0) {
+        store.loadAllActivePlans(userId, activePlanId);
+      } else {
+        store.loadPlan(activePlanId);
+      }
+    } else if (activePlanId !== store.activePlanId) {
+      // Already loaded, just switch active plan (no DB hit)
+      store.setActivePlan(activePlanId);
     }
-  }, [activePlanId, store.activePlanId]);
+  }, [activePlanId, userId]);
 
   // Load race goals from database
   const loadRaceGoals = useCallback(async () => {

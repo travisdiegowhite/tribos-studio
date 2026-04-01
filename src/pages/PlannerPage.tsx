@@ -117,7 +117,7 @@ export default function PlannerPage() {
         } else if (planData && planData.length > 0) {
           setActivePlans(planData);
           setSelectedPlanId(planData[0].id);
-          setActivePlanInStore(planData[0].id);
+          // Don't set store.activePlanId here — TrainingPlanner will handle loading
         }
       } catch (err) {
         console.error('Error loading planner data:', err);
@@ -146,7 +146,7 @@ export default function PlannerPage() {
       // Keep selection if still valid, otherwise select first
       if (!selectedPlanId || !data.find((p: TrainingPlan) => p.id === selectedPlanId)) {
         setSelectedPlanId(data[0].id);
-        setActivePlanInStore(data[0].id);
+        // Don't set store.activePlanId here — TrainingPlanner will handle loading
       }
     } else {
       setActivePlans([]);

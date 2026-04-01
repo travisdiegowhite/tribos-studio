@@ -505,7 +505,7 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
         });
       },
 
-      loadAllActivePlans: async (userId: string) => {
+      loadAllActivePlans: async (userId: string, preferredActivePlanId?: string) => {
         set({ isLoading: true });
 
         try {
@@ -569,14 +569,17 @@ export const useTrainingPlannerStore = create<TrainingPlannerStore>()(
             workoutsMap[w.scheduled_date].push(plannerWorkout);
           }
 
-          // Default to primary plan
-          const primaryPlan = plans.find(p => p.priority === 'primary') || plans[0];
+          // Use preferred plan if valid, otherwise default to primary plan
+          const preferredPlan = preferredActivePlanId
+            ? plans.find(p => p.id === preferredActivePlanId)
+            : null;
+          const selectedPlan = preferredPlan || plans.find(p => p.priority === 'primary') || plans[0];
 
           set({
-            activePlanId: primaryPlan.id,
+            activePlanId: selectedPlan.id,
             loadedPlanIds: planIds,
-            planStartDate: primaryPlan.started_at?.split('T')[0] || null,
-            planDurationWeeks: primaryPlan.duration_weeks || 0,
+            planStartDate: selectedPlan.started_at?.split('T')[0] || null,
+            planDurationWeeks: selectedPlan.duration_weeks || 0,
             plannedWorkouts: workoutsMap,
             isLoading: false,
             hasUnsavedChanges: false,
