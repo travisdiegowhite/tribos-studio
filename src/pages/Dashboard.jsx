@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Container,
-  SimpleGrid,
   Stack,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
@@ -350,6 +349,12 @@ function Dashboard() {
             loading={metricsLoading}
           />
 
+          {/* Coach — moved up for cold-start value */}
+          <CoachCard
+            trainingContext={trainingContext}
+            workoutRecommendation={todayWorkout ? { primary: { workout: todayWorkout, reason: todayWorkout.description || '', source: 'plan' } } : null}
+          />
+
           {/* Status Bar — CTL/ATL/TSB/This Week */}
           <StatusBar
             ctl={trainingMetrics.ctl}
@@ -392,19 +397,13 @@ function Dashboard() {
           {/* Proactive Insight */}
           <ProactiveInsightCard />
 
-          {/* Map + Coach — side-by-side visual anchors */}
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing={14}>
-            <RecentRidesMap
-              activities={activities}
-              loading={loading}
-              formatDist={formatDist}
-              formatElev={formatElev}
-            />
-            <CoachCard
-              trainingContext={trainingContext}
-              workoutRecommendation={todayWorkout ? { primary: { workout: todayWorkout, reason: todayWorkout.description || '', source: 'plan' } } : null}
-            />
-          </SimpleGrid>
+          {/* Recent Rides Map */}
+          <RecentRidesMap
+            activities={activities}
+            loading={loading}
+            formatDist={formatDist}
+            formatElev={formatElev}
+          />
 
           {/* This Week */}
           <WeekChart

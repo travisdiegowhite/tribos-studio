@@ -204,3 +204,36 @@ export const EXPERIENCE_LEVELS: { value: ExperienceLevel; label: string }[] = [
   { value: 'experienced', label: 'Experienced (3+ years)' },
   { value: 'competitive', label: 'Competitive / Racing' },
 ];
+
+// ── Cold-Start Prompts per Persona ──────────────────────────────
+// Shown in CoachCard when no chat history exists.
+
+export const COLD_START_PROMPTS: Record<string, string[]> = {
+  hammer: [
+    "What's the hardest workout I should do this week?",
+    'How do I build more threshold power?',
+    'Am I training hard enough?',
+  ],
+  scientist: [
+    'Explain my CTL and ATL numbers',
+    'What does my training load trend mean?',
+    'How should I structure my polarized training zones?',
+  ],
+  encourager: [
+    'How am I doing with my training?',
+    'What should I focus on this week?',
+    'Help me stay motivated',
+  ],
+  pragmatist: [
+    "What's the most important thing I should do this week?",
+    'I only have 45 minutes — what should I do?',
+    "Keep my training simple — what's the plan?",
+  ],
+  competitor: [
+    'How do I get faster than I am now?',
+    'What are my biggest performance limiters?',
+    'What would a serious racer do in my position?',
+  ],
+};
+
+export const DEFAULT_COLD_START_PROMPTS = COLD_START_PROMPTS.pragmatist;

@@ -24,6 +24,8 @@ import { ArrowsClockwise, CalendarPlus, PaperPlaneRight, Robot, Sparkle, User } 
 import { CoachMarkdown } from './CoachMarkdown';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import { resolveScheduledDate } from '../../utils/dateUtils';
+import { PERSONAS, COLD_START_PROMPTS, DEFAULT_COLD_START_PROMPTS } from '../../data/coachingPersonas';
+import { Link } from 'react-router-dom';
 
 // Generate coaching message — now includes workout recommendation for consistency
 function getCoachingMessage(trainingContext, workoutRecommendation) {
@@ -81,9 +83,30 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
   const [conversationHistory, setConversationHistory] = useState([]);
   const [trainingPlanPreview, setTrainingPlanPreview] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [personaId, setPersonaId] = useState(null);
+
+  // Fetch coaching persona for display
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('user_coach_settings')
+      .select('coaching_persona')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.coaching_persona && data.coaching_persona !== 'pending') {
+          setPersonaId(data.coaching_persona);
+        }
+      });
+  }, [user?.id]);
 
   // Get coaching message based on current form
   const coachingMessage = getCoachingMessage(trainingContext, workoutRecommendation);
+
+  // Persona-specific cold-start prompts
+  const coldStartPrompts = personaId
+    ? (COLD_START_PROMPTS[personaId] || DEFAULT_COLD_START_PROMPTS)
+    : DEFAULT_COLD_START_PROMPTS;
 
   // Scroll to bottom of chat when new messages arrive
   useEffect(() => {
@@ -552,7 +575,14 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
             <ThemeIcon size="lg" color="teal" variant="light" radius="md">
               <Sparkle size={18} />
             </ThemeIcon>
-            <Text fw={600}>Coach</Text>
+            <Text fw={600}>
+              Coach{personaId && PERSONAS[personaId] ? ` · ${PERSONAS[personaId].name}` : ''}
+            </Text>
+            {!personaId && (
+              <Button component={Link} to="/train" variant="subtle" size="compact-xs" color="teal">
+                Set up coach
+              </Button>
+            )}
           </Group>
         </Group>
 
@@ -568,11 +598,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                 Try asking:
               </Text>
               <Stack gap={4}>
-                {[
-                  'What should I work on based on my recent rides?',
-                  'Build me a 4-week training plan',
-                  "How's my fitness trending?",
-                ].map((prompt) => (
+                {coldStartPrompts.map((prompt) => (
                   <Button
                     key={prompt}
                     variant="light"
