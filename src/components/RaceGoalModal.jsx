@@ -25,20 +25,17 @@ import { useAuth } from '../contexts/AuthContext';
 import { tokens } from '../theme';
 import { formatLocalDate } from '../utils/dateUtils';
 import { CalendarBlank, CaretDown, CaretUp, Check, Clock, Fire, Mountains, Path, Target, Trash, Trophy } from '@phosphor-icons/react';
+import { RACE_TYPES as BASE_RACE_TYPES } from '../utils/raceTypes';
 
-// Race type options
-const RACE_TYPES = [
-  { value: 'road_race', label: '🚴 Road Race' },
-  { value: 'criterium', label: '🔄 Criterium' },
-  { value: 'time_trial', label: '⏱️ Time Trial' },
-  { value: 'gran_fondo', label: '🏔️ Gran Fondo' },
-  { value: 'century', label: '💯 Century Ride' },
-  { value: 'gravel', label: '🪨 Gravel Race' },
-  { value: 'cyclocross', label: '🌲 Cyclocross' },
-  { value: 'mtb', label: '🏔️ Mountain Bike' },
-  { value: 'triathlon', label: '🏊 Triathlon (Bike)' },
-  { value: 'other', label: '🎯 Other Event' },
-];
+// Race type options with emoji labels for the modal
+const RACE_TYPES = BASE_RACE_TYPES.map(t => {
+  const emojiMap = {
+    road_race: '🚴', criterium: '🔄', time_trial: '⏱️', gran_fondo: '🏔️',
+    century: '💯', gravel: '🪨', cyclocross: '🌲', mtb: '🏔️',
+    triathlon: '🏊', other: '🎯',
+  };
+  return { ...t, label: `${emojiMap[t.value] || '🎯'} ${t.label}` };
+});
 
 // Priority options with descriptions
 const PRIORITY_OPTIONS = [
