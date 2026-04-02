@@ -48,7 +48,7 @@ import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
-import { SupplementWorkoutModal, SegmentLibraryPanel, TrainingPlanExportMenu } from '../components/training';
+import { SupplementWorkoutModal, SegmentLibraryPanel, TrainingPlanExportMenu, RaceTab } from '../components/training';
 import RaceGoalsPanel from '../components/RaceGoalsPanel.jsx';
 import PowerDurationCurve from '../components/PowerDurationCurve.jsx';
 import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
@@ -100,7 +100,7 @@ function TrainingDashboard() {
   // Read tab from URL query parameter, default to 'calendar'
   // Note: 'plans' tab moved to /planner page, 'today' moved to /today, 'routes' moved to /ride
   const urlTab = searchParams.get('tab');
-  const validTabs = ['coach', 'trends', 'power', 'history', 'insights', 'calendar'];
+  const validTabs = ['coach', 'race', 'trends', 'power', 'history', 'insights', 'calendar'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'calendar';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [timeRange, setTimeRange] = useState('30');
@@ -1010,6 +1010,16 @@ function TrainingDashboard() {
                 activities={visibleActivities}
                 ftp={ftp}
                 trainingContext={trainingContext}
+              />
+            )}
+
+            {/* RACE TAB */}
+            {activeTab === 'race' && (
+              <RaceTab
+                trainingContext={trainingContext}
+                isImperial={isImperial}
+                formatDist={formatDist}
+                formatElev={formatElev}
               />
             )}
 
@@ -2520,6 +2530,9 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
       }
       if (race.course_description) {
         context.push(`   Course: ${race.course_description}`);
+      }
+      if (race.route_id) {
+        context.push(`   Has linked route (detailed route data available in Race tab)`);
       }
     });
 

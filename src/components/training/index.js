@@ -14,6 +14,7 @@ export { default as RouteAnalysisPanel } from './RouteAnalysisPanel';
 export { default as SegmentLibraryPanel } from './SegmentLibraryPanel';
 export { default as TrainingPlanExportMenu } from './TrainingPlanExportMenu';
 export { default as PlanConflictModal } from './PlanConflictModal';
+export { default as RaceTab } from './RaceTab';
 
 // Re-export types and utilities for convenience
 export * from '../../services/trainingTemplates';
