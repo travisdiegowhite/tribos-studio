@@ -207,7 +207,7 @@ export default function RaceTab({
 
     const loadChatHistory = async () => {
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('coach_conversations')
           .select('id, role, message, timestamp')
           .eq('user_id', user.id)
@@ -215,9 +215,15 @@ export default function RaceTab({
           .order('timestamp', { ascending: true })
           .limit(50);
 
+        if (error) {
+          // race_goal_id column may not exist yet if migration hasn't run
+          console.log('Race chat history query failed (migration may be pending):', error.message);
+          setMessages([]);
+          return;
+        }
+
         setMessages(data || []);
       } catch {
-        // race_goal_id column may not exist yet — that's OK
         setMessages([]);
       }
     };
@@ -345,28 +351,41 @@ export default function RaceTab({
       const data = await res.json();
       const coachResponse = data.message || '';
 
-      // Persist messages
+      // Persist messages — try with race_goal_id, fall back without if column doesn't exist
       const timestamp = new Date().toISOString();
-      await Promise.all([
-        supabase.from('coach_conversations').insert({
-          user_id: user.id,
-          role: 'user',
-          message: msg,
-          message_type: 'chat',
-          race_goal_id: selectedRaceId,
-          coach_type: 'training',
-          timestamp,
-        }),
-        supabase.from('coach_conversations').insert({
-          user_id: user.id,
-          role: 'coach',
-          message: coachResponse,
-          message_type: 'chat',
-          race_goal_id: selectedRaceId,
-          coach_type: 'training',
-          timestamp: new Date(Date.now() + 1).toISOString(),
-        }),
+      const userMsg = {
+        user_id: user.id,
+        role: 'user',
+        message: msg,
+        message_type: 'chat',
+        race_goal_id: selectedRaceId,
+        coach_type: 'training',
+        timestamp,
+      };
+      const coachMsg = {
+        user_id: user.id,
+        role: 'coach',
+        message: coachResponse,
+        message_type: 'chat',
+        race_goal_id: selectedRaceId,
+        coach_type: 'training',
+        timestamp: new Date(Date.now() + 1).toISOString(),
+      };
+
+      const results = await Promise.all([
+        supabase.from('coach_conversations').insert(userMsg),
+        supabase.from('coach_conversations').insert(coachMsg),
       ]);
+
+      // If inserts failed (race_goal_id column missing), retry without it
+      if (results[0].error || results[1].error) {
+        const { race_goal_id: _u, ...userMsgFallback } = userMsg;
+        const { race_goal_id: _c, ...coachMsgFallback } = coachMsg;
+        await Promise.all([
+          supabase.from('coach_conversations').insert(userMsgFallback),
+          supabase.from('coach_conversations').insert(coachMsgFallback),
+        ]);
+      }
 
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== tempUserMsg.id),

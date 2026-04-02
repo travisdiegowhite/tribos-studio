@@ -504,7 +504,7 @@ Use this tool whenever the athlete asks about:
 - "year over year"
 - "historically"
 
-IMPORTANT: Always use the query_fitness_history tool for historical questions. Never guess about past performance - the tool has actual data.
+IMPORTANT: Use the query_fitness_history tool ONLY for historical comparisons (past weeks/months/years). For the athlete's CURRENT fitness (today's CTL, ATL, TSB), always use the values from the Training Context above — they are computed in real-time and are more accurate than weekly snapshots. Never override the live context values with snapshot data.
 
 **ADVANCED RIDE ANALYTICS (available per activity):**
 
@@ -915,6 +915,8 @@ ${checkInLines}`;
     if (trainingContext) {
       systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT (INCLUDING RACE CALENDAR) ===
 IMPORTANT: You have DIRECT ACCESS to all information below. This includes their race goals, event dates, distances, and performance targets. Reference this data directly in your responses.
+
+CRITICAL: The CTL, ATL, and TSB values in this context are computed IN REAL-TIME from the athlete's full activity history. They are the most accurate and up-to-date fitness metrics available. If the query_fitness_history tool returns different CTL/ATL/TSB values, ALWAYS trust the values in this context block for CURRENT fitness. The fitness history tool uses weekly snapshots that may be stale. Only use the fitness history tool for HISTORICAL comparisons (e.g., "this time last year"), not for current fitness assessment.
 
 ${trainingContext}`;
     }
