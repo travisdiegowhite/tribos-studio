@@ -25,7 +25,10 @@ function RouteStatsPanel({
   getUserSpeedForProfile,
   routeProfile,
   personalizedETA,
+  trainingGoal,
+  targetFinishMinutes,
 }) {
+  const isRace = trainingGoal === 'race';
   const getRoutingSourceLabel = (source) => {
     switch (source) {
       case 'stadia_maps': return 'Stadia Maps (Valhalla)';
@@ -57,14 +60,15 @@ function RouteStatsPanel({
     },
     {
       icon: hasETA ? <User size={20} /> : <Clock size={20} />,
-      label: hasETA ? 'Your ETA' : 'Est. Time',
+      label: hasETA ? (isRace ? 'Race ETA' : 'Your ETA') : 'Est. Time',
       value: hasETA
         ? personalizedETA.formattedTime
         : (rawDuration || '--:--'),
-      color: hasETA ? 'var(--color-teal)' : tokens.colors.zone1,
+      color: hasETA ? (isRace ? tokens.colors.terracotta : 'var(--color-teal)') : tokens.colors.zone1,
       tooltip: hasETA
-        ? buildETATooltip(personalizedETA, rawDuration)
+        ? buildETATooltip(personalizedETA, rawDuration, targetFinishMinutes)
         : null,
+      badge: isRace && hasETA ? 'RACE PACE' : null,
     },
     {
       icon: <Lightning size={20} />,
@@ -125,6 +129,11 @@ function RouteStatsPanel({
               >
                 {item.value}
               </Text>
+              {item.badge && (
+                <Badge size="xs" variant="filled" color="terracotta" mb={2}>
+                  {item.badge}
+                </Badge>
+              )}
               <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
                 {item.label}
               </Text>
@@ -287,7 +296,7 @@ function TWLProjection({ stats, hasETA, personalizedETA }) {
   );
 }
 
-function buildETATooltip(eta, rawDuration) {
+function buildETATooltip(eta, rawDuration, targetFinishMinutes) {
   const { breakdown } = eta;
   const lines = [
     `Base speed: ${breakdown.baseSpeed} km/h`,
@@ -300,6 +309,11 @@ function buildETATooltip(eta, rawDuration) {
   }
   if (rawDuration) {
     lines.push(`Flat estimate: ${rawDuration}`);
+  }
+  if (targetFinishMinutes) {
+    const targetH = Math.floor(targetFinishMinutes / 60);
+    const targetM = targetFinishMinutes % 60;
+    lines.push(`Target: ${targetH}h ${targetM}m`);
   }
   return lines.join('\n');
 }

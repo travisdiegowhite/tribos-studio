@@ -28,6 +28,7 @@ const GOAL_MULTIPLIERS = {
   tempo: 1.05,
   intervals: 0.90, // includes rest intervals
   hills: 0.92,
+  race: 1.10,
 };
 
 // ── Surface speed multipliers (relative to paved) ────────────────────

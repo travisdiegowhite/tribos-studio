@@ -37,6 +37,11 @@ const initialState = {
   routeProfile: 'road',
   explicitDistanceKm: null, // When user specifies distance directly (e.g., "100km loop")
 
+  // Race-specific fields (when trainingGoal === 'race')
+  raceType: null,             // 'road_race', 'criterium', 'time_trial', etc.
+  raceDate: null,             // ISO date string for race day
+  targetFinishMinutes: null,  // User's target finish time in minutes
+
   // AI suggestions (the generated route options)
   aiSuggestions: [],
 
@@ -120,6 +125,22 @@ export const useRouteBuilderStore = create(
         lastSaved: Date.now()
       }),
 
+      // === Race Settings Actions ===
+      setRaceType: (type) => set({
+        raceType: type,
+        lastSaved: Date.now()
+      }),
+
+      setRaceDate: (date) => set({
+        raceDate: date,
+        lastSaved: Date.now()
+      }),
+
+      setTargetFinishMinutes: (minutes) => set({
+        targetFinishMinutes: minutes,
+        lastSaved: Date.now()
+      }),
+
       // === AI Suggestions Actions ===
       setAiSuggestions: (suggestions) => set({
         aiSuggestions: suggestions,
@@ -167,6 +188,9 @@ export const useRouteBuilderStore = create(
         routingSource: null,
         explicitDistanceKm: null,
         selectedWorkoutId: null,
+        raceType: null,
+        raceDate: null,
+        targetFinishMinutes: null,
         builderMode: 'ready',
         lastSaved: Date.now()
       }),
@@ -209,6 +233,9 @@ export const useRouteBuilderStore = create(
         routeType: state.routeType,
         routeProfile: state.routeProfile,
         explicitDistanceKm: state.explicitDistanceKm,
+        raceType: state.raceType,
+        raceDate: state.raceDate,
+        targetFinishMinutes: state.targetFinishMinutes,
         selectedWorkoutId: state.selectedWorkoutId,
         snapToRoads: state.snapToRoads,
         routingSource: state.routingSource,
