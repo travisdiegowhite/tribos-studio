@@ -41,6 +41,7 @@ import {
   Trophy,
 } from '@phosphor-icons/react';
 import { tokens } from '../../theme';
+import RoutePreviewMap from '../RouteBuilder/RoutePreviewMap';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -792,17 +793,27 @@ export default function RaceTab({
                       </Box>
                     )}
                   </Group>
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    color="teal"
-                    mt="sm"
-                    component="a"
-                    href={`/routes/${routeData.id}`}
-                    rightSection={<CaretRight size={12} />}
-                  >
-                    View Full Route
-                  </Button>
+                  {routeData.geometry && (
+                    <Box mt="sm">
+                      <RoutePreviewMap
+                        geometry={routeData.geometry}
+                        mode="terrain"
+                        height={160}
+                      />
+                    </Box>
+                  )}
+                  <Group justify="flex-end" mt="xs">
+                    <Button
+                      size="xs"
+                      variant="subtle"
+                      color="teal"
+                      component="a"
+                      href={`/routes/${routeData.id}`}
+                      rightSection={<CaretRight size={12} />}
+                    >
+                      Open in Route Builder
+                    </Button>
+                  </Group>
                 </Paper>
               ) : selectedRace.route_id ? null : (
                 <Paper

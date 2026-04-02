@@ -157,6 +157,17 @@ export default function RoutePreviewMap({
     [geometry],
   );
 
+  // Auto-extract elevation from 3D coordinates [lng, lat, elev] if no explicit profile
+  const resolvedElevation = useMemo(() => {
+    if (elevationProfile && elevationProfile.length > 0) return elevationProfile;
+    if (coords.length < 2) return null;
+    // Check if coordinates are 3D (have elevation as third element)
+    if (coords[0].length >= 3 && coords[0][2] != null) {
+      return coords.map((c) => c[2]);
+    }
+    return null;
+  }, [elevationProfile, coords]);
+
   const bounds = useMemo(() => computeBounds(coords), [coords]);
 
   const routeGeoJSON = useMemo<GeoJSON.Feature | null>(() => {
@@ -165,9 +176,9 @@ export default function RoutePreviewMap({
   }, [geometry]);
 
   const terrainData = useMemo(() => {
-    if (mode !== 'terrain' || !elevationProfile || coords.length < 2) return null;
-    return buildTerrainSegments(coords, elevationProfile);
-  }, [mode, elevationProfile, coords]);
+    if (mode !== 'terrain' || !resolvedElevation || coords.length < 2) return null;
+    return buildTerrainSegments(coords, resolvedElevation);
+  }, [mode, resolvedElevation, coords]);
 
   const handleLoad = useCallback(() => setMapLoaded(true), []);
 
