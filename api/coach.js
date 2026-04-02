@@ -918,6 +918,13 @@ IMPORTANT: You have DIRECT ACCESS to all information below. This includes their 
 
 CRITICAL: The CTL, ATL, and TSB values in this context are computed IN REAL-TIME from the athlete's full activity history. They are the most accurate and up-to-date fitness metrics available. If the query_fitness_history tool returns different CTL/ATL/TSB values, ALWAYS trust the values in this context block for CURRENT fitness. The fitness history tool uses weekly snapshots that may be stale. Only use the fitness history tool for HISTORICAL comparisons (e.g., "this time last year"), not for current fitness assessment.
 
+WORKOUT STATUS GUIDE: Planned workouts are labeled [DONE], [MISSED], [TODAY], [UPCOMING], or [SKIPPED].
+- [UPCOMING] workouts are scheduled for FUTURE days and are NOT overdue — do not count them as missed or as signs of poor compliance.
+- [MISSED] workouts are from PAST days that were not completed — these indicate actual missed training.
+- [TODAY] workouts are due today and still can be done.
+- Use "Weekly Compliance" (based only on past-due workouts) to judge adherence, NOT "Overall Plan Compliance" (which is cumulative across the entire plan duration and naturally starts low).
+- Many athletes have specific training day patterns (e.g., heavy Thu-Sun). Mid-week low volume is normal — check the full week schedule before judging.
+
 ${trainingContext}`;
     }
 

@@ -128,6 +128,7 @@ export default function RaceTab({
   const [raceGoals, setRaceGoals] = useState<RaceGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRaceId, setSelectedRaceId] = useState<string | null>(null);
+  const [completedRaces, setCompletedRaces] = useState<RaceGoal[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRace, setEditingRace] = useState<RaceGoal | null>(null);
 
@@ -168,6 +169,20 @@ export default function RaceTab({
       if (data && data.length > 0 && !selectedRaceId) {
         setSelectedRaceId(data[0].id);
       }
+
+      // Also load completed races (last 6 months) for context
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const { data: pastRaces } = await supabase
+        .from('race_goals')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'completed')
+        .gte('race_date', sixMonthsAgo.toISOString().split('T')[0])
+        .order('race_date', { ascending: false })
+        .limit(5);
+
+      setCompletedRaces(pastRaces || []);
     } catch (err) {
       console.error('Failed to load race goals:', err);
     } finally {
@@ -283,6 +298,29 @@ export default function RaceTab({
         parts.push(`Estimated Duration: ${h}h ${m}m`);
       }
       parts.push(`The athlete has linked a specific route to this race. Use the route data to provide specific pacing, terrain, and strategy advice.`);
+    }
+
+    // Include completed race results for historical reference
+    if (completedRaces.length > 0) {
+      parts.push(`\n--- RECENT RACE RESULTS ---`);
+      parts.push(`Reference these past results to assess readiness and compare fitness progression.`);
+      completedRaces.forEach((race) => {
+        const raceDate = new Date(race.race_date + 'T00:00:00');
+        let line = `${race.name} (${raceDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`;
+        line += ` — ${race.race_type?.replace('_', ' ')}`;
+        if (race.distance_km) line += `, ${Math.round(race.distance_km)} km`;
+        const resultParts: string[] = [];
+        if ((race as any).actual_time_minutes) {
+          const h = Math.floor((race as any).actual_time_minutes / 60);
+          const m = (race as any).actual_time_minutes % 60;
+          resultParts.push(`${h}h ${m}m`);
+        }
+        if ((race as any).actual_power_watts) resultParts.push(`${(race as any).actual_power_watts}W`);
+        if ((race as any).actual_placement) resultParts.push((race as any).actual_placement);
+        if (resultParts.length > 0) line += ` | Result: ${resultParts.join(', ')}`;
+        if ((race as any).result_notes) line += ` | ${(race as any).result_notes}`;
+        parts.push(line);
+      });
     }
 
     return parts.join('\n');
