@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Box, Text, Group, Skeleton } from '@mantine/core';
 import Map, { Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { fetchElevationProfile, calculateElevationStats } from '../../utils/directions';
+import { getElevationData, calculateElevationStats } from '../../utils/elevation';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -23,7 +23,8 @@ type OverlayMode = 'plain' | 'terrain';
 interface ElevationPoint {
   elevation: number;
   distance: number;
-  coordinate: number[];
+  lat: number;
+  lon: number;
 }
 
 interface RoutePreviewMapProps {
@@ -174,8 +175,7 @@ function buildTerrainSegmentsFromProfile(
  *
  * Renders a route polyline with optional grade-based terrain coloring.
  * When mode='terrain' and no elevation data is available, automatically
- * fetches elevation using the same multi-source API (Open-Elevation /
- * Mapbox terrain) used by the route builder.
+ * fetches elevation via the /api/elevation proxy (same as the route builder).
  */
 export default function RoutePreviewMap({
   geometry,
@@ -213,7 +213,7 @@ export default function RoutePreviewMap({
     let cancelled = false;
     setElevFetchAttempted(true);
 
-    fetchElevationProfile(coords, MAPBOX_TOKEN).then((profile: ElevationPoint[]) => {
+    getElevationData(coords).then((profile: ElevationPoint[] | null) => {
       if (cancelled) return;
       if (!profile || profile.length < 2) {
         console.warn('RoutePreviewMap: elevation fetch returned insufficient data', profile?.length);
@@ -240,11 +240,11 @@ export default function RoutePreviewMap({
 
     // Priority 1: explicit elevation profile prop (array of numbers per coord)
     if (elevationProfile && elevationProfile.length >= 2) {
-      // Convert simple number array to ElevationPoint-like for the builder
       const asProfile: ElevationPoint[] = elevationProfile.map((elev, i) => ({
         elevation: elev,
         distance: i, // placeholder — buildTerrainSegmentsFromProfile normalizes
-        coordinate: coords[i] || [0, 0],
+        lat: coords[i]?.[1] ?? 0,
+        lon: coords[i]?.[0] ?? 0,
       }));
       return buildTerrainSegmentsFromProfile(coords, asProfile);
     }
@@ -254,7 +254,8 @@ export default function RoutePreviewMap({
       const asProfile: ElevationPoint[] = coords.map((c, i) => ({
         elevation: c[2],
         distance: i,
-        coordinate: c,
+        lat: c[1],
+        lon: c[0],
       }));
       return buildTerrainSegmentsFromProfile(coords, asProfile);
     }
