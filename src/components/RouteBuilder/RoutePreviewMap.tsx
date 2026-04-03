@@ -1,7 +1,8 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Box, Text, Group, Skeleton } from '@mantine/core';
 import Map, { Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { fetchElevationProfile, calculateElevationStats } from '../../utils/directions';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -19,6 +20,12 @@ const GRADE_COLOR_SCALE: [number, string][] = [
 
 type OverlayMode = 'plain' | 'terrain';
 
+interface ElevationPoint {
+  elevation: number;
+  distance: number;
+  coordinate: number[];
+}
+
 interface RoutePreviewMapProps {
   /** GeoJSON geometry (LineString or MultiLineString) from the routes table */
   geometry: GeoJSON.Geometry | null;
@@ -30,6 +37,8 @@ interface RoutePreviewMapProps {
   mode?: OverlayMode;
   /** Whether the map is interactive (pan/zoom). Default: false */
   interactive?: boolean;
+  /** Callback with computed elevation stats when fetched on-demand */
+  onElevationLoaded?: (stats: { elevation: number; elevationGain: number; elevationLoss: number }) => void;
 }
 
 function interpolateColor(value: number, scale: [number, string][]): string {
@@ -83,37 +92,64 @@ function computeBounds(coords: number[][]): [number, number, number, number] | n
 }
 
 /**
- * Build grade-colored GeoJSON segments from coordinates + elevation profile.
- * Each segment is a 2-point LineString with a color property based on grade %.
+ * Build grade-colored GeoJSON segments from sampled elevation data.
+ * Maps elevation points back to coordinate segments for coloring.
  */
-function buildTerrainSegments(
+function buildTerrainSegmentsFromProfile(
   coords: number[][],
-  elevationProfile: number[],
+  elevProfile: ElevationPoint[],
 ): { geojson: GeoJSON.FeatureCollection; minGrade: number; maxGrade: number } | null {
-  if (coords.length < 2 || elevationProfile.length < 2) return null;
+  if (coords.length < 2 || elevProfile.length < 2) return null;
 
-  // Compute grade for each segment (elevation delta / horizontal distance)
-  const grades: number[] = [];
-  for (let i = 0; i < coords.length - 1; i++) {
-    const [lng1, lat1] = coords[i];
-    const [lng2, lat2] = coords[i + 1];
-    // Approximate horizontal distance in meters using Haversine-lite
+  // Build an interpolated elevation value for each coordinate.
+  // elevProfile has sampled points with distance values; we interpolate
+  // between them to get elevation at each coordinate index.
+  const totalCoords = coords.length;
+  const elevAtCoord: number[] = new Array(totalCoords);
+
+  // Map each coordinate to a fractional position (0..1) along the route
+  let runningDist = 0;
+  const coordDists: number[] = [0];
+  for (let i = 1; i < totalCoords; i++) {
+    const [lng1, lat1] = coords[i - 1];
+    const [lng2, lat2] = coords[i];
     const dLat = (lat2 - lat1) * 111_320;
     const dLng = (lng2 - lng1) * 111_320 * Math.cos(((lat1 + lat2) / 2) * Math.PI / 180);
-    const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+    runningDist += Math.sqrt(dLat * dLat + dLng * dLng);
+    coordDists.push(runningDist);
+  }
+  const totalDist = runningDist || 1;
 
-    const elev1 = elevationProfile[Math.min(i, elevationProfile.length - 1)];
-    const elev2 = elevationProfile[Math.min(i + 1, elevationProfile.length - 1)];
-    const dElev = elev2 - elev1;
+  // elevProfile distances are in meters from start
+  const maxProfileDist = elevProfile[elevProfile.length - 1].distance || totalDist;
 
-    // Grade as absolute % (we care about steepness, not direction for coloring)
-    grades.push(dist > 1 ? Math.abs(dElev / dist) * 100 : 0);
+  let profileIdx = 0;
+  for (let i = 0; i < totalCoords; i++) {
+    const coordDistNorm = coordDists[i] / totalDist;
+    const targetDist = coordDistNorm * maxProfileDist;
+
+    // Advance profileIdx to bracket targetDist
+    while (profileIdx < elevProfile.length - 2 && elevProfile[profileIdx + 1].distance < targetDist) {
+      profileIdx++;
+    }
+
+    const p1 = elevProfile[profileIdx];
+    const p2 = elevProfile[Math.min(profileIdx + 1, elevProfile.length - 1)];
+    const span = p2.distance - p1.distance;
+    const t = span > 0 ? Math.max(0, Math.min(1, (targetDist - p1.distance) / span)) : 0;
+    elevAtCoord[i] = p1.elevation + (p2.elevation - p1.elevation) * t;
   }
 
-  // Normalize using 98th percentile to avoid outlier skew
+  // Compute grade for each segment
+  const grades: number[] = [];
+  for (let i = 0; i < totalCoords - 1; i++) {
+    const segDist = coordDists[i + 1] - coordDists[i];
+    const dElev = elevAtCoord[i + 1] - elevAtCoord[i];
+    grades.push(segDist > 1 ? Math.abs(dElev / segDist) * 100 : 0);
+  }
+
   const sorted = [...grades].sort((a, b) => a - b);
   const maxGrade = sorted[Math.floor(sorted.length * 0.98)] || 1;
-  const minGrade = 0;
 
   const features: GeoJSON.Feature[] = grades.map((grade, i) => ({
     type: 'Feature' as const,
@@ -128,7 +164,7 @@ function buildTerrainSegments(
 
   return {
     geojson: { type: 'FeatureCollection', features },
-    minGrade,
+    minGrade: 0,
     maxGrade,
   };
 }
@@ -137,11 +173,9 @@ function buildTerrainSegments(
  * RoutePreviewMap — lightweight, read-only map preview for route cards.
  *
  * Renders a route polyline with optional grade-based terrain coloring.
- * Designed to be embedded inline in cards/panels at small sizes.
- *
- * Future overlay modes (suitability, feeding zones, power targets)
- * can be added by extending the OverlayMode union and adding a
- * corresponding build function.
+ * When mode='terrain' and no elevation data is available, automatically
+ * fetches elevation using the same multi-source API (Open-Elevation /
+ * Mapbox terrain) used by the route builder.
  */
 export default function RoutePreviewMap({
   geometry,
@@ -149,24 +183,16 @@ export default function RoutePreviewMap({
   height = 180,
   mode = 'plain',
   interactive = false,
+  onElevationLoaded,
 }: RoutePreviewMapProps) {
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [fetchedProfile, setFetchedProfile] = useState<ElevationPoint[] | null>(null);
+  const [elevFetchAttempted, setElevFetchAttempted] = useState(false);
 
   const coords = useMemo(
     () => (geometry ? getCoordinates(geometry) : []),
     [geometry],
   );
-
-  // Auto-extract elevation from 3D coordinates [lng, lat, elev] if no explicit profile
-  const resolvedElevation = useMemo(() => {
-    if (elevationProfile && elevationProfile.length > 0) return elevationProfile;
-    if (coords.length < 2) return null;
-    // Check if coordinates are 3D (have elevation as third element)
-    if (coords[0].length >= 3 && coords[0][2] != null) {
-      return coords.map((c) => c[2]);
-    }
-    return null;
-  }, [elevationProfile, coords]);
 
   const bounds = useMemo(() => computeBounds(coords), [coords]);
 
@@ -175,10 +201,66 @@ export default function RoutePreviewMap({
     return { type: 'Feature', properties: {}, geometry };
   }, [geometry]);
 
+  // Check for inline 3D elevation
+  const has3DCoords = coords.length >= 2 && coords[0].length >= 3 && coords[0][2] != null;
+
+  // Fetch elevation on-demand when terrain mode needs it and we don't have any
+  const needsFetch = mode === 'terrain' && !elevationProfile?.length && !has3DCoords && !fetchedProfile && !elevFetchAttempted;
+
+  useEffect(() => {
+    if (!needsFetch || coords.length < 2) return;
+
+    let cancelled = false;
+    setElevFetchAttempted(true);
+
+    fetchElevationProfile(coords, MAPBOX_TOKEN).then((profile: ElevationPoint[]) => {
+      if (cancelled || !profile?.length) return;
+      setFetchedProfile(profile);
+
+      // Compute stats and notify parent
+      if (onElevationLoaded) {
+        const stats = calculateElevationStats(profile);
+        onElevationLoaded(stats);
+      }
+    }).catch(() => {
+      // Elevation fetch failed — map will show plain route
+    });
+
+    return () => { cancelled = true; };
+  }, [needsFetch, coords, onElevationLoaded]);
+
+  // Build terrain segments from whichever elevation source is available
   const terrainData = useMemo(() => {
-    if (mode !== 'terrain' || !resolvedElevation || coords.length < 2) return null;
-    return buildTerrainSegments(coords, resolvedElevation);
-  }, [mode, resolvedElevation, coords]);
+    if (mode !== 'terrain') return null;
+
+    // Priority 1: explicit elevation profile prop (array of numbers per coord)
+    if (elevationProfile && elevationProfile.length >= 2) {
+      // Convert simple number array to ElevationPoint-like for the builder
+      const asProfile: ElevationPoint[] = elevationProfile.map((elev, i) => ({
+        elevation: elev,
+        distance: i, // placeholder — buildTerrainSegmentsFromProfile normalizes
+        coordinate: coords[i] || [0, 0],
+      }));
+      return buildTerrainSegmentsFromProfile(coords, asProfile);
+    }
+
+    // Priority 2: 3D coordinates
+    if (has3DCoords) {
+      const asProfile: ElevationPoint[] = coords.map((c, i) => ({
+        elevation: c[2],
+        distance: i,
+        coordinate: c,
+      }));
+      return buildTerrainSegmentsFromProfile(coords, asProfile);
+    }
+
+    // Priority 3: fetched profile
+    if (fetchedProfile) {
+      return buildTerrainSegmentsFromProfile(coords, fetchedProfile);
+    }
+
+    return null;
+  }, [mode, elevationProfile, has3DCoords, fetchedProfile, coords]);
 
   const handleLoad = useCallback(() => setMapLoaded(true), []);
 

@@ -136,6 +136,7 @@ export default function RaceTab({
   // Route state
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
+  const [computedElevation, setComputedElevation] = useState<number | null>(null);
 
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -204,6 +205,7 @@ export default function RaceTab({
     }
 
     setRouteLoading(true);
+    setComputedElevation(null);
     getRoute(selectedRace.route_id)
       .then((data) => setRouteData(data))
       .catch((err) => {
@@ -775,9 +777,13 @@ export default function RaceTab({
                     <Box>
                       <Text size="xs" c="dimmed">Elevation</Text>
                       <Text size="sm" fw={500}>
-                        {isImperial
-                          ? `${Math.round(routeData.elevation_gain_m * 3.28084)} ft`
-                          : `${routeData.elevation_gain_m}m`}
+                        {(() => {
+                          const elevM = computedElevation ?? routeData.elevation_gain_m;
+                          if (!elevM) return '—';
+                          return isImperial
+                            ? `${Math.round(elevM * 3.28084)} ft`
+                            : `${Math.round(elevM)}m`;
+                        })()}
                       </Text>
                     </Box>
                     {routeData.surface_type && (
@@ -799,6 +805,9 @@ export default function RaceTab({
                         geometry={routeData.geometry}
                         mode="terrain"
                         height={160}
+                        onElevationLoaded={(stats) => {
+                          if (stats.elevation) setComputedElevation(stats.elevation);
+                        }}
                       />
                     </Box>
                   )}
