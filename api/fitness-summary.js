@@ -35,6 +35,20 @@ COACH CONTINUITY:
 - Never contradict what the coach has recommended.
 - If the coach conversation is unrelated to fitness state, ignore it.
 
+TRAINING PLAN & WEEK SCHEDULE:
+- If plan data is present, briefly reference the training block (e.g. "Build phase") when it adds useful context.
+- week_schedule shows each planned workout this week with status: [DONE], [PARTIAL], or [PLANNED].
+- Use ONLY the workout names from week_schedule. NEVER invent, guess, or paraphrase workout names.
+- When counting remaining workouts, count only [PLANNED] entries in the schedule.
+- When referencing an upcoming workout, use its actual name and day from the schedule.
+- If no plan or week_schedule is present, do not reference specific workouts.
+
+RACE GOAL:
+- If race_goal is present, you may briefly reference it when the athlete's form or training block relates to race preparation.
+
+HEALTH:
+- If health data is present and noteworthy (e.g., elevated resting HR, low sleep, low energy), briefly factor it into your assessment.
+
 EXPERIENCE LEVEL ADAPTATION:
 - beginner: avoid all jargon, use very plain language, be encouraging
 - intermediate: light jargon ok, focus on what to do next
@@ -107,7 +121,7 @@ export default async function handler(req, res) {
     // 3. Call Claude Haiku
     const response = await claude.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 120,
+      max_tokens: 150,
       system: SYSTEM_PROMPT,
       messages: [{
         role: 'user',

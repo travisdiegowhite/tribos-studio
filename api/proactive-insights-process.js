@@ -127,19 +127,69 @@ async function generateInsight(userId, activityId) {
     .order('start_date', { ascending: false })
     .limit(10);
 
-  // Fetch user profile for FTP/goals context
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('display_name, ftp, primary_sport')
-    .eq('id', userId)
-    .maybeSingle();
+  // Fetch user profile, active plan, matched workout, and race goal in parallel
+  const [profileResult, planResult, matchedWorkoutResult, raceGoalResult] = await Promise.all([
+    supabase
+      .from('user_profiles')
+      .select('display_name, ftp, primary_sport')
+      .eq('id', userId)
+      .maybeSingle(),
+
+    supabase
+      .from('training_plans')
+      .select('id, name, current_week, duration_weeks, methodology, goal')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
+    // Check if this activity is linked to a planned workout
+    activity.matched_planned_workout_id
+      ? supabase
+          .from('planned_workouts')
+          .select('name, workout_type, target_tss, target_duration')
+          .eq('id', activity.matched_planned_workout_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+
+    supabase
+      .from('race_goals')
+      .select('name, race_date, race_type, priority')
+      .eq('user_id', userId)
+      .eq('status', 'upcoming')
+      .order('priority', { ascending: true })
+      .order('race_date', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const profile = profileResult.data;
+  const plan = planResult.data;
+  const matchedWorkout = matchedWorkoutResult.data;
+  const raceGoal = raceGoalResult.data;
 
   // Build prompt
   const activityStats = formatActivityStats(activity);
   const trendContext = formatTrendContext(recentActivities || [], activity);
   const userContext = profile ? `Athlete FTP: ${profile.ftp || 'unknown'}. Primary sport: ${profile.primary_sport || 'cycling'}.` : '';
 
-  const prompt = `${userContext}
+  // Build plan context section
+  let planContext = '';
+  if (plan) {
+    const ratio = (plan.current_week || 1) / (plan.duration_weeks || 1);
+    const block = ratio <= 0.33 ? 'Base Building' : ratio <= 0.66 ? 'Build' : ratio <= 0.85 ? 'Peak' : 'Taper';
+    planContext += `\nTraining plan: ${plan.name} (${plan.methodology || 'general'}, week ${plan.current_week}/${plan.duration_weeks}, ${block} phase)`;
+    if (plan.goal) planContext += `\nPlan goal: ${plan.goal}`;
+  }
+  if (matchedWorkout) {
+    planContext += `\nPlanned workout: ${matchedWorkout.name || matchedWorkout.workout_type} (target TSS: ${matchedWorkout.target_tss || 'N/A'}, target duration: ${matchedWorkout.target_duration || 'N/A'} min)`;
+  }
+  if (raceGoal) {
+    planContext += `\nUpcoming race: ${raceGoal.name} (${raceGoal.race_type}, ${raceGoal.race_date})`;
+  }
+
+  const prompt = `${userContext}${planContext}
 
 Latest activity:
 ${activityStats}
@@ -147,7 +197,7 @@ ${activityStats}
 Recent training context (last ${(recentActivities || []).length} activities):
 ${trendContext}
 
-Give one specific, actionable coaching insight about this activity in 2-3 sentences. Reference actual numbers from the data. Don't be generic — be specific about what you notice and what the athlete should consider next.`;
+Give one specific, actionable coaching insight about this activity in 2-3 sentences. Reference actual numbers from the data. If the activity was a planned workout, comment on how actual performance compared to the plan. Don't be generic — be specific about what you notice and what the athlete should consider next.`;
 
   // Call Claude API
   const apiKey = process.env.ANTHROPIC_API_KEY;
