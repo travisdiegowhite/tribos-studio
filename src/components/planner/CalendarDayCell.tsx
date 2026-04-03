@@ -64,7 +64,7 @@ interface CalendarDayCellProps {
   onRemoveWorkout: (date: string) => void;
   onClick: (date: string) => void;
   onSetAvailability?: (date: string, status: AvailabilityStatus) => void;
-  onWorkoutClick?: (workout: WorkoutDefinition) => void;
+  onWorkoutClick?: (workout: WorkoutDefinition, plannedWorkout: PlannerWorkout, date: string) => void;
   onLinkActivity?: (workoutId: string, activityId: string) => void;
   linkingWorkoutId?: string | null; // Which workout is currently being linked (for loading state)
   weather?: DailyForecast;
@@ -388,7 +388,7 @@ export function CalendarDayCell({
             onClick={(e: React.MouseEvent) => {
               e.stopPropagation();
               if (onWorkoutClick && plannedWorkout.workout) {
-                onWorkoutClick(plannedWorkout.workout);
+                onWorkoutClick(plannedWorkout.workout, plannedWorkout, date);
               }
             }}
             style={{ cursor: 'pointer' }}

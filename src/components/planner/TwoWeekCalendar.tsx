@@ -8,7 +8,7 @@ import { useMemo, useState } from 'react';
 import { Box, Group, Text, ActionIcon, SimpleGrid, Paper, Badge, SegmentedControl, Stack, UnstyledButton, Tooltip, ThemeIcon } from '@mantine/core';
 import { CalendarDayCell } from './CalendarDayCell';
 import { WorkoutCard } from './WorkoutCard';
-import { WorkoutDetailModal } from './WorkoutDetailModal';
+import { WorkoutModal } from './WorkoutModal';
 import type { PlannerWorkout } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutDefinition } from '../../types/training';
 import type { DailyForecast } from '../../types/weather';
@@ -79,6 +79,7 @@ interface TwoWeekCalendarProps {
   onDragOver: (date: string) => void;
   onDragLeave: () => void;
   onRemoveWorkout: (date: string) => void;
+  onUpdateWorkout?: (date: string, updates: Partial<PlannerWorkout>) => void;
   onDateClick: (date: string) => void;
   onNavigate: (direction: 'prev' | 'next') => void;
   onSetAvailability?: (date: string, status: AvailabilityStatus) => void;
@@ -146,6 +147,7 @@ export function TwoWeekCalendar({
   onDragOver,
   onDragLeave,
   onRemoveWorkout,
+  onUpdateWorkout,
   onDateClick,
   onNavigate,
   onSetAvailability,
@@ -160,13 +162,17 @@ export function TwoWeekCalendar({
   const [mobileWeek, setMobileWeek] = useState<'1' | '2'>('1');
   // For mobile: track which day is selected for detail view (index 0-6 within current week)
   const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
-  // Workout detail modal state
+  // Workout modal state
   const [detailWorkout, setDetailWorkout] = useState<WorkoutDefinition | null>(null);
+  const [detailPlannedWorkout, setDetailPlannedWorkout] = useState<PlannerWorkout | null>(null);
+  const [detailDate, setDetailDate] = useState<string | undefined>(undefined);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
 
-  // Handle workout click to open detail modal
-  const handleWorkoutClick = (workout: WorkoutDefinition) => {
+  // Handle workout click to open combined detail+edit modal
+  const handleWorkoutClick = (workout: WorkoutDefinition, plannedWorkout: PlannerWorkout, date: string) => {
     setDetailWorkout(workout);
+    setDetailPlannedWorkout(plannedWorkout);
+    setDetailDate(date);
     setDetailModalOpen(true);
   };
   // Generate 14 days starting from startDate
@@ -635,7 +641,7 @@ export function TwoWeekCalendar({
                     Planned Workout
                   </Text>
                   <Box
-                    onClick={() => selectedDayWorkout.workout && handleWorkoutClick(selectedDayWorkout.workout)}
+                    onClick={() => selectedDayWorkout.workout && selectedDay && handleWorkoutClick(selectedDayWorkout.workout, selectedDayWorkout, selectedDay.date)}
                     style={{ cursor: 'pointer' }}
                   >
                     <WorkoutCard
@@ -816,11 +822,23 @@ export function TwoWeekCalendar({
         </Text>
       )}
 
-      {/* Workout Detail Modal */}
-      <WorkoutDetailModal
+      {/* Workout Modal (detail + edit) */}
+      <WorkoutModal
         workout={detailWorkout}
+        plannedWorkout={detailPlannedWorkout}
         opened={detailModalOpen}
         onClose={() => setDetailModalOpen(false)}
+        onSave={(updates) => {
+          if (detailDate && onUpdateWorkout) {
+            onUpdateWorkout(detailDate, updates);
+          }
+        }}
+        onDelete={() => {
+          if (detailDate) {
+            onRemoveWorkout(detailDate);
+          }
+        }}
+        scheduledDate={detailDate}
       />
     </Box>
   );
