@@ -3,14 +3,26 @@ import { estimateActivityTSS, computeWeeklySnapshots } from './computeFitnessSna
 import type { ActivityInput } from './computeFitnessSnapshots';
 
 describe('estimateActivityTSS', () => {
-  it('returns stored TSS when available', () => {
+  it('prefers kJ+FTP over stored TSS for consistent year-over-year comparison', () => {
+    // Activity has stored TSS=150 (from device with old FTP), but also has kJ.
+    // kJ+FTP should win for consistent computation across years.
     const activity: ActivityInput = {
       start_date: '2026-03-15T10:00:00Z',
       tss: 150,
       kilojoules: 1440,
       moving_time: 7200,
     };
-    expect(estimateActivityTSS(activity)).toBe(150);
+    // TSS = 1440 / (200 × 0.036) = 200 (kJ wins over stored 150)
+    expect(estimateActivityTSS(activity, 200)).toBe(200);
+  });
+
+  it('falls back to stored TSS when no kJ, NP, or power data', () => {
+    const activity: ActivityInput = {
+      start_date: '2026-03-15T10:00:00Z',
+      tss: 150,
+      moving_time: 7200,
+    };
+    expect(estimateActivityTSS(activity, 200)).toBe(150);
   });
 
   describe('kJ-based estimation (Tier 4)', () => {

@@ -86,39 +86,44 @@ function estimateRunningTSS(activity: ActivityInput): number {
 }
 
 /**
- * Estimate TSS for any activity, using a 5-tier fallback:
- * 1. Stored TSS (from device/FIT file)
- * 2. Running-specific estimation (pace + HR)
- * 3. Normalized power + FTP → standard TSS formula
- * 4. Kilojoules → approximate TSS
- * 5. Duration + elevation + avg watts heuristic
+ * Estimate TSS for any activity using a consistent FTP-based approach.
  *
- * Mirrors api/utils/fitnessSnapshots.js estimateTSS.
+ * Prioritizes computing TSS from the user's current FTP so that
+ * year-over-year comparisons are apples-to-apples. Stored TSS from
+ * devices may reflect a different FTP setting from the time of the ride,
+ * so it's used only as a fallback when we can't compute a better estimate.
+ *
+ * Tier order:
+ * 1. Running-specific estimation (pace + HR)
+ * 2. Normalized power + current FTP → standard TSS formula
+ * 3. Kilojoules + current FTP → derived TSS
+ * 4. Stored TSS from device (fallback — may use different FTP)
+ * 5. Duration + elevation + avg watts heuristic
  */
 export function estimateActivityTSS(
   activity: ActivityInput,
   ftp?: number | null
 ): number {
-  // Tier 1: stored TSS
-  if (activity.tss && activity.tss > 0) return activity.tss;
-
-  // Tier 2: running-specific
+  // Tier 1: running-specific
   if (RUNNING_TYPES.includes(activity.type || '')) {
     return estimateRunningTSS(activity);
   }
 
-  // Tier 3: normalized power + FTP
+  // Tier 2: normalized power + current FTP (most accurate, consistent across years)
   if (activity.normalized_power && activity.normalized_power > 0 && ftp && ftp > 0) {
     const tss = calculateTSS(activity.moving_time || 0, activity.normalized_power, ftp);
     if (tss !== null && tss > 0) return tss;
   }
 
-  // Tier 4: kilojoules
-  // TSS ≈ kJ / (FTP × 0.036) — derived from TSS = (duration × NP × IF) / (FTP × 3600) × 100
+  // Tier 3: kilojoules + current FTP (consistent across years)
+  // TSS ≈ kJ / (FTP × 0.036)
   if (activity.kilojoules && activity.kilojoules > 0) {
     const effectiveFtp = ftp && ftp > 0 ? ftp : 200;
     return Math.round(activity.kilojoules / (effectiveFtp * 0.036));
   }
+
+  // Tier 4: stored TSS from device (may use a different FTP than current)
+  if (activity.tss && activity.tss > 0) return activity.tss;
 
   // Tier 5: duration + elevation + avg watts heuristic
   const durationHours = (activity.moving_time || 0) / 3600;
