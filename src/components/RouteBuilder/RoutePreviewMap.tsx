@@ -38,7 +38,7 @@ interface RoutePreviewMapProps {
   /** Whether the map is interactive (pan/zoom). Default: false */
   interactive?: boolean;
   /** Callback with computed elevation stats when fetched on-demand */
-  onElevationLoaded?: (stats: { elevation: number; elevationGain: number; elevationLoss: number }) => void;
+  onElevationLoaded?: (stats: { gain: number; loss: number; min: number; max: number }) => void;
 }
 
 function interpolateColor(value: number, scale: [number, string][]): string {
@@ -214,7 +214,12 @@ export default function RoutePreviewMap({
     setElevFetchAttempted(true);
 
     fetchElevationProfile(coords, MAPBOX_TOKEN).then((profile: ElevationPoint[]) => {
-      if (cancelled || !profile?.length) return;
+      if (cancelled) return;
+      if (!profile || profile.length < 2) {
+        console.warn('RoutePreviewMap: elevation fetch returned insufficient data', profile?.length);
+        return;
+      }
+      console.log('RoutePreviewMap: elevation loaded', profile.length, 'points');
       setFetchedProfile(profile);
 
       // Compute stats and notify parent
@@ -222,8 +227,8 @@ export default function RoutePreviewMap({
         const stats = calculateElevationStats(profile);
         onElevationLoaded(stats);
       }
-    }).catch(() => {
-      // Elevation fetch failed — map will show plain route
+    }).catch((err) => {
+      console.warn('RoutePreviewMap: elevation fetch failed', err);
     });
 
     return () => { cancelled = true; };

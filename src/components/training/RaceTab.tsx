@@ -806,7 +806,7 @@ export default function RaceTab({
                         mode="terrain"
                         height={160}
                         onElevationLoaded={(stats) => {
-                          if (stats.elevation) setComputedElevation(stats.elevation);
+                          if (stats.gain) setComputedElevation(stats.gain);
                         }}
                       />
                     </Box>
