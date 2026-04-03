@@ -31,10 +31,25 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   weekStart.setDate(weekStart.getDate() - mondayOffset);
   const weekStartStr = weekStart.toISOString().split('T')[0];
 
+  // End of current week (next Monday, exclusive upper bound)
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekEndStr = weekEnd.toISOString().split('T')[0];
+
   // 7 days from now
   const sevenDaysOut = new Date(now);
   sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
   const sevenDaysOutStr = sevenDaysOut.toISOString().split('T')[0];
+
+  // Pre-fetch active training plan IDs (planned_workouts has no user_id column;
+  // must join through training_plans to scope workouts to this user)
+  const { data: activePlans } = await supabase
+    .from('training_plans')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'active');
+
+  const planIds = (activePlans || []).map(p => p.id);
 
   // Run all queries in parallel
   const [
@@ -62,13 +77,16 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .is('duplicate_of', null)
       .gte('start_date', weekStart.toISOString()),
 
-    // 3. This week's planned workouts (for spike guard)
-    supabase
-      .from('planned_workouts')
-      .select('id, scheduled_date, completed')
-      .eq('user_id', userId)
-      .gte('scheduled_date', weekStartStr)
-      .lte('scheduled_date', today),
+    // 3. This week's planned workouts (full Mon-Sun, excl. rest days — matches Dashboard)
+    planIds.length > 0
+      ? supabase
+          .from('planned_workouts')
+          .select('id, scheduled_date, completed')
+          .in('plan_id', planIds)
+          .gte('scheduled_date', weekStartStr)
+          .lt('scheduled_date', weekEndStr)
+          .gt('target_tss', 0)
+      : Promise.resolve({ data: [] }),
 
     // 4. Last 6 coach messages (3 exchanges)
     supabase
@@ -79,15 +97,17 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .limit(6),
 
     // 5. Upcoming key workouts (next 7 days, high TSS or specific types)
-    supabase
-      .from('planned_workouts')
-      .select('scheduled_date, workout_type, target_tss')
-      .eq('user_id', userId)
-      .gte('scheduled_date', today)
-      .lte('scheduled_date', sevenDaysOutStr)
-      .eq('completed', false)
-      .order('target_tss', { ascending: false })
-      .limit(3),
+    planIds.length > 0
+      ? supabase
+          .from('planned_workouts')
+          .select('scheduled_date, workout_type, target_tss')
+          .in('plan_id', planIds)
+          .gte('scheduled_date', today)
+          .lte('scheduled_date', sevenDaysOutStr)
+          .eq('completed', false)
+          .order('target_tss', { ascending: false })
+          .limit(3)
+      : Promise.resolve({ data: [] }),
 
     // 6. Athlete profile
     supabase

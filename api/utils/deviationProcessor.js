@@ -42,7 +42,7 @@ export async function enqueueDeviationAnalysis(supabase, userId, activityId) {
     const { data: todayWorkout } = await supabase
       .from('planned_workouts')
       .select('id')
-      .eq('user_id', userId)
+      .eq('plan_id', plan.id)
       .eq('scheduled_date', today)
       .limit(1)
       .single();
