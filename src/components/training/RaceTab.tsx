@@ -26,6 +26,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
 import { getRoute } from '../../utils/routesService';
+import { getElevationData, calculateElevationStats } from '../../utils/elevation';
 import RaceGoalModal from '../RaceGoalModal';
 import { CoachMarkdown } from '../coach/CoachMarkdown';
 import {
@@ -136,6 +137,7 @@ export default function RaceTab({
   // Route state
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
+  const [elevationProfile, setElevationProfile] = useState<{ elevation: number; distance: number }[] | null>(null);
   const [computedElevation, setComputedElevation] = useState<number | null>(null);
 
   // Chat state
@@ -206,13 +208,28 @@ export default function RaceTab({
 
     setRouteLoading(true);
     setComputedElevation(null);
+    setElevationProfile(null);
     getRoute(selectedRace.route_id)
-      .then((data) => setRouteData(data))
+      .then(async (data) => {
+        setRouteData(data);
+        setRouteLoading(false);
+
+        // Fetch elevation (same as route builder) if geometry exists
+        const coords = data?.geometry?.coordinates;
+        if (coords?.length >= 2) {
+          const elev = await getElevationData(coords);
+          if (elev?.length >= 2) {
+            setElevationProfile(elev);
+            const stats = calculateElevationStats(elev);
+            if (stats.gain) setComputedElevation(stats.gain);
+          }
+        }
+      })
       .catch((err) => {
         console.error('Failed to load route:', err);
         setRouteData(null);
-      })
-      .finally(() => setRouteLoading(false));
+        setRouteLoading(false);
+      });
   }, [selectedRace?.route_id]);
 
   // ─── Load Chat History For Selected Race ───────────────────────────────
@@ -803,11 +820,9 @@ export default function RaceTab({
                     <Box mt="sm">
                       <RoutePreviewMap
                         geometry={routeData.geometry}
-                        mode="terrain"
+                        mode={elevationProfile ? 'terrain' : 'plain'}
                         height={160}
-                        onElevationLoaded={(stats) => {
-                          if (stats.gain) setComputedElevation(stats.gain);
-                        }}
+                        elevationProfile={elevationProfile ?? undefined}
                       />
                     </Box>
                   )}
