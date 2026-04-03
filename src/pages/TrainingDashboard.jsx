@@ -55,6 +55,7 @@ import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
 import RampRateAlert, { RampRateBadge } from '../components/RampRateAlert.jsx';
 import { ActivityMetricsBadges } from '../components/ActivityMetrics.jsx';
 import RideAnalysisModal from '../components/RideAnalysisModal.jsx';
+import { WorkoutModal } from '../components/planner/WorkoutModal';
 import { WorkoutDifficultyBadge, getQuickDifficultyEstimate } from '../components/WorkoutDifficultyBadge.jsx';
 import CriticalPowerModel from '../components/CriticalPowerModel.jsx';
 import TrainNow from '../components/TrainNow.jsx';
@@ -1132,12 +1133,12 @@ function TrainingDashboard() {
         }}
       />
 
-      {/* Workout Detail Modal */}
-      <WorkoutDetailModal
+      {/* Workout Detail Modal (shared with planner for consistent experience) */}
+      <WorkoutModal
+        workout={selectedWorkout}
+        plannedWorkout={null}
         opened={workoutModalOpen}
         onClose={() => setWorkoutModalOpen(false)}
-        workout={selectedWorkout}
-        ftp={ftp}
       />
 
       {/* Supplement Workout Modal */}
@@ -2072,10 +2073,8 @@ function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousM
   );
 }
 
-// ============================================================================
-// WORKOUT DETAIL MODAL
-// ============================================================================
-function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
+// WorkoutDetailModal removed — now using shared WorkoutModal from planner/WorkoutModal.tsx
+function _WorkoutDetailModal_REMOVED() {
   if (!workout) return null;
 
   // Format workout structure for display

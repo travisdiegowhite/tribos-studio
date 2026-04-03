@@ -64,7 +64,7 @@ interface CalendarDayCellProps {
   onRemoveWorkout: (date: string) => void;
   onClick: (date: string) => void;
   onSetAvailability?: (date: string, status: AvailabilityStatus) => void;
-  onWorkoutClick?: (workout: WorkoutDefinition) => void;
+  onWorkoutClick?: (workout: WorkoutDefinition, plannedWorkout: PlannerWorkout, date: string) => void;
   onLinkActivity?: (workoutId: string, activityId: string) => void;
   linkingWorkoutId?: string | null; // Which workout is currently being linked (for loading state)
   weather?: DailyForecast;
@@ -226,8 +226,8 @@ export function CalendarDayCell({
     if (isDropTarget) return 'rgba(163, 230, 53, 0.15)';
     if (isBlocked) return 'rgba(250, 82, 82, 0.1)';
     if (isPreferred) return 'rgba(250, 204, 21, 0.1)';
-    if (isPast) return 'var(--mantine-color-dark-7)';
-    return 'var(--mantine-color-dark-6)';
+    if (isPast) return 'var(--color-bg-secondary)';
+    return 'var(--tribos-card)';
   };
 
   // Get border color based on state
@@ -236,7 +236,7 @@ export function CalendarDayCell({
     if (isToday) return '2px solid var(--mantine-color-terracotta-6)';
     if (isBlocked) return '1px solid var(--mantine-color-red-7)';
     if (isPreferred) return '1px solid var(--mantine-color-yellow-7)';
-    return '1px solid var(--mantine-color-dark-4)';
+    return '1px solid var(--tribos-border-default)';
   };
 
   const cellContent = (
@@ -388,7 +388,7 @@ export function CalendarDayCell({
             onClick={(e: React.MouseEvent) => {
               e.stopPropagation();
               if (onWorkoutClick && plannedWorkout.workout) {
-                onWorkoutClick(plannedWorkout.workout);
+                onWorkoutClick(plannedWorkout.workout, plannedWorkout, date);
               }
             }}
             style={{ cursor: 'pointer' }}
@@ -487,7 +487,7 @@ export function CalendarDayCell({
                   style={{
                     position: 'relative',
                     height: 6,
-                    backgroundColor: 'var(--mantine-color-dark-4)',
+                    backgroundColor: 'var(--tribos-border-subtle)',
                     borderRadius: 3,
                     overflow: 'hidden',
                   }}
@@ -588,7 +588,7 @@ export function CalendarDayCell({
             alignItems: 'center',
             justifyContent: 'center',
             minHeight: 60,
-            border: '1px dashed var(--mantine-color-dark-4)',
+            border: '1px dashed var(--tribos-border-default)',
             borderRadius: 4,
             opacity: 0.5,
           }}

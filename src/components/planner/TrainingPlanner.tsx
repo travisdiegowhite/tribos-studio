@@ -1132,6 +1132,7 @@ export function TrainingPlanner({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onRemoveWorkout={store.removeWorkout}
+                onUpdateWorkout={store.updateWorkout}
                 onDateClick={isMobile ? handleDateTap : store.selectDate}
                 onNavigate={store.navigateWeeks}
                 onSetAvailability={handleSetAvailability}
