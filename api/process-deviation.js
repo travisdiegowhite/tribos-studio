@@ -78,10 +78,23 @@ export default async function handler(req, res) {
       .maybeSingle();
     const tz = profile?.timezone || 'America/New_York';
     const today = new Date().toLocaleDateString('en-CA', { timeZone: tz });
+
+    // Get active plan IDs (planned_workouts has no user_id column)
+    const { data: activePlans } = await supabase
+      .from('training_plans')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'active');
+    const planIds = (activePlans || []).map(p => p.id);
+
+    if (planIds.length === 0) {
+      return res.status(200).json({ status: 'no_plan' });
+    }
+
     const { data: upcoming } = await supabase
       .from('planned_workouts')
       .select('scheduled_date, target_tss, workout_type, is_quality, session_type, name')
-      .eq('user_id', userId)
+      .in('plan_id', planIds)
       .gte('scheduled_date', today)
       .order('scheduled_date', { ascending: true })
       .limit(14);
