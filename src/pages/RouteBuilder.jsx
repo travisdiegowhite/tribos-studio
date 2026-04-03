@@ -3030,63 +3030,6 @@ function RouteBuilder() {
           {waypoints.length === 0 ? 'Tap on the map to place waypoints.' :
            `${waypoints.length} waypoints. Tap markers to remove.`}
         </Text>
-        {/* Training Goal */}
-        <Box>
-          <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="xs">
-            TRAINING GOAL
-          </Text>
-          <SegmentedControl
-            value={trainingGoal}
-            onChange={setTrainingGoal}
-            fullWidth
-            size="xs"
-            data={[
-              { label: 'Recovery', value: 'recovery' },
-              { label: 'Endurance', value: 'endurance' },
-              { label: 'Intervals', value: 'intervals' },
-              { label: 'Hills', value: 'hills' },
-              { label: 'Race', value: 'race' }
-            ]}
-            styles={{
-              root: { backgroundColor: 'var(--color-bg-secondary)' }
-            }}
-          />
-          {trainingGoal === 'race' && (
-            <Stack gap="xs" mt="xs">
-              <Select
-                label="RACE TYPE"
-                placeholder="Select race type"
-                value={raceType}
-                onChange={setRaceType}
-                data={RACE_TYPES}
-                size="xs"
-                variant="filled"
-                styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
-              />
-              <DateInput
-                label="RACE DATE"
-                placeholder="Optional"
-                value={raceDate ? new Date(raceDate) : null}
-                onChange={(date) => setRaceDate(date ? date.toISOString() : null)}
-                size="xs"
-                variant="filled"
-                clearable
-                styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
-              />
-              <NumberInput
-                label="TARGET FINISH (MIN)"
-                placeholder="Optional"
-                value={targetFinishMinutes || ''}
-                onChange={(val) => setTargetFinishMinutes(val || null)}
-                min={15}
-                max={1440}
-                size="xs"
-                variant="filled"
-                styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
-              />
-            </Stack>
-          )}
-        </Box>
         {routeGeometry && routeStats && (
           <RouteStatsPanel
             stats={routeStats}
@@ -4514,64 +4457,6 @@ function RouteBuilder() {
                      waypoints.length === 1 ? `Click again to add more waypoints. ${snapToRoads ? 'Routes auto-snap to roads.' : 'Freehand mode: straight lines between points.'}` :
                      `${waypoints.length} waypoints placed. Drag markers to adjust.`}
                   </Text>
-                </Box>
-
-                {/* Training Goal */}
-                <Box>
-                  <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="xs">
-                    TRAINING GOAL
-                  </Text>
-                  <SegmentedControl
-                    value={trainingGoal}
-                    onChange={setTrainingGoal}
-                    fullWidth
-                    size="xs"
-                    data={[
-                      { label: 'Recovery', value: 'recovery' },
-                      { label: 'Endurance', value: 'endurance' },
-                      { label: 'Intervals', value: 'intervals' },
-                      { label: 'Hills', value: 'hills' },
-                      { label: 'Race', value: 'race' }
-                    ]}
-                    styles={{
-                      root: { backgroundColor: 'var(--color-bg-secondary)' }
-                    }}
-                  />
-                  {trainingGoal === 'race' && (
-                    <Stack gap="xs" mt="xs">
-                      <Select
-                        label="RACE TYPE"
-                        placeholder="Select race type"
-                        value={raceType}
-                        onChange={setRaceType}
-                        data={RACE_TYPES}
-                        size="xs"
-                        variant="filled"
-                        styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
-                      />
-                      <DateInput
-                        label="RACE DATE"
-                        placeholder="Optional"
-                        value={raceDate ? new Date(raceDate) : null}
-                        onChange={(date) => setRaceDate(date ? date.toISOString() : null)}
-                        size="xs"
-                        variant="filled"
-                        clearable
-                        styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
-                      />
-                      <NumberInput
-                        label="TARGET FINISH (MIN)"
-                        placeholder="Optional"
-                        value={targetFinishMinutes || ''}
-                        onChange={(val) => setTargetFinishMinutes(val || null)}
-                        min={15}
-                        max={1440}
-                        size="xs"
-                        variant="filled"
-                        styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
-                      />
-                    </Stack>
-                  )}
                 </Box>
 
                 {/* Manual editing toolbar */}

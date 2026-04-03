@@ -504,7 +504,7 @@ Use this tool whenever the athlete asks about:
 - "year over year"
 - "historically"
 
-IMPORTANT: Always use the query_fitness_history tool for historical questions. Never guess about past performance - the tool has actual data.
+IMPORTANT: Use the query_fitness_history tool ONLY for historical comparisons (past weeks/months/years). For the athlete's CURRENT fitness (today's CTL, ATL, TSB), always use the values from the Training Context above — they are computed in real-time and are more accurate than weekly snapshots. Never override the live context values with snapshot data.
 
 **ADVANCED RIDE ANALYTICS (available per activity):**
 
@@ -915,6 +915,15 @@ ${checkInLines}`;
     if (trainingContext) {
       systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT (INCLUDING RACE CALENDAR) ===
 IMPORTANT: You have DIRECT ACCESS to all information below. This includes their race goals, event dates, distances, and performance targets. Reference this data directly in your responses.
+
+CRITICAL: The CTL, ATL, and TSB values in this context are computed IN REAL-TIME from the athlete's full activity history. They are the most accurate and up-to-date fitness metrics available. If the query_fitness_history tool returns different CTL/ATL/TSB values, ALWAYS trust the values in this context block for CURRENT fitness. The fitness history tool uses weekly snapshots that may be stale. Only use the fitness history tool for HISTORICAL comparisons (e.g., "this time last year"), not for current fitness assessment.
+
+WORKOUT STATUS GUIDE: Planned workouts are labeled [DONE], [MISSED], [TODAY], [UPCOMING], or [SKIPPED].
+- [UPCOMING] workouts are scheduled for FUTURE days and are NOT overdue — do not count them as missed or as signs of poor compliance.
+- [MISSED] workouts are from PAST days that were not completed — these indicate actual missed training.
+- [TODAY] workouts are due today and still can be done.
+- Use "Weekly Compliance" (based only on past-due workouts) to judge adherence, NOT "Overall Plan Compliance" (which is cumulative across the entire plan duration and naturally starts low).
+- Many athletes have specific training day patterns (e.g., heavy Thu-Sun). Mid-week low volume is normal — check the full week schedule before judging.
 
 ${trainingContext}`;
     }
