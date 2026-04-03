@@ -110,8 +110,9 @@ export function estimateActivityTSS(
   }
 
   // Tier 2: normalized power + current FTP (most accurate, consistent across years)
-  if (activity.normalized_power && activity.normalized_power > 0 && ftp && ftp > 0) {
-    const tss = calculateTSS(activity.moving_time || 0, activity.normalized_power, ftp);
+  if (activity.normalized_power && activity.normalized_power > 0) {
+    const effectiveFtp = ftp && ftp > 0 ? ftp : 200;
+    const tss = calculateTSS(activity.moving_time || 0, activity.normalized_power, effectiveFtp);
     if (tss !== null && tss > 0) return tss;
   }
 
