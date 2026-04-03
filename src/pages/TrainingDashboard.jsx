@@ -1515,6 +1515,13 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
   const hasStravaActivities = activities?.some(a => a.provider === 'strava');
   const hasGarminActivities = activities?.some(a => a.provider === 'garmin');
 
+  // Count activities in last 90 days (computed locally since TrendsTab is a separate component)
+  const ninetyDayActivityCount = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    return (activities || []).filter(a => new Date(a.start_date) >= cutoff).length;
+  }, [activities]);
+
   return (
     <Stack gap="lg">
       {/* Ramp Rate Alert */}
