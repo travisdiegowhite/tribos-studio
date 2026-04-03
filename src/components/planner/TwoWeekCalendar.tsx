@@ -327,7 +327,7 @@ export function TwoWeekCalendar({
       mb={isMobile ? 0 : 'xs'}
       withBorder
       style={{
-        backgroundColor: 'var(--mantine-color-dark-7)',
+        backgroundColor: 'var(--color-bg-secondary)',
         border: selectedWorkoutId ? '2px dashed var(--mantine-color-terracotta-5)' : undefined,
       }}
     >
@@ -441,7 +441,7 @@ export function TwoWeekCalendar({
             mb="sm"
             withBorder
             style={{
-              backgroundColor: 'var(--mantine-color-dark-7)',
+              backgroundColor: 'var(--color-bg-secondary)',
               border: selectedWorkoutId ? '2px dashed var(--mantine-color-terracotta-5)' : undefined,
             }}
           >
@@ -536,7 +536,7 @@ export function TwoWeekCalendar({
               p="md"
               withBorder
               style={{
-                backgroundColor: 'var(--mantine-color-dark-6)',
+                backgroundColor: 'var(--tribos-card)',
                 borderColor: selectedDay.isToday ? 'var(--mantine-color-terracotta-6)' : undefined,
               }}
             >
@@ -663,7 +663,7 @@ export function TwoWeekCalendar({
                   mb="md"
                   p="lg"
                   style={{
-                    border: '2px dashed var(--mantine-color-dark-4)',
+                    border: '2px dashed var(--tribos-border-default)',
                     borderRadius: 8,
                     textAlign: 'center',
                     backgroundColor: selectedWorkoutId ? 'rgba(158, 90, 60, 0.1)' : undefined,
@@ -742,7 +742,7 @@ export function TwoWeekCalendar({
 
                       {/* Comparison with planned */}
                       {hasComparison && tssVariance !== null && (
-                        <Box mt="sm" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+                        <Box mt="sm" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-subtle)' }}>
                           <Group gap="xs">
                             {tssVariance >= -10 && tssVariance <= 10 ? (
                               <>

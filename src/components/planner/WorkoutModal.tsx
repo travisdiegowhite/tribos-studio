@@ -323,7 +323,7 @@ function IntervalChart({ segments }: { segments: FlattenedSegment[] }) {
         display: 'flex',
         alignItems: 'flex-end',
         height: 120,
-        backgroundColor: 'var(--mantine-color-dark-6)',
+        backgroundColor: 'var(--tribos-bg-tertiary)',
         borderRadius: 8,
         padding: 8,
         paddingBottom: 24,
@@ -340,7 +340,7 @@ function IntervalChart({ segments }: { segments: FlattenedSegment[] }) {
             right: 0,
             bottom: 24 + (getBarHeight(zone) / 100 * 88),
             height: 1,
-            borderTop: '1px dashed var(--mantine-color-dark-4)',
+            borderTop: '1px dashed var(--tribos-border-subtle)',
           }}
         />
       ))}
@@ -402,7 +402,7 @@ function ExerciseList({ exercises }: { exercises: OffBikeWorkoutStructure }) {
     <Stack gap="sm">
       {/* Warmup */}
       {exercises.warmup && (
-        <Paper p="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+        <Paper p="sm" withBorder>
           <Group gap="xs" mb={4}>
             <ThemeIcon size={20} color="green" variant="light" radius="xl">
               <Heart size={12} />
@@ -418,7 +418,7 @@ function ExerciseList({ exercises }: { exercises: OffBikeWorkoutStructure }) {
       {exercises.main.map((exercise, index) => {
         const ex = exercise as StrengthExercise & CoreExercise & StretchExercise;
         return (
-          <Paper key={index} p="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+          <Paper key={index} p="sm" withBorder>
             <Group justify="space-between" wrap="wrap" gap={4}>
               <Group gap="xs">
                 <ThemeIcon size={20} color="orange" variant="light" radius="xl">
@@ -474,7 +474,7 @@ function ExerciseList({ exercises }: { exercises: OffBikeWorkoutStructure }) {
 
       {/* Cooldown */}
       {exercises.cooldown && (
-        <Paper p="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+        <Paper p="sm" withBorder>
           <Group gap="xs" mb={4}>
             <ThemeIcon size={20} color="blue" variant="light" radius="xl">
               <Heart size={12} />
@@ -502,7 +502,7 @@ function FuelPlanSummary({ duration, category }: { duration: number; category: W
   if (!fuelPlan || duration < 45) return null;
 
   return (
-    <Paper p="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+    <Paper p="sm" withBorder>
       <Group gap="xs" mb="xs">
         <Drop size={16} weight="fill" color="var(--mantine-color-yellow-5)" />
         <Text size="sm" fw={600}>Fuel Plan</Text>
@@ -628,15 +628,13 @@ export function WorkoutModal({
       }
       size="lg"
       styles={{
-        content: { backgroundColor: 'var(--mantine-color-dark-7)' },
-        header: { backgroundColor: 'var(--mantine-color-dark-7)' },
         body: { padding: 0 },
       }}
     >
       <ScrollArea.Autosize mah="70vh" offsetScrollbars>
         <Stack gap="md" p="md">
           {/* Overview bar */}
-          <Paper p="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+          <Paper p="sm" withBorder>
             <Group justify="space-between" wrap="wrap" gap="xs">
               <Group gap="xs">
                 <Badge color={categoryColor} variant="light">
@@ -782,7 +780,7 @@ export function WorkoutModal({
 
           {/* Coach Notes */}
           {workout.coachNotes && (
-            <Paper p="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+            <Paper p="sm" withBorder>
               <Text size="sm" fw={600} mb={4}>Coach Notes</Text>
               <Text size="sm" c="dimmed" fs="italic">
                 {workout.coachNotes}
@@ -801,9 +799,6 @@ export function WorkoutModal({
                 onChange={(val) => setEditTSS(typeof val === 'number' ? val : 0)}
                 min={0}
                 max={500}
-                styles={{
-                  input: { backgroundColor: 'var(--mantine-color-dark-6)' },
-                }}
               />
               <NumberInput
                 label="Duration (min)"
@@ -811,9 +806,6 @@ export function WorkoutModal({
                 onChange={(val) => setEditDuration(typeof val === 'number' ? val : 0)}
                 min={0}
                 max={600}
-                styles={{
-                  input: { backgroundColor: 'var(--mantine-color-dark-6)' },
-                }}
               />
             </Group>
           )}
@@ -836,9 +828,6 @@ export function WorkoutModal({
               minRows={2}
               maxRows={4}
               autosize
-              styles={{
-                input: { backgroundColor: 'var(--mantine-color-dark-6)' },
-              }}
             />
           )}
 
@@ -882,7 +871,7 @@ export function WorkoutModal({
 
       {/* Footer with action buttons */}
       {plannedWorkout && (
-        <Group justify="space-between" p="md" pt="sm" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+        <Group justify="space-between" p="md" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
           <Button
             variant="subtle"
             color="red"
