@@ -298,7 +298,12 @@ function Dashboard() {
 
     const ctl = calculateCTL(tssValues);
     const atl = calculateATL(tssValues);
-    const tsb = calculateTSB(ctl, atl);
+
+    // TSB uses yesterday's CTL/ATL — freshness going into today, not after today's training
+    const tssYesterday = tssValues.slice(0, -1);
+    const ctlYesterday = calculateCTL(tssYesterday);
+    const atlYesterday = calculateATL(tssYesterday);
+    const tsb = calculateTSB(ctlYesterday, atlYesterday);
 
     // CTL trend: compare current CTL vs CTL 28 days ago
     const cutoffIndex = Math.max(0, tssValues.length - 28);
