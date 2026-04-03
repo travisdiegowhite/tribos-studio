@@ -45,11 +45,13 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   // must join through training_plans to scope workouts to this user)
   const { data: activePlans } = await supabase
     .from('training_plans')
-    .select('id')
+    .select('id, name, current_week, duration_weeks, methodology, goal')
     .eq('user_id', userId)
-    .eq('status', 'active');
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false });
 
   const planIds = (activePlans || []).map(p => p.id);
+  const primaryPlan = (activePlans && activePlans.length > 0) ? activePlans[0] : null;
 
   // Run all queries in parallel
   const [
@@ -59,6 +61,9 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
     coachResult,
     upcomingWorkoutsResult,
     profileResult,
+    weekScheduleResult,
+    raceGoalResult,
+    healthResult,
   ] = await Promise.all([
     // 1. Last 28 days of activities for trend calculation
     supabase
@@ -115,6 +120,35 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .select('ftp, weight_kg, experience_level')
       .eq('id', userId)
       .single(),
+
+    // 7. Full week schedule with workout names (for primary plan's current week)
+    primaryPlan
+      ? supabase
+          .from('planned_workouts')
+          .select('day_of_week, scheduled_date, name, workout_type, target_tss, actual_tss, completed, activity_id')
+          .eq('plan_id', primaryPlan.id)
+          .eq('week_number', primaryPlan.current_week || 1)
+      : Promise.resolve({ data: [] }),
+
+    // 8. Upcoming race goal (highest priority)
+    supabase
+      .from('race_goals')
+      .select('name, race_date, race_type, priority')
+      .eq('user_id', userId)
+      .eq('status', 'upcoming')
+      .order('priority', { ascending: true })
+      .order('race_date', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+
+    // 9. Latest health metrics
+    supabase
+      .from('health_metrics')
+      .select('resting_hr, hrv_ms, sleep_hours, energy_level, recorded_date')
+      .eq('user_id', userId)
+      .order('recorded_date', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const activities = activitiesResult.data || [];
@@ -123,6 +157,16 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   const coachMsgs = coachResult.data || [];
   const upcomingWorkouts = upcomingWorkoutsResult.data || [];
   const profile = profileResult.data || {};
+  const weekScheduleRaw = weekScheduleResult.data || [];
+  const raceGoal = raceGoalResult.data || null;
+  const healthData = healthResult.data || null;
+
+  // --- Training plan phase & week schedule ---
+  const phase = primaryPlan
+    ? derivePhase(primaryPlan.current_week, primaryPlan.duration_weeks, primaryPlan.methodology)
+    : null;
+  const weekSchedule = formatWeekSchedule(weekScheduleRaw);
+  const weekScheduleText = weekScheduleToText(weekSchedule);
 
   // --- CTL trend calculation (28-day delta) ---
   const ctlTrend = calculateCTLTrend(activities, clientMetrics.ctl);
@@ -246,7 +290,119 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       experience_level: profile.experience_level || 'intermediate',
     },
     proprietary_metrics: proprietaryMetrics,
+    plan: primaryPlan ? {
+      name: primaryPlan.name,
+      methodology: primaryPlan.methodology,
+      goal: primaryPlan.goal,
+      current_week: primaryPlan.current_week,
+      total_weeks: primaryPlan.duration_weeks,
+      block: phase.blockName,
+      block_purpose: phase.blockPurpose,
+    } : null,
+    week_schedule: weekScheduleText,
+    race_goal: raceGoal
+      ? `${raceGoal.name} (${raceGoal.race_type}, ${raceGoal.race_date}, Priority ${raceGoal.priority})`
+      : null,
+    health: healthData ? formatHealth(healthData) : null,
   };
+}
+
+/**
+ * Derive training phase from plan progress.
+ * Mirrors the logic in checkInContext.js to keep AI surfaces consistent.
+ */
+function derivePhase(currentWeek, totalWeeks, methodology) {
+  if (!currentWeek || !totalWeeks) {
+    return { blockName: 'General Training', blockPurpose: 'Build overall fitness and consistency.' };
+  }
+
+  const ratio = currentWeek / totalWeeks;
+  const methodPrefix = methodology || 'general';
+
+  if (ratio <= 0.33) {
+    const purposes = {
+      polarized: 'Develop aerobic foundation through high-volume low-intensity work with occasional high-intensity touches.',
+      sweet_spot: 'Build aerobic base with sustainable sub-threshold efforts to maximize training efficiency.',
+      pyramidal: 'Establish a wide aerobic base with gradually increasing intensity distribution.',
+      threshold: 'Develop aerobic capacity to support upcoming threshold-focused work.',
+      endurance: 'Build deep aerobic foundation and movement efficiency through steady volume.',
+    };
+    return { blockName: 'Base Building', blockPurpose: purposes[methodPrefix] || 'Develop aerobic foundation and movement efficiency.' };
+  }
+
+  if (ratio <= 0.66) {
+    const purposes = {
+      polarized: 'Increase high-intensity stimulus while maintaining aerobic volume.',
+      sweet_spot: 'Progress sweet spot duration and frequency to push FTP ceiling higher.',
+      pyramidal: 'Shift intensity distribution toward more tempo and threshold work.',
+      threshold: 'Extend time at threshold to drive FTP adaptation.',
+      endurance: 'Add targeted intensity to the aerobic base for race-specific fitness.',
+    };
+    return { blockName: 'Build', blockPurpose: purposes[methodPrefix] || 'Increase intensity and sport-specific fitness.' };
+  }
+
+  if (ratio <= 0.85) {
+    return { blockName: 'Peak', blockPurpose: 'Sharpen race-specific efforts at target intensity. Maintain volume, maximize quality.' };
+  }
+
+  return { blockName: 'Taper', blockPurpose: 'Reduce volume while maintaining intensity. Arrive at race day fresh and sharp.' };
+}
+
+/**
+ * Format the week schedule as structured data.
+ * Mirrors the logic in checkInContext.js.
+ */
+function formatWeekSchedule(weekWorkouts) {
+  if (!weekWorkouts || weekWorkouts.length === 0) return [];
+
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  return weekWorkouts
+    .sort((a, b) => (a.day_of_week ?? 0) - (b.day_of_week ?? 0))
+    .map((w) => ({
+      day: dayNames[w.day_of_week] || `Day${w.day_of_week}`,
+      day_of_week: w.day_of_week,
+      scheduled_date: w.scheduled_date || null,
+      name: w.name || w.workout_type || 'Workout',
+      workout_type: w.workout_type || 'ride',
+      target_tss: w.target_tss || 0,
+      actual_tss: w.actual_tss || 0,
+      completed: !!w.completed,
+      has_activity: !!w.activity_id,
+    }));
+}
+
+/**
+ * Serialize week schedule to text for AI context.
+ * Mirrors the logic in checkInContext.js.
+ */
+function weekScheduleToText(weekSchedule) {
+  if (!weekSchedule || weekSchedule.length === 0) return 'No planned workouts this week.';
+
+  return weekSchedule
+    .map((w) => {
+      const status = w.completed ? 'DONE' : w.has_activity ? 'PARTIAL' : 'PLANNED';
+      const tssInfo = w.target_tss
+        ? `planned=${w.target_tss}${w.actual_tss ? ` actual=${w.actual_tss}` : ''}`
+        : '';
+      const dateLabel = w.scheduled_date ? ` (${w.scheduled_date})` : '';
+      return `${w.day}${dateLabel}: ${w.name} [${status}] ${tssInfo}`.trim();
+    })
+    .join('\n');
+}
+
+/**
+ * Format health metrics as a compact string.
+ */
+function formatHealth(health) {
+  if (!health) return null;
+  const parts = [
+    health.resting_hr ? `RHR: ${health.resting_hr}bpm` : null,
+    health.hrv_ms ? `HRV: ${health.hrv_ms}ms` : null,
+    health.sleep_hours ? `Sleep: ${health.sleep_hours}h` : null,
+    health.energy_level ? `Energy: ${health.energy_level}/5` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' | ') : null;
 }
 
 /**
@@ -338,7 +494,9 @@ export function buildCacheKey(context) {
     context.snapshot.last_ride_tss || 0,
     context.trends.ctl_direction,
     context.data_quality.missed_rides_flag ? 1 : 0,
+    context.data_quality.rides_completed_this_week,
     context.coach_context.upcoming_key_workout || 'none',
+    context.week_schedule || 'none',
   ];
   return parts.join(':');
 }
