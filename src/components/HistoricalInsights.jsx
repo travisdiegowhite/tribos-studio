@@ -539,28 +539,12 @@ function HistoricalInsights({ userId, activities, ftp }) {
     return computeWeeklySnapshots(activities, ftp);
   }, [activities, ftp]);
 
-  // Merge: client data takes priority, server fills gaps (advanced fields)
+  // Client snapshots are the authoritative source — recomputed from raw activities
+  // with current formulas. Server snapshots may contain stale values from older
+  // formula versions and are only used as a fallback when no activities are loaded.
   const snapshots = useMemo(() => {
-    if (clientSnapshots.length === 0 && serverSnapshots.length === 0) return [];
-    if (clientSnapshots.length === 0) return serverSnapshots;
-    if (serverSnapshots.length === 0) return clientSnapshots;
-
-    const byWeek = new Map();
-    // Server first (lower priority for core metrics)
-    serverSnapshots.forEach(s => byWeek.set(s.snapshot_week, s));
-    // Client overwrites core metrics (higher priority, guaranteed complete)
-    clientSnapshots.forEach(s => {
-      const existing = byWeek.get(s.snapshot_week);
-      if (existing) {
-        // Merge: keep server's advanced fields, overwrite core metrics
-        byWeek.set(s.snapshot_week, { ...existing, ...s });
-      } else {
-        byWeek.set(s.snapshot_week, s);
-      }
-    });
-
-    return Array.from(byWeek.values())
-      .sort((a, b) => new Date(b.snapshot_week) - new Date(a.snapshot_week));
+    if (clientSnapshots.length > 0) return clientSnapshots;
+    return serverSnapshots;
   }, [clientSnapshots, serverSnapshots]);
 
   // Set selected years when snapshots change
