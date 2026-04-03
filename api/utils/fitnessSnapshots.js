@@ -19,33 +19,24 @@ import {
  */
 export function calculateCTL(dailyTSS) {
   if (!dailyTSS || dailyTSS.length === 0) return 0;
-
-  const decay = 1 / 42;
   let ctl = 0;
-
-  dailyTSS.forEach((tss, index) => {
-    const weight = Math.exp(-decay * (dailyTSS.length - index - 1));
-    ctl += tss * weight;
-  });
-
-  return Math.round(ctl * decay);
+  for (const tss of dailyTSS) {
+    ctl = ctl + (tss - ctl) / 42;
+  }
+  return Math.round(ctl);
 }
 
 /**
  * Calculate Acute Training Load (ATL) - 7-day exponentially weighted average
+ * Uses the standard iterative EWA: ATL_n = ATL_(n-1) + (TSS_n - ATL_(n-1)) / 7
  */
 export function calculateATL(dailyTSS) {
   if (!dailyTSS || dailyTSS.length === 0) return 0;
-
-  const decay = 1 / 7;
   let atl = 0;
-
-  dailyTSS.forEach((tss, index) => {
-    const weight = Math.exp(-decay * (dailyTSS.length - index - 1));
-    atl += tss * weight;
-  });
-
-  return Math.round(atl * decay);
+  for (const tss of dailyTSS) {
+    atl = atl + (tss - atl) / 7;
+  }
+  return Math.round(atl);
 }
 
 /**
@@ -140,7 +131,7 @@ function estimateRunningTSS(activity) {
  * Estimate TSS from activity data when power data isn't available
  * Supports both cycling and running activities
  */
-export function estimateTSS(activity) {
+export function estimateTSS(activity, ftp = null) {
   // Use actual TSS if available from power data
   if (activity.tss && activity.tss > 0) return activity.tss;
 
@@ -151,14 +142,11 @@ export function estimateTSS(activity) {
 
   // Cycling TSS estimation below
 
-  // Calculate from kilojoules if available (more accurate)
-  if (activity.kilojoules && activity.kilojoules > 0 && activity.moving_time) {
-    // Rough TSS estimate from kJ: TSS ~= kJ / 3.6 / FTP * 100
-    // Without FTP, use approximate formula
-    const hours = activity.moving_time / 3600;
-    if (hours > 0) {
-      return Math.round(activity.kilojoules / hours / 1.2);
-    }
+  // Calculate from kilojoules if available
+  // TSS ≈ kJ / (FTP × 0.036) — derived from TSS = (duration × NP × IF) / (FTP × 3600) × 100
+  if (activity.kilojoules && activity.kilojoules > 0) {
+    const effectiveFtp = ftp && ftp > 0 ? ftp : 200;
+    return Math.round(activity.kilojoules / (effectiveFtp * 0.036));
   }
 
   const durationHours = (activity.moving_time || 0) / 3600;
@@ -289,13 +277,22 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
 
   if (error) throw error;
 
+  // Get FTP from user preferences (needed for TSS estimation)
+  const { data: prefs } = await supabase
+    .from('user_preferences')
+    .select('ftp')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  const userFtp = prefs?.ftp || null;
+
   // Build daily TSS map for CTL/ATL calculation
   const dailyTSS = {};
   const weekActivities = [];
 
   (activities || []).forEach(activity => {
     const actDate = activity.start_date.split('T')[0];
-    const tss = estimateTSS(activity);
+    const tss = estimateTSS(activity, userFtp);
     dailyTSS[actDate] = (dailyTSS[actDate] || 0) + tss;
 
     // Track activities within target week
@@ -315,8 +312,13 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
 
   // Calculate load metrics
   const ctl = calculateCTL(tssArray);
-  const atl = calculateATL(tssArray.slice(-7));
-  const tsb = calculateTSB(ctl, atl);
+  const atl = calculateATL(tssArray);
+
+  // TSB uses yesterday's CTL/ATL — freshness going into the last day of the week
+  const tssYesterday = tssArray.slice(0, -1);
+  const ctlYesterday = calculateCTL(tssYesterday);
+  const atlYesterday = calculateATL(tssYesterday);
+  const tsb = calculateTSB(ctlYesterday, atlYesterday);
 
   // Compute weekly summary
   const weeklyTSS = weekActivities.reduce((sum, a) => sum + a.estimatedTSS, 0);
@@ -329,13 +331,6 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
   const weeklyElevation = weekActivities.reduce(
     (sum, a) => sum + (a.total_elevation_gain || 0), 0
   );
-
-  // Get FTP from user preferences
-  const { data: prefs } = await supabase
-    .from('user_preferences')
-    .select('ftp')
-    .eq('user_id', userId)
-    .maybeSingle();
 
   // Compute trends
   const loadTrend = computeLoadTrend(tssArray);
