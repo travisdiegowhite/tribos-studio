@@ -9,10 +9,6 @@ import {
   ActionIcon,
   Tooltip,
   Button,
-  Modal,
-  Select,
-  NumberInput,
-  Textarea,
   Paper,
   Progress,
   Box,
@@ -24,17 +20,16 @@ import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
-import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
+import { getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
 import { formatLocalDate, addDays, parsePlanStartDate } from '../utils/dateUtils';
-import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
-import { getCyclingStructure } from '../utils/trainingPlanExport';
 import RaceGoalModal from './RaceGoalModal';
 import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
-import { FuelBadge, FuelCard } from './fueling';
+import { FuelBadge } from './fueling';
 import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
 import CrossTrainingModal from './CrossTrainingModal';
-import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, DownloadSimple, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
+import { WorkoutModal } from './planner/WorkoutModal';
+import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
@@ -97,14 +92,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const [crossTrainingModalOpen, setCrossTrainingModalOpen] = useState(false);
   const [crossTrainingDate, setCrossTrainingDate] = useState(null);
 
-  // Edit form state
-  const [editForm, setEditForm] = useState({
-    workout_type: 'rest',
-    workout_id: '',
-    target_tss: 0,
-    target_duration: 0,
-    notes: '',
-  });
+  // Modal planned workout state (mapped from raw Supabase row to PlannerWorkout shape)
+  const [modalPlannedWorkout, setModalPlannedWorkout] = useState(null);
+  const [modalWorkoutDef, setModalWorkoutDef] = useState(null);
 
   // Drag and drop state
   const [draggedWorkout, setDraggedWorkout] = useState(null);
@@ -456,92 +446,59 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
   };
 
+  // Map a raw Supabase workout row to PlannerWorkout shape for WorkoutModal
+  const mapToModalWorkout = (raw) => {
+    if (!raw) return null;
+    const workoutDef = raw.workout_id ? getWorkoutById(raw.workout_id) : undefined;
+    return {
+      id: raw.id || '',
+      planId: raw.plan_id || '',
+      sportType: null,
+      planPriority: 'primary',
+      scheduledDate: raw.scheduled_date || '',
+      workoutId: raw.workout_id || null,
+      workoutType: raw.workout_type || null,
+      targetTSS: raw.target_tss || 0,
+      targetDuration: raw.target_duration || 0,
+      notes: raw.notes || '',
+      completed: raw.completed || false,
+      completedAt: raw.completed_at || null,
+      activityId: raw.activity_id || null,
+      actualTSS: raw.actual_tss || null,
+      actualDuration: raw.actual_duration || null,
+      workout: workoutDef || undefined,
+    };
+  };
+
   // Open edit modal for a workout or date
   const openEditModal = (workout, date) => {
     setSelectedWorkout(workout);
     setSelectedDate(date);
 
-    if (workout) {
-      setEditForm({
-        workout_type: workout.workout_type || 'rest',
-        workout_id: workout.workout_id || '',
-        target_tss: workout.target_tss || 0,
-        target_duration: workout.target_duration || 0,
-        notes: workout.notes || '',
-      });
-    } else {
-      // New workout for this date
-      setEditForm({
-        workout_type: 'endurance',
-        workout_id: '',
-        target_tss: 50,
-        target_duration: 60,
-        notes: '',
-      });
-    }
+    const mappedWorkout = mapToModalWorkout(workout);
+    setModalPlannedWorkout(mappedWorkout);
+    setModalWorkoutDef(mappedWorkout?.workout || null);
 
     setEditModalOpen(true);
   };
 
-  // Save workout changes
-  const saveWorkout = async () => {
-    if (!activePlan || !selectedDate) return;
-    setSaving(true);
+  // Save workout changes from WorkoutModal (receives camelCase updates)
+  const handleModalSave = async (updates) => {
+    if (!activePlan || !selectedWorkout?.id) return;
 
     try {
-      // Use parsePlanStartDate for timezone-safe parsing
-      const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan));
-      if (!planStartDate) {
-        throw new Error('Unable to parse plan start date');
-      }
-
-      // Normalize selectedDate to midnight for accurate comparison
-      const normalizedSelectedDate = new Date(selectedDate);
-      normalizedSelectedDate.setHours(0, 0, 0, 0);
-
-      const daysSinceStart = Math.floor((normalizedSelectedDate - planStartDate) / (24 * 60 * 60 * 1000));
-      const weekNumber = Math.floor(daysSinceStart / 7) + 1;
-      const dayOfWeek = selectedDate.getDay();
-
       const workoutData = {
-        workout_type: editForm.workout_type,
-        workout_id: editForm.workout_id || null,
-        target_tss: editForm.target_tss,
-        target_duration: editForm.target_duration,
-        notes: editForm.notes,
+        target_tss: updates.targetTSS,
+        target_duration: updates.targetDuration,
+        notes: updates.notes,
       };
 
-      if (selectedWorkout?.id) {
-        // Update existing workout
-        const { error } = await supabase
-          .from('planned_workouts')
-          .update(workoutData)
-          .eq('id', selectedWorkout.id);
+      const { error } = await supabase
+        .from('planned_workouts')
+        .update(workoutData)
+        .eq('id', selectedWorkout.id);
 
-        if (error) throw error;
-      } else {
-        // Create new workout
-        const workoutInfo = editForm.workout_id ? getWorkoutById(editForm.workout_id) : null;
-        const workoutName = workoutInfo?.name ||
-          (editForm.workout_type === 'rest' ? 'Rest Day' :
-            `${WORKOUT_TYPES[editForm.workout_type]?.name || editForm.workout_type} Workout`);
-
-        const { error } = await supabase
-          .from('planned_workouts')
-          .insert({
-            ...workoutData,
-            plan_id: activePlan.id,
-            user_id: user.id,
-            week_number: weekNumber,
-            day_of_week: dayOfWeek,
-            scheduled_date: formatLocalDate(selectedDate),
-            name: workoutName,
-            duration_minutes: editForm.target_duration || 0,
-            completed: false,
-          });
-
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       notifications.show({
         title: 'Workout Saved',
@@ -559,8 +516,6 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         message: 'Failed to save workout',
         color: 'red',
       });
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -840,25 +795,6 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
   };
 
-  // When workout type changes, auto-fill from library
-  const handleWorkoutTypeChange = (type) => {
-    setEditForm(prev => ({ ...prev, workout_type: type }));
-
-    // Find a workout from library matching this type
-    const matchingWorkout = Object.values(WORKOUT_LIBRARY).find(
-      w => w.category === type || w.tags?.includes(type)
-    );
-
-    if (matchingWorkout) {
-      setEditForm(prev => ({
-        ...prev,
-        workout_id: matchingWorkout.id,
-        target_tss: matchingWorkout.targetTSS || prev.target_tss,
-        target_duration: matchingWorkout.duration || prev.target_duration,
-      }));
-    }
-  };
-
   // Format distance - use prop if provided, otherwise use isImperial to format
   const formatDistance = formatDistanceProp || ((km) => {
     if (!km) return isImperial ? '0 mi' : '0 km';
@@ -872,13 +808,6 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const rangeLabel = `${anchorDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${addDays(anchorDate, 27).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
   const currentWeek = getCurrentWeekNumber();
   const currentPhase = getCurrentPhase();
-
-  // Get workout type options for select (textValue needed for accessibility with emoji labels)
-  const workoutTypeOptions = Object.entries(WORKOUT_TYPES).map(([key, type]) => ({
-    value: key,
-    label: `${type.icon} ${type.name}`,
-    textValue: type.name,
-  }));
 
   return (
     <Stack gap="md">
@@ -1478,168 +1407,16 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         )}
       </Card>
 
-      {/* Edit Workout Modal */}
-      <Modal
+      {/* Workout Detail + Edit Modal (shared with planner) */}
+      <WorkoutModal
+        workout={modalWorkoutDef}
+        plannedWorkout={modalPlannedWorkout}
         opened={editModalOpen}
         onClose={() => setEditModalOpen(false)}
-        aria-label={selectedWorkout ? 'Edit workout' : 'Add workout'}
-        title={
-          <Group gap="sm">
-            <ThemeIcon size="lg" color="teal" variant="light">
-              <CalendarBlank size={18} />
-            </ThemeIcon>
-            <Text fw={600}>
-              {selectedWorkout ? 'Edit Workout' : 'Add Workout'}
-            </Text>
-            {selectedDate && (
-              <Badge variant="light" color="gray">
-                {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-              </Badge>
-            )}
-          </Group>
-        }
-        size="md"
-      >
-        <Stack gap="md">
-          <Select
-            label="Workout Type"
-            value={editForm.workout_type}
-            onChange={handleWorkoutTypeChange}
-            data={workoutTypeOptions}
-          />
-
-          <Group grow>
-            <NumberInput
-              label="Target TSS"
-              value={editForm.target_tss}
-              onChange={(val) => setEditForm(prev => ({ ...prev, target_tss: val || 0 }))}
-              min={0}
-              max={500}
-            />
-            <NumberInput
-              label="Duration (min)"
-              value={editForm.target_duration}
-              onChange={(val) => setEditForm(prev => ({ ...prev, target_duration: val || 0 }))}
-              min={0}
-              max={480}
-            />
-          </Group>
-
-          {/* Fuel Plan - shown for workouts 60+ minutes */}
-          {editForm.target_duration >= 60 && editForm.workout_type !== 'rest' && (
-            <FuelCard
-              workout={{
-                duration: editForm.target_duration,
-                targetTSS: editForm.target_tss,
-                category: editForm.workout_type,
-              }}
-              compact={true}
-              showDisclaimer={false}
-            />
-          )}
-
-          <Textarea
-            label="Notes"
-            value={editForm.notes}
-            onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
-            placeholder="Any notes for this workout..."
-            rows={3}
-          />
-
-          {/* Download for Device */}
-          {(() => {
-            const workoutDef = selectedWorkout?.workout_id ? getWorkoutById(selectedWorkout.workout_id) : null;
-            const cyclingStructure = workoutDef ? getCyclingStructure(workoutDef) : null;
-            if (!cyclingStructure || cyclingStructure.steps.length === 0) return null;
-
-            const handleDownload = (format) => {
-              try {
-                const result = exportWorkout(cyclingStructure, {
-                  format,
-                  workoutName: workoutDef.name || 'Workout',
-                  description: workoutDef.description || '',
-                });
-                downloadWorkout(result);
-                notifications.show({
-                  title: 'Workout Downloaded',
-                  message: `${workoutDef.name} exported as ${format.toUpperCase()}`,
-                  color: 'green',
-                });
-              } catch (err) {
-                notifications.show({
-                  title: 'Download Failed',
-                  message: err.message,
-                  color: 'red',
-                });
-              }
-            };
-
-            return (
-              <>
-                <Divider label="Download for Device" labelPosition="center" />
-                <Group gap="xs">
-                  <Button
-                    variant="light"
-                    size="xs"
-                    color="orange"
-                    leftSection={<DownloadSimple size={14} />}
-                    onClick={() => handleDownload('fit')}
-                  >
-                    FIT (Garmin/Wahoo)
-                  </Button>
-                  <Button
-                    variant="light"
-                    size="xs"
-                    color="blue"
-                    leftSection={<DownloadSimple size={14} />}
-                    onClick={() => handleDownload('zwo')}
-                  >
-                    ZWO (Zwift)
-                  </Button>
-                  <Button
-                    variant="light"
-                    size="xs"
-                    color="gray"
-                    leftSection={<DownloadSimple size={14} />}
-                    onClick={() => handleDownload('tcx')}
-                  >
-                    TCX
-                  </Button>
-                </Group>
-              </>
-            );
-          })()}
-
-          <Divider />
-
-          <Group justify="space-between">
-            {selectedWorkout?.id && (
-              <Button
-                variant="subtle"
-                color="red"
-                leftSection={<Trash size={16} />}
-                onClick={deleteWorkout}
-                loading={saving}
-              >
-                Delete
-              </Button>
-            )}
-            <Group gap="sm" ml="auto">
-              <Button variant="subtle" onClick={() => setEditModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                color="teal"
-                leftSection={<Check size={16} />}
-                onClick={saveWorkout}
-                loading={saving}
-              >
-                Save
-              </Button>
-            </Group>
-          </Group>
-        </Stack>
-      </Modal>
+        onSave={handleModalSave}
+        onDelete={deleteWorkout}
+        scheduledDate={selectedDate ? formatLocalDate(selectedDate) : undefined}
+      />
 
       {/* Race Goal Modal */}
       <RaceGoalModal
