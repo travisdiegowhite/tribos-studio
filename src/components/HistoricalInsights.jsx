@@ -527,9 +527,6 @@ function QuickStats({ snapshots, activities }) {
  * Main Historical Insights Component
  */
 function HistoricalInsights({ userId, activities, ftp }) {
-  // Debug: fires every render unconditionally
-  console.warn('[Fitness Debug] RENDER — activities:', activities?.length, 'ftp:', ftp, 'userId:', userId);
-
   const [serverSnapshots, setServerSnapshots] = useState([]);
   const [serverLoading, setServerLoading] = useState(true);
   const [rebuilding, setRebuilding] = useState(false);
@@ -542,45 +539,28 @@ function HistoricalInsights({ userId, activities, ftp }) {
     return computeWeeklySnapshots(activities, ftp);
   }, [activities, ftp]);
 
-  // Diagnostic: log activity data quality per year
-  useEffect(() => {
-    try {
-      console.warn('[Fitness Debug] HistoricalInsights mounted. Activities:', activities?.length || 0, 'FTP:', ftp);
-      if (!activities || activities.length === 0) return;
-      const RUNNING = ['Run', 'VirtualRun', 'TrailRun'];
-      const byYear = {};
-      activities.filter(a => !a.is_hidden && a.start_date).forEach(a => {
-        const dateStr = typeof a.start_date === 'string' ? a.start_date : String(a.start_date);
-        const year = dateStr.substring(0, 4);
-        if (!byYear[year]) byYear[year] = { count: 0, hasNP: 0, hasKJ: 0, hasTSS: 0, hasWatts: 0, noData: 0, running: 0, totalKJ: 0, totalHours: 0 };
-        const y = byYear[year];
-        y.count++;
-        y.totalHours += (a.moving_time || 0) / 3600;
-        if (RUNNING.includes(a.type)) { y.running++; return; }
-        if (a.normalized_power > 0) y.hasNP++;
-        if (a.kilojoules > 0) { y.hasKJ++; y.totalKJ += a.kilojoules; }
-        if (a.tss > 0) y.hasTSS++;
-        if (a.average_watts > 0) y.hasWatts++;
-        if (!a.normalized_power && !a.kilojoules && !a.tss && !a.average_watts) y.noData++;
-      });
-      console.warn('[Fitness Debug] Activity data by year:', JSON.stringify(byYear, null, 2));
-      if (clientSnapshots.length > 0) {
-        const recent = clientSnapshots.slice(0, 4);
-        console.warn('[Fitness Debug] Recent snapshots:', recent.map(s => `${s.snapshot_week}: CTL=${s.ctl} TSS=${s.weekly_tss} rides=${s.weekly_ride_count}`));
-      } else {
-        console.warn('[Fitness Debug] clientSnapshots is EMPTY — using serverSnapshots instead');
-      }
-    } catch (err) {
-      console.error('[Fitness Debug] Error in diagnostic:', err);
-    }
-  }, [activities, ftp, clientSnapshots]);
-
-  // Client snapshots are the authoritative source — recomputed from raw activities
-  // with current formulas. Server snapshots may contain stale values from older
-  // formula versions and are only used as a fallback when no activities are loaded.
+  // Merge: client data takes priority, server fills gaps (advanced fields)
   const snapshots = useMemo(() => {
-    if (clientSnapshots.length > 0) return clientSnapshots;
-    return serverSnapshots;
+    if (clientSnapshots.length === 0 && serverSnapshots.length === 0) return [];
+    if (clientSnapshots.length === 0) return serverSnapshots;
+    if (serverSnapshots.length === 0) return clientSnapshots;
+
+    const byWeek = new Map();
+    // Server first (lower priority for core metrics)
+    serverSnapshots.forEach(s => byWeek.set(s.snapshot_week, s));
+    // Client overwrites core metrics (higher priority, guaranteed complete)
+    clientSnapshots.forEach(s => {
+      const existing = byWeek.get(s.snapshot_week);
+      if (existing) {
+        // Merge: keep server's advanced fields, overwrite core metrics
+        byWeek.set(s.snapshot_week, { ...existing, ...s });
+      } else {
+        byWeek.set(s.snapshot_week, s);
+      }
+    });
+
+    return Array.from(byWeek.values())
+      .sort((a, b) => new Date(b.snapshot_week) - new Date(a.snapshot_week));
   }, [clientSnapshots, serverSnapshots]);
 
   // Set selected years when snapshots change
