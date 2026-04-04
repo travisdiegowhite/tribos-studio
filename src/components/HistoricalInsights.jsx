@@ -527,6 +527,9 @@ function QuickStats({ snapshots, activities }) {
  * Main Historical Insights Component
  */
 function HistoricalInsights({ userId, activities, ftp }) {
+  // Debug: fires every render unconditionally
+  console.warn('[Fitness Debug] RENDER — activities:', activities?.length, 'ftp:', ftp, 'userId:', userId);
+
   const [serverSnapshots, setServerSnapshots] = useState([]);
   const [serverLoading, setServerLoading] = useState(true);
   const [rebuilding, setRebuilding] = useState(false);
