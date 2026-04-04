@@ -113,11 +113,14 @@ export function estimateActivityTSS(
     if (tss !== null && tss > 0) return tss;
   }
 
-  // Tier 4: kilojoules
+  // Tier 4: kilojoules + duration → derive avg power, then standard TSS formula
   if (activity.kilojoules && activity.kilojoules > 0 && activity.moving_time) {
     const hours = activity.moving_time / 3600;
     if (hours > 0) {
-      return Math.round(activity.kilojoules / hours / 1.2);
+      const avgPower = (activity.kilojoules * 1000) / activity.moving_time;
+      const effectiveFtp = (ftp && ftp > 0) ? ftp : 200;
+      const intensityFactor = avgPower / effectiveFtp;
+      return Math.round(hours * intensityFactor * intensityFactor * 100);
     }
   }
 
@@ -214,6 +217,10 @@ export function computeWeeklySnapshots(
   let day = firstMonday;
 
   while (day <= addDays(lastMonday, 6)) {
+    // Track yesterday's CTL/ATL for TSB calculation
+    const ctlYesterday = ctl;
+    const atlYesterday = atl;
+
     const dayTSS = dailyTSS[day] || 0;
 
     // Advance CTL/ATL
@@ -241,12 +248,12 @@ export function computeWeeklySnapshots(
     const nextWeekStart = getWeekStart(new Date(nextDay + 'T00:00:00'));
 
     if (nextWeekStart !== currentWeekStart || nextDay > addDays(lastMonday, 6)) {
-      // Snapshot this week
+      // Snapshot this week — TSB uses yesterday's CTL/ATL (freshness going into today)
       snapshots.push({
         snapshot_week: currentWeekStart,
         ctl: Math.round(ctl),
         atl: Math.round(atl),
-        tsb: Math.round(ctl - atl),
+        tsb: Math.round(ctlYesterday - atlYesterday),
         weekly_hours: Math.round(weekHours * 100) / 100,
         weekly_tss: Math.round(weekTSS),
         weekly_ride_count: weekRides,

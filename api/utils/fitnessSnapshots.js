@@ -14,38 +14,32 @@ import {
 } from './advancedRideAnalytics.js';
 
 /**
- * Calculate Chronic Training Load (CTL) - 42-day exponentially weighted average
- * Mirrors the calculation in src/utils/trainingPlans.ts
+ * Calculate Chronic Training Load (CTL) - 42-day iterative EWA
+ * Formula: CTL_today = CTL_yesterday + (TSS_today − CTL_yesterday) / 42
+ * Matches src/utils/trainingPlans.ts calculateCTL
  */
 export function calculateCTL(dailyTSS) {
   if (!dailyTSS || dailyTSS.length === 0) return 0;
-
-  const decay = 1 / 42;
   let ctl = 0;
-
-  dailyTSS.forEach((tss, index) => {
-    const weight = Math.exp(-decay * (dailyTSS.length - index - 1));
-    ctl += tss * weight;
-  });
-
-  return Math.round(ctl * decay);
+  for (const tss of dailyTSS) {
+    ctl = ctl + (tss - ctl) / 42;
+  }
+  return Math.round(ctl);
 }
 
 /**
- * Calculate Acute Training Load (ATL) - 7-day exponentially weighted average
+ * Calculate Acute Training Load (ATL) - 7-day iterative EWA
+ * Formula: ATL_today = ATL_yesterday + (TSS_today − ATL_yesterday) / 7
+ * Requires full history to converge — do NOT pass a sliced array.
+ * Matches src/utils/trainingPlans.ts calculateATL
  */
 export function calculateATL(dailyTSS) {
   if (!dailyTSS || dailyTSS.length === 0) return 0;
-
-  const decay = 1 / 7;
   let atl = 0;
-
-  dailyTSS.forEach((tss, index) => {
-    const weight = Math.exp(-decay * (dailyTSS.length - index - 1));
-    atl += tss * weight;
-  });
-
-  return Math.round(atl * decay);
+  for (const tss of dailyTSS) {
+    atl = atl + (tss - atl) / 7;
+  }
+  return Math.round(atl);
 }
 
 /**
@@ -137,42 +131,55 @@ function estimateRunningTSS(activity) {
 }
 
 /**
- * Estimate TSS from activity data when power data isn't available
- * Supports both cycling and running activities
+ * Estimate TSS from activity data using a 5-tier fallback:
+ * 1. Stored TSS (from device/FIT file)
+ * 2. Running-specific estimation (pace + HR)
+ * 3. Normalized power + FTP → standard TSS formula (IF² × hours × 100)
+ * 4. Kilojoules + duration + FTP → derive avg power, then standard formula
+ * 5. Duration + elevation + avg watts heuristic
+ *
+ * Mirrors client-side logic in src/utils/computeFitnessSnapshots.ts
  */
-export function estimateTSS(activity) {
-  // Use actual TSS if available from power data
+export function estimateTSS(activity, ftp) {
+  // Tier 1: stored TSS from device
   if (activity.tss && activity.tss > 0) return activity.tss;
 
-  // Route to running-specific estimation for running activities
+  // Tier 2: running-specific estimation
   if (isRunningActivity(activity)) {
     return estimateRunningTSS(activity);
   }
 
-  // Cycling TSS estimation below
+  // Tier 3: normalized power + FTP → standard TSS formula
+  if (activity.normalized_power && activity.normalized_power > 0 && ftp && ftp > 0 && activity.moving_time) {
+    const hours = activity.moving_time / 3600;
+    const intensityFactor = activity.normalized_power / ftp;
+    return Math.round(hours * intensityFactor * intensityFactor * 100);
+  }
 
-  // Calculate from kilojoules if available (more accurate)
+  // Tier 4: kilojoules + duration → derive avg power, then TSS
   if (activity.kilojoules && activity.kilojoules > 0 && activity.moving_time) {
-    // Rough TSS estimate from kJ: TSS ~= kJ / 3.6 / FTP * 100
-    // Without FTP, use approximate formula
     const hours = activity.moving_time / 3600;
     if (hours > 0) {
-      return Math.round(activity.kilojoules / hours / 1.2);
+      const avgPower = (activity.kilojoules * 1000) / activity.moving_time;
+      if (ftp && ftp > 0) {
+        const intensityFactor = avgPower / ftp;
+        return Math.round(hours * intensityFactor * intensityFactor * 100);
+      }
+      // No FTP: assume FTP=200 as rough baseline
+      const intensityFactor = avgPower / 200;
+      return Math.round(hours * intensityFactor * intensityFactor * 100);
     }
   }
 
+  // Tier 5: duration + elevation + avg watts heuristic
   const durationHours = (activity.moving_time || 0) / 3600;
   const elevationM = activity.total_elevation_gain || 0;
 
-  // Base: 50 TSS/hour + elevation factor
   const baseTSS = durationHours * 50;
   const elevationFactor = (elevationM / 300) * 10;
 
-  // Intensity adjustment based on average watts if available
   let intensityMultiplier = 1.0;
   if (activity.average_watts && activity.average_watts > 0) {
-    // Higher average watts = higher intensity
-    // Assume 150W is baseline endurance
     intensityMultiplier = Math.min(1.8, Math.max(0.5, activity.average_watts / 150));
   }
 
@@ -289,13 +296,22 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
 
   if (error) throw error;
 
+  // Get FTP from user preferences (needed for TSS estimation)
+  const { data: prefs } = await supabase
+    .from('user_preferences')
+    .select('ftp')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  const userFtp = prefs?.ftp || null;
+
   // Build daily TSS map for CTL/ATL calculation
   const dailyTSS = {};
   const weekActivities = [];
 
   (activities || []).forEach(activity => {
     const actDate = activity.start_date.split('T')[0];
-    const tss = estimateTSS(activity);
+    const tss = estimateTSS(activity, userFtp);
     dailyTSS[actDate] = (dailyTSS[actDate] || 0) + tss;
 
     // Track activities within target week
@@ -313,9 +329,9 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
     tssArray.push(dailyTSS[dateStr] || 0);
   }
 
-  // Calculate load metrics
+  // Calculate load metrics using iterative EWA (matches client-side formulas)
   const ctl = calculateCTL(tssArray);
-  const atl = calculateATL(tssArray.slice(-7));
+  const atl = calculateATL(tssArray);
   const tsb = calculateTSB(ctl, atl);
 
   // Compute weekly summary
@@ -329,13 +345,6 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
   const weeklyElevation = weekActivities.reduce(
     (sum, a) => sum + (a.total_elevation_gain || 0), 0
   );
-
-  // Get FTP from user preferences
-  const { data: prefs } = await supabase
-    .from('user_preferences')
-    .select('ftp')
-    .eq('user_id', userId)
-    .maybeSingle();
 
   // Compute trends
   const loadTrend = computeLoadTrend(tssArray);

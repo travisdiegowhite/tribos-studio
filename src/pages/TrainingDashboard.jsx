@@ -631,13 +631,6 @@ function TrainingDashboard() {
     return stats;
   }, [visibleActivities, timeRange, ftp]);
 
-  // Count activities in last 90 days (for display)
-  const ninetyDayActivityCount = useMemo(() => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 90);
-    return visibleActivities.filter(a => new Date(a.start_date) >= cutoff).length;
-  }, [visibleActivities]);
-
   // Calculate true weekly stats (Monday-Sunday of current week)
   const actualWeeklyStats = useMemo(() => {
     const today = new Date();
@@ -1514,6 +1507,13 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
   // Check if any activities are from Strava/Garmin for attribution
   const hasStravaActivities = activities?.some(a => a.provider === 'strava');
   const hasGarminActivities = activities?.some(a => a.provider === 'garmin');
+
+  // Count activities in last 90 days
+  const ninetyDayActivityCount = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    return (activities || []).filter(a => new Date(a.start_date) >= cutoff).length;
+  }, [activities]);
 
   return (
     <Stack gap="lg">
