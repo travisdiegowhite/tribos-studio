@@ -363,6 +363,7 @@ async function storeActivities(userId, activities, importSource = null) {
       average_speed: a.average_speed, // m/s
       max_speed: a.max_speed, // m/s
       average_watts: a.average_watts || null,
+      normalized_power: a.weighted_average_watts || null,
       kilojoules: a.kilojoules || null,
       average_heartrate: a.average_heartrate || null,
       max_heartrate: a.max_heartrate || null,
@@ -411,6 +412,7 @@ async function storeActivities(userId, activities, importSource = null) {
       const stravaData = {
         map_summary_polyline: a.map?.summary_polyline || null,
         average_watts: a.average_watts || null,
+        normalized_power: a.weighted_average_watts || null,
         kilojoules: a.kilojoules || null,
         average_heartrate: a.average_heartrate || null,
         max_heartrate: a.max_heartrate || null,
