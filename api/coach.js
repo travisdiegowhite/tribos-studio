@@ -11,38 +11,11 @@ import { generateTrainingPlan } from './utils/planGenerator.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
+import { PERSONA_DATA } from './utils/personaData.js';
+import { formatHealth, fetchProprietaryMetrics } from './utils/contextHelpers.js';
 
 // Initialize Supabase for auth validation
 const supabase = getSupabaseAdmin();
-
-// Persona voice data — shared with coach-check-in-request.js
-const PERSONA_DATA = {
-  hammer: {
-    name: 'The Hammer',
-    philosophy: 'Discomfort is the price of adaptation. You committed to this — now honor that commitment.',
-    voice: 'Direct, brief, no filler. Short declarative sentences. No hedging. Uses imperatives.',
-  },
-  scientist: {
-    name: 'The Scientist',
-    philosophy: 'Every training session is a data point. Understand the stimulus, trust the adaptation, measure the outcome.',
-    voice: 'Calm, precise, explanatory. Uses physiological terminology naturally but always explains it.',
-  },
-  encourager: {
-    name: 'The Encourager',
-    philosophy: 'Consistency is the only thing that creates lasting fitness. Every ride counts.',
-    voice: "Warm, present-tense focused, process-oriented. Notices the effort behind the number.",
-  },
-  pragmatist: {
-    name: 'The Pragmatist',
-    philosophy: "A good plan that gets executed beats a perfect plan that doesn't. Work with the life you have.",
-    voice: 'Grounded, conversational, no-nonsense but not harsh. Meets the rider where they are.',
-  },
-  competitor: {
-    name: 'The Competitor',
-    philosophy: "You train to race. Every session either prepares you to win or it doesn't.",
-    voice: 'Focused, forward-looking, frames everything in terms of race outcomes.',
-  },
-};
 
 // Resolve relative date strings (today, tomorrow, this_monday, next_tuesday, YYYY-MM-DD) to YYYY-MM-DD
 function resolveScheduledDate(dateStr) {
@@ -775,9 +748,17 @@ export default async function handler(req, res) {
         .eq('status', 'active')
         .order('priority', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false }),
+      // Fetch latest health metrics for coaching context
+      supabase
+        .from('health_metrics')
+        .select('resting_hr, hrv_ms, sleep_hours, sleep_quality, energy_level, recorded_date')
+        .eq('user_id', verifiedUserId)
+        .order('recorded_date', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ];
 
-    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult] = await Promise.all(parallelFetches);
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult] = await Promise.all(parallelFetches);
 
     const coachSettings = coachSettingsResult.data;
     const activeCheckIn = checkInResult?.data || null;
@@ -787,6 +768,10 @@ export default async function handler(req, res) {
     const unresolvedDeviations = deviationsResult?.data || [];
     const userDbTimezone = userProfileResult?.data?.timezone || null;
     const allActivePlans = allActivePlansResult?.data || [];
+    const healthMetrics = healthMetricsResult?.data || null;
+
+    // Fetch proprietary metrics (EFI/TWL/TCAS) — non-blocking
+    const proprietaryMetrics = await fetchProprietaryMetrics(supabase, verifiedUserId);
 
     // Resolve the user's timezone: prefer browser-supplied, then DB, then UTC
     const resolvedTimezone = userLocalDate?.timezone || userDbTimezone || 'UTC';
@@ -926,6 +911,19 @@ WORKOUT STATUS GUIDE: Planned workouts are labeled [DONE], [MISSED], [TODAY], [U
 - Many athletes have specific training day patterns (e.g., heavy Thu-Sun). Mid-week low volume is normal — check the full week schedule before judging.
 
 ${trainingContext}`;
+    }
+
+    // Inject health metrics if available
+    const healthText = formatHealth(healthMetrics);
+    if (healthText && healthText !== 'No health data available.') {
+      systemPrompt += `\n\n=== HEALTH STATUS ===
+${healthText}`;
+    }
+
+    // Inject proprietary performance metrics if available
+    if (proprietaryMetrics) {
+      systemPrompt += `\n\n=== PERFORMANCE METRICS ===
+${proprietaryMetrics}`;
     }
 
     // Add multi-plan context when the athlete has multiple active training plans

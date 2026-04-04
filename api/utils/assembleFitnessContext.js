@@ -8,6 +8,8 @@
  * (not recovery) and flags it so the AI doesn't misinterpret the data.
  */
 
+import { derivePhase, formatWeekSchedule, weekScheduleToText, formatHealth, fetchProprietaryMetrics } from './contextHelpers.js';
+
 /**
  * @param {string} userId
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -206,57 +208,7 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   const weightKg = profile.weight_kg || 75;
 
   // --- Proprietary metrics (EFI, TWL, TCAS) ---
-  let proprietaryMetrics = null;
-  try {
-    const [efiRow, twlRow, tcasRow] = await Promise.all([
-      supabase
-        .from('activity_efi')
-        .select('efi, efi_28d, vf, ifs, cf')
-        .eq('user_id', userId)
-        .order('computed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from('activity_twl')
-        .select('twl, base_tss, m_terrain')
-        .eq('user_id', userId)
-        .order('computed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from('weekly_tcas')
-        .select('tcas, he, aq, taa')
-        .eq('user_id', userId)
-        .order('week_ending', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
-
-    const efi = efiRow.data;
-    const twl = twlRow.data;
-    const tcas = tcasRow.data;
-
-    if (efi || twl || tcas) {
-      const sections = ['## Tribos Custom Metrics (current)', ''];
-      if (efi) {
-        sections.push(`**EFI (Execution Fidelity):** ${efi.efi_28d ?? efi.efi}/100 (28-day rolling)`);
-        sections.push(`  - Volume Fidelity: ${pctFmt(efi.vf)}, Intensity Fidelity: ${pctFmt(efi.ifs)}, Consistency: ${pctFmt(efi.cf)}`);
-        sections.push('');
-      }
-      if (twl) {
-        sections.push(`**TWL (Terrain-Weighted Load, last ride):** ${twl.twl} (base TSS: ${twl.base_tss}, multiplier: ${twl.m_terrain?.toFixed(3)}×)`);
-        sections.push('');
-      }
-      if (tcas) {
-        sections.push(`**TCAS (Time-Constrained Adaptation):** ${tcas.tcas}/100`);
-        sections.push(`  - Hours Efficiency: ${tcas.he?.toFixed(2)}, Adaptation Quality: ${tcas.aq?.toFixed(2)}, Training Age Adj: ${tcas.taa?.toFixed(2)}×`);
-      }
-      proprietaryMetrics = sections.join('\n');
-    }
-  } catch (metricsErr) {
-    // Non-critical — don't fail context assembly
-    console.error('[assembleFitnessContext] Proprietary metrics fetch failed:', metricsErr.message);
-  }
+  const proprietaryMetrics = await fetchProprietaryMetrics(supabase, userId);
 
   return {
     snapshot: {
@@ -305,104 +257,6 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       : null,
     health: healthData ? formatHealth(healthData) : null,
   };
-}
-
-/**
- * Derive training phase from plan progress.
- * Mirrors the logic in checkInContext.js to keep AI surfaces consistent.
- */
-function derivePhase(currentWeek, totalWeeks, methodology) {
-  if (!currentWeek || !totalWeeks) {
-    return { blockName: 'General Training', blockPurpose: 'Build overall fitness and consistency.' };
-  }
-
-  const ratio = currentWeek / totalWeeks;
-  const methodPrefix = methodology || 'general';
-
-  if (ratio <= 0.33) {
-    const purposes = {
-      polarized: 'Develop aerobic foundation through high-volume low-intensity work with occasional high-intensity touches.',
-      sweet_spot: 'Build aerobic base with sustainable sub-threshold efforts to maximize training efficiency.',
-      pyramidal: 'Establish a wide aerobic base with gradually increasing intensity distribution.',
-      threshold: 'Develop aerobic capacity to support upcoming threshold-focused work.',
-      endurance: 'Build deep aerobic foundation and movement efficiency through steady volume.',
-    };
-    return { blockName: 'Base Building', blockPurpose: purposes[methodPrefix] || 'Develop aerobic foundation and movement efficiency.' };
-  }
-
-  if (ratio <= 0.66) {
-    const purposes = {
-      polarized: 'Increase high-intensity stimulus while maintaining aerobic volume.',
-      sweet_spot: 'Progress sweet spot duration and frequency to push FTP ceiling higher.',
-      pyramidal: 'Shift intensity distribution toward more tempo and threshold work.',
-      threshold: 'Extend time at threshold to drive FTP adaptation.',
-      endurance: 'Add targeted intensity to the aerobic base for race-specific fitness.',
-    };
-    return { blockName: 'Build', blockPurpose: purposes[methodPrefix] || 'Increase intensity and sport-specific fitness.' };
-  }
-
-  if (ratio <= 0.85) {
-    return { blockName: 'Peak', blockPurpose: 'Sharpen race-specific efforts at target intensity. Maintain volume, maximize quality.' };
-  }
-
-  return { blockName: 'Taper', blockPurpose: 'Reduce volume while maintaining intensity. Arrive at race day fresh and sharp.' };
-}
-
-/**
- * Format the week schedule as structured data.
- * Mirrors the logic in checkInContext.js.
- */
-function formatWeekSchedule(weekWorkouts) {
-  if (!weekWorkouts || weekWorkouts.length === 0) return [];
-
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  return weekWorkouts
-    .sort((a, b) => (a.day_of_week ?? 0) - (b.day_of_week ?? 0))
-    .map((w) => ({
-      day: dayNames[w.day_of_week] || `Day${w.day_of_week}`,
-      day_of_week: w.day_of_week,
-      scheduled_date: w.scheduled_date || null,
-      name: w.name || w.workout_type || 'Workout',
-      workout_type: w.workout_type || 'ride',
-      target_tss: w.target_tss || 0,
-      actual_tss: w.actual_tss || 0,
-      completed: !!w.completed,
-      has_activity: !!w.activity_id,
-    }));
-}
-
-/**
- * Serialize week schedule to text for AI context.
- * Mirrors the logic in checkInContext.js.
- */
-function weekScheduleToText(weekSchedule) {
-  if (!weekSchedule || weekSchedule.length === 0) return 'No planned workouts this week.';
-
-  return weekSchedule
-    .map((w) => {
-      const status = w.completed ? 'DONE' : w.has_activity ? 'PARTIAL' : 'PLANNED';
-      const tssInfo = w.target_tss
-        ? `planned=${w.target_tss}${w.actual_tss ? ` actual=${w.actual_tss}` : ''}`
-        : '';
-      const dateLabel = w.scheduled_date ? ` (${w.scheduled_date})` : '';
-      return `${w.day}${dateLabel}: ${w.name} [${status}] ${tssInfo}`.trim();
-    })
-    .join('\n');
-}
-
-/**
- * Format health metrics as a compact string.
- */
-function formatHealth(health) {
-  if (!health) return null;
-  const parts = [
-    health.resting_hr ? `RHR: ${health.resting_hr}bpm` : null,
-    health.hrv_ms ? `HRV: ${health.hrv_ms}ms` : null,
-    health.sleep_hours ? `Sleep: ${health.sleep_hours}h` : null,
-    health.energy_level ? `Energy: ${health.energy_level}/5` : null,
-  ].filter(Boolean);
-  return parts.length > 0 ? parts.join(' | ') : null;
 }
 
 /**
@@ -499,9 +353,4 @@ export function buildCacheKey(context) {
     context.week_schedule || 'none',
   ];
   return parts.join(':');
-}
-
-function pctFmt(v) {
-  if (v == null) return 'N/A';
-  return `${(v * 100).toFixed(0)}%`;
 }

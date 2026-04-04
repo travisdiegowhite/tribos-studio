@@ -6,102 +6,7 @@
  * fetches the most recent activity for context (if any exist).
  */
 
-/**
- * Derive training phase/block from current week position and methodology.
- */
-function derivePhase(currentWeek, totalWeeks, methodology) {
-  if (!currentWeek || !totalWeeks) {
-    return { blockName: 'General Training', blockPurpose: 'Build overall fitness and consistency.' };
-  }
-
-  const ratio = currentWeek / totalWeeks;
-  const methodPrefix = methodology || 'general';
-
-  if (ratio <= 0.33) {
-    const purposes = {
-      polarized: 'Develop aerobic foundation through high-volume low-intensity work with occasional high-intensity touches.',
-      sweet_spot: 'Build aerobic base with sustainable sub-threshold efforts to maximize training efficiency.',
-      pyramidal: 'Establish a wide aerobic base with gradually increasing intensity distribution.',
-      threshold: 'Develop aerobic capacity to support upcoming threshold-focused work.',
-      endurance: 'Build deep aerobic foundation and movement efficiency through steady volume.',
-    };
-    return {
-      blockName: 'Base Building',
-      blockPurpose: purposes[methodPrefix] || 'Develop aerobic foundation and movement efficiency.',
-    };
-  }
-
-  if (ratio <= 0.66) {
-    const purposes = {
-      polarized: 'Increase high-intensity stimulus while maintaining aerobic volume.',
-      sweet_spot: 'Progress sweet spot duration and frequency to push FTP ceiling higher.',
-      pyramidal: 'Shift intensity distribution toward more tempo and threshold work.',
-      threshold: 'Extend time at threshold to drive FTP adaptation.',
-      endurance: 'Add targeted intensity to the aerobic base for race-specific fitness.',
-    };
-    return {
-      blockName: 'Build',
-      blockPurpose: purposes[methodPrefix] || 'Increase intensity and sport-specific fitness.',
-    };
-  }
-
-  if (ratio <= 0.85) {
-    return {
-      blockName: 'Peak',
-      blockPurpose: 'Sharpen race-specific efforts at target intensity. Maintain volume, maximize quality.',
-    };
-  }
-
-  return {
-    blockName: 'Taper',
-    blockPurpose: 'Reduce volume while maintaining intensity. Arrive at race day fresh and sharp.',
-  };
-}
-
-/**
- * Format the week schedule as structured data for both the AI prompt and UI.
- */
-function formatWeekSchedule(weekWorkouts) {
-  if (!weekWorkouts || weekWorkouts.length === 0) {
-    return [];
-  }
-
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  return weekWorkouts
-    .sort((a, b) => (a.day_of_week ?? 0) - (b.day_of_week ?? 0))
-    .map((w) => ({
-      day: dayNames[w.day_of_week] || `Day${w.day_of_week}`,
-      day_of_week: w.day_of_week,
-      scheduled_date: w.scheduled_date || null,
-      name: w.name || w.workout_type || 'Workout',
-      workout_type: w.workout_type || 'ride',
-      target_tss: w.target_tss || 0,
-      actual_tss: w.actual_tss || 0,
-      completed: !!w.completed,
-      has_activity: !!w.activity_id,
-    }));
-}
-
-/**
- * Serialize week schedule to text for the AI system prompt.
- */
-function weekScheduleToText(weekSchedule) {
-  if (!weekSchedule || weekSchedule.length === 0) {
-    return 'No planned workouts this week.';
-  }
-
-  return weekSchedule
-    .map((w) => {
-      const status = w.completed ? 'DONE' : w.has_activity ? 'PARTIAL' : 'PLANNED';
-      const tssInfo = w.target_tss
-        ? `planned=${w.target_tss}${w.actual_tss ? ` actual=${w.actual_tss}` : ''}`
-        : '';
-      const dateLabel = w.scheduled_date ? ` (${w.scheduled_date})` : '';
-      return `${w.day}${dateLabel}: ${w.name} [${status}] ${tssInfo}`.trim();
-    })
-    .join('\n');
-}
+import { derivePhase, formatWeekSchedule, weekScheduleToText, formatHealth, fetchProprietaryMetrics } from './contextHelpers.js';
 
 /**
  * Assemble the full context package for a coaching check-in.
@@ -163,7 +68,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
 
     supabase
       .from('user_coach_settings')
-      .select('user_preferred_name, coach_name, coaching_persona')
+      .select('user_preferred_name, coach_name, coaching_persona, coaching_experience_level')
       .eq('user_id', userId)
       .maybeSingle(),
 
@@ -199,10 +104,10 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
       .order('timestamp', { ascending: false })
       .limit(10),
 
-    // User timezone
+    // User profile (timezone, FTP, weight, experience)
     supabase
       .from('user_profiles')
-      .select('timezone')
+      .select('timezone, ftp, weight_kg, experience_level')
       .eq('id', userId)
       .maybeSingle(),
   ]);
@@ -216,7 +121,8 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   const health = healthResult.data;
   const memories = memoryResult.data || [];
   const recentConversations = recentConversationsResult.data || [];
-  const userTimezone = userProfileResult?.data?.timezone || 'America/New_York';
+  const userProfile = userProfileResult?.data || {};
+  const userTimezone = userProfile.timezone || 'America/New_York';
 
   // Get matched planned workout (if any)
   let plannedWorkout = null;
@@ -295,14 +201,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     : '';
 
   // Format health
-  const healthText = health
-    ? [
-        health.resting_hr ? `RHR: ${health.resting_hr}bpm` : null,
-        health.hrv_ms ? `HRV: ${health.hrv_ms}ms` : null,
-        health.sleep_hours ? `Sleep: ${health.sleep_hours}h` : null,
-        health.energy_level ? `Energy: ${health.energy_level}/5` : null,
-      ].filter(Boolean).join(' | ')
-    : 'No health data available.';
+  const healthText = formatHealth(health);
 
   // Build structured week schedule (for UI) and text version (for prompt)
   const weekSchedule = formatWeekSchedule(weekScheduleRaw);
@@ -310,6 +209,19 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
 
   // Flag whether this is an activity-based or general check-in
   const hasActivity = !!activity;
+
+  // Fetch proprietary metrics (EFI/TWL/TCAS) — non-blocking
+  const proprietaryMetrics = await fetchProprietaryMetrics(supabase, userId);
+
+  // Build athlete profile
+  const ftp = userProfile.ftp || null;
+  const weightKg = userProfile.weight_kg || null;
+  const athleteProfile = {
+    ftp,
+    weight_kg: weightKg,
+    wkg: ftp && weightKg ? parseFloat((ftp / weightKg).toFixed(1)) : null,
+    experience_level: userProfile.experience_level || null,
+  };
 
   // Compute user-local date using their timezone
   let userLocalDateStr = '';
@@ -342,10 +254,13 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   return {
     rider_name: coachSettings?.user_preferred_name || 'Rider',
     persona_id: coachSettings?.coaching_persona || 'pragmatist',
+    experience_level: coachSettings?.coaching_experience_level || null,
     has_activity: hasActivity,
     user_timezone: userTimezone,
     user_local_date: userLocalDateStr,
     user_local_day: userLocalDayOfWeek,
+    athlete: athleteProfile,
+    proprietary_metrics: proprietaryMetrics,
 
     goal_event: raceGoal
       ? `${raceGoal.name} (${raceGoal.race_type}, ${raceGoal.race_date}, Priority ${raceGoal.priority})`
