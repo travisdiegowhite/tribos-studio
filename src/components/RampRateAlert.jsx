@@ -28,19 +28,14 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
       return null;
     }
 
-    // Calculate CTL at different points in time
+    // Calculate CTL at a given day index using iterative EWA
     const calculateCTLAtDay = (data, endIndex) => {
       if (endIndex < 0) return 0;
-      const decay = 1 / 42;
       let ctl = 0;
-      const slice = data.slice(0, endIndex + 1);
-
-      slice.forEach((d, index) => {
-        const weight = Math.exp(-decay * (slice.length - index - 1));
-        ctl += d.tss * weight;
-      });
-
-      return Math.round(ctl * decay);
+      for (let i = 0; i <= endIndex; i++) {
+        ctl = ctl + (data[i].tss - ctl) / 42;
+      }
+      return Math.round(ctl);
     };
 
     // Get CTL from 7 days ago and 14 days ago

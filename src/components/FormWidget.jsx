@@ -41,29 +41,22 @@ function calculateTrainingLoad(activities) {
   const days = Object.keys(dailyTSS).sort();
   const tssValues = days.map((d) => dailyTSS[d]);
 
-  // CTL: 42-day exponentially weighted average
-  const ctlDecay = 1 / 42;
+  // CTL/ATL: iterative EWA (matches trainingPlans.ts canonical formulas)
   let ctl = 0;
-  tssValues.forEach((tss, index) => {
-    const weight = Math.exp(-ctlDecay * (tssValues.length - index - 1));
-    ctl += tss * weight;
-  });
-  ctl = Math.round(ctl * ctlDecay);
-
-  // ATL: 7-day exponentially weighted average
-  const recentTSS = tssValues.slice(-7);
-  const atlDecay = 1 / 7;
   let atl = 0;
-  recentTSS.forEach((tss, index) => {
-    const weight = Math.exp(-atlDecay * (recentTSS.length - index - 1));
-    atl += tss * weight;
-  });
-  atl = Math.round(atl * atlDecay);
+  let prevCtl = 0;
+  let prevAtl = 0;
+  for (const tss of tssValues) {
+    prevCtl = ctl;
+    prevAtl = atl;
+    ctl = ctl + (tss - ctl) / 42;
+    atl = atl + (tss - atl) / 7;
+  }
 
-  // TSB: Form = CTL - ATL
-  const tsb = ctl - atl;
+  // TSB uses yesterday's CTL/ATL (freshness going into today)
+  const tsb = Math.round(prevCtl) - Math.round(prevAtl);
 
-  return { ctl, atl, tsb };
+  return { ctl: Math.round(ctl), atl: Math.round(atl), tsb };
 }
 
 /**
