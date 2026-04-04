@@ -67,6 +67,7 @@ import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/
 import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
+import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 import { translateTSB } from '../lib/fitness/translate';
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
@@ -174,28 +175,8 @@ function TrainingDashboard() {
     visibleActivities.forEach((activity) => {
       const dateStr = activity.start_date?.split('T')[0];
       if (dateStr && dailyTSS[dateStr]) {
-        let activityTSS;
-
-        // Prefer stored TSS (from provider or FIT file analysis)
-        if (activity.tss != null && activity.tss > 0) {
-          activityTSS = activity.tss;
-        } else if (activity.average_watts && ftp) {
-          activityTSS = calculateTSS(
-            activity.moving_time,
-            activity.average_watts,
-            ftp
-          );
-        } else {
-          activityTSS = estimateTSS(
-            (activity.moving_time || 0) / 60,
-            (activity.distance || 0) / 1000,
-            activity.total_elevation_gain || 0,
-            'endurance'
-          );
-        }
-
-        // Cap TSS to prevent corrupted data from breaking metrics
-        activityTSS = Math.min(activityTSS || 0, 500);
+        // Use unified 5-tier TSS estimation (matches Dashboard)
+        const activityTSS = Math.min(estimateActivityTSS(activity, ftp), 500);
         dailyTSS[dateStr].tss += activityTSS;
       }
     });
@@ -208,7 +189,10 @@ function TrainingDashboard() {
     const tssValues = sortedDailyTSS.map(d => d.tss);
     const ctl = calculateCTL(tssValues);
     const atl = calculateATL(tssValues);
-    const tsb = calculateTSB(ctl, atl);
+
+    // TSB uses yesterday's CTL/ATL (freshness going into today)
+    const tssYesterday = tssValues.length >= 2 ? tssValues.slice(0, -1) : tssValues;
+    const tsb = calculateTSB(calculateCTL(tssYesterday), calculateATL(tssYesterday));
     const interpretation = interpretTSB(tsb);
 
     setTrainingMetrics({ ctl, atl, tsb, interpretation });
