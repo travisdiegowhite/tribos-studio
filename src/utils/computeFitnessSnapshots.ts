@@ -110,8 +110,9 @@ export function estimateActivityTSS(
   }
 
   // Tier 2: normalized power + current FTP (most accurate, consistent across years)
-  if (activity.normalized_power && activity.normalized_power > 0 && ftp && ftp > 0) {
-    const tss = calculateTSS(activity.moving_time || 0, activity.normalized_power, ftp);
+  if (activity.normalized_power && activity.normalized_power > 0) {
+    const effectiveFtp = ftp && ftp > 0 ? ftp : 200;
+    const tss = calculateTSS(activity.moving_time || 0, activity.normalized_power, effectiveFtp);
     if (tss !== null && tss > 0) return tss;
   }
 
@@ -183,12 +184,31 @@ export function computeWeeklySnapshots(
 
   if (visible.length === 0) return [];
 
+  // Diagnostic: count which TSS tier each activity uses
+  const tierCounts: Record<string, number> = { running: 0, np_ftp: 0, kj_ftp: 0, stored_tss: 0, heuristic: 0 };
+  const yearTierCounts: Record<number, Record<string, number>> = {};
+
   // Build daily TSS map and per-day activity lists
   const dailyTSS: Record<string, number> = {};
   const dailyActivities: Record<string, ActivityInput[]> = {};
 
   for (const activity of visible) {
     const dateStr = activity.start_date.split('T')[0];
+    const year = parseInt(dateStr.substring(0, 4));
+    if (!yearTierCounts[year]) yearTierCounts[year] = { running: 0, np_ftp: 0, kj_ftp: 0, stored_tss: 0, heuristic: 0 };
+
+    // Track which tier this activity uses
+    if (RUNNING_TYPES.includes(activity.type || '')) {
+      tierCounts.running++; yearTierCounts[year].running++;
+    } else if (activity.normalized_power && activity.normalized_power > 0) {
+      tierCounts.np_ftp++; yearTierCounts[year].np_ftp++;
+    } else if (activity.kilojoules && activity.kilojoules > 0) {
+      tierCounts.kj_ftp++; yearTierCounts[year].kj_ftp++;
+    } else if (activity.tss && activity.tss > 0) {
+      tierCounts.stored_tss++; yearTierCounts[year].stored_tss++;
+    } else {
+      tierCounts.heuristic++; yearTierCounts[year].heuristic++;
+    }
     const tss = Math.min(estimateActivityTSS(activity, ftp), 500); // cap at 500
     dailyTSS[dateStr] = (dailyTSS[dateStr] || 0) + tss;
     if (!dailyActivities[dateStr]) dailyActivities[dateStr] = [];
@@ -276,6 +296,11 @@ export function computeWeeklySnapshots(
 
     day = nextDay;
   }
+
+  // Diagnostic: log TSS tier usage per year
+  console.log('[Fitness Debug] FTP:', ftp, '| Total activities:', visible.length);
+  console.log('[Fitness Debug] TSS tier totals:', tierCounts);
+  console.log('[Fitness Debug] TSS tiers by year:', yearTierCounts);
 
   // Return sorted descending (most recent first), matching server convention
   return snapshots.reverse();

@@ -367,6 +367,7 @@ async function handleActivityCreate(eventId, webhookData, integration) {
         const stravaData = {
           map_summary_polyline: activity.map?.summary_polyline || null,
           average_watts: activity.average_watts || null,
+          normalized_power: activity.weighted_average_watts || null,
           average_heartrate: activity.average_heartrate || null,
           max_heartrate: activity.max_heartrate || null,
           average_cadence: activity.average_cadence || null,
@@ -545,6 +546,7 @@ async function handleActivityUpdate(eventId, webhookData, integration) {
       average_speed: activity.average_speed,
       max_speed: activity.max_speed,
       average_watts: activity.average_watts || null,
+      normalized_power: activity.weighted_average_watts || null,
       average_heartrate: activity.average_heartrate || null,
       max_heartrate: activity.max_heartrate || null,
       map_summary_polyline: activity.map?.summary_polyline || null,
@@ -621,6 +623,7 @@ function buildActivityData(userId, activity) {
     average_speed: activity.average_speed, // m/s
     max_speed: activity.max_speed, // m/s
     average_watts: activity.average_watts || null,
+    normalized_power: activity.weighted_average_watts || null,
     kilojoules: activity.kilojoules || null,
     average_heartrate: activity.average_heartrate || null,
     max_heartrate: activity.max_heartrate || null,

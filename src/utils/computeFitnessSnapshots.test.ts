@@ -98,6 +98,44 @@ describe('computeWeeklySnapshots', () => {
     // Since TSB = ctlPrev - atlPrev, it won't be as negative as ctl - atl
   });
 
+  it('produces realistic CTL for consistent training (5 rides/week, 2h, 200W avg, FTP=250)', () => {
+    // Simulate 12 weeks of consistent training ending this week
+    const activities: ActivityInput[] = [];
+    const now = new Date();
+    // Start 12 weeks ago
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - 12 * 7);
+
+    for (let week = 0; week < 12; week++) {
+      // 5 rides per week (Mon, Tue, Wed, Fri, Sat)
+      const rideDays = [0, 1, 2, 4, 5];
+      for (const dayOffset of rideDays) {
+        const d = new Date(startDate);
+        d.setDate(d.getDate() + week * 7 + dayOffset);
+        if (d > now) break; // don't create future activities
+        activities.push({
+          start_date: d.toISOString(),
+          kilojoules: 1440, // 200W avg × 2h = 1440 kJ
+          moving_time: 7200, // 2 hours
+          average_watts: 200,
+        });
+      }
+    }
+
+    const snapshots = computeWeeklySnapshots(activities, 250);
+    // Find the last week that has activities (not current partial week)
+    const fullWeek = snapshots.find(s => s.weekly_ride_count >= 4);
+
+    // kJ TSS per ride: 1440 / (250 × 0.036) = 1440 / 9 = 160
+    // 5 rides/week = 800 weekly TSS
+    // Daily avg = 800/7 = 114
+    // After 12 weeks (~2 time constants), CTL should approach ~99
+    expect(fullWeek).toBeDefined();
+    expect(fullWeek!.ctl).toBeGreaterThan(70);
+    expect(fullWeek!.ctl).toBeLessThan(130);
+    expect(fullWeek!.weekly_tss).toBeGreaterThan(600);
+  });
+
   it('caps individual activity TSS at 500', () => {
     const activity: ActivityInput = {
       start_date: new Date().toISOString(),

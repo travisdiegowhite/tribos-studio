@@ -132,22 +132,31 @@ function estimateRunningTSS(activity) {
  * Supports both cycling and running activities
  */
 export function estimateTSS(activity, ftp = null) {
-  // Use actual TSS if available from power data
-  if (activity.tss && activity.tss > 0) return activity.tss;
-
-  // Route to running-specific estimation for running activities
+  // Running-specific estimation
   if (isRunningActivity(activity)) {
     return estimateRunningTSS(activity);
   }
 
-  // Cycling TSS estimation below
+  // Cycling TSS estimation — prioritize FTP-based formulas for consistency
 
-  // Calculate from kilojoules if available
+  // Normalized power + FTP (most accurate)
+  if (activity.normalized_power && activity.normalized_power > 0) {
+    const effectiveFtp = ftp && ftp > 0 ? ftp : 200;
+    const intensityFactor = activity.normalized_power / effectiveFtp;
+    const durationHours = (activity.moving_time || 0) / 3600;
+    const tss = Math.round(durationHours * intensityFactor * intensityFactor * 100);
+    if (tss > 0) return tss;
+  }
+
+  // Kilojoules + FTP
   // TSS ≈ kJ / (FTP × 0.036) — derived from TSS = (duration × NP × IF) / (FTP × 3600) × 100
   if (activity.kilojoules && activity.kilojoules > 0) {
     const effectiveFtp = ftp && ftp > 0 ? ftp : 200;
     return Math.round(activity.kilojoules / (effectiveFtp * 0.036));
   }
+
+  // Stored TSS from device (fallback — may use a different FTP)
+  if (activity.tss && activity.tss > 0) return activity.tss;
 
   const durationHours = (activity.moving_time || 0) / 3600;
   const elevationM = activity.total_elevation_gain || 0;

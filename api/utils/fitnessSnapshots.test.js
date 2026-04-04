@@ -77,9 +77,35 @@ describe('calculateTSB', () => {
 // ─── TSS Estimation ─────────────────────────────────────────────────────────
 
 describe('estimateTSS', () => {
-  it('returns stored TSS when available', () => {
+  it('prefers kJ+FTP over stored TSS for consistency', () => {
     const activity = { tss: 150, kilojoules: 1440, moving_time: 7200 };
-    expect(estimateTSS(activity)).toBe(150);
+    // kJ tier (1440/7.2=200) wins over stored TSS (150)
+    expect(estimateTSS(activity, 200)).toBe(200);
+  });
+
+  it('falls back to stored TSS when no NP, kJ, or power data', () => {
+    const activity = { tss: 150, moving_time: 7200 };
+    expect(estimateTSS(activity, 200)).toBe(150);
+  });
+
+  describe('NP+FTP estimation', () => {
+    it('uses NP+FTP when normalized power is available', () => {
+      // IF = 200/200 = 1.0, TSS = 2h × 1.0² × 100 = 200
+      const activity = { normalized_power: 200, moving_time: 7200 };
+      expect(estimateTSS(activity, 200)).toBe(200);
+    });
+
+    it('defaults FTP to 200 when not provided', () => {
+      const activity = { normalized_power: 200, moving_time: 3600 };
+      // IF = 200/200 = 1.0, TSS = 1h × 1.0 × 100 = 100
+      expect(estimateTSS(activity)).toBe(100);
+    });
+
+    it('prefers NP+FTP over kJ and stored TSS', () => {
+      const activity = { normalized_power: 250, moving_time: 7200, kilojoules: 1440, tss: 300 };
+      // IF = 250/200 = 1.25, TSS = 2h × 1.5625 × 100 = 313
+      expect(estimateTSS(activity, 200)).toBe(313);
+    });
   });
 
   describe('kJ-based estimation', () => {
