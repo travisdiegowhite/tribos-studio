@@ -539,6 +539,35 @@ function HistoricalInsights({ userId, activities, ftp }) {
     return computeWeeklySnapshots(activities, ftp);
   }, [activities, ftp]);
 
+  // Diagnostic: log activity data quality per year
+  useEffect(() => {
+    if (!activities || activities.length === 0) return;
+    const RUNNING = ['Run', 'VirtualRun', 'TrailRun'];
+    const byYear = {};
+    activities.filter(a => !a.is_hidden && a.start_date).forEach(a => {
+      const year = a.start_date.substring(0, 4);
+      if (!byYear[year]) byYear[year] = { count: 0, hasNP: 0, hasKJ: 0, hasTSS: 0, hasWatts: 0, noData: 0, running: 0, totalKJ: 0, totalHours: 0 };
+      const y = byYear[year];
+      y.count++;
+      y.totalHours += (a.moving_time || 0) / 3600;
+      if (RUNNING.includes(a.type)) { y.running++; return; }
+      if (a.normalized_power > 0) y.hasNP++;
+      if (a.kilojoules > 0) { y.hasKJ++; y.totalKJ += a.kilojoules; }
+      if (a.tss > 0) y.hasTSS++;
+      if (a.average_watts > 0) y.hasWatts++;
+      if (!a.normalized_power && !a.kilojoules && !a.tss && !a.average_watts) y.noData++;
+    });
+    console.log('[Fitness Debug] FTP:', ftp);
+    console.log('[Fitness Debug] Activity data by year:');
+    Object.entries(byYear).sort().forEach(([year, d]) => {
+      console.log(`  ${year}: ${d.count} activities, ${Math.round(d.totalHours)}h | NP:${d.hasNP} kJ:${d.hasKJ} TSS:${d.hasTSS} watts:${d.hasWatts} noData:${d.noData} running:${d.running}`);
+    });
+    if (clientSnapshots.length > 0) {
+      const recent = clientSnapshots.slice(0, 4);
+      console.log('[Fitness Debug] Recent weekly snapshots:', recent.map(s => `${s.snapshot_week}: CTL=${s.ctl} TSS=${s.weekly_tss} rides=${s.weekly_ride_count}`));
+    }
+  }, [activities, ftp, clientSnapshots]);
+
   // Client snapshots are the authoritative source — recomputed from raw activities
   // with current formulas. Server snapshots may contain stale values from older
   // formula versions and are only used as a fallback when no activities are loaded.
