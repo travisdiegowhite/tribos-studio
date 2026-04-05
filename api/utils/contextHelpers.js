@@ -70,6 +70,7 @@ export function formatWeekSchedule(weekWorkouts) {
   return weekWorkouts
     .sort((a, b) => (a.day_of_week ?? 0) - (b.day_of_week ?? 0))
     .map((w) => ({
+      id: w.id || null,
       day: dayNames[w.day_of_week] || `Day${w.day_of_week}`,
       day_of_week: w.day_of_week,
       scheduled_date: w.scheduled_date || null,
@@ -84,8 +85,10 @@ export function formatWeekSchedule(weekWorkouts) {
 
 /**
  * Serialize week schedule to text for the AI system prompt.
+ * @param {Array} weekSchedule - Formatted week schedule
+ * @param {Map<string, string>} [coachAnnotations] - Map of workout_id → annotation string
  */
-export function weekScheduleToText(weekSchedule) {
+export function weekScheduleToText(weekSchedule, coachAnnotations) {
   if (!weekSchedule || weekSchedule.length === 0) {
     return 'No planned workouts this week.';
   }
@@ -97,7 +100,10 @@ export function weekScheduleToText(weekSchedule) {
         ? `planned=${w.target_tss}${w.actual_tss ? ` actual=${w.actual_tss}` : ''}`
         : '';
       const dateLabel = w.scheduled_date ? ` (${w.scheduled_date})` : '';
-      return `${w.day}${dateLabel}: ${w.name} [${status}] ${tssInfo}`.trim();
+      const annotation = (coachAnnotations && w.id && coachAnnotations.has(w.id))
+        ? ` ${coachAnnotations.get(w.id)}`
+        : '';
+      return `${w.day}${dateLabel}: ${w.name} [${status}] ${tssInfo}${annotation}`.trim();
     })
     .join('\n');
 }

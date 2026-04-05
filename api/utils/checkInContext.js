@@ -9,6 +9,90 @@
 import { derivePhase, formatWeekSchedule, weekScheduleToText, formatHealth, fetchProprietaryMetrics } from './contextHelpers.js';
 
 /**
+ * Build a map of workout_id → annotation string from recent accepted decisions.
+ * Used to mark workouts in the week schedule that were recently coach-adjusted.
+ */
+function buildCoachAnnotations(decisions) {
+  const annotations = new Map();
+  if (!decisions || decisions.length === 0) return annotations;
+
+  for (const d of decisions) {
+    if (d.decision !== 'accept' || !d.outcome_notes) continue;
+
+    try {
+      const o = typeof d.outcome_notes === 'string' ? JSON.parse(d.outcome_notes) : d.outcome_notes;
+      if (!o.applied || !o.workout_id) continue;
+
+      const date = d.decided_at?.split('T')[0] || 'recently';
+
+      switch (o.action) {
+        case 'modify':
+          annotations.set(o.workout_id, `(coach-adjusted from ${o.original_tss} TSS on ${date})`);
+          break;
+        case 'insert_rest':
+          annotations.set(o.workout_id, `(coach-converted to rest on ${date})`);
+          break;
+        case 'replace':
+          annotations.set(o.workout_id, `(coach-replaced from '${o.original_name}' on ${date})`);
+          break;
+        case 'drop':
+          // Workout no longer exists, but note it in case of re-query edge cases
+          annotations.set(o.workout_id, `(coach-dropped on ${date})`);
+          break;
+        case 'swap':
+          if (o.swapped) {
+            for (const s of o.swapped) {
+              annotations.set(s.id, `(coach-swapped to ${s.moved_to} on ${date})`);
+            }
+          }
+          break;
+      }
+    } catch {
+      // Skip unparseable outcome notes
+    }
+  }
+
+  return annotations;
+}
+
+/**
+ * Parse raw outcome_notes JSON into human-readable text.
+ * Falls back to the raw string if parsing fails.
+ */
+function humanizeOutcome(outcomeNotes) {
+  if (!outcomeNotes) return '';
+
+  try {
+    const o = typeof outcomeNotes === 'string' ? JSON.parse(outcomeNotes) : outcomeNotes;
+
+    if (!o.applied) {
+      return `Not applied: ${o.reason || 'unknown reason'}`;
+    }
+
+    switch (o.action) {
+      case 'modify':
+        return `Modified '${o.workout_name || 'workout'}' from ${o.original_tss} to ${o.new_tss} TSS (${Math.round((o.scale_factor || 0.7) * 100)}% scale) on ${o.date || 'unknown date'}`;
+      case 'swap':
+        if (o.swapped && o.swapped.length === 2) {
+          return `Swapped '${o.swapped[0].name}' to ${o.swapped[0].moved_to} and '${o.swapped[1].name}' to ${o.swapped[1].moved_to}`;
+        }
+        return 'Swapped two workouts';
+      case 'insert_rest':
+        return `Converted '${o.original_name || 'workout'}' on ${o.date || 'unknown date'} to rest day`;
+      case 'drop':
+        return `Dropped '${o.workout_name || 'workout'}' on ${o.date || 'unknown date'}`;
+      case 'replace':
+        return `Replaced '${o.original_name || 'workout'}' with '${o.new_name || 'replacement'}' on ${o.date || 'unknown date'}`;
+      default:
+        return `Applied: ${o.action || 'unknown action'}`;
+    }
+  } catch {
+    // If it's not valid JSON, return the raw string
+    return String(outcomeNotes);
+  }
+}
+
+/**
  * Assemble the full context package for a coaching check-in.
  *
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase - Service role client
@@ -141,7 +225,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     const { data: weekWorkouts } = await supabase
       .from('planned_workouts')
       .select(`
-        day_of_week, scheduled_date, name, workout_type,
+        id, day_of_week, scheduled_date, name, workout_type,
         target_tss, actual_tss, completed, activity_id
       `)
       .eq('plan_id', plan.id)
@@ -188,11 +272,12 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
       ].filter(Boolean).join(', ') || 'No power data'
     : 'No activity data';
 
-  // Format decision history
+  // Format decision history with humanized outcome notes
   const decisionHistory = decisions.length > 0
-    ? decisions.map((d) =>
-        `[${d.decided_at?.split('T')[0]}] ${d.decision.toUpperCase()}: ${d.recommendation_summary}${d.outcome_notes ? ` -> ${d.outcome_notes}` : ''}`
-      ).join('\n')
+    ? decisions.map((d) => {
+        const outcome = d.outcome_notes ? ` -> ${humanizeOutcome(d.outcome_notes)}` : '';
+        return `[${d.decided_at?.split('T')[0]}] ${d.decision.toUpperCase()}: ${d.recommendation_summary}${outcome}`;
+      }).join('\n')
     : 'No previous decisions.';
 
   // Format memories
@@ -205,7 +290,10 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
 
   // Build structured week schedule (for UI) and text version (for prompt)
   const weekSchedule = formatWeekSchedule(weekScheduleRaw);
-  const weekScheduleText = weekScheduleToText(weekSchedule);
+
+  // Build coach-adjustment annotations from recent decisions
+  const coachAnnotations = buildCoachAnnotations(decisions);
+  const weekScheduleText = weekScheduleToText(weekSchedule, coachAnnotations);
 
   // Flag whether this is an activity-based or general check-in
   const hasActivity = !!activity;
