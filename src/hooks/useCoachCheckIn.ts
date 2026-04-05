@@ -15,6 +15,7 @@ import type {
   CheckInDecision,
   PersonaId,
   DecisionType,
+  PlannedMutation,
 } from '../types/checkIn';
 
 interface UseCoachCheckInReturn {
@@ -23,7 +24,7 @@ interface UseCoachCheckInReturn {
   loading: boolean;
   persona: PersonaId;
   hasCompletedIntake: boolean;
-  makeDecision: (checkInId: string, decision: DecisionType, summary: string) => Promise<void>;
+  makeDecision: (checkInId: string, decision: DecisionType, summary: string, plannedMutation?: PlannedMutation | null) => Promise<void>;
   markSeen: (checkInId: string) => Promise<void>;
   refresh: () => Promise<void>;
   savePersona: (personaId: PersonaId, setBy: 'intake' | 'manual') => Promise<void>;
@@ -109,9 +110,44 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
     fetchData();
   }, [fetchData]);
 
-  const makeDecision = useCallback(async (checkInId: string, decision: DecisionType, summary: string) => {
+  const makeDecision = useCallback(async (
+    checkInId: string,
+    decision: DecisionType,
+    summary: string,
+    plannedMutation?: PlannedMutation | null,
+  ) => {
     if (!userId) return;
 
+    // If accepting with a planned mutation, call the server endpoint
+    // which records the decision AND applies the workout change atomically.
+    if (decision === 'accept' && plannedMutation) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const response = await fetch('/api/check-in-apply', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ check_in_id: checkInId }),
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        console.error('Failed to apply check-in:', result);
+        throw new Error(result.error || 'Failed to apply recommendation');
+      }
+
+      const result = await response.json();
+      setCurrentDecision(result.decision as CheckInDecision);
+
+      // Notify calendar to refresh
+      window.dispatchEvent(new CustomEvent('training-plan-updated'));
+      return;
+    }
+
+    // Dismiss or advisory-only accept: just record the decision
     const { data, error } = await supabase
       .from('coach_check_in_decisions')
       .insert({

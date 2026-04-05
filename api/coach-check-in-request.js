@@ -132,6 +132,23 @@ ${context.structured_deviations.map(d => `- ${d.deviation_date}: ${d.deviation_t
 - DEVIATION THRESHOLD: Only include deviation_callout when planned vs actual TSS differs by >20% or a session was missed entirely. If structured deviation data is available above, use it to provide more specific guidance.
 - RECOMMENDATION NULLABILITY: If execution was clean and no adjustment is warranted, return null for recommendation.
 
+## PLANNED MUTATION RULES
+When your recommendation involves a concrete change to the training plan, include a planned_mutation object. This is what actually modifies the plan when the athlete clicks Accept.
+
+Available mutation types:
+- "modify": Reduce a workout's TSS and duration by a factor. Requires scale_factor (0.5-0.9). Example: 0.7 means reduce to 70%.
+- "swap": Move the next quality workout 2 days later (swaps with whatever is on that date).
+- "insert_rest": Convert tomorrow's workout into a rest day.
+- "drop": Delete the next quality workout entirely. Use sparingly.
+- "replace": Replace a workout with a completely different one. Requires replacement object with workout_type, name, target_tss, target_duration.
+
+Target options (which workout to modify):
+- "next_quality": The next workout marked as a quality/key session
+- "tomorrow": Tomorrow's workout specifically
+- "next": The very next upcoming workout regardless of type
+
+If the recommendation is advisory-only (e.g., nutrition advice, general encouragement) with no plan change, set planned_mutation to null.
+
 ## YOUR TASK
 Generate a coaching check-in in your voice. Return ONLY valid JSON, no preamble or explanation:
 {
@@ -141,6 +158,17 @@ Generate a coaching check-in in your voice. Return ONLY valid JSON, no preamble 
     "action": "<short label, under 8 words>",
     "detail": "<specific adjustment, 1-2 sentences>",
     "reasoning": "<why, in your voice, 1-2 sentences>",
+    "planned_mutation": {
+      "type": "<modify | swap | insert_rest | drop | replace>",
+      "target": "<next_quality | tomorrow | next>",
+      "scale_factor": "<number 0.5-0.9, only for type=modify>",
+      "replacement": {
+        "workout_type": "<e.g. recovery, endurance>",
+        "name": "<e.g. Recovery Spin>",
+        "target_tss": "<number>",
+        "target_duration": "<minutes>"
+      }
+    },
     "implications": {
       "accept": { "short": "<under 12 words>", "full": "<2-3 sentences>" },
       "dismiss": { "short": "<under 12 words>", "full": "<2-3 sentences>" }
@@ -150,6 +178,8 @@ Generate a coaching check-in in your voice. Return ONLY valid JSON, no preamble 
 }
 
 If no recommendation is warranted, set "recommendation" to null.
+For planned_mutation: include only the fields relevant to the mutation type. Set to null if recommendation is advisory-only.
+For "replace" type: include the replacement object. For "modify" type: include scale_factor. For other types: omit both.
 If no deviation callout is needed (deviation <20%), set "deviation_callout" to null.`;
 }
 
