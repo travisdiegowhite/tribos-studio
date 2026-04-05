@@ -25,6 +25,7 @@ import WeatherWidget from '../components/WeatherWidget.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
 import { DEFAULT_ROUTE_COLOR } from '../components/ui/zoneColors';
+import RouteGenerationProgress from '../components/RouteGenerationProgress.jsx';
 import { detectRouteClick, findNearestPointOnRoute, findSegmentToRemove, removeSegmentAndReroute, getSegmentHighlight, getRemovalStats } from '../utils/routeEditor';
 import { getElevationData, calculateElevationStats, calculateCumulativeDistances } from '../utils/elevation';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
@@ -45,6 +46,7 @@ import { fetchBikeInfrastructure } from '../utils/bikeInfrastructureService';
 import RouteExportMenu from '../components/RouteExportMenu.jsx';
 import MapControls from '../components/MapControls.jsx';
 import { FuelCard } from '../components/fueling';
+import RaceDayGuide from '../components/fueling/RaceDayGuide';
 import { TirePressureCard } from '../components/tire-pressure';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import SavedRoutesDrawer from '../components/SavedRoutesDrawer.jsx';
@@ -52,6 +54,8 @@ import ModeSelector from '../components/RouteBuilder/ModeSelector.jsx';
 import WaypointList from '../components/RouteBuilder/WaypointList.jsx';
 import useRouteManipulation from '../hooks/useRouteManipulation';
 import { parseGpxFile } from '../utils/gpxParser';
+import { DateInput } from '@mantine/dates';
+import { RACE_TYPES } from '../utils/raceTypes';
 import { calculatePersonalizedETA } from '../utils/personalizedETA';
 import { queryPOIsAlongRoute, POI_CATEGORIES } from '../utils/routePOIService';
 import RoutePOILayer from '../components/RouteBuilder/RoutePOILayer.jsx';
@@ -100,6 +104,9 @@ function RouteBuilder() {
     routeType, setRouteType,
     routeProfile, setRouteProfile,
     explicitDistanceKm, setExplicitDistanceKm,
+    raceType, setRaceType,
+    raceDate, setRaceDate,
+    targetFinishMinutes, setTargetFinishMinutes,
     aiSuggestions, setAiSuggestions,
     selectedWorkoutId, setSelectedWorkoutId,
     routingSource, setRoutingSource,
@@ -147,6 +154,7 @@ function RouteBuilder() {
 
   // AI Route Generation transient state
   const [generatingAI, setGeneratingAI] = useState(false);
+  const [routeGenStep, setRouteGenStep] = useState(null);
   const [convertingRoute, setConvertingRoute] = useState(null); // Index of suggestion being converted
   const [naturalLanguageInput, setNaturalLanguageInput] = useState('');
   // Iterative route builder - persisted to localStorage, enabled by default
@@ -739,6 +747,11 @@ function RouteBuilder() {
           });
           setRouteType(String(route.route_type || 'loop'));
           setTrainingGoal(String(route.training_goal || 'endurance'));
+          // Restore race type from tags if this is a race route
+          if (route.training_goal === 'race' && Array.isArray(route.tags)) {
+            const raceTag = route.tags.find(t => t.startsWith('race:'));
+            if (raceTag) setRaceType(raceTag.split(':')[1]);
+          }
           setSavedRouteId(route.id);
 
           // Center map on route start
@@ -1525,6 +1538,7 @@ function RouteBuilder() {
 
     setIsSaving(true);
     try {
+      const raceTags = trainingGoal === 'race' && raceType ? [`race:${raceType}`] : [];
       const routeData = {
         id: savedRouteId, // Include ID if updating existing route
         name: routeName,
@@ -1536,7 +1550,8 @@ function RouteBuilder() {
         training_goal: trainingGoal,
         surface_type: routeProfile,
         generated_by: aiSuggestions.length > 0 ? 'ai' : 'manual',
-        waypoints: waypoints.length > 0 ? waypoints : null
+        waypoints: waypoints.length > 0 ? waypoints : null,
+        tags: raceTags.length > 0 ? raceTags : null,
       };
 
       const saved = await saveRoute(routeData);
@@ -1663,6 +1678,7 @@ function RouteBuilder() {
   // Generate AI Routes using the comprehensive aiRouteGenerator or iterative builder
   const handleGenerateAIRoutes = useCallback(async () => {
     setGeneratingAI(true);
+    setRouteGenStep('analyzing');
     try {
       let routes;
 
@@ -1687,6 +1703,7 @@ function RouteBuilder() {
           console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
         }
 
+        setRouteGenStep('generating');
         routes = await generateIterativeRouteVariations({
           startLocation: [viewportRef.current.longitude, viewportRef.current.latitude],
           targetDistanceKm,
@@ -1717,7 +1734,7 @@ function RouteBuilder() {
           userId: user?.id,
           speedProfile,
           speedModifier: 1.0
-        });
+        }, (progress) => setRouteGenStep(progress.step));
       }
 
       // Score routes against user's riding history and rank by composite score
@@ -1768,6 +1785,7 @@ function RouteBuilder() {
       });
     } finally {
       setGeneratingAI(false);
+      setRouteGenStep(null);
     }
   }, [timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm, accessToken]); // viewport read from viewportRef
 
@@ -1855,6 +1873,7 @@ function RouteBuilder() {
     }
 
     setGeneratingAI(true);
+    setRouteGenStep('analyzing');
 
     try {
       console.log('🗣️ Processing natural language request:', naturalLanguageInput);
@@ -1892,6 +1911,7 @@ function RouteBuilder() {
       }
 
       // Step 3: Parse Claude's response to get waypoint names
+      setRouteGenStep('generating');
       const parsed = parseNaturalLanguageResponse(data.content);
       console.log('📍 Parsed route request:', parsed);
 
@@ -2242,6 +2262,7 @@ function RouteBuilder() {
       });
     } finally {
       setGeneratingAI(false);
+      setRouteGenStep(null);
     }
   }, [naturalLanguageInput, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext, accessToken]); // viewport read from viewportRef
 
@@ -2601,12 +2622,48 @@ function RouteBuilder() {
             { label: 'Recovery', value: 'recovery' },
             { label: 'Endurance', value: 'endurance' },
             { label: 'Intervals', value: 'intervals' },
-            { label: 'Hills', value: 'hills' }
+            { label: 'Hills', value: 'hills' },
+            { label: 'Race', value: 'race' }
           ]}
           styles={{
             root: { backgroundColor: 'var(--color-bg-secondary)' }
           }}
         />
+        {trainingGoal === 'race' && (
+          <Stack gap="xs" mt="xs">
+            <Select
+              label="RACE TYPE"
+              placeholder="Select race type"
+              value={raceType}
+              onChange={setRaceType}
+              data={RACE_TYPES}
+              size="xs"
+              variant="filled"
+              styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
+            />
+            <DateInput
+              label="RACE DATE"
+              placeholder="Optional"
+              value={raceDate ? new Date(raceDate) : null}
+              onChange={(date) => setRaceDate(date ? date.toISOString() : null)}
+              size="xs"
+              variant="filled"
+              clearable
+              styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
+            />
+            <NumberInput
+              label="TARGET FINISH (MIN)"
+              placeholder="Optional"
+              value={targetFinishMinutes || ''}
+              onChange={(val) => setTargetFinishMinutes(val || null)}
+              min={15}
+              max={1440}
+              size="xs"
+              variant="filled"
+              styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
+            />
+          </Stack>
+        )}
       </Box>
 
       <Group grow>
@@ -2984,6 +3041,8 @@ function RouteBuilder() {
             getUserSpeedForProfile={getUserSpeedForProfile}
             routeProfile={routeProfile}
             personalizedETA={personalizedETA}
+            trainingGoal={trainingGoal}
+            targetFinishMinutes={targetFinishMinutes}
           />
         )}
         <Button
@@ -3031,8 +3090,13 @@ function RouteBuilder() {
           </Group>
           {routeStats.duration >= 45 && routeGeometry ? (
             <FuelCard
-              route={{ estimatedDurationMinutes: routeStats.duration, elevationGainMeters: routeStats.elevation || 0 }}
+              route={{
+                estimatedDurationMinutes: routeStats.duration,
+                elevationGainMeters: routeStats.elevation || 0,
+                intensity: trainingGoal === 'race' ? 'race' : undefined,
+              }}
               weather={weatherData ? { temperatureCelsius: weatherData.temperature, humidity: weatherData.humidity } : undefined}
+              isRaceDay={trainingGoal === 'race'}
               compact={true}
               useImperial={isImperial}
             />
@@ -3042,6 +3106,19 @@ function RouteBuilder() {
             </Text>
           )}
         </Paper>
+
+        {/* Race Day Guide */}
+        {trainingGoal === 'race' && routeGeometry && routeStats.duration > 0 && (
+          <RaceDayGuide
+            routeStats={routeStats}
+            personalizedETA={personalizedETA}
+            raceType={raceType}
+            raceDate={raceDate}
+            targetFinishMinutes={targetFinishMinutes}
+            weatherData={weatherData}
+            useImperial={isImperial}
+          />
+        )}
 
         {/* Workout Structure */}
         <Paper p="md" withBorder style={{ borderColor: 'var(--color-bg-secondary)', backgroundColor: 'var(--color-bg)' }} radius={0}>
@@ -3116,6 +3193,7 @@ function RouteBuilder() {
   if (isMobile) {
     return (
       <AppShell fullWidth hideNav>
+        <RouteGenerationProgress visible={generatingAI} currentStep={routeGenStep} />
         <Box style={{ height: 'calc(100dvh - 60px)', minHeight: 'calc(100vh - 60px)', position: 'relative' }}>
           {/* Full-screen map */}
           <Box style={{ width: '100%', height: '100%' }}>
@@ -3822,6 +3900,7 @@ function RouteBuilder() {
   // Desktop layout
   return (
     <AppShell fullWidth>
+      <RouteGenerationProgress visible={generatingAI} currentStep={routeGenStep} />
       <Box style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
         {/* Sidebar */}
         <Paper
@@ -4120,12 +4199,48 @@ function RouteBuilder() {
                         { label: 'Recovery', value: 'recovery' },
                         { label: 'Endurance', value: 'endurance' },
                         { label: 'Intervals', value: 'intervals' },
-                        { label: 'Hills', value: 'hills' }
+                        { label: 'Hills', value: 'hills' },
+                        { label: 'Race', value: 'race' }
                       ]}
                       styles={{
                         root: { backgroundColor: 'var(--color-bg-secondary)' }
                       }}
                     />
+                    {trainingGoal === 'race' && (
+                      <Stack gap="xs" mt="xs">
+                        <Select
+                          label="RACE TYPE"
+                          placeholder="Select race type"
+                          value={raceType}
+                          onChange={setRaceType}
+                          data={RACE_TYPES}
+                          size="xs"
+                          variant="filled"
+                          styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
+                        />
+                        <DateInput
+                          label="RACE DATE"
+                          placeholder="Optional"
+                          value={raceDate ? new Date(raceDate) : null}
+                          onChange={(date) => setRaceDate(date ? date.toISOString() : null)}
+                          size="xs"
+                          variant="filled"
+                          clearable
+                          styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
+                        />
+                        <NumberInput
+                          label="TARGET FINISH (MIN)"
+                          placeholder="Optional"
+                          value={targetFinishMinutes || ''}
+                          onChange={(val) => setTargetFinishMinutes(val || null)}
+                          min={15}
+                          max={1440}
+                          size="xs"
+                          variant="filled"
+                          styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
+                        />
+                      </Stack>
+                    )}
                   </Box>
 
                   <Group grow>
@@ -4538,11 +4653,13 @@ function RouteBuilder() {
                       route={{
                         estimatedDurationMinutes: routeStats.duration,
                         elevationGainMeters: routeStats.elevation || 0,
+                        intensity: trainingGoal === 'race' ? 'race' : undefined,
                       }}
                       weather={weatherData ? {
                         temperatureCelsius: weatherData.temperature,
                         humidity: weatherData.humidity,
                       } : undefined}
+                      isRaceDay={trainingGoal === 'race'}
                       compact={true}
                       useImperial={isImperial}
                     />
@@ -4552,6 +4669,19 @@ function RouteBuilder() {
                     </Text>
                   )}
                 </Paper>
+
+                {/* Race Day Guide */}
+                {trainingGoal === 'race' && routeGeometry && routeStats.duration > 0 && (
+                  <RaceDayGuide
+                    routeStats={routeStats}
+                    personalizedETA={personalizedETA}
+                    raceType={raceType}
+                    raceDate={raceDate}
+                    targetFinishMinutes={targetFinishMinutes}
+                    weatherData={weatherData}
+                    useImperial={isImperial}
+                  />
+                )}
 
                 {/* Workout Structure */}
                 <Paper

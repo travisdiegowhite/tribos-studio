@@ -10,6 +10,8 @@ import type {
   TrainingGoal,
   FitnessLevel,
   PlanStatus,
+  PlanPriority,
+  SportType,
 } from './training';
 
 // ============================================================
@@ -52,11 +54,14 @@ export interface TrainingPlanInsert {
   user_id: string;
   template_id?: string | null;
   name: string;
+  sport_type?: SportType | null;
   duration_weeks: number;
   methodology?: TrainingMethodology | null;
   goal?: TrainingGoal | null;
   fitness_level?: FitnessLevel | null;
   status?: PlanStatus;
+  priority?: PlanPriority;
+  target_event_date?: string | null;
   started_at: string;
   ended_at?: string | null;
   paused_at?: string | null;
@@ -72,11 +77,14 @@ export interface TrainingPlanInsert {
 export interface TrainingPlanUpdate {
   template_id?: string | null;
   name?: string;
+  sport_type?: SportType | null;
   duration_weeks?: number;
   methodology?: TrainingMethodology | null;
   goal?: TrainingGoal | null;
   fitness_level?: FitnessLevel | null;
   status?: PlanStatus;
+  priority?: PlanPriority;
+  target_event_date?: string | null;
   started_at?: string;
   ended_at?: string | null;
   paused_at?: string | null;
@@ -278,6 +286,16 @@ export interface UserProfileInsert {
   garmin_data_consent_at?: string | null;
   account_deletion_requested_at?: string | null;
   data_export_requested_at?: string | null;
+  // Onboarding profile
+  experience_level?: 'beginner' | 'intermediate' | 'advanced' | 'racer' | null;
+  primary_goal?: 'fitness' | 'event' | 'performance' | 'comeback' | null;
+  target_event_date?: string | null;
+  target_event_name?: string | null;
+  preferred_terrain?: string[] | null;
+  weekly_tss_estimate?: number | null;
+  onboarding_persona_set?: boolean;
+  welcome_email_sent?: boolean;
+  activation_nudge_sent?: boolean;
 }
 
 export interface UserProfileUpdate {
@@ -304,6 +322,16 @@ export interface UserProfileUpdate {
   garmin_data_consent_at?: string | null;
   account_deletion_requested_at?: string | null;
   data_export_requested_at?: string | null;
+  // Onboarding profile
+  experience_level?: 'beginner' | 'intermediate' | 'advanced' | 'racer' | null;
+  primary_goal?: 'fitness' | 'event' | 'performance' | 'comeback' | null;
+  target_event_date?: string | null;
+  target_event_name?: string | null;
+  preferred_terrain?: string[] | null;
+  weekly_tss_estimate?: number | null;
+  onboarding_persona_set?: boolean;
+  welcome_email_sent?: boolean;
+  activation_nudge_sent?: boolean;
 }
 
 // ============================================================

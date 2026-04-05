@@ -84,6 +84,8 @@ export type TrainingPhase = 'base' | 'build' | 'peak' | 'taper' | 'recovery';
 
 export type PlanStatus = 'active' | 'paused' | 'completed' | 'cancelled';
 
+export type PlanPriority = 'primary' | 'secondary';
+
 export type DayOfWeek =
   | 'sunday'
   | 'monday'
@@ -669,6 +671,10 @@ export interface TrainingPlanDB {
   goal: TrainingGoal | null;
   fitness_level: FitnessLevel | null;
   status: PlanStatus;
+  /** Plan priority - 'primary' key workouts take precedence over 'secondary' */
+  priority: PlanPriority;
+  /** Target event/race date for adaptive plan duration */
+  target_event_date: string | null;
   started_at: string; // ISO date string
   ended_at: string | null;
   paused_at: string | null;

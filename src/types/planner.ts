@@ -9,6 +9,8 @@ import type {
   TrainingPhase,
   TrainingGoal,
   WorkoutDefinition,
+  SportType,
+  PlanPriority,
 } from './training';
 
 // ============================================================
@@ -17,6 +19,9 @@ import type {
 
 export interface PlannerWorkout {
   id: string;
+  planId: string; // Which training plan this workout belongs to
+  sportType: SportType | null; // Sport type for color-coding in multi-plan view
+  planPriority: PlanPriority; // Whether this is from a primary or secondary plan
   scheduledDate: string; // ISO date string YYYY-MM-DD
   workoutId: string | null; // Reference to workout library
   workoutType: WorkoutCategory | 'rest' | null;
@@ -104,18 +109,19 @@ export interface DragState {
 // ============================================================
 
 export interface TrainingPlannerState {
-  // Plan context
-  activePlanId: string | null;
-  planStartDate: string | null;
-  planDurationWeeks: number;
+  // Plan context — multi-plan support
+  activePlanId: string | null; // Currently selected/focused plan
+  loadedPlanIds: string[]; // All plan IDs currently loaded into the store
+  planStartDate: string | null; // Start date of the focused plan
+  planDurationWeeks: number; // Duration of the focused plan
   currentPhase: TrainingPhase | 'recovery';
 
   // View state
   focusedWeekStart: string; // ISO date of first day of focused 2-week period
   selectedDate: string | null;
 
-  // Data
-  plannedWorkouts: Record<string, PlannerWorkout>; // keyed by date
+  // Data — workouts from all loaded plans, keyed by date, array per date
+  plannedWorkouts: Record<string, PlannerWorkout[]>;
   goals: PlannerGoal[];
   aiHints: AIHint[];
 
@@ -145,11 +151,11 @@ export interface TrainingPlannerActions {
   selectDate: (date: string | null) => void;
   navigateWeeks: (direction: 'prev' | 'next') => void;
 
-  // Workout operations
+  // Workout operations (operate on the active/focused plan)
   addWorkoutToDate: (date: string, workoutId: string) => void;
   moveWorkout: (fromDate: string, toDate: string) => void;
-  removeWorkout: (date: string) => void;
-  updateWorkout: (date: string, updates: Partial<PlannerWorkout>) => void;
+  removeWorkout: (date: string, planId?: string) => void;
+  updateWorkout: (date: string, updates: Partial<PlannerWorkout>, planId?: string) => void;
 
   // Drag operations
   startDrag: (source: DragSource, workoutId: string, sourceDate?: string) => void;
@@ -171,11 +177,16 @@ export interface TrainingPlannerActions {
   updateGoal: (id: string, updates: Partial<PlannerGoal>) => void;
   removeGoal: (id: string) => void;
 
-  // Persistence
+  // Persistence — multi-plan aware
   loadPlan: (planId: string) => Promise<void>;
+  unloadPlan: (planId: string) => void;
+  loadAllActivePlans: (userId: string, preferredActivePlanId?: string) => Promise<void>;
   loadWorkoutsForDateRange: (startDate: string, endDate: string) => Promise<void>;
   savePendingChanges: () => Promise<void>;
   syncWithDatabase: () => Promise<void>;
+
+  // Multi-plan management
+  setActivePlan: (planId: string) => void;
 
   // Initialization
   initializeFromActivePlan: (
@@ -184,6 +195,11 @@ export interface TrainingPlannerActions {
     durationWeeks: number,
     workouts: PlannerWorkout[]
   ) => void;
+
+  // Compatibility helpers
+  getWorkoutForDate: (date: string) => PlannerWorkout | null;
+  getWorkoutsForDate: (date: string) => PlannerWorkout[];
+  getWorkoutsForPlan: (planId: string, date: string) => PlannerWorkout | null;
 
   // Reset
   reset: () => void;
@@ -264,6 +280,7 @@ export interface WorkoutCardProps {
 export interface CalendarDayCellProps {
   date: string;
   plannedWorkout: PlannerWorkout | null;
+  plannedWorkouts?: PlannerWorkout[]; // Multi-plan: all workouts for this date
   actualActivity?: {
     id: string;
     name?: string;
@@ -276,7 +293,7 @@ export interface CalendarDayCellProps {
   isToday: boolean;
   isDropTarget: boolean;
   onDrop: (date: string) => void;
-  onRemoveWorkout: (date: string) => void;
+  onRemoveWorkout: (date: string, planId?: string) => void;
   onClick: (date: string) => void;
 }
 
@@ -289,7 +306,7 @@ export interface WorkoutLibrarySidebarProps {
 
 export interface TwoWeekCalendarProps {
   startDate: string;
-  workouts: Record<string, PlannerWorkout>;
+  workouts: Record<string, PlannerWorkout[]>;
   activities?: Record<string, {
     id: string;
     name?: string;
@@ -301,7 +318,7 @@ export interface TwoWeekCalendarProps {
   }>;
   dropTargetDate: string | null;
   onDrop: (date: string) => void;
-  onRemoveWorkout: (date: string) => void;
+  onRemoveWorkout: (date: string, planId?: string) => void;
   onDateClick: (date: string) => void;
   onNavigate: (direction: 'prev' | 'next') => void;
 }

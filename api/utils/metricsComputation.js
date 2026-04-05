@@ -365,10 +365,20 @@ async function tryAutoMatchWorkout(supabase, userId, activity) {
   const dayAfter = new Date(activityDate);
   dayAfter.setDate(dayAfter.getDate() + 1);
 
+  // planned_workouts has no user_id column — join through training_plans
+  const { data: activePlans } = await supabase
+    .from('training_plans')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'active');
+  const planIds = (activePlans || []).map(p => p.id);
+
+  if (planIds.length === 0) return null;
+
   const { data: candidates } = await supabase
     .from('planned_workouts')
     .select('id, scheduled_date, target_tss, target_duration, workout_type')
-    .eq('user_id', userId)
+    .in('plan_id', planIds)
     .gte('scheduled_date', dayBefore.toISOString().split('T')[0])
     .lte('scheduled_date', dayAfter.toISOString().split('T')[0])
     .is('activity_id', null)

@@ -24,21 +24,19 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { tokens } from '../theme';
 import { formatLocalDate } from '../utils/dateUtils';
-import { CalendarBlank, CaretDown, CaretUp, Check, Clock, Fire, Mountains, Path, Target, Trash, Trophy } from '@phosphor-icons/react';
+import { CalendarBlank, CaretDown, CaretUp, Check, Clock, Fire, MapPin, Mountains, Path, Target, Trash, Trophy } from '@phosphor-icons/react';
+import { RACE_TYPES as BASE_RACE_TYPES } from '../utils/raceTypes';
+import { listRoutes } from '../utils/routesService';
 
-// Race type options
-const RACE_TYPES = [
-  { value: 'road_race', label: '🚴 Road Race' },
-  { value: 'criterium', label: '🔄 Criterium' },
-  { value: 'time_trial', label: '⏱️ Time Trial' },
-  { value: 'gran_fondo', label: '🏔️ Gran Fondo' },
-  { value: 'century', label: '💯 Century Ride' },
-  { value: 'gravel', label: '🪨 Gravel Race' },
-  { value: 'cyclocross', label: '🌲 Cyclocross' },
-  { value: 'mtb', label: '🏔️ Mountain Bike' },
-  { value: 'triathlon', label: '🏊 Triathlon (Bike)' },
-  { value: 'other', label: '🎯 Other Event' },
-];
+// Race type options with emoji labels for the modal
+const RACE_TYPES = BASE_RACE_TYPES.map(t => {
+  const emojiMap = {
+    road_race: '🚴', criterium: '🔄', time_trial: '⏱️', gran_fondo: '🏔️',
+    century: '💯', gravel: '🪨', cyclocross: '🌲', mtb: '🏔️',
+    triathlon: '🏊', other: '🎯',
+  };
+  return { ...t, label: `${emojiMap[t.value] || '🎯'} ${t.label}` };
+});
 
 // Priority options with descriptions
 const PRIORITY_OPTIONS = [
@@ -62,6 +60,8 @@ const RaceGoalModal = ({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [fuelPlanOpen, { toggle: toggleFuelPlan }] = useDisclosure(false);
+  const [savedRoutes, setSavedRoutes] = useState([]);
+  const [routesLoading, setRoutesLoading] = useState(false);
 
   // Form state
   const [form, setForm] = useState({
@@ -77,7 +77,19 @@ const RaceGoalModal = ({
     goal_placement: '',
     notes: '',
     course_description: '',
+    route_id: null,
   });
+
+  // Load saved routes when modal opens
+  useEffect(() => {
+    if (opened) {
+      setRoutesLoading(true);
+      listRoutes()
+        .then((routes) => setSavedRoutes(routes || []))
+        .catch(() => setSavedRoutes([]))
+        .finally(() => setRoutesLoading(false));
+    }
+  }, [opened]);
 
   // Populate form when editing
   useEffect(() => {
@@ -95,6 +107,7 @@ const RaceGoalModal = ({
         goal_placement: raceGoal.goal_placement || '',
         notes: raceGoal.notes || '',
         course_description: raceGoal.course_description || '',
+        route_id: raceGoal.route_id || null,
       });
     } else {
       // Reset form for new race
@@ -111,6 +124,7 @@ const RaceGoalModal = ({
         goal_placement: '',
         notes: '',
         course_description: '',
+        route_id: null,
       });
     }
   }, [raceGoal, opened]);
@@ -233,6 +247,7 @@ const RaceGoalModal = ({
         goal_placement: form.goal_placement.trim() || null,
         notes: form.notes.trim() || null,
         course_description: form.course_description.trim() || null,
+        route_id: form.route_id || null,
       };
 
       if (raceGoal?.id) {
@@ -403,6 +418,37 @@ const RaceGoalModal = ({
         </Box>
 
         <Divider label="Race Details" labelPosition="center" />
+
+        {/* Link Route */}
+        <Select
+          label="Link a Route"
+          placeholder={routesLoading ? 'Loading routes...' : 'Select a saved route (optional)'}
+          value={form.route_id}
+          onChange={(routeId) => {
+            setForm(prev => ({ ...prev, route_id: routeId }));
+            // Auto-populate distance and elevation from route
+            if (routeId) {
+              const route = savedRoutes.find(r => r.id === routeId);
+              if (route) {
+                setForm(prev => ({
+                  ...prev,
+                  route_id: routeId,
+                  distance_km: route.distance_km || prev.distance_km,
+                  elevation_gain_m: route.elevation_gain_m || prev.elevation_gain_m,
+                }));
+              }
+            }
+          }}
+          data={savedRoutes.map(r => ({
+            value: r.id,
+            label: `${r.name}${r.distance_km ? ` — ${Math.round(r.distance_km)} km` : ''}${r.elevation_gain_m ? `, ${Math.round(r.elevation_gain_m)}m` : ''}`,
+          }))}
+          clearable
+          searchable
+          leftSection={<MapPin size={16} />}
+          disabled={routesLoading}
+          nothingFoundMessage="No saved routes"
+        />
 
         {/* Distance and Elevation */}
         <Group grow>

@@ -13,7 +13,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
           <Box
             key={i}
             style={{
-              padding: '14px 16px',
+              padding: '16px 20px',
               border: '0.5px solid var(--color-border)',
             }}
           >
@@ -85,7 +85,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
           <Box
             key={cell.label}
             style={{
-              padding: '14px 16px',
+              padding: '16px 20px',
               border: '0.5px solid var(--color-border)',
               backgroundColor: 'var(--color-card)',
               cursor: cell.tooltip ? 'help' : 'default',
@@ -94,7 +94,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
             <Text
               style={{
                 fontFamily: "'Barlow Condensed', sans-serif",
-                fontSize: 11,
+                fontSize: 14,
                 fontWeight: 700,
                 letterSpacing: '2px',
                 textTransform: 'uppercase',
@@ -108,7 +108,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
               <Text
                 style={{
                   fontFamily: "'DM Mono', monospace",
-                  fontSize: 9,
+                  fontSize: 12,
                   color: '#7A7970',
                   letterSpacing: '0.5px',
                   marginBottom: 4,
@@ -132,7 +132,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
               <Text
                 style={{
                   fontFamily: "'Barlow Condensed', sans-serif",
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: 600,
                   letterSpacing: '0.5px',
                   color: cell.statusColor,

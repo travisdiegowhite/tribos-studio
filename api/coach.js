@@ -11,38 +11,11 @@ import { generateTrainingPlan } from './utils/planGenerator.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
+import { PERSONA_DATA } from './utils/personaData.js';
+import { formatHealth, fetchProprietaryMetrics } from './utils/contextHelpers.js';
 
 // Initialize Supabase for auth validation
 const supabase = getSupabaseAdmin();
-
-// Persona voice data — shared with coach-check-in-request.js
-const PERSONA_DATA = {
-  hammer: {
-    name: 'The Hammer',
-    philosophy: 'Discomfort is the price of adaptation. You committed to this — now honor that commitment.',
-    voice: 'Direct, brief, no filler. Short declarative sentences. No hedging. Uses imperatives.',
-  },
-  scientist: {
-    name: 'The Scientist',
-    philosophy: 'Every training session is a data point. Understand the stimulus, trust the adaptation, measure the outcome.',
-    voice: 'Calm, precise, explanatory. Uses physiological terminology naturally but always explains it.',
-  },
-  encourager: {
-    name: 'The Encourager',
-    philosophy: 'Consistency is the only thing that creates lasting fitness. Every ride counts.',
-    voice: "Warm, present-tense focused, process-oriented. Notices the effort behind the number.",
-  },
-  pragmatist: {
-    name: 'The Pragmatist',
-    philosophy: "A good plan that gets executed beats a perfect plan that doesn't. Work with the life you have.",
-    voice: 'Grounded, conversational, no-nonsense but not harsh. Meets the rider where they are.',
-  },
-  competitor: {
-    name: 'The Competitor',
-    philosophy: "You train to race. Every session either prepares you to win or it doesn't.",
-    voice: 'Focused, forward-looking, frames everything in terms of race outcomes.',
-  },
-};
 
 // Resolve relative date strings (today, tomorrow, this_monday, next_tuesday, YYYY-MM-DD) to YYYY-MM-DD
 function resolveScheduledDate(dateStr) {
@@ -106,19 +79,26 @@ async function swapWorkoutDates(planId, sourceId, sourceDate, targetId, targetDa
 }
 
 // Handle schedule adjustment tool calls — modifies existing active plan workouts
-async function handleScheduleAdjustment(userId, input) {
+async function handleScheduleAdjustment(userId, input, targetPlanId = null) {
   const { adjustments, summary } = input;
   const results = [];
 
-  // Get the active plan
-  const { data: activePlan, error: planError } = await supabase
+  // Get the target plan — use specific plan_id if provided, otherwise fall back to most recent active plan
+  let planQuery = supabase
     .from('training_plans')
     .select('id')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq('user_id', userId);
+
+  if (targetPlanId) {
+    planQuery = planQuery.eq('id', targetPlanId);
+  } else {
+    planQuery = planQuery
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1);
+  }
+
+  const { data: activePlan, error: planError } = await planQuery.maybeSingle();
 
   if (planError || !activePlan) {
     return { success: false, error: 'No active training plan found. The athlete needs to create or activate a plan first.' };
@@ -497,7 +477,7 @@ Use this tool whenever the athlete asks about:
 - "year over year"
 - "historically"
 
-IMPORTANT: Always use the query_fitness_history tool for historical questions. Never guess about past performance - the tool has actual data.
+IMPORTANT: Use the query_fitness_history tool ONLY for historical comparisons (past weeks/months/years). For the athlete's CURRENT fitness (today's CTL, ATL, TSB), always use the values from the Training Context above — they are computed in real-time and are more accurate than weekly snapshots. Never override the live context values with snapshot data.
 
 **ADVANCED RIDE ANALYTICS (available per activity):**
 
@@ -657,6 +637,7 @@ export default async function handler(req, res) {
       quickMode = false,
       userAvailability = null,
       checkInId = null,
+      planId = null,
     } = req.body;
 
     if (!message || typeof message !== 'string') {
@@ -759,9 +740,25 @@ export default async function handler(req, res) {
         .select('timezone')
         .eq('id', verifiedUserId)
         .maybeSingle(),
+      // Fetch all active training plans for multi-plan context
+      supabase
+        .from('training_plans')
+        .select('id, name, sport_type, priority, status, start_date, end_date, created_at')
+        .eq('user_id', verifiedUserId)
+        .eq('status', 'active')
+        .order('priority', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false }),
+      // Fetch latest health metrics for coaching context
+      supabase
+        .from('health_metrics')
+        .select('resting_hr, hrv_ms, sleep_hours, sleep_quality, energy_level, recorded_date')
+        .eq('user_id', verifiedUserId)
+        .order('recorded_date', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ];
 
-    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult] = await Promise.all(parallelFetches);
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult] = await Promise.all(parallelFetches);
 
     const coachSettings = coachSettingsResult.data;
     const activeCheckIn = checkInResult?.data || null;
@@ -770,6 +767,11 @@ export default async function handler(req, res) {
     const calendarContext = calendarContextResult;
     const unresolvedDeviations = deviationsResult?.data || [];
     const userDbTimezone = userProfileResult?.data?.timezone || null;
+    const allActivePlans = allActivePlansResult?.data || [];
+    const healthMetrics = healthMetricsResult?.data || null;
+
+    // Fetch proprietary metrics (EFI/TWL/TCAS) — non-blocking
+    const proprietaryMetrics = await fetchProprietaryMetrics(supabase, verifiedUserId);
 
     // Resolve the user's timezone: prefer browser-supplied, then DB, then UTC
     const resolvedTimezone = userLocalDate?.timezone || userDbTimezone || 'UTC';
@@ -899,7 +901,51 @@ ${checkInLines}`;
       systemPrompt += `\n\n=== ATHLETE'S CURRENT TRAINING CONTEXT (INCLUDING RACE CALENDAR) ===
 IMPORTANT: You have DIRECT ACCESS to all information below. This includes their race goals, event dates, distances, and performance targets. Reference this data directly in your responses.
 
+CRITICAL: The CTL, ATL, and TSB values in this context are computed IN REAL-TIME from the athlete's full activity history. They are the most accurate and up-to-date fitness metrics available. If the query_fitness_history tool returns different CTL/ATL/TSB values, ALWAYS trust the values in this context block for CURRENT fitness. The fitness history tool uses weekly snapshots that may be stale. Only use the fitness history tool for HISTORICAL comparisons (e.g., "this time last year"), not for current fitness assessment.
+
+WORKOUT STATUS GUIDE: Planned workouts are labeled [DONE], [MISSED], [TODAY], [UPCOMING], or [SKIPPED].
+- [UPCOMING] workouts are scheduled for FUTURE days and are NOT overdue — do not count them as missed or as signs of poor compliance.
+- [MISSED] workouts are from PAST days that were not completed — these indicate actual missed training.
+- [TODAY] workouts are due today and still can be done.
+- Use "Weekly Compliance" (based only on past-due workouts) to judge adherence, NOT "Overall Plan Compliance" (which is cumulative across the entire plan duration and naturally starts low).
+- Many athletes have specific training day patterns (e.g., heavy Thu-Sun). Mid-week low volume is normal — check the full week schedule before judging.
+
 ${trainingContext}`;
+    }
+
+    // Inject health metrics if available
+    const healthText = formatHealth(healthMetrics);
+    if (healthText && healthText !== 'No health data available.') {
+      systemPrompt += `\n\n=== HEALTH STATUS ===
+${healthText}`;
+    }
+
+    // Inject proprietary performance metrics if available
+    if (proprietaryMetrics) {
+      systemPrompt += `\n\n=== PERFORMANCE METRICS ===
+${proprietaryMetrics}`;
+    }
+
+    // Add multi-plan context when the athlete has multiple active training plans
+    if (allActivePlans.length > 1) {
+      const planLines = allActivePlans.map((p, i) => {
+        const priority = p.priority ? ` (priority: ${p.priority})` : '';
+        const dates = p.start_date && p.end_date ? ` | ${p.start_date} to ${p.end_date}` : '';
+        const selected = planId && p.id === planId ? ' [CURRENTLY SELECTED]' : '';
+        return `  ${i + 1}. "${p.name}" — ${p.sport_type || 'cycling'}${priority}${dates}${selected} (id: ${p.id})`;
+      }).join('\n');
+
+      systemPrompt += `\n\n=== ACTIVE TRAINING PLANS (MULTIPLE) ===
+This athlete has ${allActivePlans.length} active training plans:
+${planLines}
+
+${planId ? `The athlete is currently viewing/discussing plan id "${planId}". Focus schedule adjustments and workout queries on this plan unless they specify otherwise.` : 'No specific plan is selected. When discussing workouts or schedule changes, ask which plan the athlete is referring to if it is ambiguous.'}
+IMPORTANT: When adjusting schedules, ensure you are modifying the correct plan. If the athlete mentions a specific sport or plan name, match it to the correct plan above.`;
+    } else if (allActivePlans.length === 1 && !planId) {
+      // Single active plan — note it for context but no ambiguity
+      const p = allActivePlans[0];
+      systemPrompt += `\n\n=== ACTIVE TRAINING PLAN ===
+Active plan: "${p.name}" — ${p.sport_type || 'cycling'} (id: ${p.id})`;
     }
 
     // Add schedule availability context if provided
@@ -1141,7 +1187,7 @@ ${conversationSummary}
             }
           } else if (tool.name === 'adjust_schedule') {
             console.log(`📅 Schedule adjustment requested:`, JSON.stringify(tool.input, null, 2));
-            result = await handleScheduleAdjustment(verifiedUserId, tool.input);
+            result = await handleScheduleAdjustment(verifiedUserId, tool.input, planId);
             console.log(`📅 Schedule adjustment result:`, JSON.stringify(result));
           }
           toolResults.push({

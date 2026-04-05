@@ -543,23 +543,21 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
     setDatePickerOpen(false);
 
     try {
-      // Deactivate any existing active plan
-      if (activePlan?.id) {
-        await supabase
-          .from('training_plans')
-          .update({ status: 'completed', ended_at: new Date().toISOString() })
-          .eq('id', activePlan.id);
-      }
-
       // Store the start date as YYYY-MM-DD string (simple, no timezone issues)
       // Create a clean Date object at midnight from the selected date
       const planStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
       const startDateStr = formatLocalDate(planStartDate);
 
+      // Determine priority: primary if no existing active plan of the same sport, secondary otherwise
+      const planSportType = plan.sportType || 'cycling';
+      const hasPrimaryOfSameSport = activePlan && (activePlan.sport_type || 'cycling') === planSportType;
+      const priority = hasPrimaryOfSameSport ? 'secondary' : 'primary';
+
       const planData = {
         user_id: user.id,
         template_id: plan.id,
         name: plan.name,
+        sport_type: planSportType,
         duration_weeks: plan.duration,
         methodology: plan.methodology,
         goal: plan.goal,
@@ -567,6 +565,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         started_at: startDateStr,
         start_date: startDateStr,
         status: 'active',
+        priority,
       };
       console.log('Creating plan with data:', planData);
 
@@ -1243,13 +1242,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             {activePlan?.template_id === selectedPlan.id
               ? 'Currently Active'
               : activePlan
-              ? 'Switch to This Plan'
+              ? 'Add This Plan'
               : 'Start This Plan'}
           </Button>
 
           {activePlan && activePlan.template_id !== selectedPlan.id && (
             <Text size="xs" c="dimmed" ta="center">
-              Starting a new plan will end your current plan
+              This plan will be added alongside your current plan
             </Text>
           )}
         </Stack>

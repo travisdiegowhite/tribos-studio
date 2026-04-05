@@ -74,7 +74,7 @@ export async function detectMetroArea(lon, lat) {
     // Increased from 2km to catch suburban areas with spread-out arterials
     const radius = 3000; // meters
     const query = `
-[out:json][timeout:8];
+[out:json][timeout:5];
 (
   way[highway=primary](around:${radius},${lat},${lon});
   way[highway=secondary](around:${radius},${lat},${lon});
@@ -92,7 +92,7 @@ out count;
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: `data=${encodeURIComponent(query)}`,
-          signal: AbortSignal.timeout(5000)
+          signal: AbortSignal.timeout(3000)
         });
 
         if (!response.ok) continue;
@@ -509,7 +509,8 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(12000) // 12s — prevent indefinite hangs
     });
 
     if (!response.ok) {
@@ -887,7 +888,7 @@ export async function classifyRouteWithOverpass(coordinates) {
 
   try {
     const query = `
-[out:json][timeout:10];
+[out:json][timeout:6];
 (
   way[highway=primary](${south},${west},${north},${east});
   way[highway=secondary](${south},${west},${north},${east});
@@ -905,7 +906,7 @@ out geom;
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: `data=${encodeURIComponent(query)}`,
-          signal: AbortSignal.timeout(8000)
+          signal: AbortSignal.timeout(5000)
         });
         if (!response.ok) continue;
         const data = await response.json();

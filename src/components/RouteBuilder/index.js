@@ -17,6 +17,7 @@ export { default as BikeInfrastructureLegend } from '../BikeInfrastructureLegend
 export { default as ElevationProfile } from '../ElevationProfile.jsx';
 export { default as RouteStatsPanel } from '../RouteStatsPanel.jsx';
 export { default as DifficultyBadge } from '../DifficultyBadge.jsx';
+export { default as RoutePreviewMap } from './RoutePreviewMap.tsx';
 
 // Route Operations
 export { default as RouteExportMenu } from '../RouteExportMenu.jsx';

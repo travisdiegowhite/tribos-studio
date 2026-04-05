@@ -43,7 +43,7 @@ import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import { getWorkoutById } from '../../data/workoutLibrary';
 import { calculateTSS, estimateTSS } from '../../utils/trainingPlans';
 import { shouldPromptForFeedback, triggerAdaptationDetection } from '../../utils/adaptationTrigger';
-import type { TrainingPlannerProps } from '../../types/planner';
+import type { TrainingPlannerProps, PlannerWorkout } from '../../types/planner';
 import type { ResolvedAvailability, AvailabilityStatus, WorkoutAdaptation, AdaptationReason } from '../../types/training';
 import { ArrowsClockwise, Barbell, Brain, Calendar, CalendarX, Check, DotsThreeVertical, FloppyDisk, Gear, Lightbulb, Link, ListBullets, ThumbsUp, Trophy, Warning, WarningCircle, X } from '@phosphor-icons/react';
 
@@ -139,31 +139,23 @@ export function TrainingPlanner({
 }: TrainingPlannerProps) {
   const store = useTrainingPlannerStore();
 
-  // Weather forecast — geocode user's profile location, fall back to route builder viewport
+  // Weather forecast — initialize coords synchronously from viewport, optionally geocode user location
   const viewport = useRouteBuilderStore((s: { viewport: { latitude: number; longitude: number } }) => s.viewport);
-  const [weatherCoords, setWeatherCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [weatherCoords, setWeatherCoords] = useState<{ lat: number; lon: number } | null>(() => {
+    if (viewport?.latitude && viewport?.longitude) {
+      return { lat: viewport.latitude, lon: viewport.longitude };
+    }
+    return null;
+  });
   const geocodedLocationRef = useRef<string | null>(null);
 
+  // Geocode user's profile location to refine weather coordinates
   useEffect(() => {
-    if (!userLocation) {
-      // Fall back to route builder viewport
-      if (viewport?.latitude && viewport?.longitude) {
-        setWeatherCoords({ lat: viewport.latitude, lon: viewport.longitude });
-      }
-      return;
-    }
-
-    // Skip if already geocoded this location
+    if (!userLocation) return;
     if (geocodedLocationRef.current === userLocation) return;
 
     const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
-    if (!mapboxToken) {
-      // No token — fall back to viewport
-      if (viewport?.latitude && viewport?.longitude) {
-        setWeatherCoords({ lat: viewport.latitude, lon: viewport.longitude });
-      }
-      return;
-    }
+    if (!mapboxToken) return;
 
     let cancelled = false;
     fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(userLocation)}.json?access_token=${mapboxToken}&limit=1`)
@@ -172,21 +164,14 @@ export function TrainingPlanner({
         if (cancelled) return;
         const feature = data.features?.[0];
         if (feature?.center) {
-          // Mapbox returns [lon, lat]
           setWeatherCoords({ lat: feature.center[1], lon: feature.center[0] });
           geocodedLocationRef.current = userLocation;
-        } else if (viewport?.latitude && viewport?.longitude) {
-          setWeatherCoords({ lat: viewport.latitude, lon: viewport.longitude });
         }
       })
-      .catch(() => {
-        if (!cancelled && viewport?.latitude && viewport?.longitude) {
-          setWeatherCoords({ lat: viewport.latitude, lon: viewport.longitude });
-        }
-      });
+      .catch(() => { /* geocoding failed, keep viewport coords */ });
 
     return () => { cancelled = true; };
-  }, [userLocation, viewport?.latitude, viewport?.longitude]);
+  }, [userLocation]);
 
   const { forecast: weatherForecast } = useWeatherForecast(weatherCoords?.lat ?? null, weatherCoords?.lon ?? null);
 
@@ -290,7 +275,8 @@ export function TrainingPlanner({
       const duration = activity.moving_time || activity.duration_seconds || 0;
 
       // Check if this activity is already linked to a planned workout
-      const plannedWorkout = store.plannedWorkouts[date];
+      const plannedWorkoutsForDate = store.plannedWorkouts[date] || [];
+      const plannedWorkout = plannedWorkoutsForDate.find((w: PlannerWorkout) => w.planId === store.activePlanId) || plannedWorkoutsForDate[0];
       const isLinked = plannedWorkout?.activityId === activity.id;
 
       // Take the activity with highest TSS for the day
@@ -319,6 +305,17 @@ export function TrainingPlanner({
     return result;
   }, [activities, ftp, store.plannedWorkouts]);
 
+  // Flatten multi-plan workouts map to single-workout-per-date for calendar components
+  const flattenedWorkouts = useMemo(() => {
+    const result: Record<string, PlannerWorkout> = {};
+    for (const [date, workoutsArr] of Object.entries(store.plannedWorkouts)) {
+      if (!workoutsArr || workoutsArr.length === 0) continue;
+      const match = workoutsArr.find((w: PlannerWorkout) => w.planId === store.activePlanId) || workoutsArr[0];
+      if (match) result[date] = match;
+    }
+    return result;
+  }, [store.plannedWorkouts, store.activePlanId]);
+
   // Build availability by date for the current 2-week view
   const availabilityByDate = useMemo(() => {
     const result: Record<string, ResolvedAvailability> = {};
@@ -345,12 +342,24 @@ export function TrainingPlanner({
     [setDateOverride]
   );
 
-  // Load plan on mount or when activePlanId changes
+  // Load plan workouts on mount or when activePlanId changes
   useEffect(() => {
-    if (activePlanId && activePlanId !== store.activePlanId) {
-      store.loadPlan(activePlanId);
+    if (!activePlanId) return;
+
+    const hasWorkoutsForPlan = store.loadedPlanIds.includes(activePlanId);
+
+    if (!hasWorkoutsForPlan) {
+      // First load: fetch all active plans in one go (2 queries vs N+1)
+      if (userId && store.loadedPlanIds.length === 0) {
+        store.loadAllActivePlans(userId, activePlanId);
+      } else {
+        store.loadPlan(activePlanId);
+      }
+    } else if (activePlanId !== store.activePlanId) {
+      // Already loaded, just switch active plan (no DB hit)
+      store.setActivePlan(activePlanId);
     }
-  }, [activePlanId, store.activePlanId]);
+  }, [activePlanId, userId]);
 
   // Load race goals from database
   const loadRaceGoals = useCallback(async () => {
@@ -435,7 +444,8 @@ export function TrainingPlanner({
         const date = getLocalDateString(activity);
         if (!date) continue;
 
-        const plannedWorkout = plannedWorkouts[date];
+        const plannedWorkoutsForDay = plannedWorkouts[date] || [];
+        const plannedWorkout = plannedWorkoutsForDay.find((w: PlannerWorkout) => w.planId === store.activePlanId) || plannedWorkoutsForDay[0];
 
         // Check if there's a planned workout that isn't already linked
         if (plannedWorkout && plannedWorkout.id && !plannedWorkout.activityId) {
@@ -577,7 +587,7 @@ export function TrainingPlanner({
         }
 
         // Get the planned workout details for context
-        const plannedWorkout = Object.values(store.plannedWorkouts).find(w => w.id === workoutId);
+        const plannedWorkout = Object.values(store.plannedWorkouts).flat().find((w: PlannerWorkout) => w.id === workoutId);
 
         // Calculate actual TSS
         const actualTss = getActivityTSS(activity, ftp);
@@ -1067,7 +1077,7 @@ export function TrainingPlanner({
             planStartDate={store.planStartDate}
             planDurationWeeks={store.planDurationWeeks}
             focusedWeekStart={store.focusedWeekStart}
-            plannedWorkouts={store.plannedWorkouts}
+            plannedWorkouts={flattenedWorkouts}
             activities={activitiesByDate}
             onWeekClick={(weekStart) => {
               handleWeekClick(weekStart);
@@ -1113,7 +1123,7 @@ export function TrainingPlanner({
             <Box mt="xs">
               <TwoWeekCalendar
                 startDate={store.focusedWeekStart}
-                workouts={store.plannedWorkouts}
+                workouts={flattenedWorkouts}
                 activities={activitiesByDate}
                 raceGoals={raceGoalsByDate}
                 dropTargetDate={store.dropTargetDate}
@@ -1122,6 +1132,7 @@ export function TrainingPlanner({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onRemoveWorkout={store.removeWorkout}
+                onUpdateWorkout={store.updateWorkout}
                 onDateClick={isMobile ? handleDateTap : store.selectDate}
                 onNavigate={store.navigateWeeks}
                 onSetAvailability={handleSetAvailability}
@@ -1140,7 +1151,7 @@ export function TrainingPlanner({
               <PlanCalendarOverview
                 planStartDate={store.planStartDate}
                 planDurationWeeks={store.planDurationWeeks}
-                workouts={store.plannedWorkouts}
+                workouts={flattenedWorkouts}
                 activities={activitiesByDate}
                 raceGoals={raceGoalsByDate}
                 onDayClick={(date) => {

@@ -17,7 +17,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
     );
   }
 
-  const { rides = 0, planned = 5, distance = 0, elevation = 0 } = weekStats || {};
+  const { activities: rides = 0, planned = 0, distance = 0, elevation = 0 } = weekStats || {};
   const completion = Math.min((rides / Math.max(planned, 1)) * 100, 100);
 
   return (

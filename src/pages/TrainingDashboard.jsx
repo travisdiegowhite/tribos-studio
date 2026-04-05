@@ -48,13 +48,14 @@ import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
-import { SupplementWorkoutModal, SegmentLibraryPanel, TrainingPlanExportMenu } from '../components/training';
+import { SupplementWorkoutModal, SegmentLibraryPanel, TrainingPlanExportMenu, RaceTab } from '../components/training';
 import RaceGoalsPanel from '../components/RaceGoalsPanel.jsx';
 import PowerDurationCurve from '../components/PowerDurationCurve.jsx';
 import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
 import RampRateAlert, { RampRateBadge } from '../components/RampRateAlert.jsx';
 import { ActivityMetricsBadges } from '../components/ActivityMetrics.jsx';
 import RideAnalysisModal from '../components/RideAnalysisModal.jsx';
+import { WorkoutModal } from '../components/planner/WorkoutModal';
 import { WorkoutDifficultyBadge, getQuickDifficultyEstimate } from '../components/WorkoutDifficultyBadge.jsx';
 import CriticalPowerModel from '../components/CriticalPowerModel.jsx';
 import TrainNow from '../components/TrainNow.jsx';
@@ -66,6 +67,7 @@ import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/
 import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
+import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 import { translateTSB } from '../lib/fitness/translate';
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
@@ -100,7 +102,7 @@ function TrainingDashboard() {
   // Read tab from URL query parameter, default to 'calendar'
   // Note: 'plans' tab moved to /planner page, 'today' moved to /today, 'routes' moved to /ride
   const urlTab = searchParams.get('tab');
-  const validTabs = ['coach', 'trends', 'power', 'history', 'insights', 'calendar'];
+  const validTabs = ['coach', 'race', 'trends', 'power', 'history', 'insights', 'calendar'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'calendar';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [timeRange, setTimeRange] = useState('30');
@@ -128,6 +130,7 @@ function TrainingDashboard() {
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
   const [supplementModalOpen, setSupplementModalOpen] = useState(false);
   const [raceGoals, setRaceGoals] = useState([]);
+  const [completedRaces, setCompletedRaces] = useState([]);
   const [trainNowExpanded, setTrainNowExpanded] = useState(false);
   const [rideAnalysisModalOpen, setRideAnalysisModalOpen] = useState(false);
   const [selectedRide, setSelectedRide] = useState(null);
@@ -172,28 +175,8 @@ function TrainingDashboard() {
     visibleActivities.forEach((activity) => {
       const dateStr = activity.start_date?.split('T')[0];
       if (dateStr && dailyTSS[dateStr]) {
-        let activityTSS;
-
-        // Prefer stored TSS (from provider or FIT file analysis)
-        if (activity.tss != null && activity.tss > 0) {
-          activityTSS = activity.tss;
-        } else if (activity.average_watts && ftp) {
-          activityTSS = calculateTSS(
-            activity.moving_time,
-            activity.average_watts,
-            ftp
-          );
-        } else {
-          activityTSS = estimateTSS(
-            (activity.moving_time || 0) / 60,
-            (activity.distance || 0) / 1000,
-            activity.total_elevation_gain || 0,
-            'endurance'
-          );
-        }
-
-        // Cap TSS to prevent corrupted data from breaking metrics
-        activityTSS = Math.min(activityTSS || 0, 500);
+        // Use unified 5-tier TSS estimation (matches Dashboard)
+        const activityTSS = Math.min(estimateActivityTSS(activity, ftp), 500);
         dailyTSS[dateStr].tss += activityTSS;
       }
     });
@@ -206,7 +189,10 @@ function TrainingDashboard() {
     const tssValues = sortedDailyTSS.map(d => d.tss);
     const ctl = calculateCTL(tssValues);
     const atl = calculateATL(tssValues);
-    const tsb = calculateTSB(ctl, atl);
+
+    // TSB uses yesterday's CTL/ATL (freshness going into today)
+    const tssYesterday = tssValues.length >= 2 ? tssValues.slice(0, -1) : tssValues;
+    const tsb = calculateTSB(calculateCTL(tssYesterday), calculateATL(tssYesterday));
     const interpretation = interpretTSB(tsb);
 
     setTrainingMetrics({ ctl, atl, tsb, interpretation });
@@ -243,6 +229,7 @@ function TrainingDashboard() {
             .select('*')
             .eq('user_id', user.id)
             .is('duplicate_of', null)
+            .or('is_hidden.eq.false,is_hidden.is.null')
             .order('start_date', { ascending: false })
             .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -512,6 +499,22 @@ function TrainingDashboard() {
           setRaceGoals(data);
           console.log(`Loaded ${data.length} upcoming race goals`);
         }
+
+        // Also load recently completed races (last 6 months) for coach context
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        const { data: pastRaces } = await supabase
+          .from('race_goals')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'completed')
+          .gte('race_date', sixMonthsAgo.toISOString().split('T')[0])
+          .order('race_date', { ascending: false })
+          .limit(5);
+
+        if (pastRaces) {
+          setCompletedRaces(pastRaces);
+        }
       } catch (error) {
         console.error('Error loading race goals:', error);
       }
@@ -675,8 +678,8 @@ function TrainingDashboard() {
 
   // Memoize trainingContext to avoid recreating on every render
   const trainingContext = useMemo(() =>
-    buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts),
-    [trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts]
+    buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts, completedRaces),
+    [trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts, completedRaces]
   );
 
   const handleAddWorkout = useCallback(async (workout) => {
@@ -1005,6 +1008,16 @@ function TrainingDashboard() {
               />
             )}
 
+            {/* RACE TAB */}
+            {activeTab === 'race' && (
+              <RaceTab
+                trainingContext={trainingContext}
+                isImperial={isImperial}
+                formatDist={formatDist}
+                formatElev={formatElev}
+              />
+            )}
+
             {/* TRENDS TAB */}
             {activeTab === 'trends' && (
               <TrendsTab
@@ -1097,12 +1110,12 @@ function TrainingDashboard() {
         }}
       />
 
-      {/* Workout Detail Modal */}
-      <WorkoutDetailModal
+      {/* Workout Detail Modal (shared with planner for consistent experience) */}
+      <WorkoutModal
+        workout={selectedWorkout}
+        plannedWorkout={null}
         opened={workoutModalOpen}
         onClose={() => setWorkoutModalOpen(false)}
-        workout={selectedWorkout}
-        ftp={ftp}
       />
 
       {/* Supplement Workout Modal */}
@@ -1479,6 +1492,13 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
   const hasStravaActivities = activities?.some(a => a.provider === 'strava');
   const hasGarminActivities = activities?.some(a => a.provider === 'garmin');
 
+  // Count activities in last 90 days
+  const ninetyDayActivityCount = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    return (activities || []).filter(a => new Date(a.start_date) >= cutoff).length;
+  }, [activities]);
+
   return (
     <Stack gap="lg">
       {/* Ramp Rate Alert */}
@@ -1555,8 +1575,8 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
             <Path size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
-            <Text size="xl" fw={700} c="blue">{activities.length}</Text>
-            <Text size="sm" c="dimmed">Rides in 90 days</Text>
+            <Text size="xl" fw={700} c="blue">{ninetyDayActivityCount}</Text>
+            <Text size="sm" c="dimmed">Activities in 90 days</Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
             <Medal size={24} color="#D4820A" style={{ marginBottom: 8 }} />
@@ -2037,10 +2057,8 @@ function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousM
   );
 }
 
-// ============================================================================
-// WORKOUT DETAIL MODAL
-// ============================================================================
-function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
+// WorkoutDetailModal removed — now using shared WorkoutModal from planner/WorkoutModal.tsx
+function _WorkoutDetailModal_REMOVED() {
   if (!workout) return null;
 
   // Format workout structure for display
@@ -2394,7 +2412,7 @@ function WorkoutDetailModal({ opened, onClose, workout, ftp }) {
 }
 
 // Build training context for AI Coach
-function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null, raceGoals = [], crossTrainingActivities = [], workoutRecommendation = null, plannedWorkouts = []) {
+function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null, raceGoals = [], crossTrainingActivities = [], workoutRecommendation = null, plannedWorkouts = [], completedRaces = []) {
   const context = [];
   const distanceUnit = isImperial ? 'mi' : 'km';
 
@@ -2513,6 +2531,9 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
       if (race.course_description) {
         context.push(`   Course: ${race.course_description}`);
       }
+      if (race.route_id) {
+        context.push(`   Has linked route (detailed route data available in Race tab)`);
+      }
     });
 
     // Add race-specific coaching guidance
@@ -2612,8 +2633,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     context.push(`Methodology: ${activePlan.methodology || 'mixed'}`);
     context.push(`Goal: ${activePlan.goal || 'general fitness'}`);
     context.push(`Current Week: ${currentWeek} of ${totalWeeks} (${phase} Phase)`);
-    context.push(`Compliance: ${Math.round(activePlan.compliance_percentage || 0)}%`);
-    context.push(`Workouts Completed: ${activePlan.workouts_completed || 0} of ${activePlan.workouts_total || 0}`);
+    context.push(`Overall Plan Compliance: ${Math.round(activePlan.compliance_percentage || 0)}% (${activePlan.workouts_completed || 0} of ${activePlan.workouts_total || 0} total plan workouts)`);
 
     if (activePlan.status === 'paused') {
       context.push(`Status: PAUSED - Plan is currently on hold`);
@@ -2628,6 +2648,46 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     if (raceGoals && raceGoals.length > 0) {
       context.push(`- PRIORITIZE upcoming race goals when planning workouts and recovery`);
     }
+  }
+
+  // Add completed race results for historical reference
+  if (completedRaces && completedRaces.length > 0) {
+    context.push(`\n--- Recent Race Results (Completed) ---`);
+    context.push(`Use these past results to assess the athlete's race fitness, compare progress, and provide context for upcoming races.`);
+
+    completedRaces.forEach((race, index) => {
+      const raceDate = new Date(race.race_date + 'T00:00:00');
+      context.push(`\n${index + 1}. ${race.name} (${raceDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })})`);
+      context.push(`   Type: ${race.race_type?.replace('_', ' ') || 'race'}`);
+      if (race.distance_km) {
+        const distance = isImperial ? Math.round(race.distance_km * 0.621371) : Math.round(race.distance_km);
+        context.push(`   Distance: ${distance} ${distanceUnit}`);
+      }
+      if (race.elevation_gain_m) {
+        const elevation = isImperial ? Math.round(race.elevation_gain_m * 3.28084) : Math.round(race.elevation_gain_m);
+        context.push(`   Elevation: ${elevation} ${isImperial ? 'ft' : 'm'}`);
+      }
+      // Actual results
+      if (race.actual_time_minutes) {
+        const hours = Math.floor(race.actual_time_minutes / 60);
+        const mins = race.actual_time_minutes % 60;
+        context.push(`   Actual Time: ${hours}h ${mins}m`);
+      }
+      if (race.actual_power_watts) {
+        context.push(`   Actual Power: ${race.actual_power_watts}W avg`);
+      }
+      if (race.actual_placement) {
+        context.push(`   Placement: ${race.actual_placement}`);
+      }
+      // Goals vs actuals comparison
+      if (race.goal_time_minutes && race.actual_time_minutes) {
+        const diff = race.actual_time_minutes - race.goal_time_minutes;
+        context.push(`   vs Goal: ${diff > 0 ? '+' : ''}${diff} min (goal was ${Math.floor(race.goal_time_minutes / 60)}h ${race.goal_time_minutes % 60}m)`);
+      }
+      if (race.result_notes) {
+        context.push(`   Notes: ${race.result_notes}`);
+      }
+    });
   }
 
   // Add planned workout schedule from the training calendar
@@ -2680,8 +2740,9 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
         const dayLabel = dayNames[wDate.getDay()];
         const dateLabel = wDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         const isToday = w.scheduled_date === today.toISOString().split('T')[0];
+        const isPast = wDate < today && !isToday;
         const todayTag = isToday ? ' ** TODAY **' : '';
-        const status = w.completed ? 'DONE' : w.skipped_reason ? 'SKIPPED' : 'planned';
+        const status = w.completed ? 'DONE' : w.skipped_reason ? 'SKIPPED' : isPast ? 'MISSED' : isToday ? 'TODAY' : 'UPCOMING';
         const typeParts = [];
         typeParts.push(w.name || w.workout_type || w.workout_id || 'Workout');
         const dur = w.duration_minutes || w.target_duration;
@@ -2719,11 +2780,23 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
           .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date))
           .forEach(w => context.push(formatWorkoutLine(w)));
 
-        // Summary: how many done vs remaining
+        // Summary: how many done vs remaining, with weekly compliance
         const completed = thisWeekWorkouts.filter(w => w.completed).length;
         const remaining = thisWeekWorkouts.filter(w => !w.completed && !w.skipped_reason && w.workout_type !== 'rest').length;
         const totalTSS = thisWeekWorkouts.reduce((sum, w) => sum + (w.target_tss || 0), 0);
-        context.push(`  Summary: ${completed} completed, ${remaining} remaining, ~${totalTSS} total planned TSS`);
+
+        // Weekly compliance: only count past-due non-rest workouts (not future ones)
+        const pastDueThisWeek = thisWeekWorkouts.filter(w => {
+          const d = new Date(w.scheduled_date + 'T12:00:00');
+          return d < today && w.workout_type !== 'rest';
+        });
+        const pastDueCompleted = pastDueThisWeek.filter(w => w.completed).length;
+        const weeklyCompliance = pastDueThisWeek.length > 0
+          ? Math.round((pastDueCompleted / pastDueThisWeek.length) * 100) : 100;
+
+        context.push(`  Summary: ${completed} completed, ${remaining} upcoming, ~${totalTSS} total planned TSS`);
+        context.push(`  Weekly Compliance: ${weeklyCompliance}% (${pastDueCompleted} of ${pastDueThisWeek.length} past-due workouts completed)`);
+        context.push(`  NOTE: Only workouts with dates BEFORE today count as missed. UPCOMING workouts are not yet due — do not treat them as failures.`);
       }
 
       if (nextWeekWorkouts.length > 0) {

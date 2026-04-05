@@ -5,6 +5,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { completeActivationStep } from './utils/activation.js';
+import { assembleCheckInContext } from './utils/checkInContext.js';
+import { PERSONA_DATA } from './utils/personaData.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -104,10 +106,13 @@ export default async function handler(req, res) {
 }
 
 /**
- * Generate a coaching insight for a specific activity
+ * Generate a coaching insight for a specific activity.
+ *
+ * Uses assembleCheckInContext for full athlete context (CTL/ATL/TSB, health,
+ * proprietary metrics, coach persona, etc.) plus activity-specific formatting.
  */
 async function generateInsight(userId, activityId) {
-  // Fetch the activity
+  // Fetch the trigger activity for detailed stats
   const { data: activity } = await supabase
     .from('activities')
     .select('*')
@@ -118,7 +123,7 @@ async function generateInsight(userId, activityId) {
     throw new Error(`Activity ${activityId} not found`);
   }
 
-  // Fetch user's recent activities for trend context
+  // Fetch recent activities for trend context (independent of checkInContext)
   const { data: recentActivities } = await supabase
     .from('activities')
     .select('name, start_date, distance_meters, distance, duration_seconds, moving_time, elevation_gain_meters, total_elevation_gain, average_power_watts, average_watts, average_heart_rate, average_hr, type')
@@ -127,19 +132,44 @@ async function generateInsight(userId, activityId) {
     .order('start_date', { ascending: false })
     .limit(10);
 
-  // Fetch user profile for FTP/goals context
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('display_name, ftp, primary_sport')
-    .eq('id', userId)
-    .maybeSingle();
+  // Assemble full athlete context (CTL/ATL/TSB, health, metrics, persona, etc.)
+  const context = await assembleCheckInContext(supabase, userId, activityId);
 
-  // Build prompt
+  // Build activity-specific formatting
   const activityStats = formatActivityStats(activity);
   const trendContext = formatTrendContext(recentActivities || [], activity);
-  const userContext = profile ? `Athlete FTP: ${profile.ftp || 'unknown'}. Primary sport: ${profile.primary_sport || 'cycling'}.` : '';
 
-  const prompt = `${userContext}
+  // Resolve persona for system prompt voice
+  const personaId = context.persona_id || 'pragmatist';
+  const persona = PERSONA_DATA[personaId] || PERSONA_DATA.pragmatist;
+
+  // Build athlete context section from assembled data
+  let athleteContext = '';
+  if (context.athlete?.ftp) athleteContext += `FTP: ${context.athlete.ftp}W`;
+  if (context.athlete?.wkg) athleteContext += ` | W/kg: ${context.athlete.wkg}`;
+  if (context.athlete?.experience_level) athleteContext += ` | Level: ${context.athlete.experience_level}`;
+
+  let fitnessContext = '';
+  if (context.ctl != null) fitnessContext += `CTL: ${context.ctl}`;
+  if (context.atl != null) fitnessContext += ` | ATL: ${context.atl}`;
+  if (context.form != null) fitnessContext += ` | Form (TSB): ${context.form}`;
+  if (context.load_trend) fitnessContext += ` | Trend: ${context.load_trend}`;
+  if (context.overtraining_risk && context.overtraining_risk !== 'low') {
+    fitnessContext += ` | Overtraining risk: ${context.overtraining_risk}`;
+  }
+
+  let planContext = '';
+  if (context.block_name && context.current_week) {
+    planContext += `Training block: ${context.block_name} (week ${context.current_week}/${context.total_weeks})`;
+    planContext += `\nBlock purpose: ${context.block_purpose}`;
+  }
+  if (context.goal_event) planContext += `\nGoal event: ${context.goal_event}`;
+
+  const prompt = `${athleteContext ? `Athlete: ${athleteContext}` : ''}
+${fitnessContext ? `Fitness: ${fitnessContext}` : ''}
+${planContext}
+${context.health !== 'No health data available.' ? `Health: ${context.health}` : ''}
+${context.proprietary_metrics ? `Performance metrics:\n${context.proprietary_metrics}` : ''}
 
 Latest activity:
 ${activityStats}
@@ -147,7 +177,9 @@ ${activityStats}
 Recent training context (last ${(recentActivities || []).length} activities):
 ${trendContext}
 
-Give one specific, actionable coaching insight about this activity in 2-3 sentences. Reference actual numbers from the data. Don't be generic — be specific about what you notice and what the athlete should consider next.`;
+${context.week_schedule_text !== 'No planned workouts this week.' ? `This week's schedule:\n${context.week_schedule_text}` : ''}
+
+Give one specific, actionable coaching insight about this activity in 2-3 sentences. Reference actual numbers from the data. If the activity was a planned workout, comment on how actual performance compared to the plan. Don't be generic — be specific about what you notice and what the athlete should consider next.`;
 
   // Call Claude API
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -157,10 +189,16 @@ Give one specific, actionable coaching insight about this activity in 2-3 senten
 
   const claude = new Anthropic({ apiKey });
 
+  // Build persona-aware system prompt
+  const systemPrompt = `You are ${persona.name}, a cycling coach AI for Tribos.
+Your philosophy: ${persona.philosophy}
+Your voice: ${persona.voice}
+Analyze the activity data and give one specific, actionable insight in 2-3 sentences. Be direct and reference actual numbers. No greetings or sign-offs.`;
+
   const response = await claude.messages.create({
     model: 'claude-sonnet-4-5-20241022',
     max_tokens: 300,
-    system: 'You are a concise endurance sports coach. Analyze the activity data and give one specific, actionable insight in 2-3 sentences. Be direct and reference actual numbers. No greetings or sign-offs.',
+    system: systemPrompt,
     messages: [{ role: 'user', content: prompt }]
   });
 
@@ -175,7 +213,8 @@ function formatActivityStats(activity) {
   const power = activity.average_power_watts || activity.average_watts;
   const hr = activity.average_heart_rate || activity.average_hr;
   const cadence = activity.average_cadence;
-  const np = activity.normalized_power_watts;
+  const np = activity.normalized_power_watts || activity.normalized_power;
+  const tss = activity.tss;
 
   const hours = Math.floor(duration / 3600);
   const minutes = Math.floor((duration % 3600) / 60);
@@ -186,10 +225,12 @@ function formatActivityStats(activity) {
   stats += `Distance: ${distance.toFixed(1)} km\n`;
   stats += `Duration: ${durationStr}\n`;
   stats += `Elevation: ${Math.round(elevation)}m\n`;
+  if (tss) stats += `TSS: ${tss}\n`;
   if (power) stats += `Average Power: ${Math.round(power)}W\n`;
   if (np) stats += `Normalized Power: ${Math.round(np)}W\n`;
   if (hr) stats += `Average HR: ${Math.round(hr)} bpm\n`;
   if (cadence) stats += `Average Cadence: ${Math.round(cadence)} rpm\n`;
+  if (activity.execution_score) stats += `Execution Score: ${activity.execution_score}/100 (${activity.execution_rating || ''})\n`;
 
   return stats;
 }

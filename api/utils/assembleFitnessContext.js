@@ -8,6 +8,8 @@
  * (not recovery) and flags it so the AI doesn't misinterpret the data.
  */
 
+import { derivePhase, formatWeekSchedule, weekScheduleToText, formatHealth, fetchProprietaryMetrics } from './contextHelpers.js';
+
 /**
  * @param {string} userId
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -31,10 +33,27 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   weekStart.setDate(weekStart.getDate() - mondayOffset);
   const weekStartStr = weekStart.toISOString().split('T')[0];
 
+  // End of current week (next Monday, exclusive upper bound)
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekEndStr = weekEnd.toISOString().split('T')[0];
+
   // 7 days from now
   const sevenDaysOut = new Date(now);
   sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
   const sevenDaysOutStr = sevenDaysOut.toISOString().split('T')[0];
+
+  // Pre-fetch active training plan IDs (planned_workouts has no user_id column;
+  // must join through training_plans to scope workouts to this user)
+  const { data: activePlans } = await supabase
+    .from('training_plans')
+    .select('id, name, current_week, duration_weeks, methodology, goal')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false });
+
+  const planIds = (activePlans || []).map(p => p.id);
+  const primaryPlan = (activePlans && activePlans.length > 0) ? activePlans[0] : null;
 
   // Run all queries in parallel
   const [
@@ -44,6 +63,9 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
     coachResult,
     upcomingWorkoutsResult,
     profileResult,
+    weekScheduleResult,
+    raceGoalResult,
+    healthResult,
   ] = await Promise.all([
     // 1. Last 28 days of activities for trend calculation
     supabase
@@ -62,13 +84,16 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .is('duplicate_of', null)
       .gte('start_date', weekStart.toISOString()),
 
-    // 3. This week's planned workouts (for spike guard)
-    supabase
-      .from('planned_workouts')
-      .select('id, scheduled_date, completed')
-      .eq('user_id', userId)
-      .gte('scheduled_date', weekStartStr)
-      .lte('scheduled_date', today),
+    // 3. This week's planned workouts (full Mon-Sun, excl. rest days — matches Dashboard)
+    planIds.length > 0
+      ? supabase
+          .from('planned_workouts')
+          .select('id, scheduled_date, completed')
+          .in('plan_id', planIds)
+          .gte('scheduled_date', weekStartStr)
+          .lt('scheduled_date', weekEndStr)
+          .gt('target_tss', 0)
+      : Promise.resolve({ data: [] }),
 
     // 4. Last 6 coach messages (3 exchanges)
     supabase
@@ -79,15 +104,17 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .limit(6),
 
     // 5. Upcoming key workouts (next 7 days, high TSS or specific types)
-    supabase
-      .from('planned_workouts')
-      .select('scheduled_date, workout_type, target_tss')
-      .eq('user_id', userId)
-      .gte('scheduled_date', today)
-      .lte('scheduled_date', sevenDaysOutStr)
-      .eq('completed', false)
-      .order('target_tss', { ascending: false })
-      .limit(3),
+    planIds.length > 0
+      ? supabase
+          .from('planned_workouts')
+          .select('scheduled_date, workout_type, target_tss')
+          .in('plan_id', planIds)
+          .gte('scheduled_date', today)
+          .lte('scheduled_date', sevenDaysOutStr)
+          .eq('completed', false)
+          .order('target_tss', { ascending: false })
+          .limit(3)
+      : Promise.resolve({ data: [] }),
 
     // 6. Athlete profile
     supabase
@@ -95,6 +122,35 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .select('ftp, weight_kg, experience_level')
       .eq('id', userId)
       .single(),
+
+    // 7. Full week schedule with workout names (for primary plan's current week)
+    primaryPlan
+      ? supabase
+          .from('planned_workouts')
+          .select('day_of_week, scheduled_date, name, workout_type, target_tss, actual_tss, completed, activity_id')
+          .eq('plan_id', primaryPlan.id)
+          .eq('week_number', primaryPlan.current_week || 1)
+      : Promise.resolve({ data: [] }),
+
+    // 8. Upcoming race goal (highest priority)
+    supabase
+      .from('race_goals')
+      .select('name, race_date, race_type, priority')
+      .eq('user_id', userId)
+      .eq('status', 'upcoming')
+      .order('priority', { ascending: true })
+      .order('race_date', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+
+    // 9. Latest health metrics
+    supabase
+      .from('health_metrics')
+      .select('resting_hr, hrv_ms, sleep_hours, energy_level, recorded_date')
+      .eq('user_id', userId)
+      .order('recorded_date', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const activities = activitiesResult.data || [];
@@ -103,6 +159,16 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   const coachMsgs = coachResult.data || [];
   const upcomingWorkouts = upcomingWorkoutsResult.data || [];
   const profile = profileResult.data || {};
+  const weekScheduleRaw = weekScheduleResult.data || [];
+  const raceGoal = raceGoalResult.data || null;
+  const healthData = healthResult.data || null;
+
+  // --- Training plan phase & week schedule ---
+  const phase = primaryPlan
+    ? derivePhase(primaryPlan.current_week, primaryPlan.duration_weeks, primaryPlan.methodology)
+    : null;
+  const weekSchedule = formatWeekSchedule(weekScheduleRaw);
+  const weekScheduleText = weekScheduleToText(weekSchedule);
 
   // --- CTL trend calculation (28-day delta) ---
   const ctlTrend = calculateCTLTrend(activities, clientMetrics.ctl);
@@ -142,57 +208,7 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   const weightKg = profile.weight_kg || 75;
 
   // --- Proprietary metrics (EFI, TWL, TCAS) ---
-  let proprietaryMetrics = null;
-  try {
-    const [efiRow, twlRow, tcasRow] = await Promise.all([
-      supabase
-        .from('activity_efi')
-        .select('efi, efi_28d, vf, ifs, cf')
-        .eq('user_id', userId)
-        .order('computed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from('activity_twl')
-        .select('twl, base_tss, m_terrain')
-        .eq('user_id', userId)
-        .order('computed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from('weekly_tcas')
-        .select('tcas, he, aq, taa')
-        .eq('user_id', userId)
-        .order('week_ending', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
-
-    const efi = efiRow.data;
-    const twl = twlRow.data;
-    const tcas = tcasRow.data;
-
-    if (efi || twl || tcas) {
-      const sections = ['## Tribos Custom Metrics (current)', ''];
-      if (efi) {
-        sections.push(`**EFI (Execution Fidelity):** ${efi.efi_28d ?? efi.efi}/100 (28-day rolling)`);
-        sections.push(`  - Volume Fidelity: ${pctFmt(efi.vf)}, Intensity Fidelity: ${pctFmt(efi.ifs)}, Consistency: ${pctFmt(efi.cf)}`);
-        sections.push('');
-      }
-      if (twl) {
-        sections.push(`**TWL (Terrain-Weighted Load, last ride):** ${twl.twl} (base TSS: ${twl.base_tss}, multiplier: ${twl.m_terrain?.toFixed(3)}×)`);
-        sections.push('');
-      }
-      if (tcas) {
-        sections.push(`**TCAS (Time-Constrained Adaptation):** ${tcas.tcas}/100`);
-        sections.push(`  - Hours Efficiency: ${tcas.he?.toFixed(2)}, Adaptation Quality: ${tcas.aq?.toFixed(2)}, Training Age Adj: ${tcas.taa?.toFixed(2)}×`);
-      }
-      proprietaryMetrics = sections.join('\n');
-    }
-  } catch (metricsErr) {
-    // Non-critical — don't fail context assembly
-    console.error('[assembleFitnessContext] Proprietary metrics fetch failed:', metricsErr.message);
-  }
+  const proprietaryMetrics = await fetchProprietaryMetrics(supabase, userId);
 
   return {
     snapshot: {
@@ -226,6 +242,20 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       experience_level: profile.experience_level || 'intermediate',
     },
     proprietary_metrics: proprietaryMetrics,
+    plan: primaryPlan ? {
+      name: primaryPlan.name,
+      methodology: primaryPlan.methodology,
+      goal: primaryPlan.goal,
+      current_week: primaryPlan.current_week,
+      total_weeks: primaryPlan.duration_weeks,
+      block: phase.blockName,
+      block_purpose: phase.blockPurpose,
+    } : null,
+    week_schedule: weekScheduleText,
+    race_goal: raceGoal
+      ? `${raceGoal.name} (${raceGoal.race_type}, ${raceGoal.race_date}, Priority ${raceGoal.priority})`
+      : null,
+    health: healthData ? formatHealth(healthData) : null,
   };
 }
 
@@ -318,12 +348,9 @@ export function buildCacheKey(context) {
     context.snapshot.last_ride_tss || 0,
     context.trends.ctl_direction,
     context.data_quality.missed_rides_flag ? 1 : 0,
+    context.data_quality.rides_completed_this_week,
     context.coach_context.upcoming_key_workout || 'none',
+    context.week_schedule || 'none',
   ];
   return parts.join(':');
-}
-
-function pctFmt(v) {
-  if (v == null) return 'N/A';
-  return `${(v * 100).toFixed(0)}%`;
 }

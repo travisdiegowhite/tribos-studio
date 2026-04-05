@@ -39,7 +39,10 @@ function getCurrentWeekRange(): { start: Date; end: Date; dates: Date[] } {
 }
 
 function toDateKey(d: Date): string {
-  return d.toISOString().split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function getActivityTSS(activity: any, ftp: number | null): number {
@@ -90,9 +93,9 @@ export default function CheckInWeekBar({
     const actualByDate: Record<string, number> = {};
     for (const a of activities) {
       if (!a.start_date) continue;
-      const key = new Date(a.start_date).toISOString().split('T')[0];
-      // Only count activities within this week
       const aDate = new Date(a.start_date);
+      const key = toDateKey(aDate);
+      // Only count activities within this week
       if (aDate >= week.start && aDate <= week.end) {
         actualByDate[key] = (actualByDate[key] || 0) + getActivityTSS(a, ftp);
       }

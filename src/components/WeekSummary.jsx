@@ -19,7 +19,8 @@ const WeekSummary = ({
   const weekStats = useMemo(() => {
     const now = new Date();
     const weekStart = new Date(now);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week (Sunday)
+    const day = weekStart.getDay();
+    weekStart.setDate(weekStart.getDate() - (day === 0 ? 6 : day - 1)); // Start of week (Monday)
     weekStart.setHours(0, 0, 0, 0);
 
     let distance = 0;

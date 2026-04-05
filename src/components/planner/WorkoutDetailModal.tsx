@@ -226,7 +226,7 @@ function IntervalChart({ segments }: { segments: FlattenedSegment[] }) {
         display: 'flex',
         alignItems: 'flex-end',
         height: 120,
-        backgroundColor: 'var(--mantine-color-dark-6)',
+        backgroundColor: 'var(--tribos-bg-tertiary)',
         borderRadius: 8,
         padding: 8,
         paddingBottom: 24,
@@ -244,7 +244,7 @@ function IntervalChart({ segments }: { segments: FlattenedSegment[] }) {
             right: 0,
             bottom: 24 + (getBarHeight(zone) / 100 * 88),
             height: 1,
-            borderTop: '1px dashed var(--mantine-color-dark-4)',
+            borderTop: '1px dashed var(--tribos-border-subtle)',
           }}
         />
       ))}
@@ -350,14 +350,10 @@ export function WorkoutDetailModal({ workout, opened, onClose }: WorkoutDetailMo
         </Group>
       }
       size="lg"
-      styles={{
-        content: { backgroundColor: 'var(--mantine-color-dark-7)' },
-        header: { backgroundColor: 'var(--mantine-color-dark-7)' },
-      }}
     >
       <Stack gap="md">
         {/* Workout overview */}
-        <Paper p="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+        <Paper p="sm" withBorder>
           <Group justify="space-between" wrap="wrap" gap="xs">
             <Group gap="xs">
               <Badge color={getCategoryColor(workout.category)} variant="light">
@@ -478,7 +474,7 @@ export function WorkoutDetailModal({ workout, opened, onClose }: WorkoutDetailMo
             <Divider />
             <Box>
               <Text size="sm" fw={600} mb="xs">Coach Notes</Text>
-              <Paper p="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
+              <Paper p="sm" withBorder>
                 <Text size="sm" c="dimmed" style={{ fontStyle: 'italic' }}>
                   {workout.coachNotes}
                 </Text>

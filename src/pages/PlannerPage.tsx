@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Container, Loader, Box, Alert, Group, Text, ThemeIcon, Stack, Card, Button, Modal } from '@mantine/core';
+import { Container, Loader, Box, Alert, Group, Text, ThemeIcon, Stack, Card, Button, Modal, SegmentedControl } from '@mantine/core';
 import AppShell from '../components/AppShell.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import { TrainingPlanner } from '../components/planner';
@@ -13,6 +13,7 @@ import TrainingPlanBrowser from '../components/TrainingPlanBrowser.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { formatDistance } from '../utils/units';
+import { useTrainingPlannerStore } from '../stores/trainingPlannerStore';
 import { List, Target, WarningCircle } from '@phosphor-icons/react';
 
 // Activity type - matches the activities table schema
@@ -38,15 +39,18 @@ interface TrainingPlan {
   name: string;
   status: string;
   started_at: string;
+  sport_type?: string | null;
 }
 
 export default function PlannerPage() {
   const { user } = useAuth() as { user: { id: string } | null };
+  const setActivePlanInStore = useTrainingPlannerStore((state) => state.setActivePlan);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [ftp, setFtp] = useState<number | null>(null);
-  const [activePlan, setActivePlan] = useState<TrainingPlan | null>(null);
+  const [activePlans, setActivePlans] = useState<TrainingPlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [unitsPreference, setUnitsPreference] = useState<string>('imperial');
   const [userLocation, setUserLocation] = useState<string | null>(null);
   const [browseOpen, setBrowseOpen] = useState(false);
@@ -100,20 +104,20 @@ export default function PlannerPage() {
           setActivities(activityData || []);
         }
 
-        // Fetch active training plan
+        // Fetch all active training plans
         const { data: planData, error: planError } = await supabase
           .from('training_plans')
           .select('*')
           .eq('user_id', userId)
           .eq('status', 'active')
-          .order('started_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .order('started_at', { ascending: false });
 
         if (planError) {
-          console.error('Error loading plan:', planError);
-        } else if (planData) {
-          setActivePlan(planData);
+          console.error('Error loading plans:', planError);
+        } else if (planData && planData.length > 0) {
+          setActivePlans(planData);
+          setSelectedPlanId(planData[0].id);
+          // Don't set store.activePlanId here — TrainingPlanner will handle loading
         }
       } catch (err) {
         console.error('Error loading planner data:', err);
@@ -126,7 +130,7 @@ export default function PlannerPage() {
     loadData();
   }, [user?.id]);
 
-  // Callback to reload active plan after updates
+  // Callback to reload active plans after updates
   const handlePlanUpdated = async () => {
     if (!user?.id) return;
 
@@ -135,14 +139,22 @@ export default function PlannerPage() {
       .select('*')
       .eq('user_id', user.id)
       .eq('status', 'active')
-      .order('started_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order('started_at', { ascending: false });
 
-    if (data) {
-      setActivePlan(data);
+    if (data && data.length > 0) {
+      setActivePlans(data);
+      // Keep selection if still valid, otherwise select first
+      if (!selectedPlanId || !data.find((p: TrainingPlan) => p.id === selectedPlanId)) {
+        setSelectedPlanId(data[0].id);
+        // Don't set store.activePlanId here — TrainingPlanner will handle loading
+      }
+    } else {
+      setActivePlans([]);
+      setSelectedPlanId(null);
     }
   };
+
+  const activePlan = activePlans.find((p: TrainingPlan) => p.id === selectedPlanId) ?? null;
 
   if (loading) {
     return (
@@ -192,6 +204,24 @@ export default function PlannerPage() {
               </Button>
             }
           />
+
+          {/* Plan selector tabs when multiple active plans exist */}
+          {activePlans.length > 1 && (
+            <SegmentedControl
+              value={selectedPlanId ?? ''}
+              onChange={(value: string) => {
+                setSelectedPlanId(value);
+                setActivePlanInStore(value);
+              }}
+              data={activePlans.map((plan: TrainingPlan) => ({
+                value: plan.id,
+                label: `${plan.name}${plan.sport_type ? ` (${plan.sport_type})` : ''}`,
+              }))}
+              color="teal"
+              size="sm"
+              fullWidth
+            />
+          )}
 
           {/* Nudge for users without an active plan */}
           {!activePlan && activities.length > 0 && (
@@ -248,8 +278,18 @@ export default function PlannerPage() {
         <TrainingPlanBrowser
           activePlan={activePlan}
           onPlanActivated={async (plan: TrainingPlan | null) => {
-            setActivePlan(plan);
+            if (plan) {
+              // Add to active plans if not already present, or replace
+              setActivePlans((prev: TrainingPlan[]) => {
+                const exists = prev.find((p: TrainingPlan) => p.id === plan.id);
+                if (exists) return prev;
+                return [plan, ...prev];
+              });
+              setSelectedPlanId(plan.id);
+              setActivePlanInStore(plan.id);
+            }
             setBrowseOpen(false);
+            await handlePlanUpdated();
           }}
         />
       </Modal>

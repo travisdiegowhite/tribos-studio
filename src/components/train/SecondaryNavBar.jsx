@@ -4,6 +4,7 @@ import { useMediaQuery } from '@mantine/hooks';
 const tabs = [
   { value: 'calendar', label: 'CALENDAR' },
   { value: 'coach', label: 'COACH' },
+  { value: 'race', label: 'RACE' },
   { value: 'trends', label: 'TRENDS' },
   { value: 'power', label: 'POWER' },
   { value: 'history', label: 'HISTORY' },

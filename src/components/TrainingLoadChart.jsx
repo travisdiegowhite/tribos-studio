@@ -26,54 +26,31 @@ const TrainingLoadChart = ({ data }) => {
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return [];
 
-    // Filter data based on selected time range
+    // Walk through ALL days with iterative EWA to compute CTL/ATL per day
+    // Formula: CTL_today = CTL_yesterday + (TSS_today - CTL_yesterday) / 42
+    //          ATL_today = ATL_yesterday + (TSS_today - ATL_yesterday) / 7
+    let ctl = 0;
+    let atl = 0;
+    const allDays = data.map(d => {
+      const prevCtl = ctl;
+      const prevAtl = atl;
+      ctl = ctl + (d.tss - ctl) / 42;
+      atl = atl + (d.tss - atl) / 7;
+      // TSB uses yesterday's CTL/ATL (freshness going into today)
+      return { ...d, ctl: Math.round(ctl), atl: Math.round(atl), tsb: Math.round(prevCtl - prevAtl) };
+    });
+
+    // Filter to selected time range for display
     const days = parseInt(timeRange);
-    const filteredData = data.slice(-days);
+    const filtered = allDays.slice(-days);
 
-    // Calculate rolling CTL and ATL for each day
-    const processed = [];
-
-    for (let i = 0; i < filteredData.length; i++) {
-      // Use full data for accurate CTL calculation, but only show filtered range
-      const dataIndex = data.length - filteredData.length + i;
-      const dailyTSSValues = data.slice(0, dataIndex + 1).map(d => d.tss);
-
-      // CTL: 42-day exponentially weighted average
-      const ctlDecay = 1 / 42;
-      let ctl = 0;
-      dailyTSSValues.forEach((tss, index) => {
-        const weight = Math.exp(-ctlDecay * (dailyTSSValues.length - index - 1));
-        ctl += tss * weight;
-      });
-      ctl = Math.round(ctl * ctlDecay);
-
-      // ATL: 7-day exponentially weighted average
-      const recentTSS = dailyTSSValues.slice(-7);
-      const atlDecay = 1 / 7;
-      let atl = 0;
-      recentTSS.forEach((tss, index) => {
-        const weight = Math.exp(-atlDecay * (recentTSS.length - index - 1));
-        atl += tss * weight;
-      });
-      atl = Math.round(atl * atlDecay);
-
-      // TSB: CTL - ATL
-      const tsb = ctl - atl;
-
-      processed.push({
-        date: filteredData[i].date,
-        tss: filteredData[i].tss,
-        ctl,
-        atl,
-        tsb,
-        formattedDate: new Date(filteredData[i].date).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric'
-        })
-      });
-    }
-
-    return processed;
+    return filtered.map(d => ({
+      ...d,
+      formattedDate: new Date(d.date).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      })
+    }));
   }, [data, timeRange]);
 
   // Custom tooltip
