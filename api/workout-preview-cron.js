@@ -94,13 +94,14 @@ export default async function handler(req, res) {
         .limit(1)
         .maybeSingle();
 
-      // Check planned_workouts (training plan workouts)
+      // Check planned_workouts (training plan workouts) — only from active plans
       const { data: plannedWorkout } = await supabase
         .from('planned_workouts')
-        .select('name, workout_type, duration_minutes, target_tss, completed')
+        .select('name, workout_type, duration_minutes, target_tss, completed, training_plans!inner(status)')
         .eq('user_id', user.id)
         .eq('scheduled_date', userTomorrow)
         .eq('completed', false)
+        .eq('training_plans.status', 'active')
         .limit(1)
         .maybeSingle();
 
@@ -150,24 +151,11 @@ export default async function handler(req, res) {
  * Get tomorrow's date string (YYYY-MM-DD) in a given timezone.
  */
 function getTomorrowDate(timezone) {
-  const now = new Date();
-  // Get current date in the target timezone, then add 1 day
-  const formatter = new Intl.DateTimeFormat('en-CA', {
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  return new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  });
-  const parts = formatter.formatToParts(now);
-  const year = parseInt(parts.find((p) => p.type === 'year').value);
-  const month = parseInt(parts.find((p) => p.type === 'month').value) - 1;
-  const day = parseInt(parts.find((p) => p.type === 'day').value);
-
-  const localDate = new Date(year, month, day);
-  localDate.setDate(localDate.getDate() + 1);
-
-  const y = localDate.getFullYear();
-  const m = String(localDate.getMonth() + 1).padStart(2, '0');
-  const d = String(localDate.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  }).format(tomorrow);
 }
