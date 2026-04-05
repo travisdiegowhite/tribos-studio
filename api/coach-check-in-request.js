@@ -131,6 +131,7 @@ ${context.structured_deviations.map(d => `- ${d.deviation_date}: ${d.deviation_t
 - INJURY SIGNALS: If data suggests potential injury, exit persona voice and recommend rest + professional consultation.
 - DEVIATION THRESHOLD: Only include deviation_callout when planned vs actual TSS differs by >20% or a session was missed entirely. If structured deviation data is available above, use it to provide more specific guidance.
 - RECOMMENDATION NULLABILITY: If execution was clean and no adjustment is warranted, return null for recommendation.
+- CONSISTENCY: If a previous recommendation was accepted within the last 48 hours (see decision history above), your new recommendation MUST be compatible with it. Do not suggest reversing a recently accepted change unless new activity data has arrived since the decision. If the plan was already adjusted, acknowledge it and build on it rather than proposing a conflicting change.
 
 ## PLANNED MUTATION RULES
 When your recommendation involves a concrete change to the training plan, include a planned_mutation object. This is what actually modifies the plan when the athlete clicks Accept.
@@ -295,6 +296,7 @@ export default async function handler(req, res) {
     const response = await claude.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
+      temperature: 0.4,
       system: systemPrompt,
       messages: [
         {
