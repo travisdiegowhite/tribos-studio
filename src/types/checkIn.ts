@@ -53,6 +53,20 @@ export interface IntakeAnswers {
 
 export type CheckInStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
+export type MutationType = 'modify' | 'swap' | 'insert_rest' | 'drop' | 'replace';
+
+export interface PlannedMutation {
+  type: MutationType;
+  target: 'next_quality' | 'tomorrow' | 'next';
+  scale_factor?: number;           // For 'modify': 0.5-0.9 (e.g. 0.7 = reduce to 70%)
+  replacement?: {                   // For 'replace': what to swap in
+    workout_type: string;
+    name: string;
+    target_tss: number;
+    target_duration: number;
+  };
+}
+
 export interface RecommendationImplication {
   short: string;
   full: string;
@@ -62,6 +76,7 @@ export interface CheckInRecommendation {
   action: string;
   detail: string;
   reasoning: string;
+  planned_mutation: PlannedMutation | null;
   implications: {
     accept: RecommendationImplication;
     dismiss: RecommendationImplication;

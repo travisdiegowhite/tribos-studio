@@ -80,7 +80,8 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
 
   const handleDecision = async (decision: DecisionType, summary: string) => {
     if (!currentCheckIn) return;
-    await makeDecision(currentCheckIn.id, decision, summary);
+    const mutation = currentCheckIn.recommendation?.planned_mutation ?? null;
+    await makeDecision(currentCheckIn.id, decision, summary, mutation);
   };
 
   if (loading) {
