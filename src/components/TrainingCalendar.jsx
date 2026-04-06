@@ -16,6 +16,7 @@ import {
   SimpleGrid,
   ThemeIcon,
   Popover,
+  Modal,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -138,6 +139,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const [popoverDate, setPopoverDate] = useState(null);
   const [moveSource, setMoveSource] = useState(null);
   const [deleteConfirmDate, setDeleteConfirmDate] = useState(null);
+
+  // Drag-to-replace confirmation state
+  const [pendingDrop, setPendingDrop] = useState(null);
+  // Shape: { draggedWorkout, targetDate, existingWorkout, newWeekNumber, newDayOfWeek, newScheduledDate, sourceWeekNumber, sourceDayOfWeek, sourceScheduledDate }
 
   // Helper to get plan start date (supports both old and new schema)
   const getPlanStartDate = (plan) => plan?.started_at || plan?.start_date;
@@ -669,6 +674,71 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
   };
 
+  // Confirm or cancel a pending drag-to-replace
+  const handleConfirmReplace = async () => {
+    if (!pendingDrop) return;
+    const { draggedWorkout: workout, existingWorkout, newWeekNumber, newDayOfWeek, newScheduledDate, sourceWeekNumber, sourceDayOfWeek, sourceScheduledDate } = pendingDrop;
+    setPendingDrop(null);
+    setDraggedWorkout(null);
+
+    try {
+      // Record the original workout info before replacing
+      await supabase
+        .from('planned_workouts')
+        .update({
+          original_workout_id: existingWorkout.original_workout_id || existingWorkout.workout_id || null,
+          original_scheduled_date: existingWorkout.original_scheduled_date || newScheduledDate,
+        })
+        .eq('id', existingWorkout.id);
+
+      // Perform the 3-step swap
+      const tempDate = '1900-01-01';
+
+      // Step 1: Move existing workout to temp date
+      const { error: tempError } = await supabase
+        .from('planned_workouts')
+        .update({ scheduled_date: tempDate })
+        .eq('id', existingWorkout.id);
+      if (tempError) throw tempError;
+
+      // Step 2: Move dragged workout to target date
+      const { error: moveError } = await supabase
+        .from('planned_workouts')
+        .update({ week_number: newWeekNumber, day_of_week: newDayOfWeek, scheduled_date: newScheduledDate })
+        .eq('id', workout.id);
+      if (moveError) {
+        // Rollback step 1
+        await supabase.from('planned_workouts').update({ scheduled_date: newScheduledDate }).eq('id', existingWorkout.id);
+        throw moveError;
+      }
+
+      // Step 3: Move existing workout to source date
+      const { error: swapError } = await supabase
+        .from('planned_workouts')
+        .update({ week_number: sourceWeekNumber, day_of_week: sourceDayOfWeek, scheduled_date: sourceScheduledDate })
+        .eq('id', existingWorkout.id);
+      if (swapError) throw swapError;
+
+      notifications.show({
+        title: 'Workouts Swapped',
+        message: 'Workouts have been swapped between days',
+        color: 'teal',
+      });
+
+      await loadPlannedWorkouts();
+      if (onPlanUpdated) onPlanUpdated();
+    } catch (err) {
+      console.error('Swap failed:', err);
+      notifications.show({ title: 'Error', message: 'Failed to swap workouts', color: 'red' });
+      await loadPlannedWorkouts();
+    }
+  };
+
+  const handleCancelReplace = () => {
+    setPendingDrop(null);
+    setDraggedWorkout(null);
+  };
+
   // Edit mode: handle move to destination day
   const handleMoveToDay = async (destinationDate) => {
     if (!moveSource || !activePlan) return;
@@ -856,8 +926,42 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         });
       };
 
-      // Try the simple move first
-      console.log('Attempting to move workout:', workout.id, '->', newScheduledDate);
+      // Check if target date already has a workout
+      const { data: existingWorkout } = await supabase
+        .from('planned_workouts')
+        .select('id, workout_type, name, workout_id, target_tss')
+        .eq('plan_id', activePlan.id)
+        .eq('scheduled_date', newScheduledDate)
+        .neq('id', workout.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingWorkout && existingWorkout.workout_type !== 'rest') {
+        // Show confirmation prompt — store pending drop info and return
+        setPendingDrop({
+          draggedWorkout: workout,
+          targetDate,
+          existingWorkout,
+          newWeekNumber,
+          newDayOfWeek,
+          newScheduledDate,
+          sourceWeekNumber,
+          sourceDayOfWeek,
+          sourceScheduledDate,
+        });
+        // Don't clear draggedWorkout yet — keep it for the confirmation handler
+        return;
+      }
+
+      // Rest day on target — just delete it and move
+      if (existingWorkout && existingWorkout.workout_type === 'rest') {
+        await supabase
+          .from('planned_workouts')
+          .delete()
+          .eq('id', existingWorkout.id);
+      }
+
+      // Perform the simple move
       const { error } = await supabase
         .from('planned_workouts')
         .update({
@@ -868,65 +972,15 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         .eq('id', workout.id);
 
       if (error) {
-        // Check if it's a unique constraint violation (another workout exists on target date)
-        if (error.code === '23505') {
-          console.log('Unique constraint violation - need to swap with existing workout');
-
-          // Find the existing workout on the target date
-          const { data: existingWorkout, error: findError } = await supabase
-            .from('planned_workouts')
-            .select('id, workout_type')
-            .eq('plan_id', activePlan.id)
-            .eq('scheduled_date', newScheduledDate)
-            .neq('id', workout.id)
-            .limit(1)
-            .single();
-
-          if (findError || !existingWorkout) {
-            console.error('Could not find existing workout for swap:', findError);
-            throw error; // Throw original error
-          }
-
-          if (existingWorkout.workout_type === 'rest') {
-            // Delete the rest day and retry the move
-            await supabase
-              .from('planned_workouts')
-              .delete()
-              .eq('id', existingWorkout.id);
-
-            // Retry the move
-            const { error: retryError } = await supabase
-              .from('planned_workouts')
-              .update({
-                week_number: newWeekNumber,
-                day_of_week: newDayOfWeek,
-                scheduled_date: newScheduledDate,
-              })
-              .eq('id', workout.id);
-
-            if (retryError) throw retryError;
-
-            notifications.show({
-              title: 'Workout Moved',
-              message: `Moved to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
-              color: 'terracotta',
-            });
-          } else {
-            // Perform the swap
-            await performSwap(existingWorkout.id);
-          }
-        } else {
-          console.error('Failed to move workout:', error);
-          throw error;
-        }
-      } else {
-        console.log('Move successful');
-        notifications.show({
-          title: 'Workout Moved',
-          message: `Moved to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
-          color: 'terracotta',
-        });
+        console.error('Failed to move workout:', error);
+        throw error;
       }
+
+      notifications.show({
+        title: 'Workout Moved',
+        message: `Moved to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
+        color: 'terracotta',
+      });
 
       await loadPlannedWorkouts();
       if (onPlanUpdated) onPlanUpdated();
@@ -1803,6 +1857,55 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         )}
       </Card>
       </Box>
+
+      {/* Drag-to-Replace Confirmation Modal */}
+      <Modal
+        opened={!!pendingDrop}
+        onClose={handleCancelReplace}
+        title={
+          <Text fw={700} style={{ fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '1px', textTransform: 'uppercase' }}>
+            Replace Workout?
+          </Text>
+        }
+        centered
+        size="sm"
+      >
+        {pendingDrop && (
+          <Stack gap="md">
+            <Text size="sm">
+              <Text span fw={600}>{pendingDrop.targetDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
+              {' '}already has a workout scheduled:
+            </Text>
+
+            <Box style={{ borderLeft: `3px solid ${WORKOUT_TYPE_ACCENT[pendingDrop.existingWorkout.workout_type] || '#9A9990'}`, paddingLeft: 8 }}>
+              <Text size="sm" fw={600}>{getWorkoutById(pendingDrop.existingWorkout.workout_id)?.name || pendingDrop.existingWorkout.name || 'Existing Workout'}</Text>
+              {pendingDrop.existingWorkout.target_tss > 0 && (
+                <Text size="xs" c="dimmed" style={{ fontFamily: "'DM Mono', monospace" }}>{pendingDrop.existingWorkout.target_tss} TSS</Text>
+              )}
+            </Box>
+
+            <Text size="sm">
+              Swap with <Text span fw={600}>{getWorkoutById(pendingDrop.draggedWorkout.workout_id)?.name || pendingDrop.draggedWorkout.name || 'Workout'}</Text>?
+              The two workouts will trade places.
+            </Text>
+
+            <Group justify="flex-end" gap="sm" mt="xs">
+              <Button variant="subtle" color="gray" size="xs" onClick={handleCancelReplace}>
+                Cancel
+              </Button>
+              <Button
+                variant="filled"
+                color="teal"
+                size="xs"
+                onClick={handleConfirmReplace}
+                style={{ fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 700 }}
+              >
+                Swap Workouts
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
 
       {/* Workout Detail + Edit Modal (shared with planner) */}
       <WorkoutModal
