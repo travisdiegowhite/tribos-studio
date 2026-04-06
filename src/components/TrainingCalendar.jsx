@@ -1166,26 +1166,27 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 });
 
                 // Determine border color based on workout completion and race goals
-                let borderColor = isToday ? 'var(--color-teal)' : 'var(--color-bg-secondary)';
-                let backgroundColor = isToday ? `${'var(--color-teal)'}15` : isPast ? 'var(--color-bg-secondary)' : 'var(--color-bg-secondary)';
+                let borderColor = isToday ? '#2A8C82' : '#DDDDD8';
+                let backgroundColor = isToday ? 'rgba(42, 140, 130, 0.04)' : 'var(--color-card)';
 
                 // Race day gets special styling
                 if (raceGoal) {
                   const priorityColors = {
-                    'A': { border: '#fa5252', bg: 'rgba(250, 82, 82, 0.15)' },
-                    'B': { border: '#fd7e14', bg: 'rgba(253, 126, 20, 0.15)' },
-                    'C': { border: '#868e96', bg: 'rgba(134, 142, 150, 0.15)' },
+                    'A': { border: '#C43C2A', bg: 'rgba(196, 60, 42, 0.05)' },
+                    'B': { border: '#D4600A', bg: 'rgba(212, 96, 10, 0.05)' },
+                    'C': { border: '#9A9990', bg: 'rgba(154, 153, 144, 0.05)' },
                   };
                   const colors = priorityColors[raceGoal.priority] || priorityColors['B'];
                   borderColor = colors.border;
                   backgroundColor = colors.bg;
                 } else if (workout && isPast) {
                   if (workout.completed) {
+                    // Subtle green left accent only, no full green background
                     borderColor = '#51cf66';
-                    backgroundColor = 'rgba(81, 207, 102, 0.15)';
+                    backgroundColor = 'var(--color-card)';
                   } else if (workout.workout_type !== 'rest') {
                     borderColor = '#ff6b6b';
-                    backgroundColor = 'rgba(255, 107, 107, 0.15)';
+                    backgroundColor = 'rgba(255, 107, 107, 0.04)';
                   }
                 }
 
@@ -1213,8 +1214,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     style={{
                       minHeight: 110,
                       position: 'relative',
-                      backgroundColor: isDropTarget ? 'rgba(132, 216, 99, 0.3)' : isMoveTarget ? 'rgba(42, 140, 130, 0.08)' : backgroundColor,
-                      border: isDropTarget ? `2px dashed var(--color-teal)` : isMoveTarget ? `2px dashed #2A8C82` : `2px solid ${borderColor}`,
+                      backgroundColor: isDropTarget ? 'rgba(42, 140, 130, 0.08)' : isMoveTarget ? 'rgba(42, 140, 130, 0.06)' : backgroundColor,
+                      border: isDropTarget ? `2px dashed #2A8C82` : isMoveTarget ? `2px dashed #2A8C82` : `1px solid ${borderColor}`,
                       opacity: isPast && !workout?.completed && !dayRides.length ? 0.7 : 1,
                       cursor: isMoveTarget ? 'pointer' : hasDraggableWorkout ? 'grab' : (activePlan ? 'pointer' : 'default'),
                       transition: 'background-color 0.2s, border 0.2s',
@@ -1405,21 +1406,26 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                         return (
                           <Box
                             style={{
-                              borderLeft: `4px solid ${accentColor}`,
-                              backgroundColor: '#f0f0ed',
-                              padding: '6px 8px',
+                              borderLeft: `3px solid ${accentColor}`,
+                              padding: '4px 6px',
                               position: 'relative',
                             }}
                           >
-                            {/* Workout type badge */}
-                            <Badge
-                              size="xs"
-                              color={WORKOUT_TYPES[workout.workout_type]?.color || 'gray'}
-                              variant={workout.completed ? 'filled' : 'light'}
-                              mb={4}
+                            {/* Workout type badge - compact */}
+                            <Text
+                              size={9}
+                              fw={700}
+                              style={{
+                                fontFamily: "'Barlow Condensed', sans-serif",
+                                letterSpacing: '1.2px',
+                                textTransform: 'uppercase',
+                                color: accentColor,
+                                lineHeight: 1,
+                                marginBottom: 3,
+                              }}
                             >
                               {WORKOUT_TYPES[workout.workout_type]?.name || workout.workout_type}
-                            </Badge>
+                            </Text>
                             {/* Workout name */}
                             <Text
                               size="xs"
@@ -1428,30 +1434,24 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               mb={2}
                               style={{
                                 fontFamily: "'Barlow Condensed', sans-serif",
-                                color: workout.completed ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                                color: workout.completed ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
+                                lineHeight: 1.2,
                               }}
                             >
                               {getWorkoutById(workout.workout_id)?.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
                             </Text>
                             {/* Duration and TSS in DM Mono */}
-                            <Group gap={8}>
+                            <Group gap={6}>
                               {workout.target_duration > 0 && (
-                                <Text size="xs" fw={500} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-secondary)' }}>
+                                <Text size={11} fw={500} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)' }}>
                                   {workout.target_duration}m
                                 </Text>
                               )}
                               {workout.target_tss > 0 && (
-                                <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: accentColor }}>
+                                <Text size={11} fw={700} style={{ fontFamily: "'DM Mono', monospace", color: accentColor }}>
                                   {workout.target_tss} TSS
                                 </Text>
                               )}
-                              <FuelBadge
-                                durationMinutes={workout.target_duration}
-                                targetTSS={workout.target_tss}
-                                workoutCategory={workout.workout_type}
-                                size="xs"
-                                variant="text"
-                              />
                             </Group>
                             {/* Coach adjustment indicator */}
                             {(workout.original_scheduled_date || workout.original_workout_id) && (
@@ -1484,24 +1484,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                                 </Badge>
                               </Tooltip>
                             )}
-                            {/* Create Route button */}
-                            {!isPast && (
-                              <Tooltip label="Create route for this workout" withArrow>
-                                <ActionIcon
-                                  size="xs"
-                                  variant="light"
-                                  color="teal"
-                                  mt={4}
-                                  onClick={(e) => handleCreateRoute(e, workout, date)}
-                                >
-                                  <Path size={12} />
-                                </ActionIcon>
-                              </Tooltip>
-                            )}
                             {/* Form bar - 5-segment intensity strip */}
-                            <Group gap={1} mt={6} style={{ height: 3 }}>
+                            <div style={{ display: 'flex', gap: 0, marginTop: 5, height: 3 }}>
                               {[1, 2, 3, 4, 5].map((seg) => (
-                                <Box
+                                <div
                                   key={seg}
                                   style={{
                                     flex: 1,
@@ -1510,7 +1496,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                                   }}
                                 />
                               ))}
-                            </Group>
+                            </div>
                           </Box>
                         );
                       })()}
@@ -1518,14 +1504,15 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       {/* Rest day indicator */}
                       {workout && workout.workout_type === 'rest' && !raceGoal && (
                         <Text
-                          size="xs"
-                          fw={700}
+                          size={10}
+                          fw={600}
                           style={{
                             fontFamily: "'Barlow Condensed', sans-serif",
                             letterSpacing: '1.5px',
                             textTransform: 'uppercase',
                             color: 'var(--color-text-muted)',
-                            marginTop: 8,
+                            marginTop: 4,
+                            opacity: 0.6,
                           }}
                         >
                           REST DAY
