@@ -54,37 +54,26 @@ function WeekSummaryGrid({ weeklyStats, actualWeeklyStats, plannedWorkouts, form
   const totalTime = actualWeeklyStats?.totalTime || 0;
   const formattedTime = formatTime ? formatTime(totalTime) : `${Math.round(totalTime / 3600)}h`;
 
-  // Planned duration for the week
-  const plannedDurationMin = weekPlanned.reduce((sum, w) => sum + (w.target_duration || w.duration_minutes || 0), 0);
-  const plannedHours = Math.floor(plannedDurationMin / 60);
-  const plannedMins = plannedDurationMin % 60;
-  const plannedDurationStr = plannedHours > 0 ? `${plannedHours}h ${plannedMins}m` : `${plannedMins}m`;
-
-  // Form / TSB
-  const tsb = trainingMetrics?.tsb ?? null;
-  const tsbDisplay = tsb !== null ? String(Math.round(tsb)) : '--';
-  const tsbColor = tsb === null ? 'var(--color-text-muted)' : tsb >= 0 ? 'var(--color-teal)' : 'var(--color-orange)';
-
   const cells = [
     {
-      label: 'PLANNED TSS',
-      value: String(plannedTSS || '--'),
+      label: 'TSS',
+      value: plannedTSS > 0 ? `${Math.round(weeklyTSS)}/${plannedTSS}` : String(Math.round(weeklyTSS)),
       color: 'var(--color-teal)',
     },
     {
       label: 'DURATION',
-      value: plannedDurationMin > 0 ? plannedDurationStr : formattedTime,
+      value: formattedTime,
       color: 'var(--color-text-primary)',
     },
     {
       label: 'WORKOUTS',
-      value: `${completedCount} / ${plannedCount}`,
+      value: `${completedCount}/${plannedCount}`,
       color: 'var(--color-teal)',
     },
     {
-      label: 'FORM (TSB)',
-      value: tsbDisplay,
-      color: tsbColor,
+      label: 'COMPLIANCE',
+      value: plannedCount > 0 ? `${compliance}%` : '--',
+      color: compliance >= 80 ? 'var(--color-teal)' : compliance >= 50 ? 'var(--color-gold)' : 'var(--color-orange)',
     },
   ];
 

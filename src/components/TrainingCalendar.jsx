@@ -31,7 +31,7 @@ import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
 import { CalendarLibrarySidebar } from './training/CalendarLibrarySidebar';
-import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
+import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, ChatCircle, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, ListBullets, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
@@ -68,7 +68,7 @@ const getFormBarSegments = (tss) => {
  * Displays monthly calendar with planned workouts, completed rides,
  * weekly summaries, race goals, and workout editing capabilities
  */
-const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false, refreshKey = 0, editMode = false, trainingMetrics = null }) => {
+const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false, refreshKey = 0, editMode = false, onEditModeToggle, onCoachCheckIn, trainingMetrics = null }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -1078,6 +1078,61 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         )}
 
       <Card style={{ flex: 1, minWidth: 0 }}>
+        {/* Calendar Toolbar - WEEK DETAIL | EDITING | COACH CHECK-IN */}
+        {activePlan && onEditModeToggle && (
+          <Group justify="center" gap="sm" mb="md">
+            <Button
+              variant="outline"
+              color="gray"
+              size="xs"
+              leftSection={<ListBullets size={14} />}
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                fontWeight: 700,
+                borderColor: '#DDDDD8',
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              WEEK DETAIL
+            </Button>
+            <Button
+              variant={editMode ? 'filled' : 'outline'}
+              color="teal"
+              size="xs"
+              leftSection={<PencilSimple size={14} />}
+              onClick={onEditModeToggle}
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                fontWeight: 700,
+                ...(editMode ? {} : { borderColor: '#2A8C82', color: '#2A8C82' }),
+              }}
+            >
+              {editMode ? 'EDITING' : 'EDITING'}
+            </Button>
+            <Button
+              variant="outline"
+              color="gray"
+              size="xs"
+              leftSection={<ChatCircle size={14} />}
+              onClick={onCoachCheckIn}
+              style={{
+                fontFamily: "'Barlow Condensed', sans-serif",
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                fontWeight: 700,
+                borderColor: '#DDDDD8',
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              COACH CHECK-IN
+            </Button>
+          </Group>
+        )}
+
         {/* Calendar Header */}
         <Group justify="space-between" mb="md">
           <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{rangeLabel}</Text>
@@ -1166,27 +1221,26 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 });
 
                 // Determine border color based on workout completion and race goals
-                let borderColor = isToday ? '#2A8C82' : '#DDDDD8';
-                let backgroundColor = isToday ? 'rgba(42, 140, 130, 0.04)' : 'var(--color-card)';
+                let borderColor = isToday ? 'var(--color-teal)' : 'var(--color-bg-secondary)';
+                let backgroundColor = isToday ? `${'var(--color-teal)'}15` : isPast ? 'var(--color-bg-secondary)' : 'var(--color-bg-secondary)';
 
                 // Race day gets special styling
                 if (raceGoal) {
                   const priorityColors = {
-                    'A': { border: '#C43C2A', bg: 'rgba(196, 60, 42, 0.05)' },
-                    'B': { border: '#D4600A', bg: 'rgba(212, 96, 10, 0.05)' },
-                    'C': { border: '#9A9990', bg: 'rgba(154, 153, 144, 0.05)' },
+                    'A': { border: '#fa5252', bg: 'rgba(250, 82, 82, 0.15)' },
+                    'B': { border: '#fd7e14', bg: 'rgba(253, 126, 20, 0.15)' },
+                    'C': { border: '#868e96', bg: 'rgba(134, 142, 150, 0.15)' },
                   };
                   const colors = priorityColors[raceGoal.priority] || priorityColors['B'];
                   borderColor = colors.border;
                   backgroundColor = colors.bg;
                 } else if (workout && isPast) {
                   if (workout.completed) {
-                    // Subtle green left accent only, no full green background
                     borderColor = '#51cf66';
-                    backgroundColor = 'var(--color-card)';
+                    backgroundColor = 'rgba(81, 207, 102, 0.15)';
                   } else if (workout.workout_type !== 'rest') {
                     borderColor = '#ff6b6b';
-                    backgroundColor = 'rgba(255, 107, 107, 0.04)';
+                    backgroundColor = 'rgba(255, 107, 107, 0.15)';
                   }
                 }
 
@@ -1214,8 +1268,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     style={{
                       minHeight: 110,
                       position: 'relative',
-                      backgroundColor: isDropTarget ? 'rgba(42, 140, 130, 0.08)' : isMoveTarget ? 'rgba(42, 140, 130, 0.06)' : backgroundColor,
-                      border: isDropTarget ? `2px dashed #2A8C82` : isMoveTarget ? `2px dashed #2A8C82` : `1px solid ${borderColor}`,
+                      backgroundColor: isDropTarget ? 'rgba(132, 216, 99, 0.3)' : isMoveTarget ? 'rgba(42, 140, 130, 0.08)' : backgroundColor,
+                      border: isDropTarget ? `2px dashed var(--color-teal)` : isMoveTarget ? `2px dashed #2A8C82` : `2px solid ${borderColor}`,
                       opacity: isPast && !workout?.completed && !dayRides.length ? 0.7 : 1,
                       cursor: isMoveTarget ? 'pointer' : hasDraggableWorkout ? 'grab' : (activePlan ? 'pointer' : 'default'),
                       transition: 'background-color 0.2s, border 0.2s',
@@ -1399,59 +1453,53 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                         </Tooltip>
                       )}
 
-                      {/* Workout card - redesigned with accent border and form bar */}
+                      {/* Workout info - visible at a glance */}
                       {workout && workout.workout_type !== 'rest' && (() => {
                         const accentColor = WORKOUT_TYPE_ACCENT[workout.workout_type] || '#9A9990';
                         const filledSegments = getFormBarSegments(workout.target_tss);
                         return (
-                          <Box
-                            style={{
-                              borderLeft: `3px solid ${accentColor}`,
-                              padding: '4px 6px',
-                              position: 'relative',
-                            }}
-                          >
-                            {/* Workout type badge - compact */}
-                            <Text
-                              size={9}
-                              fw={700}
-                              style={{
-                                fontFamily: "'Barlow Condensed', sans-serif",
-                                letterSpacing: '1.2px',
-                                textTransform: 'uppercase',
-                                color: accentColor,
-                                lineHeight: 1,
-                                marginBottom: 3,
-                              }}
-                            >
-                              {WORKOUT_TYPES[workout.workout_type]?.name || workout.workout_type}
-                            </Text>
+                          <Box style={{ borderLeft: `3px solid ${accentColor}`, paddingLeft: 6 }}>
+                            {/* Workout type with icon */}
+                            <Group gap={4} mb={4}>
+                              <Text size="lg">{WORKOUT_TYPES[workout.workout_type]?.icon || '🚴'}</Text>
+                              <Badge
+                                size="sm"
+                                color={WORKOUT_TYPES[workout.workout_type]?.color || 'gray'}
+                                variant={workout.completed ? 'filled' : 'light'}
+                              >
+                                {WORKOUT_TYPES[workout.workout_type]?.name || workout.workout_type}
+                              </Badge>
+                            </Group>
                             {/* Workout name */}
                             <Text
                               size="xs"
-                              fw={700}
+                              fw={600}
                               lineClamp={1}
                               mb={2}
-                              style={{
-                                fontFamily: "'Barlow Condensed', sans-serif",
-                                color: workout.completed ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
-                                lineHeight: 1.2,
-                              }}
+                              style={{ color: workout.completed ? 'var(--color-text-secondary)' : 'var(--color-text-primary)' }}
                             >
                               {getWorkoutById(workout.workout_id)?.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
                             </Text>
-                            {/* Duration and TSS in DM Mono */}
-                            <Group gap={6}>
+                            {/* Duration and TSS - prominent */}
+                            <Group gap={8}>
                               {workout.target_duration > 0 && (
-                                <Text size={11} fw={500} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)' }}>
+                                <Text size="xs" fw={500} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-secondary)' }}>
                                   {workout.target_duration}m
                                 </Text>
                               )}
                               {workout.target_tss > 0 && (
-                                <Text size={11} fw={700} style={{ fontFamily: "'DM Mono', monospace", color: accentColor }}>
+                                <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: accentColor }}>
                                   {workout.target_tss} TSS
                                 </Text>
                               )}
+                              {/* Fuel indicator for longer workouts */}
+                              <FuelBadge
+                                durationMinutes={workout.target_duration}
+                                targetTSS={workout.target_tss}
+                                workoutCategory={workout.workout_type}
+                                size="xs"
+                                variant="text"
+                              />
                             </Group>
                             {/* Coach adjustment indicator */}
                             {(workout.original_scheduled_date || workout.original_workout_id) && (
@@ -1478,10 +1526,23 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                                   color="yellow"
                                   leftSection={<ArrowsLeftRight size={10} />}
                                   style={{ cursor: 'help' }}
-                                  mt={2}
                                 >
                                   Adjusted
                                 </Badge>
+                              </Tooltip>
+                            )}
+                            {/* Create Route button - only for today or future workouts */}
+                            {!isPast && (
+                              <Tooltip label="Create route for this workout" withArrow>
+                                <ActionIcon
+                                  size="xs"
+                                  variant="light"
+                                  color="teal"
+                                  mt={4}
+                                  onClick={(e) => handleCreateRoute(e, workout, date)}
+                                >
+                                  <Path size={12} />
+                                </ActionIcon>
                               </Tooltip>
                             )}
                             {/* Form bar - 5-segment intensity strip */}
@@ -1503,20 +1564,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
                       {/* Rest day indicator */}
                       {workout && workout.workout_type === 'rest' && !raceGoal && (
-                        <Text
-                          size={10}
-                          fw={600}
-                          style={{
-                            fontFamily: "'Barlow Condensed', sans-serif",
-                            letterSpacing: '1.5px',
-                            textTransform: 'uppercase',
-                            color: 'var(--color-text-muted)',
-                            marginTop: 4,
-                            opacity: 0.6,
-                          }}
-                        >
-                          REST DAY
-                        </Text>
+                        <Group gap={4}>
+                          <Text size="lg">😴</Text>
+                          <Text size="xs" c="dimmed" fw={500}>Rest Day</Text>
+                        </Group>
                       )}
 
                       {/* Race Goal indicator */}

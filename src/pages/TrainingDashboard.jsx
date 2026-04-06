@@ -986,61 +986,6 @@ function TrainingDashboard() {
           {/* Secondary Nav Bar */}
           <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} />
 
-          {/* Calendar Toolbar - WEEK DETAIL | EDITING | COACH CHECK-IN */}
-          {activeTab === 'calendar' && activePlan && (
-            <Group justify="center" gap="sm">
-              <Button
-                variant="outline"
-                color="gray"
-                size="xs"
-                leftSection={<ListBullets size={14} />}
-                style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
-                  letterSpacing: '1.5px',
-                  textTransform: 'uppercase',
-                  fontWeight: 700,
-                  borderColor: '#DDDDD8',
-                  color: 'var(--color-text-primary)',
-                }}
-              >
-                WEEK DETAIL
-              </Button>
-              <Button
-                variant={editMode ? 'filled' : 'outline'}
-                color="teal"
-                size="xs"
-                leftSection={<PencilSimple size={14} />}
-                onClick={() => setEditMode((v) => !v)}
-                style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
-                  letterSpacing: '1.5px',
-                  textTransform: 'uppercase',
-                  fontWeight: 700,
-                  ...(editMode ? {} : { borderColor: '#2A8C82', color: '#2A8C82' }),
-                }}
-              >
-                {editMode ? 'EDITING' : 'EDITING'}
-              </Button>
-              <Button
-                variant="outline"
-                color="gray"
-                size="xs"
-                leftSection={<ChatCircle size={14} />}
-                onClick={() => setActiveTab('coach')}
-                style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
-                  letterSpacing: '1.5px',
-                  textTransform: 'uppercase',
-                  fontWeight: 700,
-                  borderColor: '#DDDDD8',
-                  color: 'var(--color-text-primary)',
-                }}
-              >
-                COACH CHECK-IN
-              </Button>
-            </Group>
-          )}
-
           {/* Intel Strip - Edit Mode only, between toolbar and calendar */}
           {editMode && activeTab === 'calendar' && (
             <IntelStrip
@@ -1064,6 +1009,8 @@ function TrainingDashboard() {
                 refreshKey={calendarRefreshKey}
                 onPlanUpdated={handlePlanUpdated}
                 editMode={editMode}
+                onEditModeToggle={() => setEditMode((v) => !v)}
+                onCoachCheckIn={() => setActiveTab('coach')}
                 trainingMetrics={trainingMetrics}
               />
             )}
