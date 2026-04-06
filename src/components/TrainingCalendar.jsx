@@ -627,8 +627,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setLibraryDraggedWorkoutId(workoutId);
   };
 
-  const handleLibraryWorkoutSelect = async (workoutId) => {
-    if (!targetDay || !activePlan) return;
+  const handleLibraryWorkoutSelect = async (workoutId, overrideDate) => {
+    const dateToUse = overrideDate || targetDay;
+    if (!dateToUse || !activePlan) return;
     const workoutDef = getWorkoutById(workoutId);
     if (!workoutDef) return;
 
@@ -636,7 +637,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       const { error } = await supabase.from('planned_workouts').insert({
         plan_id: activePlan.id,
         user_id: user.id,
-        scheduled_date: targetDay,
+        scheduled_date: dateToUse,
         workout_type: workoutDef.category,
         workout_id: workoutDef.id,
         name: workoutDef.name,
@@ -651,7 +652,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
       notifications.show({
         title: 'Workout added',
-        message: `${workoutDef.name} added to ${targetDay}`,
+        message: `${workoutDef.name} added to ${dateToUse}`,
         color: 'teal',
       });
 
@@ -725,9 +726,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     // Handle library drag-and-drop
     if (libraryDraggedWorkoutId && targetDate && activePlan) {
       const workoutId = libraryDraggedWorkoutId;
+      const dateStr = formatLocalDate(targetDate);
       setLibraryDraggedWorkoutId(null);
-      setTargetDay(formatLocalDate(targetDate));
-      await handleLibraryWorkoutSelect(workoutId);
+      setTargetDay(null);
+      await handleLibraryWorkoutSelect(workoutId, dateStr);
       return;
     }
 
@@ -1063,7 +1065,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       )}
 
       {/* Calendar with optional sidebar */}
-      <Box style={{ display: 'flex', gap: 0 }}>
+      <Box style={{ display: 'flex', gap: 0, ...(editMode ? { height: 'calc(100vh - 220px)' } : {}) }}>
         {/* Edit Mode: Workout Library Sidebar */}
         {editMode && (
           <CalendarLibrarySidebar
@@ -1077,7 +1079,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           />
         )}
 
-      <Card style={{ flex: 1, minWidth: 0 }}>
+      <Card style={{ flex: 1, minWidth: 0, ...(editMode ? { overflowY: 'auto' } : {}) }}>
         {/* Calendar Toolbar - WEEK DETAIL | EDITING | COACH CHECK-IN */}
         {activePlan && onEditModeToggle && (
           <Group justify="center" gap="sm" mb="md">
@@ -1531,28 +1533,14 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                                 </Badge>
                               </Tooltip>
                             )}
-                            {/* Create Route button - only for today or future workouts */}
-                            {!isPast && (
-                              <Tooltip label="Create route for this workout" withArrow>
-                                <ActionIcon
-                                  size="xs"
-                                  variant="light"
-                                  color="teal"
-                                  mt={4}
-                                  onClick={(e) => handleCreateRoute(e, workout, date)}
-                                >
-                                  <Path size={12} />
-                                </ActionIcon>
-                              </Tooltip>
-                            )}
                             {/* Form bar - 5-segment intensity strip */}
-                            <div style={{ display: 'flex', gap: 0, marginTop: 5, height: 3 }}>
+                            <div style={{ display: 'flex', gap: 0, marginTop: 2, height: 2 }}>
                               {[1, 2, 3, 4, 5].map((seg) => (
                                 <div
                                   key={seg}
                                   style={{
                                     flex: 1,
-                                    height: 3,
+                                    height: 2,
                                     backgroundColor: seg <= filledSegments ? accentColor : '#DDDDD8',
                                   }}
                                 />

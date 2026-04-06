@@ -96,10 +96,11 @@ export function CalendarLibrarySidebar({
         flexShrink: 0,
         backgroundColor: '#141410',
         borderRight: visible ? '1px solid #333' : 'none',
+        height: '100%',
       }}
     >
       {visible && (
-        <Box style={{ width: 220, height: '100%' }}>
+        <Box style={{ width: 220, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* Target day header */}
           {targetDay && (
             <Box p="xs" style={{ borderBottom: '1px solid #333' }}>
