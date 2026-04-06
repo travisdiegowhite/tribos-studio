@@ -76,7 +76,7 @@ import { PoweredByGarmin } from '../components/GarminBranding';
 import { garminService } from '../utils/garminService.js';
 import PageHeader from '../components/PageHeader.jsx';
 import { useCrossTraining } from '../hooks/useCrossTraining';
-import { Barbell, Bicycle, Calendar, CalendarBlank, CaretDown, CaretRight, ChartBar, ChartLine, ChatCircle, Clock, DownloadSimple, FileArrowDown, FileArrowUp, Fire, Gear, Heart, Heartbeat, Lightning, Medal, Moon, Mountains, Path, PencilSimple, PersonSimpleRun, Sparkle, Target, TrendDown, TrendUp, Trophy, UploadSimple, Watch } from '@phosphor-icons/react';
+import { Barbell, Bicycle, Calendar, CalendarBlank, CaretDown, CaretRight, ChartBar, ChartLine, ChatCircle, Clock, DownloadSimple, FileArrowDown, FileArrowUp, Fire, Gear, Heart, Heartbeat, Lightning, ListBullets, Medal, Moon, Mountains, Path, PencilSimple, PersonSimpleRun, Sparkle, Target, TrendDown, TrendUp, Trophy, UploadSimple, Watch } from '@phosphor-icons/react';
 import PlanProgressBar from '../components/train/PlanProgressBar.jsx';
 import WeekSummaryGrid from '../components/train/WeekSummaryGrid.jsx';
 import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
@@ -952,23 +952,6 @@ function TrainingDashboard() {
                 >
                   {todayHealthMetrics ? 'Check-in ✓' : 'Body Check-in'}
                 </Button>
-                {activePlan && (
-                  <Button
-                    variant={editMode ? 'filled' : 'outline'}
-                    color="teal"
-                    size="xs"
-                    leftSection={<PencilSimple size={14} />}
-                    onClick={() => setEditMode((v) => !v)}
-                    style={{
-                      fontFamily: "'Barlow Condensed', sans-serif",
-                      letterSpacing: '1.5px',
-                      textTransform: 'uppercase',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {editMode ? 'EDITING' : 'EDIT MODE'}
-                  </Button>
-                )}
                 <Button
                   variant="light"
                   color="teal"
@@ -1000,7 +983,65 @@ function TrainingDashboard() {
             trainingMetrics={trainingMetrics}
           />
 
-          {/* Intel Strip - Edit Mode only */}
+          {/* Secondary Nav Bar */}
+          <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+
+          {/* Calendar Toolbar - WEEK DETAIL | EDITING | COACH CHECK-IN */}
+          {activeTab === 'calendar' && activePlan && (
+            <Group justify="center" gap="sm">
+              <Button
+                variant="outline"
+                color="gray"
+                size="xs"
+                leftSection={<ListBullets size={14} />}
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  letterSpacing: '1.5px',
+                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  borderColor: '#DDDDD8',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                WEEK DETAIL
+              </Button>
+              <Button
+                variant={editMode ? 'filled' : 'outline'}
+                color="teal"
+                size="xs"
+                leftSection={<PencilSimple size={14} />}
+                onClick={() => setEditMode((v) => !v)}
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  letterSpacing: '1.5px',
+                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  ...(editMode ? {} : { borderColor: '#2A8C82', color: '#2A8C82' }),
+                }}
+              >
+                {editMode ? 'EDITING' : 'EDITING'}
+              </Button>
+              <Button
+                variant="outline"
+                color="gray"
+                size="xs"
+                leftSection={<ChatCircle size={14} />}
+                onClick={() => setActiveTab('coach')}
+                style={{
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  letterSpacing: '1.5px',
+                  textTransform: 'uppercase',
+                  fontWeight: 700,
+                  borderColor: '#DDDDD8',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                COACH CHECK-IN
+              </Button>
+            </Group>
+          )}
+
+          {/* Intel Strip - Edit Mode only, between toolbar and calendar */}
           {editMode && activeTab === 'calendar' && (
             <IntelStrip
               visible={editMode}
@@ -1009,9 +1050,6 @@ function TrainingDashboard() {
               trainingMetrics={trainingMetrics}
             />
           )}
-
-          {/* Secondary Nav Bar */}
-          <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} />
 
           {/* Tab Content Panels */}
           <Box>
