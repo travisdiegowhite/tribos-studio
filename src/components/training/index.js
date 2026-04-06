@@ -15,6 +15,8 @@ export { default as SegmentLibraryPanel } from './SegmentLibraryPanel';
 export { default as TrainingPlanExportMenu } from './TrainingPlanExportMenu';
 export { default as PlanConflictModal } from './PlanConflictModal';
 export { default as RaceTab } from './RaceTab';
+export { default as IntelStrip } from './IntelStrip';
+export { default as CalendarLibrarySidebar } from './CalendarLibrarySidebar';
 
 // Re-export types and utilities for convenience
 export * from '../../services/trainingTemplates';

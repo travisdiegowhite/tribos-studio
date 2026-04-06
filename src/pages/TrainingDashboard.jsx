@@ -76,10 +76,11 @@ import { PoweredByGarmin } from '../components/GarminBranding';
 import { garminService } from '../utils/garminService.js';
 import PageHeader from '../components/PageHeader.jsx';
 import { useCrossTraining } from '../hooks/useCrossTraining';
-import { Barbell, Bicycle, Calendar, CalendarBlank, CaretDown, CaretRight, ChartBar, ChartLine, ChatCircle, Clock, DownloadSimple, FileArrowDown, FileArrowUp, Fire, Gear, Heart, Heartbeat, Lightning, Medal, Moon, Mountains, Path, PersonSimpleRun, Sparkle, Target, TrendDown, TrendUp, Trophy, UploadSimple, Watch } from '@phosphor-icons/react';
+import { Barbell, Bicycle, Calendar, CalendarBlank, CaretDown, CaretRight, ChartBar, ChartLine, ChatCircle, Clock, DownloadSimple, FileArrowDown, FileArrowUp, Fire, Gear, Heart, Heartbeat, Lightning, Medal, Moon, Mountains, Path, PencilSimple, PersonSimpleRun, Sparkle, Target, TrendDown, TrendUp, Trophy, UploadSimple, Watch } from '@phosphor-icons/react';
 import PlanProgressBar from '../components/train/PlanProgressBar.jsx';
 import WeekSummaryGrid from '../components/train/WeekSummaryGrid.jsx';
 import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
+import { IntelStrip } from '../components/training/IntelStrip';
 
 // Helper to determine sport type from activity data
 const CYCLING_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
@@ -135,6 +136,7 @@ function TrainingDashboard() {
   const [rideAnalysisModalOpen, setRideAnalysisModalOpen] = useState(false);
   const [selectedRide, setSelectedRide] = useState(null);
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+  const [editMode, setEditMode] = useState(false);
 
   // Cross-training activities
   const { getRecentActivitiesForContext, getDailyTSSRange } = useCrossTraining();
@@ -950,6 +952,23 @@ function TrainingDashboard() {
                 >
                   {todayHealthMetrics ? 'Check-in ✓' : 'Body Check-in'}
                 </Button>
+                {activePlan && (
+                  <Button
+                    variant={editMode ? 'filled' : 'outline'}
+                    color="teal"
+                    size="xs"
+                    leftSection={<PencilSimple size={14} />}
+                    onClick={() => setEditMode((v) => !v)}
+                    style={{
+                      fontFamily: "'Barlow Condensed', sans-serif",
+                      letterSpacing: '1.5px',
+                      textTransform: 'uppercase',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {editMode ? 'EDITING' : 'EDIT MODE'}
+                  </Button>
+                )}
                 <Button
                   variant="light"
                   color="teal"
@@ -978,7 +997,18 @@ function TrainingDashboard() {
             formatDist={formatDist}
             formatTime={formatTime}
             loading={loading}
+            trainingMetrics={trainingMetrics}
           />
+
+          {/* Intel Strip - Edit Mode only */}
+          {editMode && activeTab === 'calendar' && (
+            <IntelStrip
+              visible={editMode}
+              weekNumber={activePlan?.current_week || null}
+              scheduledWorkouts={plannedWorkouts}
+              trainingMetrics={trainingMetrics}
+            />
+          )}
 
           {/* Secondary Nav Bar */}
           <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} />
@@ -995,6 +1025,8 @@ function TrainingDashboard() {
                 isImperial={isImperial}
                 refreshKey={calendarRefreshKey}
                 onPlanUpdated={handlePlanUpdated}
+                editMode={editMode}
+                trainingMetrics={trainingMetrics}
               />
             )}
 

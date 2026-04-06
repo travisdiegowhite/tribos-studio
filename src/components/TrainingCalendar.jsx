@@ -15,6 +15,7 @@ import {
   Divider,
   SimpleGrid,
   ThemeIcon,
+  Popover,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -29,17 +30,45 @@ import { FuelBadge } from './fueling';
 import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
+import { CalendarLibrarySidebar } from './training/CalendarLibrarySidebar';
 import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
+
+// Workout type → left border accent color mapping
+const WORKOUT_TYPE_ACCENT = {
+  endurance: '#2A8C82',    // teal
+  vo2max: '#D4600A',       // orange
+  threshold: '#D4600A',    // orange
+  anaerobic: '#D4600A',    // orange
+  sweet_spot: '#C49A0A',   // gold
+  tempo: '#C49A0A',        // gold
+  recovery: '#9A9990',     // grey
+  racing: '#C43C2A',       // coral
+  climbing: '#2A8C82',     // teal (similar to endurance)
+  strength: '#9A9990',     // grey
+  core: '#9A9990',         // grey
+  flexibility: '#9A9990',  // grey
+  rest: '#9A9990',         // grey
+};
+
+// Form bar: number of filled segments based on TSS
+const getFormBarSegments = (tss) => {
+  if (!tss || tss <= 0) return 0;
+  if (tss <= 30) return 1;
+  if (tss <= 60) return 2;
+  if (tss <= 90) return 3;
+  if (tss <= 120) return 4;
+  return 5;
+};
 
 /**
  * Enhanced Training Calendar Component
  * Displays monthly calendar with planned workouts, completed rides,
  * weekly summaries, race goals, and workout editing capabilities
  */
-const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false, refreshKey = 0 }) => {
+const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false, refreshKey = 0, editMode = false, trainingMetrics = null }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -99,6 +128,16 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Drag and drop state
   const [draggedWorkout, setDraggedWorkout] = useState(null);
   const [dragOverDate, setDragOverDate] = useState(null);
+
+  // Edit mode sidebar state
+  const [targetDay, setTargetDay] = useState(null);
+  const [sidebarFilterCategory, setSidebarFilterCategory] = useState(null);
+  const [libraryDraggedWorkoutId, setLibraryDraggedWorkoutId] = useState(null);
+
+  // Edit mode interactive cell state
+  const [popoverDate, setPopoverDate] = useState(null);
+  const [moveSource, setMoveSource] = useState(null);
+  const [deleteConfirmDate, setDeleteConfirmDate] = useState(null);
 
   // Helper to get plan start date (supports both old and new schema)
   const getPlanStartDate = (plan) => plan?.started_at || plan?.start_date;
@@ -567,7 +606,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const handleDragOver = (e, date) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (date && draggedWorkout) {
+    if (date && (draggedWorkout || libraryDraggedWorkoutId)) {
       // Use formatLocalDate for consistent date comparison
       setDragOverDate(formatLocalDate(date));
     }
@@ -580,11 +619,117 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const handleDragEnd = () => {
     setDraggedWorkout(null);
     setDragOverDate(null);
+    setLibraryDraggedWorkoutId(null);
+  };
+
+  // Library sidebar handlers
+  const handleLibraryDragStart = (workoutId) => {
+    setLibraryDraggedWorkoutId(workoutId);
+  };
+
+  const handleLibraryWorkoutSelect = async (workoutId) => {
+    if (!targetDay || !activePlan) return;
+    const workoutDef = getWorkoutById(workoutId);
+    if (!workoutDef) return;
+
+    try {
+      const { error } = await supabase.from('planned_workouts').insert({
+        plan_id: activePlan.id,
+        user_id: user.id,
+        scheduled_date: targetDay,
+        workout_type: workoutDef.category,
+        workout_id: workoutDef.id,
+        name: workoutDef.name,
+        target_tss: workoutDef.targetTSS,
+        target_duration: workoutDef.duration,
+        duration_minutes: workoutDef.duration,
+        week_number: 1,
+        day_of_week: new Date(targetDay).getDay(),
+      });
+
+      if (error) throw error;
+
+      notifications.show({
+        title: 'Workout added',
+        message: `${workoutDef.name} added to ${targetDay}`,
+        color: 'teal',
+      });
+
+      setTargetDay(null);
+      setSidebarFilterCategory(null);
+      loadPlannedWorkouts();
+      if (onPlanUpdated) onPlanUpdated();
+    } catch (err) {
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to add workout',
+        color: 'red',
+      });
+    }
+  };
+
+  // Edit mode: handle move to destination day
+  const handleMoveToDay = async (destinationDate) => {
+    if (!moveSource || !activePlan) return;
+    const sourceDate = new Date(moveSource.date);
+    // Reuse existing drag-drop logic
+    setDraggedWorkout({ workout: moveSource.workout, sourceDate });
+    setMoveSource(null);
+    // Trigger the drop handler programmatically by simulating
+    const fakeEvent = { preventDefault: () => {}, dataTransfer: { getData: () => '' } };
+    await handleDrop(fakeEvent, destinationDate);
+  };
+
+  // Edit mode: inline delete with optimistic UI
+  const handleInlineDelete = async (workout, date) => {
+    if (!workout?.id) return;
+    setDeleteConfirmDate(null);
+    setPopoverDate(null);
+
+    try {
+      const { error } = await supabase
+        .from('planned_workouts')
+        .delete()
+        .eq('id', workout.id);
+
+      if (error) throw error;
+
+      notifications.show({
+        title: 'Workout removed',
+        message: `${workout.name || 'Workout'} removed`,
+        color: 'teal',
+      });
+
+      loadPlannedWorkouts();
+      if (onPlanUpdated) onPlanUpdated();
+    } catch (err) {
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to remove workout',
+        color: 'red',
+      });
+    }
+  };
+
+  // Edit mode: swap workout (opens sidebar filtered to same type)
+  const handleSwapWorkout = (workout, date) => {
+    setPopoverDate(null);
+    setSidebarFilterCategory(workout.workout_type || null);
+    setTargetDay(formatLocalDate(date));
   };
 
   const handleDrop = async (e, targetDate) => {
     e.preventDefault();
     setDragOverDate(null);
+
+    // Handle library drag-and-drop
+    if (libraryDraggedWorkoutId && targetDate && activePlan) {
+      const workoutId = libraryDraggedWorkoutId;
+      setLibraryDraggedWorkoutId(null);
+      setTargetDay(formatLocalDate(targetDate));
+      await handleLibraryWorkoutSelect(workoutId);
+      return;
+    }
 
     console.log('handleDrop called:', { draggedWorkout, targetDate, activePlan: activePlan?.id });
 
@@ -811,6 +956,14 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
   return (
     <Stack gap="md">
+      {/* Edit mode hover styles */}
+      {editMode && (
+        <style>{`
+          .edit-mode-cell:hover .swap-badge { opacity: 1 !important; }
+          .edit-mode-cell:hover .add-workout-btn { opacity: 1 !important; }
+        `}</style>
+      )}
+
       {/* Plan Overview Header */}
       {activePlan && (
         <Paper p="md" withBorder>
@@ -909,8 +1062,22 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         </Paper>
       )}
 
-      {/* Calendar */}
-      <Card>
+      {/* Calendar with optional sidebar */}
+      <Box style={{ display: 'flex', gap: 0 }}>
+        {/* Edit Mode: Workout Library Sidebar */}
+        {editMode && (
+          <CalendarLibrarySidebar
+            visible={editMode}
+            targetDay={targetDay}
+            filterCategory={sidebarFilterCategory}
+            onWorkoutSelect={handleLibraryWorkoutSelect}
+            onDragStart={handleLibraryDragStart}
+            onDragEnd={handleDragEnd}
+            onClose={() => { setTargetDay(null); setSidebarFilterCategory(null); }}
+          />
+        )}
+
+      <Card style={{ flex: 1, minWidth: 0 }}>
         {/* Calendar Header */}
         <Group justify="space-between" mb="md">
           <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{rangeLabel}</Text>
@@ -1026,12 +1193,18 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 const isDropTarget = dragOverDate === formatLocalDate(date);
                 const hasDraggableWorkout = workout && workout.workout_type !== 'rest';
 
+                const dateStr = formatLocalDate(date);
+                const isMoveModeActive = moveSource !== null;
+                const isMoveTarget = isMoveModeActive && moveSource.date !== dateStr;
+                const isPopoverOpen = popoverDate === dateStr;
+                const hasWorkout = workout && workout.workout_type !== 'rest';
+
                 return (
                   <Card
                     key={index}
                     withBorder
                     p="xs"
-                    draggable={hasDraggableWorkout}
+                    draggable={hasDraggableWorkout || (editMode && hasWorkout)}
                     onDragStart={(e) => handleDragStart(e, workout, date)}
                     onDragEnd={handleDragEnd}
                     onDragOver={(e) => handleDragOver(e, date)}
@@ -1039,23 +1212,161 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     onDrop={(e) => handleDrop(e, date)}
                     style={{
                       minHeight: 110,
-                      backgroundColor: isDropTarget ? 'rgba(132, 216, 99, 0.3)' : backgroundColor,
-                      border: isDropTarget ? `2px dashed ${'var(--color-teal)'}` : `2px solid ${borderColor}`,
+                      position: 'relative',
+                      backgroundColor: isDropTarget ? 'rgba(132, 216, 99, 0.3)' : isMoveTarget ? 'rgba(42, 140, 130, 0.08)' : backgroundColor,
+                      border: isDropTarget ? `2px dashed var(--color-teal)` : isMoveTarget ? `2px dashed #2A8C82` : `2px solid ${borderColor}`,
                       opacity: isPast && !workout?.completed && !dayRides.length ? 0.7 : 1,
-                      cursor: hasDraggableWorkout ? 'grab' : (activePlan ? 'pointer' : 'default'),
+                      cursor: isMoveTarget ? 'pointer' : hasDraggableWorkout ? 'grab' : (activePlan ? 'pointer' : 'default'),
                       transition: 'background-color 0.2s, border 0.2s',
                     }}
-                    onClick={() => activePlan && openEditModal(workout, date)}
+                    onClick={() => {
+                      // Move mode: clicking a destination day moves the workout
+                      if (isMoveModeActive && isMoveTarget) {
+                        handleMoveToDay(date);
+                        return;
+                      }
+                      // Normal click: open edit modal
+                      if (activePlan) openEditModal(workout, date);
+                    }}
+                    className={editMode ? 'edit-mode-cell' : ''}
                   >
+                    {/* Edit mode: SWAP badge on hover for cells with workouts */}
+                    {editMode && hasWorkout && (
+                      <Badge
+                        size="xs"
+                        variant="filled"
+                        color="teal"
+                        className="swap-badge"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPopoverDate(isPopoverOpen ? null : dateStr);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          top: 4,
+                          right: 4,
+                          zIndex: 2,
+                          cursor: 'pointer',
+                          opacity: 0,
+                          transition: 'opacity 0.15s',
+                          fontFamily: "'Barlow Condensed', sans-serif",
+                          letterSpacing: '1px',
+                        }}
+                      >
+                        SWAP
+                      </Badge>
+                    )}
+
+                    {/* Edit mode: action popover */}
+                    {editMode && isPopoverOpen && hasWorkout && (
+                      <Box
+                        style={{
+                          position: 'absolute',
+                          top: 24,
+                          right: 4,
+                          zIndex: 10,
+                          backgroundColor: '#141410',
+                          border: '1px solid #333',
+                          padding: '4px',
+                          minWidth: 100,
+                        }}
+                      >
+                        <Stack gap={2}>
+                          <Button
+                            size="compact-xs"
+                            variant="subtle"
+                            color="teal"
+                            fullWidth
+                            style={{ justifyContent: 'flex-start', fontFamily: "'Barlow Condensed', sans-serif" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSwapWorkout(workout, date);
+                            }}
+                          >
+                            Swap
+                          </Button>
+                          {deleteConfirmDate === dateStr ? (
+                            <Group gap={4}>
+                              <Text size="xs" c="dimmed" style={{ flex: 1 }}>Remove?</Text>
+                              <Button
+                                size="compact-xs"
+                                variant="filled"
+                                color="red"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleInlineDelete(workout, date);
+                                }}
+                              >
+                                Yes
+                              </Button>
+                              <Button
+                                size="compact-xs"
+                                variant="subtle"
+                                color="gray"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteConfirmDate(null);
+                                }}
+                              >
+                                No
+                              </Button>
+                            </Group>
+                          ) : (
+                            <Button
+                              size="compact-xs"
+                              variant="subtle"
+                              color="red"
+                              fullWidth
+                              style={{ justifyContent: 'flex-start', fontFamily: "'Barlow Condensed', sans-serif" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteConfirmDate(dateStr);
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          )}
+                          <Button
+                            size="compact-xs"
+                            variant="subtle"
+                            color="orange"
+                            fullWidth
+                            style={{ justifyContent: 'flex-start', fontFamily: "'Barlow Condensed', sans-serif" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMoveSource({ workout, date: dateStr });
+                              setPopoverDate(null);
+                              notifications.show({
+                                title: 'Move mode',
+                                message: 'Click a destination day to move this workout',
+                                color: 'teal',
+                                autoClose: 3000,
+                              });
+                            }}
+                          >
+                            Move
+                          </Button>
+                        </Stack>
+                      </Box>
+                    )}
+
                     <Stack gap={4}>
                       {/* Date and completion checkbox */}
                       <Group justify="space-between" align="center">
-                        <Text size="sm" fw={700} style={{ color: 'var(--color-text-primary)' }}>
-                          {date.getDate()}
-                          <Text span size="xs" fw={400} c="dimmed" ml={4}>
-                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]}
+                        <Group gap={6} align="center">
+                          <Text size="sm" fw={700} style={{ fontFamily: "'DM Mono', monospace", color: isToday ? '#2A8C82' : 'var(--color-text-primary)' }}>
+                            {date.getDate()}
                           </Text>
-                        </Text>
+                          {isToday ? (
+                            <Text size={10} fw={700} style={{ fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '1px', color: '#2A8C82' }}>
+                              TODAY
+                            </Text>
+                          ) : (
+                            <Text size={10} fw={400} c="dimmed">
+                              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]}
+                            </Text>
+                          )}
+                        </Group>
                         {workout && workout.workout_type !== 'rest' && (
                           <ActionIcon
                             size="sm"
@@ -1087,104 +1398,138 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                         </Tooltip>
                       )}
 
-                      {/* Workout info - visible at a glance */}
-                      {workout && workout.workout_type !== 'rest' && (
-                        <Box>
-                          {/* Workout type with icon */}
-                          <Group gap={4} mb={4}>
-                            <Text size="lg">{WORKOUT_TYPES[workout.workout_type]?.icon || '🚴'}</Text>
+                      {/* Workout card - redesigned with accent border and form bar */}
+                      {workout && workout.workout_type !== 'rest' && (() => {
+                        const accentColor = WORKOUT_TYPE_ACCENT[workout.workout_type] || '#9A9990';
+                        const filledSegments = getFormBarSegments(workout.target_tss);
+                        return (
+                          <Box
+                            style={{
+                              borderLeft: `4px solid ${accentColor}`,
+                              backgroundColor: '#f0f0ed',
+                              padding: '6px 8px',
+                              position: 'relative',
+                            }}
+                          >
+                            {/* Workout type badge */}
                             <Badge
-                              size="sm"
+                              size="xs"
                               color={WORKOUT_TYPES[workout.workout_type]?.color || 'gray'}
                               variant={workout.completed ? 'filled' : 'light'}
+                              mb={4}
                             >
                               {WORKOUT_TYPES[workout.workout_type]?.name || workout.workout_type}
                             </Badge>
-                          </Group>
-                          {/* Workout name */}
-                          <Text
-                            size="xs"
-                            fw={600}
-                            lineClamp={1}
-                            mb={2}
-                            style={{ color: workout.completed ? 'var(--color-text-secondary)' : 'var(--color-text-primary)' }}
-                          >
-                            {getWorkoutById(workout.workout_id)?.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
-                          </Text>
-                          {/* Duration and TSS - prominent */}
-                          <Group gap={8}>
-                            {workout.target_duration > 0 && (
-                              <Text size="xs" fw={500} style={{ color: 'var(--color-text-secondary)' }}>
-                                {workout.target_duration} min
-                              </Text>
-                            )}
-                            {workout.target_tss > 0 && (
-                              <Text size="xs" fw={600} c="orange">
-                                {workout.target_tss} TSS
-                              </Text>
-                            )}
-                            {/* Fuel indicator for longer workouts */}
-                            <FuelBadge
-                              durationMinutes={workout.target_duration}
-                              targetTSS={workout.target_tss}
-                              workoutCategory={workout.workout_type}
+                            {/* Workout name */}
+                            <Text
                               size="xs"
-                              variant="text"
-                            />
-                          </Group>
-                          {/* Coach adjustment indicator */}
-                          {(workout.original_scheduled_date || workout.original_workout_id) && (
-                            <Tooltip
-                              label={
-                                <Stack gap={2}>
-                                  <Text size="xs" fw={600}>Coach adjusted</Text>
-                                  {workout.original_scheduled_date && (
-                                    <Text size="xs">Originally: {workout.original_scheduled_date}</Text>
-                                  )}
-                                  {workout.original_workout_id && (
-                                    <Text size="xs">
-                                      Was: {getWorkoutById(workout.original_workout_id)?.name || workout.original_workout_id}
-                                    </Text>
-                                  )}
-                                </Stack>
-                              }
-                              position="bottom"
-                              withArrow
+                              fw={700}
+                              lineClamp={1}
+                              mb={2}
+                              style={{
+                                fontFamily: "'Barlow Condensed', sans-serif",
+                                color: workout.completed ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                              }}
                             >
-                              <Badge
+                              {getWorkoutById(workout.workout_id)?.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
+                            </Text>
+                            {/* Duration and TSS in DM Mono */}
+                            <Group gap={8}>
+                              {workout.target_duration > 0 && (
+                                <Text size="xs" fw={500} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-secondary)' }}>
+                                  {workout.target_duration}m
+                                </Text>
+                              )}
+                              {workout.target_tss > 0 && (
+                                <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", color: accentColor }}>
+                                  {workout.target_tss} TSS
+                                </Text>
+                              )}
+                              <FuelBadge
+                                durationMinutes={workout.target_duration}
+                                targetTSS={workout.target_tss}
+                                workoutCategory={workout.workout_type}
                                 size="xs"
-                                variant="light"
-                                color="yellow"
-                                leftSection={<ArrowsLeftRight size={10} />}
-                                style={{ cursor: 'help' }}
+                                variant="text"
+                              />
+                            </Group>
+                            {/* Coach adjustment indicator */}
+                            {(workout.original_scheduled_date || workout.original_workout_id) && (
+                              <Tooltip
+                                label={
+                                  <Stack gap={2}>
+                                    <Text size="xs" fw={600}>Coach adjusted</Text>
+                                    {workout.original_scheduled_date && (
+                                      <Text size="xs">Originally: {workout.original_scheduled_date}</Text>
+                                    )}
+                                    {workout.original_workout_id && (
+                                      <Text size="xs">
+                                        Was: {getWorkoutById(workout.original_workout_id)?.name || workout.original_workout_id}
+                                      </Text>
+                                    )}
+                                  </Stack>
+                                }
+                                position="bottom"
+                                withArrow
                               >
-                                Adjusted
-                              </Badge>
-                            </Tooltip>
-                          )}
-                          {/* Create Route button - only for today or future workouts */}
-                          {!isPast && (
-                            <Tooltip label="Create route for this workout" withArrow>
-                              <ActionIcon
-                                size="xs"
-                                variant="light"
-                                color="teal"
-                                mt={4}
-                                onClick={(e) => handleCreateRoute(e, workout, date)}
-                              >
-                                <Path size={12} />
-                              </ActionIcon>
-                            </Tooltip>
-                          )}
-                        </Box>
-                      )}
+                                <Badge
+                                  size="xs"
+                                  variant="light"
+                                  color="yellow"
+                                  leftSection={<ArrowsLeftRight size={10} />}
+                                  style={{ cursor: 'help' }}
+                                  mt={2}
+                                >
+                                  Adjusted
+                                </Badge>
+                              </Tooltip>
+                            )}
+                            {/* Create Route button */}
+                            {!isPast && (
+                              <Tooltip label="Create route for this workout" withArrow>
+                                <ActionIcon
+                                  size="xs"
+                                  variant="light"
+                                  color="teal"
+                                  mt={4}
+                                  onClick={(e) => handleCreateRoute(e, workout, date)}
+                                >
+                                  <Path size={12} />
+                                </ActionIcon>
+                              </Tooltip>
+                            )}
+                            {/* Form bar - 5-segment intensity strip */}
+                            <Group gap={1} mt={6} style={{ height: 3 }}>
+                              {[1, 2, 3, 4, 5].map((seg) => (
+                                <Box
+                                  key={seg}
+                                  style={{
+                                    flex: 1,
+                                    height: 3,
+                                    backgroundColor: seg <= filledSegments ? accentColor : '#DDDDD8',
+                                  }}
+                                />
+                              ))}
+                            </Group>
+                          </Box>
+                        );
+                      })()}
 
                       {/* Rest day indicator */}
                       {workout && workout.workout_type === 'rest' && !raceGoal && (
-                        <Group gap={4}>
-                          <Text size="lg">😴</Text>
-                          <Text size="xs" c="dimmed" fw={500}>Rest Day</Text>
-                        </Group>
+                        <Text
+                          size="xs"
+                          fw={700}
+                          style={{
+                            fontFamily: "'Barlow Condensed', sans-serif",
+                            letterSpacing: '1.5px',
+                            textTransform: 'uppercase',
+                            color: 'var(--color-text-muted)',
+                            marginTop: 8,
+                          }}
+                        >
+                          REST DAY
+                        </Text>
                       )}
 
                       {/* Race Goal indicator */}
@@ -1336,6 +1681,31 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                           {formatDistance(dayRides.reduce((sum, r) => sum + ((r.distance || 0) / 1000), 0))}
                         </Text>
                       )}
+
+                      {/* Edit mode: "+" add button for empty cells */}
+                      {editMode && !hasWorkout && !isMoveTarget && (
+                        <Box
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTargetDay(dateStr);
+                            setSidebarFilterCategory(null);
+                          }}
+                          className="add-workout-btn"
+                          style={{
+                            border: '1px dashed #DDDDD8',
+                            height: 36,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            marginTop: 4,
+                            opacity: 0,
+                            transition: 'opacity 0.15s',
+                          }}
+                        >
+                          <Plus size={14} color="#9A9990" />
+                        </Box>
+                      )}
                     </Stack>
                   </Card>
                 );
@@ -1406,6 +1776,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           </>
         )}
       </Card>
+      </Box>
 
       {/* Workout Detail + Edit Modal (shared with planner) */}
       <WorkoutModal
