@@ -10,173 +10,6 @@ import { fetchBikeInfrastructure, INFRASTRUCTURE_TYPES } from './bikeInfrastruct
 
 const STADIA_MAPS_API_URL = 'https://api.stadiamaps.com/route/v1';
 
-// Overpass servers for metro detection (same as bikeInfrastructureService)
-const OVERPASS_SERVERS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-];
-
-// Metro detection cache — keyed by 0.02° grid cell (~2km)
-const metroCache = new Map();
-const METRO_CACHE_TTL = 60 * 60 * 1000; // 1 hour (metro status doesn't change often)
-const METRO_GRID_SIZE = 0.02;
-
-// Threshold: number of primary/secondary/trunk road segments within 3km to classify as metro
-// Lowered from 8 to 5 to catch suburban sprawl areas with moderate arterial density
-const METRO_ROAD_DENSITY_THRESHOLD = 5;
-
-/**
- * Metro area costing overlay — applied on top of existing costing when route
- * passes through urban/metro areas. Pushes Valhalla harder toward residential
- * streets and bike paths to avoid high-traffic arterials.
- *
- * This is a stopgap until AADT (Annual Average Daily Traffic) data is integrated.
- */
-const METRO_COSTING_OVERLAY = {
-  use_roads: 0,            // Maximum bike path preference in metro areas
-  use_living_streets: 1.0, // Strongly prefer residential streets
-  maneuver_penalty: 12     // Higher intersection penalty (arterials have more signals)
-};
-
-/**
- * Additional arterial name patterns specific to metro/urban areas.
- * These names are common arterials in cities but may be quiet roads in rural areas,
- * so they're only applied when metro area is detected.
- */
-const METRO_ARTERIAL_PATTERN = /\b(Broadway|Main\s*(St(reet)?|Rd|Road)|Martin Luther King|MLK|Commercial\s*(St|Dr|Ave|Blvd)|Industrial\s*(Blvd|Dr|Pkwy)|Business\s*(Route|Rte)|Central\s*Ave(nue)?|Market\s*St(reet)?|Mission\s*(St|Blvd)|Van Ness|Broad\s*St(reet)?)/i;
-
-/**
- * Detect if a coordinate is in a metro/urban area by querying Overpass for
- * primary/secondary/trunk road density within ~2km.
- *
- * Results are cached per 0.02° grid cell (~2km) for 1 hour.
- * Non-blocking: returns { isMetro: false } on timeout or failure.
- *
- * @param {number} lon - Longitude
- * @param {number} lat - Latitude
- * @returns {Promise<{isMetro: boolean, roadDensity: number}>}
- */
-export async function detectMetroArea(lon, lat) {
-  // Grid-cell cache key
-  const cellLon = Math.floor(lon / METRO_GRID_SIZE) * METRO_GRID_SIZE;
-  const cellLat = Math.floor(lat / METRO_GRID_SIZE) * METRO_GRID_SIZE;
-  const cacheKey = `metro:${cellLon.toFixed(3)},${cellLat.toFixed(3)}`;
-
-  // Check cache
-  const cached = metroCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < METRO_CACHE_TTL) {
-    return cached.result;
-  }
-
-  try {
-    // Query Overpass for primary/secondary/trunk roads within ~3km radius
-    // Increased from 2km to catch suburban areas with spread-out arterials
-    const radius = 3000; // meters
-    const query = `
-[out:json][timeout:5];
-(
-  way[highway=primary](around:${radius},${lat},${lon});
-  way[highway=secondary](around:${radius},${lat},${lon});
-  way[highway=trunk](around:${radius},${lat},${lon});
-  way[highway=primary_link](around:${radius},${lat},${lon});
-  way[highway=trunk_link](around:${radius},${lat},${lon});
-);
-out count;
-`;
-
-    // Try each Overpass server
-    for (let i = 0; i < OVERPASS_SERVERS.length; i++) {
-      try {
-        const response = await fetch(OVERPASS_SERVERS[i], {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `data=${encodeURIComponent(query)}`,
-          signal: AbortSignal.timeout(3000)
-        });
-
-        if (!response.ok) continue;
-
-        const data = await response.json();
-        const roadCount = data.elements?.[0]?.tags?.total || data.elements?.length || 0;
-
-        const result = {
-          isMetro: roadCount >= METRO_ROAD_DENSITY_THRESHOLD,
-          roadDensity: roadCount
-        };
-
-        // Cache the result
-        metroCache.set(cacheKey, { result, timestamp: Date.now() });
-
-        if (result.isMetro) {
-          console.log(`🏙️ Metro area detected at [${lon.toFixed(3)}, ${lat.toFixed(3)}]: ${roadCount} primary/secondary/trunk roads within 3km`);
-        }
-
-        return result;
-      } catch {
-        continue; // Try next server
-      }
-    }
-
-    // All servers failed — assume non-metro (safe default)
-    const fallback = { isMetro: false, roadDensity: 0 };
-    metroCache.set(cacheKey, { result: fallback, timestamp: Date.now() });
-    return fallback;
-  } catch {
-    return { isMetro: false, roadDensity: 0 };
-  }
-}
-
-/**
- * Check multiple points along a route for metro areas.
- * Checks start, end, and sampled intermediate waypoints.
- * Returns true if ANY point is in a metro area.
- *
- * @param {Array<[lon, lat]>} waypoints - Route waypoints
- * @returns {Promise<{isMetro: boolean, metroPoints: Array}>}
- */
-export async function detectMetroAlongRoute(waypoints) {
-  if (!waypoints || waypoints.length < 2) {
-    return { isMetro: false, metroPoints: [] };
-  }
-
-  // Always check start and end
-  const pointsToCheck = [waypoints[0], waypoints[waypoints.length - 1]];
-
-  // Add intermediate waypoints (up to 3 midpoints for longer routes)
-  if (waypoints.length > 2) {
-    // Sample evenly from intermediate points
-    const intermediates = waypoints.slice(1, -1);
-    const step = Math.max(1, Math.floor(intermediates.length / 3));
-    for (let i = 0; i < intermediates.length; i += step) {
-      pointsToCheck.push(intermediates[i]);
-      if (pointsToCheck.length >= 5) break; // Cap at 5 checks
-    }
-  }
-
-  // Run all checks in parallel
-  const results = await Promise.all(
-    pointsToCheck.map(([lon, lat]) => detectMetroArea(lon, lat))
-  );
-
-  const metroPoints = [];
-  for (let i = 0; i < results.length; i++) {
-    if (results[i].isMetro) {
-      metroPoints.push({
-        coordinates: pointsToCheck[i],
-        roadDensity: results[i].roadDensity
-      });
-    }
-  }
-
-  const isMetro = metroPoints.length > 0;
-  if (isMetro) {
-    console.log(`🏙️ Metro area detected at ${metroPoints.length}/${pointsToCheck.length} waypoints — applying urban traffic penalties`);
-  }
-
-  return { isMetro, metroPoints };
-}
-
 /**
  * Detect metro segments post-route using maneuver density.
  * Metro areas have denser intersections (more maneuvers per km).
@@ -449,36 +282,6 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     }
   }
 
-  // Detect metro area along route waypoints and apply urban traffic penalties
-  let isMetro = false;
-  try {
-    const metroResult = await detectMetroAlongRoute(waypoints);
-    isMetro = metroResult.isMetro;
-
-    if (isMetro) {
-      // Apply metro costing overlay — use more restrictive values
-      costing_options.bicycle.use_roads = Math.min(
-        costing_options.bicycle.use_roads ?? 0.3,
-        METRO_COSTING_OVERLAY.use_roads
-      );
-      costing_options.bicycle.use_living_streets = Math.max(
-        costing_options.bicycle.use_living_streets || 0,
-        METRO_COSTING_OVERLAY.use_living_streets
-      );
-      // Only apply metro maneuver_penalty if no training goal already set a higher one
-      if (!goalCosting || (costing_options.bicycle.maneuver_penalty || 5) < METRO_COSTING_OVERLAY.maneuver_penalty) {
-        costing_options.bicycle.maneuver_penalty = Math.max(
-          costing_options.bicycle.maneuver_penalty || 5,
-          METRO_COSTING_OVERLAY.maneuver_penalty
-        );
-      }
-      console.log(`🏙️ Applied metro costing overlay: use_roads=${costing_options.bicycle.use_roads}, use_living_streets=${costing_options.bicycle.use_living_streets}, maneuver_penalty=${costing_options.bicycle.maneuver_penalty}`);
-    }
-  } catch (error) {
-    // Non-blocking: if metro detection fails, continue without metro overlay
-    console.warn('Metro detection skipped:', error.message);
-  }
-
   // Convert waypoints to Stadia Maps format
   // Use "break" type to force routing through each waypoint
   const locations = waypoints.map(([lon, lat]) => ({
@@ -564,7 +367,7 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     const duration = totalDuration;
 
     // Extract maneuver data for intersection/turn analysis
-    const maneuvers = extractManeuverData(trip, isMetro);
+    const maneuvers = extractManeuverData(trip);
 
     // Derive traffic and quietness scores from road classification
     const roadClassification = maneuvers.roadClassification;
@@ -584,7 +387,6 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
       trafficScore,
       quietnessScore,
       roadClassification,
-      isMetro,
       raw: data // Include raw response for debugging
     };
 
@@ -684,7 +486,6 @@ export function classifyRoadSegments(maneuvers, totalDistanceKm, isMetro = false
   let overpassArterialKm = 0;
   let highwayDistanceKm = 0;
   let arterialByNameKm = 0;
-  let metroArterialByNameKm = 0;
 
   for (const m of maneuvers) {
     const segmentKm = m.length || 0;
@@ -718,24 +519,15 @@ export function classifyRoadSegments(maneuvers, totalDistanceKm, isMetro = false
         arterialByNameKm += segmentKm;
         continue; // Don't double-count
       }
-
-      // Tier 3: Metro-specific arterial patterns (only in detected metro areas)
-      if (isMetro) {
-        const isMetroArterial = m.streetNames.some(name => METRO_ARTERIAL_PATTERN.test(name));
-        if (isMetroArterial) {
-          metroArterialByNameKm += segmentKm;
-        }
-      }
     }
   }
 
-  const totalArterialKm = overpassArterialKm + highwayDistanceKm + arterialByNameKm + metroArterialByNameKm;
+  const totalArterialKm = overpassArterialKm + highwayDistanceKm + arterialByNameKm;
   const arterialFraction = totalDistanceKm > 0 ? totalArterialKm / totalDistanceKm : 0;
 
   if (arterialFraction > 0.1) {
     const overpassNote = overpassArterialKm > 0 ? `${overpassArterialKm.toFixed(1)}km overpass, ` : '';
-    const metroNote = metroArterialByNameKm > 0 ? `, ${metroArterialByNameKm.toFixed(1)}km metro arterial` : '';
-    console.log(`⚠️ Road classification: ${(arterialFraction * 100).toFixed(0)}% arterial (${overpassNote}${highwayDistanceKm.toFixed(1)}km highway, ${arterialByNameKm.toFixed(1)}km by name${metroNote})`);
+    console.log(`⚠️ Road classification: ${(arterialFraction * 100).toFixed(0)}% arterial (${overpassNote}${highwayDistanceKm.toFixed(1)}km highway, ${arterialByNameKm.toFixed(1)}km by name)`);
   } else {
     console.log(`✅ Road classification: ${(arterialFraction * 100).toFixed(0)}% arterial — mostly quiet roads`);
   }
@@ -745,7 +537,6 @@ export function classifyRoadSegments(maneuvers, totalDistanceKm, isMetro = false
     overpassArterialKm,
     highwayDistanceKm,
     arterialByNameKm,
-    metroArterialByNameKm,
     totalDistanceKm,
     isMetro
   };
@@ -845,235 +636,6 @@ export async function scoreRouteInfrastructure(coordinates) {
     console.warn('Infrastructure scoring skipped:', error.message);
     return null;
   }
-}
-
-/**
- * Classify route segments as arterial using Overpass ground-truth OSM data.
- * Queries for primary/secondary/trunk roads in the route's bounding box, then
- * checks which route coordinate pairs fall near these arterials.
- *
- * Non-blocking: returns empty result on timeout/failure so the route still works.
- * Results are cached per bounding-box hash for 1 hour.
- *
- * @param {Array<[number, number]>} coordinates - Route coordinates [[lon, lat], ...]
- * @returns {Promise<Object>} Arterial classification with indices, fraction, and stretches
- */
-export async function classifyRouteWithOverpass(coordinates) {
-  if (!coordinates || coordinates.length < 10) {
-    return { arterialIndices: new Set(), arterialFraction: 0, arterialDistanceKm: 0, arterialStretches: [] };
-  }
-
-  // Build bounding box with ~150m buffer (~0.0015°)
-  const BUFFER = 0.0015;
-  let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
-  for (const coord of coordinates) {
-    const lon = coord[0], lat = coord[1];
-    if (lat < minLat) minLat = lat;
-    if (lat > maxLat) maxLat = lat;
-    if (lon < minLon) minLon = lon;
-    if (lon > maxLon) maxLon = lon;
-  }
-
-  const south = minLat - BUFFER;
-  const north = maxLat + BUFFER;
-  const west = minLon - BUFFER;
-  const east = maxLon + BUFFER;
-
-  // Cache key from bbox
-  const cacheKey = `arterial:${south.toFixed(4)},${west.toFixed(4)},${north.toFixed(4)},${east.toFixed(4)}`;
-  const cached = metroCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < METRO_CACHE_TTL) {
-    return cached.result;
-  }
-
-  try {
-    const query = `
-[out:json][timeout:6];
-(
-  way[highway=primary](${south},${west},${north},${east});
-  way[highway=secondary](${south},${west},${north},${east});
-  way[highway=trunk](${south},${west},${north},${east});
-  way[highway=primary_link](${south},${west},${north},${east});
-  way[highway=trunk_link](${south},${west},${north},${east});
-);
-out geom;
-`;
-
-    let arterialWays = null;
-    for (let i = 0; i < OVERPASS_SERVERS.length; i++) {
-      try {
-        const response = await fetch(OVERPASS_SERVERS[i], {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `data=${encodeURIComponent(query)}`,
-          signal: AbortSignal.timeout(5000)
-        });
-        if (!response.ok) continue;
-        const data = await response.json();
-        arterialWays = data.elements || [];
-        break;
-      } catch {
-        continue;
-      }
-    }
-
-    if (!arterialWays) {
-      console.warn('⚠️ Overpass arterial query failed on all servers');
-      const empty = { arterialIndices: new Set(), arterialFraction: 0, arterialDistanceKm: 0, arterialStretches: [] };
-      metroCache.set(cacheKey, { result: empty, timestamp: Date.now() });
-      return empty;
-    }
-
-    // Build flat list of arterial line segments from OSM ways
-    const arterialSegments = [];
-    const arterialNames = new Set();
-    for (const way of arterialWays) {
-      if (!way.geometry || way.geometry.length < 2) continue;
-      const name = way.tags?.name || way.tags?.ref || `unnamed ${way.tags?.highway}`;
-      arterialNames.add(name);
-      for (let i = 0; i < way.geometry.length - 1; i++) {
-        arterialSegments.push({
-          lon1: way.geometry[i].lon, lat1: way.geometry[i].lat,
-          lon2: way.geometry[i + 1].lon, lat2: way.geometry[i + 1].lat,
-          name
-        });
-      }
-    }
-
-    if (arterialSegments.length === 0) {
-      const empty = { arterialIndices: new Set(), arterialFraction: 0, arterialDistanceKm: 0, arterialStretches: [] };
-      metroCache.set(cacheKey, { result: empty, timestamp: Date.now() });
-      return empty;
-    }
-
-    // For each route coordinate pair, check proximity to arterial segments
-    // ~60m threshold in degrees (varies by latitude, but close enough for detection)
-    const PROXIMITY = 0.00055; // ~60m at mid-latitudes
-    const arterialIndices = new Set();
-    let arterialDistanceKm = 0;
-    let totalDistanceKm = 0;
-
-    for (let i = 0; i < coordinates.length - 1; i++) {
-      const [lon, lat] = coordinates[i];
-      const [lon2, lat2] = coordinates[i + 1];
-      const segDistKm = Math.sqrt(
-        Math.pow((lat2 - lat) * 111.32, 2) +
-        Math.pow((lon2 - lon) * 111.32 * Math.cos(lat * Math.PI / 180), 2)
-      );
-      totalDistanceKm += segDistKm;
-
-      // Check midpoint proximity to any arterial segment
-      const midLon = (lon + lon2) / 2;
-      const midLat = (lat + lat2) / 2;
-
-      for (const seg of arterialSegments) {
-        // Quick bounding box pre-filter
-        const segMinLat = Math.min(seg.lat1, seg.lat2) - PROXIMITY;
-        const segMaxLat = Math.max(seg.lat1, seg.lat2) + PROXIMITY;
-        const segMinLon = Math.min(seg.lon1, seg.lon2) - PROXIMITY;
-        const segMaxLon = Math.max(seg.lon1, seg.lon2) + PROXIMITY;
-
-        if (midLat < segMinLat || midLat > segMaxLat || midLon < segMinLon || midLon > segMaxLon) continue;
-
-        // Point-to-line-segment distance
-        const dist = pointToSegmentDist(midLat, midLon, seg.lat1, seg.lon1, seg.lat2, seg.lon2);
-        if (dist < PROXIMITY) {
-          arterialIndices.add(i);
-          arterialDistanceKm += segDistKm;
-          break; // Don't double-count
-        }
-      }
-    }
-
-    // Identify contiguous arterial stretches >0.5km
-    const arterialStretches = [];
-    let stretchStart = -1;
-    let stretchDistKm = 0;
-    const stretchNames = new Set();
-
-    for (let i = 0; i < coordinates.length - 1; i++) {
-      if (arterialIndices.has(i)) {
-        if (stretchStart === -1) stretchStart = i;
-        const [lon, lat] = coordinates[i];
-        const [lon2, lat2] = coordinates[i + 1];
-        stretchDistKm += Math.sqrt(
-          Math.pow((lat2 - lat) * 111.32, 2) +
-          Math.pow((lon2 - lon) * 111.32 * Math.cos(lat * Math.PI / 180), 2)
-        );
-        // Find which arterial name this is near
-        const midLon = (lon + lon2) / 2;
-        const midLat = (lat + lat2) / 2;
-        for (const seg of arterialSegments) {
-          const dist = pointToSegmentDist(midLat, midLon, seg.lat1, seg.lon1, seg.lat2, seg.lon2);
-          if (dist < PROXIMITY) { stretchNames.add(seg.name); break; }
-        }
-      } else if (stretchStart !== -1) {
-        // End of stretch
-        if (stretchDistKm >= 0.5) {
-          const midIdx = Math.floor((stretchStart + i) / 2);
-          arterialStretches.push({
-            startIdx: stretchStart, endIdx: i - 1,
-            lengthKm: stretchDistKm,
-            midpoint: coordinates[midIdx],
-            roadNames: [...stretchNames]
-          });
-        }
-        stretchStart = -1;
-        stretchDistKm = 0;
-        stretchNames.clear();
-      }
-    }
-    // Handle stretch that extends to end of route
-    if (stretchStart !== -1 && stretchDistKm >= 0.5) {
-      const midIdx = Math.floor((stretchStart + coordinates.length - 1) / 2);
-      arterialStretches.push({
-        startIdx: stretchStart, endIdx: coordinates.length - 2,
-        lengthKm: stretchDistKm,
-        midpoint: coordinates[midIdx],
-        roadNames: [...stretchNames]
-      });
-    }
-
-    const arterialFraction = totalDistanceKm > 0 ? arterialDistanceKm / totalDistanceKm : 0;
-
-    if (arterialStretches.length > 0) {
-      const names = [...arterialNames].slice(0, 5).join(', ');
-      console.log(`🛣️ Overpass arterial classification: ${(arterialFraction * 100).toFixed(0)}% arterial (${arterialDistanceKm.toFixed(1)}km), ${arterialStretches.length} stretch(es) on: ${names}`);
-    } else {
-      console.log(`✅ Overpass arterial classification: ${(arterialFraction * 100).toFixed(0)}% arterial — mostly quiet roads`);
-    }
-
-    const result = { arterialIndices, arterialFraction, arterialDistanceKm, arterialStretches, totalDistanceKm };
-    metroCache.set(cacheKey, { result, timestamp: Date.now() });
-    return result;
-  } catch (error) {
-    console.warn('⚠️ Overpass arterial classification skipped:', error.message);
-    return { arterialIndices: new Set(), arterialFraction: 0, arterialDistanceKm: 0, arterialStretches: [] };
-  }
-}
-
-/**
- * Point-to-line-segment distance in degrees (approximate, fast).
- * Good enough for proximity checks within ~1km.
- */
-function pointToSegmentDist(pLat, pLon, aLat, aLon, bLat, bLon) {
-  const dx = bLon - aLon;
-  const dy = bLat - aLat;
-  const lenSq = dx * dx + dy * dy;
-
-  if (lenSq === 0) {
-    // Segment is a point
-    return Math.sqrt((pLon - aLon) ** 2 + (pLat - aLat) ** 2);
-  }
-
-  // Project point onto segment, clamped to [0, 1]
-  let t = ((pLon - aLon) * dx + (pLat - aLat) * dy) / lenSq;
-  t = Math.max(0, Math.min(1, t));
-
-  const projLon = aLon + t * dx;
-  const projLat = aLat + t * dy;
-
-  return Math.sqrt((pLon - projLon) ** 2 + (pLat - projLat) ** 2);
 }
 
 /**
@@ -1229,6 +791,5 @@ export default {
   getStadiaMapsRoute,
   isStadiaMapsAvailable,
   getSupportedProfiles,
-  analyzeSegmentSuitability,
-  classifyRouteWithOverpass
+  analyzeSegmentSuitability
 };
