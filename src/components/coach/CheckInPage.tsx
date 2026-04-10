@@ -16,6 +16,7 @@ import CheckInWeekBar from './CheckInWeekBar';
 import CheckInRecommendationCard from './CheckInRecommendation';
 import CheckInAcknowledgment from './CheckInAcknowledgment';
 import CheckInThread from './CheckInThread';
+import DeepRideAnalysis from './DeepRideAnalysis';
 import DeviationCard from './DeviationCard';
 import FatigueCheckinCard from './FatigueCheckinCard';
 import IntakeInterview from './IntakeInterview';
@@ -221,6 +222,11 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
         nextSessionPurpose={currentCheckIn.next_session_purpose}
         personaId={currentCheckIn.persona_id as PersonaId}
       />
+
+      {/* Deep FIT-driven ride analysis (lazy, hides itself if no FIT data) */}
+      {currentCheckIn.activity_id && (
+        <DeepRideAnalysis activityId={currentCheckIn.activity_id} />
+      )}
 
       {/* Recommendation card (if any) */}
       {currentCheckIn.recommendation && (

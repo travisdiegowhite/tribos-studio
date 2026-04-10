@@ -4,6 +4,7 @@
 
 import EasyFit from 'easy-fit';
 import { computePerRideAnalytics } from './advancedRideAnalytics.js';
+import { buildFitCoachContext } from './fitCoachContext.js';
 
 // Maximum valid values for FIT data fields
 // FIT protocol uses sentinel values (e.g., 0xFFFF = 65535 for uint16) to indicate "invalid/no data"
@@ -570,9 +571,13 @@ function buildActivityStreamsFromDataPoints(allDataPoints) {
  * Download and parse a FIT file from URL, returning encoded polyline
  * @param {string} url - URL to download FIT file from
  * @param {string} accessToken - Bearer token for authentication
- * @returns {Promise<{polyline: string|null, summary: Object|null, error: string|null}>}
+ * @param {Object} [athlete] - Optional athlete profile for FIT coach context
+ * @param {number} [athlete.ftp] - Functional Threshold Power (watts)
+ * @param {number} [athlete.maxHR] - Maximum heart rate (bpm)
+ * @param {Object} [athlete.powerZones] - user_profiles.power_zones shape { z1:{min,max}, ..., z7:{min,max} }
+ * @returns {Promise<{polyline: string|null, summary: Object|null, fitCoachContext: Object|null, error: string|null}>}
  */
-export async function downloadAndParseFitFile(url, accessToken) {
+export async function downloadAndParseFitFile(url, accessToken, athlete = null) {
   try {
     console.log('📥 Downloading FIT file...');
 
@@ -641,12 +646,34 @@ export async function downloadAndParseFitFile(url, accessToken) {
       }
     }
 
+    // Build the deep AI coach analysis context (resampled uniform-interval
+    // time series + decoupling, dropouts, power-zone distribution, cadence
+    // bands). Persisted on activities.fit_coach_context for lazy generation
+    // of the long-form ride analysis narrative.
+    let fitCoachContext = null;
+    try {
+      if (parsed.allDataPoints?.length >= 60) {
+        fitCoachContext = buildFitCoachContext({
+          allDataPoints: parsed.allDataPoints,
+          ftp: athlete?.ftp ?? parsed.summary?.threshold_power ?? null,
+          maxHR: athlete?.maxHR ?? parsed.summary?.maxHeartRate ?? null,
+          powerZones: athlete?.powerZones ?? null,
+        });
+        if (fitCoachContext) {
+          console.log(`🧠 FIT coach context built: ${fitCoachContext.sample_count} samples @ ${fitCoachContext.interval_seconds}s`);
+        }
+      }
+    } catch (coachCtxError) {
+      console.warn('⚠️ FIT coach context build failed (non-fatal):', coachCtxError.message);
+    }
+
     return {
       polyline,
       activityStreams,
       summary: parsed.summary,
       powerMetrics: parsed.powerMetrics,
       rideAnalytics: parsed.rideAnalytics,
+      fitCoachContext,
       pointCount: parsed.trackPoints.length,
       simplifiedCount,
       hasPowerData: parsed.hasPowerData,
