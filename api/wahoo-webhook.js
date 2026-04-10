@@ -255,13 +255,16 @@ async function processWahooWorkout(integration, workout, webhookData, webhookSum
     return { activityId: null, skipped: true, reason: 'Unsupported workout type' };
   }
 
-  // Try to get GPS data (polyline) from workout file or route
+  // Try to get GPS data (polyline) + deep FIT coach context from the workout file
   let mapPolyline = null;
+  let fitCoachContext = null;
   if (workoutDetails.file?.url) {
     try {
-      mapPolyline = await extractGPSFromWahooFile(workoutDetails.file.url, accessToken);
+      const fitData = await extractGPSFromWahooFile(workoutDetails.file.url, accessToken, integration.user_id);
+      mapPolyline = fitData.polyline;
+      fitCoachContext = fitData.fitCoachContext;
     } catch (err) {
-      console.warn('Could not extract GPS from Wahoo file:', err.message);
+      console.warn('Could not extract FIT data from Wahoo file:', err.message);
     }
   }
 
@@ -288,6 +291,7 @@ async function processWahooWorkout(integration, workout, webhookData, webhookSum
     calories: summary.calories_accum ?? null,
     trainer: workoutDetails.workout_type === 'indoor_cycling' || workoutDetails.workout_type === 'treadmill_running',
     map_summary_polyline: mapPolyline,
+    fit_coach_context: fitCoachContext,
     raw_data: webhookData,
     imported_from: 'wahoo_webhook'
   };
@@ -547,36 +551,70 @@ function mapWahooWorkoutType(wahooType) {
 }
 
 /**
- * Extract GPS data from Wahoo workout file
- * @param {string} fileUrl - URL to the workout file (FIT format)
- * @param {string} accessToken - Wahoo access token for authentication
- * @returns {Promise<string|null>} Encoded polyline or null
+ * Load the athlete profile fields needed to build the FIT coach context.
  */
-async function extractGPSFromWahooFile(fileUrl, accessToken) {
-  if (!fileUrl) {
+async function fetchWahooAthleteProfile(userId) {
+  if (!userId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('ftp, power_zones, max_hr')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return {
+      ftp: data.ftp ?? null,
+      maxHR: data.max_hr ?? null,
+      powerZones: data.power_zones ?? null,
+    };
+  } catch (err) {
+    console.warn('⚠️ Failed to load athlete profile for FIT coach context:', err.message);
     return null;
+  }
+}
+
+/**
+ * Extract GPS data (polyline) and deep FIT coach context from a Wahoo
+ * workout file. Returns both so the caller can persist them together.
+ *
+ * @param {string} fileUrl
+ * @param {string} accessToken
+ * @param {string|null} userId - user_id for athlete profile lookup
+ * @returns {Promise<{polyline: string|null, fitCoachContext: Object|null}>}
+ */
+async function extractGPSFromWahooFile(fileUrl, accessToken, userId = null) {
+  if (!fileUrl) {
+    return { polyline: null, fitCoachContext: null };
   }
 
   console.log('🗺️ Extracting GPS data from Wahoo FIT file...');
 
   try {
-    const result = await downloadAndParseFitFile(fileUrl, accessToken);
+    const athlete = await fetchWahooAthleteProfile(userId);
+    const result = await downloadAndParseFitFile(fileUrl, accessToken, athlete);
 
     if (result.error) {
       console.warn('⚠️ GPS extraction warning:', result.error);
-      return null;
+      return { polyline: null, fitCoachContext: null };
     }
 
     if (result.polyline) {
       console.log(`✅ GPS extracted: ${result.simplifiedCount} points encoded`);
-      return result.polyline;
+    } else {
+      console.log('ℹ️ No GPS data in workout file (indoor ride?)');
     }
 
-    console.log('ℹ️ No GPS data in workout file (indoor ride?)');
-    return null;
+    if (result.fitCoachContext) {
+      console.log(`🧠 FIT coach context: ${result.fitCoachContext.sample_count} samples @ ${result.fitCoachContext.interval_seconds}s`);
+    }
+
+    return {
+      polyline: result.polyline || null,
+      fitCoachContext: result.fitCoachContext || null,
+    };
 
   } catch (error) {
-    console.error('❌ GPS extraction failed:', error.message);
-    return null;
+    console.error('❌ FIT extraction failed:', error.message);
+    return { polyline: null, fitCoachContext: null };
   }
 }

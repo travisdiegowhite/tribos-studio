@@ -27,6 +27,32 @@ const supabase = getSupabaseAdmin();
 const MAX_RETRIES = 6;
 const BATCH_SIZE = 20;
 
+/**
+ * Load the athlete profile fields needed to build the FIT coach context
+ * (FTP, max HR, power zones). Returns an object safe to pass to
+ * downloadAndParseFitFile, or null on any failure — the parser degrades
+ * gracefully without these.
+ */
+async function fetchAthleteProfile(userId) {
+  if (!userId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('ftp, power_zones, max_hr')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return {
+      ftp: data.ftp ?? null,
+      maxHR: data.max_hr ?? null,
+      powerZones: data.power_zones ?? null,
+    };
+  } catch (err) {
+    console.warn('⚠️ Failed to load athlete profile for FIT coach context:', err.message);
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   // Verify cron authorization (timing-safe)
   const { verifyCronAuth } = await import('./utils/verifyCronAuth.js');
@@ -285,7 +311,8 @@ async function handleExistingActivity(event, existing, integration) {
   }
 
   console.log(`[FIT:DOWNLOAD] Activity ${event.activity_id} exists but missing data (GPS:${needsGps} power:${needsPowerMetrics} streams:${needsStreams} analytics:${needsAnalytics}), downloading FIT from: ${fitFileUrl ? 'URL available' : 'no URL'}`);
-  const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token);
+  const athlete = await fetchAthleteProfile(integration.user_id);
+  const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token, athlete);
 
   const activityUpdate = { updated_at: new Date().toISOString() };
   const updates = [];
@@ -324,6 +351,13 @@ async function handleExistingActivity(event, existing, integration) {
   if (fitResult.rideAnalytics) {
     activityUpdate.ride_analytics = fitResult.rideAnalytics;
     updates.push('Advanced analytics');
+  }
+
+  // Store the FIT coach context (resampled time series + derived metrics)
+  // so the Deep Ride Analysis endpoint can lazily generate a narrative.
+  if (fitResult.fitCoachContext) {
+    activityUpdate.fit_coach_context = fitResult.fitCoachContext;
+    updates.push(`Coach context (${fitResult.fitCoachContext.sample_count} samples)`);
   }
 
   if (updates.length > 0) {
@@ -463,7 +497,7 @@ async function downloadAndProcessActivity(event, integration) {
   const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
   if (fitFileUrl && integration.access_token) {
     console.log(`[FIT:DOWNLOAD] Processing FIT file for new activity ${activity.id}`);
-    await processFitFile(activity.id, fitFileUrl, integration.access_token);
+    await processFitFile(activity.id, fitFileUrl, integration.access_token, integration.user_id);
   } else {
     // Request backfill for outdoor activities without FIT URL
     const isIndoorActivity = activityData.trainer === true ||
@@ -563,7 +597,8 @@ async function handleDuplicateActivity(event, integration, activityData, activit
       const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
       if (fitFileUrl && integration.access_token) {
         try {
-          const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token);
+          const athlete = await fetchAthleteProfile(integration.user_id);
+          const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token, athlete);
           if (fitResult.powerMetrics || fitResult.polyline) {
             const fitUpdate = { updated_at: new Date().toISOString() };
             if (fitResult.polyline) fitUpdate.map_summary_polyline = fitResult.polyline;
@@ -574,6 +609,7 @@ async function handleDuplicateActivity(event, integration, activityData, activit
             if (fitResult.powerMetrics?.powerCurveSummary) fitUpdate.power_curve_summary = fitResult.powerMetrics.powerCurveSummary;
             if (fitResult.powerMetrics?.workKj) fitUpdate.kilojoules = fitResult.powerMetrics.workKj;
             if (fitResult.rideAnalytics) fitUpdate.ride_analytics = fitResult.rideAnalytics;
+            if (fitResult.fitCoachContext) fitUpdate.fit_coach_context = fitResult.fitCoachContext;
             fitUpdate.device_watts = true;
 
             await supabase
@@ -637,9 +673,10 @@ async function handleDuplicateActivity(event, integration, activityData, activit
   }
 }
 
-async function processFitFile(activityId, fitFileUrl, accessToken) {
+async function processFitFile(activityId, fitFileUrl, accessToken, userId = null) {
   try {
-    const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken);
+    const athlete = await fetchAthleteProfile(userId);
+    const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete);
 
     const activityUpdate = { updated_at: new Date().toISOString() };
 
@@ -668,6 +705,12 @@ async function processFitFile(activityId, fitFileUrl, accessToken) {
     // Store advanced ride analytics
     if (fitResult.rideAnalytics) {
       activityUpdate.ride_analytics = fitResult.rideAnalytics;
+    }
+
+    // Store deep FIT coach context for lazy AI ride analysis generation
+    if (fitResult.fitCoachContext) {
+      activityUpdate.fit_coach_context = fitResult.fitCoachContext;
+      console.log(`[FIT:SUCCESS] Coach context: ${fitResult.fitCoachContext.sample_count} samples @ ${fitResult.fitCoachContext.interval_seconds}s`);
     }
 
     if (Object.keys(activityUpdate).length > 1) {

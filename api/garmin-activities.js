@@ -24,6 +24,30 @@ const GARMIN_API_BASE = 'https://apis.garmin.com/wellness-api/rest';
 const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oauth/token';
 
 /**
+ * Load athlete profile fields needed to build the FIT coach context.
+ * Degrades gracefully — the parser handles a null/missing athlete object.
+ */
+async function fetchAthleteProfile(userId) {
+  if (!userId) return null;
+  try {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('ftp, power_zones, max_hr')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return {
+      ftp: data.ftp ?? null,
+      maxHR: data.max_hr ?? null,
+      powerZones: data.power_zones ?? null,
+    };
+  } catch (err) {
+    console.warn('⚠️ Failed to load athlete profile for FIT coach context:', err.message);
+    return null;
+  }
+}
+
+/**
  * Extract and validate user from Authorization header
  * Returns user object or null if not authenticated
  */
@@ -857,6 +881,9 @@ async function backfillGpsData(req, res, userId) {
 
     console.log(`📍 Found ${activitiesWithoutGps.length} activities without GPS data`);
 
+    // Load athlete profile once — same user for the whole backfill batch
+    const athlete = await fetchAthleteProfile(userId);
+
     let processed = 0;
     let success = 0;
     let failed = 0;
@@ -917,7 +944,7 @@ async function backfillGpsData(req, res, userId) {
         // Try to download and parse FIT file
         console.log(`📥 Processing ${activity.name} (${activity.id})...`);
 
-        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken);
+        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete);
 
         if (fitResult.error) {
           // URL likely expired (24 hour limit)
@@ -957,6 +984,9 @@ async function backfillGpsData(req, res, userId) {
         }
         if (fitResult.rideAnalytics) {
           gpsUpdate.ride_analytics = fitResult.rideAnalytics;
+        }
+        if (fitResult.fitCoachContext) {
+          gpsUpdate.fit_coach_context = fitResult.fitCoachContext;
         }
         if (fitResult.powerMetrics) {
           const pm = fitResult.powerMetrics;
@@ -1250,6 +1280,9 @@ async function backfillPowerData(req, res, userId) {
     const noMmpCount = activitiesToProcess.filter(a => a.average_watts && !a.power_curve_summary).length;
     console.log(`⚡ Found ${activitiesToProcess.length} activities to process (${noPowerCount} without power, ${noMmpCount} without MMP curve)`);
 
+    // Load athlete profile once — same user for the whole backfill batch
+    const athlete = await fetchAthleteProfile(userId);
+
     let processed = 0;
     let success = 0;
     let failed = 0;
@@ -1311,7 +1344,7 @@ async function backfillPowerData(req, res, userId) {
         // Try to download and parse FIT file
         console.log(`📥 Processing ${activity.name} (${activity.id})...`);
 
-        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken);
+        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete);
 
         if (fitResult.error) {
           // URL likely expired (24 hour limit)
@@ -1362,6 +1395,7 @@ async function backfillPowerData(req, res, userId) {
         if (pm.workKj) updateData.kilojoules = pm.workKj;
         if (fitResult.activityStreams) updateData.activity_streams = fitResult.activityStreams;
         if (fitResult.rideAnalytics) updateData.ride_analytics = fitResult.rideAnalytics;
+        if (fitResult.fitCoachContext) updateData.fit_coach_context = fitResult.fitCoachContext;
 
         // Update activity with power data
         const { error: updateError } = await supabase
@@ -1580,6 +1614,9 @@ async function backfillStreamsData(req, res, userId) {
     const results = [];
     const dateRangesToBackfill = new Set();
 
+    // Load athlete profile once — same user for the whole backfill batch
+    const athlete = await fetchAthleteProfile(userId);
+
     for (const activity of activitiesNeedingStreams) {
       try {
         // Try to find a FIT file URL for this activity
@@ -1629,7 +1666,7 @@ async function backfillStreamsData(req, res, userId) {
         // Try to download and parse FIT file
         console.log(`📥 Processing ${activity.name} (${activity.id})...`);
 
-        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken);
+        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete);
 
         if (fitResult.error) {
           const activityDate = activity.start_date ? new Date(activity.start_date) : null;
@@ -1669,6 +1706,10 @@ async function backfillStreamsData(req, res, userId) {
         if (fitResult.rideAnalytics) {
           updateData.ride_analytics = fitResult.rideAnalytics;
           updates.push('analytics');
+        }
+        if (fitResult.fitCoachContext) {
+          updateData.fit_coach_context = fitResult.fitCoachContext;
+          updates.push(`coach_context(${fitResult.fitCoachContext.sample_count})`);
         }
         if (fitResult.powerMetrics) {
           const pm = fitResult.powerMetrics;
