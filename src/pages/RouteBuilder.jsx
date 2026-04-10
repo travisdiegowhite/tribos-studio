@@ -86,7 +86,7 @@ function RouteBuilder() {
 
   // Shepherd.js guided tours — auto-trigger on first visit, replay via TourButton.
   const { startTour: startRouteBuilderTour } = useTour('route_builder', getRouteBuilderSteps);
-  const { startTour: startEditingTour } = useTour('route_editing', getRouteEditingSteps);
+  const { startTour: startEditingTour } = useTour('route_editing', getRouteEditingSteps, { autoStart: false });
 
   // Access token for road segment scoring
   const [accessToken, setAccessToken] = useState(null);

@@ -153,7 +153,22 @@ async function writeTourState(
   }
 }
 
-export function useTour(tourKey: TourKey, getSteps: () => StepOptions[]): UseTourResult {
+interface UseTourOptions {
+  /**
+   * When true (the default), the tour auto-triggers on first visit if the
+   * user hasn't completed or dismissed it yet. Set to false for tours that
+   * should only be started manually via the returned `startTour` function
+   * (e.g. the editing tools tour, which only makes sense after a route exists).
+   */
+  autoStart?: boolean;
+}
+
+export function useTour(
+  tourKey: TourKey,
+  getSteps: () => StepOptions[],
+  options: UseTourOptions = {},
+): UseTourResult {
+  const { autoStart = true } = options;
   const { user } = useAuth() as { user: { id: string } | null };
   const userId = user?.id;
 
@@ -220,10 +235,11 @@ export function useTour(tourKey: TourKey, getSteps: () => StepOptions[]): UseTou
 
   /**
    * Auto-start on first visit. Runs once per mount per user.
+   * Skipped entirely when `autoStart` is false.
    */
   useEffect(() => {
     let cancelled = false;
-    if (!userId) {
+    if (!autoStart || !userId) {
       setIsLoading(false);
       return;
     }

@@ -61,7 +61,7 @@ export default function PlannerPage() {
 
   // Shepherd.js guided tours — auto-trigger on first visit, replay via TourButton.
   const { startTour: startTrainingPlanTour } = useTour('training_plan_setup', getTrainingPlanSteps);
-  const { startTour: startPlanToRouteTour } = useTour('plan_to_route', getPlanToRouteSteps);
+  const { startTour: startPlanToRouteTour } = useTour('plan_to_route', getPlanToRouteSteps, { autoStart: false });
 
   useEffect(() => {
     if (!user?.id) return;
