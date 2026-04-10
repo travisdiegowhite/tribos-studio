@@ -810,7 +810,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const currentPhase = getCurrentPhase();
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" data-tour="tp-calendar">
       {/* Plan Overview Header */}
       {activePlan && (
         <Paper p="md" withBorder>
@@ -1171,6 +1171,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                                 color="teal"
                                 mt={4}
                                 onClick={(e) => handleCreateRoute(e, workout, date)}
+                                data-tour="tp-create-route"
                               >
                                 <Path size={12} />
                               </ActionIcon>

@@ -26,7 +26,11 @@ import type { StepOptions, Tour } from 'shepherd.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 
-export type TourKey = 'route_builder' | 'training_plan_setup';
+export type TourKey =
+  | 'route_builder'
+  | 'route_editing'
+  | 'training_plan_setup'
+  | 'plan_to_route';
 
 interface TourState {
   completed_at: string | null;

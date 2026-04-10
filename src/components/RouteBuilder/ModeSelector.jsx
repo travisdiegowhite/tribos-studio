@@ -24,6 +24,7 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
         description="Describe what you want and get route suggestions"
         accentColor="var(--color-teal)"
         onClick={() => onSelectMode('ai')}
+        data-tour="rb-describe"
       />
 
       {/* Manual Route Card */}
@@ -59,11 +60,12 @@ function ModeSelector({ onSelectMode, onImportGPX }) {
   );
 }
 
-function ModeCard({ icon, title, description, accentColor, onClick }) {
+function ModeCard({ icon, title, description, accentColor, onClick, ...rest }) {
   return (
     <UnstyledButton
       onClick={onClick}
       className="tribos-mode-card"
+      {...rest}
       style={{
         '--mode-accent': accentColor,
         padding: tokens.spacing.md,

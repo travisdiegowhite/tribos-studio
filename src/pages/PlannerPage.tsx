@@ -18,6 +18,7 @@ import { List, Target, WarningCircle } from '@phosphor-icons/react';
 import { useTour } from '../hooks/useTour';
 import { TourButton } from '../components/TourButton';
 import { getTrainingPlanSteps } from '../lib/tours/trainingPlanTour';
+import { getPlanToRouteSteps } from '../lib/tours/planToRouteTour';
 
 // Activity type - matches the activities table schema
 // Using a flexible type since we select('*') to get all fields
@@ -58,8 +59,9 @@ export default function PlannerPage() {
   const [userLocation, setUserLocation] = useState<string | null>(null);
   const [browseOpen, setBrowseOpen] = useState(false);
 
-  // Shepherd.js guided tour — auto-triggers on first visit, replay via TourButton.
+  // Shepherd.js guided tours — auto-trigger on first visit, replay via TourButton.
   const { startTour: startTrainingPlanTour } = useTour('training_plan_setup', getTrainingPlanSteps);
+  const { startTour: startPlanToRouteTour } = useTour('plan_to_route', getPlanToRouteSteps);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -211,6 +213,9 @@ export default function PlannerPage() {
                   Browse Plans
                 </Button>
                 <TourButton onStart={startTrainingPlanTour} />
+                {activePlan && (
+                  <TourButton onStart={startPlanToRouteTour} label="Route from workout tour" />
+                )}
               </Group>
             }
           />

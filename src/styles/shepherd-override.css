@@ -18,6 +18,18 @@
 
 /* Tour popover container */
 .shepherd-element {
+  /*
+   * Shepherd v15 uses <dialog> elements. The browser's UA stylesheet sets
+   * margin: auto, inset: 0, and position: fixed on <dialog>, which fights
+   * with Floating UI's inline positioning (left/top). We must override
+   * all of these so the tooltip anchors next to its target element.
+   */
+  position: absolute;
+  margin: 0;
+  inset: auto;
+  padding: 0;
+  max-height: none;
+  color: inherit;
   background: #141410;
   border: 1px solid #DDDDD8;
   border-radius: 0;
@@ -25,6 +37,20 @@
   max-width: 400px;
   z-index: 10050;
   font-family: 'Barlow', system-ui, -apple-system, sans-serif;
+}
+
+/* When no target element exists, Shepherd renders the tooltip without
+   Floating UI positioning. In that case, center it manually. */
+.shepherd-element:not([style*="left"]):not([style*="translate"]) {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Ensure the dialog backdrop doesn't interfere with the modal overlay */
+.shepherd-element::backdrop {
+  display: none;
 }
 
 /* Arrow — match dark bg + light border */

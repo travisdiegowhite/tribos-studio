@@ -71,6 +71,7 @@ import { fetchRunReach } from '../utils/isochroneService';
 import { useTour } from '../hooks/useTour';
 import { TourButton } from '../components/TourButton';
 import { getRouteBuilderSteps } from '../lib/tours/routeBuilderTour';
+import { getRouteEditingSteps } from '../lib/tours/routeEditingTour';
 
 // Shared constants — single source of truth in components/RouteBuilder/index.js
 import { MAPBOX_TOKEN, BASEMAP_STYLES, CYCLOSM_STYLE } from '../components/RouteBuilder';
@@ -83,8 +84,9 @@ function RouteBuilder() {
   const { user } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
 
-  // Shepherd.js guided tour — auto-triggers on first visit, replay via TourButton.
+  // Shepherd.js guided tours — auto-trigger on first visit, replay via TourButton.
   const { startTour: startRouteBuilderTour } = useTour('route_builder', getRouteBuilderSteps);
+  const { startTour: startEditingTour } = useTour('route_editing', getRouteEditingSteps);
 
   // Access token for road segment scoring
   const [accessToken, setAccessToken] = useState(null);
@@ -3724,6 +3726,9 @@ function RouteBuilder() {
                   </Tooltip>
                 )}
                 <TourButton onStart={startRouteBuilderTour} />
+                {routeGeometry && (
+                  <TourButton onStart={startEditingTour} label="Editing tools tour" />
+                )}
               </Box>
             )}
 
@@ -5018,6 +5023,7 @@ function RouteBuilder() {
                   variant={showBikeInfrastructure ? 'filled' : 'default'}
                   color={showBikeInfrastructure ? 'green' : 'dark'}
                   size="md"
+                  data-tour="rb-bike-lanes"
                   onClick={() => setShowBikeInfrastructure(!showBikeInfrastructure)}
                   loading={infrastructureLoading}
                   disabled={mapStyleId === 'cyclosm'}
@@ -5062,6 +5068,7 @@ function RouteBuilder() {
                     variant={showPOIs ? 'filled' : 'default'}
                     color={showPOIs ? 'blue' : 'dark'}
                     size="md"
+                    data-tour="rb-pois"
                     onClick={() => setShowPOIs(!showPOIs)}
                     loading={poiLoading}
                     style={{
@@ -5133,6 +5140,7 @@ function RouteBuilder() {
                     variant={editMode ? 'filled' : 'default'}
                     color={editMode ? 'red' : 'dark'}
                     size="md"
+                    data-tour="rb-edit-mode"
                     onClick={() => {
                       setEditMode(!editMode);
                       setSelectedSegment(null);
@@ -5170,6 +5178,7 @@ function RouteBuilder() {
                     variant={aiEditMode ? 'filled' : 'default'}
                     color={aiEditMode ? 'terracotta' : 'dark'}
                     size="md"
+                    data-tour="rb-smart-edit"
                     onClick={() => {
                       setAiEditMode(!aiEditMode);
                       if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
@@ -5207,6 +5216,7 @@ function RouteBuilder() {
                     variant={showGradient ? 'filled' : 'default'}
                     color={showGradient ? 'green' : 'dark'}
                     size="md"
+                    data-tour="rb-gradient"
                     onClick={() => { setShowGradient(!showGradient); if (!showGradient) { setShowSurface(false); setShowWorkoutOverlay(false); } }}
                     style={{
                       padding: '0 12px',
@@ -5224,6 +5234,7 @@ function RouteBuilder() {
                     variant={showSurface ? 'filled' : 'default'}
                     color={showSurface ? 'orange' : 'dark'}
                     size="md"
+                    data-tour="rb-surface"
                     loading={surfaceLoading}
                     onClick={() => { setShowSurface(!showSurface); if (!showSurface) { setShowGradient(false); setShowWorkoutOverlay(false); } }}
                     style={{
@@ -5237,6 +5248,9 @@ function RouteBuilder() {
                 </Tooltip>
               )}
               <TourButton onStart={startRouteBuilderTour} />
+              {routeGeometry && (
+                <TourButton onStart={startEditingTour} label="Editing tools tour" />
+              )}
             </Box>
           )}
 
@@ -5778,14 +5792,16 @@ function RouteBuilder() {
 
       {/* Elevation Profile - Fixed at bottom of screen, offset by sidebar width */}
       {routeGeometry?.coordinates && routeGeometry.coordinates.length > 1 && (
-        <ElevationProfile
-          coordinates={routeGeometry.coordinates}
-          totalDistance={routeStats.distance}
-          isImperial={isImperial}
-          leftOffset={isMobile ? 0 : 380}
-          onHoverPosition={setElevationHoverPosition}
-          highlightDistance={mapHoverDistance}
-        />
+        <Box data-tour="rb-elevation">
+          <ElevationProfile
+            coordinates={routeGeometry.coordinates}
+            totalDistance={routeStats.distance}
+            isImperial={isImperial}
+            leftOffset={isMobile ? 0 : 380}
+            onHoverPosition={setElevationHoverPosition}
+            highlightDistance={mapHoverDistance}
+          />
+        </Box>
       )}
 
       {/* Saved Routes Drawer */}
