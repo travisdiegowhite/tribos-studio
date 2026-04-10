@@ -1122,7 +1122,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         }
         size="lg"
       >
-        <Stack gap="md">
+        <Stack gap="md" data-tour="tp-plan-preview">
           {/* Plan Overview */}
           <Text size="sm" c="dimmed">{selectedPlan.description}</Text>
 
@@ -1522,7 +1522,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       >
         <Stack gap="md">
           {/* Visual Calendar */}
-          <Box style={{ display: 'flex', justifyContent: 'center' }}>
+          <Box style={{ display: 'flex', justifyContent: 'center' }} data-tour="tp-plan-start-date">
             <DatePicker
               value={selectedStartDate}
               onChange={(date) => {
@@ -1597,6 +1597,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               onClick={() => handleActivatePlan(planToActivate, selectedStartDate)}
               loading={activating}
               disabled={!selectedStartDate}
+              data-tour="tp-activate"
             >
               Start Training
             </Button>
@@ -1605,7 +1606,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       </Modal>
 
       {/* Plan Grid */}
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" data-tour="tp-plan-grid">
         {filteredPlans.map(renderPlanCard)}
       </SimpleGrid>
 

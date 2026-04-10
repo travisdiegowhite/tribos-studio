@@ -48,6 +48,7 @@ import '@mantine/notifications/styles.css';
 import '@mantine/charts/styles.css';
 import '@mantine/dates/styles.css';
 import './styles/global.css';
+import './styles/shepherd-override.css';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {

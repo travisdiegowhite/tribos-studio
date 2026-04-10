@@ -68,6 +68,9 @@ import AIEditPanel from '../components/RouteBuilder/AIEditPanel.jsx';
 import RunReachLayer from '../components/RunReachLayer.jsx';
 import RunReachPanel from '../components/RunReachPanel.jsx';
 import { fetchRunReach } from '../utils/isochroneService';
+import { useTour } from '../hooks/useTour';
+import { TourButton } from '../components/TourButton';
+import { getRouteBuilderSteps } from '../lib/tours/routeBuilderTour';
 
 // Shared constants — single source of truth in components/RouteBuilder/index.js
 import { MAPBOX_TOKEN, BASEMAP_STYLES, CYCLOSM_STYLE } from '../components/RouteBuilder';
@@ -79,6 +82,9 @@ function RouteBuilder() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
+
+  // Shepherd.js guided tour — auto-triggers on first visit, replay via TourButton.
+  const { startTour: startRouteBuilderTour } = useTour('route_builder', getRouteBuilderSteps);
 
   // Access token for road segment scoring
   const [accessToken, setAccessToken] = useState(null);
@@ -2605,6 +2611,7 @@ function RouteBuilder() {
           styles={{
             root: { backgroundColor: 'var(--color-bg-secondary)' }
           }}
+          data-tour="rb-route-profile"
         />
       </Box>
 
@@ -2667,7 +2674,7 @@ function RouteBuilder() {
       </Box>
 
       <Group grow>
-        <Box>
+        <Box data-tour="rb-duration">
           <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="xs">
             TIME (MIN)
           </Text>
@@ -2682,7 +2689,7 @@ function RouteBuilder() {
           />
         </Box>
 
-        <Box>
+        <Box data-tour="rb-route-type">
           <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="xs">
             ROUTE TYPE
           </Text>
@@ -2751,13 +2758,14 @@ function RouteBuilder() {
         leftSection={useIterativeBuilder ? <ArrowClockwise size={18} /> : <Sparkle size={18} />}
         color="teal"
         fullWidth
+        data-tour="rb-generate"
       >
         {generatingAI ? 'Generating Routes...' : (useIterativeBuilder ? 'Generate Iterative Routes' : 'Generate Routes')}
       </Button>
 
       {/* AI Suggestions */}
       {aiSuggestions.length > 0 && (
-        <Box>
+        <Box data-tour="rb-suggestions">
           <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="xs">
             AI SUGGESTIONS ({aiSuggestions.length})
           </Text>
@@ -2843,6 +2851,7 @@ function RouteBuilder() {
           onClick={handleSaveRoute}
           loading={isSaving}
           leftSection={<FloppyDisk size={16} />}
+          data-tour="rb-save"
         >
           {savedRouteId ? 'Update Route' : 'Save Route'}
         </Button>
@@ -3527,6 +3536,7 @@ function RouteBuilder() {
                   ) : null}
                   style={{ flex: 1, minWidth: 120 }}
                   styles={{ input: { backgroundColor: 'var(--color-bg-secondary)' } }}
+                  data-tour="rb-start-point"
                 />
                 <Tooltip label="My Location">
                   <Button variant="filled" color="teal" size="md" onClick={handleGeolocate} loading={isLocating} style={{ padding: '0 12px', flexShrink: 0 }}>
@@ -3713,6 +3723,7 @@ function RouteBuilder() {
                     </Button>
                   </Tooltip>
                 )}
+                <TourButton onStart={startRouteBuilderTour} />
               </Box>
             )}
 
@@ -4164,7 +4175,7 @@ function RouteBuilder() {
               >
                 <Stack gap="sm" mt="sm">
                   {/* Route Profile Selector */}
-                  <Box>
+                  <Box data-tour="rb-route-profile">
                     <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="xs">
                       ROUTE PROFILE
                     </Text>
@@ -4244,7 +4255,7 @@ function RouteBuilder() {
                   </Box>
 
                   <Group grow>
-                    <Box>
+                    <Box data-tour="rb-duration">
                       <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="xs">
                         TIME (MIN)
                       </Text>
@@ -4264,7 +4275,7 @@ function RouteBuilder() {
                       )}
                     </Box>
 
-                    <Box>
+                    <Box data-tour="rb-route-type">
                       <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="xs">
                         ROUTE TYPE
                       </Text>
@@ -4330,6 +4341,7 @@ function RouteBuilder() {
                     leftSection={useIterativeBuilder ? <ArrowClockwise size={18} /> : <Sparkle size={18} />}
                     color="teal"
                     fullWidth
+                    data-tour="rb-generate"
                   >
                     {generatingAI ? 'Generating Routes...' : (useIterativeBuilder ? 'Generate Iterative Routes' : 'Generate Routes')}
                   </Button>
@@ -4345,7 +4357,7 @@ function RouteBuilder() {
                   defaultExpanded={true}
                   accentColor={'var(--color-teal)'}
                 >
-                  <Stack gap="sm" mt="sm" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                  <Stack gap="sm" mt="sm" style={{ maxHeight: '350px', overflowY: 'auto' }} data-tour="rb-suggestions">
                     {aiSuggestions.map((suggestion, index) => (
                       <AISuggestionCard
                         key={index}
@@ -4767,6 +4779,7 @@ function RouteBuilder() {
                     fontSize: '14px',
                     flex: 2,
                   }}
+                  data-tour="rb-save"
                 >
                   {savedRouteId ? 'Update Route' : 'Save Route'}
                 </Button>
@@ -4919,7 +4932,7 @@ function RouteBuilder() {
                 maxWidth: 600,
               }}
             >
-              <Box style={{ flex: 1, position: 'relative' }}>
+              <Box style={{ flex: 1, position: 'relative' }} data-tour="rb-start-point">
                 <TextInput
                   placeholder="Search for an address or place..."
                   value={searchQuery}
@@ -5223,6 +5236,7 @@ function RouteBuilder() {
                   </Button>
                 </Tooltip>
               )}
+              <TourButton onStart={startRouteBuilderTour} />
             </Box>
           )}
 

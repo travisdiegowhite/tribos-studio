@@ -15,6 +15,9 @@ import { supabase } from '../lib/supabase';
 import { formatDistance } from '../utils/units';
 import { useTrainingPlannerStore } from '../stores/trainingPlannerStore';
 import { List, Target, WarningCircle } from '@phosphor-icons/react';
+import { useTour } from '../hooks/useTour';
+import { TourButton } from '../components/TourButton';
+import { getTrainingPlanSteps } from '../lib/tours/trainingPlanTour';
 
 // Activity type - matches the activities table schema
 // Using a flexible type since we select('*') to get all fields
@@ -54,6 +57,9 @@ export default function PlannerPage() {
   const [unitsPreference, setUnitsPreference] = useState<string>('imperial');
   const [userLocation, setUserLocation] = useState<string | null>(null);
   const [browseOpen, setBrowseOpen] = useState(false);
+
+  // Shepherd.js guided tour — auto-triggers on first visit, replay via TourButton.
+  const { startTour: startTrainingPlanTour } = useTour('training_plan_setup', getTrainingPlanSteps);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -193,15 +199,19 @@ export default function PlannerPage() {
             title="Plan"
             subtitle={activePlan ? `Active: ${activePlan.name}` : 'Schedule and manage your training'}
             actions={
-              <Button
-                variant="light"
-                color="teal"
-                size="compact-sm"
-                leftSection={<List size={14} />}
-                onClick={() => setBrowseOpen(true)}
-              >
-                Browse Plans
-              </Button>
+              <Group gap="xs">
+                <Button
+                  variant="light"
+                  color="teal"
+                  size="compact-sm"
+                  leftSection={<List size={14} />}
+                  onClick={() => setBrowseOpen(true)}
+                  data-tour="tp-browse"
+                >
+                  Browse Plans
+                </Button>
+                <TourButton onStart={startTrainingPlanTour} />
+              </Group>
             }
           />
 
