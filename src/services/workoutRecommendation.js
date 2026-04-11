@@ -1,3 +1,5 @@
+import { getTodayString } from '../utils/dateUtils';
+
 /**
  * Unified Workout Recommendation Service
  *
@@ -140,7 +142,7 @@ export function analyzeTrainingNeeds({
 
   // ── 2. Planned workout for today ──────────────────────────────────────────
   if (plannedWorkouts.length > 0) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayString();
     const todayWorkout = plannedWorkouts.find(w => w.scheduled_date === today);
 
     if (todayWorkout) {

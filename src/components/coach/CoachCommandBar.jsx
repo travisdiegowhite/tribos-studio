@@ -24,6 +24,7 @@ import { useCoachCommandBar } from './CoachCommandBarContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { sharedTokens } from '../../theme';
+import { resolveScheduledDate } from '../../utils/dateUtils';
 
 import CoachQuickActions from './CoachQuickActions';
 import CoachRecentQuestions from './CoachRecentQuestions';
@@ -385,44 +386,6 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
       });
     }
   }, [user?.id, onAddWorkout]);
-
-  // Resolve relative date strings (today, tomorrow, this_monday, next_tuesday, YYYY-MM-DD) to YYYY-MM-DD
-  const resolveScheduledDate = (dateStr) => {
-    if (!dateStr) return new Date().toISOString().split('T')[0];
-    // Already a YYYY-MM-DD date
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-
-    const today = new Date();
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-
-    if (dateStr === 'today') return today.toISOString().split('T')[0];
-    if (dateStr === 'tomorrow') {
-      today.setDate(today.getDate() + 1);
-      return today.toISOString().split('T')[0];
-    }
-
-    // Handle this_monday, next_tuesday, etc.
-    const match = dateStr.match(/^(this|next)_(\w+)$/);
-    if (match) {
-      const [, prefix, dayName] = match;
-      const targetDay = dayNames.indexOf(dayName.toLowerCase());
-      if (targetDay >= 0) {
-        const currentDay = today.getDay();
-        let diff = targetDay - currentDay;
-        if (prefix === 'this') {
-          if (diff <= 0) diff += 7;
-        } else {
-          // next = always at least 7 days out
-          if (diff <= 0) diff += 7;
-          diff += 7;
-        }
-        today.setDate(today.getDate() + diff);
-        return today.toISOString().split('T')[0];
-      }
-    }
-
-    return dateStr; // Fallback
-  };
 
   // Handle action button clicks (direct DB writes — CoachCommandBar is a global modal with no parent callbacks)
   const handleActionClick = async (action) => {

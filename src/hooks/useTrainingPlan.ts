@@ -45,6 +45,7 @@ import type {
 } from '../types/training';
 import type { PlannedWorkoutInsert, TrainingPlanInsert } from '../types/database';
 import { compressPlan, type CompressionOptions } from '../utils/planCompression';
+import { formatLocalDate, getTodayString } from '../utils/dateUtils';
 
 // Day mapping for workout generation
 const DAY_MAP: DayOfWeek[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -369,7 +370,7 @@ export function useTrainingPlan({
           fitness_level: template.fitnessLevel,
           status: 'active',
           priority,
-          target_event_date: targetDate ? targetDate.toISOString().split('T')[0] : null,
+          target_event_date: targetDate ? formatLocalDate(targetDate) : null,
           start_date: startDate.toISOString(),
           current_week: 1,
           workouts_completed: 0,
@@ -408,7 +409,7 @@ export function useTrainingPlan({
               user_id: userId,
               week_number: weekNum,
               day_of_week: dayIndex,
-              scheduled_date: scheduledDate.toISOString().split('T')[0],
+              scheduled_date: formatLocalDate(scheduledDate),
               workout_type: workout?.category || (dayPlan.workout ? null : 'rest'),
               workout_id: dayPlan.workout || null,
               name: workout?.name || dayPlan.workout || 'Workout',
@@ -521,7 +522,7 @@ export function useTrainingPlan({
             const workout = dayPlan.workout ? getWorkoutById(dayPlan.workout) : null;
 
             initialWorkouts.push({
-              originalDate: scheduledDate.toISOString().split('T')[0],
+              originalDate: formatLocalDate(scheduledDate),
               dayOfWeek: dayIndex,
               weekNumber: weekNum,
               workoutId: dayPlan.workout || null,
@@ -972,7 +973,7 @@ export function useTrainingPlan({
   // ============================================================
   const getWorkoutsForDate = useCallback(
     (date: Date): PlannedWorkoutWithDetails[] => {
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = formatLocalDate(date);
       return plannedWorkouts.filter((w) => w.scheduled_date === dateStr);
     },
     [plannedWorkouts]
@@ -1027,7 +1028,7 @@ export function useTrainingPlan({
           plan_id: activePlan.id,
           week_number: weekNumber,
           day_of_week: dayOfWeek,
-          scheduled_date: scheduledDate.toISOString().split('T')[0],
+          scheduled_date: formatLocalDate(scheduledDate),
           workout_type: workout.category,
           workout_id: workoutId,
           target_tss: workout.targetTSS || 0,
@@ -1180,7 +1181,7 @@ export function useTrainingPlan({
     }
 
     // Find next workout
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayString();
     const upcomingWorkouts = plannedWorkouts
       .filter((w) => w.scheduled_date >= today && !w.completed && w.workout_id)
       .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date));
