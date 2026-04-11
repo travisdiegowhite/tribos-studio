@@ -35,7 +35,7 @@ import { tokens, depth } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useActivation } from '../hooks/useActivation';
-import { parsePlanStartDate } from '../utils/dateUtils';
+import { parsePlanStartDate, formatLocalDate, getTodayString } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
 import { CoachCard, CheckInPage } from '../components/coach';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
@@ -168,7 +168,7 @@ function TrainingDashboard() {
     for (let i = 0; i < 90; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = formatLocalDate(date);
       dailyTSS[dateStr] = { date: dateStr, tss: 0 };
     }
 
@@ -263,7 +263,7 @@ function TrainingDashboard() {
         if (profileData) setSpeedProfile(profileData);
 
         // Load today's health metrics
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayString();
         const { data: healthData, error: healthError } = await supabase
           .from('health_metrics')
           .select('*')
@@ -290,7 +290,7 @@ function TrainingDashboard() {
           .from('health_metrics')
           .select('*')
           .eq('user_id', user.id)
-          .gte('metric_date', ninetyDaysAgo.toISOString().split('T')[0])
+          .gte('metric_date', formatLocalDate(ninetyDaysAgo))
           .order('metric_date', { ascending: true });
 
         if (healthHistoryError) {
@@ -482,7 +482,7 @@ function TrainingDashboard() {
           .select('*')
           .eq('user_id', user.id)
           .eq('status', 'upcoming')
-          .gte('race_date', new Date().toISOString().split('T')[0])
+          .gte('race_date', getTodayString())
           .order('race_date', { ascending: true })
           .limit(10);
 
@@ -508,7 +508,7 @@ function TrainingDashboard() {
           .select('*')
           .eq('user_id', user.id)
           .eq('status', 'completed')
-          .gte('race_date', sixMonthsAgo.toISOString().split('T')[0])
+          .gte('race_date', formatLocalDate(sixMonthsAgo))
           .order('race_date', { ascending: false })
           .limit(5);
 
@@ -797,7 +797,7 @@ function TrainingDashboard() {
           user_id: user.id,
           week_number: weekNumber,
           day_of_week: dayOfWeek,
-          scheduled_date: scheduledDate.toISOString().split('T')[0],
+          scheduled_date: formatLocalDate(scheduledDate),
           workout_type: workout.category,
           workout_id: workoutId,
           name: workout.name || `${workout.category} Workout`,
@@ -2739,7 +2739,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
         const wDate = new Date(w.scheduled_date + 'T12:00:00');
         const dayLabel = dayNames[wDate.getDay()];
         const dateLabel = wDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const isToday = w.scheduled_date === today.toISOString().split('T')[0];
+        const isToday = w.scheduled_date === formatLocalDate(today);
         const isPast = wDate < today && !isToday;
         const todayTag = isToday ? ' ** TODAY **' : '';
         const status = w.completed ? 'DONE' : w.skipped_reason ? 'SKIPPED' : isPast ? 'MISSED' : isToday ? 'TODAY' : 'UPCOMING';

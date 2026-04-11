@@ -17,18 +17,29 @@ import { formatHealth, fetchProprietaryMetrics } from './utils/contextHelpers.js
 // Initialize Supabase for auth validation
 const supabase = getSupabaseAdmin();
 
+// Format a Date as YYYY-MM-DD in a specific timezone (server runs in UTC, so we must convert)
+function formatDateInTimezone(date, timezone) {
+  try {
+    return date.toLocaleDateString('en-CA', { timeZone: timezone }); // en-CA gives YYYY-MM-DD
+  } catch {
+    // Invalid timezone — fall back to UTC
+    return date.toISOString().split('T')[0];
+  }
+}
+
 // Resolve relative date strings (today, tomorrow, this_monday, next_tuesday, YYYY-MM-DD) to YYYY-MM-DD
-function resolveScheduledDate(dateStr) {
-  if (!dateStr) return new Date().toISOString().split('T')[0];
+// timezone param ensures dates are resolved in the user's local timezone, not server UTC
+function resolveScheduledDate(dateStr, timezone = 'UTC') {
+  if (!dateStr) return formatDateInTimezone(new Date(), timezone);
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
 
   const today = new Date();
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-  if (dateStr === 'today') return today.toISOString().split('T')[0];
+  if (dateStr === 'today') return formatDateInTimezone(today, timezone);
   if (dateStr === 'tomorrow') {
     today.setDate(today.getDate() + 1);
-    return today.toISOString().split('T')[0];
+    return formatDateInTimezone(today, timezone);
   }
 
   const match = dateStr.match(/^(this|next)_(\w+)$/);
@@ -45,7 +56,7 @@ function resolveScheduledDate(dateStr) {
         diff += 7;
       }
       today.setDate(today.getDate() + diff);
-      return today.toISOString().split('T')[0];
+      return formatDateInTimezone(today, timezone);
     }
   }
 
@@ -79,7 +90,7 @@ async function swapWorkoutDates(planId, sourceId, sourceDate, targetId, targetDa
 }
 
 // Handle schedule adjustment tool calls — modifies existing active plan workouts
-async function handleScheduleAdjustment(userId, input, targetPlanId = null) {
+async function handleScheduleAdjustment(userId, input, targetPlanId = null, timezone = 'UTC') {
   const { adjustments, summary } = input;
   const results = [];
 
@@ -106,11 +117,11 @@ async function handleScheduleAdjustment(userId, input, targetPlanId = null) {
 
   for (const adj of adjustments) {
     try {
-      const sourceDate = resolveScheduledDate(adj.source_date);
+      const sourceDate = resolveScheduledDate(adj.source_date, timezone);
 
       switch (adj.action) {
         case 'move': {
-          const targetDate = resolveScheduledDate(adj.target_date);
+          const targetDate = resolveScheduledDate(adj.target_date, timezone);
 
           // Fetch source workout and check if target date is occupied
           const { data: involved } = await supabase
@@ -165,7 +176,7 @@ async function handleScheduleAdjustment(userId, input, targetPlanId = null) {
           break;
         }
         case 'swap': {
-          const targetDate = resolveScheduledDate(adj.target_date);
+          const targetDate = resolveScheduledDate(adj.target_date, timezone);
           // Fetch workouts on both dates
           const { data: workouts } = await supabase
             .from('planned_workouts')
@@ -1187,7 +1198,7 @@ ${conversationSummary}
             }
           } else if (tool.name === 'adjust_schedule') {
             console.log(`📅 Schedule adjustment requested:`, JSON.stringify(tool.input, null, 2));
-            result = await handleScheduleAdjustment(verifiedUserId, tool.input, planId);
+            result = await handleScheduleAdjustment(verifiedUserId, tool.input, planId, resolvedTimezone);
             console.log(`📅 Schedule adjustment result:`, JSON.stringify(result));
           }
           toolResults.push({
