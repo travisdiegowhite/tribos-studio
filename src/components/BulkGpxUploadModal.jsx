@@ -23,7 +23,8 @@ import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parseGpxFile, gpxToActivityFormat } from '../utils/gpxParser';
-import { parseFitFile, fitToActivityFormat } from '../utils/fitParser';
+import { parseFitFile } from '../utils/fitParser';
+import { arrayBufferToBase64 } from '../utils/base64';
 import { formatDistance as formatDistanceUnit, formatElevation as formatElevationUnit } from '../utils/units';
 import { trackUpload, EventType } from '../utils/activityTracking';
 import JSZip from 'jszip';
@@ -272,25 +273,16 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   };
 
   /**
-   * Convert parsed data to activity format
-   * @param {Object} parsedData - Parsed activity data
-   * @param {string} fileType - File type (gpx, fit, etc.)
-   * @param {string} userId - User ID
-   * @param {string|null} fileName - Original filename
-   * @param {string|null} stravaActivityName - Actual Strava activity name from activities.csv
+   * Convert parsed GPX data to activity format.
+   * FIT files don't go through this helper any more — they're base64-encoded
+   * and POSTed to /api/fit-upload so the full analytics pipeline runs
+   * server-side (fit_coach_context, activity_streams, power_curve_summary,
+   * etc. that enable deep ride analysis).
    */
-  const toActivityFormat = (parsedData, fileType, userId, fileName = null, stravaActivityName = null) => {
-    if (fileType.startsWith('gpx')) {
-      const activity = gpxToActivityFormat(parsedData, userId);
-      // Override name with Strava activity name if available
-      if (stravaActivityName) {
-        activity.name = stravaActivityName;
-      }
-      return activity;
-    } else if (fileType.startsWith('fit')) {
-      return fitToActivityFormat(parsedData, userId, fileName, stravaActivityName);
-    }
-    throw new Error(`Cannot convert file type: ${fileType}`);
+  const gpxActivityFormat = (parsedData, userId, stravaActivityName = null) => {
+    const activity = gpxToActivityFormat(parsedData, userId);
+    if (stravaActivityName) activity.name = stravaActivityName;
+    return activity;
   };
 
   /**
@@ -375,6 +367,43 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   }, []);
 
   /**
+   * Upload a single FIT file through /api/fit-upload so the server can run
+   * the full analytics pipeline (fit_coach_context, activity_streams,
+   * power_curve_summary, NP, TSS, IF, etc.). Returns { action, activity }
+   * on success, or throws on failure.
+   */
+  const uploadFitToServer = async (actFile, accessToken) => {
+    // actFile.content is an ArrayBuffer for FIT/FIT.GZ extracted from the zip.
+    const buffer = actFile.content instanceof ArrayBuffer
+      ? actFile.content
+      : await actFile.content.arrayBuffer?.();
+    if (!buffer) throw new Error('FIT content is not a binary buffer');
+
+    const fileBase64 = arrayBufferToBase64(buffer);
+    const compressed = actFile.fileType === 'fit.gz';
+
+    const resp = await fetch('/api/fit-upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        fileName: actFile.name,
+        fileBase64,
+        compressed,
+        stravaActivityName: actFile.stravaActivityName || null,
+      }),
+    });
+
+    const payload = await resp.json().catch(() => ({}));
+    if (!resp.ok || !payload.success) {
+      throw new Error(payload.message || payload.error || `Upload failed (${resp.status})`);
+    }
+    return payload; // { action, activity }
+  };
+
+  /**
    * Handle the bulk upload
    */
   const handleUpload = async () => {
@@ -387,9 +416,19 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
     const uploadResults = {
       success: [],
+      updated: [],
       skipped: [],
       failed: []
     };
+
+    // Needed by the server endpoint for auth; refreshed once per batch.
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    if (sessionError || !accessToken) {
+      setUploading(false);
+      setError('Session expired — please sign in again and retry.');
+      return;
+    }
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const actFile = selectedFiles[i];
@@ -397,10 +436,19 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
       setProgress(Math.round((i / selectedFiles.length) * 100));
 
       try {
-        // Parse the activity file
+        // FIT files go through the server pipeline; GPX stays on the client
+        // path since GPX has no power/HR streams that server-only analytics
+        // could enrich.
+        if (actFile.fileType === 'fit' || actFile.fileType === 'fit.gz') {
+          const payload = await uploadFitToServer(actFile, accessToken);
+          const bucket = payload.action === 'updated' ? uploadResults.updated : uploadResults.success;
+          bucket.push({ file: actFile.name, activity: payload.activity });
+          continue;
+        }
+
+        // GPX path (unchanged from the legacy bulk importer).
         const parsedData = await parseActivityFile(actFile);
 
-        // Skip if no GPS data
         if (!parsedData.trackPoints || parsedData.trackPoints.length === 0) {
           uploadResults.skipped.push({
             file: actFile.name,
@@ -409,9 +457,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
           continue;
         }
 
-        // Skip very short activities (less than 100m)
-        const distance = parsedData.summary?.totalDistance || 0;
-        if (distance < 0.1) {
+        const distanceKm = parsedData.summary?.totalDistance || 0;
+        if (distanceKm < 0.1) {
           uploadResults.skipped.push({
             file: actFile.name,
             reason: 'Activity too short (< 100m)'
@@ -419,10 +466,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
           continue;
         }
 
-        // Convert to database format (pass filename and Strava name for proper naming)
-        const activityData = toActivityFormat(parsedData, actFile.fileType, user.id, actFile.name, actFile.stravaActivityName);
+        const activityData = gpxActivityFormat(parsedData, user.id, actFile.stravaActivityName);
 
-        // Skip activities without a valid date
         if (!activityData.start_date) {
           uploadResults.skipped.push({
             file: actFile.name,
@@ -431,35 +476,31 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
           continue;
         }
 
-        // Check for duplicate (same date and similar distance)
-        if (activityData.start_date) {
-          try {
-            const startDate = new Date(activityData.start_date);
-            if (!isNaN(startDate.getTime())) {
-              const { data: existing } = await supabase
-                .from('activities')
-                .select('id, name')
-                .eq('user_id', user.id)
-                .gte('start_date', new Date(startDate.getTime() - 120000).toISOString())
-                .lte('start_date', new Date(startDate.getTime() + 120000).toISOString())
-                .gte('distance', activityData.distance * 0.90)
-                .lte('distance', activityData.distance * 1.10)
-                .maybeSingle();
+        try {
+          const startDate = new Date(activityData.start_date);
+          if (!isNaN(startDate.getTime())) {
+            const { data: existing } = await supabase
+              .from('activities')
+              .select('id, name')
+              .eq('user_id', user.id)
+              .gte('start_date', new Date(startDate.getTime() - 120000).toISOString())
+              .lte('start_date', new Date(startDate.getTime() + 120000).toISOString())
+              .gte('distance', activityData.distance * 0.90)
+              .lte('distance', activityData.distance * 1.10)
+              .maybeSingle();
 
-              if (existing) {
-                uploadResults.skipped.push({
-                  file: actFile.name,
-                  reason: `Duplicate of "${existing.name}"`
-                });
-                continue;
-              }
+            if (existing) {
+              uploadResults.skipped.push({
+                file: actFile.name,
+                reason: `Duplicate of "${existing.name}"`
+              });
+              continue;
             }
-          } catch (dupErr) {
-            console.warn('Duplicate check failed, continuing:', dupErr);
           }
+        } catch (dupErr) {
+          console.warn('Duplicate check failed, continuing:', dupErr);
         }
 
-        // Insert into database
         const { data, error: insertError } = await supabase
           .from('activities')
           .insert(activityData)
@@ -492,16 +533,21 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
     trackUpload(EventType.BULK_IMPORT, {
       totalFiles: selectedFiles.length,
-      successCount: uploadResults.success.length,
+      successCount: uploadResults.success.length + uploadResults.updated.length,
+      updatedCount: uploadResults.updated.length,
       skippedCount: uploadResults.skipped.length,
       failedCount: uploadResults.failed.length
     });
 
     // Show notification
-    if (uploadResults.success.length > 0) {
+    const totalOk = uploadResults.success.length + uploadResults.updated.length;
+    if (totalOk > 0) {
+      const parts = [];
+      if (uploadResults.success.length > 0) parts.push(`imported ${uploadResults.success.length} new`);
+      if (uploadResults.updated.length > 0) parts.push(`enriched ${uploadResults.updated.length} existing`);
       notifications.show({
         title: 'Import Complete',
-        message: `Successfully imported ${uploadResults.success.length} activit${uploadResults.success.length === 1 ? 'y' : 'ies'}`,
+        message: `Successfully ${parts.join(', ')} activit${totalOk === 1 ? 'y' : 'ies'}.`,
         color: 'green',
         icon: <Check size={16} />,
       });
@@ -888,11 +934,17 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                 <Stack gap="sm">
                   <Text fw={600}>Import Results</Text>
 
-                  <SimpleGrid cols={3} spacing="xs">
+                  <SimpleGrid cols={results.updated?.length ? 4 : 3} spacing="xs">
                     <Paper p="xs" bg="green.9" style={{ textAlign: 'center' }}>
                       <Text size="lg" fw={700} c="green.3">{results.success.length}</Text>
                       <Text size="xs" c="green.5">Imported</Text>
                     </Paper>
+                    {results.updated?.length > 0 && (
+                      <Paper p="xs" bg="blue.9" style={{ textAlign: 'center' }}>
+                        <Text size="lg" fw={700} c="blue.3">{results.updated.length}</Text>
+                        <Text size="xs" c="blue.5">Enriched</Text>
+                      </Paper>
+                    )}
                     <Paper p="xs" bg="yellow.9" style={{ textAlign: 'center' }}>
                       <Text size="lg" fw={700} c="yellow.3">{results.skipped.length}</Text>
                       <Text size="xs" c="yellow.5">Skipped</Text>
