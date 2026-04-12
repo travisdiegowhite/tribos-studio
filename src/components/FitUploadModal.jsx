@@ -17,7 +17,8 @@ import {
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { parseFitFile, fitToActivityFormat } from '../utils/fitParser';
+import { parseFitFile } from '../utils/fitParser';
+import { arrayBufferToBase64 } from '../utils/base64';
 import { trackUpload, EventType } from '../utils/activityTracking';
 import { Bicycle, Check, Clock, File, Heart, Lightning, Mountains, Path, UploadSimple, WarningCircle, X } from '@phosphor-icons/react';
 
@@ -61,61 +62,56 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
 
     const results = {
       success: [],
+      updated: [],
       failed: []
     };
+
+    // The server endpoint needs a JWT to authorize the upload; fetched once
+    // for the whole batch.
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    if (sessionError || !accessToken) {
+      setUploading(false);
+      setError('Session expired — please sign in again and retry.');
+      return;
+    }
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
       setProgress(Math.round((i / selectedFiles.length) * 100));
 
       try {
-        // Parse the FIT file
         const buffer = await file.arrayBuffer();
-        const isCompressed = file.name.endsWith('.gz');
-        const fitData = await parseFitFile(buffer, isCompressed);
+        const compressed = file.name.toLowerCase().endsWith('.gz');
+        const fileBase64 = arrayBufferToBase64(buffer);
 
-        // Convert to database format (pass filename for better naming)
-        const activityData = fitToActivityFormat(fitData, user.id, file.name);
+        const resp = await fetch('/api/fit-upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileBase64,
+            compressed,
+            stravaActivityName: null,
+          }),
+        });
 
-        // Check for duplicate (same date and similar distance)
-        const { data: existing } = await supabase
-          .from('activities')
-          .select('id')
-          .eq('user_id', user.id)
-          .gte('start_date_local', new Date(new Date(activityData.start_date_local).getTime() - 60000).toISOString())
-          .lte('start_date_local', new Date(new Date(activityData.start_date_local).getTime() + 60000).toISOString())
-          .gte('distance', activityData.distance * 0.95)
-          .lte('distance', activityData.distance * 1.05)
-          .maybeSingle();
-
-        if (existing) {
-          results.failed.push({
-            file: file.name,
-            error: 'Duplicate activity already exists'
-          });
-          continue;
+        const payload = await resp.json().catch(() => ({}));
+        if (!resp.ok || !payload.success) {
+          throw new Error(payload.message || payload.error || `Upload failed (${resp.status})`);
         }
 
-        // Insert into database
-        const { data, error: insertError } = await supabase
-          .from('activities')
-          .insert(activityData)
-          .select()
-          .single();
-
-        if (insertError) throw insertError;
-
-        results.success.push({
-          file: file.name,
-          activity: data
-        });
-
+        if (payload.action === 'updated') {
+          results.updated.push({ file: file.name, activity: payload.activity });
+        } else {
+          results.success.push({ file: file.name, activity: payload.activity });
+        }
       } catch (err) {
         console.error(`Error uploading ${file.name}:`, err);
-        results.failed.push({
-          file: file.name,
-          error: err.message
-        });
+        results.failed.push({ file: file.name, error: err.message });
       }
     }
 
@@ -124,15 +120,23 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
 
     trackUpload(EventType.FIT_UPLOAD, {
       totalFiles: selectedFiles.length,
-      successCount: results.success.length,
+      successCount: results.success.length + results.updated.length,
+      updatedCount: results.updated.length,
       failedCount: results.failed.length
     });
 
-    // Show results
-    if (results.success.length > 0) {
+    const totalOk = results.success.length + results.updated.length;
+    if (totalOk > 0) {
+      const parts = [];
+      if (results.success.length > 0) {
+        parts.push(`uploaded ${results.success.length} new`);
+      }
+      if (results.updated.length > 0) {
+        parts.push(`enriched ${results.updated.length} existing`);
+      }
       notifications.show({
         title: 'Upload Complete',
-        message: `Successfully uploaded ${results.success.length} activit${results.success.length === 1 ? 'y' : 'ies'}`,
+        message: `Successfully ${parts.join(', ')} activit${totalOk === 1 ? 'y' : 'ies'}.`,
         color: 'green',
         icon: <Check size={16} />,
       });
@@ -147,14 +151,12 @@ function FitUploadModal({ opened, onClose, onUploadComplete, formatDistance: for
       });
     }
 
-    // Reset state
     setSelectedFiles([]);
     setParsedData(null);
 
-    // Notify parent
     onUploadComplete?.(results);
 
-    if (results.success.length > 0) {
+    if (totalOk > 0) {
       onClose();
     }
   };

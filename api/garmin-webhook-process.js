@@ -7,6 +7,7 @@
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
+import { fetchAthleteProfile } from './utils/athleteProfile.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
 import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
@@ -26,32 +27,6 @@ const supabase = getSupabaseAdmin();
 
 const MAX_RETRIES = 6;
 const BATCH_SIZE = 20;
-
-/**
- * Load the athlete profile fields needed to build the FIT coach context
- * (FTP, max HR, power zones). Returns an object safe to pass to
- * downloadAndParseFitFile, or null on any failure — the parser degrades
- * gracefully without these.
- */
-async function fetchAthleteProfile(userId) {
-  if (!userId) return null;
-  try {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('ftp, power_zones, max_hr')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (error || !data) return null;
-    return {
-      ftp: data.ftp ?? null,
-      maxHR: data.max_hr ?? null,
-      powerZones: data.power_zones ?? null,
-    };
-  } catch (err) {
-    console.warn('⚠️ Failed to load athlete profile for FIT coach context:', err.message);
-    return null;
-  }
-}
 
 export default async function handler(req, res) {
   // Verify cron authorization (timing-safe)

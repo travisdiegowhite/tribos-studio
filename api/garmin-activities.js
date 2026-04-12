@@ -5,6 +5,7 @@
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
+import { fetchAthleteProfile } from './utils/athleteProfile.js';
 import {
   executeBackfillForUser,
   getBackfillProgress,
@@ -22,30 +23,6 @@ const supabase = getSupabaseAdmin();
 
 const GARMIN_API_BASE = 'https://apis.garmin.com/wellness-api/rest';
 const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oauth/token';
-
-/**
- * Load athlete profile fields needed to build the FIT coach context.
- * Degrades gracefully — the parser handles a null/missing athlete object.
- */
-async function fetchAthleteProfile(userId) {
-  if (!userId) return null;
-  try {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('ftp, power_zones, max_hr')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (error || !data) return null;
-    return {
-      ftp: data.ftp ?? null,
-      maxHR: data.max_hr ?? null,
-      powerZones: data.power_zones ?? null,
-    };
-  } catch (err) {
-    console.warn('⚠️ Failed to load athlete profile for FIT coach context:', err.message);
-    return null;
-  }
-}
 
 /**
  * Extract and validate user from Authorization header

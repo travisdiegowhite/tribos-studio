@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import crypto from 'crypto';
 import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
+import { fetchAthleteProfile } from './utils/athleteProfile.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
 import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
@@ -551,29 +552,6 @@ function mapWahooWorkoutType(wahooType) {
 }
 
 /**
- * Load the athlete profile fields needed to build the FIT coach context.
- */
-async function fetchWahooAthleteProfile(userId) {
-  if (!userId) return null;
-  try {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('ftp, power_zones, max_hr')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (error || !data) return null;
-    return {
-      ftp: data.ftp ?? null,
-      maxHR: data.max_hr ?? null,
-      powerZones: data.power_zones ?? null,
-    };
-  } catch (err) {
-    console.warn('⚠️ Failed to load athlete profile for FIT coach context:', err.message);
-    return null;
-  }
-}
-
-/**
  * Extract GPS data (polyline) and deep FIT coach context from a Wahoo
  * workout file. Returns both so the caller can persist them together.
  *
@@ -590,7 +568,7 @@ async function extractGPSFromWahooFile(fileUrl, accessToken, userId = null) {
   console.log('🗺️ Extracting GPS data from Wahoo FIT file...');
 
   try {
-    const athlete = await fetchWahooAthleteProfile(userId);
+    const athlete = await fetchAthleteProfile(userId);
     const result = await downloadAndParseFitFile(fileUrl, accessToken, athlete);
 
     if (result.error) {

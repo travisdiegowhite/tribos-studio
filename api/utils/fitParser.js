@@ -199,14 +199,38 @@ function extractAllDataPoints(records) {
  */
 function extractSummary(data) {
   const session = data.sessions?.[0];
+  const fileId = data.file_id?.[0];
+  const activity = data.activity?.[0];
 
   if (session) {
     // Helper to validate a value is within a reasonable range
     const validRange = (val, max) => (val > 0 && val < max) ? val : null;
 
+    // Normalize the ride's start time to an ISO string, preferring the
+    // session value but falling back to activity / first record timestamps
+    // and guarding against the FIT protocol's sentinel/bad dates.
+    const currentYear = new Date().getFullYear();
+    const isValidDate = (d) => d && !Number.isNaN(d.getTime()) && d.getFullYear() >= 2010 && d.getFullYear() <= currentYear + 1;
+    let startTime = null;
+    const rawTs = session.start_time || activity?.timestamp || data.records?.[0]?.timestamp;
+    if (rawTs instanceof Date) {
+      if (isValidDate(rawTs)) startTime = rawTs.toISOString();
+    } else if (typeof rawTs === 'string') {
+      const d = new Date(rawTs);
+      if (isValidDate(d)) startTime = d.toISOString();
+    } else if (typeof rawTs === 'number') {
+      const FIT_EPOCH = 631065600;
+      let d;
+      if (rawTs > 1e12) d = new Date(rawTs);
+      else if (rawTs > 1e9) d = new Date(rawTs * 1000);
+      else d = new Date((rawTs + FIT_EPOCH) * 1000);
+      if (isValidDate(d)) startTime = d.toISOString();
+    }
+
     return {
       totalDistance: session.total_distance || 0,
       totalTime: session.total_timer_time || session.total_elapsed_time || 0,
+      totalElapsedTime: session.total_elapsed_time || session.total_timer_time || 0,
       totalAscent: session.total_ascent || 0,
       totalDescent: session.total_descent || 0,
       avgSpeed: session.avg_speed || null,
@@ -216,8 +240,15 @@ function extractSummary(data) {
       avgPower: validRange(session.avg_power, MAX_VALID_POWER_WATTS),
       maxPower: validRange(session.max_power, MAX_VALID_POWER_WATTS),
       avgCadence: validRange(session.avg_cadence, MAX_VALID_CADENCE_RPM),
+      maxCadence: validRange(session.max_cadence, MAX_VALID_CADENCE_RPM),
       sport: session.sport || 'cycling',
       subSport: session.sub_sport || null,
+      // Ride metadata used by the manual-upload endpoint to build the
+      // activity row. Garmin/Wahoo callers ignore these extra fields.
+      startTime,
+      manufacturer: fileId?.manufacturer || null,
+      product: fileId?.garmin_product || fileId?.product || null,
+      serialNumber: fileId?.serial_number || null,
       // Power metrics from device (if available)
       normalizedPower: validRange(session.normalized_power, MAX_VALID_POWER_WATTS),
       trainingStressScore: session.training_stress_score || null,
@@ -568,57 +599,23 @@ function buildActivityStreamsFromDataPoints(allDataPoints) {
 }
 
 /**
- * Download and parse a FIT file from URL, returning encoded polyline
- * @param {string} url - URL to download FIT file from
- * @param {string} accessToken - Bearer token for authentication
+ * Parse a raw FIT file buffer and run the full analytics pipeline:
+ * polyline encoding, activity streams, advanced ride analytics, and the deep
+ * FIT coach context. Used by every ingestion path (Garmin, Wahoo, manual
+ * upload) so they all emit identical row shapes.
+ *
+ * @param {Buffer|ArrayBuffer} fitBuffer - Raw FIT file bytes (already decompressed)
  * @param {Object} [athlete] - Optional athlete profile for FIT coach context
  * @param {number} [athlete.ftp] - Functional Threshold Power (watts)
  * @param {number} [athlete.maxHR] - Maximum heart rate (bpm)
  * @param {Object} [athlete.powerZones] - user_profiles.power_zones shape { z1:{min,max}, ..., z7:{min,max} }
- * @returns {Promise<{polyline: string|null, summary: Object|null, fitCoachContext: Object|null, error: string|null}>}
+ * @returns {Promise<{polyline: string|null, activityStreams: Object|null, summary: Object|null, powerMetrics: Object|null, rideAnalytics: Object|null, fitCoachContext: Object|null, pointCount: number, simplifiedCount: number, hasPowerData: boolean, error: string|null}>}
  */
-export async function downloadAndParseFitFile(url, accessToken, athlete = null) {
+export async function parseFitBuffer(fitBuffer, athlete = null) {
   try {
-    console.log('📥 Downloading FIT file...');
+    const buf = Buffer.isBuffer(fitBuffer) ? fitBuffer : Buffer.from(fitBuffer);
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/octet-stream, application/fit, */*'
-      }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ FIT file download failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText.substring(0, 200)
-      });
-      return {
-        polyline: null,
-        summary: null,
-        error: `Download failed: ${response.status} ${response.statusText}`
-      };
-    }
-
-    // Get the file as ArrayBuffer
-    const arrayBuffer = await response.arrayBuffer();
-    const fileSize = arrayBuffer.byteLength;
-
-    console.log(`📦 FIT file downloaded: ${(fileSize / 1024).toFixed(1)} KB`);
-
-    if (fileSize < 12) {
-      return {
-        polyline: null,
-        summary: null,
-        error: 'FIT file too small to be valid'
-      };
-    }
-
-    // Parse the FIT file
-    const parsed = await parseFitFile(Buffer.from(arrayBuffer));
+    const parsed = await parseFitFile(buf);
 
     console.log(`📍 FIT file parsed: ${parsed.trackPoints.length} GPS points, ${parsed.recordCount} total records`);
 
@@ -627,7 +624,6 @@ export async function downloadAndParseFitFile(url, accessToken, athlete = null) 
     let simplifiedCount = 0;
 
     if (parsed.hasGpsData) {
-      // Simplify track to reduce polyline size (keeps ~10% of points typically)
       const simplified = simplifyTrack(parsed.trackPoints);
       simplifiedCount = simplified.length;
       console.log(`📉 Track simplified: ${parsed.trackPoints.length} → ${simplified.length} points`);
@@ -679,9 +675,76 @@ export async function downloadAndParseFitFile(url, accessToken, athlete = null) 
       hasPowerData: parsed.hasPowerData,
       error: null
     };
-
   } catch (error) {
     console.error('❌ FIT file processing error:', error.message);
+    return {
+      polyline: null,
+      activityStreams: null,
+      summary: null,
+      powerMetrics: null,
+      rideAnalytics: null,
+      fitCoachContext: null,
+      pointCount: 0,
+      simplifiedCount: 0,
+      hasPowerData: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Download and parse a FIT file from URL, returning encoded polyline and full
+ * analytics. Thin wrapper around parseFitBuffer that handles the network step.
+ * @param {string} url - URL to download FIT file from
+ * @param {string} accessToken - Bearer token for authentication
+ * @param {Object} [athlete] - Optional athlete profile for FIT coach context
+ * @param {number} [athlete.ftp] - Functional Threshold Power (watts)
+ * @param {number} [athlete.maxHR] - Maximum heart rate (bpm)
+ * @param {Object} [athlete.powerZones] - user_profiles.power_zones shape { z1:{min,max}, ..., z7:{min,max} }
+ * @returns {Promise<Object>} Same shape as parseFitBuffer, or an error object on download failure
+ */
+export async function downloadAndParseFitFile(url, accessToken, athlete = null) {
+  try {
+    console.log('📥 Downloading FIT file...');
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/octet-stream, application/fit, */*'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ FIT file download failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText.substring(0, 200)
+      });
+      return {
+        polyline: null,
+        summary: null,
+        error: `Download failed: ${response.status} ${response.statusText}`
+      };
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const fileSize = arrayBuffer.byteLength;
+
+    console.log(`📦 FIT file downloaded: ${(fileSize / 1024).toFixed(1)} KB`);
+
+    if (fileSize < 12) {
+      return {
+        polyline: null,
+        summary: null,
+        error: 'FIT file too small to be valid'
+      };
+    }
+
+    return await parseFitBuffer(Buffer.from(arrayBuffer), athlete);
+  } catch (error) {
+    console.error('❌ FIT file download/processing error:', error.message);
     return {
       polyline: null,
       summary: null,
@@ -693,6 +756,7 @@ export async function downloadAndParseFitFile(url, accessToken, athlete = null) 
 
 export default {
   parseFitFile,
+  parseFitBuffer,
   encodePolyline,
   simplifyTrack,
   downloadAndParseFitFile
