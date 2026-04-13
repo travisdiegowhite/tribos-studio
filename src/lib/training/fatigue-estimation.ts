@@ -17,7 +17,7 @@ import {
   HR_ZONE_THRESHOLDS,
   CALIBRATION_DECAY,
 } from './constants';
-import type { TSSEstimate, ActivityData, CalibrationFactors } from './types';
+import type { TSSEstimate, ActivityData, CalibrationFactors, TerrainClass } from './types';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,29 +25,72 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// ── Terrain Classification ───────────────────────────────────────────────────
+// Mirrors api/utils/fitnessSnapshots.js — same thresholds, same multiplier.
+// Kept in lockstep so the API-side estimateTSSWithSource and this module
+// produce identical terrain_class values for the same activity.
+
+/**
+ * Classify terrain from distance + elevation gain (elevation-per-km).
+ * Returns 'flat' when distance or elevation is missing/zero.
+ */
+export function classifyTerrain(
+  distanceM: number | undefined,
+  elevationM: number | undefined,
+): TerrainClass {
+  const distanceKm = (distanceM ?? 0) / 1000;
+  const elev = elevationM ?? 0;
+  if (!(distanceKm > 0) || !(elev > 0)) return 'flat';
+  const ratio = elev / distanceKm;
+  if (ratio < 8) return 'flat';
+  if (ratio < 15) return 'rolling';
+  if (ratio < 25) return 'hilly';
+  return 'mountainous';
+}
+
+/**
+ * Terrain multiplier applied to the type-inference (Tier 4) tier only —
+ * NP / HR / RPE tiers already reflect climbing cost in the measurement.
+ * Capped at +15%. Unknown input → 1.00.
+ */
+export function terrainMultiplier(terrainClass: TerrainClass | null | undefined): number {
+  switch (terrainClass) {
+    case 'rolling': return 1.05;
+    case 'hilly': return 1.10;
+    case 'mountainous': return 1.15;
+    default: return 1.00;
+  }
+}
+
 // ── Main Entry Point ─────────────────────────────────────────────────────────
 
 /**
  * Returns best available TSS estimate with confidence bounds.
  * Cascades: power → HR → RPE → type inference.
+ *
+ * terrain_class is attached to every tier so downstream writers can
+ * persist it uniformly; the multiplier is only applied inside the
+ * type-inference tier (the other tiers already reflect climbing load).
  */
 export function estimateTSS(
   activity: ActivityData,
   calibration: CalibrationFactors
 ): TSSEstimate {
+  const terrain_class = classifyTerrain(activity.distance_m, activity.total_elevation_m);
+
   if (activity.normalized_power && activity.ftp) {
-    return estimateFromPower(activity);
+    return { ...estimateFromPower(activity), terrain_class };
   }
   if (activity.hr_stream && activity.hr_stream.length > 0 && activity.hr_max && activity.hr_rest) {
-    return estimateFromHR(activity, calibration);
+    return { ...estimateFromHR(activity, calibration), terrain_class };
   }
   if (activity.avg_hr && activity.hr_max && activity.hr_rest) {
-    return estimateFromAvgHR(activity, calibration);
+    return { ...estimateFromAvgHR(activity, calibration), terrain_class };
   }
   if (activity.rpe !== undefined && activity.rpe > 0) {
-    return estimateFromRPE(activity, calibration);
+    return { ...estimateFromRPE(activity, calibration), terrain_class };
   }
-  return estimateFromType(activity);
+  return estimateFromType(activity, terrain_class);
 }
 
 // ── Tier 1: Power ────────────────────────────────────────────────────────────
@@ -185,7 +228,7 @@ function estimateFromRPE(
 
 // ── Tier 4: Workout type inference ───────────────────────────────────────────
 
-function estimateFromType(activity: ActivityData): TSSEstimate {
+function estimateFromType(activity: ActivityData, terrain_class: TerrainClass): TSSEstimate {
   const type = activity.workout_type ?? 'endurance';
   const defaults = TYPE_TSS_PER_HOUR[type] ?? TYPE_TSS_PER_HOUR.endurance;
   const hours = activity.duration_seconds / 3600;
@@ -193,9 +236,13 @@ function estimateFromType(activity: ActivityData): TSSEstimate {
   // Elevation bonus: ~1 TSS per 30m of gain
   const elevationBonus = (activity.total_elevation_m ?? 0) / 30;
 
-  const tss = round2(defaults.mid * hours + elevationBonus);
-  const tss_low = round2(defaults.low * hours + elevationBonus);
-  const tss_high = round2(defaults.high * hours + elevationBonus);
+  // Terrain multiplier — this tier is blind to grade-induced cost, so
+  // scale by a capped terrain factor (1.00 / 1.05 / 1.10 / 1.15).
+  const mult = terrainMultiplier(terrain_class);
+
+  const tss = round2((defaults.mid * hours + elevationBonus) * mult);
+  const tss_low = round2((defaults.low * hours + elevationBonus) * mult);
+  const tss_high = round2((defaults.high * hours + elevationBonus) * mult);
 
   return {
     tss,
@@ -203,7 +250,8 @@ function estimateFromType(activity: ActivityData): TSSEstimate {
     tss_high,
     confidence: 0.40,
     source: 'inferred',
-    method_detail: `type=${type}, ${hours.toFixed(1)}h, +${elevationBonus.toFixed(0)} elev bonus`,
+    method_detail: `type=${type}, ${hours.toFixed(1)}h, +${elevationBonus.toFixed(0)} elev bonus, terrain=${terrain_class}`,
+    terrain_class,
   };
 }
 

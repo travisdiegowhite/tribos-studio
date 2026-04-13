@@ -136,9 +136,62 @@ function estimateRunningTSS(activity) {
 }
 
 /**
+ * Classify terrain from distance + elevation gain using elevation-per-km
+ * (m/km) as the ratio. Thresholds:
+ *
+ *   < 8   → flat
+ *   < 15  → rolling
+ *   < 25  → hilly
+ *   >= 25 → mountainous
+ *
+ * Returns 'flat' when either distance or elevation is 0 or missing — we
+ * can't meaningfully compute a ratio, and treating unknowns as flat
+ * keeps the downstream multiplier at 1.0 (no spurious upscaling).
+ *
+ * @param {number} distanceM — distance in meters
+ * @param {number} elevationM — elevation gain in meters
+ * @returns {'flat'|'rolling'|'hilly'|'mountainous'}
+ */
+export function classifyTerrain(distanceM, elevationM) {
+  const distanceKm = (distanceM || 0) / 1000;
+  const elev = elevationM || 0;
+  if (!(distanceKm > 0) || !(elev > 0)) return 'flat';
+  const ratio = elev / distanceKm;
+  if (ratio < 8) return 'flat';
+  if (ratio < 15) return 'rolling';
+  if (ratio < 25) return 'hilly';
+  return 'mountainous';
+}
+
+/**
+ * Terrain multiplier applied only to TSS tiers that are blind to
+ * grade-induced intensity cost (kilojoules + inferred). Capped at +15%
+ * so scaling never dominates the underlying work estimate.
+ *
+ *   flat         → 1.00
+ *   rolling      → 1.05
+ *   hilly        → 1.10
+ *   mountainous  → 1.15
+ *
+ * Unknown / null / unrecognized input → 1.00 (no scaling).
+ *
+ * @param {string|null|undefined} terrainClass
+ * @returns {number}
+ */
+export function terrainMultiplier(terrainClass) {
+  switch (terrainClass) {
+    case 'rolling': return 1.05;
+    case 'hilly': return 1.10;
+    case 'mountainous': return 1.15;
+    case 'flat':
+    default: return 1.00;
+  }
+}
+
+/**
  * Estimate TSS from activity data using a 5-tier fallback, returning the
- * tier and a confidence score alongside the estimate. Tiers & confidences
- * mirror src/lib/training/fatigue-estimation.ts:
+ * tier, confidence score, and terrain classification alongside the
+ * estimate. Tiers & confidences mirror src/lib/training/fatigue-estimation.ts:
  *
  *   'device'     — stored TSS from the activity file (0.95)
  *   'power'      — NP + FTP (0.95)
@@ -149,20 +202,35 @@ function estimateRunningTSS(activity) {
  * ('rpe' is reserved for fatigue-estimation.ts paths that accept an RPE
  * input; raw activity rows don't carry RPE so we don't emit it here.)
  *
- * @returns {{ tss: number, source: string, confidence: number }}
+ * Terrain multiplier is applied ONLY to the kilojoules and inferred
+ * tiers — power/HR/device already reflect climbing cost via their
+ * underlying measurement (NP, HR stream, stored TSS). Scaling them
+ * would double-count. terrain_class is returned on every tier so
+ * downstream writers can persist it uniformly.
+ *
+ * @returns {{ tss: number, source: string, confidence: number,
+ *             terrain_class: 'flat'|'rolling'|'hilly'|'mountainous' }}
  */
 export function estimateTSSWithSource(activity, ftp) {
+  const terrain_class = classifyTerrain(
+    activity.distance,
+    activity.total_elevation_gain,
+  );
+
   // Tier 1: stored TSS from device
   if (activity.tss && activity.tss > 0) {
-    return { tss: activity.tss, source: 'device', confidence: 0.95 };
+    return { tss: activity.tss, source: 'device', confidence: 0.95, terrain_class };
   }
 
-  // Tier 2: running-specific estimation (HR-based under the hood)
+  // Tier 2: running-specific estimation (HR-based under the hood).
+  // estimateRunningTSS already applies its own elevation + trail factors;
+  // don't stack the terrain multiplier on top.
   if (isRunningActivity(activity)) {
-    return { tss: estimateRunningTSS(activity), source: 'hr', confidence: 0.65 };
+    return { tss: estimateRunningTSS(activity), source: 'hr', confidence: 0.65, terrain_class };
   }
 
-  // Tier 3: normalized power + FTP → standard TSS formula
+  // Tier 3: normalized power + FTP → standard TSS formula.
+  // NP already reflects grade-induced load; no terrain scaling.
   if (activity.normalized_power && activity.normalized_power > 0 && ftp && ftp > 0 && activity.moving_time) {
     const hours = activity.moving_time / 3600;
     const intensityFactor = activity.normalized_power / ftp;
@@ -170,33 +238,39 @@ export function estimateTSSWithSource(activity, ftp) {
       tss: Math.round(hours * intensityFactor * intensityFactor * 100),
       source: 'power',
       confidence: 0.95,
+      terrain_class,
     };
   }
 
-  // Tier 4: kilojoules + duration → derive avg power, then TSS
+  // Tier 4: kilojoules + duration → derive avg power, then TSS.
+  // kJ is work-only (no intensity signal) — apply terrain multiplier.
   if (activity.kilojoules && activity.kilojoules > 0 && activity.moving_time) {
     const hours = activity.moving_time / 3600;
     if (hours > 0) {
+      const mult = terrainMultiplier(terrain_class);
       const avgPower = (activity.kilojoules * 1000) / activity.moving_time;
       if (ftp && ftp > 0) {
         const intensityFactor = avgPower / ftp;
         return {
-          tss: Math.round(hours * intensityFactor * intensityFactor * 100),
+          tss: Math.round(hours * intensityFactor * intensityFactor * 100 * mult),
           source: 'kilojoules',
           confidence: 0.75,
+          terrain_class,
         };
       }
       // No FTP: assume FTP=200 as rough baseline; penalize confidence.
       const intensityFactor = avgPower / 200;
       return {
-        tss: Math.round(hours * intensityFactor * intensityFactor * 100),
+        tss: Math.round(hours * intensityFactor * intensityFactor * 100 * mult),
         source: 'kilojoules',
         confidence: 0.50,
+        terrain_class,
       };
     }
   }
 
-  // Tier 5: duration + elevation + avg watts heuristic
+  // Tier 5: duration + elevation + avg watts heuristic.
+  // Flat elevation bonus under-counts grade cost — apply terrain multiplier.
   const durationHours = (activity.moving_time || 0) / 3600;
   const elevationM = activity.total_elevation_gain || 0;
 
@@ -208,10 +282,12 @@ export function estimateTSSWithSource(activity, ftp) {
     intensityMultiplier = Math.min(1.8, Math.max(0.5, activity.average_watts / 150));
   }
 
+  const terrainMult = terrainMultiplier(terrain_class);
   return {
-    tss: Math.round((baseTSS + elevationFactor) * intensityMultiplier),
+    tss: Math.round((baseTSS + elevationFactor) * intensityMultiplier * terrainMult),
     source: 'inferred',
     confidence: 0.40,
+    terrain_class,
   };
 }
 
