@@ -16,6 +16,7 @@ import GetStartedGuide from '../components/activation/GetStartedGuide.jsx';
 import ProactiveInsightCard from '../components/activation/ProactiveInsightCard.jsx';
 import StatusBar from '../components/today/StatusBar.jsx';
 import { useFormConfidence } from '../hooks/useFormConfidence';
+import { useTodayTerrain } from '../hooks/useTodayTerrain';
 import IntelligenceCard from '../components/today/IntelligenceCard.jsx';
 import { CoachCard } from '../components/coach';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
@@ -271,6 +272,11 @@ function Dashboard() {
   // Null while loading or when the user has no training_load_daily rows yet.
   const fsConfidence = useFormConfidence(user?.id);
 
+  // Today's terrain classification — drives the small TERRAIN chip above
+  // StatusBar. Null while loading or when the user has no recent
+  // training_load_daily rows with a populated terrain_class.
+  const todayTerrain = useTodayTerrain(user?.id);
+
   // CTL/ATL/TSB using canonical formulas (matches TrainingDashboard)
   const trainingMetrics = useMemo(() => {
     if (!activities || activities.length === 0) {
@@ -374,6 +380,7 @@ function Dashboard() {
             weekPlanned={weekStats.planned}
             loading={loading}
             fsConfidence={fsConfidence}
+            todayTerrain={todayTerrain}
           />
 
           {/* AI Fitness Summary — plain-language context */}
