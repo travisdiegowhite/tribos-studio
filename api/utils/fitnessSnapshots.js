@@ -136,29 +136,41 @@ function estimateRunningTSS(activity) {
 }
 
 /**
- * Estimate TSS from activity data using a 5-tier fallback:
- * 1. Stored TSS (from device/FIT file)
- * 2. Running-specific estimation (pace + HR)
- * 3. Normalized power + FTP → standard TSS formula (IF² × hours × 100)
- * 4. Kilojoules + duration + FTP → derive avg power, then standard formula
- * 5. Duration + elevation + avg watts heuristic
+ * Estimate TSS from activity data using a 5-tier fallback, returning the
+ * tier and a confidence score alongside the estimate. Tiers & confidences
+ * mirror src/lib/training/fatigue-estimation.ts:
  *
- * Mirrors client-side logic in src/utils/computeFitnessSnapshots.ts
+ *   'device'     — stored TSS from the activity file (0.95)
+ *   'power'      — NP + FTP (0.95)
+ *   'kilojoules' — kJ + duration (+ FTP) (0.75 w/ FTP, 0.50 without)
+ *   'hr'         — running HR-based estimate (0.65)
+ *   'inferred'   — duration + elevation + avg watts heuristic (0.40)
+ *
+ * ('rpe' is reserved for fatigue-estimation.ts paths that accept an RPE
+ * input; raw activity rows don't carry RPE so we don't emit it here.)
+ *
+ * @returns {{ tss: number, source: string, confidence: number }}
  */
-export function estimateTSS(activity, ftp) {
+export function estimateTSSWithSource(activity, ftp) {
   // Tier 1: stored TSS from device
-  if (activity.tss && activity.tss > 0) return activity.tss;
+  if (activity.tss && activity.tss > 0) {
+    return { tss: activity.tss, source: 'device', confidence: 0.95 };
+  }
 
-  // Tier 2: running-specific estimation
+  // Tier 2: running-specific estimation (HR-based under the hood)
   if (isRunningActivity(activity)) {
-    return estimateRunningTSS(activity);
+    return { tss: estimateRunningTSS(activity), source: 'hr', confidence: 0.65 };
   }
 
   // Tier 3: normalized power + FTP → standard TSS formula
   if (activity.normalized_power && activity.normalized_power > 0 && ftp && ftp > 0 && activity.moving_time) {
     const hours = activity.moving_time / 3600;
     const intensityFactor = activity.normalized_power / ftp;
-    return Math.round(hours * intensityFactor * intensityFactor * 100);
+    return {
+      tss: Math.round(hours * intensityFactor * intensityFactor * 100),
+      source: 'power',
+      confidence: 0.95,
+    };
   }
 
   // Tier 4: kilojoules + duration → derive avg power, then TSS
@@ -168,11 +180,19 @@ export function estimateTSS(activity, ftp) {
       const avgPower = (activity.kilojoules * 1000) / activity.moving_time;
       if (ftp && ftp > 0) {
         const intensityFactor = avgPower / ftp;
-        return Math.round(hours * intensityFactor * intensityFactor * 100);
+        return {
+          tss: Math.round(hours * intensityFactor * intensityFactor * 100),
+          source: 'kilojoules',
+          confidence: 0.75,
+        };
       }
-      // No FTP: assume FTP=200 as rough baseline
+      // No FTP: assume FTP=200 as rough baseline; penalize confidence.
       const intensityFactor = avgPower / 200;
-      return Math.round(hours * intensityFactor * intensityFactor * 100);
+      return {
+        tss: Math.round(hours * intensityFactor * intensityFactor * 100),
+        source: 'kilojoules',
+        confidence: 0.50,
+      };
     }
   }
 
@@ -188,7 +208,52 @@ export function estimateTSS(activity, ftp) {
     intensityMultiplier = Math.min(1.8, Math.max(0.5, activity.average_watts / 150));
   }
 
-  return Math.round((baseTSS + elevationFactor) * intensityMultiplier);
+  return {
+    tss: Math.round((baseTSS + elevationFactor) * intensityMultiplier),
+    source: 'inferred',
+    confidence: 0.40,
+  };
+}
+
+/**
+ * Backwards-compatible wrapper — returns just the numeric TSS. Prefer
+ * estimateTSSWithSource() for new callers that want to persist tier/confidence.
+ */
+export function estimateTSS(activity, ftp) {
+  return estimateTSSWithSource(activity, ftp).tss;
+}
+
+/**
+ * Compute the 7-day weighted Form Score confidence from an array of daily
+ * TSS confidences (oldest → newest). More recent days weigh slightly more
+ * — linear weights [1, 2, 3, 4, 5, 6, 7] normalized by their sum.
+ *
+ * Input normalization:
+ *   - arrays longer than 7 are truncated to the most recent 7
+ *   - arrays shorter than 7 are padded with 0 at the oldest slots
+ *   - null/undefined entries are treated as 0
+ *
+ * Output: clamped to [0, 1], rounded to 3 decimals.
+ */
+export function calculateFormScoreConfidence(last7DaysConfidence = []) {
+  if (!Array.isArray(last7DaysConfidence) || last7DaysConfidence.length === 0) {
+    return 0;
+  }
+  const WEIGHTS = [1, 2, 3, 4, 5, 6, 7]; // oldest → newest
+  const recent = last7DaysConfidence.slice(-7);
+  const padded = Array(7 - recent.length)
+    .fill(0)
+    .concat(recent.map((v) => (v == null || !Number.isFinite(Number(v)) ? 0 : Number(v))));
+
+  let num = 0;
+  let denom = 0;
+  for (let i = 0; i < 7; i++) {
+    num += WEIGHTS[i] * padded[i];
+    denom += WEIGHTS[i];
+  }
+  const raw = denom > 0 ? num / denom : 0;
+  const clamped = Math.max(0, Math.min(1, raw));
+  return Math.round(clamped * 1000) / 1000;
 }
 
 /**
