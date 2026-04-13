@@ -120,6 +120,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     memoryResult,
     recentConversationsResult,
     userProfileResult,
+    dailyLoadResult,
   ] = await Promise.all([
     activityQuery,
 
@@ -193,6 +194,18 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
       .from('user_profiles')
       .select('timezone, ftp, weight_kg, experience_level')
       .eq('id', userId)
+      .maybeSingle(),
+
+    // Most-recent daily training load — primarily for terrain_class,
+    // which was added in migration 068. We already pull CTL/ATL/TSB
+    // from the weekly fitness_snapshots above, so this is a tiny
+    // point lookup, not a replacement.
+    supabase
+      .from('training_load_daily')
+      .select('terrain_class, date')
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ]);
 
@@ -364,6 +377,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     form: fitness?.tsb || null,
     load_trend: fitness?.load_trend || null,
     overtraining_risk: fitness?.overtraining_risk || null,
+    today_terrain_class: dailyLoadResult?.data?.terrain_class || null,
 
     week_schedule: weekSchedule,
     week_schedule_text: weekScheduleText,
