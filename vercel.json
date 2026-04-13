@@ -33,6 +33,10 @@
       "schedule": "0 3 * * 1"
     },
     {
+      "path": "/api/recompute-user-tau?action=recompute-all",
+      "schedule": "0 2 * * *"
+    },
+    {
       "path": "/api/workout-preview-cron",
       "schedule": "0 * * * *"
     },

@@ -14,30 +14,35 @@ import {
 } from './advancedRideAnalytics.js';
 
 /**
- * Calculate Chronic Training Load (CTL) - 42-day iterative EWA
- * Formula: CTL_today = CTL_yesterday + (TSS_today − CTL_yesterday) / 42
+ * Calculate Chronic Training Load (CTL) - iterative EWA
+ * Formula: CTL_today = CTL_yesterday + (TSS_today − CTL_yesterday) / tau
+ * Defaults to tau=42 (TrainingPeaks / Intervals.icu baseline); callers
+ * may pass a per-athlete tau from adaptive-tau.
  * Matches src/utils/trainingPlans.ts calculateCTL
  */
-export function calculateCTL(dailyTSS) {
+export function calculateCTL(dailyTSS, tau = 42) {
   if (!dailyTSS || dailyTSS.length === 0) return 0;
+  if (!(tau > 0)) throw new Error('calculateCTL: tau must be > 0');
   let ctl = 0;
   for (const tss of dailyTSS) {
-    ctl = ctl + (tss - ctl) / 42;
+    ctl = ctl + (tss - ctl) / tau;
   }
   return Math.round(ctl);
 }
 
 /**
- * Calculate Acute Training Load (ATL) - 7-day iterative EWA
- * Formula: ATL_today = ATL_yesterday + (TSS_today − ATL_yesterday) / 7
- * Requires full history to converge — do NOT pass a sliced array.
+ * Calculate Acute Training Load (ATL) - iterative EWA
+ * Formula: ATL_today = ATL_yesterday + (TSS_today − ATL_yesterday) / tau
+ * Defaults to tau=7. Requires full history to converge — do NOT pass a
+ * sliced array.
  * Matches src/utils/trainingPlans.ts calculateATL
  */
-export function calculateATL(dailyTSS) {
+export function calculateATL(dailyTSS, tau = 7) {
   if (!dailyTSS || dailyTSS.length === 0) return 0;
+  if (!(tau > 0)) throw new Error('calculateATL: tau must be > 0');
   let atl = 0;
   for (const tss of dailyTSS) {
-    atl = atl + (tss - atl) / 7;
+    atl = atl + (tss - atl) / tau;
   }
   return Math.round(atl);
 }
@@ -305,6 +310,18 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
 
   const userFtp = prefs?.ftp || null;
 
+  // Get per-athlete adaptive EWA time constants from profile. NULL falls
+  // back to the 42 / 7 defaults, preserving pre-adaptive behavior for any
+  // user who has not entered their age in Settings.
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('ewa_long_tau, ewa_short_tau')
+    .eq('id', userId)
+    .maybeSingle();
+
+  const longTau = profile?.ewa_long_tau ?? 42;
+  const shortTau = profile?.ewa_short_tau ?? 7;
+
   // Build daily TSS map for CTL/ATL calculation
   const dailyTSS = {};
   const weekActivities = [];
@@ -329,9 +346,11 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
     tssArray.push(dailyTSS[dateStr] || 0);
   }
 
-  // Calculate load metrics using iterative EWA (matches client-side formulas)
-  const ctl = calculateCTL(tssArray);
-  const atl = calculateATL(tssArray);
+  // Calculate load metrics using iterative EWA (matches client-side formulas).
+  // Per-athlete tau from user_profiles; defaults (42/7) kick in when the
+  // user has not entered metrics_age yet.
+  const ctl = calculateCTL(tssArray, longTau);
+  const atl = calculateATL(tssArray, shortTau);
   const tsb = calculateTSB(ctl, atl);
 
   // Compute weekly summary
