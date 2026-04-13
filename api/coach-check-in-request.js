@@ -47,7 +47,7 @@ Name: ${context.rider_name}
 Goal event: ${context.goal_event || 'No specific goal event set'}
 ${context.current_week ? `Training block: ${context.block_name} (week ${context.current_week} of ${context.total_weeks})` : `Training phase: ${context.block_name}`}
 Block purpose: ${context.block_purpose}
-Current CTL: ${context.ctl ?? 'N/A'} | ATL: ${context.atl ?? 'N/A'} | Form: ${context.form ?? 'N/A'}
+Current CTL: ${context.ctl ?? 'N/A'} | ATL: ${context.atl ?? 'N/A'} | Form: ${context.form ?? 'N/A'}${context.today_terrain_class ? ` | Today's terrain: ${context.today_terrain_class}` : ''}
 ${context.load_trend ? `Load trend: ${context.load_trend}` : ''}
 ${context.overtraining_risk && context.overtraining_risk !== 'low' ? `Overtraining risk: ${context.overtraining_risk}` : ''}
 

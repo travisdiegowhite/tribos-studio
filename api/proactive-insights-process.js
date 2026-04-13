@@ -153,6 +153,7 @@ async function generateInsight(userId, activityId) {
   if (context.ctl != null) fitnessContext += `CTL: ${context.ctl}`;
   if (context.atl != null) fitnessContext += ` | ATL: ${context.atl}`;
   if (context.form != null) fitnessContext += ` | Form (TSB): ${context.form}`;
+  if (context.today_terrain_class) fitnessContext += ` | Terrain: ${context.today_terrain_class}`;
   if (context.load_trend) fitnessContext += ` | Trend: ${context.load_trend}`;
   if (context.overtraining_risk && context.overtraining_risk !== 'low') {
     fitnessContext += ` | Overtraining risk: ${context.overtraining_risk}`;

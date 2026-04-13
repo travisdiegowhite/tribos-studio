@@ -50,6 +50,7 @@ ${persona.neverSay}
 
 ## WHAT YOU HAVE
 - The athlete's FTP, current zones, and current training load (CTL/ATL/TSB)
+- Today's terrain classification (flat / rolling / hilly / mountainous) from recent rides, when available — reference it when it's relevant to recovery or pacing expectations
 - Pre-computed summary metrics (NP, IF, TSS, VI, avg/max power, avg HR)
 - Power zone distribution (% of pedaling time in Z1–Z7)
 - Cadence band distribution
@@ -123,7 +124,7 @@ ${intent.execution_score != null ? `Pre-computed execution score: ${intent.execu
 
   return `## ATHLETE
 FTP: ${athlete.ftp ?? 'N/A'}W | Weight: ${athlete.weight_kg ?? 'N/A'} kg | Max HR: ${athlete.max_hr ?? 'N/A'} bpm
-CTL: ${fitness.ctl ?? 'N/A'} | ATL: ${fitness.atl ?? 'N/A'} | TSB: ${fitness.tsb ?? 'N/A'}${fitness.load_trend ? ` | Trend: ${fitness.load_trend}` : ''}${fitness.overtraining_risk && fitness.overtraining_risk !== 'low' ? ` | Overtraining risk: ${fitness.overtraining_risk}` : ''}
+CTL: ${fitness.ctl ?? 'N/A'} | ATL: ${fitness.atl ?? 'N/A'} | TSB: ${fitness.tsb ?? 'N/A'}${fitness.terrain_class ? ` | Terrain: ${fitness.terrain_class}` : ''}${fitness.load_trend ? ` | Trend: ${fitness.load_trend}` : ''}${fitness.overtraining_risk && fitness.overtraining_risk !== 'low' ? ` | Overtraining risk: ${fitness.overtraining_risk}` : ''}
 
 ${intentBlock}
 
@@ -156,7 +157,7 @@ async function loadAthleteContext(userId) {
       .maybeSingle(),
     supabase
       .from('training_load_daily')
-      .select('ctl, atl, tsb, date')
+      .select('ctl, atl, tsb, terrain_class, date')
       .eq('user_id', userId)
       .order('date', { ascending: false })
       .limit(1)
@@ -187,6 +188,7 @@ async function loadAthleteContext(userId) {
       ctl: load?.ctl ?? null,
       atl: load?.atl ?? null,
       tsb: load?.tsb ?? null,
+      terrain_class: load?.terrain_class ?? null,
       load_trend: snapshot?.load_trend ?? null,
       overtraining_risk: snapshot?.overtraining_risk ?? null,
     },
