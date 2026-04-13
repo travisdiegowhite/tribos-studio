@@ -3,7 +3,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { translateCTL, translateATL, translateTSB, translateTrend, colorToVar } from '../../lib/fitness/translate';
 import { METRIC_TOOLTIPS } from '../../lib/fitness/tooltips';
 
-function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading }) {
+function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading, fsConfidence }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   if (loading) {
@@ -30,12 +30,24 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
   const fatigueTranslation = translateATL(atl, ctl);
   const trendTranslation = translateTrend(ctlDeltaPct ?? 0, ctl);
 
+  // Form Score confidence gating: when fsConfidence is low we prefix the
+  // value with `~` and (at very low) switch to muted italic so the UI
+  // subtly communicates that the number is an estimate.
+  const formRaw = tsb > 0 ? `+${tsb}` : String(tsb);
+  const isLowConf = fsConfidence != null && fsConfidence < 0.85;
+  const isVeryLowConf = fsConfidence != null && fsConfidence < 0.60;
+  const formValue = isLowConf ? `~${formRaw}` : formRaw;
+  const formColor = isVeryLowConf
+    ? 'var(--color-text-muted)'
+    : tsb >= 0 ? 'var(--color-teal)' : 'var(--color-orange)';
+
   const cells = [
     {
       label: 'FORM',
       sublabel: 'TSB \u2014 freshness',
-      value: tsb > 0 ? `+${tsb}` : String(tsb),
-      color: tsb >= 0 ? 'var(--color-teal)' : 'var(--color-orange)',
+      value: formValue,
+      color: formColor,
+      fontStyle: isVeryLowConf ? 'italic' : undefined,
       status: formTranslation.label,
       statusColor: colorToVar(formTranslation.color),
       tooltip: METRIC_TOOLTIPS.tsb(tsb),
@@ -124,6 +136,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
                 fontWeight: 700,
                 color: cell.color,
                 lineHeight: 1.2,
+                fontStyle: cell.fontStyle,
               }}
             >
               {cell.value}

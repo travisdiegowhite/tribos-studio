@@ -11,6 +11,8 @@
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
+import { estimateTSSWithSource } from './utils/fitnessSnapshots.js';
+import { upsertTrainingLoadDaily } from './utils/trainingLoad.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -165,23 +167,22 @@ export default async function handler(req, res) {
     );
 
     if (!analysis.has_deviation) {
-      // Still update daily load
-      const tss = activity.tss || activityData.duration_seconds / 3600 * 48;
+      // Still update daily load. Use the shared tier estimator so
+      // tss_source/confidence/fs_confidence stay consistent with the
+      // deviation path below.
+      const estimate = estimateTSSWithSource(activity, activityData.ftp);
+      const tss = estimate.tss || activityData.duration_seconds / 3600 * 48;
       const { stepDay } = await import('../src/lib/training/tsb-projection.ts');
       const newState = stepDay(currentState, tss);
 
-      await supabase.from('training_load_daily').upsert({
-        user_id: userId,
-        date: today,
+      await upsertTrainingLoadDaily(supabase, userId, today, {
         tss,
         ctl: Math.round(newState.ctl * 100) / 100,
         atl: Math.round(newState.atl * 100) / 100,
         tsb: Math.round(newState.tsb * 100) / 100,
-        tss_source: activityData.normalized_power && activityData.ftp ? 'power'
-          : activityData.avg_hr ? 'hr' : 'inferred',
-        confidence: activityData.normalized_power && activityData.ftp ? 0.95
-          : activityData.avg_hr ? 0.60 : 0.40,
-      }, { onConflict: 'user_id,date' });
+        tss_source: estimate.source,
+        confidence: estimate.confidence,
+      });
 
       return res.status(200).json({ status: 'no_deviation' });
     }
@@ -204,16 +205,14 @@ export default async function handler(req, res) {
     const { stepDay } = await import('../src/lib/training/tsb-projection.ts');
     const newState = stepDay(currentState, estimatedTss);
 
-    await supabase.from('training_load_daily').upsert({
-      user_id: userId,
-      date: today,
+    await upsertTrainingLoadDaily(supabase, userId, today, {
       tss: estimatedTss,
       ctl: Math.round(newState.ctl * 100) / 100,
       atl: Math.round(newState.atl * 100) / 100,
       tsb: Math.round(newState.tsb * 100) / 100,
       tss_source: analysis.tss_estimate?.source ?? 'inferred',
       confidence: analysis.tss_estimate?.confidence ?? 0.4,
-    }, { onConflict: 'user_id,date' });
+    });
 
     // 10. Update calibration if we have both power and HR
     if (activityData.normalized_power && activityData.ftp && activityData.avg_hr) {

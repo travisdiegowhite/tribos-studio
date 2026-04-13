@@ -15,6 +15,7 @@ import { formatDistance, formatElevation } from '../utils/units';
 import GetStartedGuide from '../components/activation/GetStartedGuide.jsx';
 import ProactiveInsightCard from '../components/activation/ProactiveInsightCard.jsx';
 import StatusBar from '../components/today/StatusBar.jsx';
+import { useFormConfidence } from '../hooks/useFormConfidence';
 import IntelligenceCard from '../components/today/IntelligenceCard.jsx';
 import { CoachCard } from '../components/coach';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
@@ -266,6 +267,10 @@ function Dashboard() {
     return 'Good evening';
   };
 
+  // Form Score confidence — drives the `~`/muted-italic gating in StatusBar.
+  // Null while loading or when the user has no training_load_daily rows yet.
+  const fsConfidence = useFormConfidence(user?.id);
+
   // CTL/ATL/TSB using canonical formulas (matches TrainingDashboard)
   const trainingMetrics = useMemo(() => {
     if (!activities || activities.length === 0) {
@@ -368,6 +373,7 @@ function Dashboard() {
             weekRides={weekStats.activities}
             weekPlanned={weekStats.planned}
             loading={loading}
+            fsConfidence={fsConfidence}
           />
 
           {/* AI Fitness Summary — plain-language context */}
