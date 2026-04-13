@@ -126,6 +126,7 @@ export default async function handler(req, res) {
       hr_max: activity.max_heartrate || undefined,
       workout_type: upcoming[0].workout_type || 'endurance',
       total_elevation_m: activity.total_elevation_gain || 0,
+      distance_m: activity.distance || undefined,
     };
 
     // Get user's FTP from fitness snapshots or profile
@@ -182,6 +183,7 @@ export default async function handler(req, res) {
         tsb: Math.round(newState.tsb * 100) / 100,
         tss_source: estimate.source,
         confidence: estimate.confidence,
+        terrain_class: estimate.terrain_class ?? null,
       });
 
       return res.status(200).json({ status: 'no_deviation' });
@@ -212,6 +214,7 @@ export default async function handler(req, res) {
       tsb: Math.round(newState.tsb * 100) / 100,
       tss_source: analysis.tss_estimate?.source ?? 'inferred',
       confidence: analysis.tss_estimate?.confidence ?? 0.4,
+      terrain_class: analysis.tss_estimate?.terrain_class ?? null,
     });
 
     // 10. Update calibration if we have both power and HR

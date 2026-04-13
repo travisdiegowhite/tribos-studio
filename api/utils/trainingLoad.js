@@ -24,6 +24,7 @@ import { calculateFormScoreConfidence } from './fitnessSnapshots.js';
  *   tsb: number,
  *   tss_source: 'device'|'power'|'kilojoules'|'hr'|'rpe'|'inferred',
  *   confidence: number,
+ *   terrain_class?: 'flat'|'rolling'|'hilly'|'mountainous'|null,
  * }} payload
  */
 export async function upsertTrainingLoadDaily(supabase, userId, date, payload) {
@@ -58,6 +59,7 @@ export async function upsertTrainingLoadDaily(supabase, userId, date, payload) {
         tss_source: payload.tss_source,
         confidence: payload.confidence,
         fs_confidence,
+        terrain_class: payload.terrain_class ?? null,
       },
       { onConflict: 'user_id,date' }
     );

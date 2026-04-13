@@ -6,6 +6,8 @@
 
 export type TSSSource = 'power' | 'hr' | 'rpe' | 'inferred';
 
+export type TerrainClass = 'flat' | 'rolling' | 'hilly' | 'mountainous';
+
 export interface TSSEstimate {
   tss: number;
   tss_low: number;
@@ -13,6 +15,7 @@ export interface TSSEstimate {
   confidence: number; // 0.0–1.0
   source: TSSSource;
   method_detail: string;
+  terrain_class?: TerrainClass;
 }
 
 export interface ActivityData {
@@ -28,6 +31,7 @@ export interface ActivityData {
   workout_type?: string;     // 'recovery' | 'endurance' | 'tempo' | 'threshold' | 'vo2max' | 'race'
   avg_speed_ms?: number;
   total_elevation_m?: number;
+  distance_m?: number;       // total distance in meters — used for terrain classification
 }
 
 export interface CalibrationFactors {
@@ -138,6 +142,7 @@ export interface TrainingLoadDailyRow {
   tsb: number | null;
   tss_source: TSSSource | null;
   confidence: number | null;
+  terrain_class: TerrainClass | null;
   created_at: string;
 }
 
