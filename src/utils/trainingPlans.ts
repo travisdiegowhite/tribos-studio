@@ -458,28 +458,34 @@ export function calculatePowerZones(ftp: number): PowerZonesMap | null {
 }
 
 /**
- * Calculate Chronic Training Load (CTL) - 42-day exponentially weighted average
- * Uses the standard iterative EWA: CTL_n = CTL_(n-1) + (TSS_n - CTL_(n-1)) / 42
- * This matches TrainingPeaks / Intervals.icu and converges to avg daily TSS.
+ * Calculate Chronic Training Load (CTL) - exponentially weighted average
+ * Uses the standard iterative EWA: CTL_n = CTL_(n-1) + (TSS_n - CTL_(n-1)) / tau
+ * Defaults to the 42-day window used by TrainingPeaks / Intervals.icu;
+ * callers can pass a per-athlete tau from adaptive-tau to use a
+ * personalized fitness window.
  */
-export function calculateCTL(dailyTSS: number[]): number {
+export function calculateCTL(dailyTSS: number[], tau: number = 42): number {
   if (!dailyTSS || dailyTSS.length === 0) return 0;
+  if (!(tau > 0)) throw new Error('calculateCTL: tau must be > 0');
   let ctl = 0;
   for (const tss of dailyTSS) {
-    ctl = ctl + (tss - ctl) / 42;
+    ctl = ctl + (tss - ctl) / tau;
   }
   return Math.round(ctl);
 }
 
 /**
- * Calculate Acute Training Load (ATL) - 7-day exponentially weighted average
- * Uses the standard iterative EWA: ATL_n = ATL_(n-1) + (TSS_n - ATL_(n-1)) / 7
+ * Calculate Acute Training Load (ATL) - exponentially weighted average
+ * Uses the standard iterative EWA: ATL_n = ATL_(n-1) + (TSS_n - ATL_(n-1)) / tau
+ * Defaults to the 7-day window; callers can pass a per-athlete tau from
+ * adaptive-tau to use a personalized fatigue window.
  */
-export function calculateATL(dailyTSS: number[]): number {
+export function calculateATL(dailyTSS: number[], tau: number = 7): number {
   if (!dailyTSS || dailyTSS.length === 0) return 0;
+  if (!(tau > 0)) throw new Error('calculateATL: tau must be > 0');
   let atl = 0;
   for (const tss of dailyTSS) {
-    atl = atl + (tss - atl) / 7;
+    atl = atl + (tss - atl) / tau;
   }
   return Math.round(atl);
 }

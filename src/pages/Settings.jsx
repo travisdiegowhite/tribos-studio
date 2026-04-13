@@ -158,6 +158,7 @@ function Settings() {
   const [weightKg, setWeightKg] = useState(null);
   const [powerZones, setPowerZones] = useState(null);
   const [experienceLevel, setExperienceLevel] = useState('intermediate');
+  const [metricsAge, setMetricsAge] = useState(null);
 
   // Load profile data directly from Supabase
   useEffect(() => {
@@ -183,6 +184,7 @@ function Settings() {
           setWeightKg(data.weight_kg || null);
           setPowerZones(data.power_zones || null);
           setExperienceLevel(data.experience_level || 'intermediate');
+          setMetricsAge(data.metrics_age || null);
           setAiConsentEnabled(!!data.ai_consent_granted_at && !data.ai_consent_withdrawn_at);
         }
       } catch (error) {
@@ -325,6 +327,7 @@ function Settings() {
           ftp: ftp || null,
           weight_kg: weightKg || null,
           experience_level: experienceLevel,
+          metrics_age: metricsAge || null,
         })
         .select()
         .single();
@@ -1705,6 +1708,15 @@ function Settings() {
                   max={200}
                   suffix={unitsPreference === 'imperial' ? ' lbs' : ' kg'}
                   decimalScale={1}
+                />
+                <NumberInput
+                  label="Age"
+                  description="Enables adaptive fitness & fatigue windows. Optional — leave blank to use the 42/7-day defaults."
+                  placeholder="e.g., 42"
+                  value={metricsAge || ''}
+                  onChange={(val) => setMetricsAge(val || null)}
+                  min={13}
+                  max={100}
                 />
               </SimpleGrid>
 
