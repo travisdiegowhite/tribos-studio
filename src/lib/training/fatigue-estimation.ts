@@ -49,17 +49,88 @@ export function classifyTerrain(
 }
 
 /**
- * Terrain multiplier applied to the type-inference (Tier 4) tier only —
- * NP / HR / RPE tiers already reflect climbing cost in the measurement.
- * Capped at +15%. Unknown input → 1.00.
+ * Terrain multiplier — spec §3.1 continuous formula.
+ *
+ *   gradientFactor = 1 + averageGradientPercent * 0.015
+ *   steepFactor    = 1 + percentAbove6Percent  * 0.002
+ *   vamFactor      = vam > 0 ? 1 + vam/10000 : 1.0
+ *   multiplier     = gradientFactor * steepFactor * vamFactor  (capped 1.40)
+ *
+ * Applied only to the kilojoules + inferred TSS tiers (D4) — power, HR,
+ * RPE, and device tiers already reflect climbing cost in the underlying
+ * measurement. `percent_above_6_percent` requires a grade stream and
+ * defaults to 0 when absent.
  */
-export function terrainMultiplier(terrainClass: TerrainClass | null | undefined): number {
-  switch (terrainClass) {
-    case 'rolling': return 1.05;
-    case 'hilly': return 1.10;
-    case 'mountainous': return 1.15;
-    default: return 1.00;
+export function terrainMultiplier(activity: ActivityData | null | undefined): number {
+  if (!activity) return 1.0;
+
+  const distanceM = activity.distance_m ?? 0;
+  const elevationM = activity.total_elevation_m ?? 0;
+  const movingSec = activity.duration_seconds ?? 0;
+
+  const avgGradientPct = typeof activity.average_gradient_percent === 'number'
+    ? activity.average_gradient_percent
+    : distanceM > 0
+      ? (elevationM / distanceM) * 100
+      : 0;
+
+  const pctAbove6 = typeof activity.percent_above_6_percent === 'number'
+    ? activity.percent_above_6_percent
+    : 0;
+
+  const vam = movingSec > 0 ? elevationM / (movingSec / 3600) : 0;
+
+  const gradientFactor = 1 + avgGradientPct * 0.015;
+  const steepFactor = 1 + pctAbove6 * 0.002;
+  const vamFactor = vam > 0 ? 1 + vam / 10000 : 1.0;
+
+  const multiplier = gradientFactor * steepFactor * vamFactor;
+  return Math.min(multiplier, 1.4);
+}
+
+const MTB_SPORT_TYPES = new Set(['MountainBikeRide']);
+
+/**
+ * Identify mountain-bike sessions. Tribos normalizes provider enums to
+ * Strava's MountainBikeRide at ingestion.
+ */
+export function isMountainBike(activity: ActivityData | null | undefined): boolean {
+  if (!activity) return false;
+  return MTB_SPORT_TYPES.has((activity as { sport_type?: string }).sport_type ?? '')
+    || MTB_SPORT_TYPES.has((activity as { type?: string }).type ?? '');
+}
+
+/**
+ * MTB multiplier — spec §3.1 "MTB sessions receive additional 1.3x
+ * multiplier on top of terrain". Applied to every tier.
+ */
+export function applyActivityTypeMultiplier(rss: number, activity: ActivityData | null | undefined): number {
+  return isMountainBike(activity) ? rss * 1.3 : rss;
+}
+
+/**
+ * EP zero-power filter — spec §3.2. Drops points where power === 0 AND
+ * GPS speed > 5 km/h (coasting). Standalone helper; not wired into the
+ * pre-computed-NP write path currently used for activities.
+ */
+export function filterZeroPowerPoints(
+  powerStream: number[],
+  speedStreamKmh?: number[],
+): number[] {
+  if (!Array.isArray(powerStream) || powerStream.length === 0) return [];
+  if (!Array.isArray(speedStreamKmh) || speedStreamKmh.length === 0) {
+    return powerStream.slice();
   }
+
+  const out: number[] = [];
+  const len = Math.min(powerStream.length, speedStreamKmh.length);
+  for (let i = 0; i < len; i++) {
+    const p = powerStream[i];
+    const kmh = speedStreamKmh[i];
+    if (p === 0 && kmh > 5) continue;
+    out.push(p);
+  }
+  return out;
 }
 
 // ── Main Entry Point ─────────────────────────────────────────────────────────
@@ -236,13 +307,21 @@ function estimateFromType(activity: ActivityData, terrain_class: TerrainClass): 
   // Elevation bonus: ~1 TSS per 30m of gain
   const elevationBonus = (activity.total_elevation_m ?? 0) / 30;
 
-  // Terrain multiplier — this tier is blind to grade-induced cost, so
-  // scale by a capped terrain factor (1.00 / 1.05 / 1.10 / 1.15).
-  const mult = terrainMultiplier(terrain_class);
+  // Terrain multiplier — D4 scope; spec §3.1 continuous formula.
+  const mult = terrainMultiplier(activity);
 
-  const tss = round2((defaults.mid * hours + elevationBonus) * mult);
-  const tss_low = round2((defaults.low * hours + elevationBonus) * mult);
-  const tss_high = round2((defaults.high * hours + elevationBonus) * mult);
+  const tss = applyActivityTypeMultiplier(
+    round2((defaults.mid * hours + elevationBonus) * mult),
+    activity,
+  );
+  const tss_low = applyActivityTypeMultiplier(
+    round2((defaults.low * hours + elevationBonus) * mult),
+    activity,
+  );
+  const tss_high = applyActivityTypeMultiplier(
+    round2((defaults.high * hours + elevationBonus) * mult),
+    activity,
+  );
 
   return {
     tss,

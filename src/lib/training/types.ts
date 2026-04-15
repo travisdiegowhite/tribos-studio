@@ -32,6 +32,15 @@ export interface ActivityData {
   avg_speed_ms?: number;
   total_elevation_m?: number;
   distance_m?: number;       // total distance in meters — used for terrain classification
+  // Spec §3.1 inputs for terrainMultiplier (continuous formula).
+  // Pre-computed at ingestion when a grade stream is available;
+  // falls back to distance/elevation approximations otherwise.
+  average_gradient_percent?: number;
+  percent_above_6_percent?: number;
+  // MTB detection (spec §3.1 1.3× multiplier). Tribos normalizes
+  // provider enums to Strava's MountainBikeRide at ingestion.
+  sport_type?: string;
+  type?: string;
 }
 
 export interface CalibrationFactors {

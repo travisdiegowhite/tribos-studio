@@ -164,28 +164,120 @@ export function classifyTerrain(distanceM, elevationM) {
 }
 
 /**
- * Terrain multiplier applied only to TSS tiers that are blind to
- * grade-induced intensity cost (kilojoules + inferred). Capped at +15%
- * so scaling never dominates the underlying work estimate.
+ * Terrain multiplier — spec §3.1 continuous formula.
  *
- *   flat         → 1.00
- *   rolling      → 1.05
- *   hilly        → 1.10
- *   mountainous  → 1.15
+ *   gradientFactor = 1 + averageGradientPercent * 0.015
+ *   steepFactor    = 1 + percentAbove6Percent  * 0.002
+ *   vamFactor      = vam > 0 ? 1 + vam/10000 : 1.0
+ *   multiplier     = gradientFactor * steepFactor * vamFactor
+ *   capped at 1.40
  *
- * Unknown / null / unrecognized input → 1.00 (no scaling).
+ * Applied only to the kilojoules and inferred TSS tiers (D4 amendment):
+ * power, HR, and device tiers already reflect climbing cost through
+ * their measurement, so scaling them would double-count.
  *
- * @param {string|null|undefined} terrainClass
+ * `percentAbove6Percent` requires a grade stream that most activity
+ * rows don't carry; it defaults to 0 when absent (steepFactor = 1.0).
+ *
+ * @param {{ distance?: number, total_elevation_gain?: number,
+ *           moving_time?: number,
+ *           average_gradient_percent?: number,
+ *           percent_above_6_percent?: number }} activity
  * @returns {number}
  */
-export function terrainMultiplier(terrainClass) {
-  switch (terrainClass) {
-    case 'rolling': return 1.05;
-    case 'hilly': return 1.10;
-    case 'mountainous': return 1.15;
-    case 'flat':
-    default: return 1.00;
+export function terrainMultiplier(activity) {
+  if (!activity) return 1.0;
+
+  const distanceM = activity.distance || 0;
+  const elevationM = activity.total_elevation_gain || 0;
+  const movingSec = activity.moving_time || 0;
+
+  // Fall back to an elevation-per-distance approximation when the
+  // activity row doesn't carry a per-stream average.
+  const avgGradientPct = Number.isFinite(activity.average_gradient_percent)
+    ? activity.average_gradient_percent
+    : distanceM > 0
+      ? (elevationM / distanceM) * 100
+      : 0;
+
+  const pctAbove6 = Number.isFinite(activity.percent_above_6_percent)
+    ? activity.percent_above_6_percent
+    : 0;
+
+  const vam = movingSec > 0 ? elevationM / (movingSec / 3600) : 0;
+
+  const gradientFactor = 1 + avgGradientPct * 0.015;
+  const steepFactor = 1 + pctAbove6 * 0.002;
+  const vamFactor = vam > 0 ? 1 + vam / 10000 : 1.0;
+
+  const multiplier = gradientFactor * steepFactor * vamFactor;
+  return Math.min(multiplier, 1.4);
+}
+
+// Strava enum canonicalized across ingestion (garmin-auth / wahoo-auth
+// both remap to these values before persisting to `activities`).
+const MTB_SPORT_TYPES = new Set(['MountainBikeRide']);
+
+/**
+ * Identify mountain-bike sessions. Tribos normalizes Garmin's
+ * MOUNTAIN_BIKING and Wahoo's mountain_biking to Strava's
+ * MountainBikeRide at ingestion, so a single equality check suffices.
+ *
+ * @param {{ sport_type?: string, type?: string }} activity
+ * @returns {boolean}
+ */
+export function isMountainBike(activity) {
+  if (!activity) return false;
+  return MTB_SPORT_TYPES.has(activity.sport_type)
+    || MTB_SPORT_TYPES.has(activity.type);
+}
+
+/**
+ * MTB multiplier — spec §3.1 "MTB sessions receive additional 1.3x
+ * multiplier on top of terrain". Applies to every RSS tier, not just
+ * the terrain-scaled ones: singletrack micro-surges inflate true stress
+ * relative to power/HR/NP numbers regardless of how RSS was derived.
+ *
+ * @param {number} rss
+ * @param {{ sport_type?: string, type?: string }} activity
+ * @returns {number}
+ */
+export function applyActivityTypeMultiplier(rss, activity) {
+  return isMountainBike(activity) ? rss * 1.3 : rss;
+}
+
+/**
+ * EP zero-power filter — spec §3.2. When computing Effective Power from
+ * a power stream, filter points where power === 0 AND GPS speed > 5 km/h
+ * (coasting while moving); keep points where the rider is intentionally
+ * at 0 W for recovery (power=0, speed≈0) so they still weigh the EP
+ * down appropriately.
+ *
+ * Standalone helper — EP for most activities comes pre-computed from
+ * the data provider (activity.normalized_power). This is exported for
+ * future stream-based recomputation paths.
+ *
+ * @param {number[]} powerStream — instant power in W, one sample/sec
+ * @param {number[]} [speedStreamKmh] — instant speed in km/h; optional
+ * @returns {number[]} filtered power stream suitable for EP rolling avg
+ */
+export function filterZeroPowerPoints(powerStream, speedStreamKmh) {
+  if (!Array.isArray(powerStream) || powerStream.length === 0) return [];
+  if (!Array.isArray(speedStreamKmh) || speedStreamKmh.length === 0) {
+    // Without a speed stream we can't tell coasting from intentional
+    // rest — pass through unchanged.
+    return powerStream.slice();
   }
+
+  const out = [];
+  const len = Math.min(powerStream.length, speedStreamKmh.length);
+  for (let i = 0; i < len; i++) {
+    const p = powerStream[i];
+    const kmh = speedStreamKmh[i];
+    if (p === 0 && kmh > 5) continue; // coasting — drop
+    out.push(p);
+  }
+  return out;
 }
 
 /**
@@ -217,25 +309,29 @@ export function estimateTSSWithSource(activity, ftp) {
     activity.total_elevation_gain,
   );
 
-  // Tier 1: stored TSS from device
+  // Tier 1: stored TSS from device.
   if (activity.tss && activity.tss > 0) {
-    return { tss: activity.tss, source: 'device', confidence: 0.95, terrain_class };
+    const rss = applyActivityTypeMultiplier(activity.tss, activity);
+    return { tss: rss, source: 'device', confidence: 0.95, terrain_class };
   }
 
   // Tier 2: running-specific estimation (HR-based under the hood).
   // estimateRunningTSS already applies its own elevation + trail factors;
-  // don't stack the terrain multiplier on top.
+  // don't stack the terrain multiplier on top. MTB check is pointless
+  // on a Run activity but harmless — MTB_SPORT_TYPES never matches.
   if (isRunningActivity(activity)) {
-    return { tss: estimateRunningTSS(activity), source: 'hr', confidence: 0.65, terrain_class };
+    const rss = applyActivityTypeMultiplier(estimateRunningTSS(activity), activity);
+    return { tss: rss, source: 'hr', confidence: 0.65, terrain_class };
   }
 
   // Tier 3: normalized power + FTP → standard TSS formula.
-  // NP already reflects grade-induced load; no terrain scaling.
+  // NP already reflects grade-induced load; no terrain scaling (D4).
   if (activity.normalized_power && activity.normalized_power > 0 && ftp && ftp > 0 && activity.moving_time) {
     const hours = activity.moving_time / 3600;
     const intensityFactor = activity.normalized_power / ftp;
+    const base = hours * intensityFactor * intensityFactor * 100;
     return {
-      tss: Math.round(hours * intensityFactor * intensityFactor * 100),
+      tss: Math.round(applyActivityTypeMultiplier(base, activity)),
       source: 'power',
       confidence: 0.95,
       terrain_class,
@@ -243,16 +339,17 @@ export function estimateTSSWithSource(activity, ftp) {
   }
 
   // Tier 4: kilojoules + duration → derive avg power, then TSS.
-  // kJ is work-only (no intensity signal) — apply terrain multiplier.
+  // kJ is work-only (no intensity signal) — apply terrain multiplier (D4).
   if (activity.kilojoules && activity.kilojoules > 0 && activity.moving_time) {
     const hours = activity.moving_time / 3600;
     if (hours > 0) {
-      const mult = terrainMultiplier(terrain_class);
+      const mult = terrainMultiplier(activity);
       const avgPower = (activity.kilojoules * 1000) / activity.moving_time;
       if (ftp && ftp > 0) {
         const intensityFactor = avgPower / ftp;
+        const base = hours * intensityFactor * intensityFactor * 100 * mult;
         return {
-          tss: Math.round(hours * intensityFactor * intensityFactor * 100 * mult),
+          tss: Math.round(applyActivityTypeMultiplier(base, activity)),
           source: 'kilojoules',
           confidence: 0.75,
           terrain_class,
@@ -260,8 +357,9 @@ export function estimateTSSWithSource(activity, ftp) {
       }
       // No FTP: assume FTP=200 as rough baseline; penalize confidence.
       const intensityFactor = avgPower / 200;
+      const base = hours * intensityFactor * intensityFactor * 100 * mult;
       return {
-        tss: Math.round(hours * intensityFactor * intensityFactor * 100 * mult),
+        tss: Math.round(applyActivityTypeMultiplier(base, activity)),
         source: 'kilojoules',
         confidence: 0.50,
         terrain_class,
@@ -270,7 +368,7 @@ export function estimateTSSWithSource(activity, ftp) {
   }
 
   // Tier 5: duration + elevation + avg watts heuristic.
-  // Flat elevation bonus under-counts grade cost — apply terrain multiplier.
+  // Flat elevation bonus under-counts grade cost — apply terrain multiplier (D4).
   const durationHours = (activity.moving_time || 0) / 3600;
   const elevationM = activity.total_elevation_gain || 0;
 
@@ -282,9 +380,10 @@ export function estimateTSSWithSource(activity, ftp) {
     intensityMultiplier = Math.min(1.8, Math.max(0.5, activity.average_watts / 150));
   }
 
-  const terrainMult = terrainMultiplier(terrain_class);
+  const terrainMult = terrainMultiplier(activity);
+  const base = (baseTSS + elevationFactor) * intensityMultiplier * terrainMult;
   return {
-    tss: Math.round((baseTSS + elevationFactor) * intensityMultiplier * terrainMult),
+    tss: Math.round(applyActivityTypeMultiplier(base, activity)),
     source: 'inferred',
     confidence: 0.40,
     terrain_class,
