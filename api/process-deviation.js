@@ -11,7 +11,10 @@
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
-import { estimateTSSWithSource } from './utils/fitnessSnapshots.js';
+import {
+  estimateTSSWithSource,
+  buildTFICompositionForUser,
+} from './utils/fitnessSnapshots.js';
 import { upsertTrainingLoadDaily } from './utils/trainingLoad.js';
 
 const supabase = getSupabaseAdmin();
@@ -131,16 +134,31 @@ export default async function handler(req, res) {
       distance_m: activity.distance || undefined,
     };
 
-    // Get user's FTP from fitness snapshots or profile
+    // Get user's FTP + adaptive tau constants from profile. Tau values
+    // snapshot onto the training_load_daily row per spec §3.4/§3.5 so
+    // future reads can reconstruct which window produced TFI/AFI.
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('ftp')
+      .select('ftp, tfi_tau, afi_tau')
       .eq('id', userId)
       .single();
 
     if (profile?.ftp) {
       activityData.ftp = profile.ftp;
     }
+
+    const tfiTau = Number.isFinite(profile?.tfi_tau) ? Number(profile.tfi_tau) : 42;
+    const afiTau = Number.isFinite(profile?.afi_tau) ? Number(profile.afi_tau) : 7;
+
+    // Compute tfi_composition once — both upsert branches below write the
+    // same `today` row. Returns null gracefully when no power-zone data is
+    // available in the lookback window (pre-B5 activities, manual entries).
+    const tfiComposition = await buildTFICompositionForUser(
+      supabase,
+      userId,
+      today,
+      tfiTau
+    );
 
     // 6. Build planned workout ref and schedule
     const plannedRef = {
@@ -186,6 +204,9 @@ export default async function handler(req, res) {
         tss_source: estimate.source,
         confidence: estimate.confidence,
         terrain_class: estimate.terrain_class ?? null,
+        tfi_composition: tfiComposition,
+        tfi_tau: tfiTau,
+        afi_tau: afiTau,
       });
 
       return res.status(200).json({ status: 'no_deviation' });
@@ -217,6 +238,9 @@ export default async function handler(req, res) {
       tss_source: analysis.tss_estimate?.source ?? 'inferred',
       confidence: analysis.tss_estimate?.confidence ?? 0.4,
       terrain_class: analysis.tss_estimate?.terrain_class ?? null,
+      tfi_composition: tfiComposition,
+      tfi_tau: tfiTau,
+      afi_tau: afiTau,
     });
 
     // 10. Update calibration if we have both power and HR
