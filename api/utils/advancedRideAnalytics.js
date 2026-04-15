@@ -675,18 +675,18 @@ export function scoreWorkoutExecution(planned, actual) {
     weightedScore += scores.duration * 3;
   }
 
-  // TSS adherence (weight: 3)
-  if (planned.target_tss && actual.tss) {
-    const tssRatio = Math.min(actual.tss, planned.target_tss) / Math.max(actual.tss, planned.target_tss);
+  // RSS adherence (weight: 3)
+  if (planned.target_tss && actual.rss) {
+    const tssRatio = Math.min(actual.rss, planned.target_tss) / Math.max(actual.rss, planned.target_tss);
     scores.tss = Math.round(tssRatio * 100);
     totalWeight += 3;
     weightedScore += scores.tss * 3;
   }
 
-  // Intensity adherence — IF match (weight: 2)
-  if (planned.target_intensity_factor && actual.intensity_factor) {
-    const ifRatio = Math.min(actual.intensity_factor, planned.target_intensity_factor) /
-                    Math.max(actual.intensity_factor, planned.target_intensity_factor);
+  // Intensity adherence — RI match (weight: 2)
+  if (planned.target_intensity_factor && actual.ride_intensity) {
+    const ifRatio = Math.min(actual.ride_intensity, planned.target_intensity_factor) /
+                    Math.max(actual.ride_intensity, planned.target_intensity_factor);
     scores.intensity = Math.round(ifRatio * 100);
     totalWeight += 2;
     weightedScore += scores.intensity * 2;
@@ -726,8 +726,8 @@ export function scoreWorkoutExecution(planned, actual) {
     },
     actual_summary: {
       duration_min: actual.moving_time ? Math.round(actual.moving_time / 60) : null,
-      tss: actual.tss,
-      intensity: actual.intensity_factor,
+      tss: actual.rss,
+      intensity: actual.ride_intensity,
     },
   };
 }

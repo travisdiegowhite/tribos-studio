@@ -70,7 +70,7 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
     // 1. Last 28 days of activities for trend calculation
     supabase
       .from('activities')
-      .select('start_date, tss, moving_time, average_watts, normalized_power')
+      .select('start_date, rss, moving_time, average_watts, effective_power')
       .eq('user_id', userId)
       .is('duplicate_of', null)
       .gte('start_date', twentyEightDaysAgo.toISOString())
@@ -271,9 +271,9 @@ function calculateCTLTrend(activities, currentCTL) {
   // Estimate the CTL 28 days ago by computing EWA up to that midpoint
   const midpoint = Math.floor(activities.length / 2);
   const earlyActivities = activities.slice(0, midpoint);
-  const earlyAvgTSS = earlyActivities.reduce((sum, a) => sum + (a.tss || estimateTSS(a)), 0) / Math.max(earlyActivities.length, 1);
+  const earlyAvgTSS = earlyActivities.reduce((sum, a) => sum + (a.rss || estimateTSS(a)), 0) / Math.max(earlyActivities.length, 1);
   const lateActivities = activities.slice(midpoint);
-  const lateAvgTSS = lateActivities.reduce((sum, a) => sum + (a.tss || estimateTSS(a)), 0) / Math.max(lateActivities.length, 1);
+  const lateAvgTSS = lateActivities.reduce((sum, a) => sum + (a.rss || estimateTSS(a)), 0) / Math.max(lateActivities.length, 1);
 
   // Rough delta based on TSS density change
   const delta = Math.round(lateAvgTSS - earlyAvgTSS);
@@ -297,7 +297,7 @@ function calculateTSBRange(activities) {
   const tsbValues = [];
 
   for (const activity of activities) {
-    const tss = activity.tss || estimateTSS(activity);
+    const tss = activity.rss || estimateTSS(activity);
     ctl = ctl + (tss - ctl) / 42;
     atl = atl + (tss - atl) / 7;
     tsbValues.push(Math.round(ctl - atl));
@@ -315,9 +315,9 @@ function calculateTSBRange(activities) {
  */
 function estimateTSS(activity) {
   const hours = (activity.moving_time || 0) / 3600;
-  if (activity.normalized_power && activity.average_watts) {
+  if (activity.effective_power && activity.average_watts) {
     const ftp = 200; // fallback FTP
-    const intensityFactor = activity.normalized_power / ftp;
+    const intensityFactor = activity.effective_power / ftp;
     return Math.round(hours * intensityFactor * intensityFactor * 100);
   }
   return Math.round(hours * 50);

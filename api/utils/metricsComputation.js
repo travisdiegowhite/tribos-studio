@@ -17,7 +17,7 @@ const GAMMA = 0.05;
 const VAM_CAP = 1.5;
 
 function computeTWLFromActivity(activity) {
-  const baseTSS = activity.tss || 0;
+  const baseTSS = activity.rss || 0;
   if (baseTSS <= 0) return null;
 
   const elevationGainM = activity.elevation_gain_meters || activity.total_elevation_gain || 0;
@@ -229,7 +229,7 @@ export async function computeAndStoreMetrics(supabase, userId, activityId) {
   }
 
   // Auto-match: if still no workout linked, try to find one by date + TSS proximity
-  if (!workoutId && activity.tss > 0) {
+  if (!workoutId && activity.rss > 0) {
     workoutId = await tryAutoMatchWorkout(supabase, userId, activity);
     if (workoutId) {
       await supabase
@@ -263,7 +263,7 @@ async function computeAndStoreEFI(supabase, userId, activityId, activity, workou
   }
 
   const plannedTSS = workout.target_tss;
-  const actualTSS = activity.tss || 0;
+  const actualTSS = activity.rss || 0;
 
   // Zone distributions — planned_workouts doesn't store zone data,
   // so use defaults based on workout type (endurance-heavy distribution)
@@ -299,7 +299,7 @@ async function computeAndStoreEFI(supabase, userId, activityId, activity, workou
 
       rollingSessions.push({
         planned: w.target_tss || 0,
-        actual: matchedActivity?.tss || 0,
+        actual: matchedActivity?.rss || 0,
       });
     }
   }
@@ -402,8 +402,8 @@ async function tryAutoMatchWorkout(supabase, userId, activity) {
     }
 
     // TSS match (30pts max)
-    if (workout.target_tss && activity.tss) {
-      const tssDiffPct = Math.abs(activity.tss - workout.target_tss) / workout.target_tss * 100;
+    if (workout.target_tss && activity.rss) {
+      const tssDiffPct = Math.abs(activity.rss - workout.target_tss) / workout.target_tss * 100;
       if (tssDiffPct <= 15) score += 30;
       else if (tssDiffPct <= 30) score += 20;
       else if (tssDiffPct <= 40) score += 10;
@@ -567,11 +567,11 @@ export async function computeAndStoreTCAS(supabase, userId) {
   // Fetch latest activities for EF and power data
   const { data: recentActivities } = await supabase
     .from('activities')
-    .select('ride_analytics, normalized_power, average_heartrate, power_curve_summary, start_date')
+    .select('ride_analytics, effective_power, average_heartrate, power_curve_summary, start_date')
     .eq('user_id', userId)
     .or('is_hidden.eq.false,is_hidden.is.null')
     .is('duplicate_of', null)
-    .gt('tss', 0)
+    .gt('rss', 0)
     .order('start_date', { ascending: false })
     .limit(20);
 
@@ -664,11 +664,11 @@ export async function computeAndStoreTCAS(supabase, userId) {
 
 function avgEF(activities) {
   const efValues = activities
-    .filter(a => a.normalized_power && a.average_heartrate && a.average_heartrate > 0)
+    .filter(a => a.effective_power && a.average_heartrate && a.average_heartrate > 0)
     .map(a => {
       // Check ride_analytics first
       if (a.ride_analytics?.efficiency_factor) return a.ride_analytics.efficiency_factor;
-      return a.normalized_power / a.average_heartrate;
+      return a.effective_power / a.average_heartrate;
     });
   return efValues.length > 0 ? efValues.reduce((a, b) => a + b, 0) / efValues.length : 1.0;
 }
@@ -697,7 +697,7 @@ function avgPeakPower(activities, durationSec) {
     .filter(a => a.power_curve_summary && (a.power_curve_summary['300'] || a.power_curve_summary['300s']))
     .map(a => a.power_curve_summary['300'] || a.power_curve_summary['300s']);
   if (fallback.length > 0) return (fallback.reduce((a, b) => a + b, 0) / fallback.length) * 0.95;
-  // Last resort: use normalized_power
-  const npValues = activities.filter(a => a.normalized_power).map(a => a.normalized_power);
+  // Last resort: use effective_power
+  const npValues = activities.filter(a => a.effective_power).map(a => a.effective_power);
   return npValues.length > 0 ? npValues.reduce((a, b) => a + b, 0) / npValues.length : 0;
 }

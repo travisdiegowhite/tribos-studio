@@ -214,8 +214,8 @@ function formatActivityStats(activity) {
   const power = activity.average_power_watts || activity.average_watts;
   const hr = activity.average_heart_rate || activity.average_hr;
   const cadence = activity.average_cadence;
-  const np = activity.normalized_power_watts || activity.normalized_power;
-  const tss = activity.tss;
+  const np = activity.normalized_power_watts || activity.effective_power;
+  const tss = activity.rss;
 
   const hours = Math.floor(duration / 3600);
   const minutes = Math.floor((duration % 3600) / 60);
