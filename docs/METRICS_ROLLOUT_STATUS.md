@@ -15,9 +15,22 @@
 | #647 | A3 — coach context surfaces | — | `cf41f55` |
 | #648 | A3 — Dashboard StatusBar terrain chip | — | `ea72841` |
 | #650 | B0 — canonical spec + CLAUDE.md pointer | — | `33d1b12` |
-| B1 | B1 — adaptive-tau discrete brackets + user_profiles additive migration | 069 | _(pending)_ |
+| B1 | B1 — adaptive-tau discrete brackets + user_profiles additive migration | 069 | `918f10a` |
+| B2 | B2 — training_load_daily additive migration + dual-write | 070 | `a4282e6` |
+| B3 | B3 — training_load_daily reader cut-over | — | `3ca0095` |
+| B4 | B4 — drop legacy training_load + profiles columns | 071 | `cfc28eb` |
+| B5 | B5 — terrain multiplier spec §3.1 + MTB 1.3× + EP zero-power filter | — | `0b5390d` |
+| B6 | B6 — FS = yesterday's values + spec confidence weights + tfi_composition | — | `c91e04f` |
+| B7 | B7 — coach prompt rewrites per spec §6 | — | `706c05f` |
+| B8 | B8 — UI labels + FS target badge + retire TWL display | — | `cd34da0` |
+| B9 | B9 — activities + fitness_snapshots additive + dual-write | 072 | `da2ee8c` |
+| B10 | B10 — remaining 7 tables additive rename | 073 | _(this commit)_ |
 
 A3 is fully closed end-to-end: classification → persistence → scoped multiplier → coach prompts → UI chip.
+
+**Current state after B10**: Database has spec §2 canonical columns across every affected table (training_load_daily, user_profiles, activities, fitness_snapshots, workout_adaptations, planned_workouts, plan_deviations, training_segments). The `training_load_daily` table and `user_profiles.*_tau` columns have completed full cut-over (readers migrated, legacy columns dropped in B4). The remaining tables (`activities`, `fitness_snapshots`, `workout_adaptations`, etc.) are in dual-write phase — readers still use the legacy column names. Full reader cut-over and final legacy-column drops are follow-up PRs, carried out table-by-table to keep blast radius small.
+
+Coach prompts (spec §6) and the dashboard UI (spec §5) emit only the canonical names. Formulas are on spec: §3.1 terrain multiplier, §3.4/§3.5 discrete-bracket tau, §3.6 FS-uses-yesterday + weighted confidence. MTB 1.3× multiplier lands on every RSS tier. EP zero-power filter helper is exported (awaits stream-based EP recomputation path).
 
 **B1 delta** (additive / dual-write, no reader cut-over):
 - `database/migrations/069_adaptive_tau_rename.sql` — adds `user_profiles.tfi_tau` (int) and `user_profiles.afi_tau` (numeric(4,1)) alongside the existing `ewa_long_tau` / `ewa_short_tau` columns.
