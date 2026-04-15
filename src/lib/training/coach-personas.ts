@@ -41,7 +41,7 @@ export function rankOptions(
   switch (persona) {
     case 'hammer':
       // Minimizes disruption — pushes athlete to absorb load
-      scores.no_adjust = context.tsbGap < 15 ? 80 : 40;
+      scores.no_adjust = context.fsGap < 15 ? 80 : 40;
       scores.modify = 70;
       scores.swap = 50;
       scores.insert_rest = 30;
@@ -70,7 +70,7 @@ export function rankOptions(
 
     case 'pragmatist':
       // Minimizes calendar disruption — prefers simple changes
-      scores.no_adjust = context.tsbGap < 10 ? 90 : 50;
+      scores.no_adjust = context.fsGap < 10 ? 90 : 50;
       scores.modify = 70;
       scores.swap = context.swapFeasible ? 85 : 20;
       scores.insert_rest = 55;

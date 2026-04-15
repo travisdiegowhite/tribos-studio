@@ -49,36 +49,36 @@ export interface CalibrationFactors {
   sample_count: number;
 }
 
-// ── TSB Projection ───────────────────────────────────────────────────────────
+// ── Form Score Projection ────────────────────────────────────────────────────
 
 export interface DailyLoad {
   date: string;         // ISO date
-  tss: number;
+  rss: number;
   is_quality: boolean;
   session_type?: string;
 }
 
 export interface ProjectionState {
-  ctl: number;
-  atl: number;
-  tsb: number;
+  tfi: number;
+  afi: number;
+  formScore: number;
 }
 
 export interface ProjectionResult {
   day: string;
   state: ProjectionState;
   is_quality: boolean;
-  tsb_zone: TSBZone;
+  fs_zone: FSZone;
 }
 
-export type TSBZone = 'race_ready' | 'building' | 'heavy_load' | 'overreached';
+export type FSZone = 'race_ready' | 'building' | 'heavy_load' | 'overreached';
 
 export interface AdjustmentProjections {
-  planned: number;       // TSB if deviation hadn't happened (baseline)
-  no_adjust: number;     // TSB with deviation, no schedule changes
-  modify: number;        // TSB if next quality session trimmed 30%
-  swap: number;          // TSB if quality session moved +2 days
-  insert_rest: number;   // TSB if a zero-day inserted before quality session
+  planned: number;       // FS if deviation hadn't happened (baseline)
+  no_adjust: number;     // FS with deviation, no schedule changes
+  modify: number;        // FS if next quality session trimmed 30%
+  swap: number;          // FS if quality session moved +2 days
+  insert_rest: number;   // FS if a zero-day inserted before quality session
 }
 
 export type AdjustmentOption = 'no_adjust' | 'modify' | 'swap' | 'insert_rest' | 'drop';
@@ -98,7 +98,7 @@ export interface PlannedWorkoutRef {
 export interface DeviationImpact {
   intervention_needed: boolean;
   urgency: 'high' | 'medium' | 'low' | 'none';
-  tsb_gap: number;
+  fs_gap: number;
   recommended_option: AdjustmentOption;
 }
 
@@ -122,7 +122,7 @@ export interface RankedOption {
 }
 
 export interface RankingContext {
-  tsbGap: number;
+  fsGap: number;
   urgency: string;
   daysToQuality: number;
   swapFeasible: boolean;

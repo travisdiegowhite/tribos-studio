@@ -8,11 +8,11 @@
 // Fatigue estimation
 export { estimateTSS, updateCalibration, computeTRIMP } from './fatigue-estimation';
 
-// TSB projection
+// Form Score projection
 export {
   stepDay,
   projectSchedule,
-  classifyTSB,
+  classifyFS,
   projectAdjustmentOptions,
   assessDeviationImpact,
 } from './tsb-projection';
@@ -25,11 +25,11 @@ export { analyzeDeviation } from './deviation-detection';
 
 // Constants
 export {
-  CTL_TIME_CONSTANT,
-  ATL_TIME_CONSTANT,
-  QUALITY_TSB_THRESHOLD,
-  RACE_TSB_TARGET_LOW,
-  RACE_TSB_TARGET_HIGH,
+  TFI_TIME_CONSTANT,
+  AFI_TIME_CONSTANT,
+  QUALITY_FS_THRESHOLD,
+  RACE_FS_TARGET_LOW,
+  RACE_FS_TARGET_HIGH,
   DEVIATION_MIN_DELTA,
   DEVIATION_MIN_RATIO,
   MODIFY_FACTOR,
@@ -47,7 +47,7 @@ export type {
   DailyLoad,
   ProjectionState,
   ProjectionResult,
-  TSBZone,
+  FSZone,
   AdjustmentProjections,
   AdjustmentOption,
   DeviationType,

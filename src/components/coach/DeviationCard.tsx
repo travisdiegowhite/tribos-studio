@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { Paper, Text, Group, Button, Stack, Collapse, Badge, SimpleGrid, Box } from '@mantine/core';
 import { Lightning, ArrowsClockwise, Bed, Minus, CheckCircle } from '@phosphor-icons/react';
-import { classifyTSB } from '../../lib/training/tsb-projection';
+import { classifyFS } from '../../lib/training/tsb-projection';
 import { rankOptions } from '../../lib/training/coach-personas';
 import type {
   PlanDeviationRow,
@@ -67,10 +67,10 @@ export default function DeviationCard({
   if (!options) return null;
 
   const tssSource = (deviation as any).tss_source || 'inferred';
-  const tsbGap = (options.planned ?? 0) - (options.no_adjust ?? 0);
+  const fsGap = (options.planned ?? 0) - (options.no_adjust ?? 0);
 
   const ranked = rankOptions(persona, options, {
-    tsbGap,
+    fsGap,
     urgency: 'medium',
     daysToQuality,
     swapFeasible,
@@ -81,7 +81,7 @@ export default function DeviationCard({
   if (!top) return null;
 
   const topTsb = options[top.option as keyof AdjustmentProjections] ?? 0;
-  const topZone = classifyTSB(topTsb);
+  const topZone = classifyFS(topTsb);
   const zoneStyle = ZONE_STYLES[topZone] ?? ZONE_STYLES.building;
 
   const formatTsb = (val: number) => `${val >= 0 ? '+' : ''}${val.toFixed(1)}`;
@@ -139,7 +139,7 @@ export default function DeviationCard({
           .filter((v, i, a) => a.indexOf(v) === i)
           .map(key => {
             const tsb = options[key as keyof AdjustmentProjections] ?? 0;
-            const z = classifyTSB(tsb);
+            const z = classifyFS(tsb);
             const zs = ZONE_STYLES[z] ?? ZONE_STYLES.building;
             return (
               <Box key={key} style={{ textAlign: 'center' }}>
