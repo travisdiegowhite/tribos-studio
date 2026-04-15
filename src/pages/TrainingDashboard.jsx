@@ -555,8 +555,10 @@ function TrainingDashboard() {
       (acc, a) => {
         // Prefer stored TSS, fall back to recomputation, cap at 500
         let activityTSS;
-        if (a.tss != null && a.tss > 0) {
-          activityTSS = a.tss;
+        // Prefer canonical activity.rss (spec §2) with legacy fallback.
+        const storedRss = a.rss ?? a.tss;
+        if (storedRss != null && storedRss > 0) {
+          activityTSS = storedRss;
         } else if (a.average_watts && ftp) {
           activityTSS = calculateTSS(a.moving_time, a.average_watts, ftp);
         } else {
@@ -802,7 +804,7 @@ function TrainingDashboard() {
           workout_id: workoutId,
           name: workout.name || `${workout.category} Workout`,
           duration_minutes: workout.duration || 0,
-          target_tss: workout.targetTSS || 0,
+          target_rss: workout.targetTSS || 0,
           target_duration: workout.duration,
           completed: false,
           notes: `Supplement: ${workout.name}`,
@@ -2467,10 +2469,11 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
       const dur = a.moving_time ? formatTime(a.moving_time) : '';
       const power = (sport === 'cycling' && a.average_watts) ? `${Math.round(a.average_watts)}W avg` : '';
 
-      // Use stored TSS, or recompute with cap
+      // Use stored RSS (spec §2 canonical with legacy fallback), or recompute with cap.
       let tss = 0;
-      if (a.tss != null && a.tss > 0) {
-        tss = a.tss;
+      const storedRss = a.rss ?? a.tss;
+      if (storedRss != null && storedRss > 0) {
+        tss = storedRss;
       } else if (a.average_watts && ftp) {
         tss = calculateTSS(a.moving_time, a.average_watts, ftp) || 0;
       } else {
@@ -2574,6 +2577,9 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
         byCategory[category] = [];
       }
       byCategory[category].push(activity);
+      // Cross-training activities carry their own `tss` field (not the
+      // renamed activities.rss); leave the read as-is until
+      // cross_training_activities gets its own rename pass.
       totalCrossTrainingTSS += activity.tss || 0;
     });
 
@@ -2747,7 +2753,9 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
         typeParts.push(w.name || w.workout_type || w.workout_id || 'Workout');
         const dur = w.duration_minutes || w.target_duration;
         if (dur) typeParts.push(`${dur}min`);
-        if (w.target_tss) typeParts.push(`~${w.target_tss} TSS`);
+        // Prefer canonical target_rss (spec §2) with legacy fallback.
+        const targetRss = w.target_rss ?? w.target_tss;
+        if (targetRss) typeParts.push(`~${targetRss} RSS`);
 
         let actualStr = '';
         if (w.completed && w.scheduled_date) {
@@ -2755,17 +2763,18 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
           if (dayActivities && dayActivities.length > 0) {
             const bestMatch = dayActivities[0];
             let actualTSS = 0;
-            if (bestMatch.tss != null && bestMatch.tss > 0) {
-              actualTSS = bestMatch.tss;
+            const bestMatchRss = bestMatch.rss ?? bestMatch.tss;
+            if (bestMatchRss != null && bestMatchRss > 0) {
+              actualTSS = bestMatchRss;
             } else if (bestMatch.average_watts && ftp) {
               actualTSS = calculateTSS(bestMatch.moving_time, bestMatch.average_watts, ftp) || 0;
             } else {
               actualTSS = estimateTSS((bestMatch.moving_time || 0) / 60, (bestMatch.distance || 0) / 1000, bestMatch.total_elevation_gain || 0, 'endurance');
             }
             actualTSS = Math.min(actualTSS, 500);
-            actualStr = ` -> actual ${Math.round(actualTSS)} TSS`;
-            if (w.target_tss && w.target_tss > 0) {
-              actualStr += ` (${Math.round(actualTSS / w.target_tss * 100)}%)`;
+            actualStr = ` -> actual ${Math.round(actualTSS)} RSS`;
+            if (targetRss && targetRss > 0) {
+              actualStr += ` (${Math.round(actualTSS / targetRss * 100)}%)`;
             }
           }
         }
@@ -2780,10 +2789,11 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
           .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date))
           .forEach(w => context.push(formatWorkoutLine(w)));
 
-        // Summary: how many done vs remaining, with weekly compliance
+        // Summary: how many done vs remaining, with weekly compliance.
+        // Prefer canonical target_rss (spec §2) with legacy fallback.
         const completed = thisWeekWorkouts.filter(w => w.completed).length;
         const remaining = thisWeekWorkouts.filter(w => !w.completed && !w.skipped_reason && w.workout_type !== 'rest').length;
-        const totalTSS = thisWeekWorkouts.reduce((sum, w) => sum + (w.target_tss || 0), 0);
+        const totalTSS = thisWeekWorkouts.reduce((sum, w) => sum + ((w.target_rss ?? w.target_tss) || 0), 0);
 
         // Weekly compliance: only count past-due non-rest workouts (not future ones)
         const pastDueThisWeek = thisWeekWorkouts.filter(w => {
