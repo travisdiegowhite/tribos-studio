@@ -170,13 +170,16 @@ function Dashboard() {
           // Fetch planned workouts for this week across all active plans
           const wsKey = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
           const weKey = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`;
+          // Prefer canonical target_rss (spec §2). The filter uses .or() to
+          // include rows written pre-§3b-2/3b-6 (legacy target_tss > 0) as
+          // well as rows written post-cut-over (target_rss > 0).
           const { data: plannedWorkouts } = await supabase
             .from('planned_workouts')
-            .select('id, target_tss')
+            .select('id, target_rss, target_tss')
             .in('plan_id', planIds)
             .gte('scheduled_date', wsKey)
             .lt('scheduled_date', weKey)
-            .gt('target_tss', 0);
+            .or('target_rss.gt.0,target_tss.gt.0');
 
           setWeekStats(prev => ({ ...prev, planned: plannedWorkouts?.length || 0 }));
         }
