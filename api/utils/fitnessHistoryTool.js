@@ -219,9 +219,9 @@ async function findPeakFitness(recentSnapshots, supabase, userId) {
   // Get all-time snapshots for peak finding
   const { data: allSnapshots } = await supabase
     .from('fitness_snapshots')
-    .select('snapshot_week, ctl, weekly_tss, weekly_hours, ftp, weekly_ride_count')
+    .select('snapshot_week, ctl:tfi, weekly_tss:weekly_rss, weekly_hours, ftp, weekly_ride_count')
     .eq('user_id', userId)
-    .order('ctl', { ascending: false })
+    .order('tfi', { ascending: false })
     .limit(10);
 
   if (!allSnapshots || allSnapshots.length === 0) {
@@ -297,7 +297,7 @@ async function comparePeriods(recentSnapshots, compare_to, metrics, supabase, us
       .from('fitness_snapshots')
       .select('*')
       .eq('user_id', userId)
-      .order('ctl', { ascending: false })
+      .order('tfi', { ascending: false })
       .limit(4);
 
     comparison = peakData || [];
@@ -811,7 +811,7 @@ async function yearOverYearComparison(recentSnapshots, supabase, userId) {
 async function analyzeSeasonalPattern(supabase, userId) {
   const { data: allSnapshots } = await supabase
     .from('fitness_snapshots')
-    .select('snapshot_week, ctl, weekly_tss, weekly_hours')
+    .select('snapshot_week, ctl:tfi, weekly_tss:weekly_rss, weekly_hours')
     .eq('user_id', userId)
     .order('snapshot_week', { ascending: true });
 

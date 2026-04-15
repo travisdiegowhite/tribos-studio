@@ -527,7 +527,7 @@ export async function computeAndStoreTCAS(supabase, userId) {
   // Fetch last 8 weeks of fitness snapshots (need current + 6 weeks ago)
   const { data: snapshots, error: snapErr } = await supabase
     .from('fitness_snapshots')
-    .select('snapshot_week, ctl, atl, weekly_tss, weekly_hours, weekly_ride_count')
+    .select('snapshot_week, ctl:tfi, atl:afi, weekly_tss:weekly_rss, weekly_hours, weekly_ride_count')
     .eq('user_id', userId)
     .order('snapshot_week', { ascending: false })
     .limit(8);

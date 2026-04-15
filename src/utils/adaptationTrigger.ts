@@ -291,7 +291,7 @@ export async function fetchTrainingContext(userId: string): Promise<TrainingCont
     // Fetch latest fitness snapshot
     const { data: snapshot } = await supabase
       .from('fitness_snapshots')
-      .select('ctl, atl, tsb')
+      .select('ctl:tfi, atl:afi, tsb:form_score')
       .eq('user_id', userId)
       .order('snapshot_date', { ascending: false })
       .limit(1)
