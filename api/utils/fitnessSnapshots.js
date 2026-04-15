@@ -481,6 +481,92 @@ export function computeTFIComposition(dailyEntries) {
 }
 
 /**
+ * Build the tfi_composition jsonb for a given user/date by aggregating
+ * power-zone distributions from activities in the last τ_tfi days.
+ *
+ * Source per §2a decision: `activities.fit_coach_context.power_zone_distribution`
+ * (written by B5 FIT ingestion). Percentages are converted to seconds via
+ * `fit_coach_context.duration_seconds`, then bucketed per spec §3.4:
+ *   aerobic        = Z1 + Z2
+ *   threshold      = Z3 + Z4
+ *   high_intensity = Z5 + Z6 + Z7
+ *
+ * Activities without `fit_coach_context` (pre-B5 rides, manual entries) are
+ * skipped. If no usable activities exist in the window, returns null and
+ * the caller should persist tfi_composition as NULL on the daily row.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} userId
+ * @param {string} date — ISO date (YYYY-MM-DD) representing "today"
+ * @param {number} tfiTau — lookback window in days; falls back to 42 if invalid
+ * @returns {Promise<{ aerobic_fraction: number,
+ *                     threshold_fraction: number,
+ *                     high_intensity_fraction: number } | null>}
+ */
+export async function buildTFICompositionForUser(supabase, userId, date, tfiTau) {
+  const windowDays = Number.isFinite(tfiTau) && tfiTau > 0 ? Math.round(tfiTau) : 42;
+
+  const end = new Date(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(end.getTime())) return null;
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - windowDays);
+
+  const startIso = start.toISOString();
+  const endIso = new Date(end.getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: activities, error } = await supabase
+    .from('activities')
+    .select('start_date, rss, fit_coach_context')
+    .eq('user_id', userId)
+    .or('is_hidden.eq.false,is_hidden.is.null')
+    .is('duplicate_of', null)
+    .gte('start_date', startIso)
+    .lt('start_date', endIso)
+    .not('fit_coach_context', 'is', null);
+
+  if (error || !activities || activities.length === 0) return null;
+
+  const byDay = new Map();
+  for (const activity of activities) {
+    const ctx = activity.fit_coach_context;
+    if (!ctx || typeof ctx !== 'object') continue;
+    const pzd = ctx.power_zone_distribution;
+    const duration = Number(ctx.duration_seconds);
+    if (!pzd || !Number.isFinite(duration) || duration <= 0) continue;
+
+    const zoneSec = (zone) => {
+      const pct = Number(pzd[zone]);
+      if (!Number.isFinite(pct) || pct <= 0) return 0;
+      return (pct / 100) * duration;
+    };
+
+    const aerobic_seconds = zoneSec('z1') + zoneSec('z2');
+    const threshold_seconds = zoneSec('z3') + zoneSec('z4');
+    const high_intensity_seconds = zoneSec('z5') + zoneSec('z6') + zoneSec('z7');
+
+    if (aerobic_seconds + threshold_seconds + high_intensity_seconds <= 0) continue;
+
+    const day = String(activity.start_date).split('T')[0];
+    if (!day) continue;
+
+    const entry = byDay.get(day) ?? {
+      rss: 0,
+      aerobic_seconds: 0,
+      threshold_seconds: 0,
+      high_intensity_seconds: 0,
+    };
+    const rss = Number(activity.rss);
+    entry.rss += Number.isFinite(rss) && rss > 0 ? rss : 0;
+    entry.aerobic_seconds += aerobic_seconds;
+    entry.threshold_seconds += threshold_seconds;
+    entry.high_intensity_seconds += high_intensity_seconds;
+    byDay.set(day, entry);
+  }
+
+  return computeTFIComposition(Array.from(byDay.values()));
+}
+
+/**
  * Get the Monday of a given week (ISO week start)
  */
 export function getWeekStart(date) {
