@@ -1,19 +1,24 @@
 /**
  * Training Load Upsert Helper
  *
- * Single entry point for writing rows into training_load_daily. Computes
- * fs_confidence inline from the previous 6 days of confidence + the new
- * row's confidence so the UI can gate Form Score display without a
- * separate cron pass.
+ * Single entry point for writing rows into training_load_daily.
+ *
+ * Two spec invariants are enforced here (not at call sites) so every
+ * writer gets the same semantics:
+ *
+ *   1. fs_confidence is computed from the previous 6 days of
+ *      `confidence` plus today's — spec §3.6's 7-day weighted avg.
+ *   2. form_score is computed from YESTERDAY's tfi and afi — spec §3.6
+ *      says FS represents readiness going INTO today, not readiness
+ *      AFTER today's training. Callers may still pass `tsb` in the
+ *      payload, but the helper overrides it with previousTFI − previousAFI.
  *
  * The helper accepts `supabase` as a parameter — it does NOT call
  * createClient() itself. Callers must pass the shared singleton from
  * api/utils/supabaseAdmin.js (per the connection-hygiene rules in CLAUDE.md).
  *
- * Writes the spec §2 canonical columns (rss/tfi/afi/form_score/rss_source).
- * The legacy tss/ctl/atl/tsb/tss_source columns were dropped in migration
- * 071 (B4). Callers still pass the legacy field shape — translation
- * happens here — so call sites can be migrated incrementally.
+ * Writes only the spec §2 canonical columns (rss/tfi/afi/form_score/
+ * rss_source). Legacy tss/ctl/atl/tsb were dropped in migration 071.
  */
 
 import { calculateFormScoreConfidence } from './fitnessSnapshots.js';
@@ -35,25 +40,37 @@ import { calculateFormScoreConfidence } from './fitnessSnapshots.js';
  *   afi_tau?: number | null,
  * }} payload - Legacy field names kept for caller compatibility; they
  *   map 1:1 onto the canonical rss/tfi/afi/form_score/rss_source columns.
+ *   `tsb` is overridden by the spec §3.6 form_score calculation.
  */
 export async function upsertTrainingLoadDaily(supabase, userId, date, payload) {
-  // Pull up to the previous 6 days of confidence so we can compute
-  // fs_confidence (7-day weighted) including today's new value.
+  // Pull up to the previous 7 days — 6 for fs_confidence's weighted
+  // average and the most-recent (yesterday) for form_score per §3.6.
   const { data: recent } = await supabase
     .from('training_load_daily')
-    .select('date, confidence')
+    .select('date, confidence, tfi, afi')
     .eq('user_id', userId)
     .lt('date', date)
     .order('date', { ascending: false })
-    .limit(6);
+    .limit(7);
 
-  // Supabase returns newest-first; calculateFormScoreConfidence wants
-  // oldest-first, with today appended last.
-  const history = (recent ?? []).slice().reverse().map((r) => r.confidence);
+  const sorted = recent ?? [];
+
+  // fs_confidence wants oldest-first, today appended last.
+  const history = sorted.slice(0, 6).slice().reverse().map((r) => r.confidence);
   const fs_confidence = calculateFormScoreConfidence([
     ...history,
     payload.confidence,
   ]);
+
+  // Spec §3.6: form_score = previousTFI − previousAFI (yesterday's values).
+  // Falls back to today's values when no prior row exists so the very
+  // first row doesn't land as NULL.
+  const yesterday = sorted[0];
+  const previousTFI = Number.isFinite(yesterday?.tfi) ? Number(yesterday.tfi) : null;
+  const previousAFI = Number.isFinite(yesterday?.afi) ? Number(yesterday.afi) : null;
+  const form_score = previousTFI != null && previousAFI != null
+    ? Math.round((previousTFI - previousAFI) * 100) / 100
+    : Math.round((payload.ctl - payload.atl) * 100) / 100;
 
   return supabase
     .from('training_load_daily')
@@ -65,14 +82,13 @@ export async function upsertTrainingLoadDaily(supabase, userId, date, payload) {
         rss: payload.tss,
         tfi: payload.ctl,
         afi: payload.atl,
-        form_score: payload.tsb,
+        form_score,
         rss_source: payload.tss_source,
         // Shared columns.
         confidence: payload.confidence,
         fs_confidence,
         terrain_class: payload.terrain_class ?? null,
-        // New spec-§3 columns (populated opportunistically; B6 wires
-        // tfi_composition into the write path).
+        // Spec §3 columns.
         tfi_composition: payload.tfi_composition ?? null,
         tfi_tau: payload.tfi_tau ?? null,
         afi_tau: payload.afi_tau ?? null,

@@ -414,7 +414,10 @@ export function calculateFormScoreConfidence(last7DaysConfidence = []) {
   if (!Array.isArray(last7DaysConfidence) || last7DaysConfidence.length === 0) {
     return 0;
   }
-  const WEIGHTS = [1, 2, 3, 4, 5, 6, 7]; // oldest → newest
+  // Spec §3.6 weights (oldest → newest to match our array convention).
+  // The spec lists them newest-first as [0.30, 0.20, 0.15, 0.12, 0.10,
+  // 0.08, 0.05] — same values, reversed so index 6 (newest) carries 0.30.
+  const WEIGHTS = [0.05, 0.08, 0.1, 0.12, 0.15, 0.2, 0.3];
   const recent = last7DaysConfidence.slice(-7);
   const padded = Array(7 - recent.length)
     .fill(0)
@@ -429,6 +432,52 @@ export function calculateFormScoreConfidence(last7DaysConfidence = []) {
   const raw = denom > 0 ? num / denom : 0;
   const clamped = Math.max(0, Math.min(1, raw));
   return Math.round(clamped * 1000) / 1000;
+}
+
+/**
+ * Compute TFI composition — spec §3.6.
+ *
+ * Splits recent RSS into aerobic (Z1-Z3), threshold (Z4), and high
+ * intensity (Z5+) fractions so the coach can characterize the type
+ * of fitness an athlete is building, not just the amount.
+ *
+ * @param {Array<{ rss: number,
+ *                 aerobic_seconds: number,
+ *                 threshold_seconds: number,
+ *                 high_intensity_seconds: number }>} dailyEntries
+ * @returns {{ aerobic_fraction: number,
+ *             threshold_fraction: number,
+ *             high_intensity_fraction: number } | null}
+ */
+export function computeTFIComposition(dailyEntries) {
+  if (!Array.isArray(dailyEntries) || dailyEntries.length === 0) return null;
+
+  let aerobic = 0;
+  let threshold = 0;
+  let highIntensity = 0;
+
+  for (const entry of dailyEntries) {
+    if (!entry || !Number.isFinite(entry.rss) || entry.rss <= 0) continue;
+    const totalSec =
+      (entry.aerobic_seconds || 0)
+      + (entry.threshold_seconds || 0)
+      + (entry.high_intensity_seconds || 0);
+    if (totalSec <= 0) continue;
+    const rss = entry.rss;
+    aerobic += rss * ((entry.aerobic_seconds || 0) / totalSec);
+    threshold += rss * ((entry.threshold_seconds || 0) / totalSec);
+    highIntensity += rss * ((entry.high_intensity_seconds || 0) / totalSec);
+  }
+
+  const total = aerobic + threshold + highIntensity;
+  if (total <= 0) return null;
+
+  const round3 = (n) => Math.round((n / total) * 1000) / 1000;
+  return {
+    aerobic_fraction: round3(aerobic),
+    threshold_fraction: round3(threshold),
+    high_intensity_fraction: round3(highIntensity),
+  };
 }
 
 /**
