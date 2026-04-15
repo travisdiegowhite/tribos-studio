@@ -714,23 +714,39 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
     ? Math.round(execScores.reduce((a, b) => a + b, 0) / execScores.length)
     : null;
 
+  // B9 dual-write: populate both legacy columns and the spec §2
+  // canonical names. Readers stay on the legacy names until a follow-up
+  // cut-over; old columns will be dropped once readers migrate.
+  const ctlRounded = Math.round(ctl);
+  const atlRounded = Math.round(atl);
+  const tsbRounded = Math.round(tsb);
+  const weeklyTssRounded = Math.round(weeklyTSS);
+  const avgNP = computeAvgNP(cyclingActivities);
+
   return {
     user_id: userId,
     snapshot_week: weekStart,
     snapshot_date: new Date().toISOString(),
-    ctl: Math.round(ctl),
-    atl: Math.round(atl),
-    tsb: Math.round(tsb),
+    // Legacy columns (read by existing coach/history code).
+    ctl: ctlRounded,
+    atl: atlRounded,
+    tsb: tsbRounded,
+    // Spec §2 canonical columns (dual-written from B9).
+    tfi: ctlRounded,
+    afi: atlRounded,
+    form_score: tsbRounded,
     ftp: prefs?.ftp || null,
     ftp_source: prefs?.ftp ? 'user_preferences' : null,
-    weekly_tss: Math.round(weeklyTSS),
+    weekly_tss: weeklyTssRounded,
+    weekly_rss: weeklyTssRounded,
     weekly_hours: Math.round(weeklyHours * 100) / 100,
     weekly_ride_count: cyclingActivities.length,
     weekly_run_count: runningActivitiesThisWeek.length,
     weekly_distance_km: Math.round(weeklyDistance * 100) / 100,
     weekly_run_distance_km: Math.round(weeklyRunDistance * 100) / 100,
     weekly_elevation_m: Math.round(weeklyElevation),
-    avg_normalized_power: computeAvgNP(cyclingActivities),
+    avg_normalized_power: avgNP,
+    avg_effective_power: avgNP,
     peak_20min_power: findPeak20minPower(cyclingActivities),
     load_trend: loadTrend,
     fitness_trend: fitnessTrend,

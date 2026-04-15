@@ -270,9 +270,13 @@ export default async function handler(req, res) {
     max_speed: maxSpeedVal,
     average_watts: avgPower,
     max_watts: maxPower,
+    // B9 dual-write: normalized_power→effective_power, tss→rss, intensity_factor→ride_intensity.
     normalized_power: normalizedPower,
+    effective_power: normalizedPower,
     tss: pm.trainingStressScore ?? summary.trainingStressScore ?? null,
+    rss: pm.trainingStressScore ?? summary.trainingStressScore ?? null,
     intensity_factor: pm.intensityFactor ?? summary.intensityFactor ?? null,
+    ride_intensity: pm.intensityFactor ?? summary.intensityFactor ?? null,
     power_curve_summary: pm.powerCurveSummary ?? null,
     kilojoules: workKj,
     average_heartrate: avgHR,

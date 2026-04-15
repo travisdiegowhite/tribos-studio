@@ -172,7 +172,12 @@ export async function takeoverActivity(existingActivityId, newActivityData, newP
       max_speed: newActivityData.max_speed ?? existing.max_speed,
       average_watts: newActivityData.average_watts ?? existing.average_watts,
       max_watts: newActivityData.max_watts ?? existing.max_watts,
+      // B9 dual-write: keep both legacy and canonical columns in sync.
       normalized_power: newActivityData.normalized_power ?? existing.normalized_power,
+      effective_power: newActivityData.effective_power
+        ?? newActivityData.normalized_power
+        ?? existing.effective_power
+        ?? existing.normalized_power,
       average_heartrate: newActivityData.average_heartrate ?? existing.average_heartrate,
       max_heartrate: newActivityData.max_heartrate ?? existing.max_heartrate,
       average_cadence: newActivityData.average_cadence ?? existing.average_cadence,
