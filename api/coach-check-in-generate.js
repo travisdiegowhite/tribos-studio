@@ -49,7 +49,7 @@ Name: ${context.rider_name}
 Goal event: ${context.goal_event || 'No specific goal event set'}
 Training block: ${context.block_name} (week ${context.current_week} of ${context.total_weeks})
 Block purpose: ${context.block_purpose}
-Current CTL: ${context.ctl ?? 'N/A'} | ATL: ${context.atl ?? 'N/A'} | Form: ${context.form ?? 'N/A'}
+Current TFI: ${context.ctl ?? 'N/A'} | AFI: ${context.atl ?? 'N/A'} | FS: ${context.form ?? 'N/A'}
 ${context.load_trend ? `Load trend: ${context.load_trend}` : ''}
 ${context.overtraining_risk && context.overtraining_risk !== 'low' ? `Overtraining risk: ${context.overtraining_risk}` : ''}
 
@@ -66,7 +66,7 @@ ${context.has_activity && context.last_activity ? `## LAST ACTIVITY
 Date: ${context.last_activity.date}
 Type: ${context.last_activity.type} — "${context.last_activity.name}"
 Duration: ${context.last_activity.duration_minutes} min | Distance: ${context.last_activity.distance_km} km
-Planned TSS: ${context.last_activity.planned_tss ?? 'N/A'} | Actual TSS: ${context.last_activity.actual_tss ?? 'N/A'}
+Planned RSS: ${context.last_activity.planned_tss ?? 'N/A'} | Actual RSS: ${context.last_activity.actual_tss ?? 'N/A'}
 ${context.last_activity.deviation_percent != null ? `Deviation: ${Math.abs(context.last_activity.deviation_percent)}% ${context.last_activity.over_or_under}` : 'Deviation: N/A (no planned workout matched)'}
 Power data: ${context.last_activity.power_summary}
 ${context.last_activity.average_heartrate ? `Avg HR: ${context.last_activity.average_heartrate} bpm` : ''}
@@ -89,12 +89,12 @@ ${context.decision_history}
 ${context.structured_deviations && context.structured_deviations.length > 0 ? `## RECENT PLAN DEVIATIONS (unresolved)
 The following deviations from the training plan have been detected but not yet resolved. Use this data to inform your deviation_callout and recommendation. If a deviation has adjustment options in its options_json, you may reference specific options (modify, swap, insert_rest, drop) in your recommendation.
 
-${context.structured_deviations.map(d => `- ${d.deviation_date}: ${d.deviation_type} | Planned TSS: ${d.planned_tss} → Actual TSS: ${d.actual_tss} (delta: ${d.tss_delta > 0 ? '+' : ''}${d.tss_delta}) | Severity: ${d.severity_score}/10${d.options_json ? ` | Options: ${Object.keys(d.options_json).filter(k => k !== 'planned').join(', ')}` : ''}`).join('\n')}` : ''}
+${context.structured_deviations.map(d => `- ${d.deviation_date}: ${d.deviation_type} | Planned RSS: ${d.planned_tss} → Actual RSS: ${d.actual_tss} (delta: ${d.tss_delta > 0 ? '+' : ''}${d.tss_delta}) | Severity: ${d.severity_score}/10${d.options_json ? ` | Options: ${Object.keys(d.options_json).filter(k => k !== 'planned').join(', ')}` : ''}`).join('\n')}` : ''}
 
 ## GUARDRAILS
 - SAFETY FLOOR: Never recommend load exceeding physiologically safe parameters regardless of persona.
 - INJURY SIGNALS: If data suggests potential injury (repeated pain, sharp power drops, missed sessions with injury keywords), exit persona voice and recommend rest + professional consultation.
-- DEVIATION THRESHOLD: Only include deviation_callout when planned vs actual TSS differs by >20% or a session was missed entirely. If structured deviation data is available above, use it to provide more specific guidance.
+- DEVIATION THRESHOLD: Only include deviation_callout when planned vs actual ride stress (RSS) differs by >20% or a session was missed entirely. If structured deviation data is available above, use it to provide more specific guidance.
 - RECOMMENDATION NULLABILITY: If execution was clean and no adjustment is warranted, return null for recommendation. Over-suggesting degrades trust.
 - CONSISTENCY: If a previous recommendation was accepted within the last 48 hours (see decision history above), your new recommendation MUST be compatible with it. Do not suggest reversing a recently accepted change unless new activity data has arrived since the decision. If the plan was already adjusted, acknowledge it and build on it rather than proposing a conflicting change.
 
@@ -102,7 +102,7 @@ ${context.structured_deviations.map(d => `- ${d.deviation_date}: ${d.deviation_t
 When your recommendation involves a concrete change to the training plan, include a planned_mutation object. This is what actually modifies the plan when the athlete clicks Accept.
 
 Available mutation types:
-- "modify": Reduce a workout's TSS and duration by a factor. Requires scale_factor (0.5-0.9). Example: 0.7 means reduce to 70%.
+- "modify": Reduce a workout's RSS and duration by a factor. Requires scale_factor (0.5-0.9). Example: 0.7 means reduce to 70%.
 - "swap": Move the next quality workout 2 days later (swaps with whatever is on that date).
 - "insert_rest": Convert tomorrow's workout into a rest day.
 - "drop": Delete the next quality workout entirely. Use sparingly.
