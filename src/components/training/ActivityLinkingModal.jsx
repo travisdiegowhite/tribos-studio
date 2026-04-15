@@ -144,13 +144,16 @@ export default function ActivityLinkingModal({
         const activity = getActivity(activityId);
         if (!activity) continue;
 
+        // Write canonical spec §2 column (actual_rss) only; matches the
+        // useTrainingPlan.linkActivityToWorkout writer flipped in §3b-2.
+        // Unlocks the §1d DROP of planned_workouts.actual_tss after backfill.
         const { error } = await supabase
           .from('planned_workouts')
           .update({
             activity_id: activityId,
             completed: true,
             completed_at: activity.date,
-            actual_tss: activity.tss,
+            actual_rss: activity.rss ?? activity.tss,
             actual_duration: activity.duration,
             actual_distance_km: activity.distance,
           })
@@ -293,9 +296,9 @@ export default function ActivityLinkingModal({
                               {workout.target_duration} min
                             </Badge>
                           )}
-                          {workout.target_tss && (
+                          {(workout.target_rss ?? workout.target_tss) && (
                             <Badge size="xs" variant="outline" color="gray">
-                              {workout.target_tss} TSS
+                              {workout.target_rss ?? workout.target_tss} RSS
                             </Badge>
                           )}
                         </Group>
@@ -363,9 +366,9 @@ export default function ActivityLinkingModal({
                                       <Text size="xs" c="dimmed">
                                         {activity.duration} min
                                       </Text>
-                                      {activity.tss && (
+                                      {(activity.rss ?? activity.tss) && (
                                         <Text size="xs" c="dimmed">
-                                          {activity.tss} TSS
+                                          {activity.rss ?? activity.tss} RSS
                                         </Text>
                                       )}
                                     </Group>
