@@ -195,7 +195,7 @@ async function processWorkoutEvent(event, results, integrationCache) {
   try {
     const { data: latestLoad } = await supabase
       .from('training_load_daily')
-      .select('ctl, atl, tsb')
+      .select('tfi, afi, form_score')
       .eq('user_id', userId)
       .order('date', { ascending: false })
       .limit(1)

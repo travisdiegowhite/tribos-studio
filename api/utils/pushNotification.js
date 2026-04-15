@@ -120,10 +120,10 @@ export async function sendPushToUser(userId, { title, body, url, notificationTyp
 /**
  * Build a post-ride insight notification message from training load data.
  *
- * @param {Object} load - Training load data from training_load_daily
- * @param {number} load.ctl - Chronic Training Load
- * @param {number} load.atl - Acute Training Load
- * @param {number} load.tsb - Training Stress Balance
+ * @param {Object} load - Training load row from training_load_daily
+ * @param {number} load.tfi - Training Fitness Index (spec §3.4)
+ * @param {number} load.afi - Acute Fatigue Index (spec §3.5)
+ * @param {number} load.form_score - Form Score (spec §3.6, aka FS)
  * @returns {{ title: string, body: string }}
  */
 export function buildPostRideMessage(load) {
@@ -134,15 +134,15 @@ export function buildPostRideMessage(load) {
     };
   }
 
-  const { tsb } = load;
+  const fs = load.form_score;
 
-  // TSB interpretation
+  // FS interpretation (spec §5 color zones)
   let fatigue;
-  if (tsb < -20) {
+  if (fs < -20) {
     fatigue = 'You\'re carrying significant fatigue';
-  } else if (tsb < -10) {
+  } else if (fs < -10) {
     fatigue = 'You\'re in a solid training block';
-  } else if (tsb < 5) {
+  } else if (fs < 5) {
     fatigue = 'You\'re well balanced';
   } else {
     fatigue = 'You\'re fresh and recovered';
@@ -150,7 +150,7 @@ export function buildPostRideMessage(load) {
 
   return {
     title: 'Ride processed',
-    body: `${fatigue} (TSB: ${tsb}). Check your updated training load.`,
+    body: `${fatigue} (FS: ${fs}). Check your updated training load.`,
   };
 }
 

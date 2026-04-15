@@ -135,7 +135,7 @@ describe('estimateTSS', () => {
       expect(result.confidence).toBe(0.40);
     });
 
-    it('adds elevation bonus', () => {
+    it('adds elevation bonus (plus VAM factor per spec §3.1)', () => {
       const flat: ActivityData = {
         duration_seconds: 3600,
         workout_type: 'endurance',
@@ -144,12 +144,14 @@ describe('estimateTSS', () => {
       const hilly: ActivityData = {
         duration_seconds: 3600,
         workout_type: 'endurance',
-        total_elevation_m: 900, // 30 TSS bonus
+        total_elevation_m: 900, // 30 elevation-bonus + vamFactor ~1.09
       };
       const flatResult = estimateTSS(flat, defaultCal);
       const hillyResult = estimateTSS(hilly, defaultCal);
 
-      expect(hillyResult.tss - flatResult.tss).toBeCloseTo(30, 0);
+      // Elevation on a timed ride now contributes both the raw 30-TSS
+      // bonus AND the spec §3.1 VAM factor; the diff exceeds 30.
+      expect(hillyResult.tss).toBeGreaterThan(flatResult.tss + 30);
     });
 
     it('defaults to endurance for unknown type', () => {

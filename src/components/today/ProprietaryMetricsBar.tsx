@@ -1,13 +1,19 @@
 /**
- * ProprietaryMetricsBar — Dashboard display for EFI, TWL, TCAS
+ * ProprietaryMetricsBar — Dashboard display for EFI, TCAS
  *
  * Sits above StatusBar on the Today page. Shows compact metric cells
  * with click-to-expand detail panels using Mantine Collapse.
+ *
+ * TWL was retired from the dashboard at B8 per spec §5 ("TWL — retired
+ * as standalone — feeds RSS"). Terrain is now baked into every Ride
+ * Stress Score via the spec §3.1 multiplier, so a dedicated cell would
+ * double-surface the same information. The TWL data stays computed in
+ * the backend for ad-hoc analysis but is no longer presented here.
  */
 import { useState } from 'react';
 import { Box, Text, SimpleGrid, Skeleton, Collapse, Tooltip, Anchor } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { translateEFI, translateTWL, translateTCAS, METRICS_TOOLTIPS } from '../../lib/metrics/translate';
+import { translateEFI, translateTCAS, METRICS_TOOLTIPS } from '../../lib/metrics/translate';
 import { colorToVar } from '../../lib/fitness/translate';
 import { SCORE_COLORS, scoreBand } from '../../lib/metrics/types';
 import { MetricScoreBadge } from '../metrics/MetricScoreBadge';
@@ -64,8 +70,8 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
 
   if (loading) {
     return (
-      <SimpleGrid cols={isMobile ? 1 : 3} spacing={0}>
-        {[1, 2, 3].map((i) => (
+      <SimpleGrid cols={isMobile ? 1 : 2} spacing={0}>
+        {[1, 2].map((i) => (
           <Box key={i} style={{ padding: '16px 20px', border: '0.5px solid var(--color-border)' }}>
             <Skeleton height={12} width={40} mb={6} />
             <Skeleton height={24} width={50} />
@@ -83,7 +89,7 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
 
   return (
     <div>
-      <SimpleGrid cols={isMobile ? 1 : 3} spacing={0}>
+      <SimpleGrid cols={isMobile ? 1 : 2} spacing={0}>
         {/* EFI Cell */}
         <MetricCell
           label="EFI"
@@ -103,31 +109,6 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
           emptyLink={!readiness?.has_training_plan ? '/train' : !readiness?.has_provider ? '/settings' : '/training'}
           isExpanded={expanded === 'efi'}
           onToggle={() => toggleExpand('efi')}
-        />
-
-        {/* TWL Cell */}
-        <MetricCell
-          label="TWL"
-          subtitle="last ride"
-          description="Terrain-Weighted Load — terrain stress beyond TSS"
-          value={metrics?.twl ? String(Math.round(metrics.twl.score)) : null}
-          color={metrics?.twl ? scoreHex(
-            // Map overage to a score-like value for coloring
-            Math.max(0, 100 - metrics.twl.overage_percent * 2)
-          ) : undefined}
-          badge={metrics?.twl && metrics.twl.overage_percent > 0
-            ? `+${metrics.twl.overage_percent}%`
-            : undefined}
-          status={metrics?.twl ? translateTWL(metrics.twl.overage_percent) : undefined}
-          tooltip={METRICS_TOOLTIPS.twl(metrics?.twl?.score ?? null, metrics?.twl?.base_tss ?? null)}
-          emptyMessage={
-            !readiness?.has_provider
-              ? 'Connect Strava or Garmin'
-              : 'Complete a ride to see terrain load'
-          }
-          emptyLink="/settings"
-          isExpanded={expanded === 'twl'}
-          onToggle={() => toggleExpand('twl')}
         />
 
         {/* TCAS Cell */}
@@ -155,9 +136,6 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
       {/* Expanded detail panels */}
       <Collapse in={expanded === 'efi'}>
         {metrics?.efi && <EFIDetail efi={metrics.efi} />}
-      </Collapse>
-      <Collapse in={expanded === 'twl'}>
-        {metrics?.twl && <TWLDetail twl={metrics.twl} />}
       </Collapse>
       <Collapse in={expanded === 'tcas'}>
         {metrics?.tcas && <TCASDetail tcas={metrics.tcas} />}
@@ -326,36 +304,6 @@ function EFIDetail({ efi }: { efi: NonNullable<MetricsData['efi']> }) {
       </div>
       <Anchor href="/learn/metrics" size="xs" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
         Learn how EFI is calculated →
-      </Anchor>
-    </DetailBox>
-  );
-}
-
-function TWLDetail({ twl }: { twl: NonNullable<MetricsData['twl']> }) {
-  return (
-    <DetailBox>
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 12 }}>
-        <div style={{ textAlign: 'center' }}>
-          <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, color: 'var(--color-text-muted)' }}>
-            TSS {Math.round(twl.base_tss)}
-          </Text>
-          <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700, color: scoreHex(Math.max(0, 100 - twl.overage_percent * 2)) }}>
-            TWL {Math.round(twl.score)}
-          </Text>
-          {twl.overage_percent > 0 && (
-            <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: 'var(--color-text-muted)' }}>
-              +{twl.overage_percent}% terrain
-            </Text>
-          )}
-        </div>
-        <div style={{ flex: 1 }}>
-          <MetricBarRow label="Climbing (VAM)" value={twl.alpha_component} maxValue={0.15} displayValue={`${twl.vam} m/hr`} color="#2A8C82" />
-          <MetricBarRow label="Gradient Variability" value={twl.beta_component} maxValue={0.36} displayValue={`σ ${twl.gvi?.toFixed(1)}%`} color="#C49A0A" />
-          <MetricBarRow label="Altitude" value={twl.gamma_component} maxValue={0.10} displayValue={`${(twl.gamma_component / 0.05 * 1000 + 1000).toFixed(0)}m avg`} color="#D4600A" />
-        </div>
-      </div>
-      <Anchor href="/learn/metrics" size="xs" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-        Learn how TWL is calculated →
       </Anchor>
     </DetailBox>
   );

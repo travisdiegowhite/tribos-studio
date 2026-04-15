@@ -35,17 +35,19 @@ export default async function handler(req, res) {
   const days = Number(req.query?.days ?? 14);
 
   try {
-    // Get latest training load state
+    // Get latest training load state.
+    // DB columns renamed in B2 (spec §2); tsb-projection.stepDay internals
+    // still use ctl/atl/tsb keys — bridge at this boundary.
     const { data: latestLoad } = await supabase
       .from('training_load_daily')
-      .select('ctl, atl, tsb, date')
+      .select('tfi, afi, form_score, date')
       .eq('user_id', user.id)
       .order('date', { ascending: false })
       .limit(1)
       .single();
 
     const currentState = latestLoad
-      ? { ctl: Number(latestLoad.ctl), atl: Number(latestLoad.atl), tsb: Number(latestLoad.tsb) }
+      ? { ctl: Number(latestLoad.tfi), atl: Number(latestLoad.afi), tsb: Number(latestLoad.form_score) }
       : { ctl: 42, atl: 42, tsb: 0 };
 
     // Get upcoming planned workouts

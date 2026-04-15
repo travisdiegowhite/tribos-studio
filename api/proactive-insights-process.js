@@ -108,7 +108,7 @@ export default async function handler(req, res) {
 /**
  * Generate a coaching insight for a specific activity.
  *
- * Uses assembleCheckInContext for full athlete context (CTL/ATL/TSB, health,
+ * Uses assembleCheckInContext for full athlete context (TFI/AFI/FS, health,
  * proprietary metrics, coach persona, etc.) plus activity-specific formatting.
  */
 async function generateInsight(userId, activityId) {
@@ -132,7 +132,7 @@ async function generateInsight(userId, activityId) {
     .order('start_date', { ascending: false })
     .limit(10);
 
-  // Assemble full athlete context (CTL/ATL/TSB, health, metrics, persona, etc.)
+  // Assemble full athlete context (TFI/AFI/FS, health, metrics, persona, etc.)
   const context = await assembleCheckInContext(supabase, userId, activityId);
 
   // Build activity-specific formatting
@@ -150,9 +150,9 @@ async function generateInsight(userId, activityId) {
   if (context.athlete?.experience_level) athleteContext += ` | Level: ${context.athlete.experience_level}`;
 
   let fitnessContext = '';
-  if (context.ctl != null) fitnessContext += `CTL: ${context.ctl}`;
-  if (context.atl != null) fitnessContext += ` | ATL: ${context.atl}`;
-  if (context.form != null) fitnessContext += ` | Form (TSB): ${context.form}`;
+  if (context.ctl != null) fitnessContext += `TFI: ${context.ctl}`;
+  if (context.atl != null) fitnessContext += ` | AFI: ${context.atl}`;
+  if (context.form != null) fitnessContext += ` | FS: ${context.form}`;
   if (context.today_terrain_class) fitnessContext += ` | Terrain: ${context.today_terrain_class}`;
   if (context.load_trend) fitnessContext += ` | Trend: ${context.load_trend}`;
   if (context.overtraining_risk && context.overtraining_risk !== 'low') {
@@ -226,9 +226,9 @@ function formatActivityStats(activity) {
   stats += `Distance: ${distance.toFixed(1)} km\n`;
   stats += `Duration: ${durationStr}\n`;
   stats += `Elevation: ${Math.round(elevation)}m\n`;
-  if (tss) stats += `TSS: ${tss}\n`;
+  if (tss) stats += `Ride Stress (RSS): ${tss}\n`;
   if (power) stats += `Average Power: ${Math.round(power)}W\n`;
-  if (np) stats += `Normalized Power: ${Math.round(np)}W\n`;
+  if (np) stats += `Effective Power (EP): ${Math.round(np)}W\n`;
   if (hr) stats += `Average HR: ${Math.round(hr)} bpm\n`;
   if (cadence) stats += `Average Cadence: ${Math.round(cadence)} rpm\n`;
   if (activity.execution_score) stats += `Execution Score: ${activity.execution_score}/100 (${activity.execution_rating || ''})\n`;

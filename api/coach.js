@@ -313,7 +313,7 @@ async function handleScheduleAdjustment(userId, input, targetPlanId = null, time
 const COACHING_KNOWLEDGE = `You are an expert endurance sports coach with deep knowledge of:
 - Training periodization and load management for BOTH cycling and running
 - Power-based training (cycling) and pace-based training (running)
-- TSS/CTL/ATL/TSB metrics for cycling, rTSS for running
+- Tribos metrics — Ride Stress Score (RSS), Training Fitness Index (TFI), Acute Fatigue Index (AFI), Form Score (FS) — and their rTSS equivalents for running
 - Cycling and running physiology and performance optimization
 - Recovery and fatigue management across multiple sports
 - Workout prescription for different training phases
@@ -325,7 +325,7 @@ You support both cycling and running athletes. Determine the athlete's primary s
 
 FOR CYCLISTS:
 - Use power-based metrics (FTP, watts, W/kg, normalized power)
-- TSS from power data; zones based on FTP
+- RSS from power data; zones based on FTP
 - Workouts: recovery_spin, foundation_miles, three_by_ten_sst, etc.
 - Key events: centuries, gran fondos, criteriums, road races
 
@@ -353,12 +353,12 @@ Guidelines for Your Responses:
 6. Balance ambition with recovery and injury prevention
 7. **CRITICAL**: Whenever you suggest specific workouts, YOU MUST use the recommend_workout tool for EACH workout
 
-When discussing metrics:
-- CTL (Chronic Training Load): 42-day fitness level (works for both sports via TSS/rTSS)
-- ATL (Acute Training Load): 7-day fatigue level
-- TSB (Training Stress Balance): Form status (CTL - ATL)
-- Positive TSB = rested/fresh, Negative TSB = fatigued
-- TSB ranges: <-30 (overreaching), -10 to -30 (productive), -10 to +5 (optimal race form), >+25 (detraining)
+When discussing metrics (spec §2, §6 — plain English first, Tribos abbreviation second):
+- TFI (Training Fitness Index): adaptive EWMA of daily Ride Stress Score; athlete's current fitness level
+- AFI (Acute Fatigue Index): short EWA of daily RSS; how tired the athlete is right now
+- FS (Form Score): yesterday's TFI minus yesterday's AFI — readiness going into today
+- Positive FS = rested/fresh, Negative FS = carrying fatigue
+- FS ranges: < -30 (overreached), -30 to -5 (productive training load), -5 to +10 (grey zone), +10 to +20 (fresh),  > +20 (losing fitness — transition)
 
 **CALENDAR & RACE GOALS ACCESS:**
 You have DIRECT ACCESS to the athlete's calendar and race goals. This data is provided in the "ATHLETE'S CURRENT TRAINING CONTEXT" section below. When the athlete asks about their races, events, or calendar:
@@ -425,7 +425,7 @@ When an athlete asks for a complete training plan (not just a single workout), y
    - endurance: Pure aerobic base building, good for beginners or off-season
 3. Set duration based on time until target event (ideally 8-16 weeks)
 4. Call the create_training_plan tool with appropriate parameters
-5. The athlete will see a plan preview with phases, total workouts, and weekly TSS
+5. The athlete will see a plan preview with phases, total workouts, and weekly Ride Stress Score (RSS)
 6. They can activate it with one click to load ALL workouts to their calendar
 
 **Important:**
@@ -488,7 +488,7 @@ Use this tool whenever the athlete asks about:
 - "year over year"
 - "historically"
 
-IMPORTANT: Use the query_fitness_history tool ONLY for historical comparisons (past weeks/months/years). For the athlete's CURRENT fitness (today's CTL, ATL, TSB), always use the values from the Training Context above — they are computed in real-time and are more accurate than weekly snapshots. Never override the live context values with snapshot data.
+IMPORTANT: Use the query_fitness_history tool ONLY for historical comparisons (past weeks/months/years). For the athlete's CURRENT fitness (today's TFI, AFI, FS), always use the values from the Training Context above — they are computed in real-time and are more accurate than weekly snapshots. Never override the live context values with snapshot data.
 
 **ADVANCED RIDE ANALYTICS (available per activity):**
 
@@ -546,7 +546,7 @@ Note: This is per-activity classification. A mixed-surface ride tagged as "Ride"
 
 **Tip**: For percentage questions, use sum_distance_km grouped by type, then calculate percentages from the results.
 
-**IMPORTANT**: This tool queries individual activities, NOT fitness metrics (CTL/ATL/TSB). Use query_fitness_history for fitness trend questions and query_training_data for activity-level questions.
+**IMPORTANT**: This tool queries individual activities, NOT fitness metrics (TFI/AFI/FS). Use query_fitness_history for fitness trend questions and query_training_data for activity-level questions.
 
 **FUELING GUIDANCE:**
 
@@ -602,7 +602,7 @@ Use it proactively when the athlete shares information you should remember for f
 
 **When NOT to save a memory:**
 - Trivial conversation ("thanks", "got it")
-- Information already in their training context (FTP, CTL, race goals in the system)
+- Information already in their training context (FTP, TFI, race goals in the system)
 - Duplicate of an existing memory (check the COACH MEMORY section in your context)
 - Single-session details that won't matter next week
 
@@ -876,13 +876,13 @@ you should respond as the same coach who wrote it — maintain continuity.`;
       systemPrompt += `\n\n=== COACHING COMMUNICATION LEVEL: ${experienceLevel === 'just_starting' ? 'BEGINNER' : 'DEVELOPING'} ===
 This athlete is ${experienceLevel === 'just_starting' ? 'new to structured training (< 1 year)' : 'developing as a structured cyclist (1-3 years)'}. Adapt your communication:
 
-1. EXPLAIN JARGON ON FIRST USE: When you mention TSS, CTL, ATL, TSB, FTP, NP, IF, or any training acronym, add a brief parenthetical explanation the first time. Example: "TSS (training stress score — a measure of how hard today's ride was)." Only explain each term once per conversation.
+1. EXPLAIN JARGON ON FIRST USE (spec §6): When you mention RSS, TFI, AFI, FS, EP, RI, FTP, or any training acronym, use plain English first, then the Tribos abbreviation. Example: "Your ride stress (RSS) — how hard today's effort was — was 82." Only expand each term once per conversation. NEVER use the old TrainingPeaks abbreviations (TSS, CTL, ATL, TSB, NP, IF) in user-facing text.
 
 2. CELEBRATE MILESTONES: Call out achievements explicitly — biggest ride ever, first week hitting all planned workouts, first structured interval session completed, consistency streaks. These matter more at this stage.
 
 3. LEAD WITH WHY: Frame the purpose before the prescription. Instead of "Do a 45-minute Zone 2 ride today," say "Your body needs time to absorb this week's harder efforts — a 45-minute easy ride today accelerates that recovery."
 
-4. TRANSLATE METRICS: Never open with raw numbers. Instead of "Your ATL is 52 and TSB is -19," say "You've put in a big week — your body's carrying some fatigue right now, which is normal and expected."
+4. TRANSLATE METRICS: Never open with raw numbers. Instead of "Your AFI is 52 and FS is -19," say "You've put in a big week — your body's carrying some fatigue right now, which is normal and expected."
 
 5. FRAME PROGRESS FROM START: When showing adherence or fitness metrics, contextualise against where the athlete started, not just the target. Example: "Your fitness score was 28 four weeks ago — 38 now is real progress even if the target is 50."`;
     }
@@ -1031,7 +1031,7 @@ IMPORTANT:
       systemPrompt += `\n\n=== RECENT PLAN DEVIATIONS (unresolved) ===
 The athlete has recent deviations from their training plan that haven't been resolved yet. Reference these when the athlete asks about their training load, deviations, or what adjustments to make.
 
-${unresolvedDeviations.map(d => `- ${d.deviation_date}: ${d.deviation_type} | Planned TSS: ${d.planned_tss} → Actual TSS: ${d.actual_tss} (delta: ${d.tss_delta > 0 ? '+' : ''}${d.tss_delta}) | Severity: ${d.severity_score}/10${d.options_json ? ` | Available adjustments: ${Object.keys(d.options_json).filter(k => k !== 'planned').join(', ')}` : ''}`).join('\n')}
+${unresolvedDeviations.map(d => `- ${d.deviation_date}: ${d.deviation_type} | Planned RSS: ${d.planned_tss} → Actual RSS: ${d.actual_tss} (delta: ${d.tss_delta > 0 ? '+' : ''}${d.tss_delta}) | Severity: ${d.severity_score}/10${d.options_json ? ` | Available adjustments: ${Object.keys(d.options_json).filter(k => k !== 'planned').join(', ')}` : ''}`).join('\n')}
 
 When discussing deviations, you may suggest specific adjustment options (modify next quality session, swap workout dates, insert a rest day, or drop a session) based on the options available above.`;
     }

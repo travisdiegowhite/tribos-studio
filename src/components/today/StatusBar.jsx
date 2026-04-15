@@ -13,10 +13,10 @@ const TERRAIN_LABELS = {
 };
 
 const TERRAIN_TOOLTIPS = {
-  flat: 'Latest day classified as flat (< 8 m of elevation gain per km). TSS estimator treated it as a baseline terrain day.',
-  rolling: 'Latest day classified as rolling (8–15 m/km). Kilojoule/inferred TSS was scaled by 1.05× to account for grade-induced cost.',
-  hilly: 'Latest day classified as hilly (15–25 m/km). Kilojoule/inferred TSS was scaled by 1.10× to account for grade-induced cost.',
-  mountainous: 'Latest day classified as mountainous (≥ 25 m/km). Kilojoule/inferred TSS was scaled by 1.15× to account for grade-induced cost.',
+  flat: 'Latest day classified as flat (< 8 m of elevation gain per km). Ride Stress Score (RSS) estimator treated it as a baseline terrain day.',
+  rolling: 'Latest day classified as rolling (8–15 m/km). Kilojoule and inferred RSS tiers were scaled up by the spec §3.1 terrain multiplier.',
+  hilly: 'Latest day classified as hilly (15–25 m/km). Kilojoule and inferred RSS tiers were scaled up by the spec §3.1 terrain multiplier.',
+  mountainous: 'Latest day classified as mountainous (≥ 25 m/km). Kilojoule and inferred RSS tiers were scaled up by the spec §3.1 terrain multiplier.',
 };
 
 function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading, fsConfidence, todayTerrain }) {
@@ -60,7 +60,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
   const cells = [
     {
       label: 'FORM',
-      sublabel: 'TSB \u2014 freshness',
+      sublabel: 'FS \u2014 freshness',
       value: formValue,
       color: formColor,
       fontStyle: isVeryLowConf ? 'italic' : undefined,
@@ -70,7 +70,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
     },
     {
       label: 'FITNESS',
-      sublabel: 'CTL \u2014 chronic training load',
+      sublabel: 'TFI \u2014 training fitness index',
       value: String(ctl),
       color: 'var(--color-teal)',
       status: fitnessTranslation.label,
@@ -79,7 +79,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
     },
     {
       label: 'FATIGUE',
-      sublabel: 'ATL \u2014 recent training load',
+      sublabel: 'AFI \u2014 acute fatigue index',
       value: String(atl),
       color: 'var(--color-orange)',
       status: fatigueTranslation.label,
@@ -93,7 +93,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
       color: colorToVar(trendTranslation.color),
       status: trendTranslation.subtitle,
       statusColor: 'var(--color-text-muted)',
-      tooltip: 'Your fitness trajectory over the past 4 weeks, based on how your chronic training load (CTL) is changing.',
+      tooltip: 'Your fitness trajectory over the past 4 weeks, based on how your training fitness index (TFI) is changing.',
     },
     {
       label: 'THIS WEEK',
