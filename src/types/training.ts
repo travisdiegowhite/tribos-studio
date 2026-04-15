@@ -698,12 +698,18 @@ export interface PlannedWorkoutDB {
   workout_type: string | null;
   workout_id: string | null;
   target_tss: number | null;
+  /** Canonical twin of target_tss per spec §2 (RSS rename). Dual-populated;
+   * optional during §3b transition, promoted to required after legacy drop. */
+  target_rss?: number | null;
   target_duration: number | null;
   target_distance_km: number | null;
   completed: boolean;
   completed_at: string | null;
   activity_id: string | null;
   actual_tss: number | null;
+  /** Canonical twin of actual_tss per spec §2. Dual-populated;
+   * optional during §3b transition, promoted to required after legacy drop. */
+  actual_rss?: number | null;
   actual_duration: number | null;
   actual_distance_km: number | null;
   difficulty_rating: number | null;
@@ -825,9 +831,16 @@ export interface ActivitySummary {
   duration: number; // minutes
   distance: number; // km
   tss: number | null;
+  /** Canonical twin of `tss` per spec §2 (Relative Stress Score).
+   * Dual-populated; legacy `tss` retired in a later §3b pass. */
+  rss?: number | null;
   elevationGain: number;
   averagePower: number | null;
   normalizedPower: number | null;
+  /** Canonical twin of `normalizedPower` per spec §3.2 (Effective Power). */
+  effectivePower?: number | null;
+  /** Intensity Factor → Ride Intensity per spec §2. */
+  rideIntensity?: number | null;
   /** Average pace in seconds per km (running) */
   averagePace?: number | null;
   /** Average heart rate in bpm */
@@ -1145,18 +1158,32 @@ export interface WorkoutAdaptationDB {
   // Planned metrics
   planned_workout_type: string | null;
   planned_tss: number | null;
+  /** Canonical twin of planned_tss (spec §2). Dual-populated post-migration 073;
+   * optional during §3b transition. */
+  planned_rss?: number | null;
   planned_duration: number | null;
   planned_intensity_factor: number | null;
+  /** Canonical twin of planned_intensity_factor (spec §2 Ride Intensity). */
+  planned_ride_intensity?: number | null;
 
   // Actual metrics
   actual_workout_type: string | null;
   actual_tss: number | null;
+  /** Canonical twin of actual_tss (spec §2). Dual-populated post-migration 073;
+   * optional during §3b transition. */
+  actual_rss?: number | null;
   actual_duration: number | null;
   actual_intensity_factor: number | null;
+  /** Canonical twin of actual_intensity_factor (spec §2 Ride Intensity). */
+  actual_ride_intensity?: number | null;
   actual_normalized_power: number | null;
+  /** Canonical twin of actual_normalized_power (spec §3.2 Effective Power). */
+  actual_effective_power?: number | null;
 
   // Deltas
   tss_delta: number | null;
+  /** Canonical twin of tss_delta (spec §2). */
+  rss_delta?: number | null;
   duration_delta: number | null;
   stimulus_achieved_pct: number | null;
   stimulus_analysis: StimulusAnalysis | null;
@@ -1174,8 +1201,14 @@ export interface WorkoutAdaptationDB {
   week_number: number | null;
   training_phase: TrainingPhase | null;
   ctg_at_time: number | null;
+  /** Canonical twin of ctg_at_time (spec §2 TFI snapshot at detection time). */
+  tfi_at_time?: number | null;
   atl_at_time: number | null;
+  /** Canonical twin of atl_at_time (spec §2 AFI snapshot at detection time). */
+  afi_at_time?: number | null;
   tsb_at_time: number | null;
+  /** Canonical twin of tsb_at_time (spec §2 Form Score at detection time). */
+  form_score_at_time?: number | null;
 
   detected_at: string;
   created_at: string;
@@ -1194,20 +1227,32 @@ export interface WorkoutAdaptation {
   planned: {
     workoutType: string | null;
     tss: number | null;
+    /** Canonical twin of `tss` (spec §2 RSS). */
+    rss?: number | null;
     duration: number | null;
     intensityFactor: number | null;
+    /** Canonical twin of `intensityFactor` (spec §2 Ride Intensity). */
+    rideIntensity?: number | null;
   };
 
   actual: {
     workoutType: string | null;
     tss: number | null;
+    /** Canonical twin of `tss` (spec §2 RSS). */
+    rss?: number | null;
     duration: number | null;
     intensityFactor: number | null;
+    /** Canonical twin of `intensityFactor` (spec §2 Ride Intensity). */
+    rideIntensity?: number | null;
     normalizedPower: number | null;
+    /** Canonical twin of `normalizedPower` (spec §3.2 Effective Power). */
+    effectivePower?: number | null;
   };
 
   analysis: {
     tssDelta: number | null;
+    /** Canonical twin of `tssDelta` (spec §2 RSS delta). */
+    rssDelta?: number | null;
     durationDelta: number | null;
     stimulusAchievedPct: number | null;
     stimulusAnalysis: StimulusAnalysis | null;
@@ -1228,8 +1273,14 @@ export interface WorkoutAdaptation {
     weekNumber: number | null;
     trainingPhase: TrainingPhase | null;
     ctl: number | null;
+    /** Canonical twin of `ctl` (spec §2 Training Fitness Index). */
+    tfi?: number | null;
     atl: number | null;
+    /** Canonical twin of `atl` (spec §2 Acute Fatigue Index). */
+    afi?: number | null;
     tsb: number | null;
+    /** Canonical twin of `tsb` (spec §2 Form Score). */
+    formScore?: number | null;
   };
 
   detectedAt: string;
@@ -1491,8 +1542,14 @@ export interface DetectAdaptationInput {
     weekNumber?: number;
     trainingPhase?: TrainingPhase;
     ctl?: number;
+    /** Canonical twin of `ctl` (spec §2 TFI). */
+    tfi?: number;
     atl?: number;
+    /** Canonical twin of `atl` (spec §2 AFI). */
+    afi?: number;
     tsb?: number;
+    /** Canonical twin of `tsb` (spec §2 Form Score). */
+    formScore?: number;
   };
 }
 
