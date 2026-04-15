@@ -135,7 +135,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
 
     supabase
       .from('fitness_snapshots')
-      .select('ctl, atl, tsb, weekly_tss, load_trend, overtraining_risk')
+      .select('ctl:tfi, atl:afi, tsb:form_score, weekly_tss:weekly_rss, load_trend, overtraining_risk')
       .eq('user_id', userId)
       .order('snapshot_week', { ascending: false })
       .limit(1)
