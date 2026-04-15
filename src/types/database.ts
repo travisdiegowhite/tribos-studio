@@ -111,12 +111,16 @@ export interface PlannedWorkoutInsert {
   workout_type?: string | null;
   workout_id?: string | null;
   target_tss?: number | null;
+  /** Canonical twin of target_tss (spec §2 RSS). */
+  target_rss?: number | null;
   target_duration?: number | null;
   target_distance_km?: number | null;
   completed?: boolean;
   completed_at?: string | null;
   activity_id?: string | null;
   actual_tss?: number | null;
+  /** Canonical twin of actual_tss (spec §2 RSS). */
+  actual_rss?: number | null;
   actual_duration?: number | null;
   actual_distance_km?: number | null;
   difficulty_rating?: number | null;
@@ -131,12 +135,16 @@ export interface PlannedWorkoutUpdate {
   workout_type?: string | null;
   workout_id?: string | null;
   target_tss?: number | null;
+  /** Canonical twin of target_tss (spec §2 RSS). */
+  target_rss?: number | null;
   target_duration?: number | null;
   target_distance_km?: number | null;
   completed?: boolean;
   completed_at?: string | null;
   activity_id?: string | null;
   actual_tss?: number | null;
+  /** Canonical twin of actual_tss (spec §2 RSS). */
+  actual_rss?: number | null;
   actual_duration?: number | null;
   actual_distance_km?: number | null;
   difficulty_rating?: number | null;
@@ -167,7 +175,14 @@ export interface ActivityDB {
   max_heart_rate: number | null;
   average_cadence: number | null;
   tss: number | null;
+  /** Canonical twin of tss (spec §2 RSS). Dual-populated post-migration 074;
+   * optional during §3b transition. */
+  rss?: number | null;
   intensity_factor: number | null;
+  /** Canonical twin of intensity_factor (spec §2 Ride Intensity). */
+  ride_intensity?: number | null;
+  /** Canonical twin of normalized_power_watts (spec §3.2 Effective Power). */
+  effective_power?: number | null;
   calories: number | null;
   source: string; // 'strava', 'garmin', 'wahoo', 'manual', 'fit_file'
   external_id: string | null;
@@ -195,7 +210,13 @@ export interface ActivityInsert {
   max_heart_rate?: number | null;
   average_cadence?: number | null;
   tss?: number | null;
+  /** Canonical twin of tss (spec §2 RSS). */
+  rss?: number | null;
   intensity_factor?: number | null;
+  /** Canonical twin of intensity_factor (spec §2 Ride Intensity). */
+  ride_intensity?: number | null;
+  /** Canonical twin of normalized_power_watts (spec §3.2 Effective Power). */
+  effective_power?: number | null;
   calories?: number | null;
   source: string;
   external_id?: string | null;
@@ -219,7 +240,13 @@ export interface ActivityUpdate {
   max_heart_rate?: number | null;
   average_cadence?: number | null;
   tss?: number | null;
+  /** Canonical twin of tss (spec §2 RSS). */
+  rss?: number | null;
   intensity_factor?: number | null;
+  /** Canonical twin of intensity_factor (spec §2 Ride Intensity). */
+  ride_intensity?: number | null;
+  /** Canonical twin of normalized_power_watts (spec §3.2 Effective Power). */
+  effective_power?: number | null;
   calories?: number | null;
   source?: string;
   external_id?: string | null;
