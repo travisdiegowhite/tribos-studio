@@ -461,7 +461,7 @@ async function handleActivityCreate(eventId, webhookData, integration) {
     try {
       const { data: latestLoad } = await supabase
         .from('training_load_daily')
-        .select('ctl, atl, tsb')
+        .select('tfi, afi, form_score')
         .eq('user_id', integration.user_id)
         .order('date', { ascending: false })
         .limit(1)

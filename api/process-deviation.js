@@ -51,16 +51,20 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Get latest training load state
+    // 1. Get latest training load state.
+    // DB columns renamed in B2 (spec §2); tsb-projection.stepDay internals
+    // still use ctl/atl/tsb keys — bridge at this boundary.
     const { data: latestLoad } = await supabase
       .from('training_load_daily')
-      .select('ctl, atl, tsb')
+      .select('tfi, afi, form_score')
       .eq('user_id', userId)
       .order('date', { ascending: false })
       .limit(1)
       .single();
 
-    const currentState = latestLoad ?? { ctl: 42, atl: 42, tsb: 0 };
+    const currentState = latestLoad
+      ? { ctl: latestLoad.tfi, atl: latestLoad.afi, tsb: latestLoad.form_score }
+      : { ctl: 42, atl: 42, tsb: 0 };
 
     // 2. Get user calibration factors
     const { data: cal } = await supabase

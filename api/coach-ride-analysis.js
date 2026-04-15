@@ -124,7 +124,7 @@ ${intent.execution_score != null ? `Pre-computed execution score: ${intent.execu
 
   return `## ATHLETE
 FTP: ${athlete.ftp ?? 'N/A'}W | Weight: ${athlete.weight_kg ?? 'N/A'} kg | Max HR: ${athlete.max_hr ?? 'N/A'} bpm
-CTL: ${fitness.ctl ?? 'N/A'} | ATL: ${fitness.atl ?? 'N/A'} | TSB: ${fitness.tsb ?? 'N/A'}${fitness.terrain_class ? ` | Terrain: ${fitness.terrain_class}` : ''}${fitness.load_trend ? ` | Trend: ${fitness.load_trend}` : ''}${fitness.overtraining_risk && fitness.overtraining_risk !== 'low' ? ` | Overtraining risk: ${fitness.overtraining_risk}` : ''}
+TFI: ${fitness.tfi ?? 'N/A'} | AFI: ${fitness.afi ?? 'N/A'} | FS: ${fitness.form_score ?? 'N/A'}${fitness.terrain_class ? ` | Terrain: ${fitness.terrain_class}` : ''}${fitness.load_trend ? ` | Trend: ${fitness.load_trend}` : ''}${fitness.overtraining_risk && fitness.overtraining_risk !== 'low' ? ` | Overtraining risk: ${fitness.overtraining_risk}` : ''}
 
 ${intentBlock}
 
@@ -157,7 +157,7 @@ async function loadAthleteContext(userId) {
       .maybeSingle(),
     supabase
       .from('training_load_daily')
-      .select('ctl, atl, tsb, terrain_class, date')
+      .select('tfi, afi, form_score, terrain_class, date')
       .eq('user_id', userId)
       .order('date', { ascending: false })
       .limit(1)
@@ -185,9 +185,9 @@ async function loadAthleteContext(userId) {
       max_hr: profile?.max_hr ?? null,
     },
     fitness: {
-      ctl: load?.ctl ?? null,
-      atl: load?.atl ?? null,
-      tsb: load?.tsb ?? null,
+      tfi: load?.tfi ?? null,
+      afi: load?.afi ?? null,
+      form_score: load?.form_score ?? null,
       terrain_class: load?.terrain_class ?? null,
       load_trend: snapshot?.load_trend ?? null,
       overtraining_risk: snapshot?.overtraining_risk ?? null,
