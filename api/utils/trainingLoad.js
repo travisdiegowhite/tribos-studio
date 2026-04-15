@@ -9,6 +9,12 @@
  * The helper accepts `supabase` as a parameter — it does NOT call
  * createClient() itself. Callers must pass the shared singleton from
  * api/utils/supabaseAdmin.js (per the connection-hygiene rules in CLAUDE.md).
+ *
+ * Dual-write (B2 → B4): this helper writes both the legacy columns
+ * (tss/ctl/atl/tsb/tss_source) AND the spec-§2 canonical columns
+ * (rss/tfi/afi/form_score/rss_source). Callers continue to pass the old
+ * field names; reader cut-over to the new names happens in B3, legacy
+ * columns are dropped in B4.
  */
 
 import { calculateFormScoreConfidence } from './fitnessSnapshots.js';
@@ -25,6 +31,9 @@ import { calculateFormScoreConfidence } from './fitnessSnapshots.js';
  *   tss_source: 'device'|'power'|'kilojoules'|'hr'|'rpe'|'inferred',
  *   confidence: number,
  *   terrain_class?: 'flat'|'rolling'|'hilly'|'mountainous'|null,
+ *   tfi_composition?: { aerobic_fraction: number, threshold_fraction: number, high_intensity_fraction: number } | null,
+ *   tfi_tau?: number | null,
+ *   afi_tau?: number | null,
  * }} payload
  */
 export async function upsertTrainingLoadDaily(supabase, userId, date, payload) {
@@ -52,14 +61,28 @@ export async function upsertTrainingLoadDaily(supabase, userId, date, payload) {
       {
         user_id: userId,
         date,
+        // Legacy columns (dropped in B4).
         tss: payload.tss,
         ctl: payload.ctl,
         atl: payload.atl,
         tsb: payload.tsb,
         tss_source: payload.tss_source,
+        // Spec §2 canonical columns (dual-write from B2; readers cut over
+        // in B3). Same values — the rename is semantic, not mathematical.
+        rss: payload.tss,
+        tfi: payload.ctl,
+        afi: payload.atl,
+        form_score: payload.tsb,
+        rss_source: payload.tss_source,
+        // Shared columns (unchanged by rename).
         confidence: payload.confidence,
         fs_confidence,
         terrain_class: payload.terrain_class ?? null,
+        // New columns, populated in later PRs (B6 for composition;
+        // optional here so B2 writers can start threading the snapshot).
+        tfi_composition: payload.tfi_composition ?? null,
+        tfi_tau: payload.tfi_tau ?? null,
+        afi_tau: payload.afi_tau ?? null,
       },
       { onConflict: 'user_id,date' }
     );
