@@ -113,6 +113,18 @@ interface UseWorkoutAdaptationsReturn {
  * Convert database adaptation to frontend model
  */
 function toWorkoutAdaptation(db: WorkoutAdaptationDB): WorkoutAdaptation {
+  // Prefer canonical spec §2 twin columns with legacy fallback so consumers
+  // see canonical values whether the row was written pre- or post-§3b-3.
+  const plannedRss = db.planned_rss ?? db.planned_tss;
+  const plannedRideIntensity = db.planned_ride_intensity ?? db.planned_intensity_factor;
+  const actualRss = db.actual_rss ?? db.actual_tss;
+  const actualRideIntensity = db.actual_ride_intensity ?? db.actual_intensity_factor;
+  const actualEffectivePower = db.actual_effective_power ?? db.actual_normalized_power;
+  const rssDelta = db.rss_delta ?? db.tss_delta;
+  const tfi = db.tfi_at_time ?? db.ctg_at_time;
+  const afi = db.afi_at_time ?? db.atl_at_time;
+  const formScore = db.form_score_at_time ?? db.tsb_at_time;
+
   return {
     id: db.id,
     plannedWorkoutId: db.planned_workout_id,
@@ -120,19 +132,25 @@ function toWorkoutAdaptation(db: WorkoutAdaptationDB): WorkoutAdaptation {
     adaptationType: db.adaptation_type,
     planned: {
       workoutType: db.planned_workout_type,
-      tss: db.planned_tss,
+      tss: plannedRss,
+      rss: plannedRss,
       duration: db.planned_duration,
-      intensityFactor: db.planned_intensity_factor,
+      intensityFactor: plannedRideIntensity,
+      rideIntensity: plannedRideIntensity,
     },
     actual: {
       workoutType: db.actual_workout_type,
-      tss: db.actual_tss,
+      tss: actualRss,
+      rss: actualRss,
       duration: db.actual_duration,
-      intensityFactor: db.actual_intensity_factor,
-      normalizedPower: db.actual_normalized_power,
+      intensityFactor: actualRideIntensity,
+      rideIntensity: actualRideIntensity,
+      normalizedPower: actualEffectivePower,
+      effectivePower: actualEffectivePower,
     },
     analysis: {
-      tssDelta: db.tss_delta,
+      tssDelta: rssDelta,
+      rssDelta: rssDelta,
       durationDelta: db.duration_delta,
       stimulusAchievedPct: db.stimulus_achieved_pct,
       stimulusAnalysis: db.stimulus_analysis,
@@ -149,9 +167,12 @@ function toWorkoutAdaptation(db: WorkoutAdaptationDB): WorkoutAdaptation {
     context: {
       weekNumber: db.week_number,
       trainingPhase: db.training_phase,
-      ctl: db.ctg_at_time,
-      atl: db.atl_at_time,
-      tsb: db.tsb_at_time,
+      ctl: tfi,
+      tfi,
+      atl: afi,
+      afi,
+      tsb: formScore,
+      formScore,
     },
     detectedAt: db.detected_at,
   };
@@ -475,8 +496,15 @@ export function useWorkoutAdaptations({
           {} as Record<AdaptationType, number>
         );
 
-        const tssPlanned = weekAdaptations.reduce((sum, a) => sum + (a.planned_tss || 0), 0);
-        const tssActual = weekAdaptations.reduce((sum, a) => sum + (a.actual_tss || 0), 0);
+        // Prefer canonical spec §2 fields with legacy fallback for pre-076 rows.
+        const tssPlanned = weekAdaptations.reduce(
+          (sum, a) => sum + (a.planned_rss ?? a.planned_tss ?? 0),
+          0
+        );
+        const tssActual = weekAdaptations.reduce(
+          (sum, a) => sum + (a.actual_rss ?? a.actual_tss ?? 0),
+          0
+        );
         const tssAchievementPct = tssPlanned > 0 ? Math.round((tssActual / tssPlanned) * 100) : 0;
 
         return {
@@ -785,11 +813,13 @@ export function useWorkoutAdaptations({
         adaptationReasons[reason] = withReasons.length > 0 ? count / withReasons.length : 0;
       }
 
-      // TSS achievement
-      const withTss = adaptationsList.filter((a) => a.planned_tss && a.actual_tss);
+      // RSS achievement (spec §2 canonical with legacy fallback).
+      const readPlanned = (a: WorkoutAdaptationDB) => a.planned_rss ?? a.planned_tss;
+      const readActual = (a: WorkoutAdaptationDB) => a.actual_rss ?? a.actual_tss;
+      const withTss = adaptationsList.filter((a) => readPlanned(a) && readActual(a));
       const avgTssAchievement =
         withTss.length > 0
-          ? withTss.reduce((sum, a) => sum + (a.actual_tss! / a.planned_tss!) * 100, 0) / withTss.length
+          ? withTss.reduce((sum, a) => sum + (readActual(a)! / readPlanned(a)!) * 100, 0) / withTss.length
           : null;
 
       // Determine tendencies

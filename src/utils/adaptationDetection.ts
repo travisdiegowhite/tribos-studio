@@ -94,11 +94,12 @@ export function detectAdaptationType(input: DetectAdaptationInput): AdaptationTy
     return 'skipped';
   }
 
-  // Get planned and actual metrics
+  // Get planned and actual metrics. Prefer canonical spec §2 fields
+  // (target_rss / activity.rss) with legacy fallback for pre-cut-over rows.
   const plannedDuration = plannedWorkout.target_duration || 0;
   const actualDuration = activity.duration || 0;
-  const plannedTss = plannedWorkout.target_tss || 0;
-  const actualTss = activity.tss || 0;
+  const plannedTss = plannedWorkout.target_rss ?? plannedWorkout.target_tss ?? 0;
+  const actualTss = activity.rss ?? activity.tss ?? 0;
   const plannedType = plannedWorkout.workout_type || 'endurance';
   const actualType = inferWorkoutCategory(activity, input.userFtp);
 
@@ -192,13 +193,14 @@ function inferRunningWorkoutCategory(
     return 'anaerobic';
   }
 
-  // Fall back to TSS-based estimation
-  if (activity.tss && activity.duration) {
-    const tssPerHour = activity.tss / (activity.duration / 60);
-    if (tssPerHour < 35) return 'recovery';
-    if (tssPerHour < 55) return 'endurance';
-    if (tssPerHour < 75) return 'tempo';
-    if (tssPerHour < 95) return 'threshold';
+  // Fall back to RSS-based estimation (spec §2 canonical; legacy tss fallback).
+  const stressScore = activity.rss ?? activity.tss;
+  if (stressScore && activity.duration) {
+    const scorePerHour = stressScore / (activity.duration / 60);
+    if (scorePerHour < 35) return 'recovery';
+    if (scorePerHour < 55) return 'endurance';
+    if (scorePerHour < 75) return 'tempo';
+    if (scorePerHour < 95) return 'threshold';
     return 'vo2max';
   }
 
@@ -237,13 +239,15 @@ export function inferWorkoutCategory(
     intensityFactor = activity.averagePower / userFtp;
   }
 
-  // If we have no power data, estimate based on TSS and duration
-  if (!intensityFactor && activity.tss && activity.duration) {
-    // TSS = (duration_hours * IF^2 * 100)
-    // IF = sqrt(TSS / (duration_hours * 100))
+  // If we have no power data, estimate based on RSS and duration (spec §2
+  // canonical; legacy tss fallback).
+  const stressScore = activity.rss ?? activity.tss;
+  if (!intensityFactor && stressScore && activity.duration) {
+    // RSS = (duration_hours * RI^2 * 100)
+    // RI = sqrt(RSS / (duration_hours * 100))
     const durationHours = activity.duration / 60;
     if (durationHours > 0) {
-      intensityFactor = Math.sqrt(activity.tss / (durationHours * 100));
+      intensityFactor = Math.sqrt(stressScore / (durationHours * 100));
     }
   }
 
@@ -428,10 +432,12 @@ export function detectAdaptation(input: DetectAdaptationInput): Omit<WorkoutAdap
   const plannedType = plannedWorkout.workout_type || 'endurance';
 
   const actualDuration = activity?.duration || 0;
-  const actualTss = activity?.tss || 0;
+  // Prefer canonical activity.rss (spec §2, B9 dual-write) with legacy fallback.
+  const actualTss = activity?.rss ?? activity?.tss ?? 0;
   const actualType = activity ? inferWorkoutCategory(activity, userFtp) : null;
-  const actualIf = activity?.intensityFactor ?? null;
-  const actualNp = activity?.normalizedPower ?? null;
+  // Prefer canonical ride intensity / effective power (spec §3.2) with legacy fallback.
+  const actualIf = activity?.rideIntensity ?? activity?.intensityFactor ?? null;
+  const actualNp = activity?.effectivePower ?? activity?.normalizedPower ?? null;
 
   // Calculate deltas
   const tssDelta = actualTss - plannedTss;
@@ -470,6 +476,14 @@ export function detectAdaptation(input: DetectAdaptationInput): Omit<WorkoutAdap
     trainingContext
   );
 
+  // Read canonical twin first (spec §2) and fall back to legacy keys for
+  // callers still on old identifiers.
+  const contextTfi = trainingContext?.tfi ?? trainingContext?.ctl ?? null;
+  const contextAfi = trainingContext?.afi ?? trainingContext?.atl ?? null;
+  const contextFormScore = trainingContext?.formScore ?? trainingContext?.tsb ?? null;
+  const plannedRss = plannedTss || null;
+  const actualRss = actualTss || null;
+
   return {
     planned_workout_id: plannedWorkout.id,
     activity_id: activity?.id || null,
@@ -477,17 +491,26 @@ export function detectAdaptation(input: DetectAdaptationInput): Omit<WorkoutAdap
     adaptation_type: adaptationType,
 
     planned_workout_type: plannedType,
-    planned_tss: plannedTss || null,
+    // Dual-write: legacy + canonical columns (spec §2). Both carry the same
+    // value so readers on either key get consistent data during the §3b
+    // transition. Migration 076 backfills historical rows before DROP.
+    planned_tss: plannedRss,
+    planned_rss: plannedRss,
     planned_duration: plannedDuration || null,
     planned_intensity_factor: null, // Would need workout library lookup
+    planned_ride_intensity: null,
 
     actual_workout_type: actualType,
-    actual_tss: actualTss || null,
+    actual_tss: actualRss,
+    actual_rss: actualRss,
     actual_duration: actualDuration || null,
     actual_intensity_factor: actualIf,
+    actual_ride_intensity: actualIf,
     actual_normalized_power: actualNp,
+    actual_effective_power: actualNp,
 
     tss_delta: tssDelta,
+    rss_delta: tssDelta,
     duration_delta: durationDelta,
     stimulus_achieved_pct: stimulusAchievedPct,
     stimulus_analysis: stimulusAnalysis,
@@ -501,12 +524,13 @@ export function detectAdaptation(input: DetectAdaptationInput): Omit<WorkoutAdap
 
     week_number: trainingContext?.weekNumber ?? plannedWorkout.week_number,
     training_phase: trainingContext?.trainingPhase ?? null,
-    // Read canonical twin first (spec §2) and fall back to legacy keys for
-    // callers still on old identifiers. Writer-side (the output column names)
-    // flips in §3b-3.
-    ctg_at_time: trainingContext?.tfi ?? trainingContext?.ctl ?? null,
-    atl_at_time: trainingContext?.afi ?? trainingContext?.atl ?? null,
-    tsb_at_time: trainingContext?.formScore ?? trainingContext?.tsb ?? null,
+    // Dual-write: legacy + canonical twin columns (spec §2).
+    ctg_at_time: contextTfi,
+    tfi_at_time: contextTfi,
+    atl_at_time: contextAfi,
+    afi_at_time: contextAfi,
+    tsb_at_time: contextFormScore,
+    form_score_at_time: contextFormScore,
 
     detected_at: new Date().toISOString(),
   };
@@ -694,20 +718,35 @@ export function detectWeekAdaptations(
   // Check for unplanned activities
   const unplannedActivities = activities.filter((a) => !usedActivityIds.has(a.id));
   for (const activity of unplannedActivities) {
+    // Prefer canonical activity fields (spec §2 / §3.2) with legacy fallback.
+    const actualRss = activity.rss ?? activity.tss ?? null;
+    const actualRideIntensity = activity.rideIntensity ?? activity.intensityFactor ?? null;
+    const actualEffectivePower = activity.effectivePower ?? activity.normalizedPower ?? null;
+    const contextTfi = trainingContext?.tfi ?? trainingContext?.ctl ?? null;
+    const contextAfi = trainingContext?.afi ?? trainingContext?.atl ?? null;
+    const contextFormScore = trainingContext?.formScore ?? trainingContext?.tsb ?? null;
+
     adaptations.push({
       planned_workout_id: null,
       activity_id: activity.id,
       adaptation_type: 'unplanned',
       planned_workout_type: null,
+      // Dual-write: legacy + canonical (spec §2).
       planned_tss: null,
+      planned_rss: null,
       planned_duration: null,
       planned_intensity_factor: null,
+      planned_ride_intensity: null,
       actual_workout_type: inferWorkoutCategory(activity, userFtp),
-      actual_tss: activity.tss,
+      actual_tss: actualRss,
+      actual_rss: actualRss,
       actual_duration: activity.duration,
-      actual_intensity_factor: activity.intensityFactor ?? null,
-      actual_normalized_power: activity.normalizedPower ?? null,
+      actual_intensity_factor: actualRideIntensity,
+      actual_ride_intensity: actualRideIntensity,
+      actual_normalized_power: actualEffectivePower,
+      actual_effective_power: actualEffectivePower,
       tss_delta: null,
+      rss_delta: null,
       duration_delta: null,
       stimulus_achieved_pct: null,
       stimulus_analysis: null,
@@ -718,11 +757,13 @@ export function detectWeekAdaptations(
       ai_recommendations: null,
       week_number: trainingContext?.weekNumber ?? null,
       training_phase: trainingContext?.trainingPhase ?? null,
-      // Prefer canonical twin (spec §2) and fall back to legacy for callers
-      // still on old identifiers. Writer-side DB column flip is §3b-3.
-      ctg_at_time: trainingContext?.tfi ?? trainingContext?.ctl ?? null,
-      atl_at_time: trainingContext?.afi ?? trainingContext?.atl ?? null,
-      tsb_at_time: trainingContext?.formScore ?? trainingContext?.tsb ?? null,
+      // Dual-write: legacy + canonical twin columns (spec §2).
+      ctg_at_time: contextTfi,
+      tfi_at_time: contextTfi,
+      atl_at_time: contextAfi,
+      afi_at_time: contextAfi,
+      tsb_at_time: contextFormScore,
+      form_score_at_time: contextFormScore,
       detected_at: new Date().toISOString(),
     });
   }
@@ -766,11 +807,13 @@ function findBestMatchingActivity(
       score += 30 * durationRatio;
     }
 
-    // TSS match (max 30 points)
-    if (workout.target_tss && activity.tss) {
-      const tssRatio = Math.min(activity.tss, workout.target_tss) /
-        Math.max(activity.tss, workout.target_tss);
-      score += 30 * tssRatio;
+    // RSS match (max 30 points) — spec §2 canonical with legacy fallback.
+    const workoutRss = workout.target_rss ?? workout.target_tss;
+    const activityRss = activity.rss ?? activity.tss;
+    if (workoutRss && activityRss) {
+      const rssRatio = Math.min(activityRss, workoutRss) /
+        Math.max(activityRss, workoutRss);
+      score += 30 * rssRatio;
     }
 
     if (score > bestScore) {
