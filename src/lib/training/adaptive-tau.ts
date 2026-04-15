@@ -1,109 +1,22 @@
 /**
- * Adaptive EWA Time Constants
+ * Adaptive EWA Time Constants — spec §3.4 / §3.5
  *
- * Per-athlete tau values for the fitness (CTL / long EWA) and fatigue
- * (ATL / short EWA) exponentially-weighted averages. The rest of the app
- * continues to call `calculateCTL(dailyTSS)` / `calculateATL(dailyTSS)`
- * with the baked-in 42 / 7 defaults when adaptive tau is unavailable.
+ * Per-athlete tau values for Training Fitness Index (TFI) and Acute
+ * Fatigue Index (AFI) exponentially-weighted averages.
  *
  * Gating: adaptive tau only applies once the athlete has entered an age.
- * If `age` is null/undefined, these helpers return `DEFAULT_LONG_TAU` /
- * `DEFAULT_SHORT_TAU` so downstream math is identical to the pre-adaptive
+ * If `age` is null/undefined, these helpers return `DEFAULT_TFI_TAU` /
+ * `DEFAULT_AFI_TAU` so downstream math is identical to the pre-adaptive
  * behavior.
  *
- * The v1 formulas here (`calculateLongTimeConstant` /
- * `calculateShortTimeConstant`) remain in place during the B1→B4 rollout
- * of the Tribos Metrics Specification. They write ewa_long_tau /
- * ewa_short_tau. The spec §3.4 / §3.5 discrete-bracket formulas
- * (`calculateTFITimeConstant` / `calculateAFITimeConstant`) live below
- * this file and write tfi_tau / afi_tau via the same nightly cron.
- * Reader cut-over and removal of the legacy columns + helpers ship in
- * B3 and B4 respectively.
+ * The legacy v1 helpers (`calculateLongTimeConstant` /
+ * `calculateShortTimeConstant`) and the ewa_long_tau / ewa_short_tau
+ * columns were removed in B4 (migration 071) once all readers and
+ * writers cut over to the spec-§2 names.
  */
 
-export const DEFAULT_LONG_TAU = 42;
-export const DEFAULT_SHORT_TAU = 7;
-
-// Age at which both tau formulas bottom out at the defaults.
-const BASELINE_AGE = 35;
-
-// Variance at which the long-tau variance adjustment is zero. Picked so
-// that a runner-of-the-mill athlete with ~30 TSS/day day-to-day noise
-// (variance ≈ 900) sits on the baseline.
-const BASELINE_TSS_VARIANCE = 900;
-
-// Clamp bounds (mirror the CHECK constraints on user_profiles).
-const LONG_TAU_MIN = 35;
-const LONG_TAU_MAX = 60;
-const SHORT_TAU_MIN = 5;
-const SHORT_TAU_MAX = 14;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-function roundTo1dp(value: number): number {
-  return Math.round(value * 10) / 10;
-}
-
-/**
- * Compute the long EWA tau (fitness / CTL window) for an athlete.
- *
- * @param age - Athlete age in years. NULL/undefined → `DEFAULT_LONG_TAU`.
- * @param dailyTssVariance - Variance of daily TSS over a recent window
- *   (e.g. last 42 days). NULL/undefined is treated as "baseline", i.e.
- *   no variance adjustment.
- * @returns tau in days, clamped to [35, 60], rounded to 1 decimal place.
- */
-export function calculateLongTimeConstant(
-  age: number | null | undefined,
-  dailyTssVariance: number | null | undefined
-): number {
-  if (age == null || !Number.isFinite(age)) {
-    return DEFAULT_LONG_TAU;
-  }
-
-  const ageAdj = 0.3 * (age - BASELINE_AGE);
-
-  const variance = Number.isFinite(dailyTssVariance as number)
-    ? (dailyTssVariance as number)
-    : BASELINE_TSS_VARIANCE;
-  const varAdj = clamp((variance - BASELINE_TSS_VARIANCE) / 100, -5, 10);
-
-  return roundTo1dp(
-    clamp(DEFAULT_LONG_TAU + ageAdj + varAdj, LONG_TAU_MIN, LONG_TAU_MAX)
-  );
-}
-
-/**
- * Compute the short EWA tau (fatigue / ATL window) for an athlete.
- *
- * @param age - Athlete age in years. NULL/undefined → `DEFAULT_SHORT_TAU`.
- * @param currentLongEWA - Current CTL-ish value (long EWA) for the
- *   athlete. Passing the freshly-computed long EWA keeps the short window
- *   consistent with how much fitness the athlete is carrying.
- *   NULL/undefined → treated as 0 (no load adjustment).
- * @returns tau in days, clamped to [5, 14], rounded to 1 decimal place.
- */
-export function calculateShortTimeConstant(
-  age: number | null | undefined,
-  currentLongEWA: number | null | undefined
-): number {
-  if (age == null || !Number.isFinite(age)) {
-    return DEFAULT_SHORT_TAU;
-  }
-
-  const ageAdj = 0.05 * (age - BASELINE_AGE);
-
-  const longEwa = Number.isFinite(currentLongEWA as number)
-    ? (currentLongEWA as number)
-    : 0;
-  const loadAdj = longEwa > 70 ? 1 : 0;
-
-  return roundTo1dp(
-    clamp(DEFAULT_SHORT_TAU + ageAdj + loadAdj, SHORT_TAU_MIN, SHORT_TAU_MAX)
-  );
-}
+export const DEFAULT_TFI_TAU = 42;
+export const DEFAULT_AFI_TAU = 7;
 
 /**
  * Placeholder HRV modulation. Tracked as future work per the rename plan —
@@ -119,19 +32,6 @@ export function applyHRVModulation(
 ): number {
   return tau;
 }
-
-// ────────────────────────────────────────────────────────────────────────
-// Spec §3.4 / §3.5 — discrete age brackets (TFI / AFI)
-//
-// Rolled out alongside the legacy calculateLongTimeConstant /
-// calculateShortTimeConstant above. The legacy helpers keep populating
-// ewa_long_tau / ewa_short_tau on user_profiles until the reader cut-over
-// (B3) and column drop (B4). The new helpers below populate tfi_tau /
-// afi_tau via the same nightly cron.
-// ────────────────────────────────────────────────────────────────────────
-
-export const DEFAULT_TFI_TAU = 42;
-export const DEFAULT_AFI_TAU = 7;
 
 /**
  * Compute the TFI (Training Fitness Index) time constant — spec §3.4.

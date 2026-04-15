@@ -5,78 +5,20 @@
  * TypeScript source from src/, so the math is duplicated here (following
  * the same pattern as calculateCTL/ATL in api/utils/fitnessSnapshots.js).
  *
- * Exposes pure math (`calculateLongTimeConstant`, `calculateShortTimeConstant`,
- * `applyHRVModulation`) plus `recomputeUserTauConstants(supabase, userId)` —
- * the nightly cron routine that reads recent activities, derives the per-user
- * tau values, and upserts them onto user_profiles.
+ * Exposes the spec §3.4 / §3.5 discrete-bracket formulas
+ * (calculateTFITimeConstant, calculateAFITimeConstant) plus the nightly
+ * `recomputeUserTauConstants(supabase, userId)` cron routine that reads
+ * recent activities, derives per-user tau values, and upserts them onto
+ * user_profiles.tfi_tau / afi_tau.
  *
- * The spec §3.4 / §3.5 discrete-bracket formulas (calculateTFITimeConstant /
- * calculateAFITimeConstant) are added alongside below. The cron dual-writes
- * both legacy (ewa_long_tau/ewa_short_tau) and new (tfi_tau/afi_tau)
- * columns during the B1→B4 rollout. Keep this file in sync with the .ts
- * twin in src/lib/training/adaptive-tau.ts.
+ * Legacy v1 helpers and the ewa_long_tau / ewa_short_tau columns were
+ * removed in B4 (migration 071).
  */
 
 import { calculateCTL, estimateTSS } from './fitnessSnapshots.js';
 
-export const DEFAULT_LONG_TAU = 42;
-export const DEFAULT_SHORT_TAU = 7;
 export const DEFAULT_TFI_TAU = 42;
 export const DEFAULT_AFI_TAU = 7;
-
-// See adaptive-tau.ts for rationale on these constants.
-const BASELINE_AGE = 35;
-const BASELINE_TSS_VARIANCE = 900;
-const LONG_TAU_MIN = 35;
-const LONG_TAU_MAX = 60;
-const SHORT_TAU_MIN = 5;
-const SHORT_TAU_MAX = 14;
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function roundTo1dp(value) {
-  return Math.round(value * 10) / 10;
-}
-
-/**
- * Compute the long EWA tau (fitness / CTL window) for an athlete.
- */
-export function calculateLongTimeConstant(age, dailyTssVariance) {
-  if (age == null || !Number.isFinite(age)) {
-    return DEFAULT_LONG_TAU;
-  }
-
-  const ageAdj = 0.3 * (age - BASELINE_AGE);
-
-  const variance = Number.isFinite(dailyTssVariance)
-    ? dailyTssVariance
-    : BASELINE_TSS_VARIANCE;
-  const varAdj = clamp((variance - BASELINE_TSS_VARIANCE) / 100, -5, 10);
-
-  return roundTo1dp(
-    clamp(DEFAULT_LONG_TAU + ageAdj + varAdj, LONG_TAU_MIN, LONG_TAU_MAX)
-  );
-}
-
-/**
- * Compute the short EWA tau (fatigue / ATL window) for an athlete.
- */
-export function calculateShortTimeConstant(age, currentLongEWA) {
-  if (age == null || !Number.isFinite(age)) {
-    return DEFAULT_SHORT_TAU;
-  }
-
-  const ageAdj = 0.05 * (age - BASELINE_AGE);
-
-  const longEwa = Number.isFinite(currentLongEWA) ? currentLongEWA : 0;
-  const loadAdj = longEwa > 70 ? 1 : 0;
-
-  return roundTo1dp(
-    clamp(DEFAULT_SHORT_TAU + ageAdj + loadAdj, SHORT_TAU_MIN, SHORT_TAU_MAX)
-  );
-}
 
 /**
  * Placeholder HRV modulation — identity function today.
@@ -135,10 +77,7 @@ export function calculateAFITimeConstant(age, currentTFI) {
 // Recompute per-user tau and persist onto user_profiles
 // ────────────────────────────────────────────────────────────────────────
 
-// 180 days feeds the §3.4 TFI-variance input; the legacy 42-day window
-// is carved out of the tail for the old variance formula.
 const LOOKBACK_DAYS = 180;
-const LEGACY_VARIANCE_WINDOW = 42;
 
 /**
  * Variance of a numeric array (population variance; divisor = n).
@@ -155,20 +94,19 @@ function variance(values) {
  * Derive adaptive tau for a single user and upsert onto user_profiles.
  *
  * - Skips users with NULL `metrics_age` (adaptive tau is gated by age).
- * - Uses the last 42 days of activities to derive daily TSS variance and
- *   a current long EWA (via calculateCTL) as inputs to the math helpers.
+ * - Pulls a 180-day daily-TSS series: TFI-series variance feeds §3.4;
+ *   a forward-walked EWA at the freshly-computed tau supplies current
+ *   TFI for §3.5.
  * - Uses the shared supabase admin client provided by the caller — never
  *   creates its own (see CLAUDE.md connection hygiene rules).
  *
  * @param {Object} supabase - Supabase admin client (service role).
  * @param {string} userId
  * @returns {Promise<{ userId: string, skipped?: true, reason?: string,
- *                     longTau?: number, shortTau?: number,
+ *                     tfiTau?: number, afiTau?: number,
  *                     metricsAge?: number }>}
  */
 export async function recomputeUserTauConstants(supabase, userId) {
-  // 1. Fetch the gating input (age). If missing, skip — current adaptive
-  //    behavior only kicks in once the user has entered age in Settings.
   const { data: profile, error: profileErr } = await supabase
     .from('user_profiles')
     .select('metrics_age')
@@ -182,7 +120,6 @@ export async function recomputeUserTauConstants(supabase, userId) {
     return { userId, skipped: true, reason: 'no_age' };
   }
 
-  // 2. Pull recent activities to estimate dailyTSS variance + long EWA.
   const windowEnd = new Date();
   const windowStart = new Date(windowEnd);
   windowStart.setDate(windowStart.getDate() - LOOKBACK_DAYS);
@@ -204,7 +141,6 @@ export async function recomputeUserTauConstants(supabase, userId) {
 
   if (actErr) throw actErr;
 
-  // FTP (for TSS estimation fallback).
   const { data: prefs } = await supabase
     .from('user_preferences')
     .select('ftp')
@@ -212,7 +148,7 @@ export async function recomputeUserTauConstants(supabase, userId) {
     .maybeSingle();
   const userFtp = prefs?.ftp || null;
 
-  // 3. Bucket TSS by day over the lookback window.
+  // Bucket daily stress into a 180-day array (oldest → newest).
   const dailyTssMap = {};
   for (const activity of activities || []) {
     const actDate = activity.start_date.split('T')[0];
@@ -228,20 +164,9 @@ export async function recomputeUserTauConstants(supabase, userId) {
     dailyTssArray.push(dailyTssMap[dateStr] || 0);
   }
 
-  // 4. Feed the helpers. We compute long EWA first at the new long-tau so
-  //    the short-tau calculation sees a representative chronic load.
-  //
-  //    Legacy (ewa_long_tau / ewa_short_tau): variance of the trailing 42
-  //    daily TSS values (input to the v1 continuous formulas).
-  //    Spec §3.4 / §3.5: variance of a TFI series derived by forward-
-  //    walking an EWA under the default TFI tau across the 180-day
-  //    lookback. Currently bootstrapped from daily TSS — once B2 ships
-  //    the dual-write of training_load_daily.tfi, this can pull the
-  //    persisted TFI series directly.
-  const legacyWindow = dailyTssArray.slice(-LEGACY_VARIANCE_WINDOW);
-  const dailyTssVariance = variance(legacyWindow);
-  const longTau = calculateLongTimeConstant(metricsAge, dailyTssVariance);
-
+  // §3.4: variance of a forward-walked TFI series under default tau.
+  // Once the training_load_daily.tfi column is populated historically
+  // this can pull the persisted TFI series directly.
   const tfiSeries = [];
   let tfiRunning = 0;
   for (const t of dailyTssArray) {
@@ -251,30 +176,16 @@ export async function recomputeUserTauConstants(supabase, userId) {
   const tfiVariance6Months = variance(tfiSeries);
   const tfiTau = calculateTFITimeConstant(metricsAge, tfiVariance6Months);
 
-  const currentLongEWA = calculateCTL(dailyTssArray, longTau);
-  const shortTau = calculateShortTimeConstant(metricsAge, currentLongEWA);
-  const afiTau = calculateAFITimeConstant(metricsAge, currentLongEWA);
+  // §3.5: current TFI from forward-walked EWA at the fresh tau.
+  const currentTFI = calculateCTL(dailyTssArray, tfiTau);
+  const afiTau = calculateAFITimeConstant(metricsAge, currentTFI);
 
-  // 5. Persist. Dual-write during the B1→B4 rollout: legacy columns
-  //    (ewa_long_tau / ewa_short_tau) plus the new tfi_tau / afi_tau.
   const { error: upsertErr } = await supabase
     .from('user_profiles')
-    .update({
-      ewa_long_tau: longTau,
-      ewa_short_tau: shortTau,
-      tfi_tau: tfiTau,
-      afi_tau: afiTau,
-    })
+    .update({ tfi_tau: tfiTau, afi_tau: afiTau })
     .eq('id', userId);
 
   if (upsertErr) throw upsertErr;
 
-  return {
-    userId,
-    metricsAge,
-    longTau,
-    shortTau,
-    tfiTau,
-    afiTau,
-  };
+  return { userId, metricsAge, tfiTau, afiTau };
 }

@@ -4,7 +4,7 @@
  * Endpoints:
  *  - GET  /api/recompute-user-tau?action=recompute-all
  *      Nightly Vercel cron: iterate users with metrics_age set and derive
- *      fresh ewa_long_tau / ewa_short_tau values.
+ *      fresh tfi_tau / afi_tau values on user_profiles.
  *  - POST /api/recompute-user-tau?action=recompute-current
  *      Authenticated user trigger (e.g. immediately after saving their
  *      age in Settings) to refresh just their own tau values.

@@ -10,11 +10,10 @@
  * createClient() itself. Callers must pass the shared singleton from
  * api/utils/supabaseAdmin.js (per the connection-hygiene rules in CLAUDE.md).
  *
- * Dual-write (B2 → B4): this helper writes both the legacy columns
- * (tss/ctl/atl/tsb/tss_source) AND the spec-§2 canonical columns
- * (rss/tfi/afi/form_score/rss_source). Callers continue to pass the old
- * field names; reader cut-over to the new names happens in B3, legacy
- * columns are dropped in B4.
+ * Writes the spec §2 canonical columns (rss/tfi/afi/form_score/rss_source).
+ * The legacy tss/ctl/atl/tsb/tss_source columns were dropped in migration
+ * 071 (B4). Callers still pass the legacy field shape — translation
+ * happens here — so call sites can be migrated incrementally.
  */
 
 import { calculateFormScoreConfidence } from './fitnessSnapshots.js';
@@ -34,7 +33,8 @@ import { calculateFormScoreConfidence } from './fitnessSnapshots.js';
  *   tfi_composition?: { aerobic_fraction: number, threshold_fraction: number, high_intensity_fraction: number } | null,
  *   tfi_tau?: number | null,
  *   afi_tau?: number | null,
- * }} payload
+ * }} payload - Legacy field names kept for caller compatibility; they
+ *   map 1:1 onto the canonical rss/tfi/afi/form_score/rss_source columns.
  */
 export async function upsertTrainingLoadDaily(supabase, userId, date, payload) {
   // Pull up to the previous 6 days of confidence so we can compute
@@ -61,25 +61,18 @@ export async function upsertTrainingLoadDaily(supabase, userId, date, payload) {
       {
         user_id: userId,
         date,
-        // Legacy columns (dropped in B4).
-        tss: payload.tss,
-        ctl: payload.ctl,
-        atl: payload.atl,
-        tsb: payload.tsb,
-        tss_source: payload.tss_source,
-        // Spec §2 canonical columns (dual-write from B2; readers cut over
-        // in B3). Same values — the rename is semantic, not mathematical.
+        // Spec §2 canonical columns.
         rss: payload.tss,
         tfi: payload.ctl,
         afi: payload.atl,
         form_score: payload.tsb,
         rss_source: payload.tss_source,
-        // Shared columns (unchanged by rename).
+        // Shared columns.
         confidence: payload.confidence,
         fs_confidence,
         terrain_class: payload.terrain_class ?? null,
-        // New columns, populated in later PRs (B6 for composition;
-        // optional here so B2 writers can start threading the snapshot).
+        // New spec-§3 columns (populated opportunistically; B6 wires
+        // tfi_composition into the write path).
         tfi_composition: payload.tfi_composition ?? null,
         tfi_tau: payload.tfi_tau ?? null,
         afi_tau: payload.afi_tau ?? null,

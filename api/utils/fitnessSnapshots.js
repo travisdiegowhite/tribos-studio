@@ -451,17 +451,18 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
 
   const userFtp = prefs?.ftp || null;
 
-  // Get per-athlete adaptive EWA time constants from profile. NULL falls
-  // back to the 42 / 7 defaults, preserving pre-adaptive behavior for any
-  // user who has not entered their age in Settings.
+  // Get per-athlete adaptive tau from profile. NULL falls back to the
+  // 42 / 7 defaults, preserving pre-adaptive behavior for any user who
+  // has not entered their age in Settings. Columns renamed in B1/B4
+  // (tfi_tau / afi_tau per spec §3.4 / §3.5).
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('ewa_long_tau, ewa_short_tau')
+    .select('tfi_tau, afi_tau')
     .eq('id', userId)
     .maybeSingle();
 
-  const longTau = profile?.ewa_long_tau ?? 42;
-  const shortTau = profile?.ewa_short_tau ?? 7;
+  const longTau = profile?.tfi_tau ?? 42;
+  const shortTau = profile?.afi_tau ?? 7;
 
   // Build daily TSS map for CTL/ATL calculation
   const dailyTSS = {};
