@@ -9,7 +9,7 @@ import { supabase } from '../../lib/supabase';
  * Loads async with skeleton. Caches in component state to avoid refetching
  * on re-renders when metrics haven't changed.
  */
-function FitnessSummary({ ctl, atl, tsb, lastRideTss }) {
+function FitnessSummary({ tfi, afi, formScore, lastRideRss }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -17,10 +17,10 @@ function FitnessSummary({ ctl, atl, tsb, lastRideTss }) {
 
   useEffect(() => {
     // Don't fetch if we have no metrics
-    if (ctl === 0 && atl === 0 && tsb === 0) return;
+    if (tfi === 0 && afi === 0 && formScore === 0) return;
 
     // Build a key to detect meaningful metric changes
-    const fetchKey = `${ctl}:${atl}:${tsb}:${lastRideTss || 0}`;
+    const fetchKey = `${tfi}:${afi}:${formScore}:${lastRideRss || 0}`;
     if (fetchKey === lastFetchKey.current) return;
 
     let cancelled = false;
@@ -42,7 +42,7 @@ function FitnessSummary({ ctl, atl, tsb, lastRideTss }) {
           },
           body: JSON.stringify({
             surface: 'today',
-            clientMetrics: { ctl, atl, tsb, lastRideTss },
+            clientMetrics: { tfi, afi, formScore, lastRideRss },
           }),
         });
 
@@ -69,7 +69,7 @@ function FitnessSummary({ ctl, atl, tsb, lastRideTss }) {
 
     fetchSummary();
     return () => { cancelled = true; };
-  }, [ctl, atl, tsb, lastRideTss]);
+  }, [tfi, afi, formScore, lastRideRss]);
 
   // Don't render anything if there's no data to show
   if (!loading && !summary && !error) return null;
