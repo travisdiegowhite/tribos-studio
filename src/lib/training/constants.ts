@@ -1,18 +1,18 @@
 /**
  * Training Load & Deviation Adjustment — Constants
  *
- * Central constants for CTL/ATL/TSB math, deviation thresholds,
- * and TSS estimation defaults.
+ * Central constants for TFI/AFI/FS math, deviation thresholds,
+ * and RSS estimation defaults.
  */
 
 // ── Exponential Moving Average time constants ────────────────────────────────
-export const CTL_TIME_CONSTANT = 42;   // days — chronic training load (fitness)
-export const ATL_TIME_CONSTANT = 7;    // days — acute training load (fatigue)
+export const TFI_TIME_CONSTANT = 42;   // days — Training Fitness Index (long-term)
+export const AFI_TIME_CONSTANT = 7;    // days — Acute Fatigue Index (short-term)
 
-// ── TSB thresholds for session readiness ─────────────────────────────────────
-export const QUALITY_TSB_THRESHOLD = -15;  // below this, interval quality degrades
-export const RACE_TSB_TARGET_LOW = 5;      // optimal race-day TSB window lower bound
-export const RACE_TSB_TARGET_HIGH = 20;    // optimal race-day TSB window upper bound
+// ── Form Score thresholds for session readiness ─────────────────────────────
+export const QUALITY_FS_THRESHOLD = -15;  // below this, interval quality degrades
+export const RACE_FS_TARGET_LOW = 5;      // optimal race-day FS window lower bound
+export const RACE_FS_TARGET_HIGH = 20;    // optimal race-day FS window upper bound
 
 // ── Deviation detection thresholds ───────────────────────────────────────────
 export const DEVIATION_MIN_DELTA = 15;     // TSS — smaller deviations ignored

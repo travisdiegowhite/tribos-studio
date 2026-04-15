@@ -11,7 +11,7 @@ const baseProjections: AdjustmentProjections = {
 };
 
 const baseContext: RankingContext = {
-  tsbGap: 13,
+  fsGap: 13,
   urgency: 'medium',
   daysToQuality: 2,
   swapFeasible: true,
@@ -39,7 +39,7 @@ describe('rankOptions', () => {
   });
 
   it('hammer prefers no_adjust for small gaps', () => {
-    const smallGapContext = { ...baseContext, tsbGap: 5 };
+    const smallGapContext = { ...baseContext, fsGap: 5 };
     const ranked = rankOptions('hammer', baseProjections, smallGapContext);
     expect(ranked[0].option).toBe('no_adjust');
   });

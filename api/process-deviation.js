@@ -52,8 +52,6 @@ export default async function handler(req, res) {
 
   try {
     // 1. Get latest training load state.
-    // DB columns renamed in B2 (spec §2); tsb-projection.stepDay internals
-    // still use ctl/atl/tsb keys — bridge at this boundary.
     const { data: latestLoad } = await supabase
       .from('training_load_daily')
       .select('tfi, afi, form_score')
@@ -63,8 +61,8 @@ export default async function handler(req, res) {
       .single();
 
     const currentState = latestLoad
-      ? { ctl: latestLoad.tfi, atl: latestLoad.afi, tsb: latestLoad.form_score }
-      : { ctl: 42, atl: 42, tsb: 0 };
+      ? { tfi: latestLoad.tfi, afi: latestLoad.afi, formScore: latestLoad.form_score }
+      : { tfi: 42, afi: 42, formScore: 0 };
 
     // 2. Get user calibration factors
     const { data: cal } = await supabase
@@ -182,9 +180,9 @@ export default async function handler(req, res) {
 
       await upsertTrainingLoadDaily(supabase, userId, today, {
         tss,
-        ctl: Math.round(newState.ctl * 100) / 100,
-        atl: Math.round(newState.atl * 100) / 100,
-        tsb: Math.round(newState.tsb * 100) / 100,
+        ctl: Math.round(newState.tfi * 100) / 100,
+        atl: Math.round(newState.afi * 100) / 100,
+        tsb: Math.round(newState.formScore * 100) / 100,
         tss_source: estimate.source,
         confidence: estimate.confidence,
         terrain_class: estimate.terrain_class ?? null,
@@ -213,9 +211,9 @@ export default async function handler(req, res) {
 
     await upsertTrainingLoadDaily(supabase, userId, today, {
       tss: estimatedTss,
-      ctl: Math.round(newState.ctl * 100) / 100,
-      atl: Math.round(newState.atl * 100) / 100,
-      tsb: Math.round(newState.tsb * 100) / 100,
+      ctl: Math.round(newState.tfi * 100) / 100,
+      atl: Math.round(newState.afi * 100) / 100,
+      tsb: Math.round(newState.formScore * 100) / 100,
       tss_source: analysis.tss_estimate?.source ?? 'inferred',
       confidence: analysis.tss_estimate?.confidence ?? 0.4,
       terrain_class: analysis.tss_estimate?.terrain_class ?? null,

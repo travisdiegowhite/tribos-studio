@@ -36,8 +36,6 @@ export default async function handler(req, res) {
 
   try {
     // Get latest training load state.
-    // DB columns renamed in B2 (spec §2); tsb-projection.stepDay internals
-    // still use ctl/atl/tsb keys — bridge at this boundary.
     const { data: latestLoad } = await supabase
       .from('training_load_daily')
       .select('tfi, afi, form_score, date')
@@ -47,8 +45,8 @@ export default async function handler(req, res) {
       .single();
 
     const currentState = latestLoad
-      ? { ctl: Number(latestLoad.tfi), atl: Number(latestLoad.afi), tsb: Number(latestLoad.form_score) }
-      : { ctl: 42, atl: 42, tsb: 0 };
+      ? { tfi: Number(latestLoad.tfi), afi: Number(latestLoad.afi), formScore: Number(latestLoad.form_score) }
+      : { tfi: 42, afi: 42, formScore: 0 };
 
     // Get upcoming planned workouts
     const today = new Date().toISOString().split('T')[0];
@@ -62,7 +60,7 @@ export default async function handler(req, res) {
 
     const schedule = (upcoming ?? []).map(w => ({
       date: w.scheduled_date,
-      tss: w.target_tss || 0,
+      rss: w.target_tss || 0,
       is_quality: w.is_quality || false,
       session_type: w.session_type || w.workout_type,
     }));
