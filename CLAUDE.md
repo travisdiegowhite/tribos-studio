@@ -4,6 +4,16 @@
 
 **tribos.studio** is a production cycling training platform (SaaS) built with React 19, Vite, Supabase, and Vercel serverless functions. It provides AI-powered route building, training plan management, multi-provider activity sync (Strava, Garmin, Wahoo), community features, and gear tracking.
 
+## Metrics Rollout
+
+The canonical Tribos metrics specification lives at `docs/TRIBOS_METRICS_SPECIFICATION.md`. Rollout progress is tracked in `docs/METRICS_ROLLOUT_STATUS.md`.
+
+Three amendments from Part A implementation apply on top of the spec:
+
+- **(D1) `rss_source` has 6 tiers, not 4**: `device`, `power`, `kilojoules`, `hr`, `rpe`, `inferred`.
+- **(D2) Confidence values are calibrated**: `device` 0.95 / `power` 0.95 / `kJ-with-FTP` 0.75 / `kJ-no-FTP` 0.50 / `hr` 0.65 / `inferred` 0.40.
+- **(D4) Terrain multiplier applies only to `kJ` and `inferred` tiers**, not all tiers.
+
 ## Tech Stack
 
 | Layer | Technology |
