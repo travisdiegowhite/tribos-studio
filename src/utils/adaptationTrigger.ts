@@ -43,9 +43,12 @@ interface Activity {
 interface TrainingContext {
   weekNumber?: number;
   trainingPhase?: TrainingPhase;
-  ctl?: number;
-  atl?: number;
-  tsb?: number;
+  /** Training Fitness Index (spec §2, renamed from CTL). */
+  tfi?: number;
+  /** Acute Fatigue Index (spec §2, renamed from ATL). */
+  afi?: number;
+  /** Form Score (spec §2, renamed from TSB). */
+  formScore?: number;
   userFtp?: number;
 }
 
@@ -117,9 +120,15 @@ function toWorkoutAdaptation(db: WorkoutAdaptationDB): WorkoutAdaptation {
     context: {
       weekNumber: db.week_number,
       trainingPhase: db.training_phase,
-      ctl: db.ctg_at_time,
-      atl: db.atl_at_time,
-      tsb: db.tsb_at_time,
+      // Prefer canonical twins (spec §2) when populated; fall back to legacy
+      // columns for pre-migration-073 rows. Both shapes are threaded onto
+      // the frontend type so callers can read either.
+      ctl: db.tfi_at_time ?? db.ctg_at_time,
+      tfi: db.tfi_at_time ?? db.ctg_at_time,
+      atl: db.afi_at_time ?? db.atl_at_time,
+      afi: db.afi_at_time ?? db.atl_at_time,
+      tsb: db.form_score_at_time ?? db.tsb_at_time,
+      formScore: db.form_score_at_time ?? db.tsb_at_time,
     },
     detectedAt: db.detected_at,
   };
@@ -277,7 +286,7 @@ async function updateExistingAdaptation(
 }
 
 /**
- * Fetch user's training context (CTL, ATL, TSB, FTP)
+ * Fetch user's training context (TFI, AFI, Form Score, FTP)
  */
 export async function fetchTrainingContext(userId: string): Promise<TrainingContext> {
   try {
@@ -288,10 +297,12 @@ export async function fetchTrainingContext(userId: string): Promise<TrainingCont
       .eq('id', userId)
       .single();
 
-    // Fetch latest fitness snapshot
+    // Fetch latest fitness snapshot using canonical spec §2 column names.
+    // §1b (PR #660) cut the DB over; this reader now uses the native names
+    // rather than the `legacy:canonical` alias shim.
     const { data: snapshot } = await supabase
       .from('fitness_snapshots')
-      .select('ctl:tfi, atl:afi, tsb:form_score')
+      .select('tfi, afi, form_score')
       .eq('user_id', userId)
       .order('snapshot_date', { ascending: false })
       .limit(1)
@@ -307,9 +318,9 @@ export async function fetchTrainingContext(userId: string): Promise<TrainingCont
 
     return {
       userFtp: profile?.ftp ?? undefined,
-      ctl: snapshot?.ctl ?? undefined,
-      atl: snapshot?.atl ?? undefined,
-      tsb: snapshot?.tsb ?? undefined,
+      tfi: snapshot?.tfi ?? undefined,
+      afi: snapshot?.afi ?? undefined,
+      formScore: snapshot?.form_score ?? undefined,
       weekNumber: plan?.current_week ?? undefined,
     };
   } catch (error) {
