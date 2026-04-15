@@ -501,9 +501,12 @@ export function detectAdaptation(input: DetectAdaptationInput): Omit<WorkoutAdap
 
     week_number: trainingContext?.weekNumber ?? plannedWorkout.week_number,
     training_phase: trainingContext?.trainingPhase ?? null,
-    ctg_at_time: trainingContext?.ctl ?? null,
-    atl_at_time: trainingContext?.atl ?? null,
-    tsb_at_time: trainingContext?.tsb ?? null,
+    // Read canonical twin first (spec §2) and fall back to legacy keys for
+    // callers still on old identifiers. Writer-side (the output column names)
+    // flips in §3b-3.
+    ctg_at_time: trainingContext?.tfi ?? trainingContext?.ctl ?? null,
+    atl_at_time: trainingContext?.afi ?? trainingContext?.atl ?? null,
+    tsb_at_time: trainingContext?.formScore ?? trainingContext?.tsb ?? null,
 
     detected_at: new Date().toISOString(),
   };
@@ -515,7 +518,13 @@ export function detectAdaptation(input: DetectAdaptationInput): Omit<WorkoutAdap
 function generateInitialAssessment(
   adaptationType: AdaptationType,
   stimulusAnalysis: StimulusAnalysis,
-  context?: { trainingPhase?: TrainingPhase; tsb?: number }
+  context?: {
+    trainingPhase?: TrainingPhase;
+    /** Legacy Training Stress Balance; prefer `formScore` (spec §2). */
+    tsb?: number;
+    /** Canonical Form Score (spec §2, renamed from TSB). */
+    formScore?: number;
+  }
 ): { assessment: AdaptationAssessment; explanation: string } {
   switch (adaptationType) {
     case 'completed_as_planned':
@@ -565,13 +574,16 @@ function generateInitialAssessment(
       };
 
     case 'upgraded':
+      // Prefer canonical Form Score (spec §2) but fall back to legacy tsb
+      // until all callers have migrated.
+      const formValue = context?.formScore ?? context?.tsb;
       const upgradedAssessment: AdaptationAssessment =
-        context?.tsb !== undefined && context.tsb < -20 ? 'concerning' : 'acceptable';
+        formValue !== undefined && formValue < -20 ? 'concerning' : 'acceptable';
       return {
         assessment: upgradedAssessment,
         explanation:
           upgradedAssessment === 'concerning'
-            ? 'Upgraded to harder workout while fatigued (TSB < -20). Risk of overtraining.'
+            ? 'Upgraded to harder workout while fatigued (Form Score < -20). Risk of overtraining.'
             : 'Upgraded to harder workout. Extra intensity achieved.',
       };
 
@@ -618,7 +630,22 @@ export function detectWeekAdaptations(
   plannedWorkouts: PlannedWorkoutDB[],
   activities: (ActivitySummary & { intensityFactor?: number | null; normalizedPower?: number | null })[],
   userFtp?: number,
-  trainingContext?: { weekNumber?: number; trainingPhase?: TrainingPhase; ctl?: number; atl?: number; tsb?: number }
+  trainingContext?: {
+    weekNumber?: number;
+    trainingPhase?: TrainingPhase;
+    /** Legacy Chronic Training Load; prefer `tfi` (spec §2). */
+    ctl?: number;
+    /** Canonical Training Fitness Index (spec §2, renamed from CTL). */
+    tfi?: number;
+    /** Legacy Acute Training Load; prefer `afi` (spec §2). */
+    atl?: number;
+    /** Canonical Acute Fatigue Index (spec §2, renamed from ATL). */
+    afi?: number;
+    /** Legacy Training Stress Balance; prefer `formScore` (spec §2). */
+    tsb?: number;
+    /** Canonical Form Score (spec §2, renamed from TSB). */
+    formScore?: number;
+  }
 ): Array<Omit<WorkoutAdaptationDB, 'id' | 'user_id' | 'created_at'>> {
   const adaptations: Array<Omit<WorkoutAdaptationDB, 'id' | 'user_id' | 'created_at'>> = [];
   const usedActivityIds = new Set<string>();
@@ -691,9 +718,11 @@ export function detectWeekAdaptations(
       ai_recommendations: null,
       week_number: trainingContext?.weekNumber ?? null,
       training_phase: trainingContext?.trainingPhase ?? null,
-      ctg_at_time: trainingContext?.ctl ?? null,
-      atl_at_time: trainingContext?.atl ?? null,
-      tsb_at_time: trainingContext?.tsb ?? null,
+      // Prefer canonical twin (spec §2) and fall back to legacy for callers
+      // still on old identifiers. Writer-side DB column flip is §3b-3.
+      ctg_at_time: trainingContext?.tfi ?? trainingContext?.ctl ?? null,
+      atl_at_time: trainingContext?.afi ?? trainingContext?.atl ?? null,
+      tsb_at_time: trainingContext?.formScore ?? trainingContext?.tsb ?? null,
       detected_at: new Date().toISOString(),
     });
   }
