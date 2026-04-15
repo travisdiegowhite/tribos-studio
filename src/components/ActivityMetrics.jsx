@@ -116,11 +116,13 @@ export function ActivityMetricsBadges({ activity, ftp }) {
     const maxPower = rawMaxPower > 0 && rawMaxPower < MAX_VALID_POWER_WATTS ? rawMaxPower : 0;
     const maxPowerCorrupted = rawMaxPower >= MAX_VALID_POWER_WATTS;
 
-    // If max_power was a sentinel, stored NP/metrics are corrupted too
-    const np = (!maxPowerCorrupted && activity.normalized_power) || estimateNormalizedPower(avgPower, maxPower);
-    const intensityFactor = (!maxPowerCorrupted && activity.intensity_factor) || calculateIF(np, ftp);
+    // If max_power was a sentinel, stored NP/metrics are corrupted too.
+    // Prefer canonical spec §2/§3.2 fields (rss, effective_power,
+    // ride_intensity) with legacy fallback for pre-074 rows.
+    const np = (!maxPowerCorrupted && (activity.effective_power ?? activity.normalized_power)) || estimateNormalizedPower(avgPower, maxPower);
+    const intensityFactor = (!maxPowerCorrupted && (activity.ride_intensity ?? activity.intensity_factor)) || calculateIF(np, ftp);
     const vi = calculateVI(np, avgPower);
-    const tss = (!maxPowerCorrupted && activity.tss) || calculateTSSFromPower(duration, np, ftp);
+    const tss = (!maxPowerCorrupted && (activity.rss ?? activity.tss)) || calculateTSSFromPower(duration, np, ftp);
     const ifZone = getIFZone(intensityFactor);
 
     return {
@@ -222,12 +224,13 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
     const maxPower = rawMaxPower > 0 && rawMaxPower < MAX_VALID_POWER_WATTS ? rawMaxPower : 0;
     const maxPowerCorrupted = rawMaxPower >= MAX_VALID_POWER_WATTS;
 
+    // Prefer canonical spec §2/§3.2 fields with legacy fallback for pre-074 rows.
     const np = avgPower
-      ? ((!maxPowerCorrupted && activity.normalized_power) || estimateNormalizedPower(avgPower, maxPower))
+      ? ((!maxPowerCorrupted && (activity.effective_power ?? activity.normalized_power)) || estimateNormalizedPower(avgPower, maxPower))
       : null;
-    const intensityFactor = (!maxPowerCorrupted && activity.intensity_factor) || calculateIF(np, ftp);
+    const intensityFactor = (!maxPowerCorrupted && (activity.ride_intensity ?? activity.intensity_factor)) || calculateIF(np, ftp);
     const vi = calculateVI(np, avgPower);
-    const tss = (!maxPowerCorrupted && activity.tss) || calculateTSSFromPower(duration, np, ftp);
+    const tss = (!maxPowerCorrupted && (activity.rss ?? activity.tss)) || calculateTSSFromPower(duration, np, ftp);
     const ifZone = getIFZone(intensityFactor);
 
     // W/kg calculations

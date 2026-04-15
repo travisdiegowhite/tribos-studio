@@ -201,15 +201,17 @@ const RideAnalysisModal = ({
       ? mechanicalWork
       : rawKilojoules;
 
-    // Power metrics - prefer stored values from FIT parser (calculated from actual power stream)
-    // BUT if max_power was a sentinel, stored NP/IF/TSS are also corrupted (calculated from unfiltered stream)
-    // Fall back to client-side estimation from avg/max power
+    // Power metrics - prefer stored values from FIT parser (calculated from actual power stream).
+    // BUT if max_power was a sentinel, stored NP/IF/TSS are also corrupted (calculated from unfiltered stream).
+    // Fall back to client-side estimation from avg/max power.
+    // Prefer canonical spec §2/§3.2 fields (rss, effective_power, ride_intensity)
+    // with legacy fallback for pre-074 rows.
     let np = null, intensityFactor = null, vi = null, powerTSS = null, ifZone = null;
     if (avgPower > 0) {
-      np = (!maxPowerCorrupted && ride.normalized_power) || estimateNormalizedPower(avgPower, maxPower);
-      intensityFactor = (!maxPowerCorrupted && ride.intensity_factor) || calculateIF(np, ftp);
+      np = (!maxPowerCorrupted && (ride.effective_power ?? ride.normalized_power)) || estimateNormalizedPower(avgPower, maxPower);
+      intensityFactor = (!maxPowerCorrupted && (ride.ride_intensity ?? ride.intensity_factor)) || calculateIF(np, ftp);
       vi = calculateVI(np, avgPower);
-      powerTSS = (!maxPowerCorrupted && ride.tss) || calculateTSSFromPower(duration, np, ftp);
+      powerTSS = (!maxPowerCorrupted && (ride.rss ?? ride.tss)) || calculateTSSFromPower(duration, np, ftp);
       ifZone = getIFZone(intensityFactor);
     }
 
@@ -223,7 +225,7 @@ const RideAnalysisModal = ({
 
     // Power data source indicators
     const deviceWatts = ride.device_watts === true;
-    const hasRealNP = !maxPowerCorrupted && !!ride.normalized_power;
+    const hasRealNP = !maxPowerCorrupted && !!(ride.effective_power ?? ride.normalized_power);
     const powerCurveSummary = ride.power_curve_summary;
     const hasPowerCurve = powerCurveSummary && typeof powerCurveSummary === 'object'
       && Object.keys(powerCurveSummary).length > 0;
