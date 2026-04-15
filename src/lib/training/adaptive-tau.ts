@@ -11,11 +11,14 @@
  * `DEFAULT_SHORT_TAU` so downstream math is identical to the pre-adaptive
  * behavior.
  *
- * @todo Swap the formulas for spec §3.4 / §3.5 once the Tribos Metrics
- *       Specification lands in the repo. The current formulas are v1
- *       sport-science defaults: directionally correct (older athletes and
- *       more variable training both extend the window; higher chronic
- *       load nudges the short window up) and clamped to sensible bounds.
+ * The v1 formulas here (`calculateLongTimeConstant` /
+ * `calculateShortTimeConstant`) remain in place during the B1→B4 rollout
+ * of the Tribos Metrics Specification. They write ewa_long_tau /
+ * ewa_short_tau. The spec §3.4 / §3.5 discrete-bracket formulas
+ * (`calculateTFITimeConstant` / `calculateAFITimeConstant`) live below
+ * this file and write tfi_tau / afi_tau via the same nightly cron.
+ * Reader cut-over and removal of the legacy columns + helpers ship in
+ * B3 and B4 respectively.
  */
 
 export const DEFAULT_LONG_TAU = 42;
@@ -115,4 +118,95 @@ export function applyHRVModulation(
   _hrvRmssd?: number | null
 ): number {
   return tau;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Spec §3.4 / §3.5 — discrete age brackets (TFI / AFI)
+//
+// Rolled out alongside the legacy calculateLongTimeConstant /
+// calculateShortTimeConstant above. The legacy helpers keep populating
+// ewa_long_tau / ewa_short_tau on user_profiles until the reader cut-over
+// (B3) and column drop (B4). The new helpers below populate tfi_tau /
+// afi_tau via the same nightly cron.
+// ────────────────────────────────────────────────────────────────────────
+
+export const DEFAULT_TFI_TAU = 42;
+export const DEFAULT_AFI_TAU = 7;
+
+/**
+ * Compute the TFI (Training Fitness Index) time constant — spec §3.4.
+ *
+ * Discrete age brackets:
+ *   age < 30  → 0.90
+ *   age < 45  → 1.00
+ *   age < 55  → 1.10
+ *   otherwise → 1.20
+ *
+ * History factor: TFI variance over the trailing 6 months. Variance > 20
+ * bumps tau by 5% (captures athletes with uneven training blocks, whose
+ * fitness window needs to be longer to smooth the signal).
+ *
+ * @param age Athlete age in years. NULL/undefined → `DEFAULT_TFI_TAU`.
+ * @param tfiVariance6Months Variance of TFI values across the trailing
+ *   ~180 days. NULL/undefined is treated as 0 (no history bump).
+ * @returns tau in days, rounded to nearest integer.
+ */
+export function calculateTFITimeConstant(
+  age: number | null | undefined,
+  tfiVariance6Months: number | null | undefined
+): number {
+  if (age == null || !Number.isFinite(age)) {
+    return DEFAULT_TFI_TAU;
+  }
+
+  let ageFactor: number;
+  if (age < 30) ageFactor = 0.9;
+  else if (age < 45) ageFactor = 1.0;
+  else if (age < 55) ageFactor = 1.1;
+  else ageFactor = 1.2;
+
+  const variance = Number.isFinite(tfiVariance6Months as number)
+    ? (tfiVariance6Months as number)
+    : 0;
+  const historyFactor = variance > 20 ? 1.05 : 1.0;
+
+  return Math.round(42 * ageFactor * historyFactor);
+}
+
+/**
+ * Compute the AFI (Acute Fatigue Index) time constant — spec §3.5.
+ *
+ * Discrete age brackets (more aggressive than TFI; AFI moves fast):
+ *   age < 30  → 0.85
+ *   age < 45  → 1.00
+ *   age < 55  → 1.15
+ *   otherwise → 1.30
+ *
+ * Load factor: `currentTFI > 100` bumps tau by 10% (high chronic load
+ * means the fatigue window should be a touch longer so a single hard day
+ * doesn't dominate).
+ *
+ * @param age Athlete age in years. NULL/undefined → `DEFAULT_AFI_TAU`.
+ * @param currentTFI Current Training Fitness Index. NULL/undefined is
+ *   treated as 0 (no load bump).
+ * @returns tau in days, rounded to 1 decimal place.
+ */
+export function calculateAFITimeConstant(
+  age: number | null | undefined,
+  currentTFI: number | null | undefined
+): number {
+  if (age == null || !Number.isFinite(age)) {
+    return DEFAULT_AFI_TAU;
+  }
+
+  let ageFactor: number;
+  if (age < 30) ageFactor = 0.85;
+  else if (age < 45) ageFactor = 1.0;
+  else if (age < 55) ageFactor = 1.15;
+  else ageFactor = 1.3;
+
+  const tfi = Number.isFinite(currentTFI as number) ? (currentTFI as number) : 0;
+  const loadFactor = tfi > 100 ? 1.1 : 1.0;
+
+  return +(7 * ageFactor * loadFactor).toFixed(1);
 }

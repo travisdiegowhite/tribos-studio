@@ -10,15 +10,19 @@
  * the nightly cron routine that reads recent activities, derives the per-user
  * tau values, and upserts them onto user_profiles.
  *
- * @todo Swap the formulas for spec §3.4 / §3.5 once the Tribos Metrics
- *       Specification lands in the repo. Keep this file in sync with the
- *       .ts twin.
+ * The spec §3.4 / §3.5 discrete-bracket formulas (calculateTFITimeConstant /
+ * calculateAFITimeConstant) are added alongside below. The cron dual-writes
+ * both legacy (ewa_long_tau/ewa_short_tau) and new (tfi_tau/afi_tau)
+ * columns during the B1→B4 rollout. Keep this file in sync with the .ts
+ * twin in src/lib/training/adaptive-tau.ts.
  */
 
 import { calculateCTL, estimateTSS } from './fitnessSnapshots.js';
 
 export const DEFAULT_LONG_TAU = 42;
 export const DEFAULT_SHORT_TAU = 7;
+export const DEFAULT_TFI_TAU = 42;
+export const DEFAULT_AFI_TAU = 7;
 
 // See adaptive-tau.ts for rationale on these constants.
 const BASELINE_AGE = 35;
@@ -83,10 +87,58 @@ export function applyHRVModulation(tau, _hrvRmssd) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// Spec §3.4 / §3.5 — discrete age brackets (TFI / AFI).
+// Mirror of src/lib/training/adaptive-tau.ts. See that file for rationale.
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Compute the TFI (Training Fitness Index) time constant — spec §3.4.
+ */
+export function calculateTFITimeConstant(age, tfiVariance6Months) {
+  if (age == null || !Number.isFinite(age)) {
+    return DEFAULT_TFI_TAU;
+  }
+
+  let ageFactor;
+  if (age < 30) ageFactor = 0.9;
+  else if (age < 45) ageFactor = 1.0;
+  else if (age < 55) ageFactor = 1.1;
+  else ageFactor = 1.2;
+
+  const variance = Number.isFinite(tfiVariance6Months) ? tfiVariance6Months : 0;
+  const historyFactor = variance > 20 ? 1.05 : 1.0;
+
+  return Math.round(42 * ageFactor * historyFactor);
+}
+
+/**
+ * Compute the AFI (Acute Fatigue Index) time constant — spec §3.5.
+ */
+export function calculateAFITimeConstant(age, currentTFI) {
+  if (age == null || !Number.isFinite(age)) {
+    return DEFAULT_AFI_TAU;
+  }
+
+  let ageFactor;
+  if (age < 30) ageFactor = 0.85;
+  else if (age < 45) ageFactor = 1.0;
+  else if (age < 55) ageFactor = 1.15;
+  else ageFactor = 1.3;
+
+  const tfi = Number.isFinite(currentTFI) ? currentTFI : 0;
+  const loadFactor = tfi > 100 ? 1.1 : 1.0;
+
+  return +(7 * ageFactor * loadFactor).toFixed(1);
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // Recompute per-user tau and persist onto user_profiles
 // ────────────────────────────────────────────────────────────────────────
 
-const LOOKBACK_DAYS = 42;
+// 180 days feeds the §3.4 TFI-variance input; the legacy 42-day window
+// is carved out of the tail for the old variance formula.
+const LOOKBACK_DAYS = 180;
+const LEGACY_VARIANCE_WINDOW = 42;
 
 /**
  * Variance of a numeric array (population variance; divisor = n).
@@ -178,16 +230,41 @@ export async function recomputeUserTauConstants(supabase, userId) {
 
   // 4. Feed the helpers. We compute long EWA first at the new long-tau so
   //    the short-tau calculation sees a representative chronic load.
-  const dailyTssVariance = variance(dailyTssArray);
+  //
+  //    Legacy (ewa_long_tau / ewa_short_tau): variance of the trailing 42
+  //    daily TSS values (input to the v1 continuous formulas).
+  //    Spec §3.4 / §3.5: variance of a TFI series derived by forward-
+  //    walking an EWA under the default TFI tau across the 180-day
+  //    lookback. Currently bootstrapped from daily TSS — once B2 ships
+  //    the dual-write of training_load_daily.tfi, this can pull the
+  //    persisted TFI series directly.
+  const legacyWindow = dailyTssArray.slice(-LEGACY_VARIANCE_WINDOW);
+  const dailyTssVariance = variance(legacyWindow);
   const longTau = calculateLongTimeConstant(metricsAge, dailyTssVariance);
+
+  const tfiSeries = [];
+  let tfiRunning = 0;
+  for (const t of dailyTssArray) {
+    tfiRunning = tfiRunning + (t - tfiRunning) * (1 / DEFAULT_TFI_TAU);
+    tfiSeries.push(tfiRunning);
+  }
+  const tfiVariance6Months = variance(tfiSeries);
+  const tfiTau = calculateTFITimeConstant(metricsAge, tfiVariance6Months);
 
   const currentLongEWA = calculateCTL(dailyTssArray, longTau);
   const shortTau = calculateShortTimeConstant(metricsAge, currentLongEWA);
+  const afiTau = calculateAFITimeConstant(metricsAge, currentLongEWA);
 
-  // 5. Persist. Upsert keyed on id so we don't clobber other columns.
+  // 5. Persist. Dual-write during the B1→B4 rollout: legacy columns
+  //    (ewa_long_tau / ewa_short_tau) plus the new tfi_tau / afi_tau.
   const { error: upsertErr } = await supabase
     .from('user_profiles')
-    .update({ ewa_long_tau: longTau, ewa_short_tau: shortTau })
+    .update({
+      ewa_long_tau: longTau,
+      ewa_short_tau: shortTau,
+      tfi_tau: tfiTau,
+      afi_tau: afiTau,
+    })
     .eq('id', userId);
 
   if (upsertErr) throw upsertErr;
@@ -197,5 +274,7 @@ export async function recomputeUserTauConstants(supabase, userId) {
     metricsAge,
     longTau,
     shortTau,
+    tfiTau,
+    afiTau,
   };
 }

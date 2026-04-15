@@ -14,8 +14,16 @@
 | #646 | A3 — migration + estimator + tests | 068 | `9734359` |
 | #647 | A3 — coach context surfaces | — | `cf41f55` |
 | #648 | A3 — Dashboard StatusBar terrain chip | — | `ea72841` |
+| #650 | B0 — canonical spec + CLAUDE.md pointer | — | `33d1b12` |
+| B1 | B1 — adaptive-tau discrete brackets + user_profiles additive migration | 069 | _(pending)_ |
 
 A3 is fully closed end-to-end: classification → persistence → scoped multiplier → coach prompts → UI chip.
+
+**B1 delta** (additive / dual-write, no reader cut-over):
+- `database/migrations/069_adaptive_tau_rename.sql` — adds `user_profiles.tfi_tau` (int) and `user_profiles.afi_tau` (numeric(4,1)) alongside the existing `ewa_long_tau` / `ewa_short_tau` columns.
+- `src/lib/training/adaptive-tau.ts` + `api/utils/adaptiveTau.js` — adds `calculateTFITimeConstant` (spec §3.4) and `calculateAFITimeConstant` (spec §3.5) as discrete-bracket formulas. Legacy `calculateLongTimeConstant` / `calculateShortTimeConstant` stay in place (removed in B4).
+- `recomputeUserTauConstants` dual-writes all four columns. Extends its activity lookback from 42 → 180 days so it can derive a TFI-series variance for §3.4's `tfiVariance6Months` input. Legacy `ewa_long_tau` / `ewa_short_tau` still feed the 42-day variance formula.
+- `api/utils/fitnessSnapshots.js` (reader of tau) is deliberately untouched — reader cut-over is B3.
 
 ---
 
