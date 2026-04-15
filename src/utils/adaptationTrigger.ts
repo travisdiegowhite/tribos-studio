@@ -33,9 +33,15 @@ interface Activity {
   total_elevation_gain: number;
   average_watts: number | null;
   normalized_power: number | null;
+  /** Canonical twin of normalized_power (spec §3.2 Effective Power). */
+  effective_power?: number | null;
   kilojoules: number | null;
   tss: number | null;
+  /** Canonical twin of tss (spec §2 RSS). */
+  rss?: number | null;
   intensity_factor: number | null;
+  /** Canonical twin of intensity_factor (spec §2 Ride Intensity). */
+  ride_intensity?: number | null;
   average_heartrate: number | null;
   max_heartrate: number | null;
 }
@@ -66,17 +72,26 @@ interface AdaptationTriggerResult {
  * Convert activity from database format to the format expected by detection
  */
 function activityToSummary(activity: Activity) {
+  // Prefer canonical fields (spec §2 / §3.2) with legacy fallback. The
+  // downstream ActivitySummary carries both legacy and canonical names so
+  // detectAdaptation can read either.
+  const rss = activity.rss ?? activity.tss;
+  const rideIntensity = activity.ride_intensity ?? activity.intensity_factor;
+  const effectivePower = activity.effective_power ?? activity.normalized_power;
   return {
     id: activity.id,
     name: activity.name,
     date: activity.start_date,
     duration: Math.round(activity.moving_time / 60), // Convert seconds to minutes
     distance: activity.distance / 1000, // Convert meters to km
-    tss: activity.tss,
+    tss: rss,
+    rss,
     elevationGain: activity.total_elevation_gain,
     averagePower: activity.average_watts,
-    normalizedPower: activity.normalized_power,
-    intensityFactor: activity.intensity_factor,
+    normalizedPower: effectivePower,
+    effectivePower,
+    intensityFactor: rideIntensity,
+    rideIntensity,
   };
 }
 
@@ -84,6 +99,16 @@ function activityToSummary(activity: Activity) {
  * Convert database adaptation to frontend model
  */
 function toWorkoutAdaptation(db: WorkoutAdaptationDB): WorkoutAdaptation {
+  // Prefer canonical spec §2 twin columns with legacy fallback for pre-076
+  // rows. All downstream consumers get canonical values regardless of which
+  // DB column populated them.
+  const plannedRss = db.planned_rss ?? db.planned_tss;
+  const plannedRideIntensity = db.planned_ride_intensity ?? db.planned_intensity_factor;
+  const actualRss = db.actual_rss ?? db.actual_tss;
+  const actualRideIntensity = db.actual_ride_intensity ?? db.actual_intensity_factor;
+  const actualEffectivePower = db.actual_effective_power ?? db.actual_normalized_power;
+  const rssDelta = db.rss_delta ?? db.tss_delta;
+
   return {
     id: db.id,
     plannedWorkoutId: db.planned_workout_id,
@@ -91,19 +116,25 @@ function toWorkoutAdaptation(db: WorkoutAdaptationDB): WorkoutAdaptation {
     adaptationType: db.adaptation_type,
     planned: {
       workoutType: db.planned_workout_type,
-      tss: db.planned_tss,
+      tss: plannedRss,
+      rss: plannedRss,
       duration: db.planned_duration,
-      intensityFactor: db.planned_intensity_factor,
+      intensityFactor: plannedRideIntensity,
+      rideIntensity: plannedRideIntensity,
     },
     actual: {
       workoutType: db.actual_workout_type,
-      tss: db.actual_tss,
+      tss: actualRss,
+      rss: actualRss,
       duration: db.actual_duration,
-      intensityFactor: db.actual_intensity_factor,
-      normalizedPower: db.actual_normalized_power,
+      intensityFactor: actualRideIntensity,
+      rideIntensity: actualRideIntensity,
+      normalizedPower: actualEffectivePower,
+      effectivePower: actualEffectivePower,
     },
     analysis: {
-      tssDelta: db.tss_delta,
+      tssDelta: rssDelta,
+      rssDelta: rssDelta,
       durationDelta: db.duration_delta,
       stimulusAchievedPct: db.stimulus_achieved_pct,
       stimulusAnalysis: db.stimulus_analysis,
@@ -244,6 +275,8 @@ async function updateExistingAdaptation(
       trainingContext: context,
     });
 
+    // Dual-write legacy + canonical columns (spec §2). detectAdaptation
+    // already populates both shapes on adaptationData; thread them through.
     const { data: updatedAdaptation, error: updateError } = await supabase
       .from('workout_adaptations')
       .update({
@@ -251,10 +284,14 @@ async function updateExistingAdaptation(
         adaptation_type: adaptationData.adaptation_type,
         actual_workout_type: adaptationData.actual_workout_type,
         actual_tss: adaptationData.actual_tss,
+        actual_rss: adaptationData.actual_rss,
         actual_duration: adaptationData.actual_duration,
         actual_intensity_factor: adaptationData.actual_intensity_factor,
+        actual_ride_intensity: adaptationData.actual_ride_intensity,
         actual_normalized_power: adaptationData.actual_normalized_power,
+        actual_effective_power: adaptationData.actual_effective_power,
         tss_delta: adaptationData.tss_delta,
+        rss_delta: adaptationData.rss_delta,
         duration_delta: adaptationData.duration_delta,
         stimulus_achieved_pct: adaptationData.stimulus_achieved_pct,
         stimulus_analysis: adaptationData.stimulus_analysis,
