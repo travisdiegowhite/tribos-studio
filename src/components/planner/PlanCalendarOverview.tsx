@@ -90,7 +90,7 @@ interface PlanCalendarOverviewProps {
   planStartDate: string | null;
   planDurationWeeks: number;
   workouts: Record<string, PlannerWorkout>;
-  activities?: Record<string, { tss: number | null }>;
+  activities?: Record<string, { tss: number | null; rss?: number | null }>;
   raceGoals?: Record<string, RaceGoalInfo>;
   onDayClick: (date: string) => void;
 }
@@ -102,7 +102,7 @@ interface CalendarDay {
   isCurrentMonth: boolean;
   isToday: boolean;
   workout: PlannerWorkout | null;
-  activity: { tss: number | null } | null;
+  activity: { tss: number | null; rss?: number | null } | null;
   raceGoal: RaceGoalInfo | null;
   phase: string | null;
   weekNumber: number | null;
@@ -480,8 +480,9 @@ function DayCell({
               )}
             </Box>
           )}
-          {day.activity?.tss && (
-            <Text size="xs" mt={2}>Actual: {Math.round(day.activity.tss)} TSS</Text>
+          {/* Prefer canonical activity.rss (spec §2) with legacy fallback. */}
+          {(day.activity?.rss ?? day.activity?.tss) != null && (
+            <Text size="xs" mt={2}>Actual: {Math.round((day.activity?.rss ?? day.activity?.tss) ?? 0)} RSS</Text>
           )}
           {hasMissed && <Text size="xs" c="red" fw={500} mt={2}>Missed</Text>}
           {hasCompleted && <Text size="xs" c="green" fw={500} mt={2}>Completed</Text>}

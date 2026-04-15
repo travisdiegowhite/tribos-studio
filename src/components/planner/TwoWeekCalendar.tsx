@@ -67,6 +67,8 @@ interface TwoWeekCalendarProps {
     name?: string;
     type?: string;
     tss: number | null;
+    /** Canonical twin of tss (spec §2 RSS). */
+    rss?: number | null;
     duration_seconds: number;
     distance?: number | null;
     trainer?: boolean;
@@ -244,11 +246,14 @@ export function TwoWeekCalendar({
         const workout = workouts[day.date];
         const activity = activities[day.date];
 
+        // Prefer canonical activity.rss (spec §2) with legacy fallback.
+        const activityRss = activity ? (activity.rss ?? activity.tss ?? 0) : 0;
+
         if (workout) {
           planned += workout.targetTSS || 0;
-          actual += workout.actualTSS || activity?.tss || 0;
+          actual += workout.actualTSS || activityRss;
         } else if (activity) {
-          actual += activity.tss || 0;
+          actual += activityRss;
         }
       }
 
@@ -293,9 +298,10 @@ export function TwoWeekCalendar({
     const activity = activities[day.date];
 
     if (workout && activity) {
-      // Both planned and done - check if on target
+      // Both planned and done - check if on target. Prefer canonical
+      // activity.rss (spec §2) with legacy fallback.
       const targetTSS = workout.targetTSS || 0;
-      const actualTSS = activity.tss || 0;
+      const actualTSS = activity.rss ?? activity.tss ?? 0;
       const percentDiff = targetTSS > 0 ? ((actualTSS - targetTSS) / targetTSS) * 100 : 0;
       return Math.abs(percentDiff) <= 20 ? 'done' : 'partial';
     }
@@ -686,9 +692,11 @@ export function TwoWeekCalendar({
               {/* Actual Activity */}
               {selectedDayActivity && (() => {
                 const typeInfo = getActivityTypeInfo(selectedDayActivity.type, selectedDayActivity.trainer);
-                const hasComparison = selectedDayWorkout && selectedDayActivity.tss;
+                // Prefer canonical activity.rss (spec §2) with legacy fallback.
+                const activityRss = selectedDayActivity.rss ?? selectedDayActivity.tss;
+                const hasComparison = selectedDayWorkout && activityRss;
                 const tssVariance = hasComparison && selectedDayWorkout.targetTSS
-                  ? (selectedDayActivity.tss || 0) - selectedDayWorkout.targetTSS
+                  ? (activityRss || 0) - selectedDayWorkout.targetTSS
                   : null;
 
                 return (
@@ -724,7 +732,7 @@ export function TwoWeekCalendar({
                       <Group gap="lg">
                         <Group gap={4}>
                           <Fire size={16} color="var(--mantine-color-orange-5)" />
-                          <Text size="md" fw={600}>{selectedDayActivity.tss || 0} TSS</Text>
+                          <Text size="md" fw={600}>{activityRss || 0} RSS</Text>
                         </Group>
                         {selectedDayActivity.duration_seconds && (
                           <Group gap={4}>

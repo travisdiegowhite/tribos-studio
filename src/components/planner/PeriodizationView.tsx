@@ -35,7 +35,7 @@ interface PeriodizationViewProps {
   planDurationWeeks: number;
   focusedWeekStart: string;
   plannedWorkouts: Record<string, PlannerWorkout>;
-  activities?: Record<string, { tss: number | null }>;
+  activities?: Record<string, { tss: number | null; rss?: number | null }>;
   onWeekClick: (weekStart: string) => void;
   onNavigate?: (direction: 'prev' | 'next') => void;
   raceGoals?: RaceGoalInfo[];
@@ -184,8 +184,10 @@ export function PeriodizationView({
           workoutCount++;
         }
         const activity = activities[date];
-        if (activity?.tss) {
-          actualTSS += activity.tss;
+        // Prefer canonical activity.rss (spec §2) with legacy fallback.
+        const activityRss = activity?.rss ?? activity?.tss;
+        if (activityRss) {
+          actualTSS += activityRss;
         }
       }
 
