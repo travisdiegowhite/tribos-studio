@@ -4,13 +4,13 @@ import { tokens } from '../theme';
 import { Minus, TrendDown, TrendUp } from '@phosphor-icons/react';
 
 /**
- * Calculate CTL, ATL, and TSB from activity history
- * @param {Array} activities - Array of activities with TSS values
- * @returns {Object} { ctl, atl, tsb }
+ * Calculate TFI, AFI, and Form Score from activity history (spec §2).
+ * @param {Array} activities - Array of activities with RSS values
+ * @returns {Object} { tfi, afi, formScore }
  */
 function calculateTrainingLoad(activities) {
   if (!activities || activities.length === 0) {
-    return { ctl: 0, atl: 0, tsb: 0 };
+    return { tfi: 0, afi: 0, formScore: 0 };
   }
 
   // Sort activities by date
@@ -18,59 +18,59 @@ function calculateTrainingLoad(activities) {
     (a, b) => new Date(a.start_date) - new Date(b.start_date)
   );
 
-  // Build daily TSS map for the last 60 days
+  // Build daily RSS map for the last 60 days
   const now = new Date();
   const sixtyDaysAgo = new Date(now);
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
-  const dailyTSS = {};
+  const dailyRss = {};
   for (let d = new Date(sixtyDaysAgo); d <= now; d.setDate(d.getDate() + 1)) {
     const key = d.toISOString().split('T')[0];
-    dailyTSS[key] = 0;
+    dailyRss[key] = 0;
   }
 
-  // Sum TSS per day
+  // Sum RSS per day (spec §2 canonical with legacy fallback for pre-074 rows)
   sorted.forEach((activity) => {
     const date = new Date(activity.start_date).toISOString().split('T')[0];
-    const tss = activity.tss || estimateTSS(activity);
-    if (dailyTSS[date] !== undefined) {
-      dailyTSS[date] += tss;
+    const rss = activity.rss ?? activity.tss ?? estimateRss(activity);
+    if (dailyRss[date] !== undefined) {
+      dailyRss[date] += rss;
     }
   });
 
-  const days = Object.keys(dailyTSS).sort();
-  const tssValues = days.map((d) => dailyTSS[d]);
+  const days = Object.keys(dailyRss).sort();
+  const rssValues = days.map((d) => dailyRss[d]);
 
-  // CTL/ATL: iterative EWA (matches trainingPlans.ts canonical formulas)
-  let ctl = 0;
-  let atl = 0;
-  let prevCtl = 0;
-  let prevAtl = 0;
-  for (const tss of tssValues) {
-    prevCtl = ctl;
-    prevAtl = atl;
-    ctl = ctl + (tss - ctl) / 42;
-    atl = atl + (tss - atl) / 7;
+  // TFI/AFI: iterative EWA (spec §3.4/§3.5)
+  let tfi = 0;
+  let afi = 0;
+  let prevTfi = 0;
+  let prevAfi = 0;
+  for (const rss of rssValues) {
+    prevTfi = tfi;
+    prevAfi = afi;
+    tfi = tfi + (rss - tfi) / 42;
+    afi = afi + (rss - afi) / 7;
   }
 
-  // TSB uses yesterday's CTL/ATL (freshness going into today)
-  const tsb = Math.round(prevCtl) - Math.round(prevAtl);
+  // Form Score uses yesterday's TFI/AFI (freshness going into today, spec §3.6)
+  const formScore = Math.round(prevTfi) - Math.round(prevAfi);
 
-  return { ctl: Math.round(ctl), atl: Math.round(atl), tsb };
+  return { tfi: Math.round(tfi), afi: Math.round(afi), formScore };
 }
 
 /**
- * Estimate TSS from activity if not provided
+ * Estimate RSS (spec §2) from activity if not provided.
  */
-function estimateTSS(activity) {
+function estimateRss(activity) {
   const hours = (activity.duration_seconds || activity.moving_time || 0) / 3600;
   const avgPower = activity.average_power_watts || activity.average_watts;
 
   if (avgPower && activity.normalized_power_watts) {
-    // Use normalized power for TSS estimation
+    // Use effective power for RSS estimation
     const ftp = 200; // Default FTP estimate
-    const intensityFactor = activity.normalized_power_watts / ftp;
-    return Math.round(hours * intensityFactor * intensityFactor * 100);
+    const rideIntensity = activity.normalized_power_watts / ftp;
+    return Math.round(hours * rideIntensity * rideIntensity * 100);
   }
 
   // Simple heuristic based on duration and heart rate
@@ -80,15 +80,15 @@ function estimateTSS(activity) {
     return Math.round(hours * intensity * 100);
   }
 
-  // Fallback: ~50 TSS per hour
+  // Fallback: ~50 RSS per hour
   return Math.round(hours * 50);
 }
 
 /**
- * Get form status based on TSB
+ * Get form status based on Form Score (spec §2).
  */
-function getFormStatus(tsb) {
-  if (tsb >= 15) {
+function getFormStatus(formScore) {
+  if (formScore >= 15) {
     return {
       label: 'Fresh',
       description: 'Well-rested and ready for a hard effort',
@@ -97,7 +97,7 @@ function getFormStatus(tsb) {
       advice: 'Great day for a hard workout or race!',
       icon: TrendUp,
     };
-  } else if (tsb >= 5) {
+  } else if (formScore >= 5) {
     return {
       label: 'Ready',
       description: 'Good balance of fitness and freshness',
@@ -106,7 +106,7 @@ function getFormStatus(tsb) {
       advice: 'Solid training day ahead',
       icon: TrendUp,
     };
-  } else if (tsb >= -10) {
+  } else if (formScore >= -10) {
     return {
       label: 'Optimal',
       description: 'Building fitness with manageable fatigue',
@@ -115,7 +115,7 @@ function getFormStatus(tsb) {
       advice: 'Keep pushing - you\'re in the zone',
       icon: Minus,
     };
-  } else if (tsb >= -25) {
+  } else if (formScore >= -25) {
     return {
       label: 'Tired',
       description: 'Accumulating fatigue - watch recovery',
@@ -138,14 +138,14 @@ function getFormStatus(tsb) {
 
 /**
  * FormWidget Component
- * Displays current training form based on CTL/ATL/TSB
+ * Displays current training form based on TFI/AFI/Form Score (spec §2).
  */
 const FormWidget = ({ activities = [], loading = false }) => {
-  const { ctl, atl, tsb } = useMemo(() => {
+  const { tfi, afi, formScore } = useMemo(() => {
     return calculateTrainingLoad(activities);
   }, [activities]);
 
-  const formStatus = useMemo(() => getFormStatus(tsb), [tsb]);
+  const formStatus = useMemo(() => getFormStatus(formScore), [formScore]);
 
   if (loading) {
     return (
@@ -164,8 +164,8 @@ const FormWidget = ({ activities = [], loading = false }) => {
     );
   }
 
-  // Normalize TSB for ring progress (-50 to +50 -> 0 to 100)
-  const normalizedTSB = Math.min(100, Math.max(0, ((tsb + 50) / 100) * 100));
+  // Normalize Form Score for ring progress (-50 to +50 -> 0 to 100)
+  const normalizedFormScore = Math.min(100, Math.max(0, ((formScore + 50) / 100) * 100));
 
   const StatusIcon = formStatus.icon;
 
@@ -186,24 +186,24 @@ const FormWidget = ({ activities = [], loading = false }) => {
         </Group>
 
         <Group gap="lg" wrap="nowrap">
-          {/* TSB Ring */}
+          {/* Form Score Ring */}
           <RingProgress
             size={90}
             thickness={8}
             roundCaps
             sections={[
               {
-                value: normalizedTSB,
+                value: normalizedFormScore,
                 color: formStatus.color,
               },
             ]}
             label={
               <Box ta="center">
                 <Text size="lg" fw={700} style={{ color: formStatus.color }}>
-                  {tsb > 0 ? '+' : ''}{tsb}
+                  {formScore > 0 ? '+' : ''}{formScore}
                 </Text>
                 <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                  TSB
+                  FS
                 </Text>
               </Box>
             }
@@ -220,7 +220,7 @@ const FormWidget = ({ activities = [], loading = false }) => {
           </Stack>
         </Group>
 
-        {/* CTL / ATL Stats */}
+        {/* TFI / AFI Stats (spec §2) */}
         <Group grow gap="md">
           <Box
             style={{
@@ -230,10 +230,10 @@ const FormWidget = ({ activities = [], loading = false }) => {
             }}
           >
             <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
-              Fitness (CTL)
+              Fitness (TFI)
             </Text>
             <Text fw={600} style={{ color: '#C49A0A' }}>
-              {ctl}
+              {tfi}
             </Text>
           </Box>
           <Box
@@ -244,10 +244,10 @@ const FormWidget = ({ activities = [], loading = false }) => {
             }}
           >
             <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
-              Fatigue (ATL)
+              Fatigue (AFI)
             </Text>
             <Text fw={600} style={{ color: '#C43C2A' }}>
-              {atl}
+              {afi}
             </Text>
           </Box>
         </Group>
