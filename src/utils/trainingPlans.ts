@@ -458,49 +458,54 @@ export function calculatePowerZones(ftp: number): PowerZonesMap | null {
 }
 
 /**
- * Calculate Chronic Training Load (CTL) - exponentially weighted average
- * Uses the standard iterative EWA: CTL_n = CTL_(n-1) + (TSS_n - CTL_(n-1)) / tau
- * Defaults to the 42-day window used by TrainingPeaks / Intervals.icu;
- * callers can pass a per-athlete tau from adaptive-tau to use a
- * personalized fitness window.
+ * Calculate Training Fitness Index (TFI) - exponentially weighted average
+ * Uses the standard iterative EWA: TFI_n = TFI_(n-1) + (RSS_n - TFI_(n-1)) / tau
+ * Defaults to a 42-day window; callers can pass a per-athlete tau from
+ * adaptive-tau to use a personalized fitness window.
  */
-export function calculateCTL(dailyTSS: number[], tau: number = 42): number {
-  if (!dailyTSS || dailyTSS.length === 0) return 0;
-  if (!(tau > 0)) throw new Error('calculateCTL: tau must be > 0');
-  let ctl = 0;
-  for (const tss of dailyTSS) {
-    ctl = ctl + (tss - ctl) / tau;
+export function calculateTFI(dailyRSS: number[], tau: number = 42): number {
+  if (!dailyRSS || dailyRSS.length === 0) return 0;
+  if (!(tau > 0)) throw new Error('calculateTFI: tau must be > 0');
+  let tfi = 0;
+  for (const rss of dailyRSS) {
+    tfi = tfi + (rss - tfi) / tau;
   }
-  return Math.round(ctl);
+  return Math.round(tfi);
 }
 
 /**
- * Calculate Acute Training Load (ATL) - exponentially weighted average
- * Uses the standard iterative EWA: ATL_n = ATL_(n-1) + (TSS_n - ATL_(n-1)) / tau
- * Defaults to the 7-day window; callers can pass a per-athlete tau from
+ * Calculate Acute Fatigue Index (AFI) - exponentially weighted average
+ * Uses the standard iterative EWA: AFI_n = AFI_(n-1) + (RSS_n - AFI_(n-1)) / tau
+ * Defaults to a 7-day window; callers can pass a per-athlete tau from
  * adaptive-tau to use a personalized fatigue window.
  */
-export function calculateATL(dailyTSS: number[], tau: number = 7): number {
-  if (!dailyTSS || dailyTSS.length === 0) return 0;
-  if (!(tau > 0)) throw new Error('calculateATL: tau must be > 0');
-  let atl = 0;
-  for (const tss of dailyTSS) {
-    atl = atl + (tss - atl) / tau;
+export function calculateAFI(dailyRSS: number[], tau: number = 7): number {
+  if (!dailyRSS || dailyRSS.length === 0) return 0;
+  if (!(tau > 0)) throw new Error('calculateAFI: tau must be > 0');
+  let afi = 0;
+  for (const rss of dailyRSS) {
+    afi = afi + (rss - afi) / tau;
   }
-  return Math.round(atl);
+  return Math.round(afi);
 }
 
 /**
- * Calculate Training Stress Balance (TSB) - Form/Readiness
+ * Calculate Form Score (FS) - freshness / readiness
  */
-export function calculateTSB(ctl: number, atl: number): number {
-  return Math.round(ctl - atl);
+export function calculateFS(tfi: number, afi: number): number {
+  return Math.round(tfi - afi);
 }
 
+// Legacy aliases — retained until all call sites migrate off (§3b partial).
+export const calculateCTL = calculateTFI;
+export const calculateATL = calculateAFI;
+export const calculateTSB = calculateFS;
+
 /**
- * Interpret TSB for user feedback
+ * Interpret Form Score for user feedback
  */
-export function interpretTSB(tsb: number): TSBInterpretation {
+export function interpretFS(formScore: number): TSBInterpretation {
+  const tsb = formScore;
   if (tsb > 25) {
     return {
       status: 'fresh',
@@ -538,6 +543,9 @@ export function interpretTSB(tsb: number): TSBInterpretation {
     };
   }
 }
+
+// Legacy alias — retained until all call sites migrate off (§3b partial).
+export const interpretTSB = interpretFS;
 
 /**
  * Get recommended weekly TSS based on fitness level
