@@ -254,7 +254,7 @@ export function applyActivityTypeMultiplier(rss, activity) {
  * down appropriately.
  *
  * Standalone helper — EP for most activities comes pre-computed from
- * the data provider (activity.normalized_power). This is exported for
+ * the data provider (activity.effective_power). This is exported for
  * future stream-based recomputation paths.
  *
  * @param {number[]} powerStream — instant power in W, one sample/sec
@@ -309,9 +309,9 @@ export function estimateTSSWithSource(activity, ftp) {
     activity.total_elevation_gain,
   );
 
-  // Tier 1: stored TSS from device.
-  if (activity.tss && activity.tss > 0) {
-    const rss = applyActivityTypeMultiplier(activity.tss, activity);
+  // Tier 1: stored RSS from device.
+  if (activity.rss && activity.rss > 0) {
+    const rss = applyActivityTypeMultiplier(activity.rss, activity);
     return { tss: rss, source: 'device', confidence: 0.95, terrain_class };
   }
 
@@ -324,11 +324,11 @@ export function estimateTSSWithSource(activity, ftp) {
     return { tss: rss, source: 'hr', confidence: 0.65, terrain_class };
   }
 
-  // Tier 3: normalized power + FTP → standard TSS formula.
-  // NP already reflects grade-induced load; no terrain scaling (D4).
-  if (activity.normalized_power && activity.normalized_power > 0 && ftp && ftp > 0 && activity.moving_time) {
+  // Tier 3: effective power + FTP → standard RSS formula.
+  // EP already reflects grade-induced load; no terrain scaling (D4).
+  if (activity.effective_power && activity.effective_power > 0 && ftp && ftp > 0 && activity.moving_time) {
     const hours = activity.moving_time / 3600;
-    const intensityFactor = activity.normalized_power / ftp;
+    const intensityFactor = activity.effective_power / ftp;
     const base = hours * intensityFactor * intensityFactor * 100;
     return {
       tss: Math.round(applyActivityTypeMultiplier(base, activity)),
@@ -522,13 +522,13 @@ function computeFitnessTrend(currentCTL, weeklyTSSAvg) {
 }
 
 /**
- * Compute average normalized power from activities
+ * Compute average effective power from activities
  */
 function computeAvgNP(activities) {
-  const withNP = activities.filter(a => a.normalized_power && a.normalized_power > 0);
+  const withNP = activities.filter(a => a.effective_power && a.effective_power > 0);
   if (withNP.length === 0) return null;
   return Math.round(
-    withNP.reduce((sum, a) => sum + a.normalized_power, 0) / withNP.length
+    withNP.reduce((sum, a) => sum + a.effective_power, 0) / withNP.length
   );
 }
 
@@ -578,7 +578,7 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
       id, type, sport_type, start_date, moving_time, elapsed_time,
       distance, total_elevation_gain, average_watts,
       kilojoules, average_heartrate, trainer, is_hidden, duplicate_of,
-      normalized_power, tss, intensity_factor, power_curve_summary,
+      effective_power, rss, ride_intensity, power_curve_summary,
       ride_analytics, execution_score
     `)
     .eq('user_id', userId)

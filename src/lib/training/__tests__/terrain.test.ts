@@ -177,11 +177,11 @@ describe('filterZeroPowerPoints (spec §3.2)', () => {
 describe('estimateTSSWithSource: D4 scoping (api)', () => {
   it('Tier 1 (device): RSS unchanged regardless of terrain', () => {
     const flat = estimateTSSWithSource(
-      { tss: 100, distance: 50_000, total_elevation_gain: 0, moving_time: 3_600 },
+      { rss: 100, distance: 50_000, total_elevation_gain: 0, moving_time: 3_600 },
       undefined,
     );
     const mountain = estimateTSSWithSource(
-      { tss: 100, distance: 50_000, total_elevation_gain: 1_500, moving_time: 3_600 },
+      { rss: 100, distance: 50_000, total_elevation_gain: 1_500, moving_time: 3_600 },
       undefined,
     );
     expect(flat.tss).toBe(100);
@@ -190,13 +190,13 @@ describe('estimateTSSWithSource: D4 scoping (api)', () => {
     expect(mountain.source).toBe('device');
   });
 
-  it('Tier 3 (power): NP-derived RSS unchanged regardless of terrain', () => {
+  it('Tier 3 (power): EP-derived RSS unchanged regardless of terrain', () => {
     const flat = estimateTSSWithSource(
-      { moving_time: 3_600, normalized_power: 250, distance: 30_000, total_elevation_gain: 0 },
+      { moving_time: 3_600, effective_power: 250, distance: 30_000, total_elevation_gain: 0 },
       250,
     );
     const mountain = estimateTSSWithSource(
-      { moving_time: 3_600, normalized_power: 250, distance: 30_000, total_elevation_gain: 1_500 },
+      { moving_time: 3_600, effective_power: 250, distance: 30_000, total_elevation_gain: 1_500 },
       250,
     );
     expect(flat.source).toBe('power');
@@ -223,11 +223,11 @@ describe('estimateTSSWithSource: D4 scoping (api)', () => {
   });
 
   it('every tier still returns terrain_class for the UI chip', () => {
-    const t1 = estimateTSSWithSource({ tss: 80, distance: 1_000, total_elevation_gain: 0 }, undefined);
+    const t1 = estimateTSSWithSource({ rss: 80, distance: 1_000, total_elevation_gain: 0 }, undefined);
     expect(t1.terrain_class).toBe('flat');
 
     const t3 = estimateTSSWithSource(
-      { moving_time: 3_600, normalized_power: 200, distance: 1_000, total_elevation_gain: 0 },
+      { moving_time: 3_600, effective_power: 200, distance: 1_000, total_elevation_gain: 0 },
       250,
     );
     expect(t3.terrain_class).toBe('flat');
@@ -244,11 +244,11 @@ describe('estimateTSSWithSource: D4 scoping (api)', () => {
 
   it('MTB activity gets 1.3× multiplier at the power tier (no terrain stacking)', () => {
     const ride = estimateTSSWithSource(
-      { moving_time: 3_600, normalized_power: 250, type: 'Ride' },
+      { moving_time: 3_600, effective_power: 250, type: 'Ride' },
       250,
     );
     const mtb = estimateTSSWithSource(
-      { moving_time: 3_600, normalized_power: 250, type: 'MountainBikeRide' },
+      { moving_time: 3_600, effective_power: 250, type: 'MountainBikeRide' },
       250,
     );
     expect(ride.source).toBe('power');

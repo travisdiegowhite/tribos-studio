@@ -254,7 +254,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
 
   // Calculate deviation
   const plannedTss = plannedWorkout?.target_tss || null;
-  const actualTss = activity?.tss || null;
+  const actualTss = activity?.rss || null;
   let deviationPercent = null;
   if (plannedTss && actualTss) {
     deviationPercent = Math.round(((actualTss - plannedTss) / plannedTss) * 100);
@@ -280,7 +280,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   const powerSummary = activity
     ? [
         activity.average_watts ? `avg=${activity.average_watts}W` : null,
-        activity.normalized_power ? `NP=${activity.normalized_power}W` : null,
+        activity.effective_power ? `EP=${activity.effective_power}W` : null,
         activity.max_watts ? `max=${activity.max_watts}W` : null,
       ].filter(Boolean).join(', ') || 'No power data'
     : 'No activity data';

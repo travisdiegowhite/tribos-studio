@@ -134,8 +134,8 @@ ${intentBlock}
 ## RIDE SUMMARY
 "${activity.name}" — ${activity.start_date}
 Duration: ${tsMin} min | Distance: ${activity.distance ? Math.round(activity.distance / 100) / 10 : 'N/A'} km
-Avg power: ${activity.average_watts ?? 'N/A'}W | EP (effective power): ${activity.normalized_power ?? 'N/A'}W | Max: ${activity.max_watts ?? 'N/A'}W
-RSS (ride stress): ${activity.tss ?? 'N/A'} | RI (ride intensity): ${activity.intensity_factor ?? 'N/A'} | VI: ${activity.ride_analytics?.variability_index ?? 'N/A'}
+Avg power: ${activity.average_watts ?? 'N/A'}W | EP (effective power): ${activity.effective_power ?? 'N/A'}W | Max: ${activity.max_watts ?? 'N/A'}W
+RSS (ride stress): ${activity.rss ?? 'N/A'} | RI (ride intensity): ${activity.ride_intensity ?? 'N/A'} | VI: ${activity.ride_analytics?.variability_index ?? 'N/A'}
 Avg HR: ${activity.average_heartrate ?? 'N/A'} bpm | Max HR: ${activity.max_heartrate ?? 'N/A'} bpm
 Avg cadence: ${activity.average_cadence ?? 'N/A'} rpm
 
@@ -253,7 +253,7 @@ export default async function handler(req, res) {
     const { data: activity, error: activityError } = await supabase
       .from('activities')
       .select(
-        'id, user_id, name, start_date, distance, moving_time, average_watts, normalized_power, max_watts, tss, intensity_factor, average_heartrate, max_heartrate, average_cadence, ride_analytics, fit_coach_context, fit_coach_analysis, fit_coach_analysis_persona, fit_coach_analysis_generated_at, matched_planned_workout_id, execution_score, execution_rating'
+        'id, user_id, name, start_date, distance, moving_time, average_watts, effective_power, max_watts, rss, ride_intensity, average_heartrate, max_heartrate, average_cadence, ride_analytics, fit_coach_context, fit_coach_analysis, fit_coach_analysis_persona, fit_coach_analysis_generated_at, matched_planned_workout_id, execution_score, execution_rating'
       )
       .eq('id', activityId)
       .eq('user_id', userId)
@@ -305,7 +305,7 @@ export default async function handler(req, res) {
       loadIntent(activity),
     ]);
 
-    const hasPower = !!(activity.average_watts || activity.normalized_power);
+    const hasPower = !!(activity.average_watts || activity.effective_power);
     const systemPrompt = buildSystemPrompt(personaId, intent !== null, hasPower);
     const userPrompt = buildUserPrompt({
       activity,

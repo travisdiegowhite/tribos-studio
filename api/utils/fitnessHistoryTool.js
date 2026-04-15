@@ -423,7 +423,7 @@ async function calculatePowerMetrics(supabase, userId, startDate, endDate) {
   const { data: activities } = await supabase
     .from('activities')
     .select(`
-      average_watts, max_watts, normalized_power, tss, intensity_factor,
+      average_watts, max_watts, effective_power, rss, ride_intensity,
       power_curve_summary, device_watts, moving_time, kilojoules,
       total_elevation_gain, distance
     `)
@@ -492,8 +492,8 @@ async function calculatePowerMetrics(supabase, userId, startDate, endDate) {
   // Peak power - prefer max_watts from FIT files
   const peakPower = Math.max(...activities.map(a => a.max_watts || 0));
 
-  // Best normalized power (real intensity metric)
-  const bestNP = Math.max(...activities.filter(a => a.normalized_power).map(a => a.normalized_power) || [0]);
+  // Best effective power (real intensity metric)
+  const bestNP = Math.max(...activities.filter(a => a.effective_power).map(a => a.effective_power) || [0]);
 
   // Training efficiency: total kJ / total hours
   const totalKj = activities.reduce((sum, a) => sum + (a.kilojoules || 0), 0);
@@ -501,9 +501,9 @@ async function calculatePowerMetrics(supabase, userId, startDate, endDate) {
   const kjPerHour = totalHours > 0 ? Math.round(totalKj / totalHours) : null;
 
   // Average watts across all activities (weighted by duration)
-  // Prefer normalized power when available
+  // Prefer effective power when available
   const totalWattHours = activities.reduce((sum, a) => {
-    const power = a.normalized_power || a.average_watts;
+    const power = a.effective_power || a.average_watts;
     return sum + (power * (a.moving_time / 3600));
   }, 0);
   const weightedAvgWatts = totalHours > 0 ? Math.round(totalWattHours / totalHours) : null;
@@ -512,8 +512,8 @@ async function calculatePowerMetrics(supabase, userId, startDate, endDate) {
   const totalElevation = activities.reduce((sum, a) => sum + (a.total_elevation_gain || 0), 0);
   const elevationPerHour = totalHours > 0 ? Math.round(totalElevation / totalHours) : null;
 
-  // Total TSS if available
-  const totalTSS = activities.reduce((sum, a) => sum + (a.tss || 0), 0);
+  // Total RSS if available
+  const totalTSS = activities.reduce((sum, a) => sum + (a.rss || 0), 0);
 
   return {
     activity_count: activities.length,

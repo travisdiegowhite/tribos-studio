@@ -130,7 +130,7 @@ export async function recomputeUserTauConstants(supabase, userId) {
       `id, type, sport_type, start_date, moving_time, elapsed_time,
        distance, total_elevation_gain, average_watts, kilojoules,
        average_heartrate, trainer, is_hidden, duplicate_of,
-       normalized_power, tss, intensity_factor`
+       effective_power, rss, ride_intensity`
     )
     .eq('user_id', userId)
     .or('is_hidden.eq.false,is_hidden.is.null')

@@ -122,7 +122,7 @@ export default async function handler(req, res) {
     const activityData = {
       duration_seconds: activity.moving_time || activity.elapsed_time || 0,
       avg_power: activity.average_watts || undefined,
-      normalized_power: activity.normalized_power || undefined,
+      normalized_power: activity.effective_power || undefined,
       ftp: undefined, // fetched below
       avg_hr: activity.average_heartrate || undefined,
       hr_max: activity.max_heartrate || undefined,
