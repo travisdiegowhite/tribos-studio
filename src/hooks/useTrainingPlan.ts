@@ -918,14 +918,18 @@ export function useTrainingPlan({
 
         if (activityError) throw activityError;
 
-        // Update workout with activity data
+        // Update workout with activity data. Writes the canonical spec §2
+        // column (actual_rss) only — unlocks the partial §1d DROP of
+        // planned_workouts.actual_tss once the §1d backfill migration runs.
+        // Reads activity.rss first (B9 dual-write) with a legacy fallback
+        // for any pre-backfill rows.
         const { error: updateError } = await supabase
           .from('planned_workouts')
           .update({
             activity_id: activityId,
             completed: true,
             completed_at: activity.start_date,
-            actual_tss: activity.tss,
+            actual_rss: activity.rss ?? activity.tss,
             actual_duration: Math.round(activity.moving_time / 60),
             actual_distance_km: activity.distance ? activity.distance / 1000 : null,
           })
@@ -1168,7 +1172,11 @@ export function useTrainingPlan({
       weeklyStats.push({
         weekNumber: week,
         plannedTSS: weekWorkouts.reduce((sum, w) => sum + (w.target_tss || 0), 0),
-        actualTSS: completed.reduce((sum, w) => sum + (w.actual_tss || w.target_tss || 0), 0),
+        // Prefer canonical actual_rss (spec §2); fall back to legacy
+        // actual_tss for pre-cut-over rows, and to target_tss if neither
+        // completed value is present. target_tss stays as the planned
+        // fallback until its own writer cut-over lands.
+        actualTSS: completed.reduce((sum, w) => sum + (w.actual_rss ?? w.actual_tss ?? w.target_tss ?? 0), 0),
         plannedDuration: weekWorkouts.reduce((sum, w) => sum + (w.target_duration || 0), 0),
         actualDuration: completed.reduce((sum, w) => sum + (w.actual_duration || w.target_duration || 0), 0),
         workoutsPlanned: weekWorkouts.filter((w) => w.workout_id).length,
