@@ -218,6 +218,31 @@ tribos-studio/
 - `/api/garmin-webhook-process` — every minute (process queued Garmin webhook events)
 - `/api/proactive-insights-process` — every minute (generate AI insights for users)
 
+### 4.6 Metrics (Tribos canonical system)
+
+The canonical Tribos metrics specification lives at `docs/TRIBOS_METRICS_SPECIFICATION.md`. Rollout progress is tracked in `docs/METRICS_ROLLOUT_STATUS.md`; outstanding work is in `docs/METRICS_ROLLOUT_REMAINING.md`.
+
+Tribos has retired the TrainingPeaks-trademarked abbreviations. Use the canonical names everywhere new code lands (DB columns, TS/JS identifiers, UI labels, AI prompts):
+
+| Legacy | Tribos canonical |
+|---|---|
+| TSS | **RSS** — Ride Stress Score |
+| CTL | **TFI** — Training Fitness Index |
+| ATL | **AFI** — Acute Fatigue Index |
+| TSB | **FS** — Form Score |
+| NP  | **EP** — Effective Power |
+| IF  | **RI** — Ride Intensity |
+
+FTP is retained (it is scientific literature terminology, not TrainingPeaks-proprietary).
+
+Three amendments from Part A implementation apply on top of the spec:
+
+- **(D1) `rss_source` has 6 tiers, not 4**: `device`, `power`, `kilojoules`, `hr`, `rpe`, `inferred`.
+- **(D2) Confidence values are calibrated**: `device` 0.95 / `power` 0.95 / `kJ-with-FTP` 0.75 / `kJ-no-FTP` 0.50 / `hr` 0.65 / `inferred` 0.40.
+- **(D4) Terrain multiplier applies only to `kJ` and `inferred` tiers**, not all tiers.
+
+Coach voice (AI prompts in `api/coach.js`, `api/coach-ride-analysis.js`, `api/fitness-summary.js`, `api/review-week.js`, and helpers under `api/utils/`) must never emit "TSS", "CTL", "ATL", "TSB", "NP", or "IF" to users. Explain each term in plain English on first use, then use the Tribos abbreviation.
+
 ---
 
 ## 5. Known Sensitive Areas & Gotchas

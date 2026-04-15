@@ -131,16 +131,9 @@ Files where `tss` / `ctl` / `atl` / `tsb` / `np` / `if` are internal variable na
 
 These are user-invisible JS identifiers — nothing the athlete sees. Leaving them alone for now is fine; they're on the "eventually" list per spec §1's consistency checklist (`grep -ri "\.tss\b\|\.ctl\b..."` → zero results). Sweep as a code-hygiene PR after the DB-column drops land.
 
-### 3c. `FitnessSummary.jsx` prop rename
+### 3c. `FitnessSummary.jsx` prop rename ✅ shipped (PR #652, commit `3b784e9`)
 
-`src/components/today/FitnessSummary.jsx` still takes `{ ctl, atl, tsb, lastRideTss }`. Caller in `src/pages/Dashboard.jsx` passes `trainingMetrics.ctl/atl/tsb`. The prop payload goes into the `/api/fitness-summary` endpoint as `clientMetrics: { ctl, atl, tsb, lastRideTss }`.
-
-Coordinated rename:
-1. Update `api/fitness-summary.js` to accept both shapes (or rename hard).
-2. Rename `FitnessSummary` props to `{ tfi, afi, formScore, lastRideRss }`.
-3. Update the Dashboard call site.
-
-Small, self-contained, could go with B8-style UI work.
+`FitnessSummary` now takes `{ tfi, afi, formScore, lastRideRss }`. The `/api/fitness-summary` handler validates + maps the new shape to `assembleFitnessContext`'s legacy parameter names at the boundary (that helper's internal rename is part of the deferred §1a/§1b cut-overs). Dashboard call site passes the legacy `trainingMetrics.ctl/atl/tsb` values under the new prop names — the `trainingMetrics` object itself still uses legacy keys internally, pending the §3b identifier sweep.
 
 ---
 
@@ -166,7 +159,7 @@ From `docs/TRIBOS_METRICS_SPECIFICATION.md`. Run these at the end to confirm:
 
 Each is a standalone session, none cross-depend except as noted:
 
-1. `FitnessSummary` prop rename + API update (§3c) — quickest win.
+1. ~~`FitnessSummary` prop rename + API update (§3c)~~ — ✅ shipped PR #652.
 2. `AGENTS.md` canonical-name sweep + §7 consistency grep cleanup (§4).
 3. `activities` reader cut-over + drop (§1a + migration 074).
 4. `fitness_snapshots` reader cut-over + drop (§1b + migration 075). Parallel to #3.

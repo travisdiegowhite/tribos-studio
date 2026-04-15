@@ -49,36 +49,39 @@ ${persona.emphasizes}
 ${persona.neverSay}
 
 ## WHAT YOU HAVE
-- The athlete's FTP, current zones, and current training load (CTL/ATL/TSB)
+- The athlete's FTP, current zones, and current training load (TFI fitness / AFI fatigue / FS form)
 - Today's terrain classification (flat / rolling / hilly / mountainous) from recent rides, when available — reference it when it's relevant to recovery or pacing expectations
-- Pre-computed summary metrics (NP, IF, TSS, VI, avg/max power, avg HR)
+- Pre-computed summary metrics (EP effective power, RI ride intensity, RSS ride stress, VI, avg/max power, avg HR)
 - Power zone distribution (% of pedaling time in Z1–Z7)
 - Cadence band distribution
 - Aerobic decoupling (first-half vs second-half Pa:HR)
 - Power dropout detection (sensor-failure flag)
 - A uniform-interval time series of (t, power, hr, cadence) — the actual shape of the ride
-${hasIntent ? '- The intended workout (planned TSS, planned duration, name) for direct comparison' : '- No planned workout matched — treat this as an unstructured ride'}
+${hasIntent ? '- The intended workout (planned RSS, planned duration, name) for direct comparison' : '- No planned workout matched — treat this as an unstructured ride'}
 ${hasPower ? '' : '- ⚠ NO POWER DATA available for this ride; analyze HR + cadence only'}
+
+## LANGUAGE RULE (spec §6)
+Explain each term in plain English on first use, then use the Tribos abbreviation — e.g. "ride stress (RSS)", "form score (FS)". NEVER emit the old TrainingPeaks abbreviations TSS, CTL, ATL, TSB, NP, or IF to the user.
 
 ## WHAT TO ANALYZE
 Cover all of the following dimensions. Be specific. Every claim must reference an actual number from the data above.
 
 1. EXECUTION FIDELITY
 ${hasIntent
-  ? '   Did the athlete execute the intended workout? Compare actual TSS / duration / IF to targets. Were intervals on-zone? Did they bail early or push past?'
-  : '   Characterize the ride type from the zone distribution (steady aerobic, tempo, mixed). Was the pacing appropriate for current TSB?'}
+  ? '   Did the athlete execute the intended workout? Compare actual RSS / duration / RI to targets. Were intervals on-zone? Did they bail early or push past?'
+  : '   Characterize the ride type from the zone distribution (steady aerobic, tempo, mixed). Was the pacing appropriate for current Form Score (FS)?'}
 
 2. POWER QUALITY
    Evaluate VI (1.00–1.05 = excellent, 1.06–1.12 = acceptable, >1.12 = erratic). Was the distribution appropriate for this kind of workout? Note any meaningful spikes or collapses you can see in the time series.
 
 3. CARDIAC RESPONSE
-   Was HR appropriate for the power output? Evaluate aerobic decoupling — flag drift > 5% as meaningful. If TSB is negative, expect HR to run hot — acknowledge that.
+   Was HR appropriate for the power output? Evaluate aerobic decoupling — flag drift > 5% as meaningful. If Form Score (FS) is negative, expect HR to run hot — acknowledge that.
 
 4. CADENCE PATTERNS
    Flag if cadence was too low for the effort (e.g. high Z4/Z5 with <80 rpm = grinding). Flag erratic cadence relative to power. Note cadence-power mismatches.
 
 5. FATIGUE & TREND SIGNALS
-   Did performance degrade through the session? Where? How does this TSS compare to the athlete's recent ATL — is this load-appropriate?
+   Did performance degrade through the session? Where? How does this ride's RSS compare to the athlete's recent acute fatigue (AFI) — is this load-appropriate?
 
 ## RESPONSE RULES
 - Stay in your coach voice throughout. Do not be generic.
@@ -118,7 +121,7 @@ function buildUserPrompt({ activity, athlete, fitness, fitCoachContext, intent }
     ? `## INTENDED WORKOUT
 Name: ${intent.name || 'Untitled'}
 Type: ${intent.workout_type || 'unspecified'}
-Target TSS: ${intent.target_tss ?? 'unspecified'} | Target duration: ${intent.target_duration ?? 'unspecified'} min
+Target RSS (ride stress): ${intent.target_tss ?? 'unspecified'} | Target duration: ${intent.target_duration ?? 'unspecified'} min
 ${intent.execution_score != null ? `Pre-computed execution score: ${intent.execution_score}/100 (${intent.execution_rating ?? 'n/a'})` : ''}`
     : '## INTENDED WORKOUT\nUnstructured ride — no planned workout matched.';
 
@@ -131,8 +134,8 @@ ${intentBlock}
 ## RIDE SUMMARY
 "${activity.name}" — ${activity.start_date}
 Duration: ${tsMin} min | Distance: ${activity.distance ? Math.round(activity.distance / 100) / 10 : 'N/A'} km
-Avg power: ${activity.average_watts ?? 'N/A'}W | NP: ${activity.normalized_power ?? 'N/A'}W | Max: ${activity.max_watts ?? 'N/A'}W
-TSS: ${activity.tss ?? 'N/A'} | IF: ${activity.intensity_factor ?? 'N/A'} | VI: ${activity.ride_analytics?.variability_index ?? 'N/A'}
+Avg power: ${activity.average_watts ?? 'N/A'}W | EP (effective power): ${activity.normalized_power ?? 'N/A'}W | Max: ${activity.max_watts ?? 'N/A'}W
+RSS (ride stress): ${activity.tss ?? 'N/A'} | RI (ride intensity): ${activity.intensity_factor ?? 'N/A'} | VI: ${activity.ride_analytics?.variability_index ?? 'N/A'}
 Avg HR: ${activity.average_heartrate ?? 'N/A'} bpm | Max HR: ${activity.max_heartrate ?? 'N/A'} bpm
 Avg cadence: ${activity.average_cadence ?? 'N/A'} rpm
 
