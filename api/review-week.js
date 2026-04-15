@@ -30,11 +30,11 @@ function formatAdaptations(adaptations) {
       let summary = `- ${a.adaptationType}: `;
 
       if (planned.workoutType) {
-        summary += `Planned ${planned.workoutType} (${planned.duration}min, ${planned.tss} TSS)`;
+        summary += `Planned ${planned.workoutType} (${planned.duration}min, ${planned.tss} RSS)`;
       }
 
       if (actual.workoutType && a.adaptationType !== 'skipped') {
-        summary += ` → Actual ${actual.workoutType} (${actual.duration}min, ${actual.tss} TSS)`;
+        summary += ` → Actual ${actual.workoutType} (${actual.duration}min, ${actual.tss} RSS)`;
       }
 
       if (analysis.stimulusAchievedPct !== null && analysis.stimulusAchievedPct !== undefined) {
@@ -79,13 +79,13 @@ function formatUserPatterns(patterns) {
 
   if (patterns.tendsToUndertrain) {
     lines.push(
-      `- Pattern: Tends to undertrain (avg ${Math.round(patterns.avgTssAchievementPct || 0)}% of planned TSS)`
+      `- Pattern: Tends to undertrain (avg ${Math.round(patterns.avgTssAchievementPct || 0)}% of planned RSS)`
     );
   }
 
   if (patterns.tendsToOverreach) {
     lines.push(
-      `- Pattern: Tends to overreach (avg ${Math.round(patterns.avgTssAchievementPct || 0)}% of planned TSS)`
+      `- Pattern: Tends to overreach (avg ${Math.round(patterns.avgTssAchievementPct || 0)}% of planned RSS)`
     );
   }
 
@@ -113,7 +113,7 @@ function buildReviewPrompt(data) {
   const workoutSummary = plannedWorkouts
     .map((w) => {
       const day = new Date(w.scheduledDate).toLocaleDateString('en-US', { weekday: 'long' });
-      return `- ${day}: ${w.workout?.name || w.workoutType || 'Unknown'} (TSS: ${w.targetTSS}, Duration: ${w.targetDuration}min)`;
+      return `- ${day}: ${w.workout?.name || w.workoutType || 'Unknown'} (RSS: ${w.targetTSS}, Duration: ${w.targetDuration}min)`;
     })
     .join('\n');
 
@@ -123,7 +123,7 @@ function buildReviewPrompt(data) {
       ? completedActivities
           .map((a) => {
             const day = new Date(a.date).toLocaleDateString('en-US', { weekday: 'long' });
-            return `- ${day}: ${a.name || 'Activity'} (TSS: ${a.tss || 'N/A'}, Duration: ${a.duration}min, IF: ${a.intensityFactor?.toFixed(2) || 'N/A'})`;
+            return `- ${day}: ${a.name || 'Activity'} (RSS: ${a.tss || 'N/A'}, Duration: ${a.duration}min, RI: ${a.intensityFactor?.toFixed(2) || 'N/A'})`;
           })
           .join('\n')
       : 'No activities recorded yet.';
@@ -150,16 +150,16 @@ function buildReviewPrompt(data) {
         .join('\n')
     : 'No specific goals set';
 
-  // User context
+  // User context. Keys on userContext are still the legacy JS names (ctl/atl/tsb/weeklyTssTarget) per deferred §3b identifier sweep.
   const contextInfo = userContext
     ? `
 Current Fitness Metrics:
 - FTP: ${userContext.ftp || 'Unknown'} watts
-- CTL (Fitness): ${userContext.ctl || 'Unknown'}
-- ATL (Fatigue): ${userContext.atl || 'Unknown'}
-- TSB (Form): ${userContext.tsb || 'Unknown'}
+- TFI (Training Fitness): ${userContext.ctl || 'Unknown'}
+- AFI (Acute Fatigue): ${userContext.atl || 'Unknown'}
+- FS (Form Score): ${userContext.tsb || 'Unknown'}
 - Current Phase: ${userContext.currentPhase || 'Unknown'}
-- Weekly TSS Target: ${userContext.weeklyTssTarget || 'Not set'}
+- Weekly RSS Target: ${userContext.weeklyTssTarget || 'Not set'}
 `
     : '';
 
@@ -194,7 +194,7 @@ ${adaptationSummary}
 ═══════════════════════════════════════════════════
 WEEK COMPARISON:
 ═══════════════════════════════════════════════════
-- Planned TSS: ${totalPlannedTSS} | Actual TSS: ${totalActualTSS} (${tssAchievementPct}% achieved)
+- Planned RSS: ${totalPlannedTSS} | Actual RSS: ${totalActualTSS} (${tssAchievementPct}% achieved)
 - Planned Duration: ${Math.round((totalPlannedDuration / 60) * 10) / 10} hours | Actual: ${Math.round((totalActualDuration / 60) * 10) / 10} hours
 - Planned Workouts: ${workoutCount} | Completed: ${completedCount}
 - Rest Days: ${restDays}
@@ -270,7 +270,7 @@ ${workoutSummary || 'No workouts planned'}
 ═══════════════════════════════════════════════════
 WEEK SUMMARY:
 ═══════════════════════════════════════════════════
-- Total Planned TSS: ${totalPlannedTSS}
+- Total Planned RSS: ${totalPlannedTSS}
 - Total Duration: ${Math.round((totalPlannedDuration / 60) * 10) / 10} hours
 - Workout Days: ${workoutCount}
 - Rest Days: ${restDays}

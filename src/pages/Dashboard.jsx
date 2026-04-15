@@ -328,7 +328,7 @@ function Dashboard() {
   // Build training context string for CoachCard
   const trainingContext = useMemo(() => {
     const parts = [];
-    parts.push(`CTL: ${trainingMetrics.ctl}, ATL: ${trainingMetrics.atl}, TSB: ${trainingMetrics.tsb}`);
+    parts.push(`TFI: ${trainingMetrics.ctl}, AFI: ${trainingMetrics.atl}, FS: ${trainingMetrics.tsb}`);
     if (weekStats.activities > 0) {
       parts.push(`This week: ${weekStats.activities} activities, ${formatDist(weekStats.distance)}, ${formatElev(weekStats.elevation)}`);
     }

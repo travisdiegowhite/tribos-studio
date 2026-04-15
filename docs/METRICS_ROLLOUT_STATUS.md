@@ -24,7 +24,10 @@
 | B7 | B7 — coach prompt rewrites per spec §6 | — | `706c05f` |
 | B8 | B8 — UI labels + FS target badge + retire TWL display | — | `cd34da0` |
 | B9 | B9 — activities + fitness_snapshots additive + dual-write | 072 | `da2ee8c` |
-| B10 | B10 — remaining 7 tables additive rename | 073 | _(this commit)_ |
+| B10 | B10 — remaining 7 tables additive rename | 073 | `dc374ac` |
+| #652 | §3c — FitnessSummary prop rename + API handler | — | `3b784e9` |
+
+See `docs/METRICS_ROLLOUT_REMAINING.md` for the tail of the rollout (reader cut-overs + legacy column drops + deferred renames).
 
 A3 is fully closed end-to-end: classification → persistence → scoped multiplier → coach prompts → UI chip.
 
