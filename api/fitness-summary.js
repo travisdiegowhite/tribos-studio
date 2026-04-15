@@ -89,12 +89,22 @@ export default async function handler(req, res) {
     const userId = authUser.id;
     const { surface = 'today', clientMetrics, rideId, forceRefresh } = req.body || {};
 
-    if (!clientMetrics || typeof clientMetrics.ctl !== 'number') {
-      return res.status(400).json({ error: 'clientMetrics with ctl, atl, tsb required' });
+    if (!clientMetrics || typeof clientMetrics.tfi !== 'number') {
+      return res.status(400).json({ error: 'clientMetrics with tfi, afi, formScore required' });
     }
 
+    // Adapt to assembleFitnessContext's legacy shape. The helper's internal
+    // rename is deferred to the activities / fitness_snapshots reader
+    // cut-over (see docs/METRICS_ROLLOUT_REMAINING.md §1a/§1b).
+    const contextMetrics = {
+      ctl: clientMetrics.tfi,
+      atl: clientMetrics.afi,
+      tsb: clientMetrics.formScore,
+      lastRideTss: clientMetrics.lastRideRss,
+    };
+
     // 1. Assemble context
-    const context = await assembleFitnessContext(userId, supabase, clientMetrics, { rideId });
+    const context = await assembleFitnessContext(userId, supabase, contextMetrics, { rideId });
     const cacheKey = buildCacheKey(context);
 
     // 2. Check cache (4-hour TTL)

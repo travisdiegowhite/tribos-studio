@@ -386,9 +386,9 @@ function Dashboard() {
           {/* AI Fitness Summary — plain-language context */}
           {!loading && (
             <FitnessSummary
-              ctl={trainingMetrics.ctl}
-              atl={trainingMetrics.atl}
-              tsb={trainingMetrics.tsb}
+              tfi={trainingMetrics.ctl}
+              afi={trainingMetrics.atl}
+              formScore={trainingMetrics.tsb}
             />
           )}
 
