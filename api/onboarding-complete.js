@@ -197,7 +197,11 @@ Maximum 3 sentences.`,
     if (target_event_date) profileUpdate.target_event_date = target_event_date;
     if (target_event_name) profileUpdate.target_event_name = target_event_name;
     if (ftp != null) profileUpdate.ftp = ftp;
-    if (weekly_tss_estimate != null) profileUpdate.weekly_tss_estimate = weekly_tss_estimate;
+    if (weekly_tss_estimate != null) {
+      // Dual-write during §1f rollout; migration 080 drops the legacy column.
+      profileUpdate.weekly_tss_estimate = weekly_tss_estimate;
+      profileUpdate.weekly_rss_estimate = weekly_tss_estimate;
+    }
 
     const { error: profileError } = await supabase
       .from('user_profiles')
