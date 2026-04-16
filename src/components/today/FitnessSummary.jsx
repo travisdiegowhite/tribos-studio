@@ -9,7 +9,7 @@ import { supabase } from '../../lib/supabase';
  * Loads async with skeleton. Caches in component state to avoid refetching
  * on re-renders when metrics haven't changed.
  */
-function FitnessSummary({ tfi, afi, formScore, lastRideRss }) {
+function FitnessSummary({ tfi, afi, formScore, lastRideRss, ctlDeltaPct }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -19,8 +19,10 @@ function FitnessSummary({ tfi, afi, formScore, lastRideRss }) {
     // Don't fetch if we have no metrics
     if (tfi === 0 && afi === 0 && formScore === 0) return;
 
-    // Build a key to detect meaningful metric changes
-    const fetchKey = `${tfi}:${afi}:${formScore}:${lastRideRss || 0}`;
+    // Build a key to detect meaningful metric changes. Round ctlDeltaPct so
+    // minor noise doesn't thrash the cache.
+    const deltaPctKey = Number.isFinite(ctlDeltaPct) ? Math.round(ctlDeltaPct) : 'na';
+    const fetchKey = `${tfi}:${afi}:${formScore}:${lastRideRss || 0}:${deltaPctKey}`;
     if (fetchKey === lastFetchKey.current) return;
 
     let cancelled = false;
@@ -42,7 +44,10 @@ function FitnessSummary({ tfi, afi, formScore, lastRideRss }) {
           },
           body: JSON.stringify({
             surface: 'today',
-            clientMetrics: { tfi, afi, formScore, lastRideRss },
+            // Send ctlDeltaPct so the coach's trend narrative matches the
+            // Trend card exactly (single source of truth — the card's
+            // translateTrend() and the coach both read this number).
+            clientMetrics: { tfi, afi, formScore, lastRideRss, ctlDeltaPct },
             // Send browser timezone so the server computes "today" and
             // "this week" in the same timezone as the stats cards above.
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -72,7 +77,7 @@ function FitnessSummary({ tfi, afi, formScore, lastRideRss }) {
 
     fetchSummary();
     return () => { cancelled = true; };
-  }, [tfi, afi, formScore, lastRideRss]);
+  }, [tfi, afi, formScore, lastRideRss, ctlDeltaPct]);
 
   // Don't render anything if there's no data to show
   if (!loading && !summary && !error) return null;
