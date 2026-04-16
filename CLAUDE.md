@@ -14,6 +14,38 @@ Three amendments from Part A implementation apply on top of the spec:
 - **(D2) Confidence values are calibrated**: `device` 0.95 / `power` 0.95 / `kJ-with-FTP` 0.75 / `kJ-no-FTP` 0.50 / `hr` 0.65 / `inferred` 0.40.
 - **(D4) Terrain multiplier applies only to `kJ` and `inferred` tiers**, not all tiers.
 
+### Legacy column DROP migrations — DEFERRED (do not run yet)
+
+Migrations `074`–`080` in `database/migrations/` drop the legacy spec §2 columns
+(`tss`, `ctl`, `atl`, `tsb`, `normalized_power`, `intensity_factor`, etc.) from
+seven tables. The DROP blocks are intentionally **commented out** at the bottom
+of each file. The backfill steps at the top of each migration have already run.
+
+**Current policy**: keep both legacy and canonical columns live for at least
+2–4 weeks of stable production after the corresponding §3b code branch lands,
+then re-evaluate. Do NOT uncomment a DROP block without explicit user approval.
+
+Reasons to wait:
+- Cheap rollback path — reverting any §3b commit just works because the
+  legacy columns are still dual-written.
+- Tribos uses Supabase point-in-time recovery for true backups; the duplicate
+  schema columns are *not* the rollback mechanism, just a transitional
+  convenience.
+- Production-only edge cases (odd device payloads, manual entries, webhook
+  variants) tend to surface in the first 1–2 weeks after a writer cut-over.
+
+When the DROPs do eventually run, do them one at a time in handoff §2c order
+(smallest blast radius first: `080` → `079` → `078` → `077` → `076` → `075` →
+`074`). Each migration has a verification query in its header — run that first
+and confirm zero stale rows before uncommenting the DROP.
+
+Until then, code added or modified under `api/` and `src/` should:
+- **Read canonical-first with legacy fallback** (`activity.rss ?? activity.tss`).
+- **Write canonical only** for new writers (legacy columns get NULL, which the
+  reader fallback handles).
+- Treat the legacy column names as deprecated — don't add new readers/writers
+  to them.
+
 ## Tech Stack
 
 | Layer | Technology |
