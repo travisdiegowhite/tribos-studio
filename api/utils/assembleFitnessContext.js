@@ -11,37 +11,65 @@
 import { derivePhase, formatWeekSchedule, weekScheduleToText, formatHealth, fetchProprietaryMetrics } from './contextHelpers.js';
 
 /**
+ * Format a Date as YYYY-MM-DD in the given IANA timezone.
+ * Falls back to UTC ISO date if the timezone is invalid.
+ */
+function formatDateInTz(date, tz) {
+  try {
+    // en-CA locale yields YYYY-MM-DD format
+    return date.toLocaleDateString('en-CA', { timeZone: tz });
+  } catch {
+    return date.toISOString().split('T')[0];
+  }
+}
+
+/**
+ * Get the day-of-week number (0=Sun..6=Sat) in the given IANA timezone.
+ * Falls back to the server's local day if the timezone is invalid.
+ */
+function getDayOfWeekInTz(date, tz) {
+  try {
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });
+    const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    return map[dayName] ?? date.getDay();
+  } catch {
+    return date.getDay();
+  }
+}
+
+/**
  * @param {string} userId
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {{ ctl: number, atl: number, tsb: number, lastRideTss?: number }} clientMetrics
  * @param {{ rideId?: string }} [options]
+ * @param {string} [timezone] - IANA timezone (e.g. 'America/Denver'). Defaults to 'America/New_York'.
  * @returns {Promise<object>} FitnessContext
  */
-export async function assembleFitnessContext(userId, supabase, clientMetrics, options = {}) {
+export async function assembleFitnessContext(userId, supabase, clientMetrics, options = {}, timezone = 'America/New_York') {
   const now = new Date();
-  const today = now.toISOString().split('T')[0];
+  const today = formatDateInTz(now, timezone);
 
-  // 28 days ago
+  // 28 days ago (in user's timezone)
   const twentyEightDaysAgo = new Date(now);
   twentyEightDaysAgo.setDate(twentyEightDaysAgo.getDate() - 28);
-  const twentyEightDaysAgoStr = twentyEightDaysAgo.toISOString().split('T')[0];
+  const twentyEightDaysAgoStr = formatDateInTz(twentyEightDaysAgo, timezone);
 
-  // Start of current week (Monday)
-  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
+  // Start of current week (Monday) — in user's timezone
+  const dayOfWeek = getDayOfWeekInTz(now, timezone); // 0=Sun, 1=Mon...
   const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const weekStart = new Date(now);
   weekStart.setDate(weekStart.getDate() - mondayOffset);
-  const weekStartStr = weekStart.toISOString().split('T')[0];
+  const weekStartStr = formatDateInTz(weekStart, timezone);
 
   // End of current week (next Monday, exclusive upper bound)
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 7);
-  const weekEndStr = weekEnd.toISOString().split('T')[0];
+  const weekEndStr = formatDateInTz(weekEnd, timezone);
 
-  // 7 days from now
+  // 7 days from now (in user's timezone)
   const sevenDaysOut = new Date(now);
   sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
-  const sevenDaysOutStr = sevenDaysOut.toISOString().split('T')[0];
+  const sevenDaysOutStr = formatDateInTz(sevenDaysOut, timezone);
 
   // Pre-fetch active training plan IDs (planned_workouts has no user_id column;
   // must join through training_plans to scope workouts to this user)
@@ -119,7 +147,7 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
     // 6. Athlete profile
     supabase
       .from('user_profiles')
-      .select('ftp, weight_kg, experience_level')
+      .select('ftp, weight_kg, experience_level, timezone')
       .eq('id', userId)
       .single(),
 
@@ -189,9 +217,14 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   const missedRidesFlag = !weekComplete && plannedThisWeek > 0 && completedThisWeek < plannedThisWeek - 1;
 
   // --- Days since last ride ---
+  // Compare calendar dates in the user's timezone (not UTC instants) so that
+  // "yesterday" doesn't read as "today" for users far from UTC.
   const lastActivity = activities.length > 0 ? activities[activities.length - 1] : null;
   const daysSinceLastRide = lastActivity
-    ? Math.floor((now.getTime() - new Date(lastActivity.start_date).getTime()) / (1000 * 60 * 60 * 24))
+    ? Math.floor(
+        (new Date(today + 'T12:00:00Z').getTime() -
+         new Date(formatDateInTz(new Date(lastActivity.start_date), timezone) + 'T12:00:00Z').getTime())
+        / (1000 * 60 * 60 * 24))
     : 99;
 
   // --- Coach summary ---
