@@ -392,6 +392,7 @@ function Dashboard() {
               tfi={trainingMetrics.ctl}
               afi={trainingMetrics.atl}
               formScore={trainingMetrics.tsb}
+              ctlDeltaPct={trainingMetrics.ctlDeltaPct}
             />
           )}
 

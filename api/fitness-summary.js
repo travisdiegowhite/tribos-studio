@@ -27,6 +27,12 @@ WEIGHTING RULES:
 - The fatigue-to-fitness ratio (AFI/TFI) matters more than raw AFI numbers.
 - Form Score (FS) is context-dependent — weight it against the athlete's tsb_range_28d (FS range over the last 28 days) to know if today's value is unusual or normal for them.
 
+TREND CONSISTENCY — CRITICAL:
+- trends.ctl_direction and trends.ctl_delta_pct are authoritative. They match the Trend card the athlete sees on the dashboard. NEVER contradict them.
+- Values of ctl_direction: 'building' (ctl_delta_pct > 8%), 'maintaining' (> 2%), 'holding' (−2% to 2%), 'recovering' (< −2%).
+- If ctl_delta_pct is positive, do NOT write "fitness is declining" or similar. If ctl_delta_pct is negative, do not claim fitness is "building".
+- When referencing the trend, align your language with ctl_direction. e.g. if building, say something like "fitness is trending up" — never the opposite.
+
 SPIKE GUARD — CRITICAL:
 - If missed_rides_flag is true: the week is not over and the athlete is behind on planned rides. An apparent drop in fatigue (AFI) is NOT recovery — it is simply fewer rides so far this week. Do NOT describe this as "legs are recovering" or similar. Instead, acknowledge the week isn't done.
 
@@ -109,11 +115,18 @@ export default async function handler(req, res) {
     // Adapt to assembleFitnessContext's legacy shape. The helper's internal
     // rename is deferred to the activities / fitness_snapshots reader
     // cut-over (see docs/METRICS_ROLLOUT_REMAINING.md §1a/§1b).
+    //
+    // ctlDeltaPct is the authoritative 28-day fitness trend — the same value
+    // that drives the Trend card on the dashboard. Passing it through keeps
+    // the coach's narrative from contradicting what the user sees.
     const contextMetrics = {
       ctl: clientMetrics.tfi,
       atl: clientMetrics.afi,
       tsb: clientMetrics.formScore,
       lastRideTss: clientMetrics.lastRideRss,
+      ctlDeltaPct: typeof clientMetrics.ctlDeltaPct === 'number' && Number.isFinite(clientMetrics.ctlDeltaPct)
+        ? clientMetrics.ctlDeltaPct
+        : null,
     };
 
     // 1. Assemble context (timezone-aware so day/week windows match the user's UI)

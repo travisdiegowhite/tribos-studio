@@ -40,7 +40,11 @@ function getDayOfWeekInTz(date, tz) {
 /**
  * @param {string} userId
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
- * @param {{ ctl: number, atl: number, tsb: number, lastRideTss?: number }} clientMetrics
+ * @param {{ ctl: number, atl: number, tsb: number, lastRideTss?: number, ctlDeltaPct?: number|null }} clientMetrics
+ *   - ctlDeltaPct: 28-day CTL change as a percentage (same value the Trend
+ *     card on the dashboard displays). When provided, this drives the
+ *     trend direction authoritatively — keeping the coach's narrative
+ *     in sync with what the user sees.
  * @param {{ rideId?: string }} [options]
  * @param {string} [timezone] - IANA timezone (e.g. 'America/Denver'). Defaults to 'America/New_York'.
  * @returns {Promise<object>} FitnessContext
@@ -199,7 +203,9 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   const weekScheduleText = weekScheduleToText(weekSchedule);
 
   // --- CTL trend calculation (28-day delta) ---
-  const ctlTrend = calculateCTLTrend(activities, clientMetrics.ctl);
+  // Prefer the frontend-computed ctlDeltaPct (same source the Trend card uses).
+  // Fall back to the activity-TSS heuristic only when unavailable.
+  const ctlTrend = calculateCTLTrend(activities, clientMetrics.ctl, clientMetrics.ctlDeltaPct);
 
   // --- ATL/CTL ratio ---
   const atlCtlRatio = clientMetrics.ctl > 0
@@ -252,6 +258,9 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
     },
     trends: {
       ctl_delta_28d: ctlTrend.delta,
+      // Authoritative 28-day CTL change as a %, matching the Trend card.
+      // When the coach references the trend, it should use this number.
+      ctl_delta_pct: ctlTrend.delta_pct,
       ctl_direction: ctlTrend.direction,
       atl_ctl_ratio: atlCtlRatio,
       tsb_range_28d: tsbRange,
@@ -293,26 +302,54 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
 }
 
 /**
- * Estimate CTL trend by comparing current CTL to an approximated value 28 days ago.
- * Uses a simple heuristic: if we have enough activities, compare early vs late TSS density.
+ * Estimate the 28-day CTL trend.
+ *
+ * Preferred path: use `clientDeltaPct` — the same ctlDeltaPct the frontend
+ * computes for the Trend card (current CTL vs CTL-28-days-ago). Thresholds
+ * mirror `translateTrend()` in src/lib/fitness/translate.ts so the coach's
+ * narrative stays in lockstep with what the user sees on the card.
+ *
+ * Fallback path (legacy, when clientDeltaPct is not provided): a rough
+ * early-half-vs-late-half TSS density heuristic. This can disagree with
+ * the card and should not be relied on — it's kept only for callers that
+ * don't pass the authoritative number yet.
  */
-function calculateCTLTrend(activities, currentCTL) {
-  if (activities.length < 3) {
-    return { delta: 0, direction: 'holding' };
+function calculateCTLTrend(activities, currentCTL, clientDeltaPct) {
+  // --- Preferred: use the same number the Trend card renders ---
+  if (typeof clientDeltaPct === 'number' && Number.isFinite(clientDeltaPct)) {
+    // Thresholds mirror src/lib/fitness/translate.ts translateTrend():
+    //   > 8%  → Building
+    //   > 2%  → Maintaining (up)
+    //   >= -2% → Maintaining (holding steady)
+    //   < -2% → Recovering
+    let direction;
+    if (clientDeltaPct > 8) direction = 'building';
+    else if (clientDeltaPct > 2) direction = 'maintaining';
+    else if (clientDeltaPct >= -2) direction = 'holding';
+    else direction = 'recovering';
+
+    return {
+      delta: Math.round(clientDeltaPct),       // now expressed as rounded %
+      delta_pct: clientDeltaPct,                // raw % for downstream use
+      direction,
+    };
   }
 
-  // Estimate the CTL 28 days ago by computing EWA up to that midpoint
+  // --- Fallback: legacy heuristic (only when client didn't supply delta) ---
+  if (activities.length < 3) {
+    return { delta: 0, delta_pct: null, direction: 'holding' };
+  }
+
   const midpoint = Math.floor(activities.length / 2);
   const earlyActivities = activities.slice(0, midpoint);
   const earlyAvgTSS = earlyActivities.reduce((sum, a) => sum + (a.rss || estimateTSS(a)), 0) / Math.max(earlyActivities.length, 1);
   const lateActivities = activities.slice(midpoint);
   const lateAvgTSS = lateActivities.reduce((sum, a) => sum + (a.rss || estimateTSS(a)), 0) / Math.max(lateActivities.length, 1);
 
-  // Rough delta based on TSS density change
   const delta = Math.round(lateAvgTSS - earlyAvgTSS);
   const direction = delta > 3 ? 'building' : delta < -3 ? 'declining' : 'holding';
 
-  return { delta, direction };
+  return { delta, delta_pct: null, direction };
 }
 
 /**
