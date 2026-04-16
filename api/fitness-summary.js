@@ -87,10 +87,23 @@ export default async function handler(req, res) {
     }
 
     const userId = authUser.id;
-    const { surface = 'today', clientMetrics, rideId, forceRefresh } = req.body || {};
+    const { surface = 'today', clientMetrics, rideId, forceRefresh, timezone: browserTimezone } = req.body || {};
 
     if (!clientMetrics || typeof clientMetrics.tfi !== 'number') {
       return res.status(400).json({ error: 'clientMetrics with tfi, afi, formScore required' });
+    }
+
+    // Resolve timezone: prefer browser-supplied, then DB, then fallback.
+    // Mirrors the pattern in api/coach.js so the fitness summary analyses the
+    // same "today" / "this week" window the user sees on their stats cards.
+    let resolvedTimezone = browserTimezone;
+    if (!resolvedTimezone) {
+      const { data: profileTz } = await supabase
+        .from('user_profiles')
+        .select('timezone')
+        .eq('id', userId)
+        .single();
+      resolvedTimezone = profileTz?.timezone || 'America/New_York';
     }
 
     // Adapt to assembleFitnessContext's legacy shape. The helper's internal
@@ -103,8 +116,8 @@ export default async function handler(req, res) {
       lastRideTss: clientMetrics.lastRideRss,
     };
 
-    // 1. Assemble context
-    const context = await assembleFitnessContext(userId, supabase, contextMetrics, { rideId });
+    // 1. Assemble context (timezone-aware so day/week windows match the user's UI)
+    const context = await assembleFitnessContext(userId, supabase, contextMetrics, { rideId }, resolvedTimezone);
     const cacheKey = buildCacheKey(context);
 
     // 2. Check cache (4-hour TTL)

@@ -43,6 +43,9 @@ function FitnessSummary({ tfi, afi, formScore, lastRideRss }) {
           body: JSON.stringify({
             surface: 'today',
             clientMetrics: { tfi, afi, formScore, lastRideRss },
+            // Send browser timezone so the server computes "today" and
+            // "this week" in the same timezone as the stats cards above.
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
         });
 
