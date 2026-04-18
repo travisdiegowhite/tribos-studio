@@ -23,7 +23,7 @@ import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import WeekChart from '../components/today/WeekChart.jsx';
 import TodayHero from '../components/today/TodayHero.jsx';
 import YesterdayTodayAhead from '../components/today/YesterdayTodayAhead.jsx';
-import FullMetricsDrawer from '../components/today/FullMetricsDrawer.jsx';
+import ActionRow from '../components/today/ActionRow.jsx';
 import ProprietaryMetricsBar from '../components/today/ProprietaryMetricsBar.tsx';
 import { ActivePlanCard } from '../components/training';
 import { calculateCTL, calculateATL, calculateTSB } from '../utils/trainingPlans';
@@ -372,14 +372,43 @@ function Dashboard() {
           {/* Today Hero — archetype-voiced paragraph (leads the page) */}
           <TodayHero />
 
-          {/* Yesterday / Today / Next strip — situational awareness */}
+          {/* Yesterday / Today / Next strip — spec §5 */}
           <YesterdayTodayAhead
             userId={user?.id}
             lastRide={activities[0] || null}
             todayWorkout={todayWorkout}
+            todayRouteMatch={todayRouteMatch}
             activePlanIds={activePlans.map((p) => p.id)}
             formatDist={formatDist}
           />
+
+          {/* Action row — compact metric codes + expand drawer + CTAs (spec §6) */}
+          <ActionRow
+            tfi={trainingMetrics.ctl}
+            afi={trainingMetrics.atl}
+            fs={trainingMetrics.tsb}
+            efi={proprietaryMetrics?.efi?.score ?? proprietaryMetrics?.efi?.session_score ?? null}
+            tcas={proprietaryMetrics?.tcas?.score ?? null}
+            tfiDeltaPct={trainingMetrics.ctlDeltaPct}
+            rideTodayHref={todayWorkout ? '/train' : undefined}
+            viewPlanHref="/train"
+          >
+            <StatusBar
+              ctl={trainingMetrics.ctl}
+              atl={trainingMetrics.atl}
+              tsb={trainingMetrics.tsb}
+              ctlDeltaPct={trainingMetrics.ctlDeltaPct}
+              weekRides={weekStats.activities}
+              weekPlanned={weekStats.planned}
+              loading={loading}
+              fsConfidence={fsConfidence}
+              todayTerrain={todayTerrain}
+            />
+            <ProprietaryMetricsBar
+              metrics={proprietaryMetrics}
+              loading={metricsLoading}
+            />
+          </ActionRow>
 
           {/* Intelligence Card — workout + route match */}
           <IntelligenceCard
@@ -424,26 +453,6 @@ function Dashboard() {
             formatDist={formatDist}
             formatElev={formatElev}
           />
-
-          {/* Full metric bars — collapsed by default, demoted from the
-              top of the page in favour of the TodayHero paragraph. */}
-          <FullMetricsDrawer>
-            <StatusBar
-              ctl={trainingMetrics.ctl}
-              atl={trainingMetrics.atl}
-              tsb={trainingMetrics.tsb}
-              ctlDeltaPct={trainingMetrics.ctlDeltaPct}
-              weekRides={weekStats.activities}
-              weekPlanned={weekStats.planned}
-              loading={loading}
-              fsConfidence={fsConfidence}
-              todayTerrain={todayTerrain}
-            />
-            <ProprietaryMetricsBar
-              metrics={proprietaryMetrics}
-              loading={metricsLoading}
-            />
-          </FullMetricsDrawer>
         </Stack>
       </Container>
     </AppShell>

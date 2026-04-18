@@ -3,17 +3,25 @@ import { Box, SimpleGrid, Stack, Text } from '@mantine/core';
 import { supabase } from '../../lib/supabase';
 
 /**
- * Small, flat strip rendered beneath the TodayHero. Three columns:
- *   - Yesterday: last completed ride
- *   - Today: today's planned workout (if any)
- *   - Next: the rider's next anchor (priority race within 42d, else next
- *     planned workout)
+ * Context strip — spec §5.
  *
- * Deliberately terse. Full metrics live in FullMetricsDrawer — this strip
- * is for situational awareness, not numbers.
+ * Three equal-width cards directly beneath the coach paragraph. Each card:
+ *   - 3px top border in a role-specific color
+ *   - DM Mono 10px uppercase meta label
+ *   - Barlow Condensed 18px bold title
+ *   - DM Mono 11px metadata line
  */
 
 const RACE_ANCHOR_CUTOFF_DAYS = 42;
+
+const ROLE_COLOR = {
+  yesterday: 'var(--color-text-muted, #7A7970)',
+  today: 'var(--color-teal, #2A8C82)',
+  race: 'var(--color-coral, #C43C2A)',
+  milestone: 'var(--color-gold, #C49A0A)',
+  workout: 'var(--color-text-muted, #7A7970)',
+  empty: 'var(--color-text-muted, #7A7970)',
+};
 
 function formatDuration(seconds) {
   if (!seconds || seconds <= 0) return null;
@@ -38,66 +46,59 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function Column({ label, headline, sublabel, empty }) {
+function StripCard({ topColor, meta, title, metadata, emphasised }) {
   return (
     <Box
       style={{
-        padding: '14px 16px',
-        border: '1px solid var(--color-border)',
-        backgroundColor: 'var(--color-card)',
-        minHeight: 90,
+        borderTop: `3px solid ${topColor}`,
+        borderRight: '1px solid var(--color-border, #DDDDD8)',
+        borderBottom: '1px solid var(--color-border, #DDDDD8)',
+        borderLeft: '1px solid var(--color-border, #DDDDD8)',
+        backgroundColor: 'var(--color-card, #FFFFFF)',
+        padding: '14px 16px 16px',
+        minHeight: 104,
       }}
     >
       <Text
         fw={600}
         style={{
-          fontFamily: "'Barlow Condensed', 'Barlow', sans-serif",
-          fontSize: 11,
-          letterSpacing: '0.12em',
+          fontFamily: "'JetBrains Mono', 'DM Mono', monospace",
+          fontSize: 10,
+          letterSpacing: '0.15em',
           textTransform: 'uppercase',
-          color: 'var(--color-text-muted)',
-          marginBottom: 8,
+          color: 'var(--color-text-muted, #7A7970)',
+          marginBottom: 10,
         }}
       >
-        {label}
+        {meta}
       </Text>
-      {empty ? (
+      <Stack gap={4}>
         <Text
           style={{
-            fontFamily: "'Barlow', sans-serif",
-            fontSize: 14,
-            color: 'var(--color-text-muted)',
-            fontStyle: 'italic',
+            fontFamily: "'Barlow Condensed', 'Barlow', sans-serif",
+            fontSize: 18,
+            fontWeight: 700,
+            lineHeight: 1.2,
+            color: emphasised ? topColor : 'var(--color-ink, #141410)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.02em',
           }}
         >
-          {empty}
+          {title}
         </Text>
-      ) : (
-        <Stack gap={2}>
+        {metadata ? (
           <Text
             style={{
-              fontFamily: "'Barlow', sans-serif",
-              fontSize: 15,
-              lineHeight: 1.35,
-              color: 'var(--color-text-primary)',
-              fontWeight: 500,
+              fontFamily: "'JetBrains Mono', 'DM Mono', monospace",
+              fontSize: 11,
+              letterSpacing: '0.06em',
+              color: 'var(--color-text-muted, #7A7970)',
             }}
           >
-            {headline}
+            {metadata}
           </Text>
-          {sublabel ? (
-            <Text
-              size="xs"
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                color: 'var(--color-text-muted)',
-              }}
-            >
-              {sublabel}
-            </Text>
-          ) : null}
-        </Stack>
-      )}
+        ) : null}
+      </Stack>
     </Box>
   );
 }
@@ -106,6 +107,7 @@ export default function YesterdayTodayAhead({
   userId,
   lastRide,
   todayWorkout,
+  todayRouteMatch,
   activePlanIds,
   formatDist,
 }) {
@@ -116,7 +118,6 @@ export default function YesterdayTodayAhead({
     let cancelled = false;
     async function loadAnchor() {
       try {
-        // 1. Try priority race within the cutoff window.
         const { data: race } = await supabase
           .from('race_goals')
           .select('name, race_date, race_type, priority')
@@ -133,19 +134,18 @@ export default function YesterdayTodayAhead({
               - new Date(`${todayIso()}T12:00:00Z`).getTime()) / 86400000,
           );
           if (days >= 0 && days <= RACE_ANCHOR_CUTOFF_DAYS) {
-            setNextAnchor({ kind: 'race', ...race });
+            setNextAnchor({ kind: 'race', days, ...race });
             return;
           }
         }
 
-        // 2. Fall back to the next planned workout across active plans.
         if (!activePlanIds || activePlanIds.length === 0) {
           if (!cancelled) setNextAnchor(null);
           return;
         }
         const { data: nextW } = await supabase
           .from('planned_workouts')
-          .select('name, scheduled_date, workout_type, target_rss, target_tss')
+          .select('name, scheduled_date, workout_type, target_tss')
           .in('plan_id', activePlanIds)
           .gt('scheduled_date', todayIso())
           .eq('completed', false)
@@ -164,61 +164,96 @@ export default function YesterdayTodayAhead({
     return () => { cancelled = true; };
   }, [userId, activePlanIds]);
 
-  // Yesterday column
-  let yesterdayContent;
+  // --- Yesterday card ---
+  let yesterday;
   if (lastRide) {
     const distKm = (lastRide.distance_meters || lastRide.distance || 0) / 1000;
     const dur = formatDuration(lastRide.duration_seconds || lastRide.moving_time);
-    const parts = [];
-    if (distKm > 0 && formatDist) parts.push(formatDist(distKm));
-    if (dur) parts.push(dur);
-    yesterdayContent = {
-      headline: lastRide.name || (lastRide.type || 'Ride'),
-      sublabel: parts.join(' · '),
+    const rss = lastRide.rss ?? lastRide.tss;
+    const metaParts = [];
+    if (distKm > 0 && formatDist) metaParts.push(formatDist(distKm));
+    if (dur) metaParts.push(dur);
+    if (rss) metaParts.push(`RSS ${rss}`);
+    yesterday = {
+      topColor: ROLE_COLOR.yesterday,
+      meta: 'YESTERDAY',
+      title: lastRide.name || lastRide.type || 'Ride',
+      metadata: metaParts.join(' · '),
     };
   } else {
-    yesterdayContent = { empty: 'No ride in the last few days.' };
+    yesterday = {
+      topColor: ROLE_COLOR.yesterday,
+      meta: 'YESTERDAY',
+      title: 'REST DAY',
+      metadata: 'no session logged',
+    };
   }
 
-  // Today column
-  let todayContent;
+  // --- Today card ---
+  let today;
   if (todayWorkout) {
-    const title = todayWorkout.title || todayWorkout.name || todayWorkout.workout_type || 'Planned workout';
-    const targetRss = todayWorkout.target_rss || todayWorkout.target_tss;
-    const sub = [];
-    if (todayWorkout.duration_minutes) sub.push(`${todayWorkout.duration_minutes} min`);
-    if (targetRss) sub.push(`RSS ${targetRss}`);
-    todayContent = {
-      headline: title,
-      sublabel: sub.join(' · '),
+    const name = todayWorkout.title || todayWorkout.name || todayWorkout.workout_type || 'Planned workout';
+    const parts = [];
+    if (todayWorkout.duration_minutes) parts.push(`${todayWorkout.duration_minutes} min`);
+    const target = todayWorkout.target_rss || todayWorkout.target_tss;
+    if (target) parts.push(`target RSS ${target}`);
+    if (todayRouteMatch?.route?.name || todayRouteMatch?.name) {
+      const routeName = todayRouteMatch?.route?.name || todayRouteMatch?.name;
+      parts.push(`route: ${routeName}`);
+    }
+    today = {
+      topColor: ROLE_COLOR.today,
+      meta: `TODAY · ${name}`.toUpperCase(),
+      title: name,
+      metadata: parts.join(' · '),
+      emphasised: true,
     };
   } else {
-    todayContent = { empty: 'Rest day — or pick a ride.' };
+    today = {
+      topColor: ROLE_COLOR.today,
+      meta: 'TODAY',
+      title: 'OPEN DAY',
+      metadata: 'ask your coach for a session',
+      emphasised: true,
+    };
   }
 
-  // Next column
-  let nextContent;
+  // --- Next card ---
+  let next;
   if (nextAnchor?.kind === 'race') {
     const dateLabel = formatDateShort(nextAnchor.race_date);
-    nextContent = {
-      headline: nextAnchor.name,
-      sublabel: [nextAnchor.race_type || 'Race', dateLabel, nextAnchor.priority ? `P${nextAnchor.priority}` : null]
+    const daysOut = typeof nextAnchor.days === 'number' ? `${nextAnchor.days}d out` : null;
+    next = {
+      topColor: ROLE_COLOR.race,
+      meta: 'NEXT · RACE',
+      title: nextAnchor.name,
+      metadata: [nextAnchor.race_type || 'Race', dateLabel, daysOut, nextAnchor.priority ? `P${nextAnchor.priority}` : null]
         .filter(Boolean).join(' · '),
     };
   } else if (nextAnchor?.kind === 'workout') {
-    nextContent = {
-      headline: nextAnchor.name || nextAnchor.workout_type || 'Planned workout',
-      sublabel: formatDateShort(nextAnchor.scheduled_date),
+    const name = nextAnchor.name || nextAnchor.workout_type || 'Planned workout';
+    const target = nextAnchor.target_tss;
+    next = {
+      topColor: ROLE_COLOR.workout,
+      meta: 'NEXT · WORKOUT',
+      title: name,
+      metadata: [formatDateShort(nextAnchor.scheduled_date), target ? `target RSS ${target}` : null]
+        .filter(Boolean).join(' · '),
     };
   } else {
-    nextContent = { empty: 'Nothing scheduled yet.' };
+    next = {
+      topColor: ROLE_COLOR.empty,
+      meta: 'NEXT',
+      title: 'NOTHING SCHEDULED',
+      metadata: 'plan a ride to fill this slot',
+    };
   }
 
   return (
     <SimpleGrid cols={{ base: 1, sm: 3 }} spacing={10}>
-      <Column label="Yesterday" {...yesterdayContent} />
-      <Column label="Today" {...todayContent} />
-      <Column label="Next" {...nextContent} />
+      <StripCard {...yesterday} />
+      <StripCard {...today} />
+      <StripCard {...next} />
     </SimpleGrid>
   );
 }
