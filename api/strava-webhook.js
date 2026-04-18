@@ -11,6 +11,7 @@ import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
+import { enqueueHeroRegen } from './utils/hero/enqueueHeroRegen.js';
 import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
 import { sendPushToUser, buildPostRideMessage } from './utils/pushNotification.js';
 
@@ -441,6 +442,9 @@ async function handleActivityCreate(eventId, webhookData, integration) {
     try {
       await completeActivationStep(supabase, integration.user_id, 'first_sync');
       await enqueueProactiveInsight(supabase, integration.user_id, savedActivity.id);
+      // Mark today's hero paragraph stale so the precompute worker rebuilds
+      // it with the new ride reflected. Non-blocking — failure is logged.
+      await enqueueHeroRegen(supabase, integration.user_id).catch(() => {});
 
       // Enqueue coaching check-in and trigger generation (fire-and-forget)
       const checkInId = await enqueueCheckIn(supabase, integration.user_id, savedActivity.id);

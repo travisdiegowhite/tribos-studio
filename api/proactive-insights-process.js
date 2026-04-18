@@ -7,10 +7,12 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { completeActivationStep } from './utils/activation.js';
 import { assembleCheckInContext } from './utils/checkInContext.js';
 import { PERSONA_DATA } from './utils/personaData.js';
+import { generateHeroParagraph, persistHeroParagraph } from './today-hero.js';
 
 const supabase = getSupabaseAdmin();
 
 const BATCH_SIZE = 5;
+const HERO_BATCH_SIZE = 5;
 
 export default async function handler(req, res) {
   // Only allow GET (cron) and POST (manual trigger)
@@ -95,14 +97,86 @@ export default async function handler(req, res) {
       }
     }
 
+    // Drain up to HERO_BATCH_SIZE pending hero-paragraph rows in the same
+    // cron tick. Reuses the existing per-minute schedule so no new cron
+    // entry is required (per CLAUDE.md cron-frequency rules).
+    const heroResults = await processHeroQueue();
+
     return res.status(200).json({
       processed: results.length,
-      results
+      results,
+      hero_processed: heroResults.length,
+      hero_results: heroResults,
     });
   } catch (error) {
     console.error('Proactive insights processor error:', error);
     return res.status(500).json({ error: 'Processing failed' });
   }
+}
+
+/**
+ * Drain pending today_hero_paragraphs rows. Resolves each row by generating
+ * a fresh paragraph and upserting it completed. Errors flip the row to
+ * 'failed' so the rider's on-demand request can still fall back to live
+ * generation.
+ */
+async function processHeroQueue() {
+  const { data: pendingHero, error: fetchErr } = await supabase
+    .from('today_hero_paragraphs')
+    .select('id, user_id, date')
+    .eq('status', 'pending')
+    .order('updated_at', { ascending: true })
+    .limit(HERO_BATCH_SIZE);
+
+  if (fetchErr) {
+    console.error('[hero-queue] fetch failed:', fetchErr.message);
+    return [];
+  }
+  if (!pendingHero || pendingHero.length === 0) return [];
+
+  console.log(`🦸 Processing ${pendingHero.length} pending hero paragraph(s)`);
+
+  const results = [];
+  for (const row of pendingHero) {
+    try {
+      // Mark as processing (prevents duplicate work across overlapping ticks).
+      await supabase
+        .from('today_hero_paragraphs')
+        .update({ status: 'processing', updated_at: new Date().toISOString() })
+        .eq('id', row.id);
+
+      // Resolve the rider's timezone for "today" consistency.
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('timezone')
+        .eq('id', row.user_id)
+        .maybeSingle();
+      const tz = profile?.timezone || 'America/New_York';
+
+      const { context, voice, paragraph, cacheKey } = await generateHeroParagraph(row.user_id, tz);
+      await persistHeroParagraph({
+        userId: row.user_id,
+        context,
+        voice,
+        assembled: paragraph,
+        cacheKey,
+      });
+
+      results.push({ id: row.id, status: 'completed' });
+    } catch (err) {
+      console.error(`[hero-queue] row ${row.id} failed:`, err.message);
+      await supabase
+        .from('today_hero_paragraphs')
+        .update({
+          status: 'failed',
+          error_message: err.message?.substring(0, 500) || 'unknown',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', row.id);
+      results.push({ id: row.id, status: 'failed', error: err.message });
+    }
+  }
+  return results;
 }
 
 /**
