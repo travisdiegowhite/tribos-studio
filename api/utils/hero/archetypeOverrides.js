@@ -21,7 +21,9 @@ const DEFAULT_FS_THRESHOLDS = Object.freeze({
 // Today Hero spec; per-archetype overrides allowed below.
 const DEFAULT_RACE_ANCHOR_CUTOFF_DAYS = 42;
 
-const DEFAULT_TONE_PALETTE = Object.freeze(['positive', 'neutral', 'caution', 'warning']);
+// Tones are spec §4.10: positive (teal) · effort (orange) · fatigue (coral) · neutral (ink).
+// Archetypes can trim the palette (e.g. Scientist suppresses everything to neutral).
+const DEFAULT_TONE_PALETTE = Object.freeze(['positive', 'effort', 'fatigue', 'neutral']);
 
 const ARCHETYPE_OVERRIDES = {
   hammer: {

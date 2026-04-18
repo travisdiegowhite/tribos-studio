@@ -18,27 +18,28 @@ const supabase = getSupabaseAdmin();
 
 /**
  * Shared generation path used by both the HTTP endpoint and the cron worker.
- * @param {string} userId
- * @param {string} timezone
- * @returns {Promise<{ paragraph, context, voice, cacheKey, archetype, coldStart, context_snapshot }>}
+ * Returns the raw assembler output plus the context/voice snapshots so
+ * persist and HTTP callers can shape their own responses.
+ *
+ * @returns {Promise<{
+ *   assembled: { paragraph: Array, archetype: string, coldStart: boolean },
+ *   context: object,
+ *   voice: object,
+ *   cacheKey: string,
+ * }>}
  */
 export async function generateHeroParagraph(userId, timezone) {
   const context = await assembleHeroContext(userId, supabase, timezone);
   const cacheKey = buildHeroCacheKey(context);
   const voice = await generateHeroVoice(context);
   const assembled = assembleHeroParagraph(context, voice);
-  return {
-    paragraph: assembled,
-    context,
-    voice,
-    cacheKey,
-    archetype: context.archetype,
-    coldStart: assembled.coldStart,
-  };
+  return { assembled, context, voice, cacheKey };
 }
 
 /**
- * Upsert a completed hero row for the rider + day.
+ * Upsert a completed hero row for the rider + day. The `paragraph` column
+ * stores the flat HeroSegment[]; archetype + coldStart live alongside as
+ * scalar columns / jsonb metadata.
  */
 export async function persistHeroParagraph({ userId, context, voice, assembled, cacheKey }) {
   const { error } = await supabase
@@ -49,7 +50,7 @@ export async function persistHeroParagraph({ userId, context, voice, assembled, 
       last_ride_id: context.lastRide?.id || null,
       archetype: context.archetype,
       cache_key: cacheKey,
-      paragraph: assembled,
+      paragraph: assembled.paragraph,
       context_snapshot: context,
       voice_response: voice,
       status: 'completed',
@@ -114,6 +115,7 @@ export default async function handler(req, res) {
         return res.status(200).json({
           paragraph: cached.paragraph,
           archetype: cached.archetype,
+          coldStart: false,
           cached: true,
           generated_at: cached.generated_at,
         });
@@ -126,8 +128,9 @@ export default async function handler(req, res) {
     await persistHeroParagraph({ userId, context, voice, assembled, cacheKey });
 
     return res.status(200).json({
-      paragraph: assembled,
+      paragraph: assembled.paragraph,
       archetype: context.archetype,
+      coldStart: assembled.coldStart,
       cached: false,
       generated_at: new Date().toISOString(),
     });

@@ -1,35 +1,39 @@
-import { assembleHeroParagraph } from './heroAssembler.js';
+import { assembleHeroParagraph, toPlainText, toneForFS, toneForTrend } from './heroAssembler.js';
 
 function baseContext(overrides = {}) {
   return {
     archetype: 'pragmatist',
     experienceLevel: 'intermediate',
     date: '2026-04-18',
-    rider: { firstName: 'Alex' },
-    metrics: { tfi: 60, afi: 55, formScore: 5, ctlDeltaPct: 3 },
-    plan: { blockName: 'Build', blockPurpose: 'Work', currentWeek: 3, totalWeeks: 8 },
-    week: { plannedCount: 5, completedCount: 2, daysIntoWeek: 2, posture: 'on_track' },
+    rider: { firstName: 'Alex', hasActivePlan: true },
+    fitness: {
+      tfi: 60,
+      afi: 55,
+      fs: 5,
+      efi: 80,
+      tfiDelta28d: 12,
+      tfiDeltaPct28d: 20,
+      trend: 'building',
+    },
+    block: { phase: 'build', weekInPhase: 3, blockName: 'Build', blockPurpose: '' },
+    plan: { id: 'plan-1', name: 'Test', currentWeek: 3, totalWeeks: 8 },
+    week: { plannedCount: 5, completedCount: 2, daysIntoWeek: 3, posture: 'on_track' },
     lastRide: {
       id: 'ride-1',
       type: 'Ride',
+      workoutType: 'tempo',
+      daysAgo: 1,
       rss: 70,
-      durationSeconds: 3600,
-      distanceMeters: 32000,
-      startDateTzDate: '2026-04-17',
+      wasPrescribed: true,
+      intensityVsExpected: 'as_expected',
     },
     lastRidePlannedMatch: { id: 'p', name: 'Tempo', target_tss: 70, workout_type: 'tempo' },
-    nextWorkout: {
-      id: 'w-1',
-      name: 'Sweet Spot 3x12',
-      scheduledDate: '2026-04-19',
-      workoutType: 'sweet_spot',
-      targetRss: 80,
-    },
-    raceAnchor: null,
+    nextWorkout: null,
+    nextAnchor: { type: 'none', label: '', daysOut: null },
     classification: {
-      openerState: 'holding',
+      openerState: 'building',
       formState: 'neutral',
-      intensityVsExpected: 'near',
+      intensityVsExpected: 'as_expected',
       weekPosture: 'on_track',
       daysSinceLastRide: 1,
     },
@@ -41,10 +45,10 @@ function baseContext(overrides = {}) {
 function baseVoice(overrides = {}) {
   return {
     fields: {
-      opener: 'Here is where things sit',
-      rideDescriptor: 'solid tempo',
-      intensityModifier: 'steady',
-      blockInterpretation: 'the block is building quiet strength',
+      opener: 'Right on pattern',
+      rideDescriptor: 'tempo block',
+      intensityModifier: '',
+      blockInterpretation: 'exactly where the plan wants you',
     },
     fieldsValid: { opener: true, rideDescriptor: true, intensityModifier: true, blockInterpretation: true },
     fallbackCount: 0,
@@ -56,79 +60,131 @@ function baseVoice(overrides = {}) {
 }
 
 describe('assembleHeroParagraph', () => {
-  it('emits segments in the canonical order: opener → ride → block → week → anchor', () => {
-    const { segments } = assembleHeroParagraph(baseContext(), baseVoice());
-    expect(segments.map((s) => s.type)).toEqual(['opener', 'ride', 'block', 'week', 'anchor']);
+  it('returns a HeroSegment[] of text | highlight kinds', () => {
+    const { paragraph } = assembleHeroParagraph(baseContext(), baseVoice());
+    expect(Array.isArray(paragraph)).toBe(true);
+    for (const seg of paragraph) {
+      expect(['text', 'highlight']).toContain(seg.kind);
+      expect(typeof seg.value).toBe('string');
+      if (seg.kind === 'highlight') expect(typeof seg.tone).toBe('string');
+    }
   });
 
-  it('skips the ride segment when there is no last ride', () => {
-    const { segments } = assembleHeroParagraph(
+  it('includes a tfiDelta highlight segment with +N points', () => {
+    const { paragraph } = assembleHeroParagraph(baseContext(), baseVoice());
+    const hi = paragraph.find((s) => s.kind === 'highlight' && /points/.test(s.value));
+    expect(hi).toBeTruthy();
+    expect(hi.value).toMatch(/\+?\d+ points?/);
+    expect(hi.tone).toBe('positive');
+  });
+
+  it('renders the FS value as a highlight on the ride sentence', () => {
+    const { paragraph } = assembleHeroParagraph(baseContext(), baseVoice());
+    const fsSeg = paragraph.find((s) => s.kind === 'highlight' && /^[+-]?\d+$/.test(s.value));
+    expect(fsSeg).toBeTruthy();
+    expect(fsSeg.value).toBe('+5');
+  });
+
+  it('skips the ride slot entirely when there is no last ride', () => {
+    const { paragraph } = assembleHeroParagraph(
       baseContext({ lastRide: null, lastRidePlannedMatch: null }),
-      baseVoice({ fields: { ...baseVoice().fields, rideDescriptor: '' } }),
+      baseVoice({ fields: { ...baseVoice().fields, rideDescriptor: '', intensityModifier: '' } }),
     );
-    expect(segments.map((s) => s.type)).toEqual(['opener', 'block', 'week', 'anchor']);
+    const hasRideMention = paragraph.some((s) => /last ride|pushed form/.test(s.value));
+    expect(hasRideMention).toBe(false);
   });
 
-  it('emits cold-start CTA segments for brand-new riders', () => {
-    const { segments, coldStart } = assembleHeroParagraph(
+  it('returns a cold-start welcome when context is cold_start', () => {
+    const { paragraph, coldStart } = assembleHeroParagraph(
       baseContext({
-        plan: null,
-        lastRide: null,
         coldStart: { active: true, hasActivePlan: false, hasRecentActivity: false },
       }),
-      baseVoice({ coldStart: true, fields: { ...baseVoice().fields, rideDescriptor: '' } }),
+      baseVoice(),
     );
     expect(coldStart).toBe(true);
-    expect(segments.length).toBeGreaterThanOrEqual(2);
-    expect(segments[0].type).toBe('opener');
-    expect(segments.some((s) => s.type === 'cta')).toBe(true);
+    expect(paragraph[0].kind).toBe('text');
+    expect(paragraph[0].value).toMatch(/Welcome/);
+    expect(paragraph.some((s) => /training plan/.test(s.value))).toBe(true);
   });
 
-  it('tags ride tone as caution when intensity was above target', () => {
-    const { segments } = assembleHeroParagraph(
+  it('uses the race-anchored forward-action template when race is within cutoff', () => {
+    const { paragraph } = assembleHeroParagraph(
       baseContext({
+        nextAnchor: { type: 'race', label: 'Gravel Epic', daysOut: 22 },
+      }),
+      baseVoice(),
+    );
+    const raceHi = paragraph.find((s) => s.kind === 'highlight' && s.value === 'Gravel Epic');
+    expect(raceHi).toBeTruthy();
+    expect(raceHi.tone).toBe('neutral');
+    const prev = paragraph[paragraph.indexOf(raceHi) - 1];
+    expect(prev.value).toMatch(/workouts? left this week into $/);
+  });
+
+  it('uses the progression forward-action template otherwise', () => {
+    const { paragraph } = assembleHeroParagraph(baseContext(), baseVoice());
+    const joined = paragraph.map((s) => s.value).join('');
+    expect(joined).toMatch(/Fitness is building/);
+    expect(joined).toMatch(/sessions left this week to keep it moving/);
+  });
+
+  it('multi-day-ago ride sentence uses the {daysAgo} days back template', () => {
+    const { paragraph } = assembleHeroParagraph(
+      baseContext({
+        lastRide: {
+          id: 'r', workoutType: 'tempo', daysAgo: 3, rss: 70,
+          wasPrescribed: true, intensityVsExpected: 'as_expected',
+        },
         classification: {
-          openerState: 'holding',
-          formState: 'neutral',
-          intensityVsExpected: 'above',
-          weekPosture: 'on_track',
-          daysSinceLastRide: 1,
+          openerState: 'resuming', formState: 'neutral',
+          intensityVsExpected: 'as_expected', weekPosture: 'on_track',
+          daysSinceLastRide: 3,
         },
       }),
       baseVoice(),
     );
-    const ride = segments.find((s) => s.type === 'ride');
-    expect(ride.tone).toBe('caution');
+    const joined = paragraph.map((s) => s.value).join('');
+    expect(joined).toMatch(/Your last ride 3 days back/);
   });
 
-  it('tags week tone as warning when rider is behind plan', () => {
-    const { segments } = assembleHeroParagraph(
-      baseContext({ week: { plannedCount: 5, completedCount: 1, daysIntoWeek: 5, posture: 'behind' } }),
-      baseVoice(),
+  it('omits the block interpretation slot when the voice field is empty', () => {
+    const { paragraph } = assembleHeroParagraph(
+      baseContext(),
+      baseVoice({ fields: { ...baseVoice().fields, blockInterpretation: '' } }),
     );
-    const week = segments.find((s) => s.type === 'week');
-    expect(week.tone).toBe('warning');
+    const joined = paragraph.map((s) => s.value).join('');
+    expect(joined).not.toMatch(/exactly where the plan wants you/);
+  });
+});
+
+describe('toPlainText', () => {
+  it('joins segments into a single collapsed string', () => {
+    const paragraph = [
+      { kind: 'text', value: 'Hello ' },
+      { kind: 'highlight', value: 'world', tone: 'positive' },
+      { kind: 'text', value: '.' },
+    ];
+    expect(toPlainText(paragraph)).toBe('Hello world.');
   });
 
-  it('converts remaining-count digits to words in the week sentence', () => {
-    const { segments } = assembleHeroParagraph(
-      baseContext({ week: { plannedCount: 5, completedCount: 2, daysIntoWeek: 2, posture: 'on_track' } }),
-      baseVoice(),
-    );
-    const week = segments.find((s) => s.type === 'week');
-    expect(week.text).not.toMatch(/\d/);
-    expect(week.text.toLowerCase()).toContain('three');
+  it('accepts either a paragraph array or a wrapper with segments', () => {
+    const wrapped = { segments: [{ kind: 'text', value: 'x' }] };
+    expect(toPlainText(wrapped)).toBe('x');
+    expect(toPlainText(null)).toBe('');
+  });
+});
+
+describe('tone helpers', () => {
+  it('toneForFS maps by archetype thresholds', () => {
+    expect(toneForFS(10, 'pragmatist')).toBe('positive');
+    expect(toneForFS(0, 'pragmatist')).toBe('effort');
+    expect(toneForFS(-10, 'pragmatist')).toBe('fatigue');
   });
 
-  it('prefers race anchor when one is within the cutoff window', () => {
-    const { segments } = assembleHeroParagraph(
-      baseContext({
-        raceAnchor: { name: 'Gravel Epic', race_type: 'gravel', race_date: '2026-05-10', priority: 1, days_until: 22 },
-      }),
-      baseVoice(),
-    );
-    const anchor = segments.find((s) => s.type === 'anchor');
-    expect(anchor.text.toLowerCase()).toContain('gravel');
-    expect(anchor.tone).toBe('positive');
+  it('toneForTrend maps sign into positive / fatigue / neutral', () => {
+    expect(toneForTrend(10, 'pragmatist')).toBe('positive');
+    expect(toneForTrend(-10, 'pragmatist')).toBe('fatigue');
+    expect(toneForTrend(0, 'pragmatist')).toBe('neutral');
+    expect(toneForTrend(null, 'pragmatist')).toBe('neutral');
   });
 });

@@ -1,12 +1,10 @@
 /**
  * Today Hero — deterministic context layer.
  *
- * Builds the HeroContext object the voice layer and assembler consume. No
- * LLM calls here; this is pure data + classification. Timezone-aware so the
- * "today" the coach references matches the Trend and Status cards.
- *
- * Returns enough information for the downstream layers to emit a 2-3
- * sentence paragraph without ever having to re-query Supabase.
+ * Builds the HeroContext object the voice layer and assembler consume.
+ * Shape matches spec §4.3 — every field used by the assembler must have
+ * already been classified here, so the voice layer never has to reason
+ * about raw numbers.
  */
 
 import { derivePhase, formatWeekSchedule } from '../contextHelpers.js';
@@ -35,22 +33,65 @@ function daysBetween(dateA, dateB) {
   return Math.floor(ms / (1000 * 60 * 60 * 24));
 }
 
+// --- Classification helpers --------------------------------------------
+
 /**
- * Classify opener state from days since last ride + form score.
- * Spec opener states: fresh, carrying_fatigue, deeply_fatigued, resuming,
- * returning_from_layoff, holding.
+ * Map derivePhase's descriptive blockName to the spec's phase enum.
+ * Returns 'base' | 'build' | 'peak' | 'taper' | 'recovery'.
  */
-export function classifyOpenerState({ daysSinceLastRide, formScore, fsThresholds }) {
-  if (daysSinceLastRide >= 7) return 'returning_from_layoff';
-  if (daysSinceLastRide >= 3) return 'resuming';
-  if (formScore <= fsThresholds.deeply_fatigued) return 'deeply_fatigued';
-  if (formScore <= fsThresholds.fatigued) return 'carrying_fatigue';
-  if (formScore >= fsThresholds.fresh) return 'fresh';
-  return 'holding';
+export function mapBlockPhase(blockName) {
+  if (!blockName) return 'base';
+  const lower = blockName.toLowerCase();
+  // Check 'base' before 'build' — derivePhase() emits "Base Building", which
+  // contains both words, and base is the canonical classification there.
+  if (lower.includes('taper')) return 'taper';
+  if (lower.includes('peak')) return 'peak';
+  if (lower.includes('recovery')) return 'recovery';
+  if (lower.includes('base')) return 'base';
+  if (lower.includes('build')) return 'build';
+  return 'base';
 }
 
 /**
- * Classify form state using per-archetype thresholds.
+ * Map the 28-day TFI delta into the spec's fitness.trend enum:
+ *   'building' | 'maintaining' | 'recovering' | 'detraining'.
+ * Thresholds match the Trend card language on the dashboard —
+ *   building: > 8%
+ *   maintaining: -2% .. 8%
+ *   recovering: -8% .. -2%
+ *   detraining: < -8%.
+ */
+export function classifyFitnessTrend(deltaPct) {
+  if (typeof deltaPct !== 'number' || !Number.isFinite(deltaPct)) return 'maintaining';
+  if (deltaPct > 8) return 'building';
+  if (deltaPct >= -2) return 'maintaining';
+  if (deltaPct >= -8) return 'recovering';
+  return 'detraining';
+}
+
+/**
+ * Classify opener state per spec §4.8. Order matters — first match wins.
+ * States: cold_start | resuming | drifting | peaking | recovering | building.
+ */
+export function classifyOpenerState({
+  hasActivePlan,
+  hasRecentActivity,
+  daysSinceLastRide,
+  efi,
+  blockPhase,
+  fitnessTrend,
+}) {
+  if (!hasActivePlan || !hasRecentActivity) return 'cold_start';
+  if (daysSinceLastRide >= 2) return 'resuming';
+  if (typeof efi === 'number' && efi < 60) return 'drifting';
+  if (blockPhase === 'taper' || blockPhase === 'peak') return 'peaking';
+  if (blockPhase === 'recovery' || fitnessTrend === 'recovering' || fitnessTrend === 'detraining') return 'recovering';
+  return 'building';
+}
+
+/**
+ * Classify form state from FS against archetype thresholds.
+ * Returns 'fresh' | 'neutral' | 'fatigued' | 'deeply_fatigued'.
  */
 export function classifyFormState(formScore, fsThresholds) {
   if (formScore >= fsThresholds.fresh) return 'fresh';
@@ -60,30 +101,46 @@ export function classifyFormState(formScore, fsThresholds) {
 }
 
 /**
- * Classify yesterday's ride intensity vs. its planned target.
- * Returns 'above' | 'near' | 'below' | 'unplanned' | 'none'.
+ * Classify yesterday's ride intensity vs. its planned target (spec §4.8).
+ * Returns 'harder' | 'as_expected' | 'easier'. When there is no planned
+ * target to compare against we treat the ride as as_expected — the voice
+ * layer will collapse the intensity modifier in that case.
  */
 export function classifyIntensityVsExpected(lastRide, plannedMatch) {
-  if (!lastRide) return 'none';
-  if (!plannedMatch || !plannedMatch.target_tss) return 'unplanned';
+  if (!lastRide || !plannedMatch?.target_tss) return 'as_expected';
 
-  const actualRss = lastRide.rss ?? lastRide.tss ?? 0;
+  const actual = lastRide.rss ?? lastRide.tss ?? 0;
   const target = plannedMatch.target_tss;
-  if (!target) return 'unplanned';
+  if (!target) return 'as_expected';
 
-  const deltaPct = ((actualRss - target) / target) * 100;
-  if (deltaPct > 15) return 'above';
-  if (deltaPct < -15) return 'below';
-  return 'near';
+  const deltaPct = ((actual - target) / target) * 100;
+  if (deltaPct > 20) return 'harder';
+  if (deltaPct < -20) return 'easier';
+  return 'as_expected';
 }
 
 /**
- * Classify week posture from completed vs. planned ride counts.
- * Returns 'ahead' | 'on_track' | 'behind' | 'nothing_planned'.
+ * Map activity/planned workout metadata into the spec's WorkoutType enum.
+ */
+export function classifyWorkoutType(plannedMatch, lastRideRaw) {
+  const raw = (plannedMatch?.workout_type || lastRideRaw?.type || '').toLowerCase();
+  if (!raw) return 'endurance';
+  if (raw.includes('recovery')) return 'recovery';
+  if (raw.includes('vo2') || raw.includes('vo_2')) return 'vo2';
+  if (raw.includes('anaerobic')) return 'anaerobic';
+  if (raw.includes('threshold') || raw.includes('ftp')) return 'threshold';
+  if (raw.includes('sweet')) return 'sweet_spot';
+  if (raw.includes('tempo')) return 'tempo';
+  if (raw.includes('race')) return 'race';
+  if (raw.includes('long')) return 'long_ride';
+  return 'endurance';
+}
+
+/**
+ * Classify week posture (ahead / on_track / behind / nothing_planned).
  */
 export function classifyWeekPosture({ plannedThisWeek, completedThisWeek, daysIntoWeek }) {
   if (plannedThisWeek === 0) return 'nothing_planned';
-  // Expected completion ratio by this day (1-indexed Monday=1..Sunday=7).
   const expectedRatio = Math.min(1, (daysIntoWeek + 1) / 7);
   const actualRatio = completedThisWeek / plannedThisWeek;
   if (actualRatio > expectedRatio + 0.15) return 'ahead';
@@ -91,21 +148,14 @@ export function classifyWeekPosture({ plannedThisWeek, completedThisWeek, daysIn
   return 'on_track';
 }
 
-/**
- * Pull everything the hero needs and run the deterministic classification.
- *
- * @param {string} userId
- * @param {import('@supabase/supabase-js').SupabaseClient} supabase - service-role client
- * @param {string} timezone - IANA timezone (e.g. 'America/Denver')
- * @returns {Promise<object>} HeroContext
- */
+// --- Main ---------------------------------------------------------------
+
 export async function assembleHeroContext(userId, supabase, timezone = 'America/New_York') {
   const now = new Date();
   const todayStr = formatDateInTz(now, timezone);
 
-  // Monday-anchored week window (in user's TZ).
-  const dowInTz = getDayOfWeekInTz(now, timezone); // 0=Sun..6=Sat
-  const daysIntoWeek = dowInTz === 0 ? 6 : dowInTz - 1; // Mon=0..Sun=6
+  const dowInTz = getDayOfWeekInTz(now, timezone);
+  const daysIntoWeek = dowInTz === 0 ? 6 : dowInTz - 1;
   const weekStart = new Date(now);
   weekStart.setDate(weekStart.getDate() - daysIntoWeek);
   const weekStartStr = formatDateInTz(weekStart, timezone);
@@ -113,7 +163,6 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
   weekEnd.setDate(weekEnd.getDate() + 7);
   const weekEndStr = formatDateInTz(weekEnd, timezone);
 
-  // Active plans.
   const { data: activePlans } = await supabase
     .from('training_plans')
     .select('id, name, current_week, duration_weeks, methodology, goal')
@@ -129,6 +178,7 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
     coachSettingsResult,
     latestLoadResult,
     snapshot28dResult,
+    efiResult,
     recentActivitiesResult,
     weekActivitiesResult,
     weekPlannedResult,
@@ -136,21 +186,18 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
     nextWorkoutResult,
     raceGoalResult,
   ] = await Promise.all([
-    // 1. Rider profile (name + TZ fallback).
     supabase
       .from('user_profiles')
       .select('first_name, display_name, timezone, experience_level')
       .eq('id', userId)
       .maybeSingle(),
 
-    // 2. Coach persona.
     supabase
       .from('user_coach_settings')
       .select('coaching_persona, coaching_experience_level')
       .eq('user_id', userId)
       .maybeSingle(),
 
-    // 3. Latest training_load_daily row — canonical TFI/AFI/FS.
     supabase
       .from('training_load_daily')
       .select('date, tfi, afi, form_score, last_ride_rss')
@@ -159,7 +206,6 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
       .limit(1)
       .maybeSingle(),
 
-    // 4. Training_load_daily row from ~28 days ago for TFI delta %.
     supabase
       .from('training_load_daily')
       .select('date, tfi')
@@ -169,8 +215,16 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
       .range(27, 27)
       .maybeSingle(),
 
-    // 5. Recent activities (last 14 days) — used to find yesterday's ride and
-    //    whether we're in cold-start territory.
+    // Execution Fidelity Index — 28-day rolling where available, most recent
+    // else. Drives the 'drifting' opener classification (spec §4.8).
+    supabase
+      .from('activity_efi')
+      .select('efi, efi_28d, computed_at')
+      .eq('user_id', userId)
+      .order('computed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
     supabase
       .from('activities')
       .select('id, name, start_date, rss, tss, distance_meters, duration_seconds, moving_time, total_elevation_gain, elevation_gain_meters, average_watts, effective_power, type')
@@ -180,7 +234,6 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
       .order('start_date', { ascending: false })
       .limit(20),
 
-    // 6. This-week's completed activities (count only).
     supabase
       .from('activities')
       .select('id')
@@ -188,9 +241,6 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
       .is('duplicate_of', null)
       .gte('start_date', weekStart.toISOString()),
 
-    // 7. This-week's planned workouts (non-rest rows). target_tss is the
-    //    canonical filter column on planned_workouts — there is no
-    //    target_rss column yet (DROP migrations deferred, see CLAUDE.md).
     planIds.length > 0
       ? supabase
           .from('planned_workouts')
@@ -201,7 +251,6 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
           .gt('target_tss', 0)
       : Promise.resolve({ data: [] }),
 
-    // 8. Full week schedule with names/day-of-week (for hero "next workout").
     primaryPlan
       ? supabase
           .from('planned_workouts')
@@ -210,7 +259,6 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
           .eq('week_number', primaryPlan.current_week || 1)
       : Promise.resolve({ data: [] }),
 
-    // 9. Next unfinished planned workout (any active plan, today or later).
     planIds.length > 0
       ? supabase
           .from('planned_workouts')
@@ -223,7 +271,6 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
           .maybeSingle()
       : Promise.resolve({ data: null }),
 
-    // 10. Next priority race.
     supabase
       .from('race_goals')
       .select('name, race_date, race_type, priority')
@@ -244,6 +291,7 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
 
   const latestLoad = latestLoadResult?.data || null;
   const snapshot28d = snapshot28dResult?.data || null;
+  const efiRow = efiResult?.data || null;
   const recentActivities = recentActivitiesResult?.data || [];
   const weekActivities = weekActivitiesResult?.data || [];
   const weekPlanned = weekPlannedResult?.data || [];
@@ -255,13 +303,20 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
   const tfi = latestLoad?.tfi ?? 0;
   const afi = latestLoad?.afi ?? 0;
   const formScore = latestLoad?.form_score ?? 0;
+  const efi = efiRow?.efi_28d ?? efiRow?.efi ?? null;
 
-  let ctlDeltaPct = null;
+  let tfiDelta28d = null;
+  if (snapshot28d?.tfi != null) {
+    tfiDelta28d = tfi - snapshot28d.tfi;
+  }
+  let tfiDeltaPct28d = null;
   if (snapshot28d?.tfi && snapshot28d.tfi > 0) {
-    ctlDeltaPct = ((tfi - snapshot28d.tfi) / snapshot28d.tfi) * 100;
+    tfiDeltaPct28d = ((tfi - snapshot28d.tfi) / snapshot28d.tfi) * 100;
   }
 
-  // --- Last ride (yesterday or today so far) ---
+  const fitnessTrend = classifyFitnessTrend(tfiDeltaPct28d);
+
+  // --- Last ride ---
   const lastRideRaw = recentActivities[0] || null;
   let daysSinceLastRide = 99;
   if (lastRideRaw) {
@@ -272,7 +327,6 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
     );
   }
 
-  // Match last ride to its planned workout (same day in user TZ).
   let plannedMatch = null;
   if (lastRideRaw) {
     const lastRideDateStr = formatDateInTz(new Date(lastRideRaw.start_date), timezone);
@@ -281,60 +335,74 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
     ) || null;
   }
 
+  const intensityVsExpected = classifyIntensityVsExpected(
+    lastRideRaw ? { rss: lastRideRaw.rss, tss: lastRideRaw.tss } : null,
+    plannedMatch,
+  );
+  const workoutType = lastRideRaw ? classifyWorkoutType(plannedMatch, lastRideRaw) : null;
+
   const lastRide = lastRideRaw ? {
     id: lastRideRaw.id,
+    name: lastRideRaw.name || null,
     type: lastRideRaw.type || 'Ride',
+    workoutType,
+    daysAgo: daysSinceLastRide,
     durationSeconds: lastRideRaw.duration_seconds || lastRideRaw.moving_time || 0,
     distanceMeters: lastRideRaw.distance_meters || 0,
     elevationMeters: lastRideRaw.elevation_gain_meters || lastRideRaw.total_elevation_gain || 0,
     rss: lastRideRaw.rss ?? lastRideRaw.tss ?? null,
     startDateTzDate: formatDateInTz(new Date(lastRideRaw.start_date), timezone),
+    wasPrescribed: !!plannedMatch,
+    intensityVsExpected,
   } : null;
 
   // --- Plan phase ---
   const phase = primaryPlan
     ? derivePhase(primaryPlan.current_week, primaryPlan.duration_weeks, primaryPlan.methodology)
     : null;
+  const blockPhase = phase ? mapBlockPhase(phase.blockName) : 'base';
+  const weekInPhase = primaryPlan?.current_week || 1;
 
   const weekSchedule = formatWeekSchedule(weekScheduleRaw);
 
-  // --- Week posture ---
   const weekPosture = classifyWeekPosture({
     plannedThisWeek: weekPlanned.length,
     completedThisWeek: weekActivities.length,
     daysIntoWeek,
   });
 
-  // --- Opener + form + intensity ---
-  const openerState = classifyOpenerState({
-    daysSinceLastRide,
-    formScore,
-    fsThresholds: overrides.fsThresholds,
-  });
-  const formState = classifyFormState(formScore, overrides.fsThresholds);
-  const intensityVsExpected = classifyIntensityVsExpected(lastRide, plannedMatch);
+  // --- Cold start ---
+  const hasActivePlan = !!primaryPlan;
+  const has28dActivity = recentActivities.length > 0;
+  const isColdStart = !hasActivePlan || !has28dActivity;
 
-  // --- Race anchor ---
-  let raceAnchor = null;
-  if (raceGoal && raceGoal.race_date) {
+  const formState = classifyFormState(formScore, overrides.fsThresholds);
+  const openerState = classifyOpenerState({
+    hasActivePlan,
+    hasRecentActivity: has28dActivity,
+    daysSinceLastRide,
+    efi,
+    blockPhase,
+    fitnessTrend,
+  });
+
+  // --- Next anchor ---
+  let nextAnchor = { type: 'none', label: '', daysOut: null };
+  if (raceGoal?.race_date) {
     const raceDate = new Date(`${raceGoal.race_date}T12:00:00Z`);
     const todayDate = new Date(`${todayStr}T12:00:00Z`);
     const daysUntil = Math.round((raceDate.getTime() - todayDate.getTime()) / 86400000);
     if (daysUntil >= 0 && daysUntil <= overrides.raceAnchorCutoff) {
-      raceAnchor = {
-        name: raceGoal.name,
+      nextAnchor = {
+        type: 'race',
+        label: raceGoal.name,
+        daysOut: daysUntil,
         race_type: raceGoal.race_type,
         race_date: raceGoal.race_date,
         priority: raceGoal.priority,
-        days_until: daysUntil,
       };
     }
   }
-
-  // --- Cold start detection ---
-  const hasActivePlan = !!primaryPlan;
-  const has28dActivity = recentActivities.length > 0;
-  const isColdStart = !hasActivePlan && !has28dActivity;
 
   return {
     userId,
@@ -344,12 +412,22 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
     experienceLevel: coachSettings.coaching_experience_level || profile.experience_level || 'intermediate',
     rider: {
       firstName: profile.first_name || profile.display_name || null,
+      hasActivePlan,
     },
-    metrics: {
+    fitness: {
       tfi,
       afi,
-      formScore,
-      ctlDeltaPct,
+      fs: formScore,
+      efi,
+      tfiDelta28d,
+      tfiDeltaPct28d,
+      trend: fitnessTrend,
+    },
+    block: {
+      phase: blockPhase,
+      weekInPhase,
+      blockName: phase?.blockName || null,
+      blockPurpose: phase?.blockPurpose || null,
     },
     plan: primaryPlan ? {
       id: primaryPlan.id,
@@ -357,8 +435,6 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
       methodology: primaryPlan.methodology,
       currentWeek: primaryPlan.current_week,
       totalWeeks: primaryPlan.duration_weeks,
-      blockName: phase?.blockName || null,
-      blockPurpose: phase?.blockPurpose || null,
     } : null,
     week: {
       plannedCount: weekPlanned.length,
@@ -380,7 +456,7 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
       workoutType: nextWorkout.workout_type,
       targetRss: nextWorkout.target_tss || null,
     } : null,
-    raceAnchor,
+    nextAnchor,
     weekSchedule,
     classification: {
       openerState,
@@ -399,8 +475,7 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
 
 /**
  * Deterministic cache key: day + last-ride-id + archetype.
- * Regenerates naturally on a new ride, a persona switch, or a calendar-day
- * rollover.
+ * Regenerates naturally on a new ride, a persona switch, or a day rollover.
  */
 export function buildHeroCacheKey(context) {
   const lastRideId = context.lastRide?.id || 'no-ride';

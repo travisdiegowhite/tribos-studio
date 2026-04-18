@@ -153,12 +153,12 @@ async function processHeroQueue() {
         .maybeSingle();
       const tz = profile?.timezone || 'America/New_York';
 
-      const { context, voice, paragraph, cacheKey } = await generateHeroParagraph(row.user_id, tz);
+      const { assembled, context, voice, cacheKey } = await generateHeroParagraph(row.user_id, tz);
       await persistHeroParagraph({
         userId: row.user_id,
         context,
         voice,
-        assembled: paragraph,
+        assembled,
         cacheKey,
       });
 
