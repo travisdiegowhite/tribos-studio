@@ -21,6 +21,7 @@ import IntelligenceCard from '../components/today/IntelligenceCard.jsx';
 import { CoachCard } from '../components/coach';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import WeekChart from '../components/today/WeekChart.jsx';
+import FitnessCurveChart from '../components/today/FitnessCurveChart.jsx';
 import TodayHero from '../components/today/TodayHero.jsx';
 import YesterdayTodayAhead from '../components/today/YesterdayTodayAhead.jsx';
 import ActionRow from '../components/today/ActionRow.jsx';
@@ -369,7 +370,12 @@ function Dashboard() {
           {/* Activation Guide (new users) */}
           <GetStartedGuide />
 
-          {/* Today Hero — archetype-voiced paragraph (leads the page) */}
+          {/* Fitness curve — spec §3. Past-only v1; projection ships in
+              spec §13 step 5. Lives above the hero paragraph so the
+              visual trajectory reads first. */}
+          <FitnessCurveChart userId={user?.id} />
+
+          {/* Today Hero — archetype-voiced paragraph */}
           <TodayHero />
 
           {/* Yesterday / Today / Next strip — spec §5 */}
