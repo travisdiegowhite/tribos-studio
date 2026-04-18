@@ -146,7 +146,7 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
     // 2. Coach persona.
     supabase
       .from('user_coach_settings')
-      .select('coaching_persona, experience_level')
+      .select('coaching_persona, coaching_experience_level')
       .eq('user_id', userId)
       .maybeSingle(),
 
@@ -188,22 +188,24 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
       .is('duplicate_of', null)
       .gte('start_date', weekStart.toISOString()),
 
-    // 7. This-week's planned workouts (non-rest rows).
+    // 7. This-week's planned workouts (non-rest rows). target_tss is the
+    //    canonical filter column on planned_workouts — there is no
+    //    target_rss column yet (DROP migrations deferred, see CLAUDE.md).
     planIds.length > 0
       ? supabase
           .from('planned_workouts')
-          .select('id, scheduled_date, completed, activity_id, target_tss, target_rss')
+          .select('id, scheduled_date, completed, activity_id, target_tss')
           .in('plan_id', planIds)
           .gte('scheduled_date', weekStartStr)
           .lt('scheduled_date', weekEndStr)
-          .or('target_rss.gt.0,target_tss.gt.0')
+          .gt('target_tss', 0)
       : Promise.resolve({ data: [] }),
 
     // 8. Full week schedule with names/day-of-week (for hero "next workout").
     primaryPlan
       ? supabase
           .from('planned_workouts')
-          .select('id, day_of_week, scheduled_date, name, workout_type, target_tss, target_rss, actual_tss, actual_rss, completed, activity_id')
+          .select('id, day_of_week, scheduled_date, name, workout_type, target_tss, actual_tss, completed, activity_id')
           .eq('plan_id', primaryPlan.id)
           .eq('week_number', primaryPlan.current_week || 1)
       : Promise.resolve({ data: [] }),
@@ -339,7 +341,7 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
     timezone,
     date: todayStr,
     archetype,
-    experienceLevel: coachSettings.experience_level || profile.experience_level || 'intermediate',
+    experienceLevel: coachSettings.coaching_experience_level || profile.experience_level || 'intermediate',
     rider: {
       firstName: profile.first_name || profile.display_name || null,
     },
@@ -368,7 +370,7 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
     lastRidePlannedMatch: plannedMatch ? {
       id: plannedMatch.id,
       name: plannedMatch.name,
-      target_tss: plannedMatch.target_tss || plannedMatch.target_rss || null,
+      target_tss: plannedMatch.target_tss || null,
       workout_type: plannedMatch.workout_type || null,
     } : null,
     nextWorkout: nextWorkout ? {
