@@ -1,6 +1,6 @@
 import { Box, Button, Collapse, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
+import { CaretDown, CaretUp } from '@phosphor-icons/react';
 
 /**
  * Collapsed container for the full metric bars (StatusBar +
@@ -45,7 +45,7 @@ export default function FullMetricsDrawer({ children, defaultOpen = false }) {
         <Button
           variant="subtle"
           size="compact-xs"
-          rightSection={opened ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+          rightSection={opened ? <CaretUp size={14} /> : <CaretDown size={14} />}
           onClick={(e) => {
             e.stopPropagation();
             toggle();
