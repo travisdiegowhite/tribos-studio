@@ -227,7 +227,7 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
 
     supabase
       .from('activities')
-      .select('id, name, start_date, rss, tss, distance_meters, duration_seconds, moving_time, total_elevation_gain, elevation_gain_meters, average_watts, effective_power, type')
+      .select('id, name, start_date, rss, tss, distance_meters, duration_seconds, moving_time, total_elevation_gain, average_watts, effective_power, type')
       .eq('user_id', userId)
       .is('duplicate_of', null)
       .gte('start_date', new Date(now.getTime() - 14 * 86400000).toISOString())
@@ -349,7 +349,7 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
     daysAgo: daysSinceLastRide,
     durationSeconds: lastRideRaw.duration_seconds || lastRideRaw.moving_time || 0,
     distanceMeters: lastRideRaw.distance_meters || 0,
-    elevationMeters: lastRideRaw.elevation_gain_meters || lastRideRaw.total_elevation_gain || 0,
+    elevationMeters: lastRideRaw.total_elevation_gain || 0,
     rss: lastRideRaw.rss ?? lastRideRaw.tss ?? null,
     startDateTzDate: formatDateInTz(new Date(lastRideRaw.start_date), timezone),
     wasPrescribed: !!plannedMatch,

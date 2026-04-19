@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 
 /**
  * useTodayChart — past-only fitness-curve data hook.
@@ -23,6 +24,9 @@ import { supabase } from '../lib/supabase';
  */
 
 const WINDOW_DAYS = 42;
+// Extra days of activity history to feed the EWA before the visible window
+// so TFI has time to converge for riders without training_load_daily rows.
+const WARMUP_DAYS = 90;
 
 // Workout-type → colour + dot-size (spec §3.5).
 const WORKOUT_STYLE = {
@@ -129,8 +133,11 @@ export default function useTodayChart(userId) {
       try {
         const today = todayIso();
         const startDate = isoDateOffset(today, -(WINDOW_DAYS - 1));
+        // Extra 90-day lead-in so the EWA-based fallback has time to
+        // converge before the visible window starts.
+        const warmupDate = isoDateOffset(today, -(WINDOW_DAYS - 1 + WARMUP_DAYS));
 
-        const [loadResult, planResult, activitiesResult] = await Promise.all([
+        const [loadResult, planResult, activitiesResult, profileResult] = await Promise.all([
           supabase
             .from('training_load_daily')
             .select('date, tfi, afi, form_score')
@@ -148,14 +155,24 @@ export default function useTodayChart(userId) {
             .limit(1)
             .maybeSingle(),
 
+          // Pull the warm-up window too so the EWA fallback can converge.
+          // We only plot the last 42 days, but iterating over 132 days gives
+          // the line a realistic starting level for riders who don't have
+          // training_load_daily rows backfilled yet.
           supabase
             .from('activities')
-            .select('id, start_date, type, rss, tss, duration_seconds, moving_time')
+            .select('id, start_date, type, rss, tss, duration_seconds, moving_time, average_watts, effective_power')
             .eq('user_id', userId)
             .is('duplicate_of', null)
-            .gte('start_date', `${startDate}T00:00:00Z`)
+            .gte('start_date', `${warmupDate}T00:00:00Z`)
             .lte('start_date', `${today}T23:59:59Z`)
             .order('start_date', { ascending: true }),
+
+          supabase
+            .from('user_profiles')
+            .select('ftp')
+            .eq('id', userId)
+            .maybeSingle(),
         ]);
 
         if (cancelled) return;
@@ -163,20 +180,70 @@ export default function useTodayChart(userId) {
         const rawLoad = loadResult.data || [];
         const plan = planResult.data || null;
         const rawActivities = activitiesResult.data || [];
+        const userFtp = profileResult?.data?.ftp || 200;
 
-        // Build dense day series — fill any missing calendar days by
-        // carrying the last known tfi/afi forward and zeroing-out fs until
-        // the next real row lands. Keeps the chart's x axis evenly spaced.
+        // --- Activity-derived daily RSS series over the full warm-up span ---
+        // Used to back-fill any day without a training_load_daily row so the
+        // chart renders for riders whose canonical load table is sparse.
+        const totalSpan = WINDOW_DAYS + WARMUP_DAYS;
+        const dailyRss = new Array(totalSpan).fill(0);
+        const dailyDates = new Array(totalSpan);
+        for (let i = 0; i < totalSpan; i += 1) {
+          dailyDates[i] = isoDateOffset(today, -(totalSpan - 1 - i));
+        }
+        const dateIndex = new Map(dailyDates.map((d, i) => [d, i]));
+
+        for (const act of rawActivities) {
+          const date = act.start_date?.slice(0, 10);
+          if (!date) continue;
+          const idx = dateIndex.get(date);
+          if (idx == null) continue;
+          const rss = act.rss ?? act.tss ?? estimateActivityTSS(act, userFtp);
+          if (!rss) continue;
+          // Cap per-activity at 500 to match Dashboard's trainingMetrics guard.
+          dailyRss[idx] += Math.min(rss, 500);
+        }
+
+        // Iterative EWA — exposes daily TFI and AFI at each step.
+        const computedTfi = new Array(totalSpan).fill(0);
+        const computedAfi = new Array(totalSpan).fill(0);
+        let tfi = 0;
+        let afi = 0;
+        for (let i = 0; i < totalSpan; i += 1) {
+          tfi = tfi + (dailyRss[i] - tfi) / 42;
+          afi = afi + (dailyRss[i] - afi) / 7;
+          computedTfi[i] = tfi;
+          computedAfi[i] = afi;
+        }
+
+        // FS (form score) = yesterday's TFI − yesterday's AFI (spec §3.6).
+        const computedFs = new Array(totalSpan).fill(0);
+        for (let i = 0; i < totalSpan; i += 1) {
+          if (i === 0) {
+            computedFs[i] = 0;
+          } else {
+            computedFs[i] = computedTfi[i - 1] - computedAfi[i - 1];
+          }
+        }
+
+        // Canonical values from training_load_daily win when present; the
+        // activity-derived values fill the gaps.
         const byDate = new Map(rawLoad.map((r) => [r.date, r]));
         const days = [];
-        for (let offset = -(WINDOW_DAYS - 1); offset <= 0; offset += 1) {
-          const date = isoDateOffset(today, offset);
-          const row = byDate.get(date);
+        const windowStartIdx = WARMUP_DAYS; // first index of the visible window
+        for (let offset = 0; offset < WINDOW_DAYS; offset += 1) {
+          const globalIdx = windowStartIdx + offset;
+          const date = dailyDates[globalIdx];
+          const canonical = byDate.get(date);
+          const tfiVal = canonical?.tfi ?? Math.round(computedTfi[globalIdx]);
+          const afiVal = canonical?.afi ?? Math.round(computedAfi[globalIdx]);
+          const fsVal = canonical?.form_score ?? Math.round(computedFs[globalIdx]);
           days.push({
             date,
-            tfi: row?.tfi ?? null,
-            afi: row?.afi ?? null,
-            fs: row?.form_score ?? null,
+            tfi: tfiVal,
+            afi: afiVal,
+            fs: fsVal,
+            source: canonical ? 'canonical' : 'computed',
           });
         }
 
@@ -198,9 +265,12 @@ export default function useTodayChart(userId) {
         for (const act of rawActivities) {
           const localDate = act.start_date?.slice(0, 10);
           if (!localDate) continue;
+          // Only plot rides that fall inside the visible window.
+          const globalIdx = dateIndex.get(localDate);
+          if (globalIdx == null || globalIdx < windowStartIdx) continue;
           const workoutType = classifyWorkoutType(act.type);
           const style = WORKOUT_STYLE[workoutType] || WORKOUT_STYLE.default;
-          const load = act.rss ?? act.tss ?? 0;
+          const load = act.rss ?? act.tss ?? estimateActivityTSS(act, userFtp) ?? 0;
           const existing = byDay.get(localDate);
           if (!existing || load > existing.load) {
             byDay.set(localDate, {
@@ -215,14 +285,14 @@ export default function useTodayChart(userId) {
         }
         const rides = Array.from(byDay.values());
 
-        // KPI strip uses the latest non-null row.
-        const latestLoad = [...rawLoad].reverse().find((r) => r.tfi != null);
-        const row28dAgo = rawLoad.find((r) => r.date <= isoDateOffset(today, -28))
-          || rawLoad[0]
-          || null;
+        // KPI strip — latest day in the visible window. Prefers canonical
+        // values where present, falls back to the computed series.
+        const lastDay = days[days.length - 1];
+        const dayIdx28 = Math.max(0, days.length - 29);
+        const day28 = days[dayIdx28];
         let deltaPct28d = null;
-        if (latestLoad?.tfi && row28dAgo?.tfi && row28dAgo.tfi > 0) {
-          deltaPct28d = ((latestLoad.tfi - row28dAgo.tfi) / row28dAgo.tfi) * 100;
+        if (lastDay?.tfi && day28?.tfi && day28.tfi > 0) {
+          deltaPct28d = ((lastDay.tfi - day28.tfi) / day28.tfi) * 100;
         }
 
         setState({
@@ -230,9 +300,9 @@ export default function useTodayChart(userId) {
           phases,
           rides,
           kpi: {
-            tfi: latestLoad?.tfi ?? null,
-            afi: latestLoad?.afi ?? null,
-            fs: latestLoad?.form_score ?? null,
+            tfi: lastDay?.tfi ?? null,
+            afi: lastDay?.afi ?? null,
+            fs: lastDay?.fs ?? null,
             deltaPct28d,
           },
           plan: plan ? {
