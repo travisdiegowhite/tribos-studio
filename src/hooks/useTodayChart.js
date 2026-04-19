@@ -163,7 +163,12 @@ export default function useTodayChart(userId, opts = {}) {
             .maybeSingle(),
         ];
 
-        if (!externalActivities) {
+        // Treat an empty external array as "not yet loaded" — Dashboard
+        // initialises activities to [] and populates async, so if we
+        // trusted the empty array we'd render zeros. Require a non-empty
+        // array or a non-null FTP to skip the self-fetch.
+        const useExternalActivities = Array.isArray(externalActivities) && externalActivities.length > 0;
+        if (!useExternalActivities) {
           promises.push(
             supabase
               .from('activities')
@@ -191,12 +196,14 @@ export default function useTodayChart(userId, opts = {}) {
         const loadResult = results[0];
         const planResult = results[1];
         let cursor = 2;
-        const activitiesResult = externalActivities ? null : results[cursor++];
+        const activitiesResult = useExternalActivities ? null : results[cursor++];
         const profileResult = externalFtp != null ? null : results[cursor++];
 
         const rawLoad = loadResult.data || [];
         const plan = planResult.data || null;
-        const rawActivities = externalActivities || activitiesResult?.data || [];
+        const rawActivities = useExternalActivities
+          ? externalActivities
+          : (activitiesResult?.data || []);
         const userFtp = externalFtp ?? profileResult?.data?.ftp ?? 200;
 
         // --- Activity-derived daily RSS series over the full warm-up span ---
@@ -352,7 +359,10 @@ export default function useTodayChart(userId, opts = {}) {
 
     load();
     return () => { cancelled = true; };
-  }, [userId]);
+    // Depend on the length + first id so the hook recomputes when Dashboard
+    // finishes loading activities and when FTP arrives. Using the array
+    // reference directly would re-run on every Dashboard render.
+  }, [userId, externalActivities?.length, externalActivities?.[0]?.id, externalFtp]);
 
   return state;
 }
