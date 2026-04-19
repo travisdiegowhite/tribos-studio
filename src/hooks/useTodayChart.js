@@ -167,7 +167,7 @@ export default function useTodayChart(userId, opts = {}) {
           promises.push(
             supabase
               .from('activities')
-              .select('id, start_date, type, rss, tss, duration_seconds, moving_time, total_elevation_gain, average_watts, normalized_power, effective_power, kilojoules')
+              .select('id, start_date, type, rss, tss, distance, moving_time, total_elevation_gain, average_watts, normalized_power, effective_power, kilojoules')
               .eq('user_id', userId)
               .is('duplicate_of', null)
               .gte('start_date', `${warmupDate}T00:00:00Z`)
