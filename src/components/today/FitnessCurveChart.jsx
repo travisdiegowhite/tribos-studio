@@ -270,8 +270,8 @@ function KpiStrip({ kpi }) {
   );
 }
 
-export default function FitnessCurveChart({ userId }) {
-  const data = useTodayChart(userId);
+export default function FitnessCurveChart({ userId, activities, userFtp }) {
+  const data = useTodayChart(userId, { activities, userFtp });
   const [showFatigue, setShowFatigue] = useState(true);
   const [showForm, setShowForm] = useState(false);
 

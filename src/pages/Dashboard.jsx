@@ -371,9 +371,13 @@ function Dashboard() {
           <GetStartedGuide />
 
           {/* Fitness curve — spec §3. Past-only v1; projection ships in
-              spec §13 step 5. Lives above the hero paragraph so the
-              visual trajectory reads first. */}
-          <FitnessCurveChart userId={user?.id} />
+              spec §13 step 5. Reuses the activities Dashboard already
+              fetched so the curve and StatusBar agree on every value. */}
+          <FitnessCurveChart
+            userId={user?.id}
+            activities={activities}
+            userFtp={userProfile?.ftp}
+          />
 
           {/* Today Hero — archetype-voiced paragraph */}
           <TodayHero />

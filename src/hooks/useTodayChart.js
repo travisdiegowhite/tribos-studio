@@ -110,7 +110,10 @@ function groupPhases(perDay) {
   return out;
 }
 
-export default function useTodayChart(userId) {
+export default function useTodayChart(userId, opts = {}) {
+  const externalActivities = opts.activities;
+  const externalFtp = opts.userFtp;
+
   const [state, setState] = useState({
     days: [],
     phases: [],
@@ -137,7 +140,11 @@ export default function useTodayChart(userId) {
         // converge before the visible window starts.
         const warmupDate = isoDateOffset(today, -(WINDOW_DAYS - 1 + WARMUP_DAYS));
 
-        const [loadResult, planResult, activitiesResult, profileResult] = await Promise.all([
+        // When Dashboard hands us its already-fetched activities + FTP, skip
+        // the duplicate fetches — keeps the chart in lockstep with StatusBar
+        // and avoids subtle column-mismatch bugs (Dashboard uses .select('*'),
+        // a narrower select here can starve estimateActivityTSS of inputs).
+        const promises = [
           supabase
             .from('training_load_daily')
             .select('date, tfi, afi, form_score')
@@ -154,33 +161,43 @@ export default function useTodayChart(userId) {
             .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle(),
+        ];
 
-          // Pull the warm-up window too so the EWA fallback can converge.
-          // We only plot the last 42 days, but iterating over 132 days gives
-          // the line a realistic starting level for riders who don't have
-          // training_load_daily rows backfilled yet.
-          supabase
-            .from('activities')
-            .select('id, start_date, type, rss, tss, duration_seconds, moving_time, total_elevation_gain, average_watts, normalized_power, effective_power, kilojoules')
-            .eq('user_id', userId)
-            .is('duplicate_of', null)
-            .gte('start_date', `${warmupDate}T00:00:00Z`)
-            .lte('start_date', `${today}T23:59:59Z`)
-            .order('start_date', { ascending: true }),
+        if (!externalActivities) {
+          promises.push(
+            supabase
+              .from('activities')
+              .select('id, start_date, type, rss, tss, duration_seconds, moving_time, total_elevation_gain, average_watts, normalized_power, effective_power, kilojoules')
+              .eq('user_id', userId)
+              .is('duplicate_of', null)
+              .gte('start_date', `${warmupDate}T00:00:00Z`)
+              .lte('start_date', `${today}T23:59:59Z`)
+              .order('start_date', { ascending: true }),
+          );
+        }
+        if (externalFtp == null) {
+          promises.push(
+            supabase
+              .from('user_profiles')
+              .select('ftp')
+              .eq('id', userId)
+              .maybeSingle(),
+          );
+        }
 
-          supabase
-            .from('user_profiles')
-            .select('ftp')
-            .eq('id', userId)
-            .maybeSingle(),
-        ]);
-
+        const results = await Promise.all(promises);
         if (cancelled) return;
+
+        const loadResult = results[0];
+        const planResult = results[1];
+        let cursor = 2;
+        const activitiesResult = externalActivities ? null : results[cursor++];
+        const profileResult = externalFtp != null ? null : results[cursor++];
 
         const rawLoad = loadResult.data || [];
         const plan = planResult.data || null;
-        const rawActivities = activitiesResult.data || [];
-        const userFtp = profileResult?.data?.ftp || 200;
+        const rawActivities = externalActivities || activitiesResult?.data || [];
+        const userFtp = externalFtp ?? profileResult?.data?.ftp ?? 200;
 
         // --- Activity-derived daily RSS series over the full warm-up span ---
         // Used to back-fill any day without a training_load_daily row so the
@@ -202,6 +219,17 @@ export default function useTodayChart(userId) {
           if (!rss) continue;
           // Cap per-activity at 500 to match Dashboard's trainingMetrics guard.
           dailyRss[idx] += Math.min(rss, 500);
+        }
+
+        // Diagnostic: surface enough state in console to triage when the
+        // chart looks unexpectedly empty. Cheap to log, easy to ignore.
+        const totalRss = dailyRss.reduce((a, b) => a + b, 0);
+        if (rawActivities.length > 0 && totalRss === 0) {
+          console.warn('[useTodayChart] activities returned but daily RSS = 0',
+            { activityCount: rawActivities.length, sample: rawActivities[0] });
+        } else if (rawActivities.length === 0) {
+          console.warn('[useTodayChart] zero activities returned for window',
+            { startDate, today, externalActivitiesProvided: !!externalActivities });
         }
 
         // Iterative EWA — exposes daily TFI and AFI at each step.
