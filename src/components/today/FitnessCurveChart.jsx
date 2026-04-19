@@ -205,7 +205,7 @@ function Legend() {
     { label: 'Recovery / easy', color: '#639922' },
     { label: 'Tempo / long', color: '#C49A0A' },
     { label: 'Sweet spot / threshold', color: '#D4600A' },
-    { label: 'VO2 / anaerobic / race', color: '#C43C2A' },
+    { label: 'VO2 / anaerobic / race', color: '#7A1A22' },
   ];
   return (
     <Group gap={14} wrap="wrap">

@@ -28,7 +28,9 @@ const WINDOW_DAYS = 42;
 // so TFI has time to converge for riders without training_load_daily rows.
 const WARMUP_DAYS = 90;
 
-// Workout-type → colour + dot-size (spec §3.5).
+// Workout-type → colour + dot-size. Thermal-ish progression so harder
+// rides read hotter, with VO2/anaerobic/race shifted to a deep crimson
+// so they stand clear of the threshold orange at a glance.
 const WORKOUT_STYLE = {
   recovery:     { color: '#639922', size: 'small' },
   endurance:    { color: '#639922', size: 'small' },
@@ -37,9 +39,9 @@ const WORKOUT_STYLE = {
   long_ride:    { color: '#C49A0A', size: 'medium' },
   sweet_spot:   { color: '#D4600A', size: 'large' },
   threshold:    { color: '#D4600A', size: 'large' },
-  vo2:          { color: '#C43C2A', size: 'large' },
-  anaerobic:    { color: '#C43C2A', size: 'large' },
-  race:         { color: '#C43C2A', size: 'large' },
+  vo2:          { color: '#7A1A22', size: 'large' },
+  anaerobic:    { color: '#7A1A22', size: 'large' },
+  race:         { color: '#7A1A22', size: 'large' },
   rest:         { color: '#FFFFFF', size: 'small', hollow: true },
   default:      { color: '#7A7970', size: 'medium' },
 };
