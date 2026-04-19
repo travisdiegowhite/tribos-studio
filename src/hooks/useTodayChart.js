@@ -28,7 +28,9 @@ const WINDOW_DAYS = 42;
 // so TFI has time to converge for riders without training_load_daily rows.
 const WARMUP_DAYS = 90;
 
-// Workout-type → colour + dot-size (spec §3.5).
+// Workout-type → colour + dot-size. Thermal-ish progression so harder
+// rides read hotter, with VO2/anaerobic/race shifted to a deep crimson
+// so they stand clear of the threshold orange at a glance.
 const WORKOUT_STYLE = {
   recovery:     { color: '#639922', size: 'small' },
   endurance:    { color: '#639922', size: 'small' },
@@ -37,9 +39,9 @@ const WORKOUT_STYLE = {
   long_ride:    { color: '#C49A0A', size: 'medium' },
   sweet_spot:   { color: '#D4600A', size: 'large' },
   threshold:    { color: '#D4600A', size: 'large' },
-  vo2:          { color: '#C43C2A', size: 'large' },
-  anaerobic:    { color: '#C43C2A', size: 'large' },
-  race:         { color: '#C43C2A', size: 'large' },
+  vo2:          { color: '#7A1A22', size: 'large' },
+  anaerobic:    { color: '#7A1A22', size: 'large' },
+  race:         { color: '#7A1A22', size: 'large' },
   rest:         { color: '#FFFFFF', size: 'small', hollow: true },
   default:      { color: '#7A7970', size: 'medium' },
 };
@@ -55,19 +57,53 @@ function isoDateOffset(baseIso, offsetDays) {
   return d.toISOString().slice(0, 10);
 }
 
-function classifyWorkoutType(raw) {
-  const s = (raw || '').toLowerCase();
-  if (!s) return 'endurance';
-  if (s.includes('recovery')) return 'recovery';
-  if (s.includes('vo2') || s.includes('vo_2')) return 'vo2';
-  if (s.includes('anaerobic')) return 'anaerobic';
-  if (s.includes('threshold') || s.includes('ftp')) return 'threshold';
-  if (s.includes('sweet')) return 'sweet_spot';
-  if (s.includes('tempo')) return 'tempo';
-  if (s.includes('race')) return 'race';
-  if (s.includes('long')) return 'long_ride';
-  if (s.includes('easy')) return 'easy';
-  if (s.includes('rest')) return 'rest';
+/**
+ * Classify an activity into the spec §3.5 workout-type buckets. Runs three
+ * tiers of signal so "Ride" / "VirtualRide" (Strava's default types) don't
+ * collapse every session to endurance-green:
+ *
+ *   1. Activity name keywords — riders name their sessions "Tempo 3x15",
+ *      "VO2max intervals", "recovery spin", etc. Strong signal when present.
+ *   2. Ride intensity (effective_power / ftp or average_watts / ftp). Maps
+ *      to training zones: <0.55 recovery, <0.75 endurance, <0.90 tempo,
+ *      <0.95 sweet_spot, <1.05 threshold, <1.20 vo2, ≥1.20 anaerobic.
+ *   3. Duration fallback — <30 min → recovery, >3 hours → long_ride.
+ */
+function classifyWorkoutType(activity, ftp) {
+  const name = (activity?.name || '').toLowerCase();
+  const type = (activity?.type || '').toLowerCase();
+
+  // Tier 1: name keywords (most specific)
+  if (/\brace\b/.test(name) || /\brace\b/.test(type)) return 'race';
+  if (/vo[\s_-]?2/.test(name)) return 'vo2';
+  if (/anaerobic|sprint|neuromuscular/.test(name)) return 'anaerobic';
+  if (/threshold|\bftp\b/.test(name)) return 'threshold';
+  if (/sweet[\s_-]?spot/.test(name)) return 'sweet_spot';
+  if (/tempo/.test(name)) return 'tempo';
+  if (/recovery|easy|\brecov\b/.test(name)) return 'recovery';
+  if (/long\b/.test(name)) return 'long_ride';
+
+  // Tier 2: intensity from power + FTP
+  const power = activity?.effective_power
+    ?? activity?.normalized_power
+    ?? activity?.average_watts
+    ?? null;
+  if (ftp && ftp > 0 && power && power > 0) {
+    const ri = power / ftp;
+    if (ri < 0.55) return 'recovery';
+    if (ri < 0.75) return 'endurance';
+    if (ri < 0.90) return 'tempo';
+    if (ri < 0.95) return 'sweet_spot';
+    if (ri < 1.05) return 'threshold';
+    if (ri < 1.20) return 'vo2';
+    return 'anaerobic';
+  }
+
+  // Tier 3: duration-based fallback
+  const minutes = (activity?.moving_time || 0) / 60;
+  if (minutes > 180) return 'long_ride';
+  if (minutes > 0 && minutes < 30) return 'recovery';
+
   return 'endurance';
 }
 
@@ -303,7 +339,7 @@ export default function useTodayChart(userId, opts = {}) {
           // Only plot rides that fall inside the visible window.
           const globalIdx = dateIndex.get(localDate);
           if (globalIdx == null || globalIdx < windowStartIdx) continue;
-          const workoutType = classifyWorkoutType(act.type);
+          const workoutType = classifyWorkoutType(act, userFtp);
           const style = WORKOUT_STYLE[workoutType] || WORKOUT_STYLE.default;
           const load = act.rss ?? act.tss ?? estimateActivityTSS(act, userFtp) ?? 0;
           const existing = byDay.get(localDate);
