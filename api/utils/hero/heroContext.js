@@ -474,10 +474,16 @@ export async function assembleHeroContext(userId, supabase, timezone = 'America/
 }
 
 /**
- * Deterministic cache key: day + last-ride-id + archetype.
- * Regenerates naturally on a new ride, a persona switch, or a day rollover.
+ * Deterministic cache key: day + last-ride-id + archetype + schema version.
+ *
+ * The version suffix is bumped whenever HeroContext's shape or
+ * classification logic changes — this invalidates cached rows whose
+ * paragraphs were generated against the previous shape (e.g. stale
+ * cold-start rows from the elevation_gain_meters bug).
  */
+export const HERO_CACHE_VERSION = 'v2';
+
 export function buildHeroCacheKey(context) {
   const lastRideId = context.lastRide?.id || 'no-ride';
-  return `${context.date}:${lastRideId}:${context.archetype}`;
+  return `${context.date}:${lastRideId}:${context.archetype}:${HERO_CACHE_VERSION}`;
 }

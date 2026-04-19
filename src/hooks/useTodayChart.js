@@ -161,7 +161,7 @@ export default function useTodayChart(userId) {
           // training_load_daily rows backfilled yet.
           supabase
             .from('activities')
-            .select('id, start_date, type, rss, tss, duration_seconds, moving_time, average_watts, effective_power')
+            .select('id, start_date, type, rss, tss, duration_seconds, moving_time, total_elevation_gain, average_watts, normalized_power, effective_power, kilojoules')
             .eq('user_id', userId)
             .is('duplicate_of', null)
             .gte('start_date', `${warmupDate}T00:00:00Z`)
