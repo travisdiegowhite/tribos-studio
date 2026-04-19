@@ -29,7 +29,15 @@ const COLOR = {
   card: '#FFFFFF',
 };
 
-const DOT_RADIUS = { small: 4, medium: 5, large: 7 };
+const DOT_RADIUS = { small: 3, medium: 4.5, large: 6 };
+
+// Line weights tuned down for polish — 3px read heavy against the flat
+// surfaces + thin ink stroke of the today marker.
+const STROKE = {
+  fitness: 2,
+  fatigue: 1.5,
+  form: 1.25,
+};
 
 function xFor(index, total) {
   if (total <= 1) return PLOT.left;
@@ -157,11 +165,11 @@ function WeekGrid({ days }) {
 function TodayMarker({ xPos, tfiY }) {
   return (
     <g>
-      <line x1={xPos} x2={xPos} y1={PLOT.top} y2={PLOT_BOTTOM} stroke={COLOR.ink} strokeWidth={1.5} />
+      <line x1={xPos} x2={xPos} y1={PLOT.top} y2={PLOT_BOTTOM} stroke={COLOR.ink} strokeWidth={1} />
       {tfiY != null ? (
         <>
-          <circle cx={xPos} cy={tfiY} r={14} fill={COLOR.fitness} opacity={0.25} />
-          <circle cx={xPos} cy={tfiY} r={8} fill={COLOR.fitness} stroke={COLOR.card} strokeWidth={3} />
+          <circle cx={xPos} cy={tfiY} r={11} fill={COLOR.fitness} opacity={0.18} />
+          <circle cx={xPos} cy={tfiY} r={5.5} fill={COLOR.fitness} stroke={COLOR.card} strokeWidth={2} />
         </>
       ) : null}
       <g>
@@ -187,9 +195,9 @@ function TodayMarker({ xPos, tfiY }) {
 function RideDot({ cx, cy, color, size, hollow }) {
   const r = DOT_RADIUS[size] || DOT_RADIUS.medium;
   if (hollow) {
-    return <circle cx={cx} cy={cy} r={r} fill={COLOR.card} stroke={COLOR.muted} strokeWidth={1.5} />;
+    return <circle cx={cx} cy={cy} r={r} fill={COLOR.card} stroke={COLOR.muted} strokeWidth={1} />;
   }
-  return <circle cx={cx} cy={cy} r={r} fill={color} stroke={COLOR.card} strokeWidth={1.5} />;
+  return <circle cx={cx} cy={cy} r={r} fill={color} stroke={COLOR.card} strokeWidth={1} />;
 }
 
 function Legend() {
@@ -375,13 +383,36 @@ export default function FitnessCurveChart({ userId, activities, userFtp }) {
 
           {/* Lines — fitness last so it sits on top */}
           {fatiguePath ? (
-            <path d={fatiguePath} fill="none" stroke={COLOR.fatigue} strokeWidth={2} strokeDasharray="5,3" />
+            <path
+              d={fatiguePath}
+              fill="none"
+              stroke={COLOR.fatigue}
+              strokeWidth={STROKE.fatigue}
+              strokeDasharray="4,3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           ) : null}
           {formPath ? (
-            <path d={formPath} fill="none" stroke={COLOR.form} strokeWidth={1.5} opacity={0.9} />
+            <path
+              d={formPath}
+              fill="none"
+              stroke={COLOR.form}
+              strokeWidth={STROKE.form}
+              opacity={0.85}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           ) : null}
           {fitnessPath ? (
-            <path d={fitnessPath} fill="none" stroke={COLOR.fitness} strokeWidth={3} />
+            <path
+              d={fitnessPath}
+              fill="none"
+              stroke={COLOR.fitness}
+              strokeWidth={STROKE.fitness}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           ) : null}
 
           {/* Ride dots sit on the fitness line */}
