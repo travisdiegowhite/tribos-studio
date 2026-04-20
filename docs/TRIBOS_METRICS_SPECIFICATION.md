@@ -62,8 +62,10 @@ function calculateTerrainMultiplier(
 }
 
 // MTB sessions receive additional 1.3x multiplier on top of terrain.
+// Tribos normalizes Garmin MOUNTAIN_BIKING and Wahoo mountain_biking to
+// Strava's MountainBikeRide at ingestion, so a single check suffices.
 function applyActivityTypeMultiplier(rss: number, activityType: string): number {
-  if (activityType === 'mountain_bike') return rss * 1.30;
+  if (activityType === 'MountainBikeRide') return rss * 1.30;
   return rss;
 }
 ```
@@ -73,7 +75,19 @@ function applyActivityTypeMultiplier(rss: number, activityType: string): number 
 2. RPE-based: `rss = sRPE_score * calibration_factor` (`fatigue_calibration.srpe_to_tss`)
 3. Inferred: duration-based at assumed RI 0.65
 
-Record source in `training_load_daily.rss_source` ('power' | 'hr' | 'rpe' | 'inferred') with `confidence` (1.0 | 0.75 | 0.50 | 0.25).
+Record source in `training_load_daily.rss_source` — **6 tiers (D1 locked, differs from original 4-tier spec)**:
+
+| `rss_source` | Method | `confidence` |
+|---|---|---|
+| `device` | Stored RSS from the activity file | 0.95 |
+| `power` | EP + FTP formula | 0.95 |
+| `kilojoules` | kJ + duration (with FTP) | 0.75 |
+| `kilojoules` | kJ + duration (no FTP, FTP=200 assumed) | 0.50 |
+| `hr` | HR-based TRIMP / running pace estimate | 0.65 |
+| `rpe` | Foster session-RPE (TS client only) | 0.50 |
+| `inferred` | Duration + elevation + avg watts heuristic | 0.40 |
+
+*(D2 locked — calibrated values, not the original 0.25 floor)*
 
 ### 3.2 EP — Effective Power
 
@@ -93,6 +107,15 @@ function calculateEP(powerDataPoints: number[]): number {
 ```
 
 **Zero-power handling:** Filter points where `power === 0` AND GPS shows motion >5km/h before rolling avg. Removes coasting without removing intentional recovery intervals.
+
+> **Current implementation:** `activities.effective_power` is populated
+> from provider-computed NP (`weighted_average_watts` from Strava; stored NP
+> from FIT files). The zero-power-filter + 30s rolling + 4th-power mean
+> approach above is implemented in `filterZeroPowerPoints` / `recomputeEffectivePower`
+> (exported from both `api/utils/fitnessSnapshots.js` and
+> `src/lib/training/fatigue-estimation.ts`) but **not yet wired into
+> ingestion**. Scope this as a separate spike — see §2c in
+> `docs/METRICS_ROLLOUT_REMAINING.md`.
 
 ### 3.3 RI — Ride Intensity
 
@@ -134,14 +157,26 @@ function calculateTFI(previousTFI: number, todayRSS: number, tauTFI: number): nu
 **TFI Composition Tracking** — store alongside TFI:
 
 ```typescript
-interface TFIComposition {
-  aerobic_fraction: number;       // % of RSS in last τ_tfi days from Z1-Z3
-  threshold_fraction: number;     // % from Z4
-  high_intensity_fraction: number; // % from Z5+
-}
-// Store in training_load_daily.tfi_composition (jsonb).
+// Stored in training_load_daily.tfi_composition (jsonb).
 // Used by AI coaching to characterize TYPE of fitness, not just amount.
+interface TFIComposition {
+  aerobic_fraction: number;         // RSS-weighted fraction from Z1 + Z2
+  threshold_fraction: number;       // RSS-weighted fraction from Z3 + Z4
+  high_intensity_fraction: number;  // RSS-weighted fraction from Z5 + Z6 + Z7
+}
 ```
+
+Zone data source (resolved in §2a): `activities.fit_coach_context.power_zone_distribution`
+(written by B5 FIT ingestion). Percentages converted to seconds via
+`fit_coach_context.duration_seconds` and bucketed as above before being
+RSS-weighted across the τ_tfi window. Activities without `fit_coach_context`
+(pre-B5 rides, manual entries) are skipped. `computeTFIComposition()` in
+`api/utils/fitnessSnapshots.js` receives raw-seconds entries and returns the
+stored fractions.
+
+> **Status:** `computeTFIComposition` exists but is not yet called from
+> `upsertTrainingLoadDaily` callers — wiring is pending (§2a,
+> `docs/METRICS_ROLLOUT_REMAINING.md`).
 
 ### 3.5 AFI — Acute Fatigue Index
 
