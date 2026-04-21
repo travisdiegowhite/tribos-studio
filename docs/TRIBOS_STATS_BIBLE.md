@@ -555,13 +555,13 @@ Components:
 
 ---
 
-### 5.4 FAR — Fitness Acquisition Rate *(PLANNED)*
+### 5.4 FAR — Fitness Acquisition Rate *(PLANNED — spec locked, not yet implemented)*
 
-**Status:** Spec complete, not yet implemented. See `tcas-today-progress-spec.md` for full specification (substitute "FAR" for "TCAS" throughout — spec was originally drafted as TCAS before existing TCAS was discovered).
+**Status:** Spec complete and locked 2026-04-20. See `FAR_implementation_checklist.md` for the ready-to-build ticket. When FAR ships, remove "PLANNED" tag and move implementation details from that checklist into this entry where applicable.
 
 **Question answered:** "How fast am I building fitness, and is that rate sustainable?"
 
-**Intent:** Complement to TCAS. Where TCAS asks about *efficiency* per hour, FAR asks about *pace* of fitness gain relative to a personal sustainable ceiling. Works without power data (TFI trajectory alone is enough). Answers the dashboard's "is my fitness climbing fast enough?" question directly.
+**Intent:** Complement to TCAS. Where TCAS asks about *efficiency* per hour (requires power data), FAR asks about *pace* of fitness gain relative to a personal sustainable ceiling (works for any user with TFI history). Answers the dashboard's "is my fitness climbing fast enough?" question directly. Built to be the hero metric for the TODAY page — universally applicable, interpretable on a 0–130+ scale anchored to sustainable build rate.
 
 **Distinction from TCAS:**
 
@@ -573,8 +573,152 @@ Components:
 | Window | 6 weeks | 28 days + 7 days momentum |
 | Cadence | Weekly | Daily |
 | Coverage | Needs power data | Works for any user with TFI history |
+| Primary surface | `/progress` (post-FAR rollout) | `/` (TODAY hero) |
 
-**When shipped, update this entry with:** final formula, zones, personal ceiling model, storage table, calc files, UI surfaces, interpretation bands.
+**Combinatorial coaching coverage (TCAS × FAR):**
+
+| | **Low TCAS** | **High TCAS** |
+|---|---|---|
+| **Low FAR** | Inefficient + not building. Plan / execution gap. Coach focus: workout quality. | Efficient but hours-limited. Coach focus: add volume if life allows. |
+| **High FAR** | Building fast but inefficient. Coach focus: watch for burnout. | Everything clicking. Coach focus: maintain. |
+
+**Formula — Primary FAR (28-day trailing):**
+
+```
+FAR = (ΔTFI_28d / 28) × 7 / personal_ceiling_weekly_rate × 100
+
+equivalent:
+weekly_rate = ΔTFI_28d / 4
+FAR = (weekly_rate / personal_ceiling_weekly_rate) × 100
+```
+
+Where:
+- `ΔTFI_28d` = `TFI_today` − `TFI_28_days_ago`
+- `personal_ceiling_weekly_rate` = user's sustainable build ceiling in TFI/week (see below). Defaults to `1.5` (Friel canonical) for cold-start users.
+- **Reads from canonical column only:** `training_load_daily.tfi`. Does NOT coalesce to legacy `ctl`. Prerequisite for FAR: verify TFI is populated for all active users (see §12 gap).
+
+**Formula — Momentum FAR (7-day trailing):**
+
+```
+FAR_7d = ΔTFI_7d / personal_ceiling_weekly_rate × 100
+```
+
+Momentum flag logic:
+
+```
+if FAR_7d < FAR × 0.85: "decelerating"
+if FAR_7d > FAR × 1.15: "accelerating"
+else:                   "steady"
+```
+
+**Clamping:** FAR is **uncapped**. Values above 100 indicate overreach; values below 0 indicate detraining. Extreme values (`> 150` or `< −50`) clamp display at the bound with a warning flag and log for investigation.
+
+**Personal ceiling model:**
+
+```
+personal_ceiling_weekly_rate =
+  base_ceiling × experience_mod × consistency_mod × age_mod
+```
+
+- `base_ceiling` = 1.5 TFI/week (Friel canonical)
+- `experience_mod` = `1.0 + min(0.15, years_training × 0.01) + min(0.15, max(0, historical_peak_TFI − 40) × 0.01)`. Range `[1.00, 1.30]`.
+- `consistency_mod` = computed from trailing 180-day TFI variance + long-gap count + recent training density. Range `[0.85, 1.10]`. Full formula in implementation checklist.
+- `age_mod` = age bracket lookup (`<40 → 1.00`, `<50 → 0.97`, `<60 → 0.95`, `≥60 → 0.92`). `+0.02` bonus if `masters_cat ≥ 2`.
+
+**Coefficient provenance:** All ceiling modifiers are Tribos-empirical seed values, not literature-derived. Flagged for tuning against cohort data once production signal is available.
+
+**Recompute cadence:** Monthly cron (first of month). Profile field changes trigger on-demand recompute. Change > ±5% triggers user notification. Daily recompute is explicitly avoided — ceiling stability is a trust signal.
+
+**Minimum data to compute:** 28 days of TFI history. Under 28 days, FAR is undefined. Personal ceiling transitions from universal (1.5) to personalized at 90 days.
+
+**Gap handling:**
+
+Gaps in the 28-day window are detected via `rss_source IS NOT NULL` on `training_load_daily` rows (not `rss > 0` — rest days have legitimate zero RSS with a source tag, and must not be mis-classified as sync gaps).
+
+| Gap in window | Behavior | UI treatment |
+|---------------|----------|--------------|
+| 0–2 days | Silent, trust TFI EWMA smoothing | Normal render |
+| 3–5 days | Compute FAR, attach caveat | Prepend "Based on partial data:" to status copy; confidence 0.7 |
+| 6–13 days | Compute FAR, prominent warning | Render hero number in gray (not teal/coral); banner "Data incomplete — FAR may be stale" |
+| ≥ 14 days | Suppress FAR entirely | Cold-start placeholder: "Rebuilding baseline — FAR available in {N} days after consistent sync" |
+| Gap at window boundary (today or today−28) | Always suppress or degrade | "Waiting for most recent sync" — boundary dates are load-bearing for delta math |
+
+**Critical:** Sync gap vs. training gap distinction is essential. A genuine 10-day training break (illness, travel) should show FAR correctly going negative (detraining). A 10-day sync outage should suppress FAR. The `rss_source` tag is the signal that separates them.
+
+**Zone definitions:**
+
+| Zone | FAR range | Color | Semantic |
+|------|-----------|-------|----------|
+| Detraining | `< 0` | coral | Losing fitness |
+| Maintaining | `0` – `< 40` | gray (neutral) | Holding |
+| Building | `40` – `< 100` | teal | Sustainable fitness gain |
+| Overreaching | `100` – `< 130` | orange | Accumulating risk; monitor |
+| Danger | `≥ 130` | coral | Injury / illness risk; back off |
+
+Zone labels in UI copy:
+
+```
+detraining   → "LOSING FITNESS"
+maintaining  → "MAINTAINING"
+building     → "BUILDING"
+overreaching → "OVERREACHING — MONITOR"
+danger       → "DANGER — BACK OFF"
+```
+
+**Status line modifiers** (combined zone + ceiling-relative context):
+
+```
+if zone == 'building' && score >= 95:         "BUILDING — AT SUSTAINABLE MAX"
+if zone == 'overreaching' && score <= ceiling: "OVERREACHING — WITHIN PERSONAL ENVELOPE"
+if zone == 'overreaching' && score > ceiling:  "OVERREACHING — ABOVE PERSONAL CEILING"
+```
+
+**Relationship to FS status copy:** On TODAY page Tier 1, the hero status line is **FAR-derived**, not FS-derived. FS retains its own labels (§3.4) and surfaces as a secondary signal on race readiness card and elsewhere — but does not compete with FAR for the top-line narrative.
+
+**Valence:** High = generally good within the Building zone (40–100). Above 100, high becomes a warning (overreach). Below 0, FAR goes coral (detraining). Unlike TCAS (where high is unconditionally good), FAR is zone-sensitive.
+
+**Storage:**
+
+- `far_daily` — new table, one row per user per day, cached nightly
+- `personal_ceiling_history` — new table, tracks ceiling recompute over time
+- `user_profiles.years_training` — new column, collected in onboarding
+- `user_profiles.masters_cat` — new column, collected in onboarding (optional)
+- `user_profiles.personal_ceiling_override_weekly_rate` — new column, for coach / advanced overrides
+
+**Calc files (planned):**
+
+- `src/lib/metrics/far.ts` — TS implementation
+- `api/utils/metricsComputation.js` — new `computeFARFromTFI` function
+- `api/utils/farCeiling.js` — new file for personal ceiling computation and recompute cron
+
+**API surface:** `GET /functions/v1/get_far_summary` returns score, score_7d, zone, zone_label, description, momentum_flag, personal_ceiling, personal_ceiling_basis, trend_6w, next_race projection, caveats. Full shape in implementation checklist.
+
+**Onboarding additions:** Two new optional questions to collect ceiling inputs:
+- "How many years have you been training seriously?" (number input)
+- "Racing category (optional)" (dropdown: Cat 5 / Cat 4 / Cat 3 / Cat 2 / Cat 1 / Pro / Unranked)
+
+Missing values use conservative defaults: `years_training` defaults to 2, `masters_cat` defaults to 0 (no bonus). Ceiling calc handles NULL gracefully.
+
+**UI surfaces (planned):**
+
+| Route | Component | Role |
+|-------|-----------|------|
+| `/` | `FARCard.tsx` (new) | Hero card on TODAY, Tier 2 |
+| `/progress` | `FARHistoryChart.tsx` (new) | Long-window FAR history with zone bands |
+
+**Data quality warnings:**
+
+- Relies on TFI being populated in canonical column — not `ctl` legacy column. Users in dual-write state without TFI backfilled will get undefined FAR until backfill completes.
+- Depends on consistent activity sync. FAR is the most visible metric to sync outages — a Garmin webhook failure that went undetected on the old dashboard will now show up as a "data incomplete" warning in the hero slot, which is a feature, not a bug.
+
+**Edge cases:**
+
+- `< 28 days` of TFI history → undefined, placeholder message
+- Cold start (`< 90 days` of data) → `personal_ceiling_basis = 'universal'`, ceiling = 1.5
+- Detraining (negative FAR) → hero number in coral, not teal
+- Extreme values (`> 150` or `< −50`) → clamp display, log investigation
+- No race within 60 days → projection row on card hides entirely
+- TFI column NULL (backfill incomplete) → undefined, prompt user to contact support
 
 ---
 
@@ -652,11 +796,15 @@ Every surface where a metric appears must be listed here. When a new UI componen
 | Activity detail | `ActivityMetrics.jsx` | EP, RI, VI, RSS, avg/max power, W/kg | EP / RI / VI labels | `effective_power ?? normalized_power`, `ride_intensity ?? intensity_factor`, `rss ?? tss` |
 | `/metrics` | `MetricsCalculatorPage.tsx` | EFI, TWL, TCAS interactive | sliders | educational only |
 
-**Planned additions (not yet shipped):**
-- FAR card on `/` (TODAY page) — hero position
-- TCAS history on `/progress` — new page
-- EFI trend on `/progress`
-- Banister chart on `/progress` (relocated from `/`)
+**Planned additions (spec locked, not yet shipped):**
+
+- `FARCard.tsx` on `/` (TODAY page) — hero position, Tier 2 (see redesign spec)
+- `FARHistoryChart.tsx` on `/progress` (new page)
+- `ProgressPreviewStrip.tsx` on `/` (TODAY Tier 4) — teaser strip showing FIT/FAT/FORM with link to PROGRESS
+- `BanisterChart.tsx` on `/progress` — relocated and expanded from `FitnessCurveChart.jsx`
+- TCAS history view on `/progress`
+- EFI trend view on `/progress`
+- Acronym labeling compliance sweep on `ProprietaryMetricsBar.tsx` and any other component rendering bare acronyms (see §9 acronym labeling discipline)
 
 When these ship, update this table.
 
@@ -693,8 +841,29 @@ When a metric has undefined or low-confidence value, the copy should never be bl
 | TWL | "Terrain data unavailable" | N/A | N/A |
 | EFI | "No plan to measure against" | N/A | N/A |
 | TCAS | "Building baseline — TCAS available at 8 weeks" | N/A | "Power data incomplete — TCAS may be low" |
+| FAR | "Building baseline — Fitness Acquisition Rate available at 28 days" | "Based on partial data" prefix | "Data incomplete — FAR may be stale" (6–13d gap); suppress entirely (≥14d gap) |
 
 **Copy requests must be reviewed against this table before shipping.** If a new empty state or error state is needed, add a row here first.
+
+### Acronym labeling discipline
+
+Every proprietary acronym (FAR, TCAS, EFI, TWL) and every renamed metric (TFI, AFI, FS, RSS, EP, RI) is unfamiliar to new users. Showing a bare three-letter code without its full name is a failure mode — users who don't already know the system see alphabet soup and bounce.
+
+**Rules:**
+
+1. **First mention per screen must include both.** The full name appears with the acronym on first appearance in any UI surface: `FITNESS ACQUISITION RATE · FAR`, `EXECUTION FIDELITY INDEX · EFI`. Subsequent references on the same screen may use the acronym alone.
+
+2. **Every acronym must have a tooltip.** Hovering / tapping the acronym reveals: full name, one-sentence definition, optional "learn more" link to docs. No exceptions.
+
+3. **Long-form copy (coach messages, email, notifications) uses full name first.** "Your Fitness Acquisition Rate (FAR) is at 100 — you're building at the sustainable maximum." Not "Your FAR is at 100."
+
+4. **Onboarding introduces the metric family explicitly.** Before any acronym appears in the dashboard for a new user, onboarding must have explained what the Tribos proprietary metrics are and which question each answers.
+
+5. **Internal / developer-facing copy can use acronyms alone.** API field names, DB columns, log messages, dev console — these are for engineers, not users. Acronyms are fine.
+
+**Current state:** The `ProprietaryMetricsBar.tsx` component and several stat strips currently render bare acronyms (`EFI 52 · TCAS 21`). This is a known violation and should be fixed in the FAR rollout PR as a prerequisite — if new acronyms are going to appear, the labeling discipline should already be in place.
+
+**Why this rule exists:** An acronym without context is a signal to stop reading. Users who feel excluded by jargon don't ask — they leave. The cost of adding a full name is a few more characters of text; the cost of leaving it out is lost users.
 
 ---
 
@@ -714,7 +883,7 @@ Tribos brand tokens (from brand system): teal `#2A8C82`, orange `#D4600A`, gold 
 | **TWL** | Default | N/A | TWL/RSS > 1.3 (very hilly, flag context) | N/A | N/A |
 | **EFI** | ≥ 75 | 90–100 (dialed in) | 40–74 | < 40 | N/A |
 | **TCAS** | 55–84 | 85–100 | 40–54 | < 40 | N/A |
-| **FAR** *(planned)* | Building zone (40–100) | N/A | Overreach (100–130) | Danger (≥ 130) or detraining (< 0) | Maintaining (0–40) |
+| **FAR** | Building zone (40–100) | N/A | Overreach (100–130) | Danger (≥ 130) or detraining (< 0) | Maintaining (0–40); gray when data gap 6–13d suppresses confidence |
 
 > **⚠️ Authoritative FS colors are in §3.4.** The row above is incomplete; refer to the FS display labels table for correct color assignments. When the §3.4 table and this §10 table disagree, §3.4 wins — fix §10 in the same commit that updates §3.4.
 
@@ -745,6 +914,8 @@ Tribos brand tokens (from brand system): teal `#2A8C82`, orange `#D4600A`, gold 
 | `src/lib/metrics/twl.ts` | TWL formula (TS) |
 | `src/lib/metrics/efi.ts` | EFI formula (TS) |
 | `src/lib/metrics/tcas.ts` | TCAS formula (TS) |
+| `src/lib/metrics/far.ts` | FAR formula (TS) *(planned — not yet implemented)* |
+| `api/utils/farCeiling.js` | FAR personal ceiling computation + recompute cron *(planned)* |
 | `src/lib/fitness/translate.ts` | Display labels + color tokens |
 
 **Rule:** If you add a new file that computes or stores a metric, add a row here in the same commit.
@@ -764,9 +935,13 @@ Tribos brand tokens (from brand system): teal `#2A8C82`, orange `#D4600A`, gold 
 | Legacy DB column drops | 6 tables in dual-write; DROP blocks commented out | Low (cleanup) | §1a–§1f |
 | Rouvy indoor RSS accuracy | Summary-only sync lacks power stream | High (affects all indoor users on summary-only providers) | Strava stream API fetch is long-term fix, manual TSS override is near-term |
 | Stale FTP warning | Not implemented; FTP drift silently degrades metrics | High | New — recommend prompt at 90-day stale threshold |
-| FAR metric | Spec complete, not implemented | Medium | `tcas-today-progress-spec.md` (rename TCAS→FAR) |
-| TODAY page redesign | Spec complete, not implemented | Medium | `tcas-today-progress-spec.md` Part 2 |
-| PROGRESS page | Spec complete, not implemented | Medium | `tcas-today-progress-spec.md` Part 3 |
+| TFI canonical-column population | Required prerequisite for FAR ship; `training_load_daily.tfi` may not be populated for all active users | High (blocks FAR) | Verify backfill status before FAR Phase 1 |
+| FAR metric implementation | Spec locked in bible §5.4 | Medium | `FAR_implementation_checklist.md` |
+| TODAY page redesign | Spec locked | Medium | `TODAY_PROGRESS_redesign_spec.md` |
+| PROGRESS page | Spec locked | Medium | `TODAY_PROGRESS_redesign_spec.md` Part 3 |
+| Acronym labeling compliance | `ProprietaryMetricsBar.tsx` renders bare acronyms; violates §9 discipline | Medium (prerequisite for FAR rollout) | Add full-name labels + tooltips before FAR ships |
+| `masters_cat` column | Needed for FAR ceiling `age_mod`; column does not exist in `user_profiles` | Medium (required for FAR) | Add column + onboarding question in FAR Phase 3 |
+| `years_training` column | Needed for FAR ceiling `experience_mod`; column does not exist in `user_profiles` | Medium (required for FAR) | Add column + onboarding question in FAR Phase 3 |
 
 Full sequenced PR list: `docs/METRICS_ROLLOUT_REMAINING.md`
 
@@ -817,6 +992,7 @@ Every material change to this document gets a row here. Format: `YYYY-MM-DD · C
 | 2026-04-20 | Document created from `TRAINING_STATS_REFERENCE.md`, expanded with intent, interpretation bands, relationships, copy library, color rules, pre-flight checklist, change-maintenance instructions | Core team |
 | 2026-04-20 | FAR (Fitness Acquisition Rate) added as planned §5.4 entry after naming collision with existing TCAS was caught — spec lives in `tcas-today-progress-spec.md` and will be renamed in that doc before implementation | Core team |
 | 2026-04-20 | Scrubbed personal-user references throughout document (TWL intent, TCAS data quality warning, Rouvy gap description, change log attributions, pre-flight checklist); added §16 "Writing for this document" subsection codifying user-neutrality discipline for future edits | Core team |
+| 2026-04-20 | FAR spec locked and expanded in §5.4 with full formula, personal ceiling model (experience/consistency/age modifiers), zone definitions, gap-handling rules (2/5/13/14-day thresholds), combinatorial coaching coverage matrix, onboarding additions (`years_training`, `masters_cat`), storage schema, and UI surface plan. Added §9 acronym-labeling discipline (full name with acronym on first mention, tooltips required, onboarding introduction). Updated §8 planned UI surfaces, §11 calc files, §12 gaps with FAR prerequisites | Core team |
 
 ---
 
