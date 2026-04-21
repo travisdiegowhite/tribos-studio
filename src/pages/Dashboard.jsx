@@ -26,6 +26,7 @@ import TodayHero from '../components/today/TodayHero.jsx';
 import YesterdayTodayAhead from '../components/today/YesterdayTodayAhead.jsx';
 import ActionRow from '../components/today/ActionRow.jsx';
 import ProprietaryMetricsBar from '../components/today/ProprietaryMetricsBar.tsx';
+import { FARCard } from '../components/today/FARCard/FARCard.tsx';
 import { ActivePlanCard } from '../components/training';
 import { calculateCTL, calculateATL, calculateTSB } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
@@ -420,6 +421,13 @@ function Dashboard() {
               loading={metricsLoading}
             />
           </ActionRow>
+
+          {/* FAR Card — Fitness Acquisition Rate (Tier 2, gated by VITE_FEATURE_FAR) */}
+          <FARCard
+            far={proprietaryMetrics?.far ?? null}
+            loading={metricsLoading}
+            farDaysRemaining={proprietaryMetrics?.data_readiness?.far_days_remaining ?? 0}
+          />
 
           {/* Intelligence Card — workout + route match */}
           <IntelligenceCard

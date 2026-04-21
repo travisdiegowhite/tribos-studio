@@ -51,6 +51,26 @@ function fetchTCAS(userId) {
     .maybeSingle();
 }
 
+function fetchFAR(userId) {
+  return supabase
+    .from('far_daily')
+    .select('score, score_7d, tfi_delta_28d, weekly_rate, zone, personal_ceiling_weekly_rate, personal_ceiling_basis, confidence, gap_days_in_window, computed_at')
+    .eq('user_id', userId)
+    .order('date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+}
+
+function fetchFARTrend(userId) {
+  const sixWeeksAgo = new Date(Date.now() - 42 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return supabase
+    .from('far_daily')
+    .select('date, score')
+    .eq('user_id', userId)
+    .gte('date', sixWeeksAgo)
+    .order('date', { ascending: true });
+}
+
 function formatEFI(data) {
   if (!data) return null;
   return {
@@ -98,6 +118,37 @@ function formatTCAS(data) {
   };
 }
 
+function formatFAR(data, trend) {
+  if (!data) return null;
+  const score = data.score != null ? Math.round(data.score * 10) / 10 : null;
+  const score_7d = data.score_7d != null ? Math.round(data.score_7d * 10) / 10 : null;
+
+  let momentum_flag = 'steady';
+  if (score != null && score_7d != null) {
+    const abs28 = Math.abs(score);
+    if (abs28 >= 5) {
+      const threshold = abs28 * 0.15;
+      if (score_7d > score + threshold) momentum_flag = 'accelerating';
+      else if (score_7d < score - threshold) momentum_flag = 'decelerating';
+    }
+  }
+
+  return {
+    score,
+    score_7d,
+    tfi_delta_28d: data.tfi_delta_28d,
+    weekly_rate: data.weekly_rate,
+    zone: data.zone,
+    personal_ceiling_weekly_rate: data.personal_ceiling_weekly_rate,
+    personal_ceiling_basis: data.personal_ceiling_basis,
+    confidence: data.confidence,
+    gap_days_in_window: data.gap_days_in_window,
+    momentum_flag,
+    trend_6w: (trend || []).map(r => ({ date: r.date, far: r.score })),
+    computed_at: data.computed_at,
+  };
+}
+
 export default async function handler(req, res) {
   if (setupCors(req, res)) return;
 
@@ -114,10 +165,12 @@ export default async function handler(req, res) {
     const userId = user.id;
 
     // Fetch all metrics + readiness checks in parallel
-    let [efiResult, twlResult, tcasResult, providerResult, planResult] = await Promise.all([
+    let [efiResult, twlResult, tcasResult, farResult, farTrendResult, providerResult, planResult] = await Promise.all([
       fetchEFI(userId),
       fetchTWL(userId),
       fetchTCAS(userId),
+      fetchFAR(userId),
+      fetchFARTrend(userId),
       supabase.from('activities').select('id').eq('user_id', userId).limit(1).maybeSingle(),
       supabase.from('training_plans').select('id').eq('user_id', userId).eq('status', 'active').limit(1).maybeSingle(),
     ]);
@@ -142,6 +195,7 @@ export default async function handler(req, res) {
           fetchTWL(userId),
           fetchTCAS(userId),
         ]);
+        // Note: FAR is computed by nightly cron, not backfill — don't re-fetch
       } catch (backfillError) {
         console.error('[metrics] Backfill failed (non-critical):', backfillError.message);
       }
@@ -193,15 +247,39 @@ export default async function handler(req, res) {
       }
     }
 
+    // FAR days remaining (if no FAR data — how many more days of TFI needed)
+    let farDaysRemaining = 0;
+    if (!farResult.data && hasProvider) {
+      const { data: firstLoad } = await supabase
+        .from('training_load_daily')
+        .select('date')
+        .eq('user_id', userId)
+        .order('date', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (firstLoad) {
+        const daysSinceFirst = Math.floor(
+          (Date.now() - new Date(firstLoad.date).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        farDaysRemaining = Math.max(0, 28 - daysSinceFirst);
+      } else {
+        farDaysRemaining = 28;
+      }
+    }
+
     return res.status(200).json({
       efi: formatEFI(efiResult.data),
       twl: formatTWL(twlResult.data),
       tcas: formatTCAS(tcasResult.data),
+      far: formatFAR(farResult.data, farTrendResult.data),
       data_readiness: {
         efi_available: !!efiResult.data,
         twl_available: !!twlResult.data,
         tcas_available: !!tcasResult.data,
         tcas_days_remaining: tcasDaysRemaining,
+        far_available: !!(farResult.data && farResult.data.score != null),
+        far_days_remaining: farDaysRemaining,
         has_provider: hasProvider,
         has_training_plan: hasTrainingPlan,
       },

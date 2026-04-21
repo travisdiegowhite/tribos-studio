@@ -701,3 +701,147 @@ function avgPeakPower(activities, durationSec) {
   const npValues = activities.filter(a => a.effective_power).map(a => a.effective_power);
   return npValues.length > 0 ? npValues.reduce((a, b) => a + b, 0) / npValues.length : 0;
 }
+
+// ─── FAR Computation ─────────────────────────────────────────────────────────
+// Mirrors src/lib/metrics/far.ts and farZones.ts exactly.
+
+const FAR_UNIVERSAL_CEILING = 1.5; // TFI/week (Friel canonical, Phase 1)
+
+function farAssessGaps(rows) {
+  // rows sorted newest-first; each has { tfi, rss_source }
+  // Sync gap: rss_source IS NULL. Rest day: rss_source set but rss=0 — NOT a gap.
+  const gapDays = rows.filter(r => r.rss_source === null).length;
+  const boundaryGap = (
+    rows[0]?.rss_source === null ||
+    rows[rows.length - 1]?.rss_source === null
+  );
+  if (boundaryGap)  return { gapDays, treatment: 'suppress', confidence: 0 };
+  if (gapDays >= 14) return { gapDays, treatment: 'suppress', confidence: 0 };
+  if (gapDays >= 6)  return { gapDays, treatment: 'warning',  confidence: 0.5 };
+  if (gapDays >= 3)  return { gapDays, treatment: 'caveat',   confidence: 0.7 };
+  return               { gapDays, treatment: 'normal',   confidence: 1.0 };
+}
+
+function farClassifyZone(score) {
+  if (score < 0)   return 'detraining';
+  if (score < 40)  return 'maintaining';
+  if (score < 100) return 'building';
+  if (score < 130) return 'overreaching';
+  return 'danger';
+}
+
+function farGetStatusLabel(score, ceiling) {
+  const zone = farClassifyZone(score);
+  switch (zone) {
+    case 'detraining':   return 'LOSING FITNESS';
+    case 'maintaining':  return 'MAINTAINING';
+    case 'building':
+      return score >= 95 ? 'BUILDING — AT SUSTAINABLE MAX' : 'BUILDING';
+    case 'overreaching':
+      return score <= 100 ? 'OVERREACHING — WITHIN PERSONAL ENVELOPE' : 'OVERREACHING — ABOVE PERSONAL CEILING';
+    case 'danger':       return 'DANGER — BACK OFF';
+    default:             return '';
+  }
+}
+
+function farMomentumFlag(far28d, far7d) {
+  if (Math.abs(far28d) < 5 && Math.abs(far7d) < 5) return 'steady';
+  const threshold = Math.abs(far28d) * 0.15;
+  if (far7d > far28d + threshold) return 'accelerating';
+  if (far7d < far28d - threshold) return 'decelerating';
+  return 'steady';
+}
+
+/**
+ * Compute and store FAR for a single user for a given date.
+ *
+ * Reads `training_load_daily.tfi` (canonical column only — never falls back to ctl).
+ * Writes to `far_daily`.
+ *
+ * @param {object} supabase  Supabase admin client
+ * @param {string} userId    User UUID
+ * @param {string} targetDate  ISO date string (YYYY-MM-DD), defaults to today
+ * @returns {object|null}  Computed FAR result, or null on cold start / suppression
+ */
+export async function computeFARFromTFI(supabase, userId, targetDate = null) {
+  const date = targetDate || new Date().toISOString().slice(0, 10);
+
+  // Fetch 30 days ending at targetDate (need indices 0, 7, 28 → 29 rows minimum)
+  const { data: rows, error } = await supabase
+    .from('training_load_daily')
+    .select('date, tfi, rss_source')
+    .eq('user_id', userId)
+    .lte('date', date)
+    .order('date', { ascending: false })
+    .limit(30);
+
+  if (error) {
+    console.error('[metrics:far] Failed to fetch training_load_daily:', error.message);
+    return null;
+  }
+
+  // Cold start — not enough history
+  if (!rows || rows.length < 29) return null;
+
+  const gap = farAssessGaps(rows);
+
+  if (gap.treatment === 'suppress') {
+    // Write a suppressed record so downstream can distinguish "not computed yet"
+    // from "computed but suppressed"
+    await supabase.from('far_daily').upsert({
+      user_id: userId,
+      date,
+      score: null,
+      score_7d: null,
+      tfi_delta_28d: null,
+      weekly_rate: null,
+      zone: null,
+      personal_ceiling_weekly_rate: FAR_UNIVERSAL_CEILING,
+      personal_ceiling_basis: 'universal',
+      confidence: 0,
+      gap_days_in_window: gap.gapDays,
+      computed_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,date' });
+    return null;
+  }
+
+  const tfiToday  = rows[0].tfi;
+  const tfi28dAgo = rows[28].tfi;
+  const tfi7dAgo  = rows[7].tfi;
+
+  // Null TFI in key positions — canonical column not yet populated
+  if (tfiToday == null || tfi28dAgo == null || tfi7dAgo == null) return null;
+
+  const delta28d  = tfiToday - tfi28dAgo;
+  const score     = (delta28d / 4 / FAR_UNIVERSAL_CEILING) * 100;
+  const delta7d   = tfiToday - tfi7dAgo;
+  const score_7d  = (delta7d / FAR_UNIVERSAL_CEILING) * 100;
+  const zone      = farClassifyZone(score);
+
+  const result = {
+    user_id: userId,
+    date,
+    score,
+    score_7d,
+    tfi_delta_28d: delta28d,
+    weekly_rate: delta28d / 4,
+    zone,
+    personal_ceiling_weekly_rate: FAR_UNIVERSAL_CEILING,
+    personal_ceiling_basis: 'universal',
+    confidence: gap.confidence,
+    gap_days_in_window: gap.gapDays,
+    computed_at: new Date().toISOString(),
+  };
+
+  const { error: upsertErr } = await supabase
+    .from('far_daily')
+    .upsert(result, { onConflict: 'user_id,date' });
+
+  if (upsertErr) {
+    console.error('[metrics:far] Upsert failed:', upsertErr.message);
+    return null;
+  }
+
+  console.log(`[metrics:far] Stored FAR ${score.toFixed(1)} (${zone}) for user ${userId} date ${date}`);
+  return result;
+}
