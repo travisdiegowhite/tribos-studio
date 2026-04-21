@@ -357,3 +357,20 @@ The frontend client in `src/lib/supabase.js` is a separate singleton and is fine
 - New files should be `.ts`/`.tsx` when practical
 - Type definitions go in `src/types/`
 - Existing `.jsx` files don't need to be migrated unless being substantially modified
+## Metric work
+
+Before touching any file that computes, stores, displays, or describes a
+training metric, read `docs/TRIBOS_STATS_BIBLE.md`. It is the source of
+truth for every metric in Tribos — names, formulas, storage, UI surfaces,
+copy, and color rules.
+
+If the bible and the code disagree, fix the code. If the bible is wrong,
+fix the bible in the same PR as the code change (see §16 of the bible).
+
+For the current planned work on FAR and the TODAY/PROGRESS redesign, also
+read:
+- `docs/FAR_implementation_checklist.md`
+- `docs/TODAY_PROGRESS_redesign_spec.md`
+
+Before adding a new metric, complete the §15 pre-flight checklist in the
+bible. No exceptions.
