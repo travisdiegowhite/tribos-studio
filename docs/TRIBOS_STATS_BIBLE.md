@@ -502,7 +502,7 @@ Components:
 
 **Intent:** Time-crunched athletes want to know if they're getting maximum return on their available training hours. TCAS rewards efficient adaptations (EF trend up, decoupling improving, peak power developing) and penalizes diminishing returns. Requires power data to be meaningful.
 
-> **Historical note (2026-04-20):** An earlier draft of a new "TCAS" metric (fitness acquisition rate, uncapped 0–130+, built from CTL trajectory alone) was speculated without consulting this reference. It would have conflicted with existing TCAS. The new concept was renamed **FAR — Fitness Acquisition Rate** (see §5.4 planned) and TCAS stays as-is. This is why the §15 pre-flight checklist exists.
+> **Historical note (2026-04-20):** An earlier draft of a new "TCAS" metric (fitness acquisition rate, uncapped 0–130+, built from CTL trajectory alone) was speculated without consulting this reference. It would have conflicted with existing TCAS. The new concept was renamed **FAR — Fitness Acquisition Rate** (see §5.4) and TCAS stays as-is. This is why the §15 pre-flight checklist exists.
 
 **Formula:**
 ```
@@ -555,9 +555,9 @@ Components:
 
 ---
 
-### 5.4 FAR — Fitness Acquisition Rate *(PLANNED — spec locked, not yet implemented)*
+### 5.4 FAR — Fitness Acquisition Rate
 
-**Status:** Spec complete and locked 2026-04-20. See `FAR_implementation_checklist.md` for the ready-to-build ticket. When FAR ships, remove "PLANNED" tag and move implementation details from that checklist into this entry where applicable.
+**Status:** Phase 1 (MVP, universal ceiling) shipped 2026-04-21. Feature-flagged behind `VITE_FEATURE_FAR`. Phase 2 (race projection) and Phase 3 (personalized ceiling) are pending — see `FAR_implementation_checklist.md` for remaining work.
 
 **Question answered:** "How fast am I building fitness, and is that rate sustainable?"
 
@@ -935,8 +935,8 @@ Tribos brand tokens (from brand system): teal `#2A8C82`, orange `#D4600A`, gold 
 | Legacy DB column drops | 6 tables in dual-write; DROP blocks commented out | Low (cleanup) | §1a–§1f |
 | Rouvy indoor RSS accuracy | Summary-only sync lacks power stream | High (affects all indoor users on summary-only providers) | Strava stream API fetch is long-term fix, manual TSS override is near-term |
 | Stale FTP warning | Not implemented; FTP drift silently degrades metrics | High | New — recommend prompt at 90-day stale threshold |
-| TFI canonical-column population | Required prerequisite for FAR ship; `training_load_daily.tfi` may not be populated for all active users | High (blocks FAR) | Verify backfill status before FAR Phase 1 |
-| FAR metric implementation | Spec locked in bible §5.4 | Medium | `FAR_implementation_checklist.md` |
+| FAR Phase 2 (race projection) | Extend `get_far_summary` with projected TFI and form at next race | Medium | `FAR_implementation_checklist.md` §Phase 2 |
+| FAR Phase 3 (personalized ceiling) | Personal ceiling model; requires `years_training`, `masters_cat` onboarding fields | Medium | `FAR_implementation_checklist.md` §Phase 3 |
 | TODAY page redesign | Spec locked | Medium | `TODAY_PROGRESS_redesign_spec.md` |
 | PROGRESS page | Spec locked | Medium | `TODAY_PROGRESS_redesign_spec.md` Part 3 |
 | Acronym labeling compliance | `ProprietaryMetricsBar.tsx` renders bare acronyms; violates §9 discipline | Medium (prerequisite for FAR rollout) | Add full-name labels + tooltips before FAR ships |
