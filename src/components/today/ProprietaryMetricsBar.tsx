@@ -16,6 +16,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { translateEFI, translateTCAS, METRICS_TOOLTIPS } from '../../lib/metrics/translate';
 import { colorToVar } from '../../lib/fitness/translate';
 import { SCORE_COLORS, scoreBand } from '../../lib/metrics/types';
+import { METRIC_DESCRIPTIONS } from '../../lib/fitness/metricDescriptions';
 import { MetricScoreBadge } from '../metrics/MetricScoreBadge';
 import { MetricBarRow } from '../metrics/MetricBarRow';
 
@@ -90,11 +91,12 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
   return (
     <div>
       <SimpleGrid cols={isMobile ? 1 : 2} spacing={0}>
-        {/* EFI Cell */}
+        {/* EFI Cell — full name on first mention per P2 (bible §9) */}
         <MetricCell
-          label="EFI"
+          acronym="EFI"
+          fullName={METRIC_DESCRIPTIONS.EFI.full}
           subtitle="28-day"
-          description="Execution Fidelity — how closely you follow your plan"
+          description={METRIC_DESCRIPTIONS.EFI.definition}
           value={metrics?.efi ? String(Math.round(metrics.efi.score)) : null}
           color={metrics?.efi ? scoreHex(metrics.efi.score) : undefined}
           status={metrics?.efi ? translateEFI(metrics.efi.score) : undefined}
@@ -111,11 +113,12 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
           onToggle={() => toggleExpand('efi')}
         />
 
-        {/* TCAS Cell */}
+        {/* TCAS Cell — full name on first mention per P2 (bible §9) */}
         <MetricCell
-          label="TCAS"
+          acronym="TCAS"
+          fullName={METRIC_DESCRIPTIONS.TCAS.full}
           subtitle="6-week"
-          description="Training Capacity — fitness gained per hour trained"
+          description={METRIC_DESCRIPTIONS.TCAS.definition}
           value={metrics?.tcas ? String(Math.round(metrics.tcas.score)) : null}
           color={metrics?.tcas ? scoreHex(metrics.tcas.score) : undefined}
           status={metrics?.tcas ? translateTCAS(metrics.tcas.score) : undefined}
@@ -147,7 +150,8 @@ export default function ProprietaryMetricsBar({ metrics, loading }: Props) {
 // ─── MetricCell ──────────────────────────────────────────────────────────────
 
 interface MetricCellProps {
-  label: string;
+  acronym: string;
+  fullName: string;
   subtitle: string;
   description?: string;
   value: string | null;
@@ -162,7 +166,7 @@ interface MetricCellProps {
 }
 
 function MetricCell({
-  label, subtitle, description, value, color, badge, status, tooltip,
+  acronym, fullName, subtitle, description, value, color, badge, status, tooltip,
   emptyMessage, emptyLink, isExpanded, onToggle,
 }: MetricCellProps) {
   const hasData = value !== null;
@@ -178,6 +182,16 @@ function MetricCell({
         transition: 'background-color 0.15s ease',
       }}
     >
+      {/* Full name + acronym on first mention (bible §9 acronym-labeling) */}
+      <Text style={{
+        fontFamily: "'Barlow Condensed', sans-serif",
+        fontSize: 11, fontWeight: 600, letterSpacing: '1.5px',
+        textTransform: 'uppercase',
+        color: 'var(--color-text-muted)',
+        marginBottom: 2,
+      }}>
+        {fullName}
+      </Text>
       <Text style={{
         fontFamily: "'Barlow Condensed', sans-serif",
         fontSize: 14, fontWeight: 700, letterSpacing: '2px',
@@ -185,7 +199,7 @@ function MetricCell({
         color: 'var(--color-text-muted)',
         marginBottom: 4,
       }}>
-        {label}
+        {acronym}
         <span style={{ fontSize: 12, letterSpacing: '1px', marginLeft: 6, fontWeight: 600 }}>
           {subtitle}
         </span>

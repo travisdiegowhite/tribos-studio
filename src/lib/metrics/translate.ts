@@ -33,6 +33,16 @@ export function translateTCAS(score: number): MetricTranslation {
   return { label: 'Review training', color: 'coral' };
 }
 
+// ─── FAR Translation ─────────────────────────────────────────────────────────
+
+export function translateFAR(score: number): MetricTranslation {
+  if (score >= 130) return { label: 'Danger — back off',     color: 'coral' };
+  if (score >= 100) return { label: 'Overreaching — monitor', color: 'orange' };
+  if (score >= 40)  return { label: 'Building fitness',       color: 'teal' };
+  if (score >= 0)   return { label: 'Maintaining',            color: 'muted' };
+  return                   { label: 'Losing fitness',         color: 'coral' };
+}
+
 // ─── Tooltips ────────────────────────────────────────────────────────────────
 
 export const METRICS_TOOLTIPS = {
@@ -57,5 +67,14 @@ export const METRICS_TOOLTIPS = {
     if (score >= 75) return `TCAS ${score} — Excellent adaptation efficiency. Your training time is producing real fitness gains.`;
     if (score >= 50) return `TCAS ${score} — Moderate efficiency. There may be opportunities to improve session quality or recovery patterns.`;
     return `TCAS ${score} — Low adaptation efficiency. Consider whether training structure, intensity, or recovery need adjustment.`;
+  },
+
+  far(score: number | null): string {
+    if (score == null) return 'Fitness Acquisition Rate — how fast you\'re building fitness, relative to a sustainable pace. Requires 28 days of training data.';
+    if (score >= 130) return `FAR ${Math.round(score)} — Unsustainable build rate. Injury or illness risk is elevated — back off now.`;
+    if (score >= 100) return `FAR ${Math.round(score)} — You\'re building faster than your sustainable ceiling. Monitor recovery closely.`;
+    if (score >= 40)  return `FAR ${Math.round(score)} — You\'re building fitness at a healthy pace.`;
+    if (score >= 0)   return `FAR ${Math.round(score)} — Fitness is holding steady. Add a bit more load to start building.`;
+    return                  `FAR ${Math.round(score)} — Fitness is declining. Consistent training will reverse this.`;
   },
 };

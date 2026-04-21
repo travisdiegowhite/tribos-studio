@@ -94,3 +94,39 @@ export interface TCASResult {
   adi: number;
   ppd: number;
 }
+
+// ─── FAR types ───────────────────────────────────────────────────────────────
+
+export type FARZone = 'detraining' | 'maintaining' | 'building' | 'overreaching' | 'danger';
+
+export type FARTreatment = 'normal' | 'caveat' | 'warning' | 'suppress';
+
+export type FARMomentumFlag = 'accelerating' | 'steady' | 'decelerating';
+
+export interface FARGapAssessment {
+  gapDays: number;
+  treatment: FARTreatment;
+  confidence: number;
+  boundaryGap: boolean;
+}
+
+// Minimal shape expected from training_load_daily rows
+export interface TrainingLoadDailyRow {
+  date: string;
+  tfi: number | null;
+  rss_source: string | null;
+}
+
+export interface FARResult {
+  score: number | null;
+  score_7d: number | null;
+  tfi_delta_28d: number | null;
+  weekly_rate: number | null;
+  zone: FARZone | null;
+  zone_label: string;
+  momentum_flag: FARMomentumFlag;
+  personal_ceiling_weekly_rate: number;
+  gap_days_in_window: number;
+  confidence: number;
+  treatment: FARTreatment;
+}
