@@ -11,12 +11,14 @@ import { computeWeeklySnapshots } from '../utils/computeFitnessSnapshots';
 import { translateCTL, translateTSB } from '../lib/fitness/translate';
 import { ctlTooltip, tsbTooltip } from '../lib/fitness/tooltips';
 import { useSegmentLibrary } from '../hooks/useSegmentLibrary';
+import useBanisterChart from '../hooks/useBanisterChart.ts';
+import { BanisterChart } from '../components/progress/BanisterChart';
+import ProprietaryMetricsBar from '../components/today/ProprietaryMetricsBar.tsx';
 import ZoneDistributionRow from '../components/progress/ZoneDistributionRow.jsx';
 import TrendInsightRow from '../components/progress/TrendInsightRow.jsx';
 import YearToDateStats from '../components/progress/YearToDateStats.jsx';
 import SegmentIntelligence from '../components/progress/SegmentIntelligence.jsx';
 
-// Zone allocation based on average power zone (matches ZoneDistributionChart logic)
 function getPowerZone(avgWatts, ftp) {
   if (!ftp || !avgWatts) return 2;
   const ratio = avgWatts / ftp;
@@ -59,6 +61,9 @@ function Progress() {
   const [ftp, setFtp] = useState(null);
   const [unitsPreference, setUnitsPreference] = useState('imperial');
   const [zoneTimeFilter, setZoneTimeFilter] = useState('30');
+  const [proprietaryMetrics, setProprietaryMetrics] = useState(null);
+  const [metricsLoading, setMetricsLoading] = useState(true);
+  const [rangeKey, setRangeKey] = useState('6m');
 
   const isImperial = unitsPreference === 'imperial';
   const formatDist = (km) => formatDistance(km, isImperial);
@@ -66,12 +71,12 @@ function Progress() {
 
   const { segments, loading: segmentsLoading, fetchSegments } = useSegmentLibrary(user?.id);
 
-  // Load activities and user profile
+  const banisterData = useBanisterChart(user?.id, { rangeKey, userFtp: ftp ?? undefined });
+
   useEffect(() => {
     const loadData = async () => {
       if (!user) return;
       try {
-        // Load user profile for FTP and units
         const { data: profile } = await supabase
           .from('user_profiles')
           .select('units_preference, ftp, power_zones, weight_kg')
@@ -83,7 +88,6 @@ function Progress() {
           if (profile.units_preference) setUnitsPreference(profile.units_preference);
         }
 
-        // Load all activities with pagination (Supabase caps at 1000 per request)
         let allActivities = [];
         let page = 0;
         const pageSize = 1000;
@@ -123,12 +127,36 @@ function Progress() {
     loadData();
   }, [user]);
 
-  // Fetch segments on mount
+  // Fetch proprietary metrics for TCAS/EFI sections
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    async function fetchMetrics() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token || cancelled) return;
+        const res = await fetch('/api/metrics', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` },
+        });
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          setProprietaryMetrics(data);
+        }
+      } catch {
+        // Non-blocking
+      } finally {
+        if (!cancelled) setMetricsLoading(false);
+      }
+    }
+    fetchMetrics();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
   useEffect(() => {
     if (user?.id) fetchSegments();
   }, [user?.id]);
 
-  // Calculate zone distribution
   const zoneData = useMemo(() => {
     const days = parseInt(zoneTimeFilter) || 30;
     const cutoff = new Date();
@@ -165,13 +193,11 @@ function Progress() {
     return { zones, totalTime };
   }, [activities, ftp, zoneTimeFilter]);
 
-  // Calculate CTL/ATL/TSB from full activity history
   const trainingMetrics = useMemo(() => {
     const weeklySnapshots = computeWeeklySnapshots(activities, ftp);
     if (weeklySnapshots.length === 0) {
       return { ctl: 0, atl: 0, tsb: 0, interpretation: interpretTSB(0) };
     }
-    // Most recent snapshot (index 0 since sorted descending)
     const current = weeklySnapshots[0];
     return {
       ctl: current.ctl,
@@ -181,11 +207,9 @@ function Progress() {
     };
   }, [activities, ftp]);
 
-  // Generate trend insights
   const trendInsights = useMemo(() => {
     const insights = [];
 
-    // CTL trend — canonical thresholds from translate.ts
     if (trainingMetrics.ctl > 0) {
       const ctlTranslation = translateCTL(trainingMetrics.ctl);
       insights.push({
@@ -195,7 +219,6 @@ function Progress() {
       });
     }
 
-    // Form / TSB — canonical thresholds from translate.ts
     const tsb = trainingMetrics.tsb;
     const tsbTranslation = translateTSB(tsb);
     insights.push({
@@ -205,7 +228,6 @@ function Progress() {
         : tsbTranslation.color === 'orange' ? 'attention' : 'urgent',
     });
 
-    // Volume trend (last 7d vs previous 7d)
     const now = new Date();
     const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -224,27 +246,14 @@ function Progress() {
     if (prev7Time > 0) {
       const change = ((last7Time - prev7Time) / prev7Time) * 100;
       if (change > 20) {
-        insights.push({
-          title: `Volume: +${Math.round(change)}% this week`,
-          detail: 'Training volume increased significantly. Monitor recovery.',
-          sentiment: 'attention',
-        });
+        insights.push({ title: `Volume: +${Math.round(change)}% this week`, detail: 'Training volume increased significantly. Monitor recovery.', sentiment: 'attention' });
       } else if (change < -20) {
-        insights.push({
-          title: `Volume: ${Math.round(change)}% this week`,
-          detail: 'Reduced volume — planned recovery or missed sessions?',
-          sentiment: 'neutral',
-        });
+        insights.push({ title: `Volume: ${Math.round(change)}% this week`, detail: 'Reduced volume — planned recovery or missed sessions?', sentiment: 'neutral' });
       } else {
-        insights.push({
-          title: 'Volume: Consistent',
-          detail: 'Training volume is steady week-over-week. Good consistency.',
-          sentiment: 'positive',
-        });
+        insights.push({ title: 'Volume: Consistent', detail: 'Training volume is steady week-over-week. Good consistency.', sentiment: 'positive' });
       }
     }
 
-    // Zone distribution insight
     if (zoneData.zones.length > 0) {
       const z2Pct = zoneData.zones.find(z => z.zone === 2)?.percentage || 0;
       const highPct = (zoneData.zones.find(z => z.zone === 4)?.percentage || 0)
@@ -252,34 +261,20 @@ function Progress() {
         + (zoneData.zones.find(z => z.zone === 6)?.percentage || 0);
 
       if (z2Pct > 60 && highPct > 10) {
-        insights.push({
-          title: 'Distribution: Polarized',
-          detail: 'Good balance of easy riding and hard efforts — the most effective training approach.',
-          sentiment: 'positive',
-        });
+        insights.push({ title: 'Distribution: Polarized', detail: 'Good balance of easy riding and hard efforts — the most effective training approach.', sentiment: 'positive' });
       } else if (z2Pct > 60) {
-        insights.push({
-          title: 'Distribution: Aerobic-heavy',
-          detail: 'Lots of easy riding. Consider adding some intensity to drive adaptation.',
-          sentiment: 'neutral',
-        });
+        insights.push({ title: 'Distribution: Aerobic-heavy', detail: 'Lots of easy riding. Consider adding some intensity to drive adaptation.', sentiment: 'neutral' });
       } else if (highPct > 30) {
-        insights.push({
-          title: 'Distribution: Intensity-heavy',
-          detail: 'High proportion of hard efforts. Ensure adequate recovery between sessions.',
-          sentiment: 'attention',
-        });
+        insights.push({ title: 'Distribution: Intensity-heavy', detail: 'High proportion of hard efforts. Ensure adequate recovery between sessions.', sentiment: 'attention' });
       }
     }
 
     return insights;
   }, [trainingMetrics, activities, zoneData]);
 
-  // Calculate YTD stats
   const ytdStats = useMemo(() => {
     const yearStart = new Date(new Date().getFullYear(), 0, 1);
     const ytd = activities.filter(a => new Date(a.start_date) >= yearStart);
-
     return {
       totalRides: ytd.length,
       totalDistance: ytd.reduce((s, a) => s + (a.distance_meters || a.distance || 0), 0),
@@ -294,8 +289,8 @@ function Progress() {
         <Container size="xl" py="lg">
           <Stack gap={14}>
             <Skeleton height={32} width={200} />
+            <Skeleton height={500} />
             <Skeleton height={200} />
-            <Skeleton height={150} />
           </Stack>
         </Container>
       </AppShell>
@@ -307,6 +302,25 @@ function Progress() {
       <Container size="xl" py="lg">
         <Stack gap={14}>
           <PageHeader title="Progress" />
+
+          {/* Primary: Fitness · Fatigue · Form — Banister chart (bible §3) */}
+          <BanisterChart
+            series={banisterData.days}
+            rides={banisterData.rides}
+            races={banisterData.races}
+            phases={banisterData.phases}
+            kpi={banisterData.kpi}
+            range={rangeKey}
+            onRangeChange={setRangeKey}
+            loading={banisterData.loading}
+            error={banisterData.error}
+          />
+
+          {/* Training efficiency metrics — TCAS + EFI (moved from TODAY, bible §5.2/§5.3) */}
+          <ProprietaryMetricsBar
+            metrics={proprietaryMetrics}
+            loading={metricsLoading}
+          />
 
           {/* Zone Distribution */}
           <Box

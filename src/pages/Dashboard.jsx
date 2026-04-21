@@ -21,11 +21,10 @@ import IntelligenceCard from '../components/today/IntelligenceCard.jsx';
 import { CoachCard } from '../components/coach';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import WeekChart from '../components/today/WeekChart.jsx';
-import FitnessCurveChart from '../components/today/FitnessCurveChart.jsx';
+import ProgressPreviewStrip from '../components/dashboard/ProgressPreviewStrip/ProgressPreviewStrip.tsx';
 import TodayHero from '../components/today/TodayHero.jsx';
 import YesterdayTodayAhead from '../components/today/YesterdayTodayAhead.jsx';
 import ActionRow from '../components/today/ActionRow.jsx';
-import ProprietaryMetricsBar from '../components/today/ProprietaryMetricsBar.tsx';
 import { FARCard } from '../components/today/FARCard/FARCard.tsx';
 import { ActivePlanCard } from '../components/training';
 import { calculateCTL, calculateATL, calculateTSB } from '../utils/trainingPlans';
@@ -372,15 +371,6 @@ function Dashboard() {
           {/* Activation Guide (new users) */}
           <GetStartedGuide />
 
-          {/* Fitness curve — spec §3. Past-only v1; projection ships in
-              spec §13 step 5. Reuses the activities Dashboard already
-              fetched so the curve and StatusBar agree on every value. */}
-          <FitnessCurveChart
-            userId={user?.id}
-            activities={activities}
-            userFtp={userProfile?.ftp}
-          />
-
           {/* Today Hero — archetype-voiced paragraph */}
           <TodayHero />
 
@@ -399,8 +389,6 @@ function Dashboard() {
             tfi={trainingMetrics.ctl}
             afi={trainingMetrics.atl}
             fs={trainingMetrics.tsb}
-            efi={proprietaryMetrics?.efi?.score ?? proprietaryMetrics?.efi?.session_score ?? null}
-            tcas={proprietaryMetrics?.tcas?.score ?? null}
             tfiDeltaPct={trainingMetrics.ctlDeltaPct}
             rideTodayHref={todayWorkout ? '/train' : undefined}
             viewPlanHref="/train"
@@ -415,10 +403,6 @@ function Dashboard() {
               loading={loading}
               fsConfidence={fsConfidence}
               todayTerrain={todayTerrain}
-            />
-            <ProprietaryMetricsBar
-              metrics={proprietaryMetrics}
-              loading={metricsLoading}
             />
           </ActionRow>
 
@@ -471,6 +455,13 @@ function Dashboard() {
             loading={loading}
             formatDist={formatDist}
             formatElev={formatElev}
+          />
+
+          {/* Tier 4 — PROGRESS sneak preview strip */}
+          <ProgressPreviewStrip
+            userId={user?.id}
+            activities={activities}
+            userFtp={userProfile?.ftp}
           />
         </Stack>
       </Container>
