@@ -21,11 +21,8 @@ import IntelligenceCard from '../components/today/IntelligenceCard.jsx';
 import { CoachCard } from '../components/coach';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import WeekChart from '../components/today/WeekChart.jsx';
-import ProgressPreviewStrip from '../components/dashboard/ProgressPreviewStrip/ProgressPreviewStrip.tsx';
-import TodayHero from '../components/today/TodayHero.jsx';
-import YesterdayTodayAhead from '../components/today/YesterdayTodayAhead.jsx';
-import ActionRow from '../components/today/ActionRow.jsx';
-import { FARCard } from '../components/today/FARCard/FARCard.tsx';
+import FitnessSummary from '../components/today/FitnessSummary.jsx';
+import ProprietaryMetricsBar from '../components/today/ProprietaryMetricsBar.tsx';
 import { ActivePlanCard } from '../components/training';
 import { calculateCTL, calculateATL, calculateTSB } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
@@ -173,17 +170,16 @@ function Dashboard() {
           // Fetch planned workouts for this week across all active plans
           const wsKey = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
           const weKey = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`;
-          // target_tss is the canonical filter column on planned_workouts;
-          // the planned target_rss rename was deferred (no ADD migration
-          // ever landed — see CLAUDE.md DROPs-deferred notes). Selecting
-          // target_rss here returned 400 and set weekStats.planned to 0.
+          // Prefer canonical target_rss (spec §2). The filter uses .or() to
+          // include rows written pre-§3b-2/3b-6 (legacy target_tss > 0) as
+          // well as rows written post-cut-over (target_rss > 0).
           const { data: plannedWorkouts } = await supabase
             .from('planned_workouts')
-            .select('id, target_tss')
+            .select('id, target_rss, target_tss')
             .in('plan_id', planIds)
             .gte('scheduled_date', wsKey)
             .lt('scheduled_date', weKey)
-            .gt('target_tss', 0);
+            .or('target_rss.gt.0,target_tss.gt.0');
 
           setWeekStats(prev => ({ ...prev, planned: plannedWorkouts?.length || 0 }));
         }
@@ -371,47 +367,34 @@ function Dashboard() {
           {/* Activation Guide (new users) */}
           <GetStartedGuide />
 
-          {/* Today Hero — archetype-voiced paragraph */}
-          <TodayHero />
-
-          {/* Yesterday / Today / Next strip — spec §5 */}
-          <YesterdayTodayAhead
-            userId={user?.id}
-            lastRide={activities[0] || null}
-            todayWorkout={todayWorkout}
-            todayRouteMatch={todayRouteMatch}
-            activePlanIds={activePlans.map((p) => p.id)}
-            formatDist={formatDist}
-          />
-
-          {/* Action row — compact metric codes + expand drawer + CTAs (spec §6) */}
-          <ActionRow
-            tfi={trainingMetrics.ctl}
-            afi={trainingMetrics.atl}
-            fs={trainingMetrics.tsb}
-            tfiDeltaPct={trainingMetrics.ctlDeltaPct}
-            rideTodayHref={todayWorkout ? '/train' : undefined}
-            viewPlanHref="/train"
-          >
-            <StatusBar
-              ctl={trainingMetrics.ctl}
-              atl={trainingMetrics.atl}
-              tsb={trainingMetrics.tsb}
-              ctlDeltaPct={trainingMetrics.ctlDeltaPct}
-              weekRides={weekStats.activities}
-              weekPlanned={weekStats.planned}
-              loading={loading}
-              fsConfidence={fsConfidence}
-              todayTerrain={todayTerrain}
-            />
-          </ActionRow>
-
-          {/* FAR Card — Fitness Acquisition Rate (Tier 2, gated by VITE_FEATURE_FAR) */}
-          <FARCard
-            far={proprietaryMetrics?.far ?? null}
+          {/* Proprietary Metrics — EFI/TWL/TCAS */}
+          <ProprietaryMetricsBar
+            metrics={proprietaryMetrics}
             loading={metricsLoading}
-            farDaysRemaining={proprietaryMetrics?.data_readiness?.far_days_remaining ?? 0}
           />
+
+          {/* Status Bar — CTL/ATL/TSB/This Week */}
+          <StatusBar
+            ctl={trainingMetrics.ctl}
+            atl={trainingMetrics.atl}
+            tsb={trainingMetrics.tsb}
+            ctlDeltaPct={trainingMetrics.ctlDeltaPct}
+            weekRides={weekStats.activities}
+            weekPlanned={weekStats.planned}
+            loading={loading}
+            fsConfidence={fsConfidence}
+            todayTerrain={todayTerrain}
+          />
+
+          {/* AI Fitness Summary — plain-language context */}
+          {!loading && (
+            <FitnessSummary
+              tfi={trainingMetrics.ctl}
+              afi={trainingMetrics.atl}
+              formScore={trainingMetrics.tsb}
+              ctlDeltaPct={trainingMetrics.ctlDeltaPct}
+            />
+          )}
 
           {/* Intelligence Card — workout + route match */}
           <IntelligenceCard
@@ -455,13 +438,6 @@ function Dashboard() {
             loading={loading}
             formatDist={formatDist}
             formatElev={formatElev}
-          />
-
-          {/* Tier 4 — PROGRESS sneak preview strip */}
-          <ProgressPreviewStrip
-            userId={user?.id}
-            activities={activities}
-            userFtp={userProfile?.ftp}
           />
         </Stack>
       </Container>
