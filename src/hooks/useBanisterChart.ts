@@ -26,7 +26,6 @@ export interface BanisterDay {
   tfi: number;
   afi: number;
   fs: number;
-  source: 'canonical' | 'computed';
 }
 
 export interface BanisterRide {
@@ -109,15 +108,7 @@ export default function useBanisterChart(
         const startDate = isoDateOffset(today, -(windowDays - 1));
         const warmupDate = isoDateOffset(today, -(windowDays - 1 + WARMUP_DAYS));
 
-        const [loadResult, planResult, activitiesResult, profileResult] = await Promise.all([
-          supabase
-            .from('training_load_daily')
-            .select('date, tfi, afi, form_score')
-            .eq('user_id', userId)
-            .gte('date', startDate)
-            .lte('date', today)
-            .order('date', { ascending: true }),
-
+        const [planResult, activitiesResult, profileResult] = await Promise.all([
           supabase
             .from('training_plans')
             .select('id, current_week, duration_weeks, methodology, started_at')
@@ -143,7 +134,6 @@ export default function useBanisterChart(
 
         if (cancelled) return;
 
-        const rawLoad = loadResult.data || [];
         const plan = planResult.data || null;
         const rawActivities = activitiesResult.data || [];
         const userFtp: number = externalFtp ?? (profileResult?.data as { ftp: number } | null)?.ftp ?? 200;
@@ -162,7 +152,7 @@ export default function useBanisterChart(
           if (!date) continue;
           const idx = dateIndex.get(date);
           if (idx == null) continue;
-          const rss = act.rss ?? act.tss ?? estimateActivityTSS(act, userFtp);
+          const rss = estimateActivityTSS(act, userFtp);
           if (!rss) continue;
           dailyRss[idx] += Math.min(rss, 500);
         }
@@ -183,19 +173,16 @@ export default function useBanisterChart(
           computedFs[i] = i === 0 ? 0 : computedTfi[i - 1] - computedAfi[i - 1];
         }
 
-        const byDate = new Map(rawLoad.map((r: { date: string; tfi: number; afi: number; form_score: number }) => [r.date, r]));
         const days: BanisterDay[] = [];
         const windowStartIdx = WARMUP_DAYS;
         for (let offset = 0; offset < windowDays; offset++) {
           const globalIdx = windowStartIdx + offset;
           const date = dailyDates[globalIdx];
-          const canonical = byDate.get(date) as { tfi: number; afi: number; form_score: number } | undefined;
           days.push({
             date,
-            tfi: canonical?.tfi ?? Math.round(computedTfi[globalIdx]),
-            afi: canonical?.afi ?? Math.round(computedAfi[globalIdx]),
-            fs: canonical?.form_score ?? Math.round(computedFs[globalIdx]),
-            source: canonical ? 'canonical' : 'computed',
+            tfi: Math.round(computedTfi[globalIdx]),
+            afi: Math.round(computedAfi[globalIdx]),
+            fs: Math.round(computedFs[globalIdx]),
           });
         }
 
@@ -225,7 +212,7 @@ export default function useBanisterChart(
 
           const workoutType = classifyWorkoutType(act, userFtp);
           const style = (WORKOUT_STYLE as Record<string, { color: string; size: string; hollow?: boolean }>)[workoutType] || WORKOUT_STYLE.default;
-          const load = act.rss ?? act.tss ?? estimateActivityTSS(act, userFtp) ?? 0;
+          const load = estimateActivityTSS(act, userFtp) ?? 0;
 
           const existing = byDay.get(localDate);
           if (!existing || load > existing.load) {
