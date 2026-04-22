@@ -263,6 +263,29 @@ SQL migrations live in `/database/`, numbered chronologically (001–044+). Key 
 - Fitness snapshots and activation tracking
 - Fueling and cross-training
 
+### Orphaned tables from rolled-back features — ignore, do not query
+
+Migrations `081` and `082` ran in production before PRs #675–#681 were reverted
+(2026-04-22). The tables they created have **no corresponding code** and receive
+no reads or writes. Do not add new code that references them.
+
+| Table | Created by | What it was |
+|-------|-----------|-------------|
+| `today_hero_paragraphs` | migration 081 | Cache for the AI-generated dashboard hero paragraph |
+| `far_daily` | migration 082 | Daily FAR (Fitness Acquisition Rate) metric rows |
+
+If these features are eventually re-implemented, the migrations do not need to
+be re-run — the tables are already there. If they are permanently abandoned,
+drop both tables (they have no foreign-key dependents; order doesn't matter):
+
+```sql
+DROP TABLE IF EXISTS today_hero_paragraphs;
+DROP TABLE IF EXISTS far_daily;
+```
+
+Do not drop them without explicit approval — the same "wait and watch" policy
+that governs legacy column drops applies here.
+
 ## Auth Flow — Critical Path (DO NOT BREAK)
 
 The signup and login flow is the most critical path in the app. Any breakage blocks all new users. Follow these rules strictly:
