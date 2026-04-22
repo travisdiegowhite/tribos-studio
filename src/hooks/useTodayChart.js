@@ -31,7 +31,7 @@ const WARMUP_DAYS = 90;
 // Workout-type → colour + dot-size. Thermal-ish progression so harder
 // rides read hotter, with VO2/anaerobic/race shifted to a deep crimson
 // so they stand clear of the threshold orange at a glance.
-const WORKOUT_STYLE = {
+export const WORKOUT_STYLE = {
   recovery:     { color: '#639922', size: 'small' },
   endurance:    { color: '#639922', size: 'small' },
   easy:         { color: '#639922', size: 'small' },
@@ -69,7 +69,7 @@ function isoDateOffset(baseIso, offsetDays) {
  *      <0.95 sweet_spot, <1.05 threshold, <1.20 vo2, ≥1.20 anaerobic.
  *   3. Duration fallback — <30 min → recovery, >3 hours → long_ride.
  */
-function classifyWorkoutType(activity, ftp) {
+export function classifyWorkoutType(activity, ftp) {
   const name = (activity?.name || '').toLowerCase();
   const type = (activity?.type || '').toLowerCase();
 
@@ -129,7 +129,7 @@ export function derivePhaseForWeek(currentWeek, totalWeeks) {
   return 'taper';
 }
 
-function groupPhases(perDay) {
+export function groupPhases(perDay) {
   if (perDay.length === 0) return [];
   const out = [];
   let current = { startDate: perDay[0].date, endDate: perDay[0].date, phase: perDay[0].phase };

@@ -21,7 +21,7 @@ If you're writing a pull request that would make any part of this document wrong
 
 This rule exists because metric drift is silent and expensive. A formula change nobody documents becomes a bug report three months later that nobody can triage. The bible is the antidote — but only if it stays true.
 
-**Last updated:** 2026-04-20
+**Last updated:** 2026-04-21
 **Maintained by:** Tribos core team (solo founder + AI coding agents)
 **Applies to:** Tribos production — Vite + React Router 7 + Supabase
 
@@ -784,10 +784,11 @@ Every surface where a metric appears must be listed here. When a new UI componen
 |-------|-----------|-------------|----------|------------|
 | `/` | `StatusBar.jsx` | TFI, AFI, FS, Trend | FITNESS / FATIGUE / FORM / TREND | `tfi ?? ctl`, `afi ?? atl`, `form_score ?? tsb` |
 | `/` | `FitnessBars.jsx` | TFI, AFI, FS | bar widths + color | same |
-| `/` | `FitnessCurveChart.jsx` | TFI, AFI, FS (6-week) | labeled axes | same |
 | `/` | `YesterdayTodayAhead.jsx` | Yesterday RSS, today target | "RSS [n]" | `rss ?? tss`, `target_tss` |
-| `/` | `ProprietaryMetricsBar.tsx` | EFI 28d, TCAS 6w | "EFI 28-day" / "TCAS 6-week" | `efi.score`, `tcas.score` |
+| `/` | `ProgressPreviewStrip.tsx` | TFI, AFI, FS (42-day window) | FITNESS / FATIGUE / FORM | `tfi`, `afi`, `form_score` |
 | `/` | `FSTargetBadge.tsx` | FS target for next race | race-type chip | `race_goals` + `form_score` — **not yet wired** (see §12) |
+| `/progress` | `BanisterChart.tsx` | TFI, AFI, FS (6w–all window) | FITNESS / FATIGUE / FORM | `tfi`, `afi`, `form_score` |
+| `/progress` | `ProprietaryMetricsBar.tsx` | EFI 28d, TCAS 6w | "EXECUTION FIDELITY INDEX · EFI" / "TRAINING CAPACITY ACQUISITION SCORE · TCAS" | `efi.score`, `tcas.score` |
 | `/train` | `PeriodizationView.tsx` | Planned vs actual RSS per week | weekly bars | `plannedTSS` / `actualTSS` |
 | `/train` | `PlanCalendarOverview.tsx` | RSS heat tint per workout | bg color | `target_tss` |
 | `/train` | `CheckInWeekBar.tsx` | Daily planned vs actual RSS | day-by-day | `target_tss` / `rss ?? tss` |
@@ -799,12 +800,9 @@ Every surface where a metric appears must be listed here. When a new UI componen
 **Planned additions (spec locked, not yet shipped):**
 
 - `FARCard.tsx` on `/` (TODAY page) — hero position, Tier 2 (see redesign spec)
-- `FARHistoryChart.tsx` on `/progress` (new page)
-- `ProgressPreviewStrip.tsx` on `/` (TODAY Tier 4) — teaser strip showing FIT/FAT/FORM with link to PROGRESS
-- `BanisterChart.tsx` on `/progress` — relocated and expanded from `FitnessCurveChart.jsx`
-- TCAS history view on `/progress`
-- EFI trend view on `/progress`
-- Acronym labeling compliance sweep on `ProprietaryMetricsBar.tsx` and any other component rendering bare acronyms (see §9 acronym labeling discipline)
+- `FARHistoryChart.tsx` on `/progress` — FAR history with zone bands (Phase 5)
+- TCAS history chart on `/progress` (Phase 5)
+- EFI trend chart on `/progress` (Phase 5)
 
 When these ship, update this table.
 
@@ -917,6 +915,7 @@ Tribos brand tokens (from brand system): teal `#2A8C82`, orange `#D4600A`, gold 
 | `src/lib/metrics/far.ts` | FAR formula (TS) *(planned — not yet implemented)* |
 | `api/utils/farCeiling.js` | FAR personal ceiling computation + recompute cron *(planned)* |
 | `src/lib/fitness/translate.ts` | Display labels + color tokens |
+| `src/hooks/useBanisterChart.ts` | Configurable-window TFI/AFI/FS data hook (6w → all) for BanisterChart on /progress |
 
 **Rule:** If you add a new file that computes or stores a metric, add a row here in the same commit.
 
@@ -937,9 +936,8 @@ Tribos brand tokens (from brand system): teal `#2A8C82`, orange `#D4600A`, gold 
 | Stale FTP warning | Not implemented; FTP drift silently degrades metrics | High | New — recommend prompt at 90-day stale threshold |
 | FAR Phase 2 (race projection) | Extend `get_far_summary` with projected TFI and form at next race | Medium | `FAR_implementation_checklist.md` §Phase 2 |
 | FAR Phase 3 (personalized ceiling) | Personal ceiling model; requires `years_training`, `masters_cat` onboarding fields | Medium | `FAR_implementation_checklist.md` §Phase 3 |
-| TODAY page redesign | Spec locked | Medium | `TODAY_PROGRESS_redesign_spec.md` |
-| PROGRESS page | Spec locked | Medium | `TODAY_PROGRESS_redesign_spec.md` Part 3 |
-| Acronym labeling compliance | `ProprietaryMetricsBar.tsx` renders bare acronyms; violates §9 discipline | Medium (prerequisite for FAR rollout) | Add full-name labels + tooltips before FAR ships |
+| TODAY page redesign | Phase 2 shipped (Banister chart moved, ProgressPreviewStrip added, ProprietaryMetricsBar moved to /progress). Phases 3–5 pending. | Medium | `TODAY_PROGRESS_redesign_spec.md` |
+| TFI canonical-column backfill | Prerequisite for FAR (Phase 3). BanisterChart uses `canonical?.tfi ?? computed_ewa` so Phase 2 is not blocked. Verify with SQL in plan doc before Phase 3 ships. | High (required before FAR) | Bible §5.4 |
 | `masters_cat` column | Needed for FAR ceiling `age_mod`; column does not exist in `user_profiles` | Medium (required for FAR) | Add column + onboarding question in FAR Phase 3 |
 | `years_training` column | Needed for FAR ceiling `experience_mod`; column does not exist in `user_profiles` | Medium (required for FAR) | Add column + onboarding question in FAR Phase 3 |
 
@@ -993,6 +991,7 @@ Every material change to this document gets a row here. Format: `YYYY-MM-DD · C
 | 2026-04-20 | FAR (Fitness Acquisition Rate) added as planned §5.4 entry after naming collision with existing TCAS was caught — spec lives in `tcas-today-progress-spec.md` and will be renamed in that doc before implementation | Core team |
 | 2026-04-20 | Scrubbed personal-user references throughout document (TWL intent, TCAS data quality warning, Rouvy gap description, change log attributions, pre-flight checklist); added §16 "Writing for this document" subsection codifying user-neutrality discipline for future edits | Core team |
 | 2026-04-20 | FAR spec locked and expanded in §5.4 with full formula, personal ceiling model (experience/consistency/age modifiers), zone definitions, gap-handling rules (2/5/13/14-day thresholds), combinatorial coaching coverage matrix, onboarding additions (`years_training`, `masters_cat`), storage schema, and UI surface plan. Added §9 acronym-labeling discipline (full name with acronym on first mention, tooltips required, onboarding introduction). Updated §8 planned UI surfaces, §11 calc files, §12 gaps with FAR prerequisites | Core team |
+| 2026-04-21 | Phase 2 shipped: `BanisterChart.tsx` added to `/progress` (400px, 6m default, range selector 6w/3m/6m/1y/all, Y-axis gridlines, race markers, peak callout) replacing `FitnessCurveChart.jsx` on TODAY. `ProgressPreviewStrip.tsx` added to TODAY Tier 4 (42-day TFI mini chart, TFI/AFI/FS values, links to /progress). `ProprietaryMetricsBar.tsx` moved from TODAY to `/progress`. `FitnessCurveChart.jsx` deleted. `ActionRow.jsx` EFI/TCAS compact codes removed. `useBanisterChart.ts` hook added. §8 updated (removed FitnessCurveChart row, updated ProprietaryMetricsBar to /progress, added BanisterChart and ProgressPreviewStrip rows). §11 updated (added useBanisterChart.ts). §12 updated (PROGRESS gap closed, TFI backfill noted as FAR prerequisite). Acronym labeling sweep complete on all touched components. | Core team |
 
 ---
 

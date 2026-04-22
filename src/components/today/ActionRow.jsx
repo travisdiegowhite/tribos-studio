@@ -66,8 +66,6 @@ export default function ActionRow({
   tfi,
   afi,
   fs,
-  efi,
-  tcas,
   tfiDeltaPct,
   rideTodayHref,
   viewPlanHref = '/train',
@@ -92,8 +90,6 @@ export default function ActionRow({
       >
         {/* Left: compact metric codes */}
         <Group gap={14} wrap="wrap">
-          <Code label="EFI" value={formatScore(efi)} />
-          <Code label="TCAS" value={formatScore(tcas)} />
           <Code label="TFI" value={formatScore(tfi)} tone={toneForTrendDelta(tfiDeltaPct)} />
           <Code label="AFI" value={formatScore(afi)} />
           <Code label="FS" value={formatSigned(fs)} tone={toneForForm(fs)} />
