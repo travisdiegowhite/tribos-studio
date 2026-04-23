@@ -1,16 +1,15 @@
 /**
- * Internal PROGRESS chart — Travis-only (travisdiegowhite@gmail.com).
+ * Fitness Progress Chart — CTL and TFI as peer lines.
  *
- * Shows CTL (standard τ=42, from computeFitnessMetrics) and TFI (adaptive τ,
- * server-stored in training_load_daily) as equal-weight peer lines from Jan 1
- * through the next A-race date. Used to collect race-day data for the
- * CTL-vs-TFI audit (Boulder Roubaix Apr 26, BWR May 3).
+ * CTL (Chronic Training Load): standard EWA τ=42, computed client-side from
+ * stored RSS/TSS values on activities.
+ * TFI (Training Fitness Index): adaptive τ, server-computed and stored in
+ * training_load_daily.tfi.
  *
- * Route: /internal/progress
+ * Route: /internal/progress (accessible to all authenticated users)
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Navigate } from 'react-router-dom';
 import {
   Container, Title, Text, Group, Badge, Stack, Button, SegmentedControl,
   Alert, Loader, Center, Box, ActionIcon,
@@ -29,29 +28,14 @@ import { getTodayString, formatLocalDate, parseLocalDate } from '../utils/dateUt
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const AUDIT_EMAIL     = 'travisdiegowhite@gmail.com';
 const CTL_COLOR       = '#2A8C82';
 const TFI_COLOR       = '#C49A0A';
 const SEASON_START    = '2026-01-01';
 const BOULDER_ROUBAIX = '2026-04-26';
 const BWR             = '2026-05-03';
+const CTL_TAU         = 42;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface DailyRow {
-  date: string;
-  rss: number;
-  ctl: number;
-  atl: number;
-  tsb: number;
-  tfi: number | null;
-  afi: number | null;
-  form_score: number | null;
-  tfi_minus_ctl: number | null;
-  rss_source: string | null;
-  confidence: number | null;
-  tfi_tau: number | null;
-}
 
 interface Activity {
   id: string;
@@ -59,14 +43,21 @@ interface Activity {
   type: string;
   start_date: string;
   moving_time: number | null;
+  distance: number | null;
+  total_elevation_gain: number | null;
+  average_watts: number | null;
+  average_heartrate: number | null;
+  kilojoules: number | null;
   rss: number | null;
   tss: number | null;
+  effective_power: number | null;
+  normalized_power: number | null;
 }
 
-interface AuditData {
-  through_date: string;
-  daily: DailyRow[];
-  activities: Activity[];
+interface TLDRow {
+  date: string;
+  tfi: number | null;
+  tfi_tau: number | null;
 }
 
 interface RaceGoal {
@@ -111,6 +102,30 @@ function addDays(dateStr: string, n: number): string {
   return formatLocalDate(d) ?? dateStr;
 }
 
+function estimateRSS(a: Activity, ftp: number | null): number {
+  const stored = (a.rss ?? a.tss);
+  if (stored && stored > 0) return Math.min(stored, 500);
+
+  const durationHours = (a.moving_time || 0) / 3600;
+  if (durationHours === 0) return 0;
+
+  const power = a.effective_power ?? a.normalized_power ?? a.average_watts;
+  if (power && power > 0 && ftp && ftp > 0) {
+    const ri = power / ftp;
+    return Math.min(Math.round(durationHours * ri * ri * 100), 500);
+  }
+
+  if (a.kilojoules && a.kilojoules > 0) {
+    const avgPower = (a.kilojoules * 1000) / (a.moving_time || 1);
+    const effectiveFtp = (ftp && ftp > 0) ? ftp : 200;
+    const ri = avgPower / effectiveFtp;
+    return Math.min(Math.round(durationHours * ri * ri * 100), 500);
+  }
+
+  const elevM = a.total_elevation_gain || 0;
+  return Math.min(Math.round(durationHours * 50 + (elevM / 300) * 10), 500);
+}
+
 // ─── Custom tooltip ───────────────────────────────────────────────────────────
 
 const ProgressTooltip = ({ active, payload, label }: any) => {
@@ -146,93 +161,124 @@ const ProgressTooltip = ({ active, payload, label }: any) => {
 export default function InternalProgress() {
   const { user } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
-
-  // Gate: redirect non-Travis users
-  if (user && user.email?.toLowerCase() !== AUDIT_EMAIL.toLowerCase()) {
-    return <Navigate to="/today" replace />;
-  }
-
   const TODAY = getTodayString();
 
-  const [auditData, setAuditData] = useState<AuditData | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [tldRows, setTldRows] = useState<TLDRow[]>([]);
   const [nextRace, setNextRace] = useState<RaceGoal | null>(null);
+  const [ftp, setFtp] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [window_, setWindow] = useState<WindowOption>('jan1');
+
+  const windowStart = daysBefore(TODAY, 180);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     setError(null);
     try {
-      // Fetch audit data and race goals in parallel
-      const [auditResult, goalsResult] = await Promise.all([
-        (async () => {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.access_token) throw new Error('Not authenticated');
-          const res = await fetch('/api/internal/fitness-audit', {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-          if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            throw new Error((body as any).error || `HTTP ${res.status}`);
-          }
-          return res.json() as Promise<AuditData>;
-        })(),
-        (async () => {
-          const { data, error: goalsError } = await supabase
-            .from('race_goals')
-            .select('id, name, race_date, priority, target_tfi_min, target_tfi_max')
-            .eq('user_id', user.id)
-            .eq('status', 'upcoming')
-            .gte('race_date', TODAY)
-            .order('priority', { ascending: true })
-            .order('race_date', { ascending: true })
-            .limit(5);
-          // Treat "table does not exist" as no data, not an error
-          if (goalsError?.code === '42P01' || goalsError?.message?.includes('does not exist')) {
-            return [] as RaceGoal[];
-          }
-          if (goalsError) throw goalsError;
-          return (data ?? []) as RaceGoal[];
-        })(),
+      const [actResult, profileResult, tldResult, goalsResult] = await Promise.all([
+        supabase
+          .from('activities')
+          .select(
+            'id, name, type, start_date, moving_time, distance, ' +
+            'total_elevation_gain, average_watts, average_heartrate, ' +
+            'kilojoules, rss, tss, effective_power, normalized_power'
+          )
+          .eq('user_id', user.id)
+          .or('is_hidden.eq.false,is_hidden.is.null')
+          .is('duplicate_of', null)
+          .gte('start_date', windowStart + 'T00:00:00Z')
+          .order('start_date', { ascending: true }),
+
+        supabase
+          .from('user_profiles')
+          .select('ftp')
+          .eq('id', user.id)
+          .maybeSingle(),
+
+        supabase
+          .from('training_load_daily')
+          .select('date, tfi, tfi_tau')
+          .eq('user_id', user.id)
+          .gte('date', windowStart)
+          .order('date', { ascending: true }),
+
+        supabase
+          .from('race_goals')
+          .select('id, name, race_date, priority, target_tfi_min, target_tfi_max')
+          .eq('user_id', user.id)
+          .eq('status', 'upcoming')
+          .gte('race_date', TODAY)
+          .order('priority', { ascending: true })
+          .order('race_date', { ascending: true })
+          .limit(5),
       ]);
 
-      setAuditData(auditResult);
-      const goals = goalsResult as RaceGoal[];
+      if (actResult.error) throw actResult.error;
+
+      setActivities((actResult.data ?? []) as Activity[]);
+      setFtp(profileResult.data?.ftp ?? null);
+      setTldRows((tldResult.data ?? []) as TLDRow[]);
+
+      const goals = (goalsResult.data ?? []) as RaceGoal[];
       setNextRace(goals.find(g => g.priority === 'A') ?? goals[0] ?? null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [user, TODAY]);
+  }, [user, windowStart, TODAY]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Build chart data: season-filtered, activity-merged, extended to race date
+  // Build daily CTL from activities using EWA
   const { chartRows, withActivity } = useMemo(() => {
-    if (!auditData) return { chartRows: [], withActivity: [] };
+    if (!activities) return { chartRows: [], withActivity: [] };
 
-    const filtered = auditData.daily.filter(r => r.date >= SEASON_START);
-
-    // Build activity lookup by date
-    const actByDate: Record<string, Activity> = {};
-    for (const a of auditData.activities) {
+    // Activity lookup by date
+    const actByDate: Record<string, { rss: number; activity: Activity }> = {};
+    for (const a of activities) {
       const d = a.start_date?.slice(0, 10);
-      if (d && !actByDate[d]) actByDate[d] = a;
+      if (!d) continue;
+      if (!actByDate[d]) actByDate[d] = { rss: 0, activity: a };
+      actByDate[d].rss += estimateRSS(a, ftp);
     }
 
-    const merged: ChartRow[] = filtered.map(r => ({
-      date: r.date,
-      ctl: r.ctl,
-      tfi: r.tfi ?? null,
-      activity: actByDate[r.date] ?? null,
-      tfi_tau: r.tfi_tau ?? null,
-    }));
+    // TFI lookup by date
+    const tfiByDate: Record<string, TLDRow> = {};
+    for (const row of tldRows) {
+      tfiByDate[row.date] = row;
+    }
 
-    // Extend data array from tomorrow through race_date + 1 day so that
-    // ReferenceArea x1/x2 and race ReferenceLine values resolve on the axis.
+    // Walk day-by-day for 180 days, computing CTL via EWA
+    let ctl = 0;
+    const merged: ChartRow[] = [];
+    const startDate = parseLocalDate(windowStart);
+    if (!startDate) return { chartRows: [], withActivity: [] };
+
+    for (let i = 0; i < 180; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i + 1);
+      const dateStr = formatLocalDate(d) ?? '';
+      if (dateStr > TODAY) break;
+
+      const dayData = actByDate[dateStr];
+      const rss = dayData?.rss ?? 0;
+      ctl = ctl + (rss - ctl) / CTL_TAU;
+
+      const tld = tfiByDate[dateStr];
+      merged.push({
+        date: dateStr,
+        ctl: Math.round(ctl * 10) / 10,
+        tfi: tld?.tfi ?? null,
+        activity: dayData?.activity ?? null,
+        tfi_tau: tld?.tfi_tau ?? null,
+      });
+    }
+
+    // Extend to race date for ReferenceArea and race ReferenceLine rendering
     const extendTo = nextRace?.race_date
       ? addDays(nextRace.race_date, 1)
       : addDays(BWR, 1);
@@ -254,18 +300,17 @@ export default function InternalProgress() {
     }
 
     return { chartRows: [...merged, ...placeholders], withActivity: merged };
-  }, [auditData, nextRace, TODAY]);
+  }, [activities, ftp, tldRows, nextRace, windowStart, TODAY]);
 
   // Apply window filter
   const displayRows = useMemo(() => {
-    const windowStart =
+    const start =
       window_ === 'jan1' ? SEASON_START :
       window_ === '90'   ? daysBefore(TODAY, 90) :
                            daysBefore(TODAY, 30);
-    return chartRows.filter(r => r.date >= windowStart);
+    return chartRows.filter(r => r.date >= start);
   }, [chartRows, window_, TODAY]);
 
-  // Tick interval based on display range length
   const tickInterval = useMemo(() => {
     const n = displayRows.length;
     if (n <= 45) return 6;
@@ -273,12 +318,11 @@ export default function InternalProgress() {
     return 14;
   }, [displayRows.length]);
 
-  // Current values from last real (non-placeholder) row
+  // Current values from last real row
   const lastReal = withActivity[withActivity.length - 1] ?? null;
   const currentCTL = lastReal?.ctl ?? null;
   const currentTFI = lastReal?.tfi ?? null;
 
-  // Status logic
   const status: Status = useMemo(() => {
     if (currentCTL == null || nextRace?.target_tfi_min == null || nextRace?.target_tfi_max == null) return null;
     if (currentCTL < nextRace.target_tfi_min) return 'OFF_TARGET';
@@ -288,7 +332,7 @@ export default function InternalProgress() {
 
   const fmt = (v: number | null, d = 1) => v != null ? v.toFixed(d) : '—';
 
-  // ── Loading / error states ──────────────────────────────────────────────────
+  // ── Loading / error ─────────────────────────────────────────────────────────
 
   if (loading) return (
     <AppShell>
@@ -320,10 +364,10 @@ export default function InternalProgress() {
           <Group justify="space-between" align="flex-end">
             <Stack gap={2}>
               <Title order={3} fw={700} style={{ fontFamily: 'monospace', letterSpacing: '-0.5px' }}>
-                PROGRESS — INTERNAL
+                PROGRESS
               </Title>
               <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>
-                CTL (τ=42 fixed) vs TFI (adaptive τ) · Season start Jan 1 · Gate: {AUDIT_EMAIL}
+                CTL (τ=42) vs TFI (adaptive τ) · Season start Jan 1
               </Text>
             </Stack>
             <ActionIcon variant="subtle" onClick={fetchData} title="Refresh">
@@ -333,7 +377,6 @@ export default function InternalProgress() {
 
           {/* Status readout */}
           <Group gap={32} wrap="wrap">
-            {/* CTL */}
             <Box>
               <Group gap={10} align="center">
                 <Text
@@ -361,7 +404,6 @@ export default function InternalProgress() {
               )}
             </Box>
 
-            {/* TFI */}
             <Box>
               <Group gap={10} align="center">
                 <Text
@@ -403,7 +445,7 @@ export default function InternalProgress() {
           {/* Chart */}
           <Box style={{ border: '1px solid var(--mantine-color-dark-4)' }} p={16}>
 
-            {/* Custom legend */}
+            {/* Legend */}
             <Group gap={20} mb={12}>
               <Group gap={6} align="center">
                 <Box style={{ width: 20, height: 2, backgroundColor: CTL_COLOR }} />
@@ -427,7 +469,7 @@ export default function InternalProgress() {
                 <YAxis tick={{ fontSize: 10 }} domain={['auto', 'auto']} />
                 <ChartTooltip content={<ProgressTooltip />} />
 
-                {/* Target zone band — behind lines, conditional */}
+                {/* Target zone band */}
                 {showTargetBand && nextRace && (
                   <ReferenceArea
                     x1={TODAY}
@@ -462,7 +504,7 @@ export default function InternalProgress() {
                   label={{ value: 'BWR', fontSize: 9, fill: TFI_COLOR, position: 'top' }}
                 />
 
-                {/* TODAY marker */}
+                {/* TODAY */}
                 <ReferenceLine
                   x={TODAY}
                   stroke="var(--mantine-color-dark-3)"
@@ -497,7 +539,7 @@ export default function InternalProgress() {
                   connectNulls={false}
                 />
 
-                {/* TFI — gold dashed, no dots, gaps where null */}
+                {/* TFI — gold dashed, gaps where null */}
                 <Line
                   type="monotone"
                   dataKey="tfi"
@@ -513,16 +555,10 @@ export default function InternalProgress() {
             </ResponsiveContainer>
           </Box>
 
-          {/* Next race info */}
-          {nextRace && (
+          {/* Race info */}
+          {nextRace && !showTargetBand && (
             <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>
-              Next race: {nextRace.name} · {nextRace.race_date} · priority {nextRace.priority}
-              {!showTargetBand && ' · no target range set — add target_tfi_min/max to race_goals to enable status badge and target band'}
-            </Text>
-          )}
-          {!nextRace && (
-            <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>
-              No upcoming race goals found — add a race_goals row with status=upcoming to enable status badge and target band
+              Next race: {nextRace.name} · {nextRace.race_date} · no target range set
             </Text>
           )}
 
