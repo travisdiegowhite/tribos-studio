@@ -19,7 +19,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip,
   Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { IconDownload, IconRefresh, IconAlertCircle } from '@tabler/icons-react';
+import { ArrowsClockwise, DownloadSimple, Warning } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import AppShell from '../components/AppShell.jsx';
@@ -197,10 +197,10 @@ export default function InternalMetricsAudit() {
   if (error) return (
     <AppShell>
       <Container size="xl" py="lg">
-        <Alert icon={<IconAlertCircle size={16} />} color="red" title="Error loading audit data">
+        <Alert icon={<Warning size={16} />} color="red" title="Error loading audit data">
           {error}
         </Alert>
-        <Button mt="md" onClick={fetchData} leftSection={<IconRefresh size={14} />}>Retry</Button>
+        <Button mt="md" onClick={fetchData} leftSection={<ArrowsClockwise size={14} />}>Retry</Button>
       </Container>
     </AppShell>
   );
@@ -223,9 +223,9 @@ export default function InternalMetricsAudit() {
             </Stack>
             <Group gap={8}>
               <MantineTooltip label="Refresh data">
-                <ActionIcon variant="subtle" onClick={fetchData}><IconRefresh size={16} /></ActionIcon>
+                <ActionIcon variant="subtle" onClick={fetchData}><ArrowsClockwise size={16} /></ActionIcon>
               </MantineTooltip>
-              <Button size="xs" variant="outline" leftSection={<IconDownload size={14} />} onClick={exportCSV}>
+              <Button size="xs" variant="outline" leftSection={<DownloadSimple size={14} />} onClick={exportCSV}>
                 CSV
               </Button>
             </Group>
