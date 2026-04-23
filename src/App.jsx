@@ -25,6 +25,7 @@ const Settings = lazy(() => import('./pages/Settings.jsx'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'));
 const GearPage = lazy(() => import('./pages/GearPage.jsx'));
 const Admin = lazy(() => import('./pages/Admin.jsx'));
+const InternalMetricsAudit = lazy(() => import('./pages/InternalMetricsAudit.tsx'));
 const MyRoutes = lazy(() => import('./pages/MyRoutes.jsx'));
 const Progress = lazy(() => import('./pages/Progress.jsx'));
 const MetricsCalculatorPage = lazy(() => import('./pages/MetricsCalculatorPage.tsx'));
@@ -242,6 +243,16 @@ function AppRoutes() {
       <Route path="/training" element={<Navigate to="/train" replace />} />
       <Route path="/planner" element={<Navigate to="/train/planner" replace />} />
       <Route path="/updates" element={<Navigate to="/settings" replace />} />
+
+      {/* ===== INTERNAL (audit tools, Travis-only) ===== */}
+      <Route
+        path="/internal/metrics-audit"
+        element={
+          <ProtectedRoute>
+            <InternalMetricsAudit />
+          </ProtectedRoute>
+        }
+      />
 
       {/* ===== ADMIN ===== */}
       <Route

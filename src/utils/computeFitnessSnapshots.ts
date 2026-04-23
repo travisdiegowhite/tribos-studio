@@ -18,6 +18,10 @@ export interface ActivityInput {
   distance?: number | null;          // meters
   total_elevation_gain?: number | null;
   average_watts?: number | null;
+  // Canonical columns (spec §2, migration 072) — preferred over legacy
+  rss?: number | null;               // Ride Stress Score (canonical)
+  effective_power?: number | null;   // Effective Power (canonical)
+  // Legacy columns — kept for activities pre-dating migration 072
   normalized_power?: number | null;
   kilojoules?: number | null;
   tss?: number | null;
@@ -99,17 +103,22 @@ export function estimateActivityTSS(
   activity: ActivityInput,
   ftp?: number | null
 ): number {
-  // Tier 1: stored TSS
-  if (activity.tss && activity.tss > 0) return activity.tss;
+  // Tier 1: stored RSS (canonical, spec §2) or legacy TSS — canonical-first
+  // per CLAUDE.md policy. activity.rss is populated by server-side ingestors
+  // (garmin-webhook-process, garmin-activities, fit-upload); activity.tss is
+  // the legacy column, NULL for most activities since the B9 cut-over.
+  const storedRSS = activity.rss ?? activity.tss;
+  if (storedRSS && storedRSS > 0) return storedRSS;
 
   // Tier 2: running-specific
   if (RUNNING_TYPES.includes(activity.type || '')) {
     return estimateRunningTSS(activity);
   }
 
-  // Tier 3: normalized power + FTP
-  if (activity.normalized_power && activity.normalized_power > 0 && ftp && ftp > 0) {
-    const tss = calculateTSS(activity.moving_time || 0, activity.normalized_power, ftp);
+  // Tier 3: effective_power (canonical) or normalized_power (legacy) + FTP
+  const powerForCalc = activity.effective_power ?? activity.normalized_power;
+  if (powerForCalc && powerForCalc > 0 && ftp && ftp > 0) {
+    const tss = calculateTSS(activity.moving_time || 0, powerForCalc, ftp);
     if (tss !== null && tss > 0) return tss;
   }
 
