@@ -13,6 +13,7 @@ import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
 import { PERSONA_DATA } from './utils/personaData.js';
 import { formatHealth, fetchProprietaryMetrics } from './utils/contextHelpers.js';
+import { buildTemporalAnchor, fetchTemporalAnchorData } from './utils/temporalAnchor.js';
 
 // Initialize Supabase for auth validation
 const supabase = getSupabaseAdmin();
@@ -787,56 +788,19 @@ export default async function handler(req, res) {
     // Resolve the user's timezone: prefer browser-supplied, then DB, then UTC
     const resolvedTimezone = userLocalDate?.timezone || userDbTimezone || 'UTC';
 
-    // Build system message with date context FIRST
-    // Use user's local date if provided, otherwise compute from their timezone
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-    let dateStr;
-    let dayOfWeek;
-    let todayDate;
-    let todayMonth;
-    let todayYear;
-
-    if (userLocalDate && userLocalDate.dateString) {
-      // Use the user's local date from the browser
-      dateStr = userLocalDate.dateString;
-      dayOfWeek = userLocalDate.dayOfWeek;
-      todayDate = userLocalDate.date;
-      todayMonth = userLocalDate.month;
-      todayYear = userLocalDate.year;
-    } else {
-      // Fallback: compute date in the user's timezone (from DB or UTC)
-      const today = new Date();
-      try {
-        dateStr = today.toLocaleDateString('en-US', {
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-          timeZone: resolvedTimezone,
-        });
-        dayOfWeek = parseInt(today.toLocaleDateString('en-US', { weekday: 'narrow', timeZone: resolvedTimezone }), 10);
-        // Use a more reliable approach for dayOfWeek
-        const dayName = today.toLocaleDateString('en-US', { weekday: 'long', timeZone: resolvedTimezone });
-        dayOfWeek = dayNames.indexOf(dayName);
-        todayDate = parseInt(today.toLocaleDateString('en-US', { day: 'numeric', timeZone: resolvedTimezone }), 10);
-        todayMonth = today.toLocaleDateString('en-US', { month: 'long', timeZone: resolvedTimezone });
-        todayYear = parseInt(today.toLocaleDateString('en-US', { year: 'numeric', timeZone: resolvedTimezone }), 10);
-      } catch (tzError) {
-        // Invalid timezone, fall back to UTC
-        dateStr = `${dayNames[today.getDay()]}, ${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`;
-        dayOfWeek = today.getDay();
-        todayDate = today.getDate();
-        todayMonth = today.getMonth();
-        todayYear = today.getFullYear();
-      }
+    // Fetch temporal anchor data (next 14 days of sessions + upcoming race goals)
+    // Non-blocking on failure — coach degrades gracefully without the anchor block
+    let anchorData = { plannedWorkouts: [], raceGoals: [] };
+    try {
+      anchorData = await fetchTemporalAnchorData(verifiedUserId, supabase, resolvedTimezone);
+    } catch (anchorErr) {
+      console.error('Temporal anchor fetch failed (non-blocking):', anchorErr.message);
     }
-
-    // Calculate this week's date range using user's local date
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const mondayDate = todayDate + mondayOffset;
-    const sundayDate = mondayDate + 6;
-    // Simplified week range display
-    const monthStr = typeof todayMonth === 'string' ? todayMonth : monthNames[todayMonth];
-    const weekRangeStr = `Week of ${monthStr} ${mondayDate > 0 ? mondayDate : todayDate}, ${todayYear}`;
+    const temporalAnchorBlock = buildTemporalAnchor(
+      resolvedTimezone,
+      anchorData.plannedWorkouts,
+      anchorData.raceGoals
+    );
 
     // Determine persona
     const personaId = coachSettings?.coaching_persona && coachSettings.coaching_persona !== 'pending'
@@ -845,14 +809,12 @@ export default async function handler(req, res) {
     const persona = personaId ? PERSONA_DATA[personaId] : null;
     const riderName = coachSettings?.user_preferred_name || null;
 
-    // Build the full system prompt with date as the foundation
-    let systemPrompt = `=== CURRENT DATE & TIME CONTEXT ===
-TODAY IS: ${dateStr}
-${weekRangeStr}
-Athlete's timezone: ${resolvedTimezone}
+    // Build the full system prompt — temporal anchor is the foundation
+    let systemPrompt = `=== TEMPORAL ANCHOR (pre-resolved dates — do not compute new ones) ===
+${temporalAnchorBlock}
 
-CRITICAL: The conversation history below may contain outdated references to past dates (weeks or months ago).
-You MUST use the current date above as your reference point. When the athlete asks about "this week", "tomorrow", "Monday", etc., calculate from TODAY'S DATE shown above.
+CRITICAL: The conversation history below may contain outdated date references.
+Always use the labels above as your reference point for any day or session mentioned.
 
 === YOUR ROLE ===
 ${COACHING_KNOWLEDGE}`;
@@ -1092,8 +1054,12 @@ ${conversationSummary}
 (The full recent messages follow below. Use this summary for continuity with earlier discussion topics.)`;
     }
 
-    // Build conversation messages - prepend date reminder to user's message
-    const userMessageWithDate = `[Today is ${dateStr}]\n\n${message}`;
+    // Build conversation messages - prepend a brief date reminder using the anchor's NOW line
+    const todayDateStr = new Date().toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      timeZone: resolvedTimezone,
+    });
+    const userMessageWithDate = `[Today is ${todayDateStr}]\n\n${message}`;
 
     const messages = [
       ...recentHistory.map(msg => ({
@@ -1107,7 +1073,7 @@ ${conversationSummary}
     ];
 
     // Call Claude API
-    const model = 'claude-sonnet-4-5-20250929';
+    const model = 'claude-sonnet-4-6';
 
     let response = await claude.messages.create({
       model: model,
