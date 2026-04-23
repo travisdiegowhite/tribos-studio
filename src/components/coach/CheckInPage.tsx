@@ -16,6 +16,7 @@ import CheckInWeekBar from './CheckInWeekBar';
 import CheckInRecommendationCard from './CheckInRecommendation';
 import CheckInAcknowledgment from './CheckInAcknowledgment';
 import CheckInThread from './CheckInThread';
+import CorrectionProposalCard from './CorrectionProposalCard';
 import DeepRideAnalysis from './DeepRideAnalysis';
 import DeviationCard from './DeviationCard';
 import FatigueCheckinCard from './FatigueCheckinCard';
@@ -36,10 +37,12 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
   const userId = user?.id;
   const {
     currentCheckIn,
+    pendingProposal,
     loading,
     persona,
     hasCompletedIntake,
     makeDecision,
+    applyProposalDecision,
     markSeen,
     currentDecision,
     savePersona,
@@ -124,6 +127,14 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
             resolving={deviationResolving}
           />
         ))}
+
+        {/* Correction proposal (proactive TFI adjustment) */}
+        {pendingProposal && (
+          <CorrectionProposalCard
+            proposal={pendingProposal}
+            onDecision={applyProposalDecision}
+          />
+        )}
 
         <Paper
           p="xl"
@@ -214,6 +225,14 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
           resolving={deviationResolving}
         />
       ))}
+
+      {/* Correction proposal (proactive TFI adjustment) */}
+      {pendingProposal && (
+        <CorrectionProposalCard
+          proposal={pendingProposal}
+          onDecision={applyProposalDecision}
+        />
+      )}
 
       {/* Coaching narrative + deviation callout */}
       <CheckInNarrative

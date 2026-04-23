@@ -16,15 +16,18 @@ import type {
   PersonaId,
   DecisionType,
   PlannedMutation,
+  CorrectionProposal,
 } from '../types/checkIn';
 
 interface UseCoachCheckInReturn {
   currentCheckIn: CheckIn | null;
   checkInHistory: CheckIn[];
+  pendingProposal: CorrectionProposal | null;
   loading: boolean;
   persona: PersonaId;
   hasCompletedIntake: boolean;
   makeDecision: (checkInId: string, decision: DecisionType, summary: string, plannedMutation?: PlannedMutation | null) => Promise<void>;
+  applyProposalDecision: (proposalId: string, decision: 'accepted' | 'declined' | 'partial', acceptedSessionIds: string[]) => Promise<void>;
   markSeen: (checkInId: string) => Promise<void>;
   refresh: () => Promise<void>;
   savePersona: (personaId: PersonaId, setBy: 'intake' | 'manual') => Promise<void>;
@@ -37,6 +40,7 @@ interface UseCoachCheckInReturn {
 export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInReturn {
   const [currentCheckIn, setCurrentCheckIn] = useState<CheckIn | null>(null);
   const [checkInHistory, setCheckInHistory] = useState<CheckIn[]>([]);
+  const [pendingProposal, setPendingProposal] = useState<CorrectionProposal | null>(null);
   const [loading, setLoading] = useState(true);
   const [persona, setPersona] = useState<PersonaId>('pragmatist');
   const [hasCompletedIntake, setHasCompletedIntake] = useState(false);
@@ -51,7 +55,7 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
     }
 
     try {
-      const [checkInResult, settingsResult, historyResult] = await Promise.all([
+      const [checkInResult, settingsResult, historyResult, proposalResult] = await Promise.all([
         supabase
           .from('coach_check_ins')
           .select('*')
@@ -74,11 +78,23 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
           .eq('status', 'completed')
           .order('created_at', { ascending: false })
           .limit(10),
+
+        // Fetch pending correction proposal (most recent, last 48 hours)
+        supabase
+          .from('coach_correction_proposals')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('outcome', 'pending')
+          .gte('generated_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString())
+          .order('generated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       const latestCheckIn = checkInResult.data as CheckIn | null;
       setCurrentCheckIn(latestCheckIn);
       setCheckInHistory((historyResult.data || []) as CheckIn[]);
+      setPendingProposal((proposalResult.data as CorrectionProposal | null) ?? null);
 
       if (settingsResult.data) {
         const p = settingsResult.data.coaching_persona as PersonaId;
@@ -167,6 +183,39 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
     setCurrentDecision(data as CheckInDecision);
   }, [userId]);
 
+  const applyProposalDecision = useCallback(async (
+    proposalId: string,
+    decision: 'accepted' | 'declined' | 'partial',
+    acceptedSessionIds: string[],
+  ) => {
+    if (!userId) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Not authenticated');
+
+    const response = await fetch('/api/correction-proposal-apply', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ proposal_id: proposalId, decision, accepted_session_ids: acceptedSessionIds }),
+    });
+
+    if (!response.ok) {
+      const result = await response.json();
+      throw new Error(result.error || 'Failed to apply proposal decision');
+    }
+
+    // Optimistically clear the pending proposal from UI
+    setPendingProposal(prev =>
+      prev?.id === proposalId ? { ...prev, outcome: decision, outcome_at: new Date().toISOString() } : prev
+    );
+
+    if (decision !== 'declined') {
+      window.dispatchEvent(new CustomEvent('training-plan-updated'));
+    }
+  }, [userId]);
+
   const markSeen = useCallback(async (checkInId: string) => {
     if (!userId) return;
 
@@ -245,10 +294,12 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
   return {
     currentCheckIn,
     checkInHistory,
+    pendingProposal,
     loading,
     persona,
     hasCompletedIntake,
     makeDecision,
+    applyProposalDecision,
     markSeen,
     refresh: fetchData,
     savePersona,
