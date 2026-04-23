@@ -178,3 +178,39 @@ export interface CheckInAIOutput {
   recommendation: CheckInRecommendation | null;
   next_session_purpose: string;
 }
+
+// ── Correction Proposals ─────────────────────────────────────
+
+export type CorrectionOp = 'extend' | 'swap' | 'add' | 'reduce' | 'skip';
+export type ProposalOutcome = 'pending' | 'accepted' | 'declined' | 'partial';
+
+export interface CorrectionModification {
+  session_id: string;           // sess_ prefix ID used in the anchor
+  planned_workout_id?: string;  // resolved full UUID
+  scheduled_date?: string;      // YYYY-MM-DD
+  op: CorrectionOp;
+  delta_minutes?: number;
+  new_type?: string;
+  new_rss?: number;
+  reason: string;
+}
+
+export interface CorrectionProposal {
+  id: string;
+  user_id: string;
+  race_goal_id: string | null;
+  persona_id: string;
+  opener_text: string | null;
+  closer_text: string | null;
+  modifications: CorrectionModification[];
+  current_tfi: number | null;
+  projected_tfi_without: number | null;
+  projected_tfi_with: number | null;
+  target_tfi_min: number | null;
+  target_tfi_max: number | null;
+  outcome: ProposalOutcome;
+  outcome_at: string | null;
+  accepted_session_ids: string[];
+  generated_at: string;
+  created_at: string;
+}

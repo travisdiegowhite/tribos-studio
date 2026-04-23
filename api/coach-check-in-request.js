@@ -13,16 +13,17 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { assembleCheckInContext } from './utils/checkInContext.js';
 import { PERSONA_DATA } from './utils/personaData.js';
+import { buildTemporalAnchor, fetchTemporalAnchorData } from './utils/temporalAnchor.js';
 
 const supabase = getSupabaseAdmin();
 
-function buildSystemPrompt(personaId, context) {
+function buildSystemPrompt(personaId, context, anchorBlock) {
   const persona = PERSONA_DATA[personaId] || PERSONA_DATA.pragmatist;
 
-  return `## CURRENT DATE & TIME CONTEXT
-TODAY IS: ${context.user_local_date || new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-Athlete's timezone: ${context.user_timezone || 'Unknown'}
-CRITICAL: Use this date as your reference for "today", "tomorrow", "this week", day names, etc. Do NOT guess the day — use the date above.
+  return `## TEMPORAL ANCHOR (pre-resolved dates — do not compute new ones)
+${anchorBlock}
+CRITICAL: Use only the labels above for any date references. Do NOT write raw day names.
+
 
 ## ROLE
 You are a cycling coach AI for Tribos. You are currently acting as ${persona.name}.
@@ -252,12 +253,22 @@ export default async function handler(req, res) {
       }
     }
 
+    // Build temporal anchor for this user
+    const resolvedTimezone = context.user_timezone || 'UTC';
+    let anchorBlock = '';
+    try {
+      const anchorData = await fetchTemporalAnchorData(userId, supabase, resolvedTimezone);
+      anchorBlock = buildTemporalAnchor(resolvedTimezone, anchorData.plannedWorkouts, anchorData.raceGoals);
+    } catch (anchorErr) {
+      console.error('Check-in anchor fetch failed (non-blocking):', anchorErr.message);
+    }
+
     // Build prompt and call Claude
-    const systemPrompt = buildSystemPrompt(personaId, context);
+    const systemPrompt = buildSystemPrompt(personaId, context, anchorBlock);
     const claude = new Anthropic({ apiKey });
 
     const response = await claude.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       temperature: 0.4,
       system: systemPrompt,
