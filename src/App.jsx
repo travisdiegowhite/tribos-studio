@@ -26,7 +26,6 @@ const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'));
 const GearPage = lazy(() => import('./pages/GearPage.jsx'));
 const Admin = lazy(() => import('./pages/Admin.jsx'));
 const InternalMetricsAudit = lazy(() => import('./pages/InternalMetricsAudit.tsx'));
-const InternalProgress = lazy(() => import('./pages/InternalProgress.tsx'));
 const MyRoutes = lazy(() => import('./pages/MyRoutes.jsx'));
 const Progress = lazy(() => import('./pages/Progress.jsx'));
 const MetricsCalculatorPage = lazy(() => import('./pages/MetricsCalculatorPage.tsx'));
@@ -251,15 +250,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <InternalMetricsAudit />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/internal/progress"
-        element={
-          <ProtectedRoute>
-            <InternalProgress />
           </ProtectedRoute>
         }
       />
