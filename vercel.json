@@ -41,6 +41,10 @@
       "schedule": "0 * * * *"
     },
     {
+      "path": "/api/cron/welcome-email",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/activation-nudge",
       "schedule": "0 10 * * *"
     },

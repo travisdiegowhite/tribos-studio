@@ -8,13 +8,13 @@
  *   3. Saves all profile data to user_profiles
  *   4. Saves persona to user_coach_settings
  *   5. Saves opening message to coach_conversations
- *   6. Sends welcome email (persona-aware)
+ *
+ * Welcome email is sent separately by api/cron/welcome-email.js ~15 min post-signup.
  *
  * Returns: { persona, personaName, openingMessage, confidence, secondary }
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { Resend } from 'resend';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 
@@ -36,13 +36,6 @@ const PERSONA_VOICES = {
   competitor: 'Focused, forward-looking, frames everything in terms of results.',
 };
 
-const WELCOME_SUBJECTS = {
-  hammer: (name) => `Time to get to work, ${name}`,
-  scientist: (name) => `Your training data is ready, ${name}`,
-  encourager: (name) => `You've got this, ${name}!`,
-  pragmatist: (name) => `Let's keep it simple, ${name}`,
-  competitor: (name) => `Ready to push limits, ${name}?`,
-};
 
 const VALID_PERSONAS = ['hammer', 'scientist', 'encourager', 'pragmatist', 'competitor'];
 
@@ -243,29 +236,6 @@ Maximum 3 sentences.`,
       console.error('Opening message save error:', msgError);
     }
 
-    // ── 6. Send welcome email (non-blocking) ──
-    const resendKey = process.env.RESEND_API_KEY;
-    if (resendKey && user.email) {
-      try {
-        const resend = new Resend(resendKey);
-        const displayName = user.user_metadata?.full_name || user.email.split('@')[0];
-        const subjectFn = WELCOME_SUBJECTS[persona] || WELCOME_SUBJECTS.pragmatist;
-
-        await resend.emails.send({
-          from: 'Tribos Studio <onboarding@tribos.studio>',
-          to: [user.email],
-          subject: subjectFn(displayName),
-          html: getWelcomeHtml(displayName, persona, openingMessage),
-        });
-
-        await supabase
-          .from('user_profiles')
-          .update({ welcome_email_sent: true })
-          .eq('id', user.id);
-      } catch (emailErr) {
-        console.error('Welcome email failed:', emailErr.message);
-      }
-    }
 
     return res.status(200).json({
       persona,
@@ -281,71 +251,3 @@ Maximum 3 sentences.`,
   }
 }
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function getWelcomeHtml(name, personaId, openingMessage) {
-  const safeName = escapeHtml(name);
-  const safeMessage = escapeHtml(openingMessage);
-  const coachName = PERSONA_NAMES[personaId] || 'your AI coach';
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #1a1a2e; color: #e0e0e0;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #1a1a2e; padding: 40px 0;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #252540; border-radius: 0;">
-          <tr>
-            <td style="background: linear-gradient(135deg, #10b981 0%, #22d3ee 100%); padding: 40px; text-align: center;">
-              <h1 style="color: #fff; margin: 0; font-size: 28px;">tribos.studio</h1>
-              <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px; letter-spacing: 2px; text-transform: uppercase;">Department of Cycling Intelligence</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 40px;">
-              <h2 style="color: #fff; margin: 0 0 16px;">Welcome, ${safeName}</h2>
-              <p style="color: #a0a0b0; line-height: 1.6; margin: 0 0 20px;">
-                Your account is set up and ${coachName} is ready to work with you.
-              </p>
-              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #1a1a2e; border-left: 3px solid #10b981; margin: 0 0 24px;">
-                <tr>
-                  <td style="padding: 16px;">
-                    <p style="color: #10b981; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 8px; font-weight: 700;">${coachName}</p>
-                    <p style="color: #d0d0d8; font-size: 15px; line-height: 1.7; margin: 0; font-style: italic;">${safeMessage}</p>
-                  </td>
-                </tr>
-              </table>
-              <p style="color: #a0a0b0; line-height: 1.6; margin: 0 0 20px;">
-                Here&apos;s how to get the most out of tribos:
-              </p>
-              <ul style="color: #a0a0b0; line-height: 1.8; padding-left: 20px; margin: 0 0 30px;">
-                <li><strong style="color: #e0e0e0;">Check your TODAY screen</strong> — Your daily briefing with workout + route match</li>
-                <li><strong style="color: #e0e0e0;">Start a training plan</strong> — Choose from 13+ structured cycling plans</li>
-                <li><strong style="color: #e0e0e0;">Build a route</strong> — AI-powered route building that matches your training</li>
-              </ul>
-              <a href="https://www.tribos.studio/today" style="display: inline-block; background: #10b981; color: #fff; text-decoration: none; padding: 14px 28px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-size: 14px;">
-                Go to your TODAY screen
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 20px 40px; border-top: 1px solid #333; text-align: center;">
-              <p style="color: #666; font-size: 12px; margin: 0;">
-                Questions? Reply to this email or use the feedback button in the app.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-}
