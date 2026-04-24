@@ -8,13 +8,13 @@
  *   3. Saves all profile data to user_profiles
  *   4. Saves persona to user_coach_settings
  *   5. Saves opening message to coach_conversations
- *   6. Sends welcome email (persona-aware)
+ *
+ * Welcome email is sent separately by api/cron/welcome-email.js ~15 min post-signup.
  *
  * Returns: { persona, personaName, openingMessage, confidence, secondary }
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { Resend } from 'resend';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 
@@ -36,7 +36,6 @@ const PERSONA_VOICES = {
   competitor: 'Focused, forward-looking, frames everything in terms of results.',
 };
 
-const WELCOME_SUBJECT = 'Welcome to Tribos — from Travis';
 
 const VALID_PERSONAS = ['hammer', 'scientist', 'encourager', 'pragmatist', 'competitor'];
 
@@ -237,27 +236,6 @@ Maximum 3 sentences.`,
       console.error('Opening message save error:', msgError);
     }
 
-    // ── 6. Send welcome email (non-blocking) ──
-    const resendKey = process.env.RESEND_API_KEY;
-    if (resendKey && user.email) {
-      try {
-        const resend = new Resend(resendKey);
-
-        await resend.emails.send({
-          from: 'Travis <travis@tribos.studio>',
-          to: [user.email],
-          subject: WELCOME_SUBJECT,
-          html: getWelcomeHtml(),
-        });
-
-        await supabase
-          .from('user_profiles')
-          .update({ welcome_email_sent: true })
-          .eq('id', user.id);
-      } catch (emailErr) {
-        console.error('Welcome email failed:', emailErr.message);
-      }
-    }
 
     return res.status(200).json({
       persona,
@@ -273,48 +251,3 @@ Maximum 3 sentences.`,
   }
 }
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function getWelcomeHtml() {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin: 0; padding: 0; font-family: Georgia, 'Times New Roman', serif; background-color: #ffffff; color: #1a1a1a;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; padding: 40px 0;">
-    <tr>
-      <td align="center">
-        <table width="560" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="padding: 0 0 32px; font-size: 13px; color: #888888; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; letter-spacing: 1px; text-transform: uppercase;">
-              tribos.studio
-            </td>
-          </tr>
-          <tr>
-            <td style="font-size: 16px; line-height: 1.7; color: #1a1a1a; font-family: Georgia, 'Times New Roman', serif;">
-              <p style="margin: 0 0 20px;">Hey,</p>
-              <p style="margin: 0 0 20px;">I&apos;m Travis. I&apos;m the one person who built Tribos, and I race the thing I&apos;m building. Thanks for signing up.</p>
-              <p style="margin: 0 0 20px;">Quick context: I started Tribos because every training app I used felt built for someone with unlimited time and a coach on speed dial. I&apos;m a washed-up masters racer doing mostly gravel and road, with a family, a day job, and about 10 hours a week to train. Tribos is what I wanted to exist.</p>
-              <p style="margin: 0 0 12px;">If you haven&apos;t already, here&apos;s how to get going:</p>
-              <ol style="margin: 0 0 20px; padding-left: 24px; color: #1a1a1a;">
-                <li style="margin-bottom: 10px;">Take the 6-question intake (~3 min). It picks which coach voice fits you &mdash; The Hammer, The Scientist, The Encourager, The Pragmatist, or The Competitor.</li>
-                <li style="margin-bottom: 10px;">Connect Garmin, Strava, or Wahoo so the coach can pull your ride history.</li>
-                <li style="margin-bottom: 10px;">Open the Coach Check-In. That&apos;s the default view and the actual product &mdash; not a dashboard, not a calendar. A real conversation about what you&apos;re doing and why.</li>
-              </ol>
-              <p style="margin: 0 0 20px;">This is a beta. Things will break. When they do, reply to this email. It comes straight to me.</p>
-              <p style="margin: 0 0 8px;">Travis</p>
-              <p style="margin: 0 0 0; font-size: 14px; color: #555555;">P.S. &mdash; when you have a minute, poke around the RIDE tab. The route builder is the other half of Tribos, and it&apos;s the reason I started this whole thing.</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-}
