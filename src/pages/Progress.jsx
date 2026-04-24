@@ -15,6 +15,7 @@ import ZoneDistributionRow from '../components/progress/ZoneDistributionRow.jsx'
 import TrendInsightRow from '../components/progress/TrendInsightRow.jsx';
 import YearToDateStats from '../components/progress/YearToDateStats.jsx';
 import SegmentIntelligence from '../components/progress/SegmentIntelligence.jsx';
+import FitnessProgressChart from '../components/progress/FitnessProgressChart.jsx';
 
 // Zone allocation based on average power zone (matches ZoneDistributionChart logic)
 function getPowerZone(avgWatts, ftp) {
@@ -307,6 +308,9 @@ function Progress() {
       <Container size="xl" py="lg">
         <Stack gap={14}>
           <PageHeader title="Progress" />
+
+          {/* Fitness Progression — CTL + TFI peer lines */}
+          <FitnessProgressChart />
 
           {/* Zone Distribution */}
           <Box
