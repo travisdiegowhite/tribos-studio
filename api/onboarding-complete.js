@@ -36,13 +36,7 @@ const PERSONA_VOICES = {
   competitor: 'Focused, forward-looking, frames everything in terms of results.',
 };
 
-const WELCOME_SUBJECTS = {
-  hammer: (name) => `Time to get to work, ${name}`,
-  scientist: (name) => `Your training data is ready, ${name}`,
-  encourager: (name) => `You've got this, ${name}!`,
-  pragmatist: (name) => `Let's keep it simple, ${name}`,
-  competitor: (name) => `Ready to push limits, ${name}?`,
-};
+const WELCOME_SUBJECT = 'Welcome to Tribos — from Travis';
 
 const VALID_PERSONAS = ['hammer', 'scientist', 'encourager', 'pragmatist', 'competitor'];
 
@@ -248,14 +242,12 @@ Maximum 3 sentences.`,
     if (resendKey && user.email) {
       try {
         const resend = new Resend(resendKey);
-        const displayName = user.user_metadata?.full_name || user.email.split('@')[0];
-        const subjectFn = WELCOME_SUBJECTS[persona] || WELCOME_SUBJECTS.pragmatist;
 
         await resend.emails.send({
-          from: 'Tribos Studio <onboarding@tribos.studio>',
+          from: 'Travis <travis@tribos.studio>',
           to: [user.email],
-          subject: subjectFn(displayName),
-          html: getWelcomeHtml(displayName, persona, openingMessage),
+          subject: WELCOME_SUBJECT,
+          html: getWelcomeHtml(),
         });
 
         await supabase
@@ -286,60 +278,37 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function getWelcomeHtml(name, personaId, openingMessage) {
-  const safeName = escapeHtml(name);
-  const safeMessage = escapeHtml(openingMessage);
-  const coachName = PERSONA_NAMES[personaId] || 'your AI coach';
-
+function getWelcomeHtml() {
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #1a1a2e; color: #e0e0e0;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #1a1a2e; padding: 40px 0;">
+<body style="margin: 0; padding: 0; font-family: Georgia, 'Times New Roman', serif; background-color: #ffffff; color: #1a1a1a;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; padding: 40px 0;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #252540; border-radius: 0;">
+        <table width="560" cellpadding="0" cellspacing="0">
           <tr>
-            <td style="background: linear-gradient(135deg, #10b981 0%, #22d3ee 100%); padding: 40px; text-align: center;">
-              <h1 style="color: #fff; margin: 0; font-size: 28px;">tribos.studio</h1>
-              <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px; letter-spacing: 2px; text-transform: uppercase;">Department of Cycling Intelligence</p>
+            <td style="padding: 0 0 32px; font-size: 13px; color: #888888; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; letter-spacing: 1px; text-transform: uppercase;">
+              tribos.studio
             </td>
           </tr>
           <tr>
-            <td style="padding: 40px;">
-              <h2 style="color: #fff; margin: 0 0 16px;">Welcome, ${safeName}</h2>
-              <p style="color: #a0a0b0; line-height: 1.6; margin: 0 0 20px;">
-                Your account is set up and ${coachName} is ready to work with you.
-              </p>
-              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #1a1a2e; border-left: 3px solid #10b981; margin: 0 0 24px;">
-                <tr>
-                  <td style="padding: 16px;">
-                    <p style="color: #10b981; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 8px; font-weight: 700;">${coachName}</p>
-                    <p style="color: #d0d0d8; font-size: 15px; line-height: 1.7; margin: 0; font-style: italic;">${safeMessage}</p>
-                  </td>
-                </tr>
-              </table>
-              <p style="color: #a0a0b0; line-height: 1.6; margin: 0 0 20px;">
-                Here&apos;s how to get the most out of tribos:
-              </p>
-              <ul style="color: #a0a0b0; line-height: 1.8; padding-left: 20px; margin: 0 0 30px;">
-                <li><strong style="color: #e0e0e0;">Check your TODAY screen</strong> — Your daily briefing with workout + route match</li>
-                <li><strong style="color: #e0e0e0;">Start a training plan</strong> — Choose from 13+ structured cycling plans</li>
-                <li><strong style="color: #e0e0e0;">Build a route</strong> — AI-powered route building that matches your training</li>
-              </ul>
-              <a href="https://www.tribos.studio/today" style="display: inline-block; background: #10b981; color: #fff; text-decoration: none; padding: 14px 28px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-size: 14px;">
-                Go to your TODAY screen
-              </a>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 20px 40px; border-top: 1px solid #333; text-align: center;">
-              <p style="color: #666; font-size: 12px; margin: 0;">
-                Questions? Reply to this email or use the feedback button in the app.
-              </p>
+            <td style="font-size: 16px; line-height: 1.7; color: #1a1a1a; font-family: Georgia, 'Times New Roman', serif;">
+              <p style="margin: 0 0 20px;">Hey,</p>
+              <p style="margin: 0 0 20px;">I&apos;m Travis. I&apos;m the one person who built Tribos, and I race the thing I&apos;m building. Thanks for signing up.</p>
+              <p style="margin: 0 0 20px;">Quick context: I started Tribos because every training app I used felt built for someone with unlimited time and a coach on speed dial. I&apos;m a washed-up masters racer doing mostly gravel and road, with a family, a day job, and about 10 hours a week to train. Tribos is what I wanted to exist.</p>
+              <p style="margin: 0 0 12px;">If you haven&apos;t already, here&apos;s how to get going:</p>
+              <ol style="margin: 0 0 20px; padding-left: 24px; color: #1a1a1a;">
+                <li style="margin-bottom: 10px;">Take the 6-question intake (~3 min). It picks which coach voice fits you &mdash; The Hammer, The Scientist, The Encourager, The Pragmatist, or The Competitor.</li>
+                <li style="margin-bottom: 10px;">Connect Garmin, Strava, or Wahoo so the coach can pull your ride history.</li>
+                <li style="margin-bottom: 10px;">Open the Coach Check-In. That&apos;s the default view and the actual product &mdash; not a dashboard, not a calendar. A real conversation about what you&apos;re doing and why.</li>
+              </ol>
+              <p style="margin: 0 0 20px;">This is a beta. Things will break. When they do, reply to this email. It comes straight to me.</p>
+              <p style="margin: 0 0 8px;">Travis</p>
+              <p style="margin: 0 0 0; font-size: 14px; color: #555555;">P.S. &mdash; when you have a minute, poke around the RIDE tab. The route builder is the other half of Tribos, and it&apos;s the reason I started this whole thing.</p>
             </td>
           </tr>
         </table>
