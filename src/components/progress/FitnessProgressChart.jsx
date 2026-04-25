@@ -26,6 +26,58 @@ const BOULDER_ROUBAIX = '2026-04-26';
 const BWR             = '2026-05-03';
 const CTL_TAU         = 42;
 
+const WORKOUT_COLORS = {
+  recovery:  '#868e96',
+  endurance: '#74C0B8',
+  tempo:     '#C49A0A',
+  threshold: '#E8821A',
+  vo2max:    '#C43C2A',
+  anaerobic: '#9C1C1C',
+  race:      '#7B2D8B',
+  rest:      null,
+};
+const UNPLANNED_COLOR = '#4dabf7';
+
+function getWorkoutColor(workoutType) {
+  if (!workoutType) return UNPLANNED_COLOR;
+  return WORKOUT_COLORS[workoutType.toLowerCase()] ?? UNPLANNED_COLOR;
+}
+
+function getDotRadius(rss) {
+  if (!rss || rss < 30) return 2.5;
+  if (rss < 60) return 3.5;
+  if (rss < 100) return 5;
+  return 7;
+}
+
+function isSignificantDeviation(planned, actualRSS) {
+  const target = planned?.actual_tss ?? planned?.target_tss;
+  if (!target || target === 0 || actualRSS == null) return false;
+  return Math.abs(actualRSS - target) / target > 0.40;
+}
+
+function findBestBuildBlock(rows, minDays = 7) {
+  let bestGain = 0;
+  let bestBlock = null;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].ctl == null) continue;
+    for (let j = i + minDays; j < rows.length; j++) {
+      if (rows[j].ctl == null) continue;
+      const gain = rows[j].ctl - rows[i].ctl;
+      if (gain > bestGain) {
+        bestGain = gain;
+        bestBlock = {
+          start: rows[i].date,
+          end: rows[j].date,
+          gain: Math.round(gain * 10) / 10,
+          days: j - i,
+        };
+      }
+    }
+  }
+  return bestBlock;
+}
+
 function daysBefore(dateStr, n) {
   const d = parseLocalDate(dateStr);
   if (!d) return dateStr;
@@ -70,7 +122,11 @@ const ProgressTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   const ctlEntry = payload.find(p => p.dataKey === 'ctl');
   const tfiEntry = payload.find(p => p.dataKey === 'tfi');
-  const activity = payload[0]?.payload?.activity ?? null;
+  const row = payload[0]?.payload ?? {};
+  const activity = row.activity ?? null;
+  const planned = row.plannedWorkout ?? null;
+  const deviated = row.activity ? isSignificantDeviation(planned, row.rss) : false;
+
   return (
     <Box
       style={{
@@ -78,6 +134,7 @@ const ProgressTooltip = ({ active, payload, label }) => {
         border: '1px solid var(--mantine-color-dark-4)',
         padding: '8px 12px',
         fontFamily: 'monospace',
+        minWidth: 140,
       }}
     >
       <Text size="xs" fw={700} mb={4}>{label}</Text>
@@ -89,6 +146,15 @@ const ProgressTooltip = ({ active, payload, label }) => {
       )}
       {activity && (
         <Text size="xs" c="dimmed" mt={2}>{activity.name}</Text>
+      )}
+      {planned?.workout_type && (
+        <Text size="xs" mt={2} style={{ color: getWorkoutColor(planned.workout_type) }}>
+          Planned: {planned.workout_type}
+          {(planned.actual_tss ?? planned.target_tss) ? ` · ${planned.actual_tss ?? planned.target_tss} TSS target` : ''}
+        </Text>
+      )}
+      {deviated && (
+        <Text size="xs" mt={1} style={{ color: '#E8821A' }}>⚠ deviated &gt;40%</Text>
       )}
     </Box>
   );
@@ -104,6 +170,7 @@ export default function FitnessProgressChart() {
   const [tldRows, setTldRows] = useState([]);
   const [nextRace, setNextRace] = useState(null);
   const [ftp, setFtp] = useState(null);
+  const [plannedWorkouts, setPlannedWorkouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [window_, setWindow] = useState('jan1');
 
@@ -111,7 +178,7 @@ export default function FitnessProgressChart() {
     if (!user) return;
     setLoading(true);
     try {
-      const [actResult, profileResult, tldResult, goalsResult] = await Promise.all([
+      const [actResult, profileResult, tldResult, goalsResult, plansResult] = await Promise.all([
         supabase
           .from('activities')
           .select(
@@ -147,6 +214,12 @@ export default function FitnessProgressChart() {
           .order('priority', { ascending: true })
           .order('race_date', { ascending: true })
           .limit(5),
+
+        supabase
+          .from('training_plans')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('status', 'active'),
       ]);
 
       setActivities(actResult.data ?? []);
@@ -155,6 +228,20 @@ export default function FitnessProgressChart() {
 
       const goals = goalsResult.data ?? [];
       setNextRace(goals.find(g => g.priority === 'A') ?? goals[0] ?? null);
+
+      // Step 2: fetch planned workouts if there are active plans
+      const planIds = (plansResult.data ?? []).map(p => p.id);
+      if (planIds.length > 0) {
+        const { data: pwData } = await supabase
+          .from('planned_workouts')
+          .select('scheduled_date, workout_type, target_tss, actual_tss, completed, activity_id')
+          .in('plan_id', planIds)
+          .gte('scheduled_date', windowStart)
+          .lte('scheduled_date', TODAY);
+        setPlannedWorkouts(pwData ?? []);
+      } else {
+        setPlannedWorkouts([]);
+      }
     } catch (err) {
       console.error('[FitnessProgressChart] fetch error:', err);
     } finally {
@@ -163,6 +250,16 @@ export default function FitnessProgressChart() {
   }, [user, windowStart, TODAY]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const plannedByDate = useMemo(() => {
+    const map = {};
+    for (const pw of plannedWorkouts) {
+      if (pw.scheduled_date && !map[pw.scheduled_date]) {
+        map[pw.scheduled_date] = pw;
+      }
+    }
+    return map;
+  }, [plannedWorkouts]);
 
   const { chartRows, withActivity } = useMemo(() => {
     const actByDate = {};
@@ -195,6 +292,8 @@ export default function FitnessProgressChart() {
         ctl: Math.round(ctl * 10) / 10,
         tfi: tld?.tfi ?? null,
         activity: dayData?.activity ?? null,
+        rss: dayData?.rss ?? 0,
+        plannedWorkout: plannedByDate[dateStr] ?? null,
         tfi_tau: tld?.tfi_tau ?? null,
       });
     }
@@ -206,18 +305,20 @@ export default function FitnessProgressChart() {
     const end = parseLocalDate(extendTo);
     if (cursor && end) {
       while (cursor <= end) {
-        placeholders.push({ date: formatLocalDate(cursor) ?? '', ctl: null, tfi: null, activity: null, tfi_tau: null });
+        placeholders.push({ date: formatLocalDate(cursor) ?? '', ctl: null, tfi: null, activity: null, rss: 0, plannedWorkout: null, tfi_tau: null });
         cursor.setDate(cursor.getDate() + 1);
       }
     }
 
     return { chartRows: [...merged, ...placeholders], withActivity: merged };
-  }, [activities, ftp, tldRows, nextRace, windowStart, TODAY]);
+  }, [activities, ftp, tldRows, nextRace, plannedByDate, windowStart, TODAY]);
 
   const displayRows = useMemo(() => {
     const start = window_ === 'jan1' ? SEASON_START : window_ === '90' ? daysBefore(TODAY, 90) : daysBefore(TODAY, 30);
     return chartRows.filter(r => r.date >= start);
   }, [chartRows, window_, TODAY]);
+
+  const bestBlock = useMemo(() => findBestBuildBlock(withActivity), [withActivity]);
 
   const tickInterval = displayRows.length <= 45 ? 6 : displayRows.length <= 100 ? 10 : 14;
 
@@ -234,6 +335,7 @@ export default function FitnessProgressChart() {
 
   const fmt = (v, d = 1) => v != null ? Number(v).toFixed(d) : '—';
   const showTargetBand = nextRace?.target_tfi_min != null && nextRace?.target_tfi_max != null;
+  const hasPlan = plannedWorkouts.length > 0;
 
   return (
     <Box
@@ -312,7 +414,7 @@ export default function FitnessProgressChart() {
       </Group>
 
       {/* Legend */}
-      <Group gap={20} mb={10}>
+      <Group gap={isMobile ? 8 : 16} mb={10} wrap="wrap">
         <Group gap={6} align="center">
           <Box style={{ width: 18, height: 2, backgroundColor: CTL_COLOR }} />
           <Text size="xs" style={{ fontFamily: 'monospace', color: CTL_COLOR }}>CTL (τ=42)</Text>
@@ -321,6 +423,27 @@ export default function FitnessProgressChart() {
           <Box style={{ width: 18, height: 0, borderTop: `2px dashed ${TFI_COLOR}` }} />
           <Text size="xs" style={{ fontFamily: 'monospace', color: TFI_COLOR }}>TFI (adaptive τ)</Text>
         </Group>
+        {hasPlan ? (
+          <>
+            {[
+              ['recovery', '#868e96'],
+              ['endurance', '#74C0B8'],
+              ['tempo', '#C49A0A'],
+              ['threshold', '#E8821A'],
+              ['vo2max', '#C43C2A'],
+            ].map(([label, color]) => (
+              <Group key={label} gap={4} align="center">
+                <Box style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: color }} />
+                <Text size="xs" style={{ fontFamily: 'monospace', color }}>{label}</Text>
+              </Group>
+            ))}
+            <Group gap={4} align="center">
+              <Box style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: UNPLANNED_COLOR }} />
+              <Text size="xs" style={{ fontFamily: 'monospace', color: UNPLANNED_COLOR }}>unplanned</Text>
+            </Group>
+            <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>size=RSS · ⊙=deviated</Text>
+          </>
+        ) : null}
       </Group>
 
       {/* Chart */}
@@ -330,6 +453,16 @@ export default function FitnessProgressChart() {
           <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={d => String(d).slice(5)} interval={tickInterval} />
           <YAxis tick={{ fontSize: 10 }} domain={['auto', 'auto']} />
           <ChartTooltip content={<ProgressTooltip />} />
+
+          {/* Best build block — shaded region */}
+          {bestBlock && bestBlock.start >= (window_ === 'jan1' ? SEASON_START : window_ === '90' ? daysBefore(TODAY, 90) : daysBefore(TODAY, 30)) && (
+            <ReferenceArea
+              x1={bestBlock.start} x2={bestBlock.end}
+              fill={CTL_COLOR} fillOpacity={0.07}
+              stroke={CTL_COLOR} strokeOpacity={0.20}
+              label={{ value: `+${bestBlock.gain} CTL`, position: 'insideTopLeft', fontSize: 9, fill: CTL_COLOR, fontFamily: 'monospace' }}
+            />
+          )}
 
           {showTargetBand && nextRace && (
             <ReferenceArea
@@ -349,8 +482,31 @@ export default function FitnessProgressChart() {
             type="monotone" dataKey="ctl" name="CTL"
             stroke={CTL_COLOR} strokeWidth={2}
             dot={(props) => {
-              if (!props.payload?.activity || props.payload.ctl == null) return <g key={props.key} />;
-              return <circle key={props.key} cx={props.cx} cy={props.cy} r={3.5} fill={CTL_COLOR} stroke="#fff" strokeWidth={1.5} />;
+              const { payload } = props;
+              if (!payload?.activity || payload.ctl == null) return <g key={props.key} />;
+
+              const pw = payload.plannedWorkout;
+              // rest day with a planned rest — skip dot
+              if (pw?.workout_type?.toLowerCase() === 'rest') return <g key={props.key} />;
+
+              const color = hasPlan ? getWorkoutColor(pw?.workout_type) : CTL_COLOR;
+              const r = getDotRadius(payload.rss);
+              const deviated = isSignificantDeviation(pw, payload.rss);
+
+              return (
+                <g key={props.key}>
+                  {deviated && (
+                    <circle
+                      cx={props.cx} cy={props.cy} r={r + 3}
+                      fill="none" stroke="#E8821A" strokeWidth={1.5} strokeDasharray="3 2"
+                    />
+                  )}
+                  <circle
+                    cx={props.cx} cy={props.cy} r={r}
+                    fill={color} stroke="#fff" strokeWidth={1.5}
+                  />
+                </g>
+              );
             }}
             activeDot={{ r: 5, fill: CTL_COLOR }}
             connectNulls={false}
