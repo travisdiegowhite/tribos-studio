@@ -50,11 +50,14 @@ function resolveScheduledDate(dateStr, timezone = 'UTC') {
     if (targetDay >= 0) {
       const currentDay = today.getDay();
       let diff = targetDay - currentDay;
-      if (prefix === 'this') {
-        if (diff <= 0) diff += 7;
-      } else {
-        if (diff <= 0) diff += 7;
-        diff += 7;
+      // Normalize to a positive offset (next occurrence of targetDay)
+      if (diff <= 0) diff += 7;
+      if (prefix === 'next') {
+        // "next_xxx" means the occurrence in the following Mon–Sun week,
+        // i.e., after the current week's Sunday. Push forward by another
+        // 7 days only if the normalized diff is still within this week.
+        const daysUntilSunday = currentDay === 0 ? 0 : 7 - currentDay;
+        if (diff <= daysUntilSunday) diff += 7;
       }
       today.setDate(today.getDate() + diff);
       return formatDateInTimezone(today, timezone);
@@ -819,19 +822,6 @@ Always use the labels above as your reference point for any day or session menti
 === YOUR ROLE ===
 ${COACHING_KNOWLEDGE}`;
 
-    // Inject persona voice (same voice used in coaching check-ins)
-    if (persona) {
-      systemPrompt += `\n\n=== COACHING PERSONA: ${persona.name.toUpperCase()} ===
-You are ${persona.name}. Adopt this voice consistently in all responses.
-Philosophy: ${persona.philosophy}
-Voice: ${persona.voice}
-${riderName ? `The athlete's preferred name is: ${riderName}` : ''}
-
-IMPORTANT: You also generate coaching check-ins that appear on the athlete's training dashboard.
-Those check-ins use this same voice and persona. When the athlete references something from a check-in,
-you should respond as the same coach who wrote it — maintain continuity.`;
-    }
-
     // Inject experience level context (modifies communication style)
     const experienceLevel = coachSettings?.coaching_experience_level || 'experienced';
     if (experienceLevel === 'just_starting' || experienceLevel === 'developing') {
@@ -998,9 +988,37 @@ ${unresolvedDeviations.map(d => `- ${d.deviation_date}: ${d.deviation_type} | Pl
 When discussing deviations, you may suggest specific adjustment options (modify next quality session, swap workout dates, insert a rest day, or drop a session) based on the options available above.`;
     }
 
+    // Persona voice is injected last so it is the freshest instruction and overrides generic tendencies
+    if (persona) {
+      const rules = persona.styleRules?.map(r => `- ${r}`).join('\n') || '';
+      systemPrompt += `\n\n=== COACHING PERSONA: ${persona.name.toUpperCase()} ===
+You are ${persona.name}. Adopt this voice in every response — it overrides any generic tone from earlier in this prompt.
+Philosophy: ${persona.philosophy}
+Voice: ${persona.voice}
+${riderName ? `The athlete's preferred name is: ${riderName}` : ''}
+
+STYLE RULES (non-negotiable):
+${rules}
+
+IMPORTANT: You also generate coaching check-ins on the athlete's training dashboard using this same voice.
+When the athlete references a check-in, respond as the same coach — maintain continuity.`;
+    }
+
     systemPrompt += `\n\n=== INSTRUCTIONS ===
 Use the current date context and athlete data above to provide personalized, time-appropriate coaching advice.
-When races are listed above, use their exact names, dates, and details in your response - you have full visibility into their calendar.
+When races are listed above, use their exact names, dates, and details in your response — you have full visibility into their calendar.
+
+=== ANSWER-FIRST RULE ===
+Answer the athlete's literal question in the first sentence. If it is a yes/no question, open with Yes or No. Add reasoning, context, or caveats only AFTER the direct answer is given. Never lead with analysis when the athlete asked for a recommendation.
+
+=== RESPONSE LENGTH ===
+Default: 2–4 sentences. Use bullet lists only when the athlete explicitly asks to compare options or list multiple items. Numbered protocol lists are acceptable for multi-step instructions, but only when the athlete asked for them. If the persona style rules specify a shorter limit, follow those.
+
+=== SCHEDULE CONTEXT ===
+The athlete's upcoming planned sessions are already loaded in the SESSIONS block of the TEMPORAL ANCHOR above. You have their full schedule for the next 14 days. Do not ask the athlete what their schedule is — look it up in SESSIONS. If a session is missing from SESSIONS, it means nothing is planned on that day.
+
+=== TOOL RESULTS ===
+When you use a server-side tool (adjust_schedule, query_fitness_history, query_training_data, save_coach_memory), the result is returned to you internally. Do not narrate the JSON output or describe what the tool returned. Confirm the outcome in one plain sentence (e.g., "Moved Tuesday's Sweet Spot to Wednesday.") and move on. Never say "Looks like X is marked complete" or "It appears the tool shows Y" — just state the outcome directly.
 
 === CRITICAL: TODAY'S WORKOUT CONSISTENCY ===
 The "TODAY'S WORKOUT RECOMMENDATION" section above shows what the athlete sees on their dashboard right now. You MUST be consistent with it:
