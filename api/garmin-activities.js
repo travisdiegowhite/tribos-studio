@@ -962,9 +962,7 @@ async function backfillGpsData(req, res, userId) {
         if (fitResult.rideAnalytics) {
           gpsUpdate.ride_analytics = fitResult.rideAnalytics;
         }
-        if (fitResult.fitCoachContext) {
-          gpsUpdate.fit_coach_context = fitResult.fitCoachContext;
-        }
+        const fitCoachCtxGps = fitResult.fitCoachContext ?? null;
         if (fitResult.powerMetrics) {
           const pm = fitResult.powerMetrics;
           // B9 dual-write: normalized_power→effective_power, tss→rss, intensity_factor→ride_intensity.
@@ -1006,6 +1004,14 @@ async function backfillGpsData(req, res, userId) {
         }
 
         console.log(`✅ GPS saved for: ${activity.name} (${fitResult.simplifiedCount} points)`);
+        if (fitCoachCtxGps) {
+          supabase.from('activities')
+            .update({ fit_coach_context: fitCoachCtxGps })
+            .eq('id', activity.id)
+            .then(({ error }) => {
+              if (error) console.warn(`⚠️ fit_coach_context write failed (non-critical):`, error.message);
+            });
+        }
         success++;
         results.push({
           id: activity.id,
@@ -1391,7 +1397,7 @@ async function backfillPowerData(req, res, userId) {
         if (pm.workKj) updateData.kilojoules = pm.workKj;
         if (fitResult.activityStreams) updateData.activity_streams = fitResult.activityStreams;
         if (fitResult.rideAnalytics) updateData.ride_analytics = fitResult.rideAnalytics;
-        if (fitResult.fitCoachContext) updateData.fit_coach_context = fitResult.fitCoachContext;
+        const fitCoachCtxPow = fitResult.fitCoachContext ?? null;
 
         // Update activity with power data
         const { error: updateError } = await supabase
@@ -1413,6 +1419,14 @@ async function backfillPowerData(req, res, userId) {
         }
 
         console.log(`✅ Power saved for: ${activity.name} (Avg: ${pm.avgPower}W, NP: ${pm.normalizedPower || 'N/A'}W)`);
+        if (fitCoachCtxPow) {
+          supabase.from('activities')
+            .update({ fit_coach_context: fitCoachCtxPow })
+            .eq('id', activity.id)
+            .then(({ error }) => {
+              if (error) console.warn(`⚠️ fit_coach_context write failed (non-critical):`, error.message);
+            });
+        }
         success++;
         results.push({
           id: activity.id,
@@ -1703,10 +1717,7 @@ async function backfillStreamsData(req, res, userId) {
           updateData.ride_analytics = fitResult.rideAnalytics;
           updates.push('analytics');
         }
-        if (fitResult.fitCoachContext) {
-          updateData.fit_coach_context = fitResult.fitCoachContext;
-          updates.push(`coach_context(${fitResult.fitCoachContext.sample_count})`);
-        }
+        const fitCoachCtxStr = fitResult.fitCoachContext ?? null;
         if (fitResult.powerMetrics) {
           const pm = fitResult.powerMetrics;
           // B9 dual-write to canonical names.
@@ -1749,6 +1760,14 @@ async function backfillStreamsData(req, res, userId) {
         }
 
         console.log(`✅ Streams saved for: ${activity.name} (${updates.join(', ')})`);
+        if (fitCoachCtxStr) {
+          supabase.from('activities')
+            .update({ fit_coach_context: fitCoachCtxStr })
+            .eq('id', activity.id)
+            .then(({ error }) => {
+              if (error) console.warn(`⚠️ fit_coach_context write failed (non-critical):`, error.message);
+            });
+        }
         success++;
         results.push({
           id: activity.id,
