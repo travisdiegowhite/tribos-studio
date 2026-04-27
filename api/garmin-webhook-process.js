@@ -233,7 +233,7 @@ async function processActivityEvent(event, integrationCache) {
   if (event.activity_id) {
     const { data: existing } = await supabase
       .from('activities')
-      .select('id, map_summary_polyline, average_watts, effective_power, power_curve_summary, activity_streams, ride_analytics')
+      .select('id, map_summary_polyline, average_watts, normalized_power, power_curve_summary, activity_streams, ride_analytics')
       .eq('provider_activity_id', event.activity_id)
       .eq('user_id', integration.user_id)
       .eq('provider', 'garmin')
@@ -264,7 +264,7 @@ async function handleExistingActivity(event, existing, integration) {
 
   const needsGps = !existing.map_summary_polyline;
   const needsAvgPower = !existing.average_watts;
-  const needsPowerMetrics = !existing.effective_power && !existing.power_curve_summary;
+  const needsPowerMetrics = !existing.normalized_power && !existing.power_curve_summary;
   const needsStreams = !existing.activity_streams;
   const needsAnalytics = !existing.ride_analytics;
   const needsAnyFitData = needsGps || needsPowerMetrics || needsAvgPower || needsStreams || needsAnalytics;
@@ -309,20 +309,10 @@ async function handleExistingActivity(event, existing, integration) {
       updates.push(`Avg: ${pm.avgPower}W`);
     }
     if (needsPowerMetrics) {
-      // B9 dual-write to canonical names.
-      if (pm.normalizedPower) {
-        activityUpdate.normalized_power = pm.normalizedPower;
-        activityUpdate.effective_power = pm.normalizedPower;
-      }
+      if (pm.normalizedPower) activityUpdate.normalized_power = pm.normalizedPower;
       if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
-      if (pm.trainingStressScore) {
-        activityUpdate.tss = pm.trainingStressScore;
-        activityUpdate.rss = pm.trainingStressScore;
-      }
-      if (pm.intensityFactor) {
-        activityUpdate.intensity_factor = pm.intensityFactor;
-        activityUpdate.ride_intensity = pm.intensityFactor;
-      }
+      if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
+      if (pm.intensityFactor) activityUpdate.intensity_factor = pm.intensityFactor;
       if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
       if (pm.workKj) activityUpdate.kilojoules = pm.workKj;
       if (pm.normalizedPower) updates.push(`NP: ${pm.normalizedPower}W`);
@@ -593,10 +583,7 @@ async function handleDuplicateActivity(event, integration, activityData, activit
             if (fitResult.polyline) fitUpdate.map_summary_polyline = fitResult.polyline;
             if (fitResult.activityStreams) fitUpdate.activity_streams = fitResult.activityStreams;
             if (fitResult.powerMetrics?.avgPower) fitUpdate.average_watts = fitResult.powerMetrics.avgPower;
-            if (fitResult.powerMetrics?.normalizedPower) {
-              fitUpdate.normalized_power = fitResult.powerMetrics.normalizedPower;
-              fitUpdate.effective_power = fitResult.powerMetrics.normalizedPower;
-            }
+            if (fitResult.powerMetrics?.normalizedPower) fitUpdate.normalized_power = fitResult.powerMetrics.normalizedPower;
             if (fitResult.powerMetrics?.maxPower) fitUpdate.max_watts = fitResult.powerMetrics.maxPower;
             if (fitResult.powerMetrics?.powerCurveSummary) fitUpdate.power_curve_summary = fitResult.powerMetrics.powerCurveSummary;
             if (fitResult.powerMetrics?.workKj) fitUpdate.kilojoules = fitResult.powerMetrics.workKj;
@@ -682,21 +669,11 @@ async function processFitFile(activityId, fitFileUrl, accessToken, userId = null
 
     if (fitResult.powerMetrics) {
       const pm = fitResult.powerMetrics;
-      // B9 dual-write to canonical names.
       if (pm.avgPower) activityUpdate.average_watts = pm.avgPower;
-      if (pm.normalizedPower) {
-        activityUpdate.normalized_power = pm.normalizedPower;
-        activityUpdate.effective_power = pm.normalizedPower;
-      }
+      if (pm.normalizedPower) activityUpdate.normalized_power = pm.normalizedPower;
       if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
-      if (pm.trainingStressScore) {
-        activityUpdate.tss = pm.trainingStressScore;
-        activityUpdate.rss = pm.trainingStressScore;
-      }
-      if (pm.intensityFactor) {
-        activityUpdate.intensity_factor = pm.intensityFactor;
-        activityUpdate.ride_intensity = pm.intensityFactor;
-      }
+      if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
+      if (pm.intensityFactor) activityUpdate.intensity_factor = pm.intensityFactor;
       if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
       if (pm.workKj) activityUpdate.kilojoules = pm.workKj;
       activityUpdate.device_watts = true;
