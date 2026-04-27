@@ -338,12 +338,8 @@ async function handleExistingActivity(event, existing, integration) {
     updates.push('Advanced analytics');
   }
 
-  // Store the FIT coach context (resampled time series + derived metrics)
-  // so the Deep Ride Analysis endpoint can lazily generate a narrative.
-  if (fitResult.fitCoachContext) {
-    activityUpdate.fit_coach_context = fitResult.fitCoachContext;
-    updates.push(`Coach context (${fitResult.fitCoachContext.sample_count} samples)`);
-  }
+  // fit_coach_context written separately so a missing column never blocks GPS/streams/power
+  const fitCoachCtx = fitResult.fitCoachContext ?? null;
 
   if (updates.length > 0) {
     const { error: updateError } = await supabase
@@ -356,6 +352,14 @@ async function handleExistingActivity(event, existing, integration) {
     }
     console.log(`[FIT:SUCCESS] Data added to existing activity ${existing.id}: ${updates.join(', ')}`);
     await markEventProcessed(event.id, `Data added: ${updates.join(', ')}`, existing.id);
+
+    if (fitCoachCtx) {
+      const { error: ctxErr } = await supabase
+        .from('activities')
+        .update({ fit_coach_context: fitCoachCtx })
+        .eq('id', existing.id);
+      if (ctxErr) console.warn(`⚠️ fit_coach_context write failed (non-critical):`, ctxErr.message);
+    }
   } else {
     console.log(`[FIT:SKIP] FIT file parsed but no new data for activity ${existing.id}`);
     await markEventProcessed(event.id, 'Already imported, no new data in FIT file', existing.id);
@@ -705,10 +709,10 @@ async function processFitFile(activityId, fitFileUrl, accessToken, userId = null
       activityUpdate.ride_analytics = fitResult.rideAnalytics;
     }
 
-    // Store deep FIT coach context for lazy AI ride analysis generation
-    if (fitResult.fitCoachContext) {
-      activityUpdate.fit_coach_context = fitResult.fitCoachContext;
-      console.log(`[FIT:SUCCESS] Coach context: ${fitResult.fitCoachContext.sample_count} samples @ ${fitResult.fitCoachContext.interval_seconds}s`);
+    // fit_coach_context written separately so a missing column never blocks GPS/streams/power
+    const fitCoachCtx = fitResult.fitCoachContext ?? null;
+    if (fitCoachCtx) {
+      console.log(`[FIT:SUCCESS] Coach context: ${fitCoachCtx.sample_count} samples @ ${fitCoachCtx.interval_seconds}s`);
     }
 
     if (Object.keys(activityUpdate).length > 1) {
@@ -729,6 +733,15 @@ async function processFitFile(activityId, fitFileUrl, accessToken, userId = null
           extractAndStoreActivitySegments(activityId, null).catch(err => {
             console.warn(`⚠️ Segment extraction failed:`, err.message);
           });
+        }
+
+        if (fitCoachCtx) {
+          supabase.from('activities')
+            .update({ fit_coach_context: fitCoachCtx })
+            .eq('id', activityId)
+            .then(({ error }) => {
+              if (error) console.warn(`⚠️ fit_coach_context write failed (non-critical):`, error.message);
+            });
         }
       }
     }
