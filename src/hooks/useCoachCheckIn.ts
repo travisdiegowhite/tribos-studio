@@ -234,14 +234,23 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
   const savePersona = useCallback(async (personaId: PersonaId, setBy: 'intake' | 'manual') => {
     if (!userId) return;
 
-    await supabase
-      .from('user_coach_settings')
-      .upsert({
-        user_id: userId,
-        coaching_persona: personaId,
-        persona_set_at: new Date().toISOString(),
-        persona_set_by: setBy,
-      }, { onConflict: 'user_id' });
+    // Dual-write: user_coach_settings remains the source for check-in
+    // history; user_profiles.coach_persona_id is the canonical home the
+    // Today view (and other Tribos surfaces) read from.
+    await Promise.all([
+      supabase
+        .from('user_coach_settings')
+        .upsert({
+          user_id: userId,
+          coaching_persona: personaId,
+          persona_set_at: new Date().toISOString(),
+          persona_set_by: setBy,
+        }, { onConflict: 'user_id' }),
+      supabase
+        .from('user_profiles')
+        .update({ coach_persona_id: personaId, onboarding_persona_set: true })
+        .eq('id', userId),
+    ]);
 
     setPersona(personaId);
     setHasCompletedIntake(true);

@@ -182,6 +182,8 @@ Maximum 3 sentences.`,
       onboarding_completed: true,
       units_preference: units_preference || 'imperial',
       onboarding_persona_set: true,
+      // Canonical persona home (migration 086) — Today view reads this.
+      coach_persona_id: persona,
     };
     if (experience_level) profileUpdate.experience_level = experience_level;
     if (weekly_hours_available != null) profileUpdate.weekly_hours_available = weekly_hours_available;

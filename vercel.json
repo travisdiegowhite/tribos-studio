@@ -41,6 +41,10 @@
       "schedule": "0 * * * *"
     },
     {
+      "path": "/api/today-coach-prewarm",
+      "schedule": "0 * * * *"
+    },
+    {
       "path": "/api/cron/welcome-email",
       "schedule": "*/5 * * * *"
     },
@@ -74,6 +78,12 @@
     },
     "api/workout-preview-cron.js": {
       "maxDuration": 60
+    },
+    "api/today-coach-prewarm.js": {
+      "maxDuration": 300
+    },
+    "api/today-route-suggestions.js": {
+      "maxDuration": 30
     },
     "api/coach-correction-trigger.js": {
       "maxDuration": 60

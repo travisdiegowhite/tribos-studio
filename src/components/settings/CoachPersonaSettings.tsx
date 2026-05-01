@@ -59,14 +59,20 @@ export default function CoachPersonaSettings({ userId }: CoachPersonaSettingsPro
     if (!value) return;
     const personaId = value as PersonaId;
 
-    await supabase
-      .from('user_coach_settings')
-      .upsert({
-        user_id: userId,
-        coaching_persona: personaId,
-        persona_set_at: new Date().toISOString(),
-        persona_set_by: 'manual',
-      }, { onConflict: 'user_id' });
+    await Promise.all([
+      supabase
+        .from('user_coach_settings')
+        .upsert({
+          user_id: userId,
+          coaching_persona: personaId,
+          persona_set_at: new Date().toISOString(),
+          persona_set_by: 'manual',
+        }, { onConflict: 'user_id' }),
+      supabase
+        .from('user_profiles')
+        .update({ coach_persona_id: personaId, onboarding_persona_set: true })
+        .eq('id', userId),
+    ]);
 
     setPersona(personaId);
     setSetBy('manual');
