@@ -62,10 +62,19 @@ function getCoachingMessage(trainingContext, workoutRecommendation) {
   }
 }
 
-function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
+function CoachCard({
+  trainingContext,
+  workoutRecommendation,
+  onAddWorkout,
+  // Today-view extensions (default off so non-Today surfaces aren't affected).
+  showDailyMessage = false,
+  dailyMetrics = null,
+  surface = 'coach',
+}) {
   const { user } = useAuth();
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
+  const dailyMessageRef = useRef(null);
 
   // Load user availability for schedule-aware plan activation
   const {
@@ -85,20 +94,111 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [personaId, setPersonaId] = useState(null);
 
-  // Fetch coaching persona for display
+  // Today-view: persona-voiced daily message (3–4 sentences from
+  // /api/fitness-summary surface='today'). Pre-warmed by the 04:15
+  // local cron so this load is normally a cache hit.
+  const [dailyMessage, setDailyMessage] = useState(null);
+  const [dailyMessageLoading, setDailyMessageLoading] = useState(false);
+
+  // Fetch coaching persona for display. Read user_profiles.coach_persona_id
+  // first (canonical home post-migration 086), fall back to
+  // user_coach_settings.coaching_persona for users predating the backfill.
   useEffect(() => {
     if (!user?.id) return;
-    supabase
-      .from('user_coach_settings')
-      .select('coaching_persona')
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.coaching_persona && data.coaching_persona !== 'pending') {
-          setPersonaId(data.coaching_persona);
-        }
-      });
+    let cancelled = false;
+    (async () => {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('coach_persona_id')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (profile?.coach_persona_id) {
+        setPersonaId(profile.coach_persona_id);
+        return;
+      }
+      const { data: settings } = await supabase
+        .from('user_coach_settings')
+        .select('coaching_persona')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      if (settings?.coaching_persona && settings.coaching_persona !== 'pending') {
+        setPersonaId(settings.coaching_persona);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [user?.id]);
+
+  // Today-view: fetch the persona-voiced first message of the day from
+  // /api/fitness-summary?surface=today. The cron pre-warms the cache so
+  // this is normally synchronous; cold-start gracefully shows a small
+  // loader. Re-fetches when metrics change (cache key in the endpoint
+  // captures persona + workoutId + freshness, so cache hits stay valid).
+  useEffect(() => {
+    if (!showDailyMessage || !user?.id || !dailyMetrics || dailyMetrics.tfi == null) return;
+    if (dailyMetrics.tfi === 0 && dailyMetrics.afi === 0 && dailyMetrics.formScore === 0) return;
+
+    let cancelled = false;
+    setDailyMessageLoading(true);
+
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token || cancelled) return;
+        const res = await fetch('/api/fitness-summary', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            surface: 'today',
+            clientMetrics: {
+              tfi: dailyMetrics.tfi,
+              afi: dailyMetrics.afi ?? 0,
+              formScore: dailyMetrics.formScore ?? 0,
+              lastRideRss: dailyMetrics.lastRideRss ?? null,
+              ctlDeltaPct: dailyMetrics.ctlDeltaPct ?? null,
+            },
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled && data?.summary) {
+          setDailyMessage(data.summary);
+        }
+      } catch {
+        // Silent fail — the fallback `coachingMessage` keeps the card useful.
+      } finally {
+        if (!cancelled) setDailyMessageLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [
+    showDailyMessage,
+    user?.id,
+    dailyMetrics?.tfi,
+    dailyMetrics?.afi,
+    dailyMetrics?.formScore,
+    dailyMetrics?.lastRideRss,
+    dailyMetrics?.ctlDeltaPct,
+  ]);
+
+  // PostHog: today_view.coach_message_read fires once after a 3-second
+  // dwell on the daily message. We do this without IntersectionObserver
+  // since the card lives above the fold on /today.
+  useEffect(() => {
+    if (!showDailyMessage || !dailyMessage || typeof window === 'undefined') return;
+    const t = setTimeout(() => {
+      window.posthog?.capture?.('today_view.coach_message_read', {
+        view_version: 'today_v2_reflow',
+      });
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [showDailyMessage, dailyMessage]);
 
   // Get coaching message based on current form
   const coachingMessage = getCoachingMessage(trainingContext, workoutRecommendation);
@@ -170,6 +270,17 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
     const userMessage = query.trim();
     setIsLoading(true);
     setError(null);
+
+    // PostHog: tag every message sent from the Today surface so we can
+    // segment week-2 retention by "did the user actually use the coach
+    // from the new view." Other surfaces use surface='coach' and don't
+    // get the today_view tag.
+    if (typeof window !== 'undefined' && surface === 'today') {
+      window.posthog?.capture?.('today_view.coach_message_sent', {
+        view_version: 'today_v2_reflow',
+        today_view: true,
+      });
+    }
 
     // Immediately show user message in chat
     const userMsg = { role: 'user', content: userMessage, timestamp: new Date().toISOString() };
@@ -575,7 +686,13 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
             <ThemeIcon size="lg" color="teal" variant="light" radius="md">
               <Sparkle size={18} />
             </ThemeIcon>
-            <Text fw={600}>
+            <Text
+              fw={700}
+              tt={showDailyMessage ? 'uppercase' : undefined}
+              style={showDailyMessage
+                ? { fontFamily: "'DM Mono', monospace", letterSpacing: '0.08em', color: 'var(--color-teal)' }
+                : undefined}
+            >
               Coach{personaId && PERSONAS[personaId] ? ` · ${PERSONAS[personaId].name}` : ''}
             </Text>
             {!personaId && (
@@ -585,6 +702,40 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
             )}
           </Group>
         </Group>
+
+        {/* Today: persona-voiced first message of the day. Sits above
+            the conversation thread as the day's lead-in. Falls back to
+            a thin loading skeleton on cold-start; if the fetch fails
+            silently, the existing `coachingMessage` empty-state takes
+            over and the card stays useful. */}
+        {showDailyMessage && (dailyMessage || dailyMessageLoading) && (
+          <Box
+            ref={dailyMessageRef}
+            style={{
+              borderLeft: '3px solid var(--color-teal)',
+              padding: '10px 14px',
+              backgroundColor: 'var(--color-card)',
+            }}
+          >
+            {dailyMessage ? (
+              <Text
+                style={{
+                  fontFamily: "'Barlow', sans-serif",
+                  fontSize: 15,
+                  lineHeight: 1.55,
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {dailyMessage}
+              </Text>
+            ) : (
+              <Group gap={8}>
+                <Loader size="xs" color="teal" />
+                <Text size="xs" c="dimmed">Coach is composing your morning brief…</Text>
+              </Group>
+            )}
+          </Box>
+        )}
 
         {/* Chat area */}
         <Box style={{ flex: 1, minHeight: 0 }}>

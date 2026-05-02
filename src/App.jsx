@@ -18,7 +18,6 @@ import NotFound from './pages/NotFound.jsx';
 
 // Pages — lazy loaded (protected, heavy)
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
-const TodayView = lazy(() => import('./views/today/TodayView.tsx'));
 const RouteBuilder = lazy(() => import('./pages/RouteBuilder.jsx'));
 const TrainingDashboard = lazy(() => import('./pages/TrainingDashboard.jsx'));
 const PlannerPage = lazy(() => import('./pages/PlannerPage.tsx'));
@@ -125,18 +124,9 @@ function AppRoutes() {
 
       {/* ===== PRIMARY TABS ===== */}
 
-      {/* TODAY — front door (new TodayView; replaces Dashboard at this route) */}
+      {/* TODAY — front door (Dashboard with the v2 reflow layout) */}
       <Route
         path="/today"
-        element={
-          <ProtectedRoute>
-            <TodayView />
-          </ProtectedRoute>
-        }
-      />
-      {/* Keep the old Dashboard accessible at /today/legacy until v1 ships and stabilizes. */}
-      <Route
-        path="/today/legacy"
         element={
           <ProtectedRoute>
             <Dashboard />

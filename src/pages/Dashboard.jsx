@@ -5,6 +5,7 @@ import {
   Stack,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import AppShell from '../components/AppShell.jsx';
 import OnboardingModal from '../components/OnboardingModal.jsx';
@@ -21,14 +22,13 @@ import IntelligenceCard from '../components/today/IntelligenceCard.jsx';
 import { CoachCard } from '../components/coach';
 import RecentRidesMap from '../components/RecentRidesMap.jsx';
 import WeekChart from '../components/today/WeekChart.jsx';
-import FitnessSummary from '../components/today/FitnessSummary.jsx';
-import ProprietaryMetricsBar from '../components/today/ProprietaryMetricsBar.tsx';
 import { ActivePlanCard } from '../components/training';
 import { calculateCTL, calculateATL, calculateTSB } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 
 function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +86,14 @@ function Dashboard() {
     };
 
     checkOnboardingAndLoadProfile();
+  }, [user]);
+
+  // PostHog: today_view.opened — fired once per mount.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user) return;
+    window.posthog?.capture?.('today_view.opened', {
+      view_version: 'today_v2_reflow',
+    });
   }, [user]);
 
   const displayName = userProfile?.display_name || user?.email?.split('@')[0] || 'Rider';
@@ -357,56 +365,13 @@ function Dashboard() {
       />
       <Container size="xl" py="lg" px={20}>
         <Stack gap={14}>
-          {/* Header */}
+          {/* Strip 1 — Header: greeting + active plan progress */}
           <PageHeader
             greeting={`${getGreeting()},`}
             title={displayName}
             titleOrder={2}
           />
 
-          {/* Activation Guide (new users) */}
-          <GetStartedGuide />
-
-          {/* Proprietary Metrics — EFI/TWL/TCAS */}
-          <ProprietaryMetricsBar
-            metrics={proprietaryMetrics}
-            loading={metricsLoading}
-          />
-
-          {/* Status Bar — CTL/ATL/TSB/This Week */}
-          <StatusBar
-            ctl={trainingMetrics.ctl}
-            atl={trainingMetrics.atl}
-            tsb={trainingMetrics.tsb}
-            ctlDeltaPct={trainingMetrics.ctlDeltaPct}
-            weekRides={weekStats.activities}
-            weekPlanned={weekStats.planned}
-            loading={loading}
-            fsConfidence={fsConfidence}
-            todayTerrain={todayTerrain}
-          />
-
-          {/* AI Fitness Summary — plain-language context */}
-          {!loading && (
-            <FitnessSummary
-              tfi={trainingMetrics.ctl}
-              afi={trainingMetrics.atl}
-              formScore={trainingMetrics.tsb}
-              ctlDeltaPct={trainingMetrics.ctlDeltaPct}
-            />
-          )}
-
-          {/* Intelligence Card — workout + route match */}
-          <IntelligenceCard
-            workout={todayWorkout}
-            plan={activePlans[0] || null}
-            plans={activePlans}
-            routeMatch={todayRouteMatch}
-            loading={loading}
-            formatDist={formatDist}
-          />
-
-          {/* Active Training Plans */}
           {activePlans.length > 0 && activePlans.map((plan) => (
             <ActivePlanCard
               key={plan.id}
@@ -415,30 +380,80 @@ function Dashboard() {
             />
           ))}
 
-          {/* Proactive Insight */}
-          <ProactiveInsightCard />
+          {/* Strip 2 — Compact 7-cell metric row.
+              FORM · FITNESS · FATIGUE · EFI · TCAS · TREND · THIS WEEK.
+              StatusBar absorbs ProprietaryMetricsBar via the
+              `proprietaryMetrics` prop so the row reads as a single
+              instrument cluster. Each cell taps to /progress. */}
+          <StatusBar
+            ctl={trainingMetrics.ctl}
+            atl={trainingMetrics.atl}
+            tsb={trainingMetrics.tsb}
+            ctlDeltaPct={trainingMetrics.ctlDeltaPct}
+            weekRides={weekStats.activities}
+            weekPlanned={weekStats.planned}
+            loading={loading || metricsLoading}
+            fsConfidence={fsConfidence}
+            todayTerrain={todayTerrain}
+            proprietaryMetrics={proprietaryMetrics}
+            compact
+            onCellClick={(metricId) => {
+              if (typeof window !== 'undefined') {
+                window.posthog?.capture?.('today_view.metric_expanded', {
+                  view_version: 'today_v2_reflow',
+                  metric: metricId,
+                });
+              }
+              navigate(`/progress?metric=${metricId}`);
+            }}
+          />
 
-          {/* Map + Coach — side-by-side visual anchors */}
+          {/* Strip 3 — Two-column split: Today's Ride | Coach.
+              IntelligenceCard consolidates Today's Focus + Best Route
+              Match. CoachCard's persona-voiced first-message-of-day
+              absorbs what FitnessSummary used to render here. */}
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing={14}>
-            <RecentRidesMap
-              activities={activities}
+            <IntelligenceCard
+              workout={todayWorkout}
+              plan={activePlans[0] || null}
+              plans={activePlans}
+              routeMatch={todayRouteMatch}
               loading={loading}
               formatDist={formatDist}
-              formatElev={formatElev}
             />
             <CoachCard
               trainingContext={trainingContext}
               workoutRecommendation={todayWorkout ? { primary: { workout: todayWorkout, reason: todayWorkout.description || '', source: 'plan' } } : null}
+              dailyMetrics={{
+                tfi: trainingMetrics.ctl,
+                afi: trainingMetrics.atl,
+                formScore: trainingMetrics.tsb,
+                ctlDeltaPct: trainingMetrics.ctlDeltaPct,
+              }}
+              showDailyMessage
+              surface="today"
             />
           </SimpleGrid>
 
-          {/* This Week */}
+          {/* Strip 4 — Below the fold (acceptable). */}
+          <RecentRidesMap
+            activities={activities}
+            loading={loading}
+            formatDist={formatDist}
+            formatElev={formatElev}
+          />
+
           <WeekChart
             weekStats={weekStats}
             loading={loading}
             formatDist={formatDist}
             formatElev={formatElev}
           />
+
+          {/* Conditional, only when applicable. Sits below the fold so
+              they don't push the headline content off-screen. */}
+          <GetStartedGuide />
+          <ProactiveInsightCard />
         </Stack>
       </Container>
     </AppShell>
