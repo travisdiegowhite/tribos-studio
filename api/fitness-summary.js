@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { assembleFitnessContext, buildCacheKey } from './utils/assembleFitnessContext.js';
+import { PERSONA_DATA } from './utils/personaData.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -13,7 +14,7 @@ const claude = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const SYSTEM_PROMPT = `You are a friendly fitness assistant for Tribos, a cycling coaching app.
+const BASE_SYSTEM_PROMPT = `You are a friendly fitness assistant for Tribos, a cycling coaching app.
 Your job is to write 1–2 casual sentences explaining what an athlete's training data means for them TODAY.
 
 VOICE:
@@ -59,6 +60,38 @@ EXPERIENCE LEVEL ADAPTATION:
 - beginner: avoid all jargon, use very plain language, be encouraging
 - intermediate: light jargon ok, focus on what to do next
 - advanced/racer: can be direct and data-confident, skip the basics`;
+
+// Today's Brief — longer, persona-voiced paragraph that anchors the Today view.
+const TODAY_BRIEF_OVERRIDES = `
+
+TODAY'S BRIEF — surface-specific overrides:
+- Write 3–4 sentences (60–90 words). The 1–2 sentence rule does NOT apply to this surface.
+- Open with the athlete's first name when present in the context payload (do not invent one).
+- Reference: today's planned workout name (when present), today's form / fatigue snapshot, and the next purposeful action this week.
+- Speak in the persona voice provided below. Match the persona's pacing, register, and signature framing.
+- Do not lecture on general principles. Anchor every sentence to today's data, today's plan, or the rider's next session.`;
+
+function buildPersonaBlock(personaId) {
+  const persona = PERSONA_DATA[personaId];
+  if (!persona) return '';
+  const styleRules = Array.isArray(persona.styleRules)
+    ? persona.styleRules.map((r) => `  - ${r}`).join('\n')
+    : '';
+  return `
+
+PERSONA VOICE — ${persona.name}:
+- Philosophy: ${persona.philosophy}
+- Voice: ${persona.voice}
+- Emphasizes: ${persona.emphasizes}
+- Never say: ${persona.neverSay}
+${styleRules ? `- Style rules:\n${styleRules}` : ''}`;
+}
+
+function resolvePersonaId(raw) {
+  if (typeof raw !== 'string') return 'pragmatist';
+  if (raw === 'pending' || !PERSONA_DATA[raw]) return 'pragmatist';
+  return raw;
+}
 
 function buildUserMessage(context, surface) {
   let instruction = 'Here is my current training data. Write my fitness summary.';
@@ -112,6 +145,17 @@ export default async function handler(req, res) {
       resolvedTimezone = profileTz?.timezone || 'America/New_York';
     }
 
+    // Resolve persona for the Today brief. Other surfaces ignore persona.
+    let personaId = null;
+    if (surface === 'today') {
+      const { data: settings } = await supabase
+        .from('user_coach_settings')
+        .select('coaching_persona')
+        .eq('user_id', userId)
+        .maybeSingle();
+      personaId = resolvePersonaId(settings?.coaching_persona ?? null);
+    }
+
     // Adapt to assembleFitnessContext's legacy shape. The helper's internal
     // rename is deferred to the activities / fitness_snapshots reader
     // cut-over (see docs/METRICS_ROLLOUT_REMAINING.md §1a/§1b).
@@ -131,7 +175,7 @@ export default async function handler(req, res) {
 
     // 1. Assemble context (timezone-aware so day/week windows match the user's UI)
     const context = await assembleFitnessContext(userId, supabase, contextMetrics, { rideId }, resolvedTimezone);
-    const cacheKey = buildCacheKey(context);
+    const cacheKey = buildCacheKey(context, { personaId });
 
     // 2. Check cache (4-hour TTL)
     if (!forceRefresh) {
@@ -155,10 +199,15 @@ export default async function handler(req, res) {
     }
 
     // 3. Call Claude Haiku
+    const isTodayBrief = surface === 'today';
+    const systemPrompt = isTodayBrief
+      ? `${BASE_SYSTEM_PROMPT}${TODAY_BRIEF_OVERRIDES}${buildPersonaBlock(personaId)}`
+      : BASE_SYSTEM_PROMPT;
+
     const response = await claude.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 150,
-      system: SYSTEM_PROMPT,
+      max_tokens: isTodayBrief ? 220 : 150,
+      system: systemPrompt,
       messages: [{
         role: 'user',
         content: buildUserMessage(context, surface),

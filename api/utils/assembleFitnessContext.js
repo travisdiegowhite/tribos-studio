@@ -409,8 +409,11 @@ function summarizeCoachThread(msgs) {
 /**
  * Build a cache key from the meaningful fields of the context.
  * Excludes coach_summary and generated_at to avoid unnecessary regeneration.
+ * `options.personaId` is appended for surfaces that vary the prompt by
+ * persona (the Today brief), so changing personas naturally invalidates
+ * the cache.
  */
-export function buildCacheKey(context) {
+export function buildCacheKey(context, options = {}) {
   const parts = [
     context.snapshot.ctl,
     context.snapshot.atl,
@@ -421,6 +424,7 @@ export function buildCacheKey(context) {
     context.data_quality.rides_completed_this_week,
     context.coach_context.upcoming_key_workout || 'none',
     context.week_schedule || 'none',
+    options.personaId || 'none',
   ];
   return parts.join(':');
 }

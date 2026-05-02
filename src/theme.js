@@ -61,6 +61,8 @@ export const lightTokens = {
     bgSecondary: '#EBEBE8',
     bgTertiary: '#EBEBE8',
     bgElevated: '#FFFFFF',
+    warmBg: '#FBF6F2',
+    neutralGray: '#B4B2A9',
 
     // Borders
     border: '#DDDDD8',
@@ -130,6 +132,8 @@ export const darkTokens = {
     bgSecondary: '#1A1A16',
     bgTertiary: '#222220',
     bgElevated: '#2A2A28',
+    warmBg: '#1F1A16',
+    neutralGray: '#7A7970',
 
     // Borders
     border: '#2E2E2A',
