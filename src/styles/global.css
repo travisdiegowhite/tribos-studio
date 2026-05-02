@@ -16,6 +16,8 @@
   --color-card: #FFFFFF;
   --color-border: #DDDDD8;
   --color-nav-bg: #141410;
+  --tribos-warm-bg: #FBF6F2;
+  --tribos-neutral-gray: #B4B2A9;
 
   /* ===== TEXT ===== */
   --color-text-primary: #141410;
@@ -167,6 +169,8 @@
   --color-card: #222220;
   --color-border: #2E2E2A;
   --color-nav-bg: #0E0E0C;
+  --tribos-warm-bg: #1F1A16;
+  --tribos-neutral-gray: #7A7970;
 
   /* ===== TEXT ===== */
   --color-text-primary: #E8E8E4;

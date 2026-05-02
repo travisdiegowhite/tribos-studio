@@ -1,0 +1,50 @@
+.container {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px 32px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    'brief         brief'
+    'athlete       plan'
+    'conversation  recent';
+  gap: 14px;
+  background: var(--color-bg);
+  min-height: 100vh;
+  align-content: start;
+}
+
+.brief {
+  grid-area: brief;
+}
+
+.athlete {
+  grid-area: athlete;
+}
+
+.plan {
+  grid-area: plan;
+}
+
+.conversation {
+  grid-area: conversation;
+}
+
+.recent {
+  grid-area: recent;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 16px;
+    gap: 12px;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'brief'
+      'conversation'
+      'recent'
+      'athlete'
+      'plan';
+  }
+}

@@ -16,34 +16,7 @@ const claude = new Anthropic({
 
 const VALID_SURFACES = new Set(['today', 'post_ride', 'coach']);
 
-const TODAY_VOICE_RULES = `VOICE:
-- You are the athlete's coach. The persona block below sets your tone.
-- 3–4 sentences. Conversational. Not a data report.
-- Use Tribos terminology only: RSS (ride stress), TFI (training fitness), AFI (acute fatigue), FS (form score), EP (effective power), RI (ride intensity). NEVER emit TSS, CTL, ATL, TSB, NP, or IF in any user-facing text.
-- No asterisks, markdown, or formatting. Plain text only.
-- Reference today's planned workout by its actual name.
-- If a phase + week-in-phase is provided, you may anchor to it ("week 2 of 3 in build").
-- If a next A-race is provided AND it is within 60 days, ground the message around it. Otherwise don't invent a race.
-- If a deterministic freshness word is provided (e.g. "ready", "loaded"), align your prose with it — don't contradict the word.
-- Never use motivational filler, never apologize, never hedge.
-
-WEIGHTING RULES:
-- The 28-day fitness trend (ctl_direction) is the primary fitness signal. A single noisy week does not change the story if the trend is solid.
-- The fatigue-to-fitness ratio (AFI/TFI) matters more than raw AFI numbers.
-
-TREND CONSISTENCY — CRITICAL:
-- trends.ctl_direction and trends.ctl_delta_pct are authoritative. They match the Trend card the athlete sees on the dashboard. NEVER contradict them.
-- Values of ctl_direction: 'building' (>8%), 'maintaining' (>2%), 'holding' (-2% to 2%), 'recovering' (<-2%).
-
-SPIKE GUARD — CRITICAL:
-- If missed_rides_flag is true, an apparent drop in fatigue is NOT recovery — it is fewer rides so far this week. Acknowledge the week isn't done.
-
-EXPERIENCE LEVEL ADAPTATION:
-- beginner: avoid jargon, use very plain language
-- intermediate: light jargon ok
-- advanced/racer: be direct and data-confident`;
-
-const SYSTEM_PROMPT = `You are a friendly fitness assistant for Tribos, a cycling coaching app.
+const BASE_SYSTEM_PROMPT = `You are a friendly fitness assistant for Tribos, a cycling coaching app.
 Your job is to write 1–2 casual sentences explaining what an athlete's training data means for them TODAY.
 
 VOICE:
@@ -90,85 +63,87 @@ EXPERIENCE LEVEL ADAPTATION:
 - intermediate: light jargon ok, focus on what to do next
 - advanced/racer: can be direct and data-confident, skip the basics`;
 
-function buildUserMessage(context, surface, todayExtras) {
+// Today's Brief — longer, persona-voiced paragraph that anchors the Today view.
+const TODAY_BRIEF_OVERRIDES = `
+
+TODAY'S BRIEF — surface-specific overrides:
+- Write 3–4 sentences (60–90 words). The 1–2 sentence rule does NOT apply to this surface.
+- Open with the athlete's first name when present in the context payload (do not invent one).
+- Reference: today's planned workout name (when present), today's form / fatigue snapshot, and the next purposeful action this week.
+- Speak in the persona voice provided below. Match the persona's pacing, register, and signature framing.
+- Do not lecture on general principles. Anchor every sentence to today's data, today's plan, or the rider's next session.`;
+
+function buildPersonaBlock(personaId) {
+  const persona = PERSONA_DATA[personaId];
+  if (!persona) return '';
+  const styleRules = Array.isArray(persona.styleRules)
+    ? persona.styleRules.map((r) => `  - ${r}`).join('\n')
+    : '';
+  return `
+
+PERSONA VOICE — ${persona.name}:
+- Philosophy: ${persona.philosophy}
+- Voice: ${persona.voice}
+- Emphasizes: ${persona.emphasizes}
+- Never say: ${persona.neverSay}
+${styleRules ? `- Style rules:\n${styleRules}` : ''}`;
+}
+
+function buildUserMessage(context, surface) {
   let instruction = 'Here is my current training data. Write my fitness summary.';
   if (surface === 'post_ride') {
     instruction = 'Here is my training data after my latest ride. Write a brief post-ride summary of how this ride fits into my week.';
   } else if (surface === 'coach') {
     instruction = 'Here is my current training data. Write a single-line fitness context for the top of my coach chat.';
   } else if (surface === 'today') {
-    instruction = 'Here is my training state for today. Write the 3–4 sentence Today paragraph.';
+    instruction = "Here is my training state for today. Write the 3–4 sentence Today's Brief paragraph.";
   }
 
-  const payload = surface === 'today' && todayExtras
-    ? { ...context, today: todayExtras }
-    : context;
-
-  return `${instruction}\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
+  return `${instruction}\n\n\`\`\`json\n${JSON.stringify(context, null, 2)}\n\`\`\``;
 }
 
-/**
- * Build the system prompt for the `today` surface.
- *
- * Incorporates the user's persona (voice + styleRules) on top of the
- * shared Tribos voice rules. The 3–4 sentence ceiling overrides any
- * shorter "max 3 sentences" rule from the persona.
- */
-function buildTodaySystemPrompt(persona) {
-  const personaDef = PERSONA_DATA[persona] || PERSONA_DATA.pragmatist;
-  const styleRules = (personaDef.styleRules || []).map((r, i) => `${i + 1}. ${r}`).join('\n');
-
-  return `You are ${personaDef.name}, the athlete's cycling coach inside Tribos.
-
-PERSONA VOICE:
-${personaDef.voice}
-
-PERSONA EMPHASIZES:
-${personaDef.emphasizes}
-
-NEVER SAY:
-${personaDef.neverSay}
-
-PERSONA STYLE RULES (apply unless they conflict with the length ceiling below — the 3–4 sentence ceiling wins):
-${styleRules}
-
-${TODAY_VOICE_RULES}`;
-}
+const VALID_PERSONA_IDS = new Set(Object.keys(PERSONA_DATA));
 
 /**
- * Resolve the active persona id for a user, with fallback chain:
- *   user_profiles.coach_persona_id → user_coach_settings.coaching_persona → 'pragmatist'
+ * Resolve the active persona id for a user. Reads
+ * user_profiles.coach_persona_id (canonical home post-migration 086) first,
+ * falls back to user_coach_settings.coaching_persona for users predating
+ * the backfill, and finally to 'pragmatist'.
  */
 async function resolvePersona(userId) {
   const { data: profileRow } = await supabase
     .from('user_profiles')
     .select('coach_persona_id')
     .eq('id', userId)
-    .single();
-  if (profileRow?.coach_persona_id) return profileRow.coach_persona_id;
+    .maybeSingle();
+  const fromProfile = profileRow?.coach_persona_id;
+  if (fromProfile && VALID_PERSONA_IDS.has(fromProfile)) return fromProfile;
 
   const { data: settingsRow } = await supabase
     .from('user_coach_settings')
     .select('coaching_persona')
     .eq('user_id', userId)
     .maybeSingle();
-  const candidate = settingsRow?.coaching_persona;
-  return candidate && candidate !== 'pending' ? candidate : 'pragmatist';
+  const fromSettings = settingsRow?.coaching_persona;
+  if (fromSettings && fromSettings !== 'pending' && VALID_PERSONA_IDS.has(fromSettings)) {
+    return fromSettings;
+  }
+
+  return 'pragmatist';
 }
 
 /**
- * Generate (or fetch from cache) the Today coach paragraph for a user.
+ * Generate (or fetch from cache) the Today's Brief paragraph for a user.
  *
  * Used by the HTTP handler and by the per-user-timezone cron pre-warmer
- * at 04:15 local. Bypasses HTTP auth — caller is responsible for
- * authorizing the userId.
+ * at 04:15 local (api/today-coach-prewarm.js). Bypasses HTTP auth — the
+ * caller is responsible for authorizing the userId.
  *
  * @param {string} userId
  * @param {{ tfi:number, afi:number, formScore:number, lastRideRss?:number, ctlDeltaPct?:number|null }} clientMetrics
- * @param {object} todayContext  Today-surface extras (workoutId, freshnessWord, phase, weekInPhase, weeksInPhase, weeksRemaining, raceName, daysToRace, …)
  * @param {{ timezone?:string, forceRefresh?:boolean }} [opts]
  */
-export async function generateTodaySummary(userId, clientMetrics, todayContext, opts = {}) {
+export async function generateTodaySummary(userId, clientMetrics, _todayContext, opts = {}) {
   const { timezone, forceRefresh = false } = opts;
   const surface = 'today';
 
@@ -194,17 +169,7 @@ export async function generateTodaySummary(userId, clientMetrics, todayContext, 
 
   const context = await assembleFitnessContext(userId, supabase, contextMetrics, {}, resolvedTimezone);
   const personaId = await resolvePersona(userId);
-
-  // Cache key intentionally captures only dimensions that can change
-  // within a single day. Phase / weekInPhase / daysToRace shift on weekly
-  // cadence so they're passed to the prompt but not the cache key — this
-  // lets the 04:15 cron pre-warm and a later user-load hit the same row.
-  const cacheKey = [
-    buildCacheKey(context),
-    `p:${personaId}`,
-    `w:${todayContext?.workoutId || 'none'}`,
-    `f:${todayContext?.freshnessWord || 'none'}`,
-  ].join('|');
+  const cacheKey = buildCacheKey(context, { personaId });
 
   if (!forceRefresh) {
     const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
@@ -221,14 +186,12 @@ export async function generateTodaySummary(userId, clientMetrics, todayContext, 
     }
   }
 
+  const systemPrompt = `${BASE_SYSTEM_PROMPT}${TODAY_BRIEF_OVERRIDES}${buildPersonaBlock(personaId)}`;
   const response = await claude.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 280,
-    system: buildTodaySystemPrompt(personaId),
-    messages: [{
-      role: 'user',
-      content: buildUserMessage(context, surface, todayContext),
-    }],
+    max_tokens: 220,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: buildUserMessage(context, surface) }],
   });
 
   const summary = response.content[0].text.trim();
@@ -274,8 +237,6 @@ export default async function handler(req, res) {
       rideId,
       forceRefresh,
       timezone: browserTimezone,
-      // Today-surface extras (computed client-side; passed through verbatim to the prompt)
-      todayContext,
     } = req.body || {};
 
     if (!VALID_SURFACES.has(surface)) {
@@ -289,7 +250,7 @@ export default async function handler(req, res) {
     // Today surface delegates to the shared generator (also used by the
     // 04:15-local cron pre-warmer in api/today-coach-prewarm.js).
     if (surface === 'today') {
-      const result = await generateTodaySummary(userId, clientMetrics, todayContext, {
+      const result = await generateTodaySummary(userId, clientMetrics, null, {
         timezone: browserTimezone,
         forceRefresh,
       });
@@ -297,7 +258,6 @@ export default async function handler(req, res) {
     }
 
     // ── post_ride / coach surfaces (1–2 sentence variants) ──
-    // Resolve timezone: prefer browser-supplied, then DB, then fallback.
     let resolvedTimezone = browserTimezone;
     if (!resolvedTimezone) {
       const { data: profileTz } = await supabase
@@ -344,7 +304,7 @@ export default async function handler(req, res) {
     const response = await claude.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 150,
-      system: SYSTEM_PROMPT,
+      system: BASE_SYSTEM_PROMPT,
       messages: [{
         role: 'user',
         content: buildUserMessage(context, surface),
