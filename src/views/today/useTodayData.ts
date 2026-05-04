@@ -105,6 +105,9 @@ export interface PlanExecution {
   currentWeekInPlan: number;
   totalWeeks: number;
   currentPhase: string;
+  /** Active plan name. Surfaced when phases is empty so the cell still
+   *  communicates "you have a plan" without the phase breakdown. */
+  planName: string | null;
   daysToRace: number | null;
   raceName: string | null;
   planEmpty: boolean;
@@ -205,7 +208,12 @@ function deriveCurrentPhase(
   currentWeek: number,
 ): { name: string; segments: PlanPhaseSegment[]; total: number } {
   if (!template?.phases?.length) {
-    return { name: 'Building baseline', segments: [], total: 0 };
+    // Plan exists but template_id has no matching entry in
+    // trainingPlanTemplates. Common case: coach-generated plans use
+    // template_id values like 'coach_recommended' or 'ai_coach_polarized'
+    // that don't map to a static template. Return empty segments so the
+    // UI can render a "plan is active but phase breakdown unknown" state.
+    return { name: '', segments: [], total: 0 };
   }
   const segments: PlanPhaseSegment[] = template.phases.map((p) => ({
     name: p.phase,
@@ -359,6 +367,7 @@ const EMPTY_PLAN_EXECUTION: PlanExecution = {
   currentWeekInPlan: 0,
   totalWeeks: 0,
   currentPhase: '',
+  planName: null,
   daysToRace: null,
   raceName: null,
   planEmpty: true,
@@ -726,6 +735,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
             currentWeekInPlan: activePlan.current_week ?? 1,
             totalWeeks: phaseInfo.total || (activePlan.duration_weeks ?? 0),
             currentPhase: phaseInfo.name,
+            planName: activePlan.name ?? null,
             planEmpty: false,
             planStartsInDays,
             weekRideCount: { completed, planned },

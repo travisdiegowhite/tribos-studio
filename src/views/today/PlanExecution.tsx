@@ -30,6 +30,10 @@ const TCAS_ZONES: BarZone[] = [
   { fraction: 0.15, color: todayColors.teal },
 ];
 
+// Cap THIS WK dot count so a hypothetical 14-ride plan week doesn't
+// produce a row of pinhead-sized dots.
+const MAX_WEEK_DOTS = 7;
+
 function clamped01(value: number | null, max = 100): number | null {
   if (value == null || !Number.isFinite(value)) return null;
   return Math.min(1, Math.max(0, value / max));
@@ -58,7 +62,7 @@ function deriveWeekInPhase(
 export function PlanExecution({ data, cols = 4, onCellClick }: PlanExecutionProps) {
   // ── PLAN cell ───────────────────────────────────────────────────────────
   const weekInPhase = deriveWeekInPhase(data.phases, data.currentWeekInPlan);
-  const planSubtitle =
+  const raceSubtitle =
     data.daysToRace != null && data.raceName
       ? `${data.daysToRace} D · ${data.raceName.toUpperCase()}`
       : null;
@@ -69,6 +73,7 @@ export function PlanExecution({ data, cols = 4, onCellClick }: PlanExecutionProp
   let planSub: React.ReactNode;
 
   if (data.planEmpty) {
+    // No active plan at all.
     planVisual = <PhaseStrip phases={[]} currentWeek={0} totalWeeks={0} empty />;
     planWord = 'No active plan';
     planColor = todayColors.gray;
@@ -89,6 +94,26 @@ export function PlanExecution({ data, cols = 4, onCellClick }: PlanExecutionProp
         START A PLAN →
       </Text>
     );
+  } else if (data.phases.length === 0) {
+    // Active plan whose template_id has no matching entry in
+    // trainingPlanTemplates (e.g. coach-generated plans). We don't have
+    // phase segmentation, so render the empty striped strip but keep
+    // the plan name + current week as the word so the user knows their
+    // plan is active.
+    planVisual = <PhaseStrip phases={[]} currentWeek={0} totalWeeks={0} empty />;
+    planWord = `${data.planName ?? 'Active plan'} · Wk ${Math.max(1, data.currentWeekInPlan)}`;
+    planColor = todayColors.teal;
+    planSub = raceSubtitle ? (
+      <Text
+        style={{
+          fontFamily: "'DM Mono', monospace",
+          fontSize: 10,
+          color: '#7A7970',
+        }}
+      >
+        {raceSubtitle}
+      </Text>
+    ) : null;
   } else if (data.planStartsInDays != null) {
     planVisual = (
       <PhaseStrip
@@ -121,7 +146,7 @@ export function PlanExecution({ data, cols = 4, onCellClick }: PlanExecutionProp
     planWord = formatPhaseWord(data.currentPhase, weekInPhase);
     planColor =
       data.phases.find((p) => p.name === data.currentPhase)?.color ?? todayColors.teal;
-    planSub = planSubtitle ? (
+    planSub = raceSubtitle ? (
       <Text
         style={{
           fontFamily: "'DM Mono', monospace",
@@ -129,7 +154,7 @@ export function PlanExecution({ data, cols = 4, onCellClick }: PlanExecutionProp
           color: '#7A7970',
         }}
       >
-        {planSubtitle}
+        {raceSubtitle}
       </Text>
     ) : null;
   }
@@ -140,7 +165,7 @@ export function PlanExecution({ data, cols = 4, onCellClick }: PlanExecutionProp
   ) : (
     <MetricBar zones={EFI_ZONES} markerPos={clamped01(data.efi28d)} />
   );
-  const efiWord = data.efiEmpty
+  const efiDisplayWord = data.efiEmpty
     ? data.efiRidesNeeded > 0
       ? `Need ${data.efiRidesNeeded} more rides`
       : 'Building history'
@@ -158,7 +183,7 @@ export function PlanExecution({ data, cols = 4, onCellClick }: PlanExecutionProp
     <MetricBar zones={TCAS_ZONES} markerPos={clamped01(data.tcas)} />
   );
   const tcasWeeksNeeded = Math.max(0, 4 - data.tcasWeeksLogged);
-  const tcasWord = data.tcasEmpty
+  const tcasDisplayWord = data.tcasEmpty
     ? tcasWeeksNeeded > 0
       ? `Need ${tcasWeeksNeeded} more week${tcasWeeksNeeded === 1 ? '' : 's'}`
       : 'Building history'
@@ -170,6 +195,9 @@ export function PlanExecution({ data, cols = 4, onCellClick }: PlanExecutionProp
       : null;
 
   // ── THIS WK cell ────────────────────────────────────────────────────────
+  // Spec: "each dot represents a planned ride for the week". So dot count =
+  // planned ride count, not always 5. The 5-dot fallback is only for the
+  // empty / no-rides-planned case.
   let weekVisual: React.ReactNode;
   let weekWord: string;
   let weekColor: string;
@@ -177,14 +205,15 @@ export function PlanExecution({ data, cols = 4, onCellClick }: PlanExecutionProp
 
   if (data.weekEmpty) {
     weekVisual = <DotRow total={5} completed={0} />;
-    weekWord = 'No rides planned';
+    weekWord = data.weekIsRestWeek ? 'Rest week' : 'No rides planned';
     weekColor = todayColors.gray;
     weekSubtitle = data.weekIsRestWeek ? 'REST WEEK' : 'OPEN WEEK';
   } else {
+    const dotTotal = Math.min(MAX_WEEK_DOTS, data.weekRideCount.planned);
     weekVisual = (
       <DotRow
-        total={Math.max(data.weekRideCount.planned, 5)}
-        completed={data.weekRideCount.completed}
+        total={dotTotal}
+        completed={Math.min(dotTotal, data.weekRideCount.completed)}
       />
     );
     weekWord = `${data.weekRideCount.completed} of ${data.weekRideCount.planned}`;
@@ -212,7 +241,7 @@ export function PlanExecution({ data, cols = 4, onCellClick }: PlanExecutionProp
         <MetricCell
           label="EFI · 28D"
           visual={efiVisual}
-          word={efiWord}
+          word={efiDisplayWord}
           wordColor={data.efiEmpty ? todayColors.gray : data.efiColor}
           subtitle={efiSubtitle}
           onClick={onCellClick ? () => onCellClick('efi') : undefined}
@@ -220,7 +249,7 @@ export function PlanExecution({ data, cols = 4, onCellClick }: PlanExecutionProp
         <MetricCell
           label="TCAS · 6W"
           visual={tcasVisual}
-          word={tcasWord}
+          word={tcasDisplayWord}
           wordColor={data.tcasEmpty ? todayColors.gray : data.tcasColor}
           subtitle={tcasSubtitle}
           onClick={onCellClick ? () => onCellClick('tcas') : undefined}
