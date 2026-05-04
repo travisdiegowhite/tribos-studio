@@ -2,6 +2,7 @@ import { useEffect, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { usePostHog } from 'posthog-js/react';
 import { useAuth } from '../../contexts/AuthContext';
+import AppShell from '../../components/AppShell.jsx';
 import { useTodayData } from './hooks/useTodayData';
 import { TodaysBrief } from './TodaysBrief';
 import { AthleteState } from './AthleteState';
@@ -32,7 +33,7 @@ export default function TodayView() {
   }, [user?.id]);
 
   // QA escape hatch — fall back to the legacy Dashboard when the user
-  // hits /today?legacy=1. Removed in a follow-up release.
+  // hits /today?legacy=1. Dashboard wraps in AppShell on its own.
   if (searchParams.get('legacy') === '1') {
     return (
       <Suspense fallback={null}>
@@ -42,22 +43,24 @@ export default function TodayView() {
   }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.brief}>
-        <TodaysBrief data={data} />
+    <AppShell>
+      <div className={styles.container}>
+        <div className={styles.brief}>
+          <TodaysBrief data={data} />
+        </div>
+        <div className={styles.athlete}>
+          <AthleteState data={data} />
+        </div>
+        <div className={styles.plan}>
+          <PlanExecution data={data} />
+        </div>
+        <div className={styles.conversation}>
+          <CoachConversation data={data} />
+        </div>
+        <div className={styles.recent}>
+          <RecentRides data={data} />
+        </div>
       </div>
-      <div className={styles.athlete}>
-        <AthleteState data={data} />
-      </div>
-      <div className={styles.plan}>
-        <PlanExecution data={data} />
-      </div>
-      <div className={styles.conversation}>
-        <CoachConversation data={data} />
-      </div>
-      <div className={styles.recent}>
-        <RecentRides data={data} />
-      </div>
-    </div>
+    </AppShell>
   );
 }
