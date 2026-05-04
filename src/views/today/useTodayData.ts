@@ -28,6 +28,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getPlanTemplate } from '../../data/trainingPlanTemplates';
 import { PERSONAS } from '../../data/coachingPersonas';
+import { estimateActivityTSS } from '../../utils/computeFitnessSnapshots';
 import {
   freshnessFromFormScore,
   fatigueWordFromAFI,
@@ -177,9 +178,12 @@ export interface UseTodayDataReturn {
 const KM_PER_MILE = 1.609344;
 const M_PER_FOOT = 0.3048;
 
-function todayLocalDateString(): string {
-  const d = new Date();
+function fmtDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function todayLocalDateString(): string {
+  return fmtDate(new Date());
 }
 
 function isoMondayOfThisWeek(): { startKey: string; endKey: string } {
@@ -225,67 +229,103 @@ function deriveCurrentPhase(
   return { name: current?.phase ?? template.phases[0].phase, segments, total };
 }
 
-/**
- * `training_load_daily` only has rows on activity days. To produce continuous
- * 28-day series for the sparkline (and the personal min/max range for the
- * fatigue bar), walk the calendar and carry the most recent observed value
- * forward into rest days.
- *
- * Returns ascending-by-date arrays of length `days` ending today (inclusive).
- * If there are no observed rows at all, returns empty arrays — the caller
- * should treat that as "empty" and render the empty-state visual.
- */
-function buildContinuousSeries(
-  rowsDescending: RawTrainingLoadDailyRow[],
-  days: number,
-): {
-  tfi: SparklinePoint[];
-  afi: number[];
-  daysLogged: number;
-} {
-  if (rowsDescending.length === 0) {
-    return { tfi: [], afi: [], daysLogged: 0 };
-  }
+interface AthleteActivityRow {
+  start_date: string;
+  rss?: number | null;
+  tss?: number | null;
+  moving_time?: number | null;
+  distance?: number | null;
+  total_elevation_gain?: number | null;
+  average_watts?: number | null;
+  effective_power?: number | null;
+  normalized_power?: number | null;
+  kilojoules?: number | null;
+  type?: string | null;
+  sport_type?: string | null;
+  average_heartrate?: number | null;
+  is_hidden?: boolean | null;
+}
 
-  const byDate = new Map<string, RawTrainingLoadDailyRow>();
-  for (const r of rowsDescending) byDate.set(r.date, r);
+interface AthleteMetrics {
+  formScore: number | null;
+  tfiCurrent: number | null;
+  afiCurrent: number | null;
+  tfiHistory: SparklinePoint[]; // 28 days, ascending
+  afiLast28: number[];
+}
+
+/**
+ * Compute athlete state metrics from the same activities table that
+ * Dashboard.jsx uses (lines 283–329). The 90-day window matches
+ * Dashboard's logic so two surfaces can't disagree about the same numbers.
+ *
+ * `training_load_daily` is sparse — only written on Strava/Garmin/Wahoo
+ * webhook ingestion, not backfilled — so reading directly from `activities`
+ * is the only path that reliably returns metrics for every user.
+ */
+function buildAthleteMetrics(
+  activities: AthleteActivityRow[],
+  ftp: number,
+): AthleteMetrics {
+  if (activities.length === 0) {
+    return {
+      formScore: null,
+      tfiCurrent: null,
+      afiCurrent: null,
+      tfiHistory: [],
+      afiLast28: [],
+    };
+  }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const ninetyDaysAgo = new Date(today);
+  ninetyDaysAgo.setDate(today.getDate() - 90);
 
-  const tfi: SparklinePoint[] = [];
-  const afi: number[] = [];
-  let lastTfi: number | null = null;
-  let lastAfi: number | null = null;
-
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-    const row = byDate.get(key);
-    if (row) {
-      const t = Number(row.tfi ?? row.ctl);
-      const a = Number(row.afi ?? row.atl);
-      if (Number.isFinite(t)) lastTfi = t;
-      if (Number.isFinite(a)) lastAfi = a;
+  const dailyRSS: Record<string, number> = {};
+  for (let d = new Date(ninetyDaysAgo); d <= today; d.setDate(d.getDate() + 1)) {
+    dailyRSS[fmtDate(d)] = 0;
+  }
+  for (const a of activities) {
+    const date = a.start_date?.split('T')[0];
+    if (date && dailyRSS[date] !== undefined) {
+      dailyRSS[date] += Math.min(estimateActivityTSS(a, ftp), 500);
     }
-
-    if (lastTfi != null) tfi.push({ date: key, tfi: lastTfi });
-    if (lastAfi != null) afi.push(lastAfi);
   }
 
-  // Count distinct activity days within the requested window — used for
-  // empty-state thresholds.
-  const windowStart = new Date(today);
-  windowStart.setDate(windowStart.getDate() - (days - 1));
-  let daysLogged = 0;
-  for (const r of rowsDescending) {
-    const d = new Date(r.date);
-    if (d >= windowStart && d <= today) daysLogged++;
+  const sortedDays = Object.keys(dailyRSS).sort();
+  const windowStart28 = new Date(today);
+  windowStart28.setDate(today.getDate() - 27);
+  const windowKey28 = fmtDate(windowStart28);
+
+  const tfiHistory: SparklinePoint[] = [];
+  const afiLast28: number[] = [];
+  let tfi = 0;
+  let afi = 0;
+  let tfiYesterday = 0;
+  let afiYesterday = 0;
+
+  for (const day of sortedDays) {
+    tfiYesterday = tfi;
+    afiYesterday = afi;
+    const rss = dailyRSS[day];
+    tfi = tfi + (rss - tfi) / 42;
+    afi = afi + (rss - afi) / 7;
+    if (day >= windowKey28) {
+      tfiHistory.push({ date: day, tfi: Math.round(tfi) });
+      afiLast28.push(afi);
+    }
   }
 
-  return { tfi, afi, daysLogged };
+  // Form Score = TFI_yesterday − AFI_yesterday (freshness going into today)
+  const formScore = Math.round(tfiYesterday - afiYesterday);
+  return {
+    formScore,
+    tfiCurrent: Math.round(tfi),
+    afiCurrent: Math.round(afi),
+    tfiHistory,
+    afiLast28,
+  };
 }
 
 /**
@@ -307,26 +347,6 @@ function slopeLastN(series: SparklinePoint[], n: number): number {
     den += dx * dx;
   }
   return den === 0 ? 0 : num / den;
-}
-
-interface RawTrainingLoadDailyRow {
-  date: string;
-  rss: number | null;
-  tss: number | null;
-  tfi: number | null;
-  ctl: number | null;
-  afi: number | null;
-  atl: number | null;
-  form_score: number | null;
-  tsb: number | null;
-}
-
-interface RawFitnessSnapshotRow {
-  snapshot_week: string;
-  tfi: number | null;
-  ctl: number | null;
-  afi: number | null;
-  atl: number | null;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -451,17 +471,35 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           .limit(1)
           .maybeSingle();
 
-        // ── 3. Last 30 days of training_load_daily for AFI/TFI ceilings ─
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 28);
-        const thirtyKey = thirtyDaysAgo.toISOString().slice(0, 10);
-        const tldQuery = supabase
-          .from('training_load_daily')
-          .select('date, rss, tss, tfi, ctl, afi, atl, form_score, tsb')
+        // ── 3. User FTP + 90-day activities for athlete state ────────────
+        // We compute Form / Fitness / Fatigue from the activities table the
+        // same way Dashboard.jsx does (lines 283–329) instead of reading
+        // `training_load_daily`. That table is sparse — only written on
+        // Strava/Garmin/Wahoo webhook ingestion — so a user with a year of
+        // activities but no recent webhook event would otherwise see empty
+        // cells. Reading from `activities` always reflects what the rider
+        // actually did.
+        const userProfileQuery = supabase
+          .from('user_profiles')
+          .select('ftp')
           .eq('user_id', userId)
-          .gte('date', thirtyKey)
-          .order('date', { ascending: false })
-          .limit(60);
+          .maybeSingle();
+
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const athleteActivitiesQuery = supabase
+          .from('activities')
+          .select(
+            'start_date, rss, tss, moving_time, distance, total_elevation_gain, ' +
+              'average_watts, effective_power, normalized_power, kilojoules, ' +
+              'type, sport_type, average_heartrate, is_hidden, duplicate_of',
+          )
+          .eq('user_id', userId)
+          .is('duplicate_of', null)
+          .or('is_hidden.eq.false,is_hidden.is.null')
+          .gte('start_date', ninetyDaysAgo.toISOString())
+          .order('start_date', { ascending: true })
+          .limit(500);
 
         // ── 4. Fitness snapshots (last ~6 weeks) for 4-week trend ────────
         const sixWeeksAgo = new Date();
@@ -535,7 +573,8 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         const [
           personaRes,
           planRes,
-          tldRes,
+          userProfileRes,
+          athleteActivitiesRes,
           snapshotsRes,
           efiRes,
           tcasRes,
@@ -545,7 +584,8 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         ] = await Promise.all([
           personaQuery,
           planQuery,
-          tldQuery,
+          userProfileQuery,
+          athleteActivitiesQuery,
           snapshotsQuery,
           efiQuery,
           tcasQuery,
@@ -592,54 +632,36 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         }
 
         // ── Athlete state ────────────────────────────────────────────────
-        // Build forward-filled 28-day series. `training_load_daily` only has
-        // rows on activity days (verified — the sole writer is
-        // `upsertTrainingLoadDaily()` in api/utils/trainingLoad.js, called
-        // only on Strava/Garmin/Wahoo activity ingestion). The sparkline and
-        // the personal AFI range need continuous data, so we carry the most
-        // recent observed value forward into rest days.
-        const tldRows = (tldRes.data ?? []) as RawTrainingLoadDailyRow[];
-        const latestTld = tldRows[0] ?? null;
-        const formScore = latestTld
-          ? Number(latestTld.form_score ?? latestTld.tsb)
-          : null;
-
-        const series = buildContinuousSeries(tldRows, 28);
-        const tfiToday = series.tfi.length > 0
-          ? series.tfi[series.tfi.length - 1].tfi
-          : null;
-        const afiToday = series.afi.length > 0
-          ? series.afi[series.afi.length - 1]
-          : null;
+        // Compute TFI / AFI / Form Score from the activities table the same
+        // way Dashboard.jsx does. Walks 90 days of daily RSS through the
+        // standard EWMA, snapshotting the last 28 days for the sparkline +
+        // the personal-range fatigue bar.
+        const userFtp = (userProfileRes.data?.ftp as number | null) || 200;
+        const athleteActivities = (athleteActivitiesRes.data ?? []) as unknown as AthleteActivityRow[];
+        const metrics = buildAthleteMetrics(athleteActivities, userFtp);
+        const { formScore, tfiCurrent, afiCurrent, tfiHistory, afiLast28 } = metrics;
 
         // FATIGUE bar — position in the user's own 28-day AFI range so
         // "Productive" means the same thing for any rider's training load,
         // not an absolute AFI threshold.
-        const afiMin = series.afi.length > 0 ? Math.min(...series.afi) : 0;
-        const afiMax = series.afi.length > 0 ? Math.max(...series.afi) : 0;
+        const afiMin = afiLast28.length > 0 ? Math.min(...afiLast28) : 0;
+        const afiMax = afiLast28.length > 0 ? Math.max(...afiLast28) : 0;
         const afiRange = afiMax - afiMin;
         const fatigueRelative =
-          afiToday != null && afiRange > 0
-            ? Math.min(1, Math.max(0, (afiToday - afiMin) / afiRange))
+          afiCurrent != null && afiRange > 0
+            ? Math.min(1, Math.max(0, (afiCurrent - afiMin) / afiRange))
             : 0;
 
         // FITNESS sparkline — slope of the last 14 days drives the word.
-        const fitnessSlope14d = slopeLastN(series.tfi, 14);
+        const fitnessSlope14d = slopeLastN(tfiHistory, 14);
         const fitnessDelta28d =
-          series.tfi.length >= 2
-            ? series.tfi[series.tfi.length - 1].tfi - series.tfi[0].tfi
+          tfiHistory.length >= 2
+            ? tfiHistory[tfiHistory.length - 1].tfi - tfiHistory[0].tfi
             : 0;
 
-        // Empty-state thresholds — see plan + spec.
-        const formEmpty = series.daysLogged < 7;
-        const fitnessEmpty = series.daysLogged < 14;
-        const fatigueEmpty = series.daysLogged < 7;
-
-        const formVerdict = freshnessFromFormScore(formEmpty ? null : formScore);
+        const formVerdict = freshnessFromFormScore(formScore);
         const fitnessVerdict = fitnessWordFromSlope(fitnessSlope14d);
-        const fatigueVerdict = fatigueWordFromAFI(
-          fatigueEmpty || afiRange === 0 ? null : fatigueRelative,
-        );
+        const fatigueVerdict = fatigueWordFromAFI(afiRange === 0 ? null : fatigueRelative);
 
         // ── Plan execution ──────────────────────────────────────────────
         // Race: prefer A-priority, else next upcoming. Computed up front so
@@ -856,18 +878,16 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
 
         // ── Coach paragraph (surface=today) ────────────────────────────
         // The fitness-summary endpoint expects `ctlDeltaPct` (the legacy
-        // 28-day TFI %-change). Derive it from the sparkline if both
-        // endpoints exist; otherwise pass null and let the endpoint do
-        // its own assembly.
+        // 28-day TFI %-change). Derive it from the sparkline if available.
         const ctlDeltaPct =
-          series.tfi.length >= 2 && series.tfi[0].tfi > 0
-            ? ((series.tfi[series.tfi.length - 1].tfi - series.tfi[0].tfi) /
-                series.tfi[0].tfi) *
+          tfiHistory.length >= 2 && tfiHistory[0].tfi > 0
+            ? ((tfiHistory[tfiHistory.length - 1].tfi - tfiHistory[0].tfi) /
+                tfiHistory[0].tfi) *
               100
             : 0;
 
         let coachMessage: string | null = null;
-        if (formScore != null && tfiToday != null && afiToday != null) {
+        if (formScore != null && tfiCurrent != null && afiCurrent != null) {
           try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.access_token) {
@@ -880,9 +900,9 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
                 body: JSON.stringify({
                   surface: 'today',
                   clientMetrics: {
-                    tfi: Math.round(tfiToday),
-                    afi: Math.round(afiToday),
-                    formScore: Math.round(formScore),
+                    tfi: tfiCurrent,
+                    afi: afiCurrent,
+                    formScore,
                     ctlDeltaPct,
                   },
                   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -909,36 +929,34 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           coachMessage,
           coachPersona: { id: personaId, name: personaName },
         });
-        const formDaysNeeded = Math.max(0, 7 - series.daysLogged);
-        const fitnessDaysNeeded = Math.max(0, 14 - series.daysLogged);
-        const fatigueDaysNeeded = Math.max(0, 7 - series.daysLogged);
+        // Empty state: athlete has zero activities in the 90-day window.
+        // The component branches on `*Empty` flags to render the striped
+        // empty-state visual; we derive them from null-checks on the
+        // computed values rather than from a separate days-logged count.
+        const formEmpty = formScore == null;
+        const fitnessEmpty = tfiCurrent == null;
+        const fatigueEmpty = afiCurrent == null;
 
         setAthleteState({
           formScore,
-          formWord: formEmpty
-            ? `Need ${formDaysNeeded} more day${formDaysNeeded === 1 ? '' : 's'}`
-            : formVerdict.word,
+          formWord: formEmpty ? 'Building history' : formVerdict.word,
           formColor: formEmpty ? todayColors.gray : formVerdict.color,
           formEmpty,
-          formDaysNeeded,
-          fitnessHistory: series.tfi,
-          fitnessCurrent: tfiToday,
-          fitnessWord: fitnessEmpty
-            ? `Need ${fitnessDaysNeeded} more day${fitnessDaysNeeded === 1 ? '' : 's'}`
-            : fitnessVerdict.word,
+          formDaysNeeded: 0,
+          fitnessHistory: tfiHistory,
+          fitnessCurrent: tfiCurrent,
+          fitnessWord: fitnessEmpty ? 'Building history' : fitnessVerdict.word,
           fitnessColor: fitnessEmpty ? todayColors.gray : fitnessVerdict.color,
-          fitnessDelta28d: fitnessDelta28d,
+          fitnessDelta28d,
           fitnessSlope14d,
           fitnessEmpty,
-          fitnessDaysLogged: series.daysLogged,
-          fatigue: afiToday,
+          fitnessDaysLogged: tfiHistory.length,
+          fatigue: afiCurrent,
           fatigueRelative,
-          fatigueWord: fatigueEmpty
-            ? `Need ${fatigueDaysNeeded} more day${fatigueDaysNeeded === 1 ? '' : 's'}`
-            : fatigueVerdict.word,
+          fatigueWord: fatigueEmpty ? 'Building history' : fatigueVerdict.word,
           fatigueColor: fatigueEmpty ? todayColors.gray : fatigueVerdict.color,
           fatigueEmpty,
-          fatigueDaysNeeded,
+          fatigueDaysNeeded: 0,
         });
         setPlanExecution(planExec);
         setConversation({ messages });
