@@ -99,9 +99,13 @@ export default function TodayView() {
   // ── Training context for the coach (for trainingContext API param) ────
   const trainingContext = useMemo(() => {
     const parts: string[] = [];
-    if (athleteState.fitness != null && athleteState.fatigue != null && athleteState.formScore != null) {
+    if (
+      athleteState.fitnessCurrent != null &&
+      athleteState.fatigue != null &&
+      athleteState.formScore != null
+    ) {
       parts.push(
-        `TFI: ${Math.round(athleteState.fitness)}, AFI: ${Math.round(athleteState.fatigue)}, FS: ${Math.round(athleteState.formScore)}`,
+        `TFI: ${Math.round(athleteState.fitnessCurrent)}, AFI: ${Math.round(athleteState.fatigue)}, FS: ${Math.round(athleteState.formScore)}`,
       );
     }
     if (planExecution.weekRideCount.planned > 0) {
@@ -114,7 +118,7 @@ export default function TodayView() {
     }
     return parts.join('. ');
   }, [
-    athleteState.fitness,
+    athleteState.fitnessCurrent,
     athleteState.fatigue,
     athleteState.formScore,
     planExecution.weekRideCount,
@@ -152,9 +156,11 @@ export default function TodayView() {
               loading={loading}
               onRideClick={handleRideClick}
             />
+            {/* ATHLETE STATE has 3 cells; on mobile, stacking vertically
+                reads cleaner than a 2×2 with one orphan slot. */}
             <AthleteState
               data={athleteState}
-              cols={2}
+              cols={1}
               onCellClick={handleMetricClick('athlete')}
             />
             <PlanExecution

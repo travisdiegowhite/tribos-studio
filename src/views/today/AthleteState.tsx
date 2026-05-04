@@ -3,41 +3,38 @@ import { ClusterCard } from './shared/ClusterCard';
 import { ClusterHeader } from './shared/ClusterHeader';
 import { MetricCell } from './shared/MetricCell';
 import { MetricBar, type BarZone } from './shared/MetricBar';
-import { TrendVisual } from './shared/TrendVisual';
+import { MetricBarEmpty } from './shared/MetricBarEmpty';
+import { FitnessSparkline } from './shared/FitnessSparkline';
 import { todayColors } from '../../utils/todayVocabulary';
 import type { AthleteState as AthleteStateData } from './useTodayData';
 
 interface AthleteStateProps {
   data: AthleteStateData;
-  /** Layout overrides — used by mobile (2x2) and desktop (1x4). */
+  /** Layout overrides — desktop uses 3, mobile uses 1 (vertical stack). */
   cols?: number;
   onCellClick?: (label: string) => void;
 }
 
-// Form Score zones cover -30 to +30 (visual range). Total span = 60.
+// Form Score visual range is [−30, +30]; the bar zones cover that span.
+// 16% / 16% / 36% / 16% / 16% per spec. Sums to 100%.
 const FORM_VISUAL_MIN = -30;
 const FORM_VISUAL_MAX = 30;
 const FORM_VISUAL_SPAN = FORM_VISUAL_MAX - FORM_VISUAL_MIN;
 
 const FORM_ZONES: BarZone[] = [
-  // -30 to -20 (drained), -20 to -10 (loaded), -10 to 5 (sweet),
-  // 5 to 15 (sharp), 15 to 30 (stale)
-  { fraction: 10 / FORM_VISUAL_SPAN, color: todayColors.coral },
-  { fraction: 10 / FORM_VISUAL_SPAN, color: todayColors.orange },
-  { fraction: 15 / FORM_VISUAL_SPAN, color: todayColors.teal },
-  { fraction: 10 / FORM_VISUAL_SPAN, color: todayColors.gold },
-  { fraction: 15 / FORM_VISUAL_SPAN, color: todayColors.gray },
+  { fraction: 0.16, color: todayColors.coral },
+  { fraction: 0.16, color: todayColors.orange },
+  { fraction: 0.36, color: todayColors.teal },
+  { fraction: 0.16, color: todayColors.gold },
+  { fraction: 0.16, color: todayColors.gray },
 ];
 
+// Personal-range fatigue zones: 25% / 45% / 18% / 12% per spec.
 const FATIGUE_ZONES: BarZone[] = [
   { fraction: 0.25, color: todayColors.gray },
   { fraction: 0.45, color: todayColors.teal },
   { fraction: 0.18, color: todayColors.orange },
   { fraction: 0.12, color: todayColors.coral },
-];
-
-const FITNESS_ZONES: BarZone[] = [
-  { fraction: 1, color: todayColors.teal },
 ];
 
 function formMarkerPos(score: number | null): number | null {
@@ -46,27 +43,56 @@ function formMarkerPos(score: number | null): number | null {
   return (clamped - FORM_VISUAL_MIN) / FORM_VISUAL_SPAN;
 }
 
-function formatSubtitle(value: number | null, suffix = ''): string {
-  if (value == null || !Number.isFinite(value)) return '—';
+function formatSigned(value: number, suffix = ''): string {
+  if (!Number.isFinite(value)) return '—';
   const sign = value > 0 ? '+' : '';
   return `${sign}${Math.round(value)}${suffix}`;
 }
 
-export function AthleteState({ data, cols = 4, onCellClick }: AthleteStateProps) {
-  const formMarker = formMarkerPos(data.formScore);
-  const fitnessMarker = data.fitness != null ? data.fitnessRelative : null;
-  const fatigueMarker = data.fatigue != null ? data.fatigueRelative : null;
+function arrowFor(delta: number): string {
+  if (delta > 0.5) return '↗';
+  if (delta < -0.5) return '↘';
+  return '→';
+}
 
-  const formSubtitle = data.formScore == null ? null : `FS ${formatSubtitle(data.formScore)}`;
-  const fitnessSubtitle = data.fitness == null
-    ? null
-    : `TFI ${Math.round(data.fitness)}`;
-  const fatigueSubtitle = data.fatigue == null
-    ? null
-    : `AFI ${Math.round(data.fatigue)}`;
-  const trendSubtitle = data.trendDeltaPct === 0 && data.trendWord === 'Building baseline'
-    ? null
-    : `${formatSubtitle(data.trendDeltaPct, '%')} / 4w`;
+export function AthleteState({ data, cols = 3, onCellClick }: AthleteStateProps) {
+  // ── FORM ────────────────────────────────────────────────────────────────
+  const formMarker = data.formEmpty ? null : formMarkerPos(data.formScore);
+  const formVisual = data.formEmpty ? (
+    <MetricBarEmpty />
+  ) : (
+    <MetricBar zones={FORM_ZONES} markerPos={formMarker} />
+  );
+  const formSubtitle = data.formEmpty
+    ? '7-DAY HISTORY REQUIRED'
+    : data.formScore != null
+      ? `FS ${formatSigned(data.formScore)}`
+      : null;
+
+  // ── FITNESS ─────────────────────────────────────────────────────────────
+  const fitnessVisual = (
+    <Box style={{ paddingTop: 4 }}>
+      <FitnessSparkline history={data.fitnessHistory} empty={data.fitnessEmpty} />
+    </Box>
+  );
+  const fitnessSubtitle = data.fitnessEmpty
+    ? `${data.fitnessDaysLogged} of 14 LOGGED`
+    : data.fitnessCurrent != null
+      ? `${Math.round(data.fitnessCurrent)} · ${arrowFor(data.fitnessDelta28d)} ${formatSigned(data.fitnessDelta28d)} / 28d`
+      : null;
+
+  // ── FATIGUE ─────────────────────────────────────────────────────────────
+  const fatigueMarker = data.fatigueEmpty ? null : data.fatigueRelative;
+  const fatigueVisual = data.fatigueEmpty ? (
+    <MetricBarEmpty />
+  ) : (
+    <MetricBar zones={FATIGUE_ZONES} markerPos={fatigueMarker} />
+  );
+  const fatigueSubtitle = data.fatigueEmpty
+    ? '7-DAY HISTORY REQUIRED'
+    : data.fatigue != null
+      ? `AFI ${Math.round(data.fatigue)}`
+      : null;
 
   return (
     <ClusterCard>
@@ -74,7 +100,7 @@ export function AthleteState({ data, cols = 4, onCellClick }: AthleteStateProps)
       <SimpleGrid cols={cols} spacing={14} verticalSpacing={14}>
         <MetricCell
           label="FORM"
-          visual={<MetricBar zones={FORM_ZONES} markerPos={formMarker} />}
+          visual={formVisual}
           word={data.formWord}
           wordColor={data.formColor}
           subtitle={formSubtitle}
@@ -82,7 +108,7 @@ export function AthleteState({ data, cols = 4, onCellClick }: AthleteStateProps)
         />
         <MetricCell
           label="FITNESS"
-          visual={<MetricBar zones={FITNESS_ZONES} markerPos={fitnessMarker} />}
+          visual={fitnessVisual}
           word={data.fitnessWord}
           wordColor={data.fitnessColor}
           subtitle={fitnessSubtitle}
@@ -90,23 +116,11 @@ export function AthleteState({ data, cols = 4, onCellClick }: AthleteStateProps)
         />
         <MetricCell
           label="FATIGUE"
-          visual={<MetricBar zones={FATIGUE_ZONES} markerPos={fatigueMarker} />}
+          visual={fatigueVisual}
           word={data.fatigueWord}
           wordColor={data.fatigueColor}
           subtitle={fatigueSubtitle}
           onClick={onCellClick ? () => onCellClick('fatigue') : undefined}
-        />
-        <MetricCell
-          label="TREND"
-          visual={
-            <Box style={{ paddingTop: 4 }}>
-              <TrendVisual direction={data.trend} />
-            </Box>
-          }
-          word={data.trendWord}
-          wordColor={data.trendColor}
-          subtitle={trendSubtitle}
-          onClick={onCellClick ? () => onCellClick('trend') : undefined}
         />
       </SimpleGrid>
     </ClusterCard>

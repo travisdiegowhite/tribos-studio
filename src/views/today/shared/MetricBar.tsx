@@ -1,4 +1,5 @@
 import { Box } from '@mantine/core';
+import { MetricMarker } from './MetricMarker';
 
 export interface BarZone {
   /** Fraction of the bar (0–1) this zone occupies. Zones must sum to 1. */
@@ -16,9 +17,7 @@ interface MetricBarProps {
   height?: number;
 }
 
-const MARKER_COLOR = '#141410';
-
-export function MetricBar({ zones, markerPos, height = 10 }: MetricBarProps) {
+export function MetricBar({ zones, markerPos, height = 8 }: MetricBarProps) {
   return (
     <Box
       style={{
@@ -39,18 +38,7 @@ export function MetricBar({ zones, markerPos, height = 10 }: MetricBarProps) {
           }}
         />
       ))}
-      {markerPos !== null && (
-        <Box
-          style={{
-            position: 'absolute',
-            top: -2,
-            bottom: -2,
-            left: `calc(${Math.min(100, Math.max(0, markerPos * 100))}% - 1.5px)`,
-            width: 3,
-            backgroundColor: MARKER_COLOR,
-          }}
-        />
-      )}
+      {markerPos !== null && <MetricMarker pct={markerPos} trackHeight={height} />}
     </Box>
   );
 }

@@ -6,7 +6,13 @@ interface MetricCellProps {
   visual: ReactNode;
   word: string;
   wordColor: string;
-  subtitle?: string | null;
+  /**
+   * Subtitle. A string is rendered in the standard mono / 10px / tertiary
+   * gray treatment. A ReactNode lets the caller render a custom subtitle
+   * (e.g. a styled CTA link) — the caller is responsible for matching the
+   * visual weight.
+   */
+  subtitle?: ReactNode | string | null;
   onClick?: () => void;
 }
 
@@ -50,17 +56,20 @@ export function MetricCell({
       >
         {word}
       </Text>
-      {subtitle && (
-        <Text
-          style={{
-            fontFamily: "'DM Mono', monospace",
-            fontSize: 10,
-            color: '#7A7970',
-          }}
-        >
-          {subtitle}
-        </Text>
-      )}
+      {subtitle != null &&
+        (typeof subtitle === 'string' ? (
+          <Text
+            style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: 10,
+              color: '#7A7970',
+            }}
+          >
+            {subtitle}
+          </Text>
+        ) : (
+          subtitle
+        ))}
     </Box>
   );
 }

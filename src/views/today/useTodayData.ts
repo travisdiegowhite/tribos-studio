@@ -31,13 +31,11 @@ import { PERSONAS } from '../../data/coachingPersonas';
 import {
   freshnessFromFormScore,
   fatigueWordFromAFI,
-  fitnessWordFromTrend,
-  trendWordFromDelta,
+  fitnessWordFromSlope,
   efiWord,
   tcasWord,
   phaseColor,
   todayColors,
-  type FitnessTrend,
 } from '../../utils/todayVocabulary';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -63,22 +61,36 @@ export interface TodayBrief {
   coachPersona: { id: string; name: string };
 }
 
+export interface SparklinePoint {
+  date: string; // ISO date (YYYY-MM-DD)
+  tfi: number;
+}
+
 export interface AthleteState {
+  // FORM cell
   formScore: number | null;
   formWord: string;
   formColor: string;
-  fitness: number | null;
-  fitnessRelative: number; // 0-1 against 28d TFI max
+  formEmpty: boolean;
+  formDaysNeeded: number;
+
+  // FITNESS sparkline
+  fitnessHistory: SparklinePoint[]; // 28 days, ascending, forward-filled
+  fitnessCurrent: number | null;
   fitnessWord: string;
   fitnessColor: string;
+  fitnessDelta28d: number; // signed TFI points
+  fitnessSlope14d: number; // TFI/day
+  fitnessEmpty: boolean;
+  fitnessDaysLogged: number;
+
+  // FATIGUE cell
   fatigue: number | null;
-  fatigueRelative: number; // 0-1 against 28d AFI max
+  fatigueRelative: number; // (afi - min28d) / (max28d - min28d), clamped 0–1
   fatigueWord: string;
   fatigueColor: string;
-  trend: FitnessTrend;
-  trendDeltaPct: number;
-  trendWord: string;
-  trendColor: string;
+  fatigueEmpty: boolean;
+  fatigueDaysNeeded: number;
 }
 
 export interface PlanPhaseSegment {
@@ -88,20 +100,35 @@ export interface PlanPhaseSegment {
 }
 
 export interface PlanExecution {
+  // PLAN cell
   phases: PlanPhaseSegment[];
   currentWeekInPlan: number;
   totalWeeks: number;
   currentPhase: string;
   daysToRace: number | null;
   raceName: string | null;
+  planEmpty: boolean;
+  planStartsInDays: number | null;
+
+  // EFI cell
   efi28d: number | null;
   efiWord: string;
   efiColor: string;
+  efiEmpty: boolean;
+  efiRidesNeeded: number;
+
+  // TCAS cell
   tcas: number | null;
   tcasWord: string;
   tcasColor: string;
+  tcasEmpty: boolean;
+  tcasWeeksLogged: number;
+
+  // THIS WK cell
   weekRideCount: { completed: number; planned: number };
   weekDistanceMi: number;
+  weekEmpty: boolean;
+  weekIsRestWeek: boolean;
 }
 
 export interface ConversationMessage {
@@ -190,6 +217,90 @@ function deriveCurrentPhase(
   return { name: current?.phase ?? template.phases[0].phase, segments, total };
 }
 
+/**
+ * `training_load_daily` only has rows on activity days. To produce continuous
+ * 28-day series for the sparkline (and the personal min/max range for the
+ * fatigue bar), walk the calendar and carry the most recent observed value
+ * forward into rest days.
+ *
+ * Returns ascending-by-date arrays of length `days` ending today (inclusive).
+ * If there are no observed rows at all, returns empty arrays — the caller
+ * should treat that as "empty" and render the empty-state visual.
+ */
+function buildContinuousSeries(
+  rowsDescending: RawTrainingLoadDailyRow[],
+  days: number,
+): {
+  tfi: SparklinePoint[];
+  afi: number[];
+  daysLogged: number;
+} {
+  if (rowsDescending.length === 0) {
+    return { tfi: [], afi: [], daysLogged: 0 };
+  }
+
+  const byDate = new Map<string, RawTrainingLoadDailyRow>();
+  for (const r of rowsDescending) byDate.set(r.date, r);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const tfi: SparklinePoint[] = [];
+  const afi: number[] = [];
+  let lastTfi: number | null = null;
+  let lastAfi: number | null = null;
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const row = byDate.get(key);
+    if (row) {
+      const t = Number(row.tfi ?? row.ctl);
+      const a = Number(row.afi ?? row.atl);
+      if (Number.isFinite(t)) lastTfi = t;
+      if (Number.isFinite(a)) lastAfi = a;
+    }
+
+    if (lastTfi != null) tfi.push({ date: key, tfi: lastTfi });
+    if (lastAfi != null) afi.push(lastAfi);
+  }
+
+  // Count distinct activity days within the requested window — used for
+  // empty-state thresholds.
+  const windowStart = new Date(today);
+  windowStart.setDate(windowStart.getDate() - (days - 1));
+  let daysLogged = 0;
+  for (const r of rowsDescending) {
+    const d = new Date(r.date);
+    if (d >= windowStart && d <= today) daysLogged++;
+  }
+
+  return { tfi, afi, daysLogged };
+}
+
+/**
+ * Linear-regression slope of the last `n` points in `series`. Units are
+ * "TFI per day" since each step is exactly one calendar day. Returns 0 when
+ * there are fewer than `n` points.
+ */
+function slopeLastN(series: SparklinePoint[], n: number): number {
+  if (series.length < n) return 0;
+  const slice = series.slice(-n);
+  // x is the day index 0..n-1, y is TFI.
+  const meanX = (n - 1) / 2;
+  const meanY = slice.reduce((s, p) => s + p.tfi, 0) / n;
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = i - meanX;
+    num += dx * (slice[i].tfi - meanY);
+    den += dx * dx;
+  }
+  return den === 0 ? 0 : num / den;
+}
+
 interface RawTrainingLoadDailyRow {
   date: string;
   rss: number | null;
@@ -223,37 +334,49 @@ const EMPTY_BRIEF: TodayBrief = {
 
 const EMPTY_ATHLETE_STATE: AthleteState = {
   formScore: null,
-  formWord: 'Building baseline',
+  formWord: 'Need 7 more days',
   formColor: todayColors.gray,
-  fitness: null,
-  fitnessRelative: 0,
-  fitnessWord: 'Building baseline',
+  formEmpty: true,
+  formDaysNeeded: 7,
+  fitnessHistory: [],
+  fitnessCurrent: null,
+  fitnessWord: 'Building history',
   fitnessColor: todayColors.gray,
+  fitnessDelta28d: 0,
+  fitnessSlope14d: 0,
+  fitnessEmpty: true,
+  fitnessDaysLogged: 0,
   fatigue: null,
   fatigueRelative: 0,
-  fatigueWord: 'Building baseline',
+  fatigueWord: 'Need 7 more days',
   fatigueColor: todayColors.gray,
-  trend: 'flat',
-  trendDeltaPct: 0,
-  trendWord: 'Building baseline',
-  trendColor: todayColors.gray,
+  fatigueEmpty: true,
+  fatigueDaysNeeded: 7,
 };
 
 const EMPTY_PLAN_EXECUTION: PlanExecution = {
   phases: [],
   currentWeekInPlan: 0,
   totalWeeks: 0,
-  currentPhase: 'Building baseline',
+  currentPhase: '',
   daysToRace: null,
   raceName: null,
+  planEmpty: true,
+  planStartsInDays: null,
   efi28d: null,
-  efiWord: 'Building baseline',
+  efiWord: 'Building history',
   efiColor: todayColors.gray,
+  efiEmpty: true,
+  efiRidesNeeded: 0,
   tcas: null,
-  tcasWord: 'Building baseline',
+  tcasWord: 'Building history',
   tcasColor: todayColors.gray,
+  tcasEmpty: true,
+  tcasWeeksLogged: 0,
   weekRideCount: { completed: 0, planned: 0 },
   weekDistanceMi: 0,
+  weekEmpty: true,
+  weekIsRestWeek: false,
 };
 
 const EMPTY_RECENT_RIDES: RecentRidesData = {
@@ -459,53 +582,103 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           }
         }
 
-        // ── Athlete state (Form / Fitness / Fatigue / Trend) ─────────────
+        // ── Athlete state ────────────────────────────────────────────────
+        // Build forward-filled 28-day series. `training_load_daily` only has
+        // rows on activity days (verified — the sole writer is
+        // `upsertTrainingLoadDaily()` in api/utils/trainingLoad.js, called
+        // only on Strava/Garmin/Wahoo activity ingestion). The sparkline and
+        // the personal AFI range need continuous data, so we carry the most
+        // recent observed value forward into rest days.
         const tldRows = (tldRes.data ?? []) as RawTrainingLoadDailyRow[];
         const latestTld = tldRows[0] ?? null;
         const formScore = latestTld
           ? Number(latestTld.form_score ?? latestTld.tsb)
           : null;
-        const tfiToday = latestTld ? Number(latestTld.tfi ?? latestTld.ctl) : null;
-        const afiToday = latestTld ? Number(latestTld.afi ?? latestTld.atl) : null;
 
-        // 28-day max for fitness/fatigue bars (relative-to-ceiling).
-        const tfiValues = tldRows
-          .map((r) => Number(r.tfi ?? r.ctl))
-          .filter((n): n is number => Number.isFinite(n) && n > 0);
-        const afiValues = tldRows
-          .map((r) => Number(r.afi ?? r.atl))
-          .filter((n): n is number => Number.isFinite(n) && n > 0);
-        const tfiMax = tfiValues.length > 0 ? Math.max(...tfiValues) : 0;
-        const afiMax = afiValues.length > 0 ? Math.max(...afiValues) : 0;
-        const fitnessRelative = tfiToday && tfiMax ? Math.min(1, tfiToday / tfiMax) : 0;
-        const fatigueRelative = afiToday && afiMax ? Math.min(1, afiToday / afiMax) : 0;
+        const series = buildContinuousSeries(tldRows, 28);
+        const tfiToday = series.tfi.length > 0
+          ? series.tfi[series.tfi.length - 1].tfi
+          : null;
+        const afiToday = series.afi.length > 0
+          ? series.afi[series.afi.length - 1]
+          : null;
 
-        // 4-week trend from snapshots: compare oldest available snapshot's
-        // TFI to the most recent. Fall back to today vs 28d ago in tldRows.
-        const snapshots = (snapshotsRes.data ?? []) as RawFitnessSnapshotRow[];
-        let trendDeltaPct = 0;
-        if (snapshots.length >= 2) {
-          const newest = Number(snapshots[0].tfi ?? snapshots[0].ctl);
-          const oldest = Number(
-            snapshots[snapshots.length - 1].tfi ?? snapshots[snapshots.length - 1].ctl,
-          );
-          if (oldest > 0 && Number.isFinite(newest)) {
-            trendDeltaPct = ((newest - oldest) / oldest) * 100;
-          }
-        } else if (tldRows.length >= 28 && tfiToday && Number.isFinite(tfiToday)) {
-          const tfi28dAgo = Number(tldRows[tldRows.length - 1].tfi ?? tldRows[tldRows.length - 1].ctl);
-          if (tfi28dAgo > 0) {
-            trendDeltaPct = ((tfiToday - tfi28dAgo) / tfi28dAgo) * 100;
-          }
-        }
+        // FATIGUE bar — position in the user's own 28-day AFI range so
+        // "Productive" means the same thing for any rider's training load,
+        // not an absolute AFI threshold.
+        const afiMin = series.afi.length > 0 ? Math.min(...series.afi) : 0;
+        const afiMax = series.afi.length > 0 ? Math.max(...series.afi) : 0;
+        const afiRange = afiMax - afiMin;
+        const fatigueRelative =
+          afiToday != null && afiRange > 0
+            ? Math.min(1, Math.max(0, (afiToday - afiMin) / afiRange))
+            : 0;
 
-        const formVerdict = freshnessFromFormScore(formScore);
-        const trendVerdict = trendWordFromDelta(trendDeltaPct);
-        const fitnessVerdict = fitnessWordFromTrend(trendVerdict.direction);
-        const fatigueVerdict = fatigueWordFromAFI(afiMax > 0 ? fatigueRelative : null);
+        // FITNESS sparkline — slope of the last 14 days drives the word.
+        const fitnessSlope14d = slopeLastN(series.tfi, 14);
+        const fitnessDelta28d =
+          series.tfi.length >= 2
+            ? series.tfi[series.tfi.length - 1].tfi - series.tfi[0].tfi
+            : 0;
+
+        // Empty-state thresholds — see plan + spec.
+        const formEmpty = series.daysLogged < 7;
+        const fitnessEmpty = series.daysLogged < 14;
+        const fatigueEmpty = series.daysLogged < 7;
+
+        const formVerdict = freshnessFromFormScore(formEmpty ? null : formScore);
+        const fitnessVerdict = fitnessWordFromSlope(fitnessSlope14d);
+        const fatigueVerdict = fatigueWordFromAFI(
+          fatigueEmpty || afiRange === 0 ? null : fatigueRelative,
+        );
 
         // ── Plan execution ──────────────────────────────────────────────
-        let planExec = EMPTY_PLAN_EXECUTION;
+        // Race: prefer A-priority, else next upcoming. Computed up front so
+        // it's still available in the no-active-plan branch (an athlete can
+        // have a race goal without a structured plan).
+        const raceRows = raceRes.data ?? [];
+        const aRace = raceRows.find((r) => r.priority === 'A') ?? raceRows[0] ?? null;
+        let daysToRace: number | null = null;
+        if (aRace?.race_date) {
+          const ms = new Date(aRace.race_date).getTime() - Date.now();
+          daysToRace = Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+        }
+
+        // EFI: hide when no recent activity_efi rows. The endpoint backfills
+        // on first read so a non-null value here means there's enough data.
+        const efiVal = (efiRes.data?.efi_28d ?? efiRes.data?.efi ?? null) as number | null;
+        const efiEmpty = efiVal == null;
+        const efiV = efiWord(efiEmpty ? null : efiVal);
+        // EFI needs at least 5 matched workouts for the rolling 28d to be
+        // stable enough to act on. We don't have a direct count here, but
+        // the new athlete needs ~5 weeks of riding to fill out a meaningful
+        // EFI history; show the gap as "rides needed" copy in the UI.
+        const efiRidesNeeded = efiEmpty ? 5 : 0;
+
+        // TCAS: hard-blocks at 4 fitness_snapshots in api/utils/metricsComputation.js.
+        // Use the count of recent snapshots as the "weeksLogged" denominator.
+        const tcasVal = (tcasRes.data?.tcas ?? null) as number | null;
+        const tcasEmpty = tcasVal == null;
+        const snapshotsCount = (snapshotsRes.data ?? []).length;
+        const tcasWeeksLogged = Math.min(4, snapshotsCount);
+        const tcasV = tcasWord(tcasEmpty ? null : tcasVal);
+
+        let planExec: PlanExecution = {
+          ...EMPTY_PLAN_EXECUTION,
+          daysToRace,
+          raceName: aRace?.name ?? null,
+          efi28d: efiVal,
+          efiWord: efiV.word,
+          efiColor: efiEmpty ? todayColors.gray : efiV.color,
+          efiEmpty,
+          efiRidesNeeded,
+          tcas: tcasVal,
+          tcasWord: tcasV.word,
+          tcasColor: tcasEmpty ? todayColors.gray : tcasV.color,
+          tcasEmpty,
+          tcasWeeksLogged,
+        };
+
         if (activePlan) {
           const template = activePlan.template_id ? getPlanTemplate(activePlan.template_id) : undefined;
           const phaseInfo = deriveCurrentPhase(template, activePlan.current_week ?? 1);
@@ -533,36 +706,32 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
             0,
           );
 
-          const efiVal = (efiRes.data?.efi_28d ?? efiRes.data?.efi ?? null) as number | null;
-          const tcasVal = (tcasRes.data?.tcas ?? null) as number | null;
-
-          const efiV = efiWord(efiVal);
-          const tcasV = tcasWord(tcasVal);
-
-          // Race: prefer A-priority, else next upcoming
-          const raceRows = raceRes.data ?? [];
-          const aRace = raceRows.find((r) => r.priority === 'A') ?? raceRows[0] ?? null;
-          let daysToRace: number | null = null;
-          if (aRace?.race_date) {
-            const ms = new Date(aRace.race_date).getTime() - Date.now();
-            daysToRace = Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+          // Pre-week-1: plan starts in the future.
+          const planStartedAt = activePlan.started_at ?? activePlan.start_date ?? null;
+          let planStartsInDays: number | null = null;
+          if (planStartedAt) {
+            const startMs = new Date(planStartedAt).getTime();
+            const diffDays = Math.ceil((startMs - Date.now()) / (1000 * 60 * 60 * 24));
+            if (diffDays > 0) planStartsInDays = diffDays;
           }
 
+          // Rest week vs. open week — derived from the active phase. The
+          // template uses `phase: 'recovery'` for low-load weeks; treat any
+          // recovery or taper week with zero planned rides as intentional.
+          const isRestPhase = phaseInfo.name === 'recovery' || phaseInfo.name === 'taper';
+
           planExec = {
+            ...planExec,
             phases: phaseInfo.segments,
             currentWeekInPlan: activePlan.current_week ?? 1,
             totalWeeks: phaseInfo.total || (activePlan.duration_weeks ?? 0),
             currentPhase: phaseInfo.name,
-            daysToRace,
-            raceName: aRace?.name ?? null,
-            efi28d: efiVal,
-            efiWord: efiV.word,
-            efiColor: efiV.color,
-            tcas: tcasVal,
-            tcasWord: tcasV.word,
-            tcasColor: tcasV.color,
+            planEmpty: false,
+            planStartsInDays,
             weekRideCount: { completed, planned },
             weekDistanceMi: weekDistanceKm / KM_PER_MILE,
+            weekEmpty: planned === 0,
+            weekIsRestWeek: isRestPhase && planned === 0,
           };
         }
 
@@ -676,6 +845,17 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         }
 
         // ── Coach paragraph (surface=today) ────────────────────────────
+        // The fitness-summary endpoint expects `ctlDeltaPct` (the legacy
+        // 28-day TFI %-change). Derive it from the sparkline if both
+        // endpoints exist; otherwise pass null and let the endpoint do
+        // its own assembly.
+        const ctlDeltaPct =
+          series.tfi.length >= 2 && series.tfi[0].tfi > 0
+            ? ((series.tfi[series.tfi.length - 1].tfi - series.tfi[0].tfi) /
+                series.tfi[0].tfi) *
+              100
+            : 0;
+
         let coachMessage: string | null = null;
         if (formScore != null && tfiToday != null && afiToday != null) {
           try {
@@ -693,7 +873,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
                     tfi: Math.round(tfiToday),
                     afi: Math.round(afiToday),
                     formScore: Math.round(formScore),
-                    ctlDeltaPct: trendDeltaPct,
+                    ctlDeltaPct,
                   },
                   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                 }),
@@ -719,22 +899,36 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           coachMessage,
           coachPersona: { id: personaId, name: personaName },
         });
+        const formDaysNeeded = Math.max(0, 7 - series.daysLogged);
+        const fitnessDaysNeeded = Math.max(0, 14 - series.daysLogged);
+        const fatigueDaysNeeded = Math.max(0, 7 - series.daysLogged);
+
         setAthleteState({
           formScore,
-          formWord: formVerdict.word,
-          formColor: formVerdict.color,
-          fitness: tfiToday,
-          fitnessRelative,
-          fitnessWord: fitnessVerdict.word,
-          fitnessColor: fitnessVerdict.color,
+          formWord: formEmpty
+            ? `Need ${formDaysNeeded} more day${formDaysNeeded === 1 ? '' : 's'}`
+            : formVerdict.word,
+          formColor: formEmpty ? todayColors.gray : formVerdict.color,
+          formEmpty,
+          formDaysNeeded,
+          fitnessHistory: series.tfi,
+          fitnessCurrent: tfiToday,
+          fitnessWord: fitnessEmpty
+            ? `Need ${fitnessDaysNeeded} more day${fitnessDaysNeeded === 1 ? '' : 's'}`
+            : fitnessVerdict.word,
+          fitnessColor: fitnessEmpty ? todayColors.gray : fitnessVerdict.color,
+          fitnessDelta28d: fitnessDelta28d,
+          fitnessSlope14d,
+          fitnessEmpty,
+          fitnessDaysLogged: series.daysLogged,
           fatigue: afiToday,
           fatigueRelative,
-          fatigueWord: fatigueVerdict.word,
-          fatigueColor: fatigueVerdict.color,
-          trend: trendVerdict.direction,
-          trendDeltaPct,
-          trendWord: trendVerdict.word,
-          trendColor: trendVerdict.color,
+          fatigueWord: fatigueEmpty
+            ? `Need ${fatigueDaysNeeded} more day${fatigueDaysNeeded === 1 ? '' : 's'}`
+            : fatigueVerdict.word,
+          fatigueColor: fatigueEmpty ? todayColors.gray : fatigueVerdict.color,
+          fatigueEmpty,
+          fatigueDaysNeeded,
         });
         setPlanExecution(planExec);
         setConversation({ messages });

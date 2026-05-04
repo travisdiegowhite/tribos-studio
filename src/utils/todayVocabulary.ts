@@ -74,7 +74,7 @@ export function freshnessFromFormScore(score: number | null): FormVerdict {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// FITNESS — relative-to-28d-max bar; word from trend direction.
+// FITNESS — slope of the last 14 days of TFI drives the word.
 // ────────────────────────────────────────────────────────────────────────────
 
 export type FitnessTrend = 'up' | 'flat' | 'down';
@@ -84,10 +84,13 @@ export interface FitnessVerdict {
   color: ZoneColor;
 }
 
-export function fitnessWordFromTrend(trend: FitnessTrend): FitnessVerdict {
-  if (trend === 'up')   return { word: 'Building',   color: todayColors.teal };
-  if (trend === 'down') return { word: 'Detraining', color: todayColors.orange };
-  return                       { word: 'Holding',    color: todayColors.teal };
+export function fitnessWordFromSlope(slope14d: number | null): FitnessVerdict {
+  if (slope14d == null || !Number.isFinite(slope14d)) {
+    return { word: 'Holding', color: todayColors.teal };
+  }
+  if (slope14d > 0.3) return { word: 'Building', color: todayColors.teal };
+  if (slope14d < -0.2) return { word: 'Detraining', color: todayColors.orange };
+  return { word: 'Holding', color: todayColors.teal };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -105,25 +108,6 @@ export function fatigueWordFromAFI(relative: number | null): FormVerdict {
   const zone = pickZone(relative, fatigueZones);
   if (!zone) return { word: 'Building baseline', color: todayColors.gray };
   return { word: zone.word, color: zone.color };
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// TREND — TFI delta over the last 4 weeks.
-// ────────────────────────────────────────────────────────────────────────────
-
-export interface TrendVerdict {
-  word: string;
-  color: ZoneColor;
-  direction: FitnessTrend;
-}
-
-export function trendWordFromDelta(deltaPct: number | null): TrendVerdict {
-  if (deltaPct == null || !Number.isFinite(deltaPct)) {
-    return { word: 'Building baseline', color: todayColors.gray, direction: 'flat' };
-  }
-  if (deltaPct > 2)   return { word: 'Building',  color: todayColors.teal,   direction: 'up' };
-  if (deltaPct < -2)  return { word: 'Declining', color: todayColors.orange, direction: 'down' };
-  return                     { word: 'Holding',   color: todayColors.teal,   direction: 'flat' };
 }
 
 // ────────────────────────────────────────────────────────────────────────────

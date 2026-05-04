@@ -1,4 +1,5 @@
 import { Box } from '@mantine/core';
+import { MetricMarker } from './MetricMarker';
 import type { PlanPhaseSegment } from '../useTodayData';
 
 interface PhaseStripProps {
@@ -7,30 +8,35 @@ interface PhaseStripProps {
   currentWeek: number;
   /** Total weeks across the plan (sum of phase lengths). */
   totalWeeks: number;
+  /** When true, render the empty striped pattern with no marker. */
+  empty?: boolean;
   height?: number;
 }
 
-const MARKER_COLOR = '#141410';
+const STRIPE_PATTERN =
+  'repeating-linear-gradient(90deg, #EBEBE8 0, #EBEBE8 4px, #DDDDD8 4px, #DDDDD8 8px)';
 
 export function PhaseStrip({
   phases,
   currentWeek,
   totalWeeks,
-  height = 10,
+  empty = false,
+  height = 8,
 }: PhaseStripProps) {
-  // Empty plan: render a flat gray track.
-  if (!phases.length || totalWeeks <= 0) {
+  if (empty || !phases.length || totalWeeks <= 0) {
     return (
       <Box
         style={{
+          position: 'relative',
           width: '100%',
           height,
-          backgroundColor: '#EBEBE8',
+          background: STRIPE_PATTERN,
         }}
       />
     );
   }
 
+  // Marker centers on the current week. Week 1 should land mid-first-segment.
   const markerPos = Math.min(1, Math.max(0, (currentWeek - 0.5) / totalWeeks));
 
   return (
@@ -52,16 +58,7 @@ export function PhaseStrip({
           }}
         />
       ))}
-      <Box
-        style={{
-          position: 'absolute',
-          top: -2,
-          bottom: -2,
-          left: `calc(${markerPos * 100}% - 1.5px)`,
-          width: 3,
-          backgroundColor: MARKER_COLOR,
-        }}
-      />
+      <MetricMarker pct={markerPos} trackHeight={height} />
     </Box>
   );
 }
