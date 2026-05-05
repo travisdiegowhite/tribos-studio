@@ -47,6 +47,7 @@ import { formatSpeed } from '../utils/units';
 import PageHeader from '../components/PageHeader.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import RunningProfileSettings from '../components/settings/RunningProfileSettings.jsx';
+import RecoveryModeCard from '../components/settings/RecoveryModeCard';
 import { useGear } from '../hooks/useGear.ts';
 import GearItemCard from '../components/gear/GearItemCard.jsx';
 import GearDetailView from '../components/gear/GearDetailView.jsx';
@@ -1813,6 +1814,9 @@ function Settings() {
 
           {/* Running Profile */}
           <RunningProfileSettings />
+
+          {/* Recovery Preference (event-anchored planner / masters mode) */}
+          <RecoveryModeCard />
 
                 </Stack>
               </Tabs.Panel>
