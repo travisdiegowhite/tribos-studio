@@ -1554,6 +1554,145 @@ export interface DetectAdaptationInput {
 }
 
 // ============================================================
+// EVENT-ANCHORED BLOCK SYSTEM (spec §7)
+// ============================================================
+
+/**
+ * Block types in the event-anchored sequencer (spec §2).
+ */
+export type BlockType =
+  | 'recovery'
+  | 'reactivation'
+  | 'aerobic_build'
+  | 'threshold'
+  | 'vo2'
+  | 'race_specific'
+  | 'taper'
+  | 'maintenance';
+
+export type BlockStatus = 'planned' | 'active' | 'completed' | 'skipped';
+export type BlockSource = 'sequencer' | 'manual';
+export type BlockModifier = 'system' | 'user';
+export type EventTier = 'A' | 'B' | 'C';
+
+/**
+ * Masters recovery mode (spec §3.1). Determines block-level coefficients.
+ */
+export type RecoveryMode = 'standard' | 'conservative' | 'adaptive';
+
+/**
+ * Mode-specific coefficients applied across the block library (spec §3.2).
+ * Snapshotted onto each block at creation time so block execution stays
+ * deterministic if the user changes mode mid-block.
+ */
+export interface MastersFactor {
+  recovery_block_days_added: 0 | 1 | 2;
+  hit_spacing_hours: 36 | 48;
+  afi_growth_ceiling_4d: number; // 0.20 | 0.25
+  afi_tfi_gate: number; // 1.05 | 1.10 | 1.15
+  fs_recovery_target: number; // -3 | -5 | -7
+}
+
+/**
+ * Session-level interval prescription. Stored in JSONB on
+ * session_prescriptions.prescribed_intervals as an array.
+ */
+export interface IntervalPrescription {
+  duration_min: number;
+  target_pct_ftp_min: number;
+  target_pct_ftp_max: number;
+  recovery_min: number;
+  repeats: number;
+  notes?: string;
+}
+
+export type SessionType =
+  | 'rest'
+  | 'z1'
+  | 'z2'
+  | 'tempo'
+  | 'threshold'
+  | 'vo2'
+  | 'race_sim'
+  | 'opener';
+
+/**
+ * Per-day prescription. One row per (user_id, date).
+ */
+export interface SessionPrescription {
+  id: string;
+  user_id: string;
+  block_id: string;
+  date: string; // ISO date
+  session_type: SessionType;
+  target_rss: number;
+  target_duration_min: number;
+  prescribed_intervals: IntervalPrescription[] | null;
+  long_ride_flag: boolean;
+  notes: string | null;
+  gating_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Runtime block instance (spec §7.1). Mirrors block_instances table.
+ */
+export interface BlockInstance {
+  id: string;
+  user_id: string;
+  block_type: BlockType;
+  start_date: string;
+  end_date: string;
+  status: BlockStatus;
+  source: BlockSource;
+  parent_event_id: string | null;
+  parent_event_tier: EventTier | null;
+  target_tfi_delta: number | null;
+  target_afi_ceiling: number | null;
+  target_fs_at_exit: number | null;
+  coefficients_snapshot: MastersFactor;
+  sequence_id: string | null;
+  created_at: string;
+  modified_at: string;
+  modified_by: BlockModifier;
+}
+
+export type SequenceValidationStatus = 'valid' | 'warning' | 'conflict';
+
+export interface SequenceValidationMessage {
+  level: 'info' | 'warning' | 'error';
+  code: string;
+  message: string;
+  block_id?: string;
+}
+
+export interface Sequence {
+  id: string;
+  user_id: string;
+  horizon_event_id: string | null;
+  generated_at: string;
+  validation_status: SequenceValidationStatus;
+  validation_messages: SequenceValidationMessage[];
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface BlockModification {
+  id: string;
+  user_id: string;
+  block_id: string;
+  modified_at: string;
+  modified_by: BlockModifier;
+  reason: string;
+  before: Partial<BlockInstance> | null;
+  after: Partial<BlockInstance> | null;
+  acknowledged: boolean;
+  acknowledged_at: string | null;
+  created_at: string;
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
