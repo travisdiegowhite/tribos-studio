@@ -546,7 +546,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         const recentActivitiesQuery = supabase
           .from('activities')
           .select(
-            'id, name, start_date, distance_meters, distance, elevation_gain_meters, total_elevation_gain, duration_seconds, moving_time, elapsed_time, polyline, summary_polyline, map_summary_polyline, provider',
+            'id, name, start_date, distance, total_elevation_gain, moving_time, elapsed_time, polyline, summary_polyline, map_summary_polyline, provider',
           )
           .eq('user_id', userId)
           .is('duplicate_of', null)
@@ -562,7 +562,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         const mapActivitiesQuery = supabase
           .from('activities')
           .select(
-            'id, name, start_date, distance_meters, distance, elevation_gain_meters, total_elevation_gain, duration_seconds, moving_time, elapsed_time, polyline, summary_polyline, map_summary_polyline, provider',
+            'id, name, start_date, distance, total_elevation_gain, moving_time, elapsed_time, polyline, summary_polyline, map_summary_polyline, provider',
           )
           .eq('user_id', userId)
           .is('duplicate_of', null)
@@ -732,8 +732,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
             return d >= new Date(startKey).getTime() && d < new Date(endKey).getTime();
           });
           const weekDistanceKm = weekActivities.reduce(
-            (sum: number, a) =>
-              sum + ((Number(a.distance_meters) || Number(a.distance) || 0) / 1000),
+            (sum: number, a) => sum + (Number(a.distance) || 0) / 1000,
             0,
           );
 
@@ -770,21 +769,16 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         // ── Recent rides + 7-day rollup ─────────────────────────────────
         const sevenDayActivities = recentRes.data ?? [];
         const weekDistanceM = sevenDayActivities.reduce(
-          (sum: number, a) => sum + (Number(a.distance_meters) || Number(a.distance) || 0),
+          (sum: number, a) => sum + (Number(a.distance) || 0),
           0,
         );
         const weekElevationM = sevenDayActivities.reduce(
-          (sum: number, a) =>
-            sum + (Number(a.elevation_gain_meters) || Number(a.total_elevation_gain) || 0),
+          (sum: number, a) => sum + (Number(a.total_elevation_gain) || 0),
           0,
         );
         const weekDurationSec = sevenDayActivities.reduce(
           (sum: number, a) =>
-            sum +
-            (Number(a.duration_seconds) ||
-              Number(a.moving_time) ||
-              Number(a.elapsed_time) ||
-              0),
+            sum + (Number(a.moving_time) || Number(a.elapsed_time) || 0),
           0,
         );
 
@@ -794,11 +788,8 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           id: string;
           name: string | null;
           start_date: string;
-          distance_meters: number | null;
           distance: number | null;
-          elevation_gain_meters: number | null;
           total_elevation_gain: number | null;
-          duration_seconds: number | null;
           moving_time: number | null;
           elapsed_time: number | null;
           polyline: string | null;
@@ -811,15 +802,9 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
             id: a.id,
             name: a.name ?? 'Untitled Ride',
             startDate: a.start_date,
-            distanceKm:
-              (Number(a.distance_meters) || Number(a.distance) || 0) / 1000,
-            elevationM:
-              Number(a.elevation_gain_meters) || Number(a.total_elevation_gain) || 0,
-            durationSec:
-              Number(a.duration_seconds) ||
-              Number(a.moving_time) ||
-              Number(a.elapsed_time) ||
-              0,
+            distanceKm: (Number(a.distance) || 0) / 1000,
+            elevationM: Number(a.total_elevation_gain) || 0,
+            durationSec: Number(a.moving_time) || Number(a.elapsed_time) || 0,
             polyline:
               a.polyline ||
               a.summary_polyline ||
