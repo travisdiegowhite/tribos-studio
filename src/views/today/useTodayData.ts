@@ -555,9 +555,10 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           .order('start_date', { ascending: false })
           .limit(20);
 
-        // ── 8. Older activities for the map (up to 5 with polylines) ────
-        const thirtyDaysForMap = new Date();
-        thirtyDaysForMap.setDate(thirtyDaysForMap.getDate() - 30);
+        // ── 8. Map activities — the cluster shows "the last 5 rides", not
+        //      "the last 5 rides in the past 30 days", so don't bound by
+        //      date. Pull a wider net (50 most recent) and let the client
+        //      filter to those with polyline data, then take 5.
         const mapActivitiesQuery = supabase
           .from('activities')
           .select(
@@ -566,9 +567,8 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           .eq('user_id', userId)
           .is('duplicate_of', null)
           .or('is_hidden.eq.false,is_hidden.is.null')
-          .gte('start_date', thirtyDaysForMap.toISOString())
           .order('start_date', { ascending: false })
-          .limit(15);
+          .limit(50);
 
         const [
           personaRes,
