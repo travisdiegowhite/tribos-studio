@@ -68,8 +68,24 @@ export function RecentRides({ data, loading, onRideClick }: RecentRidesProps) {
       .filter((r) => r.coords.length > 0);
   }, [data.rides]);
 
+  // Filter to rides geographically near the most recent one. Otherwise a
+  // virtual/indoor ride with bogus coordinates can pull the bounds into
+  // the ocean and the map renders as a black tile. Same logic as the
+  // legacy RecentRidesMap.jsx — MAX_DISTANCE_DEG ≈ 200km at mid-latitudes.
+  const ridesForMap = useMemo<DecodedRide[]>(() => {
+    if (decodedRides.length <= 1) return decodedRides;
+    const MAX_DISTANCE_DEG = 2;
+    const [refLng, refLat] = decodedRides[0].coords[0];
+    const nearby = decodedRides.filter((r) => {
+      const [lng, lat] = r.coords[0];
+      const dist = Math.sqrt((lng - refLng) ** 2 + (lat - refLat) ** 2);
+      return dist < MAX_DISTANCE_DEG;
+    });
+    return nearby.length > 0 ? nearby : [decodedRides[0]];
+  }, [decodedRides]);
+
   const initialViewState = useMemo(() => {
-    const all = decodedRides.flatMap((r) => r.coords);
+    const all = ridesForMap.flatMap((r) => r.coords);
     if (!all.length) {
       return { longitude: -98.5795, latitude: 39.8283, zoom: 3 };
     }
@@ -88,7 +104,7 @@ export function RecentRides({ data, loading, onRideClick }: RecentRidesProps) {
       latitude: (bounds.minLat + bounds.maxLat) / 2,
       zoom,
     };
-  }, [decodedRides]);
+  }, [ridesForMap]);
 
   const listRides = decodedRides.slice(0, 3);
 
@@ -138,7 +154,7 @@ export function RecentRides({ data, loading, onRideClick }: RecentRidesProps) {
             mapboxAccessToken={MAPBOX_TOKEN}
             attributionControl={false}
           >
-            {decodedRides.map((ride) => (
+            {ridesForMap.map((ride) => (
               <Source
                 key={ride.id}
                 id={`today-route-${ride.id}`}
