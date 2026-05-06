@@ -546,7 +546,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         const recentActivitiesQuery = supabase
           .from('activities')
           .select(
-            'id, name, start_date, distance, total_elevation_gain, moving_time, elapsed_time, polyline, summary_polyline, map_summary_polyline, provider',
+            'id, name, start_date, distance, total_elevation_gain, moving_time, elapsed_time, map_summary_polyline, provider',
           )
           .eq('user_id', userId)
           .is('duplicate_of', null)
@@ -562,7 +562,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         const mapActivitiesQuery = supabase
           .from('activities')
           .select(
-            'id, name, start_date, distance, total_elevation_gain, moving_time, elapsed_time, polyline, summary_polyline, map_summary_polyline, provider',
+            'id, name, start_date, distance, total_elevation_gain, moving_time, elapsed_time, map_summary_polyline, provider',
           )
           .eq('user_id', userId)
           .is('duplicate_of', null)
@@ -792,8 +792,6 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           total_elevation_gain: number | null;
           moving_time: number | null;
           elapsed_time: number | null;
-          polyline: string | null;
-          summary_polyline: string | null;
           map_summary_polyline: string | null;
           provider: string | null;
         }>;
@@ -805,11 +803,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
             distanceKm: (Number(a.distance) || 0) / 1000,
             elevationM: Number(a.total_elevation_gain) || 0,
             durationSec: Number(a.moving_time) || Number(a.elapsed_time) || 0,
-            polyline:
-              a.polyline ||
-              a.summary_polyline ||
-              a.map_summary_polyline ||
-              null,
+            polyline: a.map_summary_polyline || null,
             provider: a.provider,
           }))
           .filter((r) => r.polyline)
