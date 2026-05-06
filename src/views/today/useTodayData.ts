@@ -540,14 +540,15 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           .order('race_date', { ascending: true })
           .limit(5);
 
-        // ── 7. Recent activities (last 30 days, last 5 with polylines) ──
+        // ── 7. Recent activities (7-day rollup) — match the legacy
+        //      Dashboard/RecentRidesMap pattern exactly: select('*') and
+        //      fall back across the historical column variants in the
+        //      consumer code (some installs have *_meters, some don't).
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const recentActivitiesQuery = supabase
           .from('activities')
-          .select(
-            'id, name, start_date, distance, total_elevation_gain, moving_time, elapsed_time, map_summary_polyline, provider',
-          )
+          .select('*')
           .eq('user_id', userId)
           .is('duplicate_of', null)
           .or('is_hidden.eq.false,is_hidden.is.null')
@@ -555,15 +556,12 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           .order('start_date', { ascending: false })
           .limit(20);
 
-        // ── 8. Map activities — the cluster shows "the last 5 rides", not
-        //      "the last 5 rides in the past 30 days", so don't bound by
-        //      date. Pull a wider net (50 most recent) and let the client
-        //      filter to those with polyline data, then take 5.
+        // ── 8. Map activities — "THE LAST 5 RIDES" is a most-recent
+        //      semantic, not a date window. Pull the 50 most recent and
+        //      let the client filter to those with polyline data.
         const mapActivitiesQuery = supabase
           .from('activities')
-          .select(
-            'id, name, start_date, distance, total_elevation_gain, moving_time, elapsed_time, map_summary_polyline, provider',
-          )
+          .select('*')
           .eq('user_id', userId)
           .is('duplicate_of', null)
           .or('is_hidden.eq.false,is_hidden.is.null')
@@ -732,7 +730,8 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
             return d >= new Date(startKey).getTime() && d < new Date(endKey).getTime();
           });
           const weekDistanceKm = weekActivities.reduce(
-            (sum: number, a) => sum + (Number(a.distance) || 0) / 1000,
+            (sum: number, a) =>
+              sum + ((Number(a.distance_meters) || Number(a.distance) || 0) / 1000),
             0,
           );
 
@@ -769,30 +768,32 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         // ── Recent rides + 7-day rollup ─────────────────────────────────
         const sevenDayActivities = recentRes.data ?? [];
         const weekDistanceM = sevenDayActivities.reduce(
-          (sum: number, a) => sum + (Number(a.distance) || 0),
+          (sum: number, a) => sum + (Number(a.distance_meters) || Number(a.distance) || 0),
           0,
         );
         const weekElevationM = sevenDayActivities.reduce(
-          (sum: number, a) => sum + (Number(a.total_elevation_gain) || 0),
+          (sum: number, a) =>
+            sum + (Number(a.elevation_gain_meters) || Number(a.total_elevation_gain) || 0),
           0,
         );
         const weekDurationSec = sevenDayActivities.reduce(
           (sum: number, a) =>
-            sum + (Number(a.moving_time) || Number(a.elapsed_time) || 0),
+            sum +
+            (Number(a.duration_seconds) ||
+              Number(a.moving_time) ||
+              Number(a.elapsed_time) ||
+              0),
           0,
         );
 
         // Map list: take from the wider window so the map has 5 rides even
-        // if the user hasn't ridden in the last 7 days.
-        const mapSource = (mapRes.data && mapRes.data.length > 0 ? mapRes.data : sevenDayActivities) as Array<{
+        // if the user hasn't ridden in the last 7 days. Polyline lookup
+        // matches RecentRidesMap.jsx — try every historical column variant
+        // including the Strava-shaped nested `map.summary_polyline`.
+        const mapSource = (mapRes.data && mapRes.data.length > 0 ? mapRes.data : sevenDayActivities) as Array<Record<string, unknown> & {
           id: string;
           name: string | null;
           start_date: string;
-          distance: number | null;
-          total_elevation_gain: number | null;
-          moving_time: number | null;
-          elapsed_time: number | null;
-          map_summary_polyline: string | null;
           provider: string | null;
         }>;
         const ridesForMap: RecentRide[] = mapSource
@@ -800,10 +801,21 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
             id: a.id,
             name: a.name ?? 'Untitled Ride',
             startDate: a.start_date,
-            distanceKm: (Number(a.distance) || 0) / 1000,
-            elevationM: Number(a.total_elevation_gain) || 0,
-            durationSec: Number(a.moving_time) || Number(a.elapsed_time) || 0,
-            polyline: a.map_summary_polyline || null,
+            distanceKm:
+              (Number(a.distance_meters) || Number(a.distance) || 0) / 1000,
+            elevationM:
+              Number(a.elevation_gain_meters) || Number(a.total_elevation_gain) || 0,
+            durationSec:
+              Number(a.duration_seconds) ||
+              Number(a.moving_time) ||
+              Number(a.elapsed_time) ||
+              0,
+            polyline:
+              (a.polyline as string | null) ||
+              (a.summary_polyline as string | null) ||
+              (a.map_summary_polyline as string | null) ||
+              ((a.map as { summary_polyline?: string } | null)?.summary_polyline ?? null) ||
+              null,
             provider: a.provider,
           }))
           .filter((r) => r.polyline)
