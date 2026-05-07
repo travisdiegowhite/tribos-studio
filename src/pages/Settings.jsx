@@ -188,7 +188,7 @@ function Settings() {
           setPowerZones(data.power_zones || null);
           setExperienceLevel(data.experience_level || 'intermediate');
           setMetricsAge(data.metrics_age || null);
-          setDateOfBirth(data.date_of_birth ? new Date(data.date_of_birth + 'T00:00:00') : null);
+          setDateOfBirth(data.date_of_birth || null);
           setAiConsentEnabled(!!data.ai_consent_granted_at && !data.ai_consent_withdrawn_at);
         }
       } catch (error) {
@@ -314,6 +314,24 @@ function Settings() {
     }
   }, [searchParams, setSearchParams]);
 
+  // Mantine v8's DateInput returns either a Date instance or a YYYY-MM-DD
+  // string depending on configuration. Normalize both to a YYYY-MM-DD string
+  // (Postgres DATE) or null. Returning anything else (e.g. a Date object)
+  // makes the Supabase upsert respond with HTTP 400.
+  const serializeDob = (value) => {
+    if (!value) return null;
+    if (typeof value === 'string') {
+      return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+    }
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      const y = value.getFullYear();
+      const m = String(value.getMonth() + 1).padStart(2, '0');
+      const d = String(value.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return null;
+  };
+
   const handleSaveProfile = async () => {
     if (!user) return;
 
@@ -332,9 +350,7 @@ function Settings() {
           weight_kg: weightKg || null,
           experience_level: experienceLevel,
           metrics_age: metricsAge || null,
-          date_of_birth: dateOfBirth
-            ? `${dateOfBirth.getFullYear()}-${String(dateOfBirth.getMonth() + 1).padStart(2, '0')}-${String(dateOfBirth.getDate()).padStart(2, '0')}`
-            : null,
+          date_of_birth: serializeDob(dateOfBirth),
         })
         .select()
         .single();
