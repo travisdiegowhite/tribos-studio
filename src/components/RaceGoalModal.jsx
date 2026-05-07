@@ -27,6 +27,8 @@ import { formatLocalDate } from '../utils/dateUtils';
 import { CalendarBlank, CaretDown, CaretUp, Check, Clock, Fire, MapPin, Mountains, Path, Target, Trash, Trophy } from '@phosphor-icons/react';
 import { RACE_TYPES as BASE_RACE_TYPES } from '../utils/raceTypes';
 import { listRoutes } from '../utils/routesService';
+import { useEventAnchoredPlan } from '../hooks/useEventAnchoredPlan';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 
 // Race type options with emoji labels for the modal
 const RACE_TYPES = BASE_RACE_TYPES.map(t => {
@@ -63,6 +65,14 @@ const RaceGoalModal = ({
   const [savedRoutes, setSavedRoutes] = useState([]);
   const [routesLoading, setRoutesLoading] = useState(false);
 
+  // Anchor flow state — after inserting a new A/B race, prompt to anchor a
+  // sequencer plan to it before closing.
+  const eventAnchoredEnabled = useFeatureFlag('event_anchored_planner');
+  const { anchorPlan } = useEventAnchoredPlan();
+  const [step, setStep] = useState('form'); // 'form' | 'anchor-prompt'
+  const [savedRace, setSavedRace] = useState(null);
+  const [anchoring, setAnchoring] = useState(false);
+
   // Form state
   const [form, setForm] = useState({
     name: '',
@@ -88,6 +98,15 @@ const RaceGoalModal = ({
         .then((routes) => setSavedRoutes(routes || []))
         .catch(() => setSavedRoutes([]))
         .finally(() => setRoutesLoading(false));
+    }
+  }, [opened]);
+
+  // Reset to form step whenever the modal opens (so a re-opened modal never
+  // lingers on a previous anchor-prompt state).
+  useEffect(() => {
+    if (opened) {
+      setStep('form');
+      setSavedRace(null);
     }
   }, [opened]);
 
@@ -252,10 +271,12 @@ const RaceGoalModal = ({
 
       if (raceGoal?.id) {
         // Update existing
-        const { error } = await supabase
+        const { data: updated, error } = await supabase
           .from('race_goals')
           .update(raceData)
-          .eq('id', raceGoal.id);
+          .eq('id', raceGoal.id)
+          .select()
+          .single();
 
         if (error) throw error;
 
@@ -264,11 +285,16 @@ const RaceGoalModal = ({
           message: `${form.name} has been updated`,
           color: 'terracotta',
         });
+
+        if (onSaved) onSaved(updated);
+        onClose();
       } else {
         // Create new
-        const { error } = await supabase
+        const { data: inserted, error } = await supabase
           .from('race_goals')
-          .insert(raceData);
+          .insert(raceData)
+          .select()
+          .single();
 
         if (error) throw error;
 
@@ -278,10 +304,27 @@ const RaceGoalModal = ({
           color: 'terracotta',
           icon: <Trophy size={18} />,
         });
-      }
 
-      if (onSaved) onSaved();
-      onClose();
+        // After inserting a new A/B priority race in the future, offer to
+        // anchor a sequencer plan to it without leaving the modal. Otherwise
+        // close as before.
+        const isFutureAnchorable = (() => {
+          if (!eventAnchoredEnabled) return false;
+          if (!inserted || (inserted.priority !== 'A' && inserted.priority !== 'B')) return false;
+          if (inserted.status && inserted.status !== 'upcoming') return false;
+          if (!inserted.race_date) return false;
+          const today = new Date().toISOString().slice(0, 10);
+          return inserted.race_date > today;
+        })();
+
+        if (isFutureAnchorable) {
+          setSavedRace(inserted);
+          setStep('anchor-prompt');
+        } else {
+          if (onSaved) onSaved(inserted);
+          onClose();
+        }
+      }
     } catch (error) {
       console.error('Failed to save race goal:', error);
       notifications.show({
@@ -292,6 +335,45 @@ const RaceGoalModal = ({
     } finally {
       setSaving(false);
     }
+  };
+
+  // Anchor prompt — confirm anchoring the sequencer plan to the just-saved race.
+  const handleAnchor = async () => {
+    if (!savedRace?.id) return;
+    setAnchoring(true);
+    try {
+      const result = await anchorPlan(savedRace.id, false);
+      if (result?.ok) {
+        notifications.show({
+          title: 'Plan Anchored',
+          message: `Your training plan is now anchored to ${savedRace.name}.`,
+          color: 'terracotta',
+          icon: <Trophy size={18} />,
+        });
+      } else {
+        notifications.show({
+          title: 'Could not anchor plan',
+          message: result?.detail || result?.error || 'Please try again from the planner.',
+          color: 'yellow',
+        });
+      }
+    } catch (err) {
+      console.error('Failed to anchor plan:', err);
+      notifications.show({
+        title: 'Could not anchor plan',
+        message: 'Please try again from the planner.',
+        color: 'yellow',
+      });
+    } finally {
+      setAnchoring(false);
+      if (onSaved) onSaved(savedRace);
+      onClose();
+    }
+  };
+
+  const handleSkipAnchor = () => {
+    if (onSaved) onSaved(savedRace);
+    onClose();
   };
 
   // Delete race goal
@@ -344,6 +426,51 @@ const RaceGoalModal = ({
       }
       size="lg"
     >
+      {step === 'anchor-prompt' && savedRace ? (
+        <Stack gap="md">
+          <Paper p="md" withBorder radius={0} style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <Group gap="sm" mb="xs">
+              <ThemeIcon size="lg" color="terracotta" variant="light">
+                <Trophy size={18} />
+              </ThemeIcon>
+              <Box>
+                <Text fw={600}>Anchor your plan to this race?</Text>
+                <Text size="xs" c="dimmed">
+                  We&rsquo;ll build a block sequence (base → build → peak → taper) timed to your race date.
+                </Text>
+              </Box>
+            </Group>
+            <Group gap="xs" wrap="nowrap">
+              <Badge
+                size="sm"
+                color={savedRace.priority === 'A' ? 'red' : savedRace.priority === 'B' ? 'orange' : 'gray'}
+                variant="filled"
+              >
+                {savedRace.priority}
+              </Badge>
+              <Text size="sm" fw={600} lineClamp={1}>{savedRace.name}</Text>
+              <Text size="xs" c="dimmed">
+                {savedRace.race_date && new Date(savedRace.race_date + 'T00:00:00').toLocaleDateString('en-US', {
+                  month: 'short', day: 'numeric', year: 'numeric',
+                })}
+              </Text>
+            </Group>
+          </Paper>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="subtle" onClick={handleSkipAnchor} disabled={anchoring}>
+              Not now
+            </Button>
+            <Button
+              color="teal"
+              leftSection={<Target size={16} />}
+              onClick={handleAnchor}
+              loading={anchoring}
+            >
+              Anchor plan to this race
+            </Button>
+          </Group>
+        </Stack>
+      ) : (
       <Stack gap="md">
         {/* Race Name */}
         <TextInput
@@ -595,6 +722,7 @@ const RaceGoalModal = ({
           </Group>
         </Group>
       </Stack>
+      )}
     </Modal>
   );
 };

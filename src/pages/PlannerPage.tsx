@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase';
 import { formatDistance } from '../utils/units';
 import { useTrainingPlannerStore } from '../stores/trainingPlannerStore';
 import { List, Target, WarningCircle } from '@phosphor-icons/react';
+import AnchorRaceBanner from '../components/training/AnchorRaceBanner';
 
 // Activity type - matches the activities table schema
 // Using a flexible type since we select('*') to get all fields
@@ -204,6 +205,8 @@ export default function PlannerPage() {
               </Button>
             }
           />
+
+          <AnchorRaceBanner />
 
           {/* Plan selector tabs when multiple active plans exist */}
           {activePlans.length > 1 && (

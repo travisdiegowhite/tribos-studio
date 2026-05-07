@@ -18,7 +18,10 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { tokens } from '../theme';
 import RaceGoalModal from './RaceGoalModal';
-import { CalendarBlank, CaretRight, Clock, Mountains, Path, Plus, Target, Trophy } from '@phosphor-icons/react';
+import { Anchor as AnchorIcon, CalendarBlank, CaretRight, Clock, Mountains, Path, Plus, Target, Trophy } from '@phosphor-icons/react';
+import { useEventAnchoredPlan } from '../hooks/useEventAnchoredPlan';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
+import { notifications } from '@mantine/notifications';
 
 // Race type icons and labels
 const RACE_TYPE_INFO = {
@@ -44,6 +47,34 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRace, setSelectedRace] = useState(null);
+
+  const eventAnchoredEnabled = useFeatureFlag('event_anchored_planner');
+  const { horizon_event, anchorPlan } = useEventAnchoredPlan();
+  const anchoredHorizonId = horizon_event?.id ?? null;
+  const [anchoringRaceId, setAnchoringRaceId] = useState(null);
+
+  const handleAnchorRace = async (raceId, raceName, e) => {
+    if (e) e.stopPropagation();
+    setAnchoringRaceId(raceId);
+    try {
+      const result = await anchorPlan(raceId, false);
+      if (result?.ok) {
+        notifications.show({
+          title: 'Plan Anchored',
+          message: `Your training plan is now anchored to ${raceName}.`,
+          color: 'terracotta',
+        });
+      } else {
+        notifications.show({
+          title: 'Could not anchor plan',
+          message: result?.detail || result?.error || 'Please try again from the planner.',
+          color: 'yellow',
+        });
+      }
+    } finally {
+      setAnchoringRaceId(null);
+    }
+  };
 
   // Load race goals
   useEffect(() => {
@@ -321,6 +352,28 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
                         </Text>
                       )}
                     </Box>
+                    {eventAnchoredEnabled && daysUntil > 0 && (
+                      anchoredHorizonId === race.id ? (
+                        <Badge
+                          size="sm"
+                          color="terracotta"
+                          variant="light"
+                          leftSection={<AnchorIcon size={10} />}
+                        >
+                          Anchored
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="xs"
+                          variant="default"
+                          leftSection={<AnchorIcon size={12} />}
+                          loading={anchoringRaceId === race.id}
+                          onClick={(e) => handleAnchorRace(race.id, race.name, e)}
+                        >
+                          Anchor
+                        </Button>
+                      )
+                    )}
                   </Group>
 
                   {/* Progress bar only for races within 2 weeks (elevated/prominent) */}
