@@ -28,6 +28,11 @@ import {
   defaultRecoveryMode,
 } from './utils/sequencerContext.js';
 import { buildEventAnchoredSequence } from './utils/sequencerPlanner.js';
+import {
+  ensureEventAnchoredPlan,
+  projectPrescriptionsToCalendar,
+  deleteProjectionInRange,
+} from './utils/eventAnchoredCalendarBridge.js';
 
 const PRELOAD_DAYS = 14;
 
@@ -267,6 +272,53 @@ export default async function handler(req, res) {
       if (presErr) throw presErr;
     }
 
+    // 10. Project prescriptions onto the calendar (planned_workouts) so the
+    //     /planner UI can render the anchored sessions. Best-effort: any
+    //     failure here is logged but does not fail the anchor — the next
+    //     daily rollover will heal missing rows.
+    let projection = { plan_id: null, inserted: 0, deleted: 0 };
+    try {
+      const phantomPlanId = await ensureEventAnchoredPlan(supabase, user_id, race);
+      projection.plan_id = phantomPlanId;
+
+      const { data: phantomPlan } = await supabase
+        .from('training_plans')
+        .select('started_at')
+        .eq('id', phantomPlanId)
+        .maybeSingle();
+
+      if (replace) {
+        const { deleted } = await deleteProjectionInRange(
+          supabase,
+          phantomPlanId,
+          today,
+          plan.blocks[plan.blocks.length - 1].end_date
+        );
+        projection.deleted = deleted;
+      }
+
+      const blockTypeById = new Map(
+        insertedBlocks.map((b) => [b.id, b.block_type])
+      );
+      const items = prescriptionRows.map((p) => ({
+        prescription: p,
+        blockType: blockTypeById.get(p.block_id) ?? null,
+      }));
+
+      const { inserted } = await projectPrescriptionsToCalendar(supabase, {
+        planId: phantomPlanId,
+        userId: user_id,
+        planStartedAt: phantomPlan?.started_at ?? today,
+        items,
+      });
+      projection.inserted = inserted;
+    } catch (projErr) {
+      console.error(
+        '[sequencer-event-anchored-init] calendar projection failed:',
+        projErr
+      );
+    }
+
     return res.status(200).json({
       ok: true,
       already_anchored: false,
@@ -283,6 +335,7 @@ export default async function handler(req, res) {
       validation_messages: plan.validation_messages,
       chain_used: plan.chain_used,
       horizon_days: plan.horizon_days,
+      calendar_projection: projection,
     });
   } catch (err) {
     console.error('[sequencer-event-anchored-init] error:', err);

@@ -23,6 +23,10 @@ import {
   buildSequencerContext,
   defaultRecoveryMode,
 } from './utils/sequencerContext.js';
+import {
+  ensureEventAnchoredPlan,
+  projectPrescriptionsToCalendar,
+} from './utils/eventAnchoredCalendarBridge.js';
 
 const PRELOAD_DAYS = 7;
 const MAINTENANCE_DURATION_DAYS = 21;
@@ -47,6 +51,7 @@ export default async function handler(req, res) {
     blocks_completed: 0,
     blocks_initialized: 0,
     prescriptions_inserted: 0,
+    projection_rows_upserted: 0,
     users_processed: 0,
     errors: [],
   };
@@ -241,6 +246,72 @@ export default async function handler(req, res) {
           stats.errors.push({ user_id: user.id, step: 'preload_prescriptions', detail: presErr.message });
         } else {
           stats.prescriptions_inserted += allRows.length;
+        }
+
+        // Calendar projection: mirror prescriptions for race-anchored blocks
+        // onto planned_workouts so /planner shows them. Best-effort; logs only.
+        try {
+          const anchoredRows = allRows.filter((r) => {
+            const blk = windowBlocks.find((b) => b.id === r.block_id);
+            return blk?.parent_event_id;
+          });
+          if (anchoredRows.length > 0) {
+            const raceIds = [...new Set(
+              anchoredRows
+                .map((r) => windowBlocks.find((b) => b.id === r.block_id)?.parent_event_id)
+                .filter(Boolean)
+            )];
+
+            const { data: races } = await supabase
+              .from('race_goals')
+              .select('id, name, race_date')
+              .in('id', raceIds);
+
+            // Pick the soonest active race as the phantom plan's display
+            // anchor (one phantom plan per user, regardless of how many
+            // races have rows in the horizon).
+            const primaryRace = (races ?? []).sort(
+              (a, b) => (a.race_date || '').localeCompare(b.race_date || '')
+            )[0];
+
+            if (primaryRace) {
+              const phantomPlanId = await ensureEventAnchoredPlan(
+                supabase,
+                user.id,
+                primaryRace
+              );
+              const { data: phantomPlan } = await supabase
+                .from('training_plans')
+                .select('started_at')
+                .eq('id', phantomPlanId)
+                .maybeSingle();
+
+              const blockTypeById = new Map(
+                windowBlocks.map((b) => [b.id, b.block_type])
+              );
+              const items = anchoredRows.map((r) => ({
+                prescription: r,
+                blockType: blockTypeById.get(r.block_id) ?? null,
+              }));
+
+              const { inserted } = await projectPrescriptionsToCalendar(
+                supabase,
+                {
+                  planId: phantomPlanId,
+                  userId: user.id,
+                  planStartedAt: phantomPlan?.started_at ?? today,
+                  items,
+                }
+              );
+              stats.projection_rows_upserted += inserted;
+            }
+          }
+        } catch (projErr) {
+          stats.errors.push({
+            user_id: user.id,
+            step: 'calendar_projection',
+            detail: projErr?.message ?? String(projErr),
+          });
         }
       } catch (perUserErr) {
         stats.errors.push({ user_id: user.id, step: 'unhandled', detail: perUserErr?.message ?? String(perUserErr) });
