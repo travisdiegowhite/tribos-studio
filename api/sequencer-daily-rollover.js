@@ -16,10 +16,13 @@
 import { verifyCronAuth } from './utils/verifyCronAuth.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import {
-  generateMaintenanceSessions,
+  generateSessionsForBlock,
   coefficientsForMode,
 } from './utils/sequencerBlockOps.js';
-import { defaultRecoveryMode } from './utils/sequencerContext.js';
+import {
+  buildSequencerContext,
+  defaultRecoveryMode,
+} from './utils/sequencerContext.js';
 
 const PRELOAD_DAYS = 7;
 const MAINTENANCE_DURATION_DAYS = 21;
@@ -83,23 +86,28 @@ export default async function handler(req, res) {
           stats.blocks_completed += expired.length;
         }
 
-        // 3. Find active block covering today
+        // 3. Promote any 'planned' block whose window starts on/before today.
+        await supabase
+          .from('block_instances')
+          .update({ status: 'active', modified_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .eq('status', 'planned')
+          .lte('start_date', today)
+          .gte('end_date', today);
+
+        // 4. Find active block covering today (for maintenance fallback)
         const { data: activeBlock } = await supabase
           .from('block_instances')
           .select('id, block_type, start_date, end_date')
           .eq('user_id', user.id)
-          .in('status', ['active', 'planned'])
+          .eq('status', 'active')
           .lte('start_date', today)
           .gte('end_date', today)
           .order('start_date', { ascending: false })
           .limit(1)
           .maybeSingle();
 
-        let blockId = activeBlock?.id;
-        let blockEnd = activeBlock?.end_date;
-        let blockType = activeBlock?.block_type;
-
-        // 4. If no active block, auto-init maintenance
+        // 5. If no active block, auto-init maintenance
         if (!activeBlock) {
           let age = null;
           if (user.date_of_birth) {
@@ -151,42 +159,88 @@ export default async function handler(req, res) {
             continue;
           }
 
-          blockId = newBlock.id;
-          blockEnd = newBlock.end_date;
-          blockType = newBlock.block_type;
           stats.blocks_initialized += 1;
         }
 
-        // 5. Pre-generate next 7 days of prescriptions (clipped to block end)
-        if (blockType !== 'maintenance') {
-          // Phase 1 only generates maintenance server-side
+        // 6. Pre-generate next 7 days of prescriptions across whichever blocks
+        //    cover that horizon (Phase 2 supports the full block library).
+        const horizonEnd = addDays(today, PRELOAD_DAYS - 1);
+        const { data: windowBlocks } = await supabase
+          .from('block_instances')
+          .select('id, block_type, start_date, end_date, parent_event_id, parent_event_tier, coefficients_snapshot')
+          .eq('user_id', user.id)
+          .in('status', ['active', 'planned'])
+          .lte('start_date', horizonEnd)
+          .gte('end_date', today)
+          .order('start_date', { ascending: true });
+
+        if (!windowBlocks || windowBlocks.length === 0) continue;
+
+        // Build context once per user. Generators that consult upcoming_events
+        // (taper, race_specific) need the anchor race injected when present.
+        let userCtx;
+        try {
+          userCtx = await buildSequencerContext(user.id, today);
+        } catch (ctxErr) {
+          stats.errors.push({ user_id: user.id, step: 'build_context', detail: ctxErr?.message ?? String(ctxErr) });
           continue;
         }
 
-        const horizon = addDays(today, PRELOAD_DAYS - 1);
-        const generateUntil = horizon < blockEnd ? horizon : blockEnd;
-        const sessions = generateMaintenanceSessions(today, generateUntil);
+        const allRows = [];
+        for (const block of windowBlocks) {
+          const generatorEnd =
+            horizonEnd < block.end_date ? horizonEnd : block.end_date;
+          const generatorStart =
+            today > block.start_date ? today : block.start_date;
+          let blockCtx = userCtx;
+          if (block.parent_event_id && block.parent_event_tier) {
+            const anchor = userCtx.upcoming_events.find(
+              (e) => e.id === block.parent_event_id
+            );
+            if (anchor) {
+              blockCtx = {
+                ...userCtx,
+                upcoming_events: [
+                  anchor,
+                  ...userCtx.upcoming_events.filter((e) => e.id !== anchor.id),
+                ],
+                coefficients: block.coefficients_snapshot ?? userCtx.coefficients,
+              };
+            }
+          }
+          const sessions = generateSessionsForBlock(
+            block.block_type,
+            block.start_date,
+            block.end_date,
+            blockCtx
+          );
+          for (const s of sessions) {
+            if (s.date >= generatorStart && s.date <= generatorEnd) {
+              allRows.push({
+                user_id: user.id,
+                block_id: block.id,
+                date: s.date,
+                session_type: s.session_type,
+                target_rss: s.target_rss,
+                target_duration_min: s.target_duration_min,
+                prescribed_intervals: s.prescribed_intervals,
+                long_ride_flag: s.long_ride_flag,
+                notes: s.notes,
+              });
+            }
+          }
+        }
 
-        const rows = sessions.map((s) => ({
-          user_id: user.id,
-          block_id: blockId,
-          date: s.date,
-          session_type: s.session_type,
-          target_rss: s.target_rss,
-          target_duration_min: s.target_duration_min,
-          prescribed_intervals: s.prescribed_intervals,
-          long_ride_flag: s.long_ride_flag,
-          notes: s.notes,
-        }));
+        if (allRows.length === 0) continue;
 
         const { error: presErr } = await supabase
           .from('session_prescriptions')
-          .upsert(rows, { onConflict: 'user_id,date', ignoreDuplicates: false });
+          .upsert(allRows, { onConflict: 'user_id,date', ignoreDuplicates: false });
 
         if (presErr) {
           stats.errors.push({ user_id: user.id, step: 'preload_prescriptions', detail: presErr.message });
         } else {
-          stats.prescriptions_inserted += rows.length;
+          stats.prescriptions_inserted += allRows.length;
         }
       } catch (perUserErr) {
         stats.errors.push({ user_id: user.id, step: 'unhandled', detail: perUserErr?.message ?? String(perUserErr) });

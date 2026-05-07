@@ -13,6 +13,7 @@ import { PlanExecution } from './PlanExecution';
 import { CoachConversation } from './CoachConversation';
 import { RecentRides } from './RecentRides';
 import SequencerPrescriptionCard from '../../components/training/SequencerPrescriptionCard';
+import EventAnchoredPlanCard from '../../components/training/EventAnchoredPlanCard';
 import BlockExtensionStrip from '../../components/coach/BlockExtensionStrip';
 
 const VIEW_VERSION = 'today_v3_clusters';
@@ -144,6 +145,7 @@ export default function TodayView() {
             {eventAnchoredEnabled && (
               <>
                 <BlockExtensionStrip />
+                <EventAnchoredPlanCard />
                 <SequencerPrescriptionCard />
               </>
             )}
@@ -184,6 +186,7 @@ export default function TodayView() {
             {eventAnchoredEnabled && (
               <>
                 <BlockExtensionStrip />
+                <EventAnchoredPlanCard />
                 <SequencerPrescriptionCard />
               </>
             )}

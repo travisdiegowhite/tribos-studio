@@ -15,7 +15,7 @@
 import { setupCors } from './utils/cors.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import {
-  generateMaintenanceSessions,
+  generateSessionsForBlock,
   evaluateGating,
 } from './utils/sequencerBlockOps.js';
 import { buildSequencerContext } from './utils/sequencerContext.js';
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
     // Find the block covering this date
     const { data: block } = await supabase
       .from('block_instances')
-      .select('id, block_type, start_date, end_date, coefficients_snapshot')
+      .select('id, block_type, start_date, end_date, parent_event_id, parent_event_tier, coefficients_snapshot')
       .eq('user_id', user_id)
       .lte('start_date', date)
       .gte('end_date', date)
@@ -61,18 +61,43 @@ export default async function handler(req, res) {
       .eq('date', date)
       .maybeSingle();
 
-    // Phase 1: only maintenance generates server-side
-    if (block.block_type !== 'maintenance') {
-      return res.status(501).json({
-        error: 'not_implemented',
-        message: `Recompute for block_type ${block.block_type} not implemented in Phase 1.`,
+    // Build context (ensures anchor event surfaces correctly to taper/race_specific)
+    const baseCtx = await buildSequencerContext(user_id, date);
+    let ctx = baseCtx;
+    if (block.parent_event_id && block.parent_event_tier) {
+      const anchor = baseCtx.upcoming_events.find(
+        (e) => e.id === block.parent_event_id
+      );
+      if (anchor) {
+        ctx = {
+          ...baseCtx,
+          upcoming_events: [
+            anchor,
+            ...baseCtx.upcoming_events.filter((e) => e.id !== anchor.id),
+          ],
+          coefficients: block.coefficients_snapshot ?? baseCtx.coefficients,
+        };
+      }
+    }
+
+    // Generate the candidate prescription via the block-typed dispatcher.
+    // Generators key intra-block patterns off block.start_date so weekly cadence
+    // stays consistent; we then pick the row matching `date`.
+    const allSessions = generateSessionsForBlock(
+      block.block_type,
+      block.start_date,
+      block.end_date,
+      ctx
+    );
+    const generated = allSessions.find((s) => s.date === date);
+    if (!generated) {
+      return res.status(500).json({
+        error: 'generator_returned_no_row',
+        block_type: block.block_type,
+        date,
       });
     }
 
-    const generated = generateMaintenanceSessions(date, date)[0];
-
-    // Apply gating against fresh context
-    const ctx = await buildSequencerContext(user_id, date);
     const gating = evaluateGating(ctx, generated);
     const final = gating.gated
       ? { ...generated, ...gating.substitute }
