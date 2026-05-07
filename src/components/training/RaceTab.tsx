@@ -43,6 +43,10 @@ import {
 } from '@phosphor-icons/react';
 import { tokens } from '../../theme';
 import RoutePreviewMap from '../RouteBuilder/RoutePreviewMap';
+import { useEventAnchoredPlan } from '../../hooks/useEventAnchoredPlan';
+import { useFeatureFlag } from '../../hooks/useFeatureFlag';
+import { notifications } from '@mantine/notifications';
+import { Anchor as AnchorIcon } from '@phosphor-icons/react';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -146,6 +150,37 @@ export default function RaceTab({
   const [chatLoading, setChatLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Event-anchored plan: lets each row show its anchor state and offer a one-click anchor.
+  const eventAnchoredEnabled = useFeatureFlag('event_anchored_planner');
+  const { horizon_event, anchorPlan } = useEventAnchoredPlan();
+  const anchoredHorizonId = horizon_event?.id ?? null;
+  const [anchoringRaceId, setAnchoringRaceId] = useState<string | null>(null);
+
+  const handleAnchorRace = useCallback(
+    async (raceId: string, raceName: string) => {
+      setAnchoringRaceId(raceId);
+      try {
+        const result = await anchorPlan(raceId, false);
+        if (result?.ok) {
+          notifications.show({
+            title: 'Plan Anchored',
+            message: `Your training plan is now anchored to ${raceName}.`,
+            color: 'terracotta',
+          });
+        } else {
+          notifications.show({
+            title: 'Could not anchor plan',
+            message: result?.detail || result?.error || 'Please try again from the planner.',
+            color: 'yellow',
+          });
+        }
+      } finally {
+        setAnchoringRaceId(null);
+      }
+    },
+    [anchorPlan]
+  );
 
   const selectedRace = raceGoals.find((r) => r.id === selectedRaceId) || null;
 
@@ -642,6 +677,31 @@ export default function RaceTab({
                       </Text>
                       <Text size="xs" c="dimmed">days</Text>
                     </Box>
+                    {eventAnchoredEnabled && race.status === 'upcoming' && daysUntil > 0 && (
+                      anchoredHorizonId === race.id ? (
+                        <Badge
+                          size="sm"
+                          color="terracotta"
+                          variant="light"
+                          leftSection={<AnchorIcon size={10} />}
+                        >
+                          Anchored
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="xs"
+                          variant="default"
+                          leftSection={<AnchorIcon size={12} />}
+                          loading={anchoringRaceId === race.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAnchorRace(race.id, race.name);
+                          }}
+                        >
+                          Anchor
+                        </Button>
+                      )
+                    )}
                   </Group>
                 </Paper>
               </UnstyledButton>
