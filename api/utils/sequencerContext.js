@@ -88,6 +88,9 @@ export async function buildSequencerContext(userId, today) {
   const supabase = getSupabaseAdmin();
 
   // 1. Profile (FTP, age, recovery mode)
+  // Tolerate a missing date_of_birth column — older databases that haven't yet
+  // run migration 087 still need today's prescription to load. Treat any
+  // profile error as "no profile" rather than throwing a 500.
   const { data: profile, error: profileErr } = await supabase
     .from('user_profiles')
     .select('id, ftp, date_of_birth, recovery_mode, masters_factor')
@@ -95,7 +98,9 @@ export async function buildSequencerContext(userId, today) {
     .maybeSingle();
 
   if (profileErr) {
-    throw new Error(`Failed to load user_profiles: ${profileErr.message}`);
+    console.warn(
+      `[sequencerContext] user_profiles select failed for ${userId}: ${profileErr.message}. Falling back to defaults.`
+    );
   }
 
   let age = null;

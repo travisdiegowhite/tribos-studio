@@ -26,6 +26,7 @@ import {
   Paper,
   SegmentedControl,
 } from '@mantine/core';
+import { DateInput } from '@mantine/dates';
 import { useMediaQuery } from '@mantine/hooks';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -160,6 +161,7 @@ function Settings() {
   const [powerZones, setPowerZones] = useState(null);
   const [experienceLevel, setExperienceLevel] = useState('intermediate');
   const [metricsAge, setMetricsAge] = useState(null);
+  const [dateOfBirth, setDateOfBirth] = useState(null);
 
   // Load profile data directly from Supabase
   useEffect(() => {
@@ -186,6 +188,7 @@ function Settings() {
           setPowerZones(data.power_zones || null);
           setExperienceLevel(data.experience_level || 'intermediate');
           setMetricsAge(data.metrics_age || null);
+          setDateOfBirth(data.date_of_birth ? new Date(data.date_of_birth + 'T00:00:00') : null);
           setAiConsentEnabled(!!data.ai_consent_granted_at && !data.ai_consent_withdrawn_at);
         }
       } catch (error) {
@@ -329,6 +332,9 @@ function Settings() {
           weight_kg: weightKg || null,
           experience_level: experienceLevel,
           metrics_age: metricsAge || null,
+          date_of_birth: dateOfBirth
+            ? `${dateOfBirth.getFullYear()}-${String(dateOfBirth.getMonth() + 1).padStart(2, '0')}-${String(dateOfBirth.getDate()).padStart(2, '0')}`
+            : null,
         })
         .select()
         .single();
@@ -1718,6 +1724,16 @@ function Settings() {
                   onChange={(val) => setMetricsAge(val || null)}
                   min={13}
                   max={100}
+                />
+                <DateInput
+                  label="Date of Birth"
+                  description="Used by the event-anchored planner to pick a recovery default. Optional."
+                  placeholder="Select date"
+                  value={dateOfBirth}
+                  onChange={setDateOfBirth}
+                  maxDate={new Date()}
+                  clearable
+                  valueFormat="MMM D, YYYY"
                 />
               </SimpleGrid>
 
