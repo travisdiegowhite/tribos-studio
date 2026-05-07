@@ -16,7 +16,7 @@
 import { setupCors } from './utils/cors.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import {
-  generateMaintenanceSessions,
+  generateSessionsForBlock,
   evaluateGating,
 } from './utils/sequencerBlockOps.js';
 import { buildSequencerContext } from './utils/sequencerContext.js';
@@ -73,16 +73,44 @@ export default async function handler(req, res) {
       .eq('date', today)
       .maybeSingle();
 
-    // 3. Generate on-the-fly if missing (only handles maintenance in Phase 1)
+    // 3. Build context up-front (used for generation + gating). For
+    //    event-anchored blocks we ensure the parent_event is the first
+    //    upcoming_event so taper/race_specific generators see the right tier.
+    const baseCtx = await buildSequencerContext(userId, today);
+    let ctx = baseCtx;
+    if (block.parent_event_id && block.parent_event_tier) {
+      const anchor = baseCtx.upcoming_events.find(
+        (e) => e.id === block.parent_event_id
+      );
+      if (anchor) {
+        ctx = {
+          ...baseCtx,
+          upcoming_events: [
+            anchor,
+            ...baseCtx.upcoming_events.filter((e) => e.id !== anchor.id),
+          ],
+          coefficients: block.coefficients_snapshot ?? baseCtx.coefficients,
+        };
+      }
+    }
+
+    // 4. Generate on-the-fly if missing — Phase 2 dispatches by block_type.
     if (!prescription) {
-      if (block.block_type !== 'maintenance') {
+      // Generate using the block's own start so weekly cadence stays aligned,
+      // then pick today's row.
+      const allSessions = generateSessionsForBlock(
+        block.block_type,
+        block.start_date,
+        block.end_date,
+        ctx
+      );
+      const generated = allSessions.find((s) => s.date === today);
+      if (!generated) {
         return res.status(500).json({
-          error: 'no_prescription_and_no_generator',
-          message: `Block type ${block.block_type} not generated server-side in Phase 1.`,
+          error: 'generator_returned_no_row_for_today',
+          block_type: block.block_type,
         });
       }
-
-      const generated = generateMaintenanceSessions(today, today)[0];
       const { data: inserted, error: insertErr } = await supabase
         .from('session_prescriptions')
         .upsert(
@@ -106,8 +134,7 @@ export default async function handler(req, res) {
       prescription = inserted;
     }
 
-    // 4. Build context + apply gating
-    const ctx = await buildSequencerContext(userId, today);
+    // 5. Apply gating
     const gating = evaluateGating(ctx, prescription);
 
     let final = prescription;
