@@ -540,14 +540,15 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           .order('race_date', { ascending: true })
           .limit(5);
 
-        // ── 7. Recent activities (last 30 days, last 5 with polylines) ──
+        // ── 7. Recent activities (7-day rollup) — match the legacy
+        //      Dashboard/RecentRidesMap pattern exactly: select('*') and
+        //      fall back across the historical column variants in the
+        //      consumer code (some installs have *_meters, some don't).
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const recentActivitiesQuery = supabase
           .from('activities')
-          .select(
-            'id, name, start_date, distance_meters, distance, elevation_gain_meters, total_elevation_gain, duration_seconds, moving_time, elapsed_time, polyline, summary_polyline, map_summary_polyline, provider',
-          )
+          .select('*')
           .eq('user_id', userId)
           .is('duplicate_of', null)
           .or('is_hidden.eq.false,is_hidden.is.null')
@@ -555,20 +556,17 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           .order('start_date', { ascending: false })
           .limit(20);
 
-        // ── 8. Older activities for the map (up to 5 with polylines) ────
-        const thirtyDaysForMap = new Date();
-        thirtyDaysForMap.setDate(thirtyDaysForMap.getDate() - 30);
+        // ── 8. Map activities — "THE LAST 5 RIDES" is a most-recent
+        //      semantic, not a date window. Pull the 50 most recent and
+        //      let the client filter to those with polyline data.
         const mapActivitiesQuery = supabase
           .from('activities')
-          .select(
-            'id, name, start_date, distance_meters, distance, elevation_gain_meters, total_elevation_gain, duration_seconds, moving_time, elapsed_time, polyline, summary_polyline, map_summary_polyline, provider',
-          )
+          .select('*')
           .eq('user_id', userId)
           .is('duplicate_of', null)
           .or('is_hidden.eq.false,is_hidden.is.null')
-          .gte('start_date', thirtyDaysForMap.toISOString())
           .order('start_date', { ascending: false })
-          .limit(15);
+          .limit(50);
 
         const [
           personaRes,
@@ -789,21 +787,13 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         );
 
         // Map list: take from the wider window so the map has 5 rides even
-        // if the user hasn't ridden in the last 7 days.
-        const mapSource = (mapRes.data && mapRes.data.length > 0 ? mapRes.data : sevenDayActivities) as Array<{
+        // if the user hasn't ridden in the last 7 days. Polyline lookup
+        // matches RecentRidesMap.jsx — try every historical column variant
+        // including the Strava-shaped nested `map.summary_polyline`.
+        const mapSource = (mapRes.data && mapRes.data.length > 0 ? mapRes.data : sevenDayActivities) as Array<Record<string, unknown> & {
           id: string;
           name: string | null;
           start_date: string;
-          distance_meters: number | null;
-          distance: number | null;
-          elevation_gain_meters: number | null;
-          total_elevation_gain: number | null;
-          duration_seconds: number | null;
-          moving_time: number | null;
-          elapsed_time: number | null;
-          polyline: string | null;
-          summary_polyline: string | null;
-          map_summary_polyline: string | null;
           provider: string | null;
         }>;
         const ridesForMap: RecentRide[] = mapSource
@@ -821,9 +811,10 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
               Number(a.elapsed_time) ||
               0,
             polyline:
-              a.polyline ||
-              a.summary_polyline ||
-              a.map_summary_polyline ||
+              (a.polyline as string | null) ||
+              (a.summary_polyline as string | null) ||
+              (a.map_summary_polyline as string | null) ||
+              ((a.map as { summary_polyline?: string } | null)?.summary_polyline ?? null) ||
               null,
             provider: a.provider,
           }))
