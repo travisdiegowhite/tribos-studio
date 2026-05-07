@@ -113,7 +113,7 @@ export default function FuelCard({
 
   // Generate subtitle
   const durationHours = Math.floor(plan.durationMinutes / 60);
-  const durationMins = plan.durationMinutes % 60;
+  const durationMins = Math.floor(plan.durationMinutes % 60);
   const durationStr = durationHours > 0
     ? `${durationHours}h ${durationMins > 0 ? `${durationMins}m` : ''}`
     : `${durationMins}m`;

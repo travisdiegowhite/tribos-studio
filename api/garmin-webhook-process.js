@@ -265,9 +265,10 @@ async function handleExistingActivity(event, existing, integration) {
   const needsGps = !existing.map_summary_polyline;
   const needsAvgPower = !existing.average_watts;
   const needsPowerMetrics = !existing.normalized_power && !existing.power_curve_summary;
+  const needsPowerCurve = !existing.power_curve_summary;
   const needsStreams = !existing.activity_streams;
   const needsAnalytics = !existing.ride_analytics;
-  const needsAnyFitData = needsGps || needsPowerMetrics || needsAvgPower || needsStreams || needsAnalytics;
+  const needsAnyFitData = needsGps || needsPowerMetrics || needsPowerCurve || needsAvgPower || needsStreams || needsAnalytics;
   const needsFitData = needsAnyFitData && fitFileUrl;
 
   if (!needsFitData) {
@@ -313,9 +314,15 @@ async function handleExistingActivity(event, existing, integration) {
       if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
       if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
       if (pm.intensityFactor) activityUpdate.intensity_factor = pm.intensityFactor;
-      if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
       if (pm.workKj) activityUpdate.kilojoules = pm.workKj;
       if (pm.normalizedPower) updates.push(`NP: ${pm.normalizedPower}W`);
+    }
+    // Self-heal power_curve_summary independently: an earlier partial write
+    // may have populated normalized_power without the curve, leaving it NULL
+    // forever because needsPowerMetrics evaluates false on subsequent webhooks.
+    if (!existing.power_curve_summary && pm.powerCurveSummary) {
+      activityUpdate.power_curve_summary = pm.powerCurveSummary;
+      updates.push('Power curve');
     }
     if (pm.avgPower || pm.normalizedPower) {
       activityUpdate.device_watts = true;
