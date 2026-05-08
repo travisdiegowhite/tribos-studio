@@ -1821,12 +1821,21 @@ async function backfillStreamsData(req, res, userId) {
             }
           });
 
-          if (backfillResponse.status === 202 || backfillResponse.status === 409 || backfillResponse.ok) {
-            console.log('✅ Backfill request accepted by Garmin');
+          console.log(`📨 Garmin backfill response: ${backfillResponse.status}`);
+
+          if (backfillResponse.status === 202 || backfillResponse.status === 200) {
+            console.log('✅ Backfill request queued by Garmin (fresh webhooks expected)');
             triggeredBackfill = true;
             if (skippedOldActivities > 0) {
               backfillError = `${skippedOldActivities} activities are older than 30 days and cannot be backfilled.`;
             }
+          } else if (backfillResponse.status === 409) {
+            // 409 = Garmin reports this date range was already processed. No fresh
+            // PING will arrive. Matches the convention in api/utils/garminBackfill.js:96-99.
+            // Telling the user to "run again in a few minutes" here would loop forever.
+            const errorText = await backfillResponse.text();
+            console.log('ℹ️ Garmin returned 409 (already processed) - no fresh webhook will arrive:', errorText.substring(0, 100));
+            backfillError = 'Garmin reports this date range was already processed and will not re-deliver it. The FIT file may permanently lack stream data — try uploading the .fit file from Garmin Connect manually.';
           } else {
             const errorText = await backfillResponse.text();
             console.warn('⚠️ Backfill request failed:', backfillResponse.status, errorText);
