@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { tokens } from '../theme';
 import { TRAINING_ZONES, getPowerZone, getZoneColor, getZoneName } from '../utils/trainingPlans';
+import { isPowerSport, isRunningActivity } from '../utils/sportType';
 
 // HR zone definitions (% of max HR)
 const HR_ZONES = [
@@ -114,7 +115,7 @@ const ZoneTooltip = ({ active, payload }) => {
     <Paper p="xs" withBorder style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <Text size="xs" fw={600}>{data.label}</Text>
       <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
-        {data.percent}% of ride
+        {data.percent}% of activity
       </Text>
     </Paper>
   );
@@ -125,6 +126,11 @@ const ZoneTooltip = ({ active, payload }) => {
  */
 const RideZonesChart = ({ activity, ftp, maxHr }) => {
   const [mode, setMode] = useState('hr');
+
+  // Cycling power zones (% FTP) don't apply to runs. Phase 2 will introduce
+  // pace-zone rendering; until then runs get HR-only.
+  const allowPower = isPowerSport(activity);
+  const isRun = isRunningActivity(activity);
 
   const streams = activity?.activity_streams;
   const rideAnalytics = activity?.ride_analytics;
@@ -145,19 +151,21 @@ const RideZonesChart = ({ activity, ftp, maxHr }) => {
     return computeHRZones(streams?.heartRate, userMaxHR);
   }, [rideAnalytics, streams, maxHr, activity?.max_heartrate]);
 
-  // Compute power zones from stream
+  // Compute power zones from stream (cycling only)
   const powerZones = useMemo(() => {
-    if (!ftp || !streams?.power) return null;
+    if (!allowPower || !ftp || !streams?.power) return null;
     return computePowerZones(streams.power, ftp);
-  }, [streams, ftp]);
+  }, [allowPower, streams, ftp]);
 
   const hasHR = hrZones && hrZones.some((z) => z.percent > 0);
   const hasPower = powerZones && powerZones.some((z) => z.percent > 0);
 
   if (!hasHR && !hasPower) return null;
 
-  const chartData = mode === 'power' && hasPower ? powerZones : hrZones;
-  const showToggle = hasHR && hasPower;
+  // Force HR mode for non-power sports even if a state value lingers.
+  const effectiveMode = !allowPower ? 'hr' : mode;
+  const chartData = effectiveMode === 'power' && hasPower ? powerZones : hrZones;
+  const showToggle = hasHR && hasPower && allowPower;
 
   // Find dominant zone
   const dominant = chartData?.reduce((max, z) => (z.percent > max.percent ? z : max), { percent: 0 });

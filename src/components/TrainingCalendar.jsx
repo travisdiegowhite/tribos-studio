@@ -20,6 +20,7 @@ import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
+import { isPowerSport } from '../utils/sportType';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
 import { formatLocalDate, addDays, parsePlanStartDate } from '../utils/dateUtils';
@@ -353,11 +354,15 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             actualDuration: 0,
           };
         }
-        // Prefer stored TSS, fall back to recomputation, cap at 500
+        // Prefer stored canonical load (rss, fallback to legacy tss). For
+        // runs we never apply the cycling power→TSS formula because watts
+        // from a footpod would be misread against cycling FTP. Phase 2 will
+        // replace the duration-based fallback with HR-TRIMP / rTSS.
+        const storedLoad = ride.rss ?? ride.tss;
         let rideTSS;
-        if (ride.tss != null && ride.tss > 0) {
-          rideTSS = ride.tss;
-        } else if (ride.average_watts && ftp) {
+        if (storedLoad != null && storedLoad > 0) {
+          rideTSS = storedLoad;
+        } else if (isPowerSport(ride) && ride.average_watts && ftp) {
           rideTSS = calculateTSS(ride.moving_time, ride.average_watts, ftp);
         } else {
           rideTSS = estimateTSS(
@@ -976,10 +981,14 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 // Calculate day's TSS (including cycling and cross-training)
                 let dayTSS = 0;
                 dayRides.forEach(ride => {
+                  // See note in weekly stats: read canonical rss first, gate
+                  // power-derived TSS on sport so footpod watts on runs
+                  // can't poison the daily total.
+                  const storedLoad = ride.rss ?? ride.tss;
                   let rideTSS;
-                  if (ride.tss != null && ride.tss > 0) {
-                    rideTSS = ride.tss;
-                  } else if (ride.average_watts && ftp) {
+                  if (storedLoad != null && storedLoad > 0) {
+                    rideTSS = storedLoad;
+                  } else if (isPowerSport(ride) && ride.average_watts && ftp) {
                     rideTSS = calculateTSS(ride.moving_time, ride.average_watts, ftp);
                   } else {
                     rideTSS = estimateTSS(

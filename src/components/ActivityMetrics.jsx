@@ -11,6 +11,7 @@ import {
 } from '@mantine/core';
 import { tokens } from '../theme';
 import { Fire, Gauge, Heart, Heartbeat, Lightning } from '@phosphor-icons/react';
+import { isPowerSport, isRunningActivity } from '../utils/sportType';
 
 // FIT protocol uses 0xFFFF (65535) for "no data" - must filter before calculations
 const MAX_VALID_POWER_WATTS = 2500;
@@ -105,6 +106,9 @@ export function getIFZone(intensityFactor) {
 export function ActivityMetricsBadges({ activity, ftp }) {
   const metrics = useMemo(() => {
     if (!activity) return null;
+    // Power-derived badges (NP/IF/VI/TSS) are cycling-only. Footpod "watts"
+    // on runs use a different scale than cycling FTP and would mislead.
+    if (!isPowerSport(activity)) return null;
 
     const avgPower = activity.average_watts;
     const rawMaxPower = activity.max_watts;
@@ -209,6 +213,8 @@ export function ActivityMetricsBadges({ activity, ftp }) {
  * Full breakdown of power metrics for activity detail view
  */
 export function ActivityMetricsPanel({ activity, ftp, weight }) {
+  const powerSport = isPowerSport(activity);
+
   const metrics = useMemo(() => {
     if (!activity) return null;
 
@@ -224,26 +230,31 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
     const maxPower = rawMaxPower > 0 && rawMaxPower < MAX_VALID_POWER_WATTS ? rawMaxPower : 0;
     const maxPowerCorrupted = rawMaxPower >= MAX_VALID_POWER_WATTS;
 
-    // Prefer canonical spec §2/§3.2 fields with legacy fallback for pre-074 rows.
-    const np = avgPower
+    // Power-derived metrics (NP, IF, VI, TSS-from-power, W/kg) are
+    // cycling-only. For runs we leave them null and surface HR + pace only.
+    const np = powerSport && avgPower
       ? ((!maxPowerCorrupted && (activity.effective_power ?? activity.normalized_power)) || estimateNormalizedPower(avgPower, maxPower))
       : null;
-    const intensityFactor = (!maxPowerCorrupted && (activity.ride_intensity ?? activity.intensity_factor)) || calculateIF(np, ftp);
-    const vi = calculateVI(np, avgPower);
-    const tss = (!maxPowerCorrupted && (activity.rss ?? activity.tss)) || calculateTSSFromPower(duration, np, ftp);
-    const ifZone = getIFZone(intensityFactor);
+    const intensityFactor = powerSport
+      ? ((!maxPowerCorrupted && (activity.ride_intensity ?? activity.intensity_factor)) || calculateIF(np, ftp))
+      : null;
+    const vi = powerSport ? calculateVI(np, avgPower) : null;
+    const tss = powerSport
+      ? ((!maxPowerCorrupted && (activity.rss ?? activity.tss)) || calculateTSSFromPower(duration, np, ftp))
+      : null;
+    const ifZone = powerSport ? getIFZone(intensityFactor) : null;
 
-    // W/kg calculations
-    const avgWkg = avgPower && weight ? (avgPower / weight).toFixed(2) : null;
-    const npWkg = np && weight ? (np / weight).toFixed(2) : null;
-    const maxWkg = maxPower && weight ? (maxPower / weight).toFixed(2) : null;
+    // W/kg calculations (cycling-only)
+    const avgWkg = powerSport && avgPower && weight ? (avgPower / weight).toFixed(2) : null;
+    const npWkg = powerSport && np && weight ? (np / weight).toFixed(2) : null;
+    const maxWkg = powerSport && maxPower && weight ? (maxPower / weight).toFixed(2) : null;
 
-    // Efficiency Factor (power per HR) - aerobic efficiency metric
-    const ef = avgPower && avgHr ? (np || avgPower) / avgHr : null;
+    // Efficiency Factor (power per HR) - cycling aerobic efficiency
+    const ef = powerSport && avgPower && avgHr ? (np || avgPower) / avgHr : null;
 
     return {
-      avgPower,
-      maxPower,
+      avgPower: powerSport ? avgPower : 0,
+      maxPower: powerSport ? maxPower : 0,
       np,
       intensityFactor,
       vi,

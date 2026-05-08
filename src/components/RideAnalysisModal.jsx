@@ -30,6 +30,7 @@ import RideStreamsChart from './RideStreamsChart';
 import RideZonesChart from './RideZonesChart';
 import RidePacingChart from './RidePacingChart';
 import { trackFeature, EventType } from '../utils/activityTracking';
+import { isPowerSport, isRunningActivity, getActivityNoun, getLoadLabel } from '../utils/sportType';
 import { ArrowRight, ArrowsClockwise, Clock, Fire, Gauge, Heart, Heartbeat, Lightning, MapTrifold, Mountains, Path, Watch } from '@phosphor-icons/react';
 
 // FIT protocol uses 0xFFFF (65535) for "no data" - must filter before display
@@ -201,13 +202,13 @@ const RideAnalysisModal = ({
       ? mechanicalWork
       : rawKilojoules;
 
-    // Power metrics - prefer stored values from FIT parser (calculated from actual power stream).
-    // BUT if max_power was a sentinel, stored NP/IF/TSS are also corrupted (calculated from unfiltered stream).
-    // Fall back to client-side estimation from avg/max power.
+    // Power metrics — only compute for power-based sports (cycling).
+    // For runs we leave these null and surface pace + HR + zone time.
     // Prefer canonical spec §2/§3.2 fields (rss, effective_power, ride_intensity)
     // with legacy fallback for pre-074 rows.
+    const powerSport = isPowerSport(ride);
     let np = null, intensityFactor = null, vi = null, powerTSS = null, ifZone = null;
-    if (avgPower > 0) {
+    if (powerSport && avgPower > 0) {
       np = (!maxPowerCorrupted && (ride.effective_power ?? ride.normalized_power)) || estimateNormalizedPower(avgPower, maxPower);
       intensityFactor = (!maxPowerCorrupted && (ride.ride_intensity ?? ride.intensity_factor)) || calculateIF(np, ftp);
       vi = calculateVI(np, avgPower);
@@ -215,9 +216,15 @@ const RideAnalysisModal = ({
       ifZone = getIFZone(intensityFactor);
     }
 
-    // Estimate TSS if no power data
-    const estimatedTSS = !avgPower
-      ? estimateTSS(duration / 60, distance, elevation)
+    // For runs (and cycling without power) prefer the stored canonical rss
+    // value if the server already computed it from HR/pace; otherwise fall
+    // back to a coarse duration+elevation estimate. Phase 2 will replace
+    // this fallback with an HR-TRIMP / rTSS calc.
+    const storedLoad = ride.rss ?? ride.tss ?? null;
+    const estimatedTSS = !powerTSS
+      ? (storedLoad && storedLoad > 0
+          ? Math.round(storedLoad)
+          : estimateTSS(duration / 60, distance, elevation))
       : null;
 
     // Speed
@@ -251,8 +258,20 @@ const RideAnalysisModal = ({
       hasRealNP,
       powerCurveSummary,
       hasPowerCurve,
+      powerSport,
     };
   }, [ride, ftp]);
+
+  // Format running pace from km/h speed → "min:sec / km" (or / mi).
+  // Returns "—" for stationary segments.
+  const formatPace = (speedKph, useImperial) => {
+    if (!speedKph || speedKph <= 0) return '—';
+    const speedPerUnit = useImperial ? speedKph * 0.621371 : speedKph; // km/h → mph or stay km/h
+    const secondsPerUnit = 3600 / speedPerUnit;
+    const min = Math.floor(secondsPerUnit / 60);
+    const sec = Math.round(secondsPerUnit % 60);
+    return `${min}:${String(sec).padStart(2, '0')} / ${useImperial ? 'mi' : 'km'}`;
+  };
 
   // Format duration
   const formatDuration = (seconds) => {
@@ -296,9 +315,12 @@ const RideAnalysisModal = ({
   if (!ride) return null;
 
   const hasGpsData = routeCoords.length > 0;
-  const hasPowerData = metrics?.avgPower > 0;
+  const hasPowerData = metrics?.powerSport && metrics?.avgPower > 0;
   const hasHRData = metrics?.avgHR > 0;
   const isGarminRide = ride.provider?.toLowerCase() === 'garmin';
+  const isRun = isRunningActivity(ride);
+  const activityNoun = getActivityNoun(ride);
+  const loadLabel = getLoadLabel(ride);
 
   return (
     <Modal
@@ -311,7 +333,7 @@ const RideAnalysisModal = ({
           </ThemeIcon>
           <Box>
             <Text fw={600} size="lg" lineClamp={1}>
-              {ride.name || 'Untitled Ride'}
+              {ride.name || (isRun ? 'Untitled Run' : 'Untitled Ride')}
             </Text>
             <Text size="xs" c="dimmed">
               {formatDate(ride.start_date || ride.recorded_at)}
@@ -340,7 +362,7 @@ const RideAnalysisModal = ({
             >
               <MapTrifold size={48} style={{ opacity: 0.3, marginBottom: 8 }} />
               <Text c="dimmed" size="sm">
-                No GPS data available for this ride
+                No GPS data available for this {activityNoun}
               </Text>
               {isGarminRide && onBackfillGps && (
                 <Button
@@ -399,12 +421,12 @@ const RideAnalysisModal = ({
               {metrics?.powerTSS || metrics?.estimatedTSS || '-'}
             </Text>
             <Text size="xs" c="dimmed">
-              TSS {!hasPowerData && '(est.)'}
+              {loadLabel} {!hasPowerData && '(est.)'}
             </Text>
           </Paper>
         </SimpleGrid>
 
-        {/* Power Analysis Section */}
+        {/* Power Analysis — cycling only; runs render pace + HR instead */}
         {hasPowerData && (
           <>
             <Divider
@@ -532,10 +554,10 @@ const RideAnalysisModal = ({
           </>
         )}
 
-        {/* Ride Analysis Charts — streams-based visualizations */}
+        {/* Activity Profile — streams-based visualizations */}
         {ride.activity_streams && (
           <>
-            <Divider label="Ride Profile" labelPosition="center" />
+            <Divider label={isRun ? 'Run Profile' : 'Ride Profile'} labelPosition="center" />
             <RideStreamsChart activity={ride} />
           </>
         )}
@@ -583,8 +605,15 @@ const RideAnalysisModal = ({
               {metrics.avgCadence > 0 && (
                 <Paper p="sm" withBorder>
                   <Box>
-                    <Text size="xs" c="dimmed">Avg Cadence</Text>
-                    <Text fw={600}>{Math.round(metrics.avgCadence)} rpm</Text>
+                    <Text size="xs" c="dimmed">{isRun ? 'Avg Cadence' : 'Avg Cadence'}</Text>
+                    {/* Cadence units differ: cycling tracks crank rpm, running tracks
+                        single-leg steps/min. Both Strava and Garmin report runs as
+                        single-leg, so double it for the conventional 160-180 spm range. */}
+                    <Text fw={600}>
+                      {isRun
+                        ? `${Math.round(metrics.avgCadence * 2)} spm`
+                        : `${Math.round(metrics.avgCadence)} rpm`}
+                    </Text>
                   </Box>
                 </Paper>
               )}
@@ -592,8 +621,12 @@ const RideAnalysisModal = ({
               {metrics.avgSpeed > 0 && (
                 <Paper p="sm" withBorder>
                   <Box>
-                    <Text size="xs" c="dimmed">Avg Speed</Text>
-                    <Text fw={600}>{formatSpeed ? formatSpeed(metrics.avgSpeed) : `${metrics.avgSpeed.toFixed(1)} km/h`}</Text>
+                    <Text size="xs" c="dimmed">{isRun ? 'Avg Pace' : 'Avg Speed'}</Text>
+                    <Text fw={600}>
+                      {isRun
+                        ? formatPace(metrics.avgSpeed, !!formatDistance)
+                        : (formatSpeed ? formatSpeed(metrics.avgSpeed) : `${metrics.avgSpeed.toFixed(1)} km/h`)}
+                    </Text>
                   </Box>
                 </Paper>
               )}
@@ -601,8 +634,9 @@ const RideAnalysisModal = ({
           </>
         )}
 
-        {/* Retrospective Fuel Analysis - for rides 60+ minutes */}
-        {metrics?.duration >= 3600 && (
+        {/* Retrospective Fuel Analysis — cycling-specific (kJ/watt based).
+            Run fueling lands in Phase 3. */}
+        {metrics?.duration >= 3600 && !isRun && (
           <>
             <Divider label="Fuel Analysis" labelPosition="center" />
             <FuelCard
@@ -620,8 +654,10 @@ const RideAnalysisModal = ({
           </>
         )}
 
-        {/* Route Builder Nudge — only for users who haven't created a route yet */}
-        {!hasCreatedRoute && polyline && (
+        {/* Route Builder Nudge — only for users who haven't created a route yet.
+            Hidden for runs until the route builder gains running support
+            (planned for a later phase). */}
+        {!hasCreatedRoute && polyline && !isRun && (
           <Paper
             p="md"
             style={{
