@@ -26,6 +26,7 @@ import {
 } from 'recharts';
 import { tokens } from '../theme';
 import { getPowerZone, getZoneName, getZoneColor } from '../utils/trainingPlans';
+import { isPowerSport } from '../utils/sportType';
 import { CaretDown, CaretUp, ChartLineUp, Clock, Fire, Lightning, Target } from '@phosphor-icons/react';
 
 /**
@@ -237,9 +238,17 @@ export function estimateIntervalStructure(activity, ftp) {
 const IntervalDetection = ({ activity, ftp }) => {
   const [showDetails, setShowDetails] = useState(false);
 
+  // This component infers structure from power-vs-FTP variability and is
+  // cycling-only. Pace-based interval detection for runs is planned for a
+  // later phase; until then we hide the card on runs entirely.
+  const powerSport = isPowerSport(activity);
+
   const analysis = useMemo(() => {
+    if (!powerSport) return null;
     return estimateIntervalStructure(activity, ftp);
-  }, [activity, ftp]);
+  }, [activity, ftp, powerSport]);
+
+  if (!powerSport) return null;
 
   if (!analysis) {
     return (
