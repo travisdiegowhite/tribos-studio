@@ -606,6 +606,20 @@ async function handleDuplicateActivity(event, integration, activityData, activit
         } catch (fitError) {
           console.warn('⚠️ Could not add FIT data to taken-over activity:', fitError.message);
         }
+      } else if (integration.access_token && activityInfo?.startTimeInSeconds) {
+        // Mirror the new-activity path: when Garmin's webhook arrives without an
+        // inline FIT URL (common for summary-only PUSH), ask Garmin to send a
+        // fresh PING with the FIT callbackURL so the follow-up webhook can fill
+        // in streams/curve/analytics via handleExistingActivity.
+        const isIndoorActivity = activityData.trainer === true ||
+          (activityInfo.activityType || '').toLowerCase().includes('indoor') ||
+          (activityInfo.activityType || '').toLowerCase().includes('virtual');
+        if (!isIndoorActivity) {
+          console.log(`[FIT:BACKFILL] No FIT URL on takeover for activity ${dupCheck.existingActivity.id}, requesting backfill`);
+          await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
+        } else {
+          console.log(`[FIT:SKIP] No FIT URL on takeover for activity ${dupCheck.existingActivity.id} (indoor)`);
+        }
       }
 
       if (activityInfo.startTimeInSeconds) {
@@ -649,6 +663,18 @@ async function handleDuplicateActivity(event, integration, activityData, activit
         }
       } catch (fitError) {
         console.warn('⚠️ FIT processing in merge path failed:', fitError.message);
+      }
+    } else if (integration.access_token && activityInfo?.startTimeInSeconds) {
+      // Defensive symmetry with the takeover branch / new-activity path: when
+      // we hit the merge branch without an inline FIT URL, ask Garmin to
+      // re-deliver. Doesn't fire today (Garmin > Strava in priority always
+      // takeovers), but protects against future provider-priority changes.
+      const isIndoorActivity = activityData.trainer === true ||
+        (activityInfo.activityType || '').toLowerCase().includes('indoor') ||
+        (activityInfo.activityType || '').toLowerCase().includes('virtual');
+      if (!isIndoorActivity) {
+        console.log(`[FIT:BACKFILL] No FIT URL on merge for activity ${dupCheck.existingActivity.id}, requesting backfill`);
+        await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
       }
     }
 

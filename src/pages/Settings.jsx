@@ -86,6 +86,8 @@ function Settings() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [stravaStatus, setStravaStatus] = useState({ connected: false, loading: true });
   const [stravaSyncing, setStravaSyncing] = useState(false);
+  const [stravaAutoSyncEnabled, setStravaAutoSyncEnabled] = useState(true);
+  const [savingStravaAutoSync, setSavingStravaAutoSync] = useState(false);
   const [speedProfile, setSpeedProfile] = useState(null);
   const [garminStatus, setGarminStatus] = useState({ connected: false, loading: true });
   const [garminWebhookStatus, setGarminWebhookStatus] = useState(null);
@@ -190,6 +192,10 @@ function Settings() {
           setMetricsAge(data.metrics_age || null);
           setDateOfBirth(data.date_of_birth || null);
           setAiConsentEnabled(!!data.ai_consent_granted_at && !data.ai_consent_withdrawn_at);
+          // Default to true when the column hasn't been migrated yet so the
+          // toggle reflects the live behavior. The server-side gate also
+          // treats anything other than explicit false as "auto-import on".
+          setStravaAutoSyncEnabled(data.strava_auto_sync_enabled !== false);
         }
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -534,6 +540,37 @@ function Settings() {
         message: 'Failed to disconnect Strava',
         color: 'red',
       });
+    }
+  };
+
+  const updateStravaAutoSync = async (next) => {
+    if (!user) return;
+    const previous = stravaAutoSyncEnabled;
+    setStravaAutoSyncEnabled(next);
+    setSavingStravaAutoSync(true);
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ strava_auto_sync_enabled: next })
+        .eq('id', user.id);
+      if (error) throw error;
+      notifications.show({
+        title: next ? 'Strava auto-import on' : 'Strava auto-import off',
+        message: next
+          ? 'New Strava activities will sync to your library.'
+          : 'New Strava activities will be ignored. Garmin/Wahoo stays primary. Existing activities are not affected.',
+        color: next ? 'teal' : 'gray',
+      });
+    } catch (err) {
+      setStravaAutoSyncEnabled(previous);
+      console.error('Error updating strava_auto_sync_enabled:', err);
+      notifications.show({
+        title: 'Could not save',
+        message: err.message || 'Please try again.',
+        color: 'red',
+      });
+    } finally {
+      setSavingStravaAutoSync(false);
     }
   };
 
@@ -2038,6 +2075,36 @@ function Settings() {
                 speedProfile={speedProfile}
                 unitsPreference={unitsPreference}
               />
+
+              {stravaStatus.connected && (
+                <Box
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    padding: tokens.spacing.md,
+                    borderRadius: tokens.radius.sm,
+                  }}
+                >
+                  <Group justify="space-between" align="flex-start" wrap="nowrap">
+                    <Box style={{ flex: 1, paddingRight: tokens.spacing.md }}>
+                      <Text fw={500} style={{ color: 'var(--color-text-primary)' }}>
+                        Auto-import activities from Strava
+                      </Text>
+                      <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+                        {(garminStatus.connected || wahooStatus.connected)
+                          ? 'Off by default while Garmin or Wahoo is connected — those provide richer FIT data and stay your primary source. Turn this on to also import Strava-only rides (e.g. Zwift sessions).'
+                          : 'New Strava rides import automatically. Turn off if you want to import them manually.'}
+                      </Text>
+                    </Box>
+                    <Switch
+                      checked={stravaAutoSyncEnabled}
+                      onChange={(event) => updateStravaAutoSync(event.currentTarget.checked)}
+                      disabled={savingStravaAutoSync}
+                      size="md"
+                      color="teal"
+                    />
+                  </Group>
+                </Box>
+              )}
 
               <Divider />
 

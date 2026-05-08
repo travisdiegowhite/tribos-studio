@@ -151,6 +151,17 @@ async function exchangeCodeForToken(req, res, code, userId) {
     // Calculate expiration
     const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
 
+    // Detect first-time connection so we can mark Wahoo as the primary
+    // ingestion source (suppresses Strava auto-import). Re-auths leave the
+    // user's existing strava_auto_sync_enabled choice untouched.
+    const { data: priorIntegration } = await supabase
+      .from('bike_computer_integrations')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('provider', 'wahoo')
+      .maybeSingle();
+    const isFirstConnect = !priorIntegration;
+
     // Store tokens in database
     const { error: dbError } = await supabase
       .from('bike_computer_integrations')
@@ -179,6 +190,18 @@ async function exchangeCodeForToken(req, res, code, userId) {
     }
 
     console.log('✅ Wahoo integration stored successfully');
+
+    if (isFirstConnect) {
+      const { error: prefError } = await supabase
+        .from('user_profiles')
+        .update({ strava_auto_sync_enabled: false })
+        .eq('id', userId);
+      if (prefError) {
+        console.warn('⚠️ Failed to set strava_auto_sync_enabled=false on Wahoo first connect (non-fatal):', prefError.message);
+      } else {
+        console.log('🛑 Strava auto-import disabled (Wahoo is now primary)');
+      }
+    }
 
     // Track activation step
     await completeActivationStep(supabase, userId, 'connect_device').catch(() => {});

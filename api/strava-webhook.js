@@ -34,6 +34,38 @@ const SUPPORTED_ACTIVITY_TYPES = [...CYCLING_TYPES, ...RUNNING_TYPES];
 // Track last webhook for diagnostics
 let lastWebhookReceived = null;
 
+/**
+ * Decide whether to skip Strava activity ingestion for this user. Returns true
+ * when the user has explicitly disabled Strava auto-import AND has a Garmin or
+ * Wahoo integration row (regardless of token validity — Garmin/Wahoo own their
+ * own refresh; if they're permanently broken, the user can re-enable Strava).
+ *
+ * Errors fall open (return false) so a transient DB hiccup never blocks Strava
+ * ingestion for a Strava-only user.
+ */
+async function shouldSkipStravaIngest(userId) {
+  try {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('strava_auto_sync_enabled')
+      .eq('id', userId)
+      .maybeSingle();
+    if (profile?.strava_auto_sync_enabled !== false) return false;
+
+    const { data: primary } = await supabase
+      .from('bike_computer_integrations')
+      .select('id')
+      .eq('user_id', userId)
+      .in('provider', ['garmin', 'wahoo'])
+      .limit(1)
+      .maybeSingle();
+    return !!primary;
+  } catch (err) {
+    console.warn('⚠️ shouldSkipStravaIngest check failed (falling open):', err.message);
+    return false;
+  }
+}
+
 export default async function handler(req, res) {
   // Handle CORS - Allow Strava servers (no origin header) and browser origins
   if (setupCors(req, res, { allowedMethods: ['POST', 'GET', 'OPTIONS'] })) {
@@ -292,6 +324,16 @@ async function handleActivityCreate(eventId, webhookData, integration) {
   console.log('📥 Processing activity create:', webhookData.object_id);
 
   try {
+    // Gate: if the user has a higher-priority device-direct provider connected
+    // (Garmin / Wahoo) and has not opted into Strava auto-import, skip the
+    // activity insert. Token refresh and non-ingestion features (route export,
+    // segments, social) keep working because the OAuth row stays intact.
+    if (await shouldSkipStravaIngest(integration.user_id)) {
+      console.log('🛑 [STRAVA:SKIP] Garmin/Wahoo is primary; Strava auto-import disabled for user', integration.user_id);
+      await markEventProcessed(eventId, 'Skipped: Strava auto-import disabled (Garmin/Wahoo primary)');
+      return;
+    }
+
     // Get valid access token (refresh if needed)
     const accessToken = await getValidAccessToken(integration);
 

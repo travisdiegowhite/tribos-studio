@@ -12,6 +12,33 @@ const supabase = getSupabaseAdmin();
 const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
 
 /**
+ * Match the gate used in api/strava-webhook.js. Returns true when this user
+ * has Strava auto-import disabled AND a Garmin/Wahoo integration exists.
+ */
+async function shouldSkipStravaIngest(userId) {
+  try {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('strava_auto_sync_enabled')
+      .eq('id', userId)
+      .maybeSingle();
+    if (profile?.strava_auto_sync_enabled !== false) return false;
+
+    const { data: primary } = await supabase
+      .from('bike_computer_integrations')
+      .select('id')
+      .eq('user_id', userId)
+      .in('provider', ['garmin', 'wahoo'])
+      .limit(1)
+      .maybeSingle();
+    return !!primary;
+  } catch (err) {
+    console.warn('⚠️ shouldSkipStravaIngest check failed (falling open):', err.message);
+    return false;
+  }
+}
+
+/**
  * Extract and validate user from Authorization header
  * Returns user object or null if not authenticated
  */
@@ -175,6 +202,15 @@ async function syncActivities(req, res, userId, page, perPage) {
   const { importSource = 'strava_dashboard_sync' } = req.body;
 
   try {
+    if (await shouldSkipStravaIngest(userId)) {
+      return res.status(200).json({
+        success: false,
+        skipped: true,
+        reason: 'strava_auto_sync_disabled',
+        message: 'Strava auto-import is disabled because Garmin or Wahoo is your primary source. Toggle it on in Settings if you want to import Strava activities anyway.'
+      });
+    }
+
     const accessToken = await getValidAccessToken(userId);
 
     // Fetch activities from Strava
@@ -237,6 +273,15 @@ async function syncAllActivities(req, res, userId) {
   const { startPage = 1, pagesPerChunk = 5, after, before, importSource = 'strava_settings_sync' } = req.body;
 
   try {
+    if (await shouldSkipStravaIngest(userId)) {
+      return res.status(200).json({
+        success: false,
+        skipped: true,
+        reason: 'strava_auto_sync_disabled',
+        message: 'Strava auto-import is disabled because Garmin or Wahoo is your primary source. Toggle it on in Settings if you want to import Strava activities anyway.'
+      });
+    }
+
     const accessToken = await getValidAccessToken(userId);
 
     let page = startPage;
