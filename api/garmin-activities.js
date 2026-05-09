@@ -965,10 +965,22 @@ async function backfillGpsData(req, res, userId) {
         const fitCoachCtxGps = fitResult.fitCoachContext ?? null;
         if (fitResult.powerMetrics) {
           const pm = fitResult.powerMetrics;
-          if (pm.normalizedPower) gpsUpdate.normalized_power = pm.normalizedPower;
+          // Dual-write legacy + canonical (spec §2). Re-added 2026-05-09
+          // after the April 27 rollback (commit 95eb804) — migration 072
+          // has been stable in production for >2 weeks.
+          if (pm.normalizedPower) {
+            gpsUpdate.normalized_power = pm.normalizedPower;
+            gpsUpdate.effective_power = pm.normalizedPower;
+          }
           if (pm.maxPower) gpsUpdate.max_watts = pm.maxPower;
-          if (pm.trainingStressScore) gpsUpdate.tss = pm.trainingStressScore;
-          if (pm.intensityFactor) gpsUpdate.intensity_factor = pm.intensityFactor;
+          if (pm.trainingStressScore) {
+            gpsUpdate.tss = pm.trainingStressScore;
+            gpsUpdate.rss = pm.trainingStressScore;
+          }
+          if (pm.intensityFactor) {
+            gpsUpdate.intensity_factor = pm.intensityFactor;
+            gpsUpdate.ride_intensity = pm.intensityFactor;
+          }
           if (pm.powerCurveSummary) gpsUpdate.power_curve_summary = pm.powerCurveSummary;
           if (pm.workKj) gpsUpdate.kilojoules = pm.workKj;
           if (pm.avgPower && !activity.average_watts) {
@@ -1376,10 +1388,22 @@ async function backfillPowerData(req, res, userId) {
           updated_at: new Date().toISOString()
         };
 
-        if (pm.normalizedPower) updateData.normalized_power = pm.normalizedPower;
+        // Dual-write legacy + canonical (spec §2). Re-added 2026-05-09
+        // after the April 27 rollback (commit 95eb804) — migration 072
+        // has been stable in production for >2 weeks.
+        if (pm.normalizedPower) {
+          updateData.normalized_power = pm.normalizedPower;
+          updateData.effective_power = pm.normalizedPower;
+        }
         if (pm.maxPower) updateData.max_watts = pm.maxPower;
-        if (pm.trainingStressScore) updateData.tss = pm.trainingStressScore;
-        if (pm.intensityFactor) updateData.intensity_factor = pm.intensityFactor;
+        if (pm.trainingStressScore) {
+          updateData.tss = pm.trainingStressScore;
+          updateData.rss = pm.trainingStressScore;
+        }
+        if (pm.intensityFactor) {
+          updateData.intensity_factor = pm.intensityFactor;
+          updateData.ride_intensity = pm.intensityFactor;
+        }
         if (pm.powerCurveSummary) updateData.power_curve_summary = pm.powerCurveSummary;
         if (pm.workKj) updateData.kilojoules = pm.workKj;
         if (fitResult.activityStreams) updateData.activity_streams = fitResult.activityStreams;
@@ -1715,10 +1739,22 @@ async function backfillStreamsData(req, res, userId) {
         const fitCoachCtxStr = fitResult.fitCoachContext ?? null;
         if (fitResult.powerMetrics) {
           const pm = fitResult.powerMetrics;
-          if (pm.normalizedPower) updateData.normalized_power = pm.normalizedPower;
+          // Dual-write legacy + canonical (spec §2). Re-added 2026-05-09
+          // after the April 27 rollback (commit 95eb804) — migration 072
+          // has been stable in production for >2 weeks.
+          if (pm.normalizedPower) {
+            updateData.normalized_power = pm.normalizedPower;
+            updateData.effective_power = pm.normalizedPower;
+          }
           if (pm.maxPower) updateData.max_watts = pm.maxPower;
-          if (pm.trainingStressScore) updateData.tss = pm.trainingStressScore;
-          if (pm.intensityFactor) updateData.intensity_factor = pm.intensityFactor;
+          if (pm.trainingStressScore) {
+            updateData.tss = pm.trainingStressScore;
+            updateData.rss = pm.trainingStressScore;
+          }
+          if (pm.intensityFactor) {
+            updateData.intensity_factor = pm.intensityFactor;
+            updateData.ride_intensity = pm.intensityFactor;
+          }
           if (pm.powerCurveSummary) updateData.power_curve_summary = pm.powerCurveSummary;
           if (pm.workKj) updateData.kilojoules = pm.workKj;
           if (pm.avgPower && !activity.average_watts) {

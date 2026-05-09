@@ -310,10 +310,24 @@ async function handleExistingActivity(event, existing, integration) {
       updates.push(`Avg: ${pm.avgPower}W`);
     }
     if (needsPowerMetrics) {
-      if (pm.normalizedPower) activityUpdate.normalized_power = pm.normalizedPower;
+      // Dual-write legacy + canonical (spec §2). Re-added 2026-05-09 after
+      // the April 27 rollback (commit 95eb804) — migration 072 has been
+      // stable in production for >2 weeks and the SELECT on line 236 still
+      // reads `normalized_power` so the rollback's failure mode (silent
+      // null on missing canonical column) cannot recur.
+      if (pm.normalizedPower) {
+        activityUpdate.normalized_power = pm.normalizedPower;
+        activityUpdate.effective_power = pm.normalizedPower;
+      }
       if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
-      if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
-      if (pm.intensityFactor) activityUpdate.intensity_factor = pm.intensityFactor;
+      if (pm.trainingStressScore) {
+        activityUpdate.tss = pm.trainingStressScore;
+        activityUpdate.rss = pm.trainingStressScore;
+      }
+      if (pm.intensityFactor) {
+        activityUpdate.intensity_factor = pm.intensityFactor;
+        activityUpdate.ride_intensity = pm.intensityFactor;
+      }
       if (pm.workKj) activityUpdate.kilojoules = pm.workKj;
       if (pm.normalizedPower) updates.push(`NP: ${pm.normalizedPower}W`);
     }
@@ -590,7 +604,10 @@ async function handleDuplicateActivity(event, integration, activityData, activit
             if (fitResult.polyline) fitUpdate.map_summary_polyline = fitResult.polyline;
             if (fitResult.activityStreams) fitUpdate.activity_streams = fitResult.activityStreams;
             if (fitResult.powerMetrics?.avgPower) fitUpdate.average_watts = fitResult.powerMetrics.avgPower;
-            if (fitResult.powerMetrics?.normalizedPower) fitUpdate.normalized_power = fitResult.powerMetrics.normalizedPower;
+            if (fitResult.powerMetrics?.normalizedPower) {
+              fitUpdate.normalized_power = fitResult.powerMetrics.normalizedPower;
+              fitUpdate.effective_power = fitResult.powerMetrics.normalizedPower;
+            }
             if (fitResult.powerMetrics?.maxPower) fitUpdate.max_watts = fitResult.powerMetrics.maxPower;
             if (fitResult.powerMetrics?.powerCurveSummary) fitUpdate.power_curve_summary = fitResult.powerMetrics.powerCurveSummary;
             if (fitResult.powerMetrics?.workKj) fitUpdate.kilojoules = fitResult.powerMetrics.workKj;
@@ -703,10 +720,20 @@ async function processFitFile(activityId, fitFileUrl, accessToken, userId = null
     if (fitResult.powerMetrics) {
       const pm = fitResult.powerMetrics;
       if (pm.avgPower) activityUpdate.average_watts = pm.avgPower;
-      if (pm.normalizedPower) activityUpdate.normalized_power = pm.normalizedPower;
+      // Dual-write legacy + canonical (spec §2). See note at line 312.
+      if (pm.normalizedPower) {
+        activityUpdate.normalized_power = pm.normalizedPower;
+        activityUpdate.effective_power = pm.normalizedPower;
+      }
       if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
-      if (pm.trainingStressScore) activityUpdate.tss = pm.trainingStressScore;
-      if (pm.intensityFactor) activityUpdate.intensity_factor = pm.intensityFactor;
+      if (pm.trainingStressScore) {
+        activityUpdate.tss = pm.trainingStressScore;
+        activityUpdate.rss = pm.trainingStressScore;
+      }
+      if (pm.intensityFactor) {
+        activityUpdate.intensity_factor = pm.intensityFactor;
+        activityUpdate.ride_intensity = pm.intensityFactor;
+      }
       if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
       if (pm.workKj) activityUpdate.kilojoules = pm.workKj;
       activityUpdate.device_watts = true;
