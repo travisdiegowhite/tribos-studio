@@ -103,11 +103,60 @@ export default async function handler(req, res) {
       .maybeSingle();
 
     if (existing && !replace) {
+      // The sequence is already in place; back-fill the calendar projection
+      // so users who anchored before the bridge shipped (or whose previous
+      // projection write failed) still see workouts on /planner.
+      let backfill = { plan_id: null, inserted: 0 };
+      try {
+        const { data: blocks } = await supabase
+          .from('block_instances')
+          .select('id, block_type, parent_event_id')
+          .eq('sequence_id', existing.id)
+          .in('status', ['active', 'planned']);
+
+        if (blocks && blocks.length > 0) {
+          const { data: prescriptions } = await supabase
+            .from('session_prescriptions')
+            .select('user_id, block_id, date, session_type, target_rss, target_duration_min, gating_reason')
+            .in('block_id', blocks.map((b) => b.id))
+            .gte('date', today);
+
+          if (prescriptions && prescriptions.length > 0) {
+            const phantomPlanId = await ensureEventAnchoredPlan(supabase, user_id, race);
+            backfill.plan_id = phantomPlanId;
+            const { data: phantomPlan } = await supabase
+              .from('training_plans')
+              .select('started_at')
+              .eq('id', phantomPlanId)
+              .maybeSingle();
+
+            const blockTypeById = new Map(blocks.map((b) => [b.id, b.block_type]));
+            const items = prescriptions.map((p) => ({
+              prescription: p,
+              blockType: blockTypeById.get(p.block_id) ?? null,
+            }));
+            const { inserted } = await projectPrescriptionsToCalendar(supabase, {
+              planId: phantomPlanId,
+              userId: user_id,
+              planStartedAt: phantomPlan?.started_at ?? today,
+              items,
+            });
+            backfill.inserted = inserted;
+          }
+        }
+      } catch (projErr) {
+        console.error(
+          '[sequencer-event-anchored-init] projection backfill failed:',
+          projErr
+        );
+      }
+
       return res.status(200).json({
         ok: true,
         already_anchored: true,
         sequence_id: existing.id,
         horizon_event_id: race.id,
+        calendar_projection: backfill,
       });
     }
 
