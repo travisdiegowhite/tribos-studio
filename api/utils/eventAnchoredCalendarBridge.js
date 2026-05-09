@@ -144,9 +144,11 @@ export function projectionRowForPrescription({
     workout_type: workoutType,
     workout_id: null,
     name: formatName(sessionType, blockType),
-    // Canonical-only writer per CLAUDE.md §metrics rollout (target_tss left
-    // null; readers fall back via target_rss ?? target_tss).
-    target_rss: targetRss,
+    // planned_workouts hasn't yet had the canonical target_rss column added
+    // (only actual_rss exists per migration 073). Write target_tss until a
+    // future migration adds target_rss; the rest of the codebase reads via
+    // target_rss ?? target_tss so this stays compatible either way.
+    target_tss: targetRss,
     target_duration: durationMin,
     duration_minutes: durationMin,
     notes: prescription.gating_reason ?? null,
