@@ -347,6 +347,17 @@ async function exchangeToken(req, res, userId, code, state) {
     const expiresAt = new Date();
     expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7776000)); // Default 90 days
 
+    // Detect first-time connection so we can mark Garmin as the primary
+    // ingestion source (suppresses Strava auto-import). Re-auths leave the
+    // user's existing strava_auto_sync_enabled choice untouched.
+    const { data: priorIntegration } = await supabase
+      .from('bike_computer_integrations')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('provider', 'garmin')
+      .maybeSingle();
+    const isFirstConnect = !priorIntegration;
+
     // Store tokens in database
     const { error: dbError } = await supabase
       .from('bike_computer_integrations')
@@ -374,6 +385,18 @@ async function exchangeToken(req, res, userId, code, state) {
     }
 
     console.log('✅ Integration stored successfully for user:', userId, 'with Garmin User ID:', garminUserId);
+
+    if (isFirstConnect) {
+      const { error: prefError } = await supabase
+        .from('user_profiles')
+        .update({ strava_auto_sync_enabled: false })
+        .eq('id', userId);
+      if (prefError) {
+        console.warn('⚠️ Failed to set strava_auto_sync_enabled=false on Garmin first connect (non-fatal):', prefError.message);
+      } else {
+        console.log('🛑 Strava auto-import disabled (Garmin is now primary)');
+      }
+    }
 
     // Track activation step
     await completeActivationStep(supabase, userId, 'connect_device').catch(() => {});

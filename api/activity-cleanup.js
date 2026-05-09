@@ -77,7 +77,7 @@ async function findDuplicates(req, res) {
     // Get all activities for user
     const { data: activities, error } = await supabase
       .from('activities')
-      .select('id, provider, provider_activity_id, name, start_date, distance, moving_time, average_watts, average_heartrate, map_summary_polyline, created_at')
+      .select('id, provider, provider_activity_id, name, start_date, distance, moving_time, average_watts, average_heartrate, map_summary_polyline, activity_streams, is_hidden, created_at')
       .eq('user_id', authUser.id)
       .order('start_date', { ascending: false });
 
@@ -118,22 +118,28 @@ async function findDuplicates(req, res) {
       }
 
       if (group.length > 1) {
-        // This is a duplicate group
-        duplicateGroups.push({
-          activities: group.map(a => ({
-            id: a.id,
-            provider: a.provider,
-            name: a.name,
-            start_date: a.start_date,
-            distance: a.distance,
-            moving_time: a.moving_time,
-            has_power: !!a.average_watts,
-            has_hr: !!a.average_heartrate,
-            has_gps: !!a.map_summary_polyline,
-            created_at: a.created_at
-          })),
-          recommended_keep: selectBestActivity(group)
-        });
+        const recommendedKeep = selectBestActivity(group);
+        // If every match is hidden, skip the group rather than recommend a
+        // hidden row as the survivor (or worse, deleting a visible row in its
+        // favor). The user can unhide one and re-run if they want the rollup.
+        if (recommendedKeep) {
+          duplicateGroups.push({
+            activities: group.map(a => ({
+              id: a.id,
+              provider: a.provider,
+              name: a.name,
+              start_date: a.start_date,
+              distance: a.distance,
+              moving_time: a.moving_time,
+              has_power: !!a.average_watts,
+              has_hr: !!a.average_heartrate,
+              has_gps: !!a.map_summary_polyline,
+              is_hidden: !!a.is_hidden,
+              created_at: a.created_at
+            })),
+            recommended_keep: recommendedKeep
+          });
+        }
       }
 
       processed.add(activity.id);
@@ -278,39 +284,67 @@ async function markDuplicatesAction(req, res) {
 }
 
 /**
- * Select the best activity to keep from a group
- * Prefers: more data (power, HR, GPS), earlier import, Garmin over Strava
+ * Count how many of the three "rich data" signals an activity has:
+ * GPS polyline, streams, power. Used by the data-fallback rule below.
  */
-function selectBestActivity(activities) {
-  return activities.reduce((best, current) => {
-    let bestScore = scoreActivity(best);
-    let currentScore = scoreActivity(current);
-
-    return currentScore > bestScore ? current : best;
-  }).id;
+function richDataCount(activity) {
+  let n = 0;
+  if (activity.map_summary_polyline) n++;
+  if (activity.activity_streams) n++;
+  if (activity.average_watts) n++;
+  return n;
 }
 
-function scoreActivity(activity) {
-  let score = 0;
+/**
+ * Select the activity to keep from a duplicate group.
+ *
+ * Rules (in order):
+ *   1. Hidden activities (is_hidden = true) are excluded from "best" selection
+ *      entirely — the user already chose to remove them from view; they should
+ *      not silently win and erase a visible row. If every candidate is hidden,
+ *      return null and let the caller skip the group.
+ *   2. Provider priority is the dominant comparator (Garmin > Wahoo > COROS >
+ *      Strava > Manual), sourced from api/utils/activityDedup.js so we have a
+ *      single source of truth.
+ *   3. Data fallback: if the higher-priority row is a stub (zero of GPS /
+ *      streams / power) AND the lower-priority row has at least two of those
+ *      three, the lower-priority row wins. Covers the rare case where a Garmin
+ *      summary push arrived without a FIT and the Strava-captured row is the
+ *      richer record.
+ *   4. Same-provider tiebreaker: pick whichever has more rich-data signals;
+ *      then more recent created_at.
+ *
+ * Returns the activity id to keep, or null if none qualify.
+ */
+export function selectBestActivity(activities) {
+  const visible = activities.filter(a => a.is_hidden !== true);
+  if (visible.length === 0) return null;
+  if (visible.length === 1) return visible[0].id;
 
-  // Power data is valuable
-  if (activity.average_watts) score += 10;
+  return visible.reduce((best, current) => {
+    const bestPriority = PROVIDER_PRIORITY[best.provider?.toLowerCase()] || 0;
+    const currentPriority = PROVIDER_PRIORITY[current.provider?.toLowerCase()] || 0;
 
-  // Heart rate data
-  if (activity.average_heartrate) score += 5;
+    if (currentPriority !== bestPriority) {
+      const higher = currentPriority > bestPriority ? current : best;
+      const lower = currentPriority > bestPriority ? best : current;
 
-  // GPS data
-  if (activity.map_summary_polyline) score += 5;
+      // Data fallback: higher-priority is a stub, lower-priority has real data
+      if (richDataCount(higher) === 0 && richDataCount(lower) >= 2) {
+        return lower;
+      }
+      return higher;
+    }
 
-  // Prefer Garmin (usually has more accurate data from device)
-  if (activity.provider === 'garmin') score += 3;
-  if (activity.provider === 'wahoo') score += 2;
+    // Same provider — prefer more rich data, then more recent created_at
+    const bestData = richDataCount(best);
+    const currentData = richDataCount(current);
+    if (currentData !== bestData) return currentData > bestData ? current : best;
 
-  // Prefer earlier imports (original source)
-  const age = Date.now() - new Date(activity.created_at).getTime();
-  score += Math.min(5, age / (24 * 60 * 60 * 1000)); // Up to 5 points for older
-
-  return score;
+    const bestCreated = new Date(best.created_at || 0).getTime();
+    const currentCreated = new Date(current.created_at || 0).getTime();
+    return currentCreated > bestCreated ? current : best;
+  }).id;
 }
 
 /**
@@ -442,7 +476,7 @@ async function autoCleanup(req, res) {
     // First find all duplicates
     const { data: activities, error } = await supabase
       .from('activities')
-      .select('id, provider, provider_activity_id, name, start_date, distance, moving_time, average_watts, average_heartrate, average_cadence, map_summary_polyline, kilojoules, created_at, raw_data')
+      .select('id, provider, provider_activity_id, name, start_date, distance, moving_time, average_watts, average_heartrate, average_cadence, map_summary_polyline, activity_streams, is_hidden, kilojoules, created_at, raw_data')
       .eq('user_id', authUser.id)
       .order('start_date', { ascending: false });
 
@@ -479,10 +513,13 @@ async function autoCleanup(req, res) {
 
       if (group.length > 1) {
         const keepId = selectBestActivity(group);
-        duplicateGroups.push({
-          keep: group.find(a => a.id === keepId),
-          delete: group.filter(a => a.id !== keepId)
-        });
+        // Skip groups where every candidate is hidden — see selectBestActivity.
+        if (keepId) {
+          duplicateGroups.push({
+            keep: group.find(a => a.id === keepId),
+            delete: group.filter(a => a.id !== keepId && a.is_hidden !== true)
+          });
+        }
       }
 
       processed.add(activity.id);
