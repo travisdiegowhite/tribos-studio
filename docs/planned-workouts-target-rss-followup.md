@@ -1,5 +1,12 @@
 # Follow-up: `planned_workouts.target_rss` gap
 
+> ✅ **CLOSED 2026-05-09** by the metrics-rollout freeze PR (branch
+> `claude/review-metrics-tables-9V3t1`). Migration 089 added the column
+> and backfilled from `target_tss`; `correction-proposal-apply.js` and
+> `eventAnchoredCalendarBridge.js` now dual-write both columns. See
+> `docs/METRICS_ROLLOUT_FREEZE.md` for the broader policy. Kept for the
+> postmortem trail.
+
 **Filed**: 2026-05-09
 **Discovered while**: wiring the event-anchored calendar bridge (PR on branch `claude/event-anchored-plan-generation-E3zpA`).
 **Owner**: unassigned — pick this up in a fresh session.

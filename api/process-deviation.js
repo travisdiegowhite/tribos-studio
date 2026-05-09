@@ -212,14 +212,21 @@ export default async function handler(req, res) {
       return res.status(200).json({ status: 'no_deviation' });
     }
 
-    // 8. Write deviation record
+    // 8. Write deviation record. Dual-write legacy + canonical columns
+    // (migration 073 added the canonical twins; both coexist indefinitely
+    // under the metrics-rollout freeze — see docs/METRICS_ROLLOUT_FREEZE.md).
+    const actualLoad = analysis.tss_estimate?.tss;
+    const loadDelta = analysis.tss_estimate ? analysis.tss_estimate.tss - plannedRef.tss : 0;
     await supabase.from('plan_deviations').insert({
       user_id: userId,
       activity_id: String(activity_id),
       deviation_date: today,
       planned_tss: plannedRef.tss,
-      actual_tss: analysis.tss_estimate?.tss,
-      tss_delta: analysis.tss_estimate ? analysis.tss_estimate.tss - plannedRef.tss : 0,
+      planned_rss: plannedRef.tss,
+      actual_tss: actualLoad,
+      actual_rss: actualLoad,
+      tss_delta: loadDelta,
+      rss_delta: loadDelta,
       deviation_type: analysis.deviation_type,
       severity_score: analysis.severity_score,
       options_json: analysis.adjustment_options || null,

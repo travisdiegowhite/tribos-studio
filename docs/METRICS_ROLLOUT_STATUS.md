@@ -1,5 +1,11 @@
 # Tribos Metrics Rollout — Session Handoff
 
+> ⚠️ **HISTORICAL — the rollout is frozen.** As of 2026-05-09 the B0–B10
+> rename is complete-but-abandoned. Do not pick up from the "next
+> session prompt" below. See `docs/METRICS_ROLLOUT_FREEZE.md` for the
+> current policy and the closed status of the `target_rss` /
+> `plan_deviations` bugs.
+
 **Status as of this commit.** A fresh Claude session can pick up from here.
 
 ---
