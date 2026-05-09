@@ -117,6 +117,30 @@ are internal plumbing and are explicitly allowed to stay.
 - `docs/planned-workouts-target-rss-followup.md` — closed by this PR.
   Keep for the postmortem trail.
 
+## Known-inert canonical columns (do not try to "fix")
+
+A few columns added by the rollout migrations turned out to be in the
+wrong place and have no writer — leave them alone.
+
+- **`training_segments.effective_power` / `mean_effective_power`** (added
+  by migration 073). The legacy power columns these were meant to
+  mirror live on `training_segment_rides.normalized_power` (per-ride)
+  and `training_segment_profiles.mean_normalized_power` (aggregated),
+  not on `training_segments` itself. Migration 079's backfill
+  (`UPDATE training_segments SET effective_power = normalized_power…`)
+  references a column that doesn't exist on the source table and would
+  fail if run. The columns are inert — `segmentAnalysisPipeline.js`
+  correctly writes the per-ride and per-profile rows — and the segment
+  analytics surface isn't user-facing trademark territory anyway, so
+  no canonical twin is needed. Do NOT add a writer to populate these
+  columns; do NOT run migration 079.
+
+- **`activity_efi.planned_rss` / `actual_rss`**, **`activity_twl`**,
+  **`weekly_tcas`** were intentionally not given canonical twins by
+  migration 073 (see the migration comment line 32-34). These are
+  internal proprietary-metric tables (TWL, EFI, TCAS); the coach voice
+  doesn't reference them by trademarked names. Status quo is correct.
+
 ## When to revisit
 
 The freeze is indefinite, not provisional. Revisit only if:
@@ -131,3 +155,19 @@ The freeze is indefinite, not provisional. Revisit only if:
   are integer/numeric and trivially small).
 
 The default answer to "should we revive the rollout?" is **no**.
+
+## Followups after the initial freeze landed
+
+- **2026-05-09** — re-added Garmin canonical dual-write at six sites in
+  `api/garmin-webhook-process.js` (`handleExistingActivity`,
+  `handleDuplicateActivity`, `processFitFile`) and `api/garmin-activities.js`
+  (`backfillGpsData`, `backfillPowerData`, `backfillStreamsData`). The
+  April 27 rollback (commit `95eb804`) was driven by a SELECT-side
+  failure mode — PostgREST returning silent NULL when migration 072
+  hadn't been applied — and the SELECT in `processActivityEvent`
+  (line 236) still reads `normalized_power`, so that failure mode
+  cannot recur from this writer-only change. Garmin activities now
+  populate `effective_power`, `rss`, `ride_intensity` alongside the
+  legacy columns on every webhook ingest and backfill path. Strava
+  (`api/strava-activities.js`) and FIT upload (`api/fit-upload.js`)
+  were already dual-writing.
