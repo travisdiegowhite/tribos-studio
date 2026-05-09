@@ -144,10 +144,11 @@ export function projectionRowForPrescription({
     workout_type: workoutType,
     workout_id: null,
     name: formatName(sessionType, blockType),
-    // planned_workouts hasn't yet had the canonical target_rss column added
-    // (only actual_rss exists per migration 073). Write target_tss until a
-    // future migration adds target_rss; the rest of the codebase reads via
-    // target_rss ?? target_tss so this stays compatible either way.
+    // Dual-write target_rss (canonical, migration 089) and target_tss
+    // (legacy, still read by template-seeded callers and the workoutLibrary
+    // path). Both columns coexist indefinitely under the metrics-rollout
+    // freeze (docs/METRICS_ROLLOUT_FREEZE.md).
+    target_rss: targetRss,
     target_tss: targetRss,
     target_duration: durationMin,
     duration_minutes: durationMin,

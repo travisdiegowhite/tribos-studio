@@ -698,8 +698,11 @@ export interface PlannedWorkoutDB {
   workout_type: string | null;
   workout_id: string | null;
   target_tss: number | null;
-  /** Canonical twin of target_tss per spec §2 (RSS rename). Dual-populated;
-   * optional during §3b transition, promoted to required after legacy drop. */
+  /** Canonical twin of target_tss per spec §2 (RSS rename). Added by
+   * migration 089 and backfilled from target_tss. Coexists with target_tss
+   * indefinitely under the metrics-rollout freeze
+   * (docs/METRICS_ROLLOUT_FREEZE.md). Readers should prefer canonical with
+   * legacy fallback (target_rss ?? target_tss). */
   target_rss?: number | null;
   target_duration: number | null;
   target_distance_km: number | null;
@@ -707,8 +710,10 @@ export interface PlannedWorkoutDB {
   completed_at: string | null;
   activity_id: string | null;
   actual_tss: number | null;
-  /** Canonical twin of actual_tss per spec §2. Dual-populated;
-   * optional during §3b transition, promoted to required after legacy drop. */
+  /** Canonical twin of actual_tss per spec §2 (RSS rename), added by
+   * migration 073. Coexists with actual_tss indefinitely under the
+   * metrics-rollout freeze (docs/METRICS_ROLLOUT_FREEZE.md). New writers
+   * populate canonical only; readers prefer actual_rss ?? actual_tss. */
   actual_rss?: number | null;
   actual_duration: number | null;
   actual_distance_km: number | null;

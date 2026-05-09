@@ -4,9 +4,9 @@
 
 **tribos.studio** is a production cycling training platform (SaaS) built with React 19, Vite, Supabase, and Vercel serverless functions. It provides AI-powered route building, training plan management, multi-provider activity sync (Strava, Garmin, Wahoo), community features, and gear tracking.
 
-## Metrics Rollout
+## Metrics Rollout — FROZEN
 
-The canonical Tribos metrics specification lives at `docs/TRIBOS_METRICS_SPECIFICATION.md`. Rollout progress is tracked in `docs/METRICS_ROLLOUT_STATUS.md`.
+The canonical Tribos metrics specification lives at `docs/TRIBOS_METRICS_SPECIFICATION.md`. Historical rollout context is in `docs/METRICS_ROLLOUT_STATUS.md` and `docs/METRICS_ROLLOUT_REMAINING.md`. **The current policy lives in `docs/METRICS_ROLLOUT_FREEZE.md` and overrides anything those docs imply about future cut-over PRs.**
 
 Three amendments from Part A implementation apply on top of the spec:
 
@@ -14,37 +14,42 @@ Three amendments from Part A implementation apply on top of the spec:
 - **(D2) Confidence values are calibrated**: `device` 0.95 / `power` 0.95 / `kJ-with-FTP` 0.75 / `kJ-no-FTP` 0.50 / `hr` 0.65 / `inferred` 0.40.
 - **(D4) Terrain multiplier applies only to `kJ` and `inferred` tiers**, not all tiers.
 
-### Legacy column DROP migrations — DEFERRED (do not run yet)
+### The B0–B10 rename is frozen — do not resume it
 
-Migrations `074`–`080` in `database/migrations/` drop the legacy spec §2 columns
-(`tss`, `ctl`, `atl`, `tsb`, `normalized_power`, `intensity_factor`, etc.) from
-seven tables. The DROP blocks are intentionally **commented out** at the bottom
-of each file. The backfill steps at the top of each migration have already run.
+The TSS→RSS / CTL→TFI / ATL→AFI / TSB→FormScore / NP→EP / IF→RI rename
+shipped through B10 (canonical columns added by migrations 069–073, the
+`training_load_daily` cut-over completed in B3/B4 with migration 071's drop).
+Everything beyond that is **abandoned**, not deferred. See
+`docs/METRICS_ROLLOUT_FREEZE.md` for the full rationale and rules.
 
-**Current policy**: keep both legacy and canonical columns live for at least
-2–4 weeks of stable production after the corresponding §3b code branch lands,
-then re-evaluate. Do NOT uncomment a DROP block without explicit user approval.
+Practical implications:
 
-Reasons to wait:
-- Cheap rollback path — reverting any §3b commit just works because the
-  legacy columns are still dual-written.
-- Tribos uses Supabase point-in-time recovery for true backups; the duplicate
-  schema columns are *not* the rollback mechanism, just a transitional
-  convenience.
-- Production-only edge cases (odd device payloads, manual entries, webhook
-  variants) tend to surface in the first 1–2 weeks after a writer cut-over.
+- **Migrations `074`–`080` will not run.** Their DROP blocks stay commented
+  out indefinitely. Legacy columns (`tss`, `ctl`, `atl`, `tsb`,
+  `normalized_power`, `intensity_factor`, `weekly_tss_estimate`, etc.)
+  coexist with their canonical twins as the long-term schema. Do NOT
+  uncomment a DROP block.
+- **No more reader cut-over PRs.** The `canonical ?? legacy` fallback
+  pattern is the steady state. The reader audits in
+  `docs/METRICS_ROLLOUT_REMAINING.md` §1a–§1f are not a roadmap.
+- **Internal JS identifiers stay legacy.** Variable names like `ctl`,
+  `atl`, `tsb`, `tss` inside `src/utils/trainingPlans.ts`,
+  `src/lib/training/tsb-projection.ts`, etc. are off-limits for renames.
+  The spec §7 grep checklist (`grep -ri "\.tss\b\|\.ctl\b..." src/`
+  must be zero) **no longer applies**.
 
-When the DROPs do eventually run, do them one at a time in handoff §2c order
-(smallest blast radius first: `080` → `079` → `078` → `077` → `076` → `075` →
-`074`). Each migration has a verification query in its header — run that first
-and confirm zero stale rows before uncommenting the DROP.
-
-Until then, code added or modified under `api/` and `src/` should:
+Code added or modified under `api/` and `src/` should:
 - **Read canonical-first with legacy fallback** (`activity.rss ?? activity.tss`).
-- **Write canonical only** for new writers (legacy columns get NULL, which the
-  reader fallback handles).
-- Treat the legacy column names as deprecated — don't add new readers/writers
-  to them.
+- **Dual-write both columns when mutating a row.** This is stricter than
+  the previous "write canonical only" guidance — it eliminates the
+  sequencing bugs that caused the `target_rss` and `plan_deviations`
+  outages. New writers populate canonical AND legacy on insert/update.
+- Never add a canonical-only reader without the legacy in the SELECT
+  list or a JS fallback — that's the failure mode that landed
+  `target_rss` in production with no column.
+- Treat the rename as complete-but-abandoned. Do not "finish" stranded
+  pieces opportunistically; if a real bug needs a real fix, scope it
+  and ask for approval.
 
 ## Tech Stack
 

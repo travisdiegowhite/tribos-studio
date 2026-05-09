@@ -1,5 +1,11 @@
 # Tribos Metrics Rollout — Remaining Work
 
+> ⚠️ **SUPERSEDED — DO NOT TREAT AS A ROADMAP.** As of 2026-05-09 the
+> metrics rollout is frozen. The reader cut-overs and column drops
+> described below are **abandoned**, not pending. See
+> `docs/METRICS_ROLLOUT_FREEZE.md` for the current policy. This file is
+> kept only as historical context for what *would* have been done.
+
 **Status as of commit `dc374ac` on branch `claude/metrics-rollout-intg-b1-ft7AJ`.**
 
 B0 through B10 have landed. The database carries every spec §2 canonical column, all formulas are on-spec, and coach voice + dashboard UI emit only the Tribos names. What's left is the tail of the safe-additive / cut-over discipline: each table still in dual-write needs its readers migrated and legacy columns dropped.

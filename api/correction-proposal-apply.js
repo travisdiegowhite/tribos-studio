@@ -127,7 +127,7 @@ async function applyModification(mod, userId) {
   // Verify the workout belongs to this user and is not yet completed
   const { data: workout, error: fetchError } = await supabase
     .from('planned_workouts')
-    .select('id, plan_id, scheduled_date, workout_type, name, target_duration, target_rss, completed')
+    .select('id, plan_id, scheduled_date, workout_type, name, target_duration, target_tss, target_rss, completed')
     .eq('id', planned_workout_id)
     .eq('user_id', userId)
     .maybeSingle();
@@ -147,13 +147,17 @@ async function applyModification(mod, userId) {
       updates.workout_type = 'rest';
       updates.name = 'Rest Day (coach adjustment)';
       updates.target_rss = 0;
+      updates.target_tss = 0;
       updates.target_duration = 0;
       break;
     }
     case 'extend': {
       const addMinutes = Math.abs(delta_minutes || 0);
       updates.target_duration = (workout.target_duration || workout.duration_minutes || 60) + addMinutes;
-      if (new_rss != null) updates.target_rss = new_rss;
+      if (new_rss != null) {
+        updates.target_rss = new_rss;
+        updates.target_tss = new_rss;
+      }
       break;
     }
     case 'reduce': {
@@ -162,17 +166,24 @@ async function applyModification(mod, userId) {
         15,
         (workout.target_duration || workout.duration_minutes || 60) - removeMinutes
       );
-      if (new_rss != null) updates.target_rss = new_rss;
+      if (new_rss != null) {
+        updates.target_rss = new_rss;
+        updates.target_tss = new_rss;
+      }
       break;
     }
     case 'swap': {
       if (new_type) updates.workout_type = new_type;
-      if (new_rss != null) updates.target_rss = new_rss;
+      if (new_rss != null) {
+        updates.target_rss = new_rss;
+        updates.target_tss = new_rss;
+      }
       break;
     }
     case 'add': {
       // 'add' inserts a new workout; the modification must have new_type and scheduled_date
       // We insert rather than update the existing row
+      const insertedRss = new_rss || 50;
       const { error: insertError } = await supabase
         .from('planned_workouts')
         .insert({
@@ -181,7 +192,8 @@ async function applyModification(mod, userId) {
           scheduled_date: mod.scheduled_date || workout.scheduled_date,
           workout_type: new_type || 'endurance',
           name: new_type ? `Coach Added — ${new_type}` : 'Coach Added Session',
-          target_rss: new_rss || 50,
+          target_rss: insertedRss,
+          target_tss: insertedRss,
           target_duration: delta_minutes || 60,
           completed: false,
         });
