@@ -55,6 +55,19 @@ Dual-write needs to land first (the columns exist from migration 073 but nothing
 
 Then reader cut-over, then drop. **Migrations**: `077_drop_plan_deviations_legacy.sql`, `078_drop_planned_workouts_legacy.sql`.
 
+> ⚠️ **Active gap — `planned_workouts.target_rss` is not in the schema.** Migration
+> 073 added `actual_rss` to this table but deliberately omitted `target_rss`
+> (see `database/migrations/078_drop_planned_workouts_legacy.sql:6-7` — the
+> rename was deferred because `src/data/workoutLibrary.ts` template seed data
+> still uses `target_tss`). The TypeScript type comment in
+> `src/types/training.ts` *claims* the column exists; it doesn't. Production
+> code in `api/correction-proposal-apply.js` reads/writes `target_rss` and
+> silently fails. The event-anchored calendar bridge
+> (`api/utils/eventAnchoredCalendarBridge.js`) currently writes `target_tss`
+> as a workaround. This needs its own focused PR — see
+> `docs/planned-workouts-target-rss-followup.md` for context and the
+> next-session prompt.
+
 ### 1e. `training_segments` + `training_plan_templates`
 
 Writer is `api/utils/segmentAnalysisPipeline.js`. Readers include the segment-analysis UI under `src/components/segments/` (if present) plus the training-plan-template generator. Same three-step pattern.

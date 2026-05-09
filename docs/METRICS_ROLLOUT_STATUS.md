@@ -29,6 +29,13 @@
 
 See `docs/METRICS_ROLLOUT_REMAINING.md` for the tail of the rollout (reader cut-overs + legacy column drops + deferred renames).
 
+## Known production bugs in the deferred work
+
+- **`planned_workouts.target_rss` was never added.** Migration 073 added `actual_rss` to `planned_workouts` but intentionally skipped `target_rss` (per the comment in `database/migrations/078_drop_planned_workouts_legacy.sql:6-7` — the rename was deferred because `src/data/workoutLibrary.ts` static template data still seeds `target_tss`). The TypeScript type comment in `src/types/training.ts` claims `target_rss` is dual-populated, but the column does not exist.
+  - **Live impact**: `api/correction-proposal-apply.js` (lines 130, 149, 156, 165, 170, 184) reads/writes `target_rss`. These calls fail silently against Supabase whenever a correction proposal adjusts target intensity.
+  - **Discovered**: 2026-05-09 while wiring the event-anchored calendar bridge — the projection upsert was failing with `42703 column "target_rss" does not exist`. The bridge now writes `target_tss` as a workaround (`api/utils/eventAnchoredCalendarBridge.js:121-125`).
+  - **Follow-up**: see `docs/planned-workouts-target-rss-followup.md` for context and a copy/paste prompt for the next session.
+
 A3 is fully closed end-to-end: classification → persistence → scoped multiplier → coach prompts → UI chip.
 
 **Current state after B10**: Database has spec §2 canonical columns across every affected table (training_load_daily, user_profiles, activities, fitness_snapshots, workout_adaptations, planned_workouts, plan_deviations, training_segments). The `training_load_daily` table and `user_profiles.*_tau` columns have completed full cut-over (readers migrated, legacy columns dropped in B4). The remaining tables (`activities`, `fitness_snapshots`, `workout_adaptations`, etc.) are in dual-write phase — readers still use the legacy column names. Full reader cut-over and final legacy-column drops are follow-up PRs, carried out table-by-table to keep blast radius small.
