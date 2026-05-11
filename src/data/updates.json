@@ -51,6 +51,19 @@
   ],
   "updates": [
     {
+      "id": "tfi-canonical-display",
+      "date": "2026-05",
+      "type": "improvement",
+      "title": "Your TFI now reflects the full Tribos spec",
+      "description": "FITNESS / FATIGUE / FORM cells now show the server-computed values used by the AI coach, training-plan engine, and adaptive load model — instead of a parallel client-side estimate. Your displayed numbers may jump (typically up) the first time you open the dashboard.",
+      "details": [
+        "Includes the spec §3.1 terrain multiplier on power-less rides",
+        "Mountain-bike sessions carry the proprietary 1.3× stress multiplier",
+        "Uses your personal time constant (set from your age in Settings) instead of a fixed 42-day window",
+        "Closes a duality where the chart and dashboard could disagree on the same day"
+      ]
+    },
+    {
       "id": "coach-check-in",
       "date": "2026-03",
       "type": "new",

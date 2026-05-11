@@ -309,9 +309,15 @@ export function estimateTSSWithSource(activity, ftp) {
     activity.total_elevation_gain,
   );
 
-  // Tier 1: stored RSS from device.
-  if (activity.rss && activity.rss > 0) {
-    const rss = applyActivityTypeMultiplier(activity.rss, activity);
+  // Tier 1: stored RSS from device. Canonical-first with legacy fallback
+  // per CLAUDE.md freeze policy. The Apr 27 rollback of Garmin canonical
+  // dual-writes (re-added 2026-05-09 in dc43a5c) left a ~2-week window
+  // where Garmin rows had `tss` populated but `rss` NULL; reading only
+  // the canonical column dropped those rides through to Tier 4/5 and
+  // double-counted them via the terrain multiplier.
+  const storedRSS = activity.rss ?? activity.tss;
+  if (storedRSS && storedRSS > 0) {
+    const rss = applyActivityTypeMultiplier(storedRSS, activity);
     return { tss: rss, source: 'device', confidence: 0.95, terrain_class };
   }
 

@@ -254,20 +254,27 @@ interface AthleteMetrics {
   afiLast28: number[];
 }
 
+interface ServerLoadRow {
+  date: string;
+  tfi: number | null;
+  afi: number | null;
+  form_score: number | null;
+}
+
 /**
- * Compute athlete state metrics from the same activities table that
- * Dashboard.jsx uses (lines 283–329). The 90-day window matches
- * Dashboard's logic so two surfaces can't disagree about the same numbers.
+ * Compute athlete state metrics, preferring server-stored TFI/AFI/form_score
+ * from `training_load_daily` (spec §3.1 — terrain + MTB multipliers,
+ * per-athlete tau, persistent state) and falling through to a client-side
+ * EWA over activity-derived RSS for any dates the server hasn't written.
  *
- * `training_load_daily` is sparse — only written on Strava/Garmin/Wahoo
- * webhook ingestion, not backfilled — so reading directly from `activities`
- * is the only path that reliably returns metrics for every user.
+ * See docs/tfi-duality-decision.md for the rationale.
  */
 function buildAthleteMetrics(
   activities: AthleteActivityRow[],
   ftp: number,
+  serverHistory: ServerLoadRow[],
 ): AthleteMetrics {
-  if (activities.length === 0) {
+  if (activities.length === 0 && serverHistory.length === 0) {
     return {
       formScore: null,
       tfiCurrent: null,
@@ -298,6 +305,13 @@ function buildAthleteMetrics(
   windowStart28.setDate(today.getDate() - 27);
   const windowKey28 = fmtDate(windowStart28);
 
+  // Index server rows by date.
+  const serverByDate = new Map<string, ServerLoadRow>();
+  for (const row of serverHistory) serverByDate.set(row.date, row);
+
+  // Walk forward. For each day, prefer the server's TFI/AFI when present;
+  // otherwise advance the running EWA with the day's RSS. The EWA state
+  // carries across server-vs-client days so we can resume cleanly.
   const tfiHistory: SparklinePoint[] = [];
   const afiLast28: number[] = [];
   let tfi = 0;
@@ -308,9 +322,15 @@ function buildAthleteMetrics(
   for (const day of sortedDays) {
     tfiYesterday = tfi;
     afiYesterday = afi;
-    const rss = dailyRSS[day];
-    tfi = tfi + (rss - tfi) / 42;
-    afi = afi + (rss - afi) / 7;
+    const server = serverByDate.get(day);
+    if (server && Number.isFinite(Number(server.tfi)) && Number.isFinite(Number(server.afi))) {
+      tfi = Number(server.tfi);
+      afi = Number(server.afi);
+    } else {
+      const rss = dailyRSS[day];
+      tfi = tfi + (rss - tfi) / 42;
+      afi = afi + (rss - afi) / 7;
+    }
     if (day >= windowKey28) {
       tfiHistory.push({ date: day, tfi: Math.round(tfi) });
       afiLast28.push(afi);
@@ -318,7 +338,14 @@ function buildAthleteMetrics(
   }
 
   // Form Score = TFI_yesterday − AFI_yesterday (freshness going into today)
-  const formScore = Math.round(tfiYesterday - afiYesterday);
+  // Prefer the server's stored form_score for today when present so we
+  // match the spec §3.6 calculation exactly (uses yesterday's stored values).
+  const todayKey = fmtDate(today);
+  const todayServer = serverByDate.get(todayKey);
+  const formScore = todayServer && Number.isFinite(Number(todayServer.form_score))
+    ? Math.round(Number(todayServer.form_score))
+    : Math.round(tfiYesterday - afiYesterday);
+
   return {
     formScore,
     tfiCurrent: Math.round(tfi),
@@ -513,6 +540,18 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           .order('snapshot_week', { ascending: false })
           .limit(8);
 
+        // ── 4b. Server-stored daily TFI/AFI/form_score for the last 90
+        //      days. Preferred over client-computed values; we walk the
+        //      client EWA forward only for any missing tail days. See
+        //      docs/tfi-duality-decision.md.
+        const ninetyKey = ninetyDaysAgo.toISOString().slice(0, 10);
+        const serverLoadQuery = supabase
+          .from('training_load_daily')
+          .select('date, tfi, afi, form_score')
+          .eq('user_id', userId)
+          .gte('date', ninetyKey)
+          .order('date', { ascending: true });
+
         // ── 5. EFI / TCAS ────────────────────────────────────────────────
         const efiQuery = supabase
           .from('activity_efi')
@@ -574,6 +613,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           userProfileRes,
           athleteActivitiesRes,
           snapshotsRes,
+          serverLoadRes,
           efiRes,
           tcasRes,
           raceRes,
@@ -585,6 +625,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           userProfileQuery,
           athleteActivitiesQuery,
           snapshotsQuery,
+          serverLoadQuery,
           efiQuery,
           tcasQuery,
           raceQuery,
@@ -630,13 +671,14 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         }
 
         // ── Athlete state ────────────────────────────────────────────────
-        // Compute TFI / AFI / Form Score from the activities table the same
-        // way Dashboard.jsx does. Walks 90 days of daily RSS through the
-        // standard EWMA, snapshotting the last 28 days for the sparkline +
-        // the personal-range fatigue bar.
+        // Prefer the server-stored TFI/AFI/form_score from training_load_daily
+        // (spec §3.1 — terrain + MTB multipliers, per-athlete tau). Fall
+        // through to the client EWA over activity-derived RSS for any tail
+        // days the server hasn't written. See docs/tfi-duality-decision.md.
         const userFtp = (userProfileRes.data?.ftp as number | null) || 200;
         const athleteActivities = (athleteActivitiesRes.data ?? []) as unknown as AthleteActivityRow[];
-        const metrics = buildAthleteMetrics(athleteActivities, userFtp);
+        const serverLoadHistory = (serverLoadRes.data ?? []) as unknown as ServerLoadRow[];
+        const metrics = buildAthleteMetrics(athleteActivities, userFtp, serverLoadHistory);
         const { formScore, tfiCurrent, afiCurrent, tfiHistory, afiLast28 } = metrics;
 
         // FATIGUE bar — position in the user's own 28-day AFI range so

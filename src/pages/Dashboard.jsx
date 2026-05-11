@@ -42,6 +42,11 @@ function Dashboard() {
   const [todayRouteMatch, setTodayRouteMatch] = useState(null);
   const [proprietaryMetrics, setProprietaryMetrics] = useState(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
+  // Latest training_load_daily snapshot — preferred over the client-computed
+  // CTL when present (decision memo docs/tfi-duality-decision.md, option a).
+  // Falls through to client-compute when no row exists or the latest row is
+  // stale (we walk the EWA forward over the missing tail).
+  const [serverLoadHistory, setServerLoadHistory] = useState([]);
 
   // Check if onboarding is needed and load user profile
   useEffect(() => {
@@ -115,6 +120,20 @@ function Dashboard() {
           .or('is_hidden.eq.false,is_hidden.is.null')
           .gte('start_date', ninetyDaysAgo.toISOString())
           .order('start_date', { ascending: false });
+
+        // Server-stored TFI/AFI/form_score. We pull the last 30 days so the
+        // useMemo can locate both today's row (preferred) and a row ~28
+        // days back (for ctlDeltaPct).
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const tldKey = thirtyDaysAgo.toISOString().slice(0, 10);
+        const { data: tldRows } = await supabase
+          .from('training_load_daily')
+          .select('date, tfi, afi, form_score')
+          .eq('user_id', user.id)
+          .gte('date', tldKey)
+          .order('date', { ascending: true });
+        setServerLoadHistory(tldRows || []);
 
         // Calculate calendar week boundaries (Monday–Sunday)
         const weekStart = new Date();
@@ -281,15 +300,22 @@ function Dashboard() {
   // training_load_daily rows with a populated terrain_class.
   const todayTerrain = useTodayTerrain(user?.id);
 
-  // CTL/ATL/TSB using canonical formulas (matches TrainingDashboard)
+  // TFI/AFI/FormScore — prefer server-stored values from training_load_daily
+  // (spec §3.1: terrain × MTB multipliers, per-athlete tau, persistent state)
+  // and fall through to client-compute for any tail days the server hasn't
+  // written yet. See docs/tfi-duality-decision.md.
+  //
+  // Internal identifiers stay legacy (ctl/atl/tsb) under the freeze policy —
+  // the values themselves now flow from canonical server columns.
   const trainingMetrics = useMemo(() => {
-    if (!activities || activities.length === 0) {
+    if ((!activities || activities.length === 0) && serverLoadHistory.length === 0) {
       return { ctl: 0, atl: 0, tsb: 0, ctlDeltaPct: 0 };
     }
 
     const userFtp = userProfile?.ftp || 200;
 
-    // Build daily TSS map for the last 90 days
+    // Build daily RSS map for the last 90 days (kept as the fallback path
+    // and for walking the EWA forward across the missing tail).
     const now = new Date();
     const ninetyDaysAgo = new Date(now);
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
@@ -299,8 +325,7 @@ function Dashboard() {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       dailyTSS[key] = 0;
     }
-
-    activities.forEach((activity) => {
+    (activities || []).forEach((activity) => {
       const dateStr = activity.start_date?.split('T')[0];
       if (dateStr && dailyTSS[dateStr] !== undefined) {
         const tss = Math.min(estimateActivityTSS(activity, userFtp), 500);
@@ -308,26 +333,77 @@ function Dashboard() {
       }
     });
 
-    const days = Object.keys(dailyTSS).sort();
-    const tssValues = days.map((d) => dailyTSS[d]);
+    const todayKey = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
 
-    const ctl = calculateCTL(tssValues);
-    const atl = calculateATL(tssValues);
+    const latestServer = serverLoadHistory.length > 0
+      ? serverLoadHistory[serverLoadHistory.length - 1]
+      : null;
 
-    // TSB uses yesterday's CTL/ATL (freshness going into today)
-    const tssYesterday = tssValues.length >= 2 ? tssValues.slice(0, -1) : tssValues;
-    const ctlYesterday = calculateCTL(tssYesterday);
-    const atlYesterday = calculateATL(tssYesterday);
-    const tsb = calculateTSB(ctlYesterday, atlYesterday);
+    let ctl;
+    let atl;
+    let tsb;
 
-    // CTL trend: compare current CTL vs CTL 28 days ago
-    const cutoffIndex = Math.max(0, tssValues.length - 28);
-    const tssValues28dAgo = tssValues.slice(0, cutoffIndex);
-    const ctl28dAgo = calculateCTL(tssValues28dAgo);
+    if (latestServer && latestServer.date === todayKey) {
+      // Server has today's row — use it directly.
+      ctl = Math.round(latestServer.tfi ?? 0);
+      atl = Math.round(latestServer.afi ?? 0);
+      tsb = Math.round(latestServer.form_score ?? 0);
+    } else if (latestServer) {
+      // Walk client EWA forward from the latest server row through today.
+      let tfi = Number(latestServer.tfi) || 0;
+      let afi = Number(latestServer.afi) || 0;
+      const cursor = new Date(latestServer.date + 'T00:00:00');
+      cursor.setDate(cursor.getDate() + 1);
+      const end = new Date();
+      let tfiYesterday = tfi;
+      let afiYesterday = afi;
+      while (cursor <= end) {
+        const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+        const rss = dailyTSS[key] || 0;
+        tfiYesterday = tfi;
+        afiYesterday = afi;
+        tfi = tfi + (rss - tfi) / 42;
+        afi = afi + (rss - afi) / 7;
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      ctl = Math.round(tfi);
+      atl = Math.round(afi);
+      tsb = Math.round(tfiYesterday - afiYesterday);
+    } else {
+      // No server data — full client compute (legacy behavior).
+      const days = Object.keys(dailyTSS).sort();
+      const tssValues = days.map((d) => dailyTSS[d]);
+      ctl = calculateCTL(tssValues);
+      atl = calculateATL(tssValues);
+      const tssYesterday = tssValues.length >= 2 ? tssValues.slice(0, -1) : tssValues;
+      const ctlYesterday = calculateCTL(tssYesterday);
+      const atlYesterday = calculateATL(tssYesterday);
+      tsb = calculateTSB(ctlYesterday, atlYesterday);
+    }
+
+    // CTL trend: compare current TFI vs the server row from ~28 days ago,
+    // falling back to client-compute when the historical row is missing.
+    let ctl28dAgo = null;
+    if (serverLoadHistory.length > 0) {
+      const target = new Date();
+      target.setDate(target.getDate() - 28);
+      const targetKey = target.toISOString().slice(0, 10);
+      const match = serverLoadHistory.find((r) => r.date <= targetKey);
+      if (match && Number.isFinite(Number(match.tfi))) ctl28dAgo = Number(match.tfi);
+    }
+    if (ctl28dAgo == null) {
+      const days = Object.keys(dailyTSS).sort();
+      const tssValues = days.map((d) => dailyTSS[d]);
+      const cutoffIndex = Math.max(0, tssValues.length - 28);
+      ctl28dAgo = calculateCTL(tssValues.slice(0, cutoffIndex));
+    }
     const ctlDeltaPct = ctl28dAgo > 0 ? ((ctl - ctl28dAgo) / ctl28dAgo) * 100 : 0;
 
     return { ctl, atl, tsb, ctlDeltaPct };
-  }, [activities, userProfile]);
+  }, [activities, userProfile, serverLoadHistory]);
 
   // Build training context string for CoachCard
   const trainingContext = useMemo(() => {
