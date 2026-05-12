@@ -15,6 +15,11 @@ import {
 } from './claudeRouteService';
 import { generateFallbackRoute } from './routeGenerationFallback';
 import { captureFallback } from './fallbackTelemetry';
+import {
+  trackRouteBuilder,
+  truncateErrorMessage,
+  classifyClaudeFailure,
+} from './routeBuilderTelemetry';
 import { EnhancedContextCollector } from './enhancedContext';
 import { optimizeLoopRoute, validateLoopRoute } from './routeOptimizer';
 import { filterRoutesByInfrastructure, enhanceRouteWithInfrastructure, generateInfrastructureReport } from './infrastructureValidator';
@@ -58,6 +63,9 @@ export async function generateAIRoutes(params, onProgress = null) {
     speedProfile,
     speedModifier = 1.0
   } = params;
+
+  // T1.4 — wall-clock anchor for `generation_context_built.duration_ms`.
+  const __rbStartMs = Date.now();
 
   // Normalize startLocation to array format [lng, lat]
   const startLocation = normalizeStartLocation(rawStartLocation);
@@ -158,6 +166,22 @@ export async function generateAIRoutes(params, onProgress = null) {
   // `null` here means Claude succeeded and produced usable suggestions.
   let claudeFailureReason = null;
 
+  // T1.4 telemetry — context-build is everything we've done up to this
+  // point (past rides analysis, riding patterns, user preferences,
+  // weather). The duration here is wall-clock-since-entry; precise
+  // attribution to specific steps lives in console logs for now.
+  trackRouteBuilder('generation_context_built', {
+    duration_ms: Math.max(0, Date.now() - __rbStartMs),
+    past_rides_count: ridingPatterns?.routeTemplates?.length ?? 0,
+    familiar_segments_count: ridingPatterns?.routeSegments?.length ?? 0,
+    has_training_context: Boolean(trainingContext),
+  });
+
+  const claudeStartMs = Date.now();
+  trackRouteBuilder('generation_claude_called', {
+    prompt_length_chars: null, // prompt is built inside the service wrapper
+  });
+
   try {
     const claudeRoutes = await generateClaudeRoutesOrThrow({
       startLocation,
@@ -170,6 +194,12 @@ export async function generateAIRoutes(params, onProgress = null) {
       claudeAnalysis,
       userId,
       trainingContext
+    });
+
+    trackRouteBuilder('generation_claude_responded', {
+      duration_ms: Date.now() - claudeStartMs,
+      suggestions_count: Array.isArray(claudeRoutes) ? claudeRoutes.length : 0,
+      tokens_used: null,
     });
 
     console.log(`✅ Claude returned ${claudeRoutes.length} route suggestions`);
@@ -227,13 +257,21 @@ export async function generateAIRoutes(params, onProgress = null) {
       claudeFailureReason = 'claude_invalid';
     }
   } catch (error) {
+    const reason =
+      error instanceof ClaudeRouteServiceError
+        ? error.reason || 'claude_error'
+        : 'claude_error';
     if (error instanceof ClaudeRouteServiceError) {
       console.warn(`⚠️ Claude unavailable (${error.reason}): ${error.message} — falling back to heuristic`);
-      claudeFailureReason = error.reason || 'claude_error';
     } else {
       console.error('❌ Claude route generation failed:', error);
-      claudeFailureReason = 'claude_error';
     }
+    claudeFailureReason = reason;
+    trackRouteBuilder('generation_claude_failed', {
+      duration_ms: Date.now() - claudeStartMs,
+      failure_kind: classifyClaudeFailure({ reason, error }),
+      error_message: truncateErrorMessage(error?.message ?? String(error)),
+    });
   }
 
   // If Claude failed OR produced zero usable converted routes, generate a
