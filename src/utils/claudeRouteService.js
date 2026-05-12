@@ -3,6 +3,22 @@
 
 import { EnhancedContextCollector } from './enhancedContext';
 
+// Hard cap on the time we'll wait for Claude before declaring failure.
+// Anything longer than this and the user is staring at a spinner — fall
+// back to a heuristic route instead. Per T1.3 spec and the Turn Model.
+export const CLAUDE_TIMEOUT_MS = 15000;
+
+// Error subclass that lets callers (notably generateAIRoutes) tell a
+// fallback-worthy Claude failure apart from a parse-empty / no-suggestions
+// outcome. `reason` matches FallbackReason in routeGenerationFallback.ts.
+export class ClaudeRouteServiceError extends Error {
+  constructor(message, reason = 'claude_error') {
+    super(message);
+    this.name = 'ClaudeRouteServiceError';
+    this.reason = reason;
+  }
+}
+
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
   if (process.env.NODE_ENV === 'production') {
@@ -65,29 +81,11 @@ export async function generateClaudeRoutes(params) {
 
     console.log('Sending prompt to secure API...');
 
-    // Call secure backend API instead of client-side Claude
-    const response = await fetch(`${getApiBaseUrl()}/api/claude-routes`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        prompt,
-        maxTokens: 2000,
-        temperature: 0.7
-      })
+    const data = await postClaudeRoutes({
+      prompt,
+      maxTokens: 2000,
+      temperature: 0.7,
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `API request failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error(data.error || 'Unknown API error');
-    }
 
     console.log('Secure Claude API response received');
     const suggestions = parseClaudeResponse(data.content);
@@ -99,6 +97,128 @@ export async function generateClaudeRoutes(params) {
     console.error('Error details:', error.message);
     return [];
   }
+}
+
+/**
+ * Like generateClaudeRoutes, but throws a ClaudeRouteServiceError on
+ * any failure instead of returning []. Use this from generateAIRoutes
+ * so failure can be classified and routed to the heuristic fallback.
+ *
+ * Empty-suggestions and malformed-JSON cases throw with reason
+ * 'claude_empty' / 'claude_invalid' so the caller can record the
+ * specific trigger for telemetry.
+ */
+export async function generateClaudeRoutesOrThrow(params) {
+  const {
+    startLocation,
+    timeAvailable,
+    trainingGoal,
+    routeType,
+    weatherData,
+    ridingPatterns,
+    targetDistance,
+    userId,
+    trainingContext,
+  } = params;
+
+  let prompt;
+  if (userId) {
+    try {
+      const paramsWithContext = { ...params, trainingContext };
+      const enhancedContext = await EnhancedContextCollector.gatherDetailedPreferences(userId, paramsWithContext);
+      prompt = EnhancedContextCollector.buildEnhancedRoutePrompt(enhancedContext);
+    } catch (ctxErr) {
+      console.warn('Failed to get enhanced context, using basic prompt:', ctxErr);
+      prompt = buildRoutePrompt({ ...params, trainingContext });
+    }
+  } else {
+    prompt = buildRoutePrompt({ ...params, trainingContext });
+  }
+
+  const data = await postClaudeRoutes({
+    prompt,
+    maxTokens: 2000,
+    temperature: 0.7,
+  });
+
+  let suggestions;
+  try {
+    suggestions = parseClaudeResponse(data.content);
+  } catch (parseErr) {
+    throw new ClaudeRouteServiceError(
+      `Claude response parse failed: ${parseErr.message}`,
+      'claude_invalid'
+    );
+  }
+
+  if (!Array.isArray(suggestions) || suggestions.length === 0) {
+    throw new ClaudeRouteServiceError('Claude returned no suggestions', 'claude_empty');
+  }
+
+  return suggestions;
+}
+
+// Single-source fetch helper: applies the 15s timeout, classifies HTTP
+// status into a ClaudeRouteServiceError with a typed reason, and returns
+// the parsed-JSON `data` envelope on success.
+async function postClaudeRoutes({ prompt, maxTokens, temperature }) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CLAUDE_TIMEOUT_MS);
+
+  let response;
+  try {
+    response = await fetch(`${getApiBaseUrl()}/api/claude-routes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, maxTokens, temperature }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err && (err.name === 'AbortError' || err.code === 20)) {
+      throw new ClaudeRouteServiceError(
+        `Claude request exceeded ${CLAUDE_TIMEOUT_MS}ms timeout`,
+        'claude_timeout'
+      );
+    }
+    throw new ClaudeRouteServiceError(
+      `Claude network error: ${err?.message || String(err)}`,
+      'claude_error'
+    );
+  }
+  clearTimeout(timeoutId);
+
+  if (!response.ok) {
+    let body = null;
+    try {
+      body = await response.json();
+    } catch {
+      // ignore — non-JSON error bodies are still errors
+    }
+    throw new ClaudeRouteServiceError(
+      body?.error || `Claude API request failed: ${response.status}`,
+      'claude_error'
+    );
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (err) {
+    throw new ClaudeRouteServiceError(
+      `Claude returned malformed JSON: ${err?.message || String(err)}`,
+      'claude_invalid'
+    );
+  }
+
+  if (!data || data.success !== true) {
+    throw new ClaudeRouteServiceError(
+      data?.error || 'Claude API reported success:false',
+      'claude_error'
+    );
+  }
+
+  return data;
 }
 
 /**
