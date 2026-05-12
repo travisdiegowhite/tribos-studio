@@ -362,6 +362,31 @@ When creating or substantially modifying files in `api/`, verify connection hygi
 ### Frontend Supabase client
 The frontend client in `src/lib/supabase.js` is a separate singleton and is fine — it runs in the browser (one instance per tab). The rules above apply to **server-side code** in `api/`.
 
+## Distance Unit Convention — Critical Rules (DO NOT BREAK)
+
+T1.1 (May 2026) eliminated a class of silent km/m unit-mismatch bugs in the Route Builder. The contract below is the steady state. The audit that motivated this lives in `audit-report.md`.
+
+### The rule
+
+All distance variables in `src/` end in either `_km` (kilometers) or `_m` / `_meters` (meters). Never name a variable just `distance`, `length`, `radius`, `dist`, or `len`. Conversions happen at module boundaries via `M_TO_KM` / `KM_TO_M` from `src/utils/distanceUnits.ts`. Routing-provider responses are meters; the converter is the seam.
+
+### Practical implications
+
+- **The Zustand store `routeStats`** uses `{ distance_km, elevation_gain_m, elevation_loss_m, duration_s }`. There is a one-shot localStorage migration in `src/stores/routeBuilderStore.js` that converts legacy `{ distance, elevation, duration }` shapes; keep it indefinitely until you're certain every user's cached state has been rotated.
+- **Routing utilities** (`smartCyclingRouter`, `stadiaMapsRouter`, `brouter`, `graphHopper`, `directions`) return both `distance_m` / `duration_s` (canonical) and `distance` / `duration` (legacy aliases). New code uses the canonical fields; the aliases exist only for callers that haven't migrated. A future PR can remove the aliases.
+- **Elevation profile points** from `src/utils/elevation.js getElevationData()` carry both `distance_km` (canonical) and `distance` (legacy alias). Consumers (`personalizedETA`, `routeGradient`, `routePOIService`, `ElevationProfile`, etc.) currently read the alias; the rename is a follow-up.
+- **GPX track points** from `src/utils/gpxParser.js` use `distance_m` (meters). `gpxData.summary.totalDistance_km` is KM.
+- **The canonical haversine** lives in `src/utils/distanceUnits.ts` (`haversineMeters`, `haversineKm`). Every duplicate copy in `src/utils/` now wraps the canonical helper; do not introduce a new one. The copy in `api/garmin-auth.js` is duplicated for the serverless-runtime split and is comment-flagged to stay in sync.
+- **Supabase distance columns** are documented in `audit-report.md`. The canonical fields are suffixed (`distance_km`, `distance_meters`, `_m`); the four legacy unsuffixed columns (`activities.distance`, `gear_items.total_distance_logged`, `gear_components.distance_at_install`, `gear_alert_dismissals.dismissed_at_distance`) are METERS per `COMMENT ON COLUMN`. Renaming production columns is out of scope per the migration freeze policy.
+
+### Runtime assertions
+
+`assertKm(value, fieldName)` and `assertMeters(value, fieldName)` (from `distanceUnits.ts`) fire `console.warn` in dev when a value's magnitude doesn't match its labelled unit. They're called at high-risk sites today (`snapToRoads`, GPX import, `saveRoute`, `calculateRoute`). Add them at any new boundary where a distance enters the system.
+
+### When you see `distance` without a suffix
+
+Treat it as a bug, especially in any new code. The grep audit in `audit-report.md` enumerates the ~80 Category C sites that exist today; most are inside `aiRouteGenerator.js`, `iterativeRouteBuilder.js`, `segmentDetector.ts`, and `directions.js` internals where the name didn't change to keep the PR tractable. They are unit-correct at boundaries but name-incorrect; a follow-up sweep should finish them.
+
 ## Code Conventions
 
 ### File Organization

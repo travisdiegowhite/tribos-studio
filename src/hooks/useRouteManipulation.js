@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { getElevationData, calculateElevationStats } from '../utils/elevation';
 import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
+import { M_TO_KM, assertKm } from '../utils/distanceUnits';
 
 /**
  * Custom hook for route manipulation functions
@@ -146,7 +147,7 @@ export const useRouteManipulation = ({
   const clearRoute = useCallback(() => {
     setWaypoints([]);
     setRouteGeometry(null);
-    setRouteStats({ distance: 0, elevation: 0, duration: 0 });
+    setRouteStats({ distance_km: 0, elevation_gain_m: 0, duration_s: 0 });
     setElevationProfile([]);
     historyRef.current = [];
     historyIndexRef.current = -1;
@@ -233,8 +234,11 @@ export const useRouteManipulation = ({
 
       const waypointCoordinates = waypointsToSnap.map(wp => wp.position);
       let snappedCoordinates;
-      let routeDistance = 0;
-      let routeDuration = 0;
+      // routeDistance_m and routeDuration_s are RAW from the routing API
+      // (meters and seconds). They get converted at the boundary before
+      // being written to the routeStats state below.
+      let routeDistance_m = 0;
+      let routeDuration_s = 0;
       let routingSource = 'mapbox';
 
       // Use smart cycling routing when enabled
@@ -250,8 +254,8 @@ export const useRouteManipulation = ({
 
         if (smartRoute?.coordinates?.length > 0) {
           snappedCoordinates = smartRoute.coordinates;
-          routeDistance = smartRoute.distance || 0;
-          routeDuration = smartRoute.duration || 0;
+          routeDistance_m = smartRoute.distance_m ?? smartRoute.distance ?? 0;
+          routeDuration_s = smartRoute.duration_s ?? smartRoute.duration ?? 0;
           routingSource = smartRoute.source || 'smart';
 
           console.log(`✅ Smart route generated via: ${routingSource}`);
@@ -280,8 +284,8 @@ export const useRouteManipulation = ({
 
         const route = data.routes[0];
         snappedCoordinates = route.geometry.coordinates;
-        routeDistance = route.distance || 0;
-        routeDuration = route.duration || 0;
+        routeDistance_m = route.distance || 0;
+        routeDuration_s = route.duration || 0;
       }
 
       // Ensure the route ends exactly at our final waypoint
@@ -300,30 +304,36 @@ export const useRouteManipulation = ({
       };
       setRouteGeometry(geometry);
 
-      // Set route stats
-      // UNIT CONTRACT: distance here is in METERS (raw from routing APIs).
-      // useRouteOperations.exportRouteFile divides by 1000 to get km for export.
-      // Note: The AI builder's Zustand store uses KM. These are separate state.
+      // Set route stats — converted at the boundary to the canonical
+      // unit contract: KM, meters elevation, seconds duration.
+      const distance_km = M_TO_KM(routeDistance_m);
+      assertKm(distance_km, 'snapToRoads.distance_km');
       const stats = {
-        distance: routeDistance,
-        duration: routeDuration,
+        distance_km,
+        duration_s: routeDuration_s,
         confidence: 1.0,
         waypointCount: waypointsToSnap.length,
         routingSource,
       };
       setRouteStats(stats);
 
-      // Fetch elevation data
+      // Fetch elevation data — calculateElevationStats returns gain/loss in meters
       const elevation = await getElevationData(snappedCoordinates);
       if (elevation) {
         setElevationProfile(elevation);
         const elevStats = calculateElevationStats(elevation);
-        setRouteStats(prev => ({ ...prev, ...elevStats }));
+        setRouteStats(prev => ({
+          ...prev,
+          elevation_gain_m: elevStats.gain,
+          elevation_loss_m: elevStats.loss,
+          elevation_min_m: elevStats.min,
+          elevation_max_m: elevStats.max,
+        }));
       }
 
       notifications.show({
         title: 'Route calculated',
-        message: `${(routeDistance / 1000).toFixed(1)} km route snapped to roads`,
+        message: `${distance_km.toFixed(1)} km route snapped to roads`,
         color: 'green',
       });
 

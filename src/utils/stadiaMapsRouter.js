@@ -173,7 +173,7 @@ const TRAFFIC_TOLERANCE_COSTING = {
  * @param {Object} options.preferences - User preferences (traffic avoidance, etc.)
  * @param {string} options.trainingGoal - Training goal: 'recovery', 'endurance', 'tempo', 'intervals'
  * @param {number} options.userSpeed - Optional personalized cycling speed in km/h
- * @returns {Promise<Object>} Route object with coordinates, distance, duration
+ * @returns {Promise<Object>} Route object with coordinates, distance_m, duration_s
  */
 export async function getStadiaMapsRoute(waypoints, options = {}) {
   const {
@@ -358,13 +358,14 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
         coordinates = coordinates.concat(legCoordinates.slice(1));
       }
 
-      // Sum up distance and duration
-      totalDistance += leg.summary.length * 1000; // Convert km to meters
-      totalDuration += leg.summary.time; // Seconds
+      // Sum up distance (meters) and duration (seconds).
+      // Valhalla emits leg.summary.length in KM; convert at boundary.
+      totalDistance += leg.summary.length * 1000;
+      totalDuration += leg.summary.time;
     });
 
-    const distance = totalDistance;
-    const duration = totalDuration;
+    const distance_m = totalDistance;
+    const duration_s = totalDuration;
 
     // Extract maneuver data for intersection/turn analysis
     const maneuvers = extractManeuverData(trip);
@@ -374,12 +375,14 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     const trafficScore = roadClassification ? roadClassification.arterialFraction : 0.5;
     const quietnessScore = roadClassification ? (1 - roadClassification.arterialFraction) : 0.5;
 
-    console.log(`✅ Stadia Maps: Route generated - ${(distance / 1000).toFixed(2)} km, ${Math.round(duration / 60)} min, ${maneuvers.totalManeuvers} maneuvers`);
+    console.log(`✅ Stadia Maps: Route generated - ${(distance_m / 1000).toFixed(2)} km, ${Math.round(duration_s / 60)} min, ${maneuvers.totalManeuvers} maneuvers`);
 
     return {
       coordinates,
-      distance,
-      duration,
+      distance_m,
+      duration_s,
+      distance: distance_m, // legacy alias (meters)
+      duration: duration_s, // legacy alias (seconds)
       confidence: 1.0,
       source: 'stadia_maps',
       profile,

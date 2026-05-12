@@ -19,7 +19,7 @@ import { getBRouterDirections, selectBRouterProfile, BROUTER_PROFILES } from './
  * @param {string} options.trainingGoal - Training goal
  * @param {string} options.mapboxToken - Mapbox access token for fallback
  * @param {number} options.userSpeed - Optional personalized cycling speed
- * @returns {Promise<Object>} Route with coordinates, distance, duration, elevation
+ * @returns {Promise<Object>} Route with coordinates, distance_m, duration_s, elevation
  */
 export async function getSmartCyclingRoute(waypoints, options = {}) {
   const {
@@ -174,10 +174,16 @@ async function tryStadiaMapsRouting(waypoints, options) {
     });
 
     if (result && result.coordinates && result.coordinates.length > 0) {
+      // T1.1: emit canonical suffixed fields. `distance` / `duration` are
+      // kept as transitional aliases for callers that haven't migrated.
+      const distance_m = result.distance_m ?? result.distance;
+      const duration_s = result.duration_s ?? result.duration;
       return {
         coordinates: result.coordinates,
-        distance: result.distance,
-        duration: result.duration,
+        distance_m,
+        duration_s,
+        distance: distance_m, // alias (deprecated)
+        duration: duration_s, // alias (deprecated)
         elevationGain: result.elevationGain || 0,
         elevationLoss: result.elevationLoss || 0,
         confidence: result.confidence || 1.0,
@@ -215,10 +221,14 @@ async function tryBRouterRouting(waypoints, options) {
     });
 
     if (result && result.coordinates && result.coordinates.length > 0) {
+      const distance_m = result.distance_m ?? result.distance;
+      const duration_s = result.duration_s ?? result.duration;
       return {
         coordinates: result.coordinates,
-        distance: result.distance,
-        duration: result.duration,
+        distance_m,
+        duration_s,
+        distance: distance_m,
+        duration: duration_s,
         elevationGain: result.elevation?.ascent || 0,
         elevationLoss: result.elevation?.descent || 0,
         confidence: result.confidence || 0.9,
@@ -267,8 +277,10 @@ async function tryMapboxRouting(waypoints, options) {
 
     return {
       coordinates: route.geometry.coordinates,
-      distance: route.distance, // meters
-      duration: route.duration, // seconds
+      distance_m: route.distance,
+      duration_s: route.duration,
+      distance: route.distance, // legacy alias (meters)
+      duration: route.duration, // legacy alias (seconds)
       elevationGain: 0, // Mapbox basic doesn't include elevation
       elevationLoss: 0,
       confidence: 0.8,

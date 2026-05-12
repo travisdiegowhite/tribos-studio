@@ -1,6 +1,8 @@
 // Elevation data service with multiple provider support
 // Provides accurate elevation data for cycling routes
 
+import { haversineKm } from './distanceUnits';
+
 /**
  * Fetch elevation data via our API proxy (avoids CORS issues)
  * Uses OpenTopoData SRTM 30m resolution data
@@ -112,36 +114,28 @@ function interpolateElevations(sampledElevations, totalPoints) {
 }
 
 /**
- * Calculate cumulative distances along a route (in km)
+ * Calculate cumulative distances along a route, in KILOMETERS.
+ *
+ * @param {Array<[number, number]>} coordinates - [lng, lat] pairs
+ * @returns {Array<number>} cumulative distance_km values, one per coordinate
  */
 export function calculateCumulativeDistances(coordinates) {
-  const distances = [0];
-  let totalDistance = 0;
+  const distances_km = [0];
+  let totalDistance_km = 0;
 
   for (let i = 1; i < coordinates.length; i++) {
     const [lng1, lat1] = coordinates[i - 1];
     const [lng2, lat2] = coordinates[i];
-
-    // Haversine formula
-    const R = 6371; // Earth's radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLng / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const segmentDistance = R * c;
-
-    totalDistance += segmentDistance;
-    distances.push(totalDistance);
+    totalDistance_km += haversineKm(lat1, lng1, lat2, lng2);
+    distances_km.push(totalDistance_km);
   }
 
-  return distances;
+  return distances_km;
 }
 
 /**
  * Main function to get elevation data for a route
- * Returns array of { distance, elevation, lat, lon } objects
+ * Returns array of { distance_km, elevation, lat, lon } objects
  */
 export async function getElevationData(coordinates) {
   if (!coordinates || coordinates.length < 2) {
@@ -174,8 +168,8 @@ export async function getElevationData(coordinates) {
 
   console.log(`✅ Got elevation data for ${elevationData.length} points`);
 
-  // Calculate distances
-  const distances = calculateCumulativeDistances(coordinates);
+  // Calculate distances (KILOMETERS along the route)
+  const distances_km = calculateCumulativeDistances(coordinates);
 
   // If we downsampled, interpolate to get full resolution
   if (needsDownsampling && downsampledData) {
@@ -190,7 +184,10 @@ export async function getElevationData(coordinates) {
     );
 
     return coordinates.map(([lon, lat], i) => ({
-      distance: distances[i],
+      distance_km: distances_km[i],
+      // T1.1 transition: `distance` alias kept for one PR cycle. Consumers
+      // should migrate to `distance_km`; the alias can be removed after.
+      distance: distances_km[i],
       elevation: fullElevation[i],
       lat,
       lon
@@ -199,7 +196,8 @@ export async function getElevationData(coordinates) {
 
   // No downsampling needed
   return elevationData.map((data, i) => ({
-    distance: distances[i],
+    distance_km: distances_km[i],
+    distance: distances_km[i],
     elevation: data.elevation,
     lat: data.lat,
     lon: data.lon

@@ -385,14 +385,14 @@ const ElevationProfile = ({
                 {formatDist(totalDistance)}
               </Badge>
             )}
-            {stats?.gain > 0 && (
+            {stats?.elevation_gain_m > 0 && (
               <Badge variant="light" color="green" size="sm">
-                ↗ {formatElev(stats.gain)}
+                ↗ {formatElev(stats.elevation_gain_m)}
               </Badge>
             )}
-            {stats?.loss > 0 && (
+            {stats?.elevation_loss_m > 0 && (
               <Badge variant="light" color="red" size="sm">
-                ↘ {formatElev(stats.loss)}
+                ↘ {formatElev(stats.elevation_loss_m)}
               </Badge>
             )}
           </Group>

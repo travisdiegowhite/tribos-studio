@@ -68,22 +68,24 @@ export async function getBRouterDirections(coordinates, options = {}) {
     // Extract route information
     // BRouter returns properties as strings, so parse them as numbers
     const routeCoordinates = geometry.coordinates; // GeoJSON: [lon, lat]
-    const distance = parseFloat(properties['track-length']) || 0; // meters
-    const duration = parseFloat(properties['total-time']) || 0; // seconds
+    const distance_m = parseFloat(properties['track-length']) || 0;
+    const duration_s = parseFloat(properties['total-time']) || 0;
     const ascent = parseFloat(properties['filtered ascend']) || 0; // meters
     const descent = parseFloat(properties['filtered descend']) || 0; // meters
 
     console.log(`✅ BRouter route generated:`, {
-      distance: `${(distance / 1000).toFixed(1)}km`,
-      duration: `${(duration / 60).toFixed(0)}min`,
+      distance_km: `${(distance_m / 1000).toFixed(1)}km`,
+      duration_min: `${(duration_s / 60).toFixed(0)}min`,
       ascent: `${ascent.toFixed(0)}m`,
       profile
     });
 
     return {
       coordinates: routeCoordinates,
-      distance, // meters
-      duration, // seconds
+      distance_m,
+      duration_s,
+      distance: distance_m, // legacy alias (meters)
+      duration: duration_s, // legacy alias (seconds)
       elevation: {
         ascent,
         descent

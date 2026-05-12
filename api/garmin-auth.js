@@ -885,10 +885,14 @@ async function pushRoute(req, res, userId, routeData) {
   }
 }
 
-// Build course payload for Garmin Course API (JSON format)
+// Build course payload for Garmin Course API (JSON format).
+// Accepts canonical-suffixed fields (distance_km, elevation_gain_m,
+// elevation_loss_m); legacy `distanceKm`, `elevationGainM`, `elevationLossM`
+// are accepted as a fallback for callers that haven't migrated yet.
 function buildCoursePayload(routeData) {
+  const distance_km = routeData.distance_km ?? routeData.distanceKm ?? 0;
   // Calculate total distance in meters
-  let distanceMeters = (routeData.distanceKm || 0) * 1000;
+  let distanceMeters = distance_km * 1000;
   if (distanceMeters === 0 && routeData.coordinates.length > 1) {
     distanceMeters = calculateRouteDistance(routeData.coordinates);
   }
@@ -906,12 +910,15 @@ function buildCoursePayload(routeData) {
   // Map surface type to Garmin activity type
   const activityType = mapSurfaceToActivityType(routeData.surfaceType);
 
+  const elevation_gain_m = routeData.elevation_gain_m ?? routeData.elevationGainM ?? 0;
+  const elevation_loss_m = routeData.elevation_loss_m ?? routeData.elevationLossM ?? 0;
+
   return {
     courseName: (routeData.name || 'Tribos Route').substring(0, 32), // Garmin limit
     description: (routeData.description || 'Created with Tribos Studio').substring(0, 255),
     distance: Math.round(distanceMeters),
-    elevationGain: Math.round(routeData.elevationGainM || 0),
-    elevationLoss: Math.round(routeData.elevationLossM || 0),
+    elevationGain: Math.round(elevation_gain_m),
+    elevationLoss: Math.round(elevation_loss_m),
     activityType: activityType,
     coordinateSystem: 'WGS84',
     geoPoints: geoPoints
@@ -930,7 +937,10 @@ function mapSurfaceToActivityType(surfaceType) {
   return mapping[surfaceType?.toLowerCase()] || 'ROAD_CYCLING';
 }
 
-// Helper: Haversine distance calculation
+// Helper: Haversine distance in METERS.
+// Mirror of haversineMeters() in src/utils/distanceUnits.ts — the runtime
+// split (Vercel serverless vs Vite browser bundle) means we can't share the
+// module today. Keep these in sync.
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371000; // Earth's radius in meters
   const dLat = toRadians(lat2 - lat1);

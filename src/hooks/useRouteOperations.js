@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { saveRoute as saveRouteToDb } from '../utils/routesService';
 import { exportRoute, downloadRoute } from '../utils/routeExport';
 import { parseGpxFile } from '../utils/gpxParser';
+import { M_TO_KM, assertKm } from '../utils/distanceUnits';
 
 /**
  * Custom hook for route operations (save, export, import, share)
@@ -65,9 +66,9 @@ export const useRouteOperations = ({
       description: routeDescription,
       coordinates: coordsWithElevation,
       waypoints: exportWaypoints,
-      distanceKm: routeStats?.distance ? routeStats.distance / 1000 : 0,
-      elevationGainM: routeStats?.gain || 0,
-      elevationLossM: routeStats?.loss || 0,
+      distanceKm: routeStats?.distance_km ?? 0,
+      elevationGainM: routeStats?.elevation_gain_m ?? 0,
+      elevationLossM: routeStats?.elevation_loss_m ?? 0,
     };
 
     try {
@@ -139,16 +140,18 @@ export const useRouteOperations = ({
       // Also create the full route geometry from all track points
       const routeCoordinates = trackPoints.map(p => [p.longitude, p.latitude]);
 
-      // Build elevation profile if available
+      // Build elevation profile if available.
+      // gpxParser sets track-point distance_m in METERS (cumulative).
+      // Elevation profile convention is KM, so convert at the boundary.
       let elevation = null;
       if (trackPoints[0].elevation != null) {
-        let cumulativeDistance = 0;
+        let cumulativeDistance_m = 0;
         elevation = trackPoints.map((point, i) => {
           if (i > 0) {
-            cumulativeDistance = point.distance || cumulativeDistance;
+            cumulativeDistance_m = point.distance_m ?? cumulativeDistance_m;
           }
           return {
-            distance: cumulativeDistance / 1000, // Convert to km
+            distance_km: M_TO_KM(cumulativeDistance_m),
             elevation: point.elevation,
             lat: point.latitude,
             lon: point.longitude,
@@ -171,11 +174,14 @@ export const useRouteOperations = ({
       }
 
       if (setRouteStats && gpxData.summary) {
+        // gpxParser exposes summary.totalDistance_km after T1.1.
+        const distance_km = gpxData.summary.totalDistance_km ?? 0;
+        assertKm(distance_km, 'importGPX.routeStats.distance_km');
         setRouteStats({
-          distance: (gpxData.summary.totalDistance || 0) * 1000, // Convert km to meters
-          duration: gpxData.summary.totalMovingTime || 0,
-          gain: gpxData.summary.totalAscent || 0,
-          loss: gpxData.summary.totalDescent || 0,
+          distance_km,
+          duration_s: gpxData.summary.totalMovingTime || 0,
+          elevation_gain_m: gpxData.summary.totalAscent || 0,
+          elevation_loss_m: gpxData.summary.totalDescent || 0,
           routingSource: 'gpx_import',
         });
       }
@@ -247,16 +253,25 @@ export const useRouteOperations = ({
     }
 
     try {
-      // Build track points for database
+      // Build track points for database.
+      // Elevation-profile distance is KM (calculated in elevation.js /
+      // useRouteOperations.importGPX after boundary conversion); the
+      // legacy `cumulative_distance` column is stored as KM to match
+      // the rest of the route record (`distance_km`).
       const track_points = coords.map((coord, index) => ({
         order_index: index,
         longitude: coord[0],
         latitude: coord[1],
         elevation: elevationProfile?.[index]?.elevation || null,
-        cumulative_distance: elevationProfile?.[index]?.distance || 0,
+        cumulative_distance_km:
+          elevationProfile?.[index]?.distance_km ??
+          elevationProfile?.[index]?.distance ?? 0,
       }));
 
-      const distanceKm = routeStats?.distance ? routeStats.distance / 1000 : 0;
+      const distance_km = routeStats?.distance_km ?? 0;
+      assertKm(distance_km, 'saveRoute.distance_km');
+      const elevation_gain_m = routeStats?.elevation_gain_m ?? 0;
+      const elevation_loss_m = routeStats?.elevation_loss_m ?? 0;
 
       const routeData = {
         user_id: user.id,
@@ -268,21 +283,27 @@ export const useRouteOperations = ({
           created_at: new Date().toISOString(),
           routing_profile: routingProfile,
           confidence: routeStats?.confidence || 1.0,
-          duration: routeStats?.duration || 0,
+          duration_s: routeStats?.duration_s || 0,
           builder_type: 'manual', // Indicate this was built with manual builder
         },
         track_points,
         summary: {
-          distance: distanceKm,
+          distance_km,
           snapped: !!routeGeometry,
-          elevation_gain: routeStats?.gain || 0,
-          elevation_loss: routeStats?.loss || 0,
-          elevation_min: routeStats?.min || null,
-          elevation_max: routeStats?.max || null,
+          elevation_gain_m,
+          elevation_loss_m,
+          elevation_min_m: routeStats?.elevation_min_m ?? null,
+          elevation_max_m: routeStats?.elevation_max_m ?? null,
         },
-        distance: distanceKm,
-        elevation_gain: routeStats?.gain || 0,
-        elevation_loss: routeStats?.loss || 0,
+        // T1.1: write the canonical column names. The api/routes.js
+        // handler reads distance_km / elevation_gain_m / elevation_loss_m
+        // — without these renamed fields the DB row would land with NULL.
+        distance_km,
+        elevation_gain_m,
+        elevation_loss_m,
+        estimated_duration_minutes: routeStats?.duration_s
+          ? Math.round(routeStats.duration_s / 60)
+          : null,
       };
 
       const savedRoute = await saveRouteToDb(routeData);

@@ -1,5 +1,13 @@
 // Advanced route generation using Mapbox Map Matching API
-// This provides more intelligent route snapping and better performance
+// This provides more intelligent route snapping and better performance.
+//
+// Unit contract (T1.1):
+//   Mapbox returns `distance` in METERS and `duration` in SECONDS.
+//   Every return object below exposes `distance_m` / `duration_s` as the
+//   canonical fields, and keeps `distance` / `duration` as legacy aliases
+//   for callers that haven't migrated.
+
+import { haversineKm, haversineMeters } from './distanceUnits';
 
 // Map Matching API with intelligent radius fallback for better route snapping
 export async function mapMatchRoute(waypoints, accessToken, options = {}) {
@@ -216,17 +224,14 @@ function calculateRouteDistance(coordinates) {
 }
 
 /**
- * Calculate distance between two points using Haversine formula
+ * Calculate distance between two points using Haversine formula.
+ *
+ * Returns KILOMETERS to preserve historical behaviour of this helper —
+ * callers in this file multiply by 1000 to get meters when they need it.
+ * Backed by the canonical implementation in src/utils/distanceUnits.ts.
  */
 function calculateDistance([lat1, lon1], [lat2, lon2]) {
-  const R = 6371; // Earth radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-          Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
+  return haversineKm(lat1, lon1, lat2, lon2);
 }
 
 /**

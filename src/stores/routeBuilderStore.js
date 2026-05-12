@@ -16,11 +16,13 @@ const initialState = {
   // Route data
   routeGeometry: null,
   routeName: 'Untitled Route',
-  // UNIT CONTRACT: distance is in KM (matches formatDistance, ElevationProfile, DB field distance_km)
-  // Note: useRouteManipulation.snapToRoads stores distance in METERS (API convention).
-  // The Manual builder uses its own local state, not this store, so no conflict currently.
-  // If unifying routing paths, normalize at the boundary.
-  routeStats: { distance: 0, elevation: 0, duration: 0 },
+  // UNIT CONTRACT (see src/utils/distanceUnits.ts and CLAUDE.md):
+  //   distance_km — KM. Always KM in this store. Router responses are
+  //   meters; conversion happens at the boundary in useRouteManipulation
+  //   and useRouteOperations using M_TO_KM.
+  //   elevation_gain_m — METERS, matches DB column elevation_gain_m.
+  //   duration_s — seconds.
+  routeStats: { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
   waypoints: [],
 
   // Map viewport
@@ -171,7 +173,7 @@ export const useRouteBuilderStore = create(
       setRoute: (routeData) => set({
         routeGeometry: routeData.geometry || null,
         routeName: routeData.name || 'Untitled Route',
-        routeStats: routeData.stats || { distance: 0, elevation: 0, duration: 0 },
+        routeStats: routeData.stats || { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
         waypoints: routeData.waypoints || [],
         routingSource: routeData.source || null,
         builderMode: 'editing',
@@ -182,7 +184,7 @@ export const useRouteBuilderStore = create(
       clearRoute: () => set({
         routeGeometry: null,
         routeName: 'Untitled Route',
-        routeStats: { distance: 0, elevation: 0, duration: 0 },
+        routeStats: { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
         waypoints: [],
         aiSuggestions: [],
         routingSource: null,
@@ -247,6 +249,27 @@ export const useRouteBuilderStore = create(
       onRehydrateStorage: () => (state) => {
         if (state) {
           console.log('🔄 Route builder state restored from storage');
+
+          // Migrate legacy unsuffixed routeStats fields (T1.1 distance
+          // unit contract). Old shape was { distance, elevation, duration }
+          // where `distance` was km in the happy path but meters from the
+          // canonical bug (3a). Heuristic: >1000 means it was the buggy
+          // meters-as-km value; convert. Else it was already km.
+          if (state.routeStats) {
+            const s = state.routeStats;
+            if (s.distance !== undefined && s.distance_km === undefined) {
+              s.distance_km = s.distance > 1000 ? s.distance / 1000 : s.distance;
+              delete s.distance;
+            }
+            if (s.elevation !== undefined && s.elevation_gain_m === undefined) {
+              s.elevation_gain_m = s.elevation;
+              delete s.elevation;
+            }
+            if (s.duration !== undefined && s.duration_s === undefined) {
+              s.duration_s = s.duration;
+              delete s.duration;
+            }
+          }
 
           // Optional: Check if state is too old (e.g., > 24 hours)
           const ONE_DAY = 24 * 60 * 60 * 1000;
