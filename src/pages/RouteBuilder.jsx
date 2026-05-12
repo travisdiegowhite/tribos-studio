@@ -2822,6 +2822,29 @@ function RouteBuilder() {
                 }}
               >
                 <Stack gap={6}>
+                  {suggestion.isFallback && (
+                    <Text
+                      size="xs"
+                      fw={600}
+                      role="status"
+                      data-fallback-tier={suggestion.fallbackTier}
+                      style={{
+                        color:
+                          suggestion.fallbackTier === 1
+                            ? 'var(--color-ochre-gold, #C49A0A)'
+                            : suggestion.fallbackTier === 3
+                              ? 'var(--color-coral, #C43C2A)'
+                              : 'var(--color-text-muted)',
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {suggestion.fallbackTier === 1
+                        ? "Based on a route you've ridden before — AI assist will be back soon."
+                        : suggestion.fallbackTier === 3
+                          ? 'Limited connectivity — basic out-and-back. Try again in a moment.'
+                          : 'Generic route while AI is unavailable.'}
+                    </Text>
+                  )}
                   <Group justify="space-between" wrap="nowrap">
                     <Text size="sm" fw={600} lineClamp={1} style={{ flex: 1 }}>
                       {suggestion.name}

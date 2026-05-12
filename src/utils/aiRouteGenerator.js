@@ -6,7 +6,15 @@ import { getWeatherData, getWindFactor, getOptimalTrainingConditions } from './w
 import { calculateBearing } from './routeUtils';
 import { fetchPastRides, analyzeRidingPatterns, generateRouteFromPatterns, buildRouteFromSegments } from './rideAnalysis';
 import { getGraphHopperCyclingDirections, selectGraphHopperProfile, validateGraphHopperService, GRAPHHOPPER_PROFILES } from './graphHopper';
-import { generateClaudeRoutes, enhanceRouteWithClaude, analyzeRidingPatternsWithClaude } from './claudeRouteService';
+import {
+  generateClaudeRoutes,
+  generateClaudeRoutesOrThrow,
+  ClaudeRouteServiceError,
+  enhanceRouteWithClaude,
+  analyzeRidingPatternsWithClaude,
+} from './claudeRouteService';
+import { generateFallbackRoute } from './routeGenerationFallback';
+import { captureFallback } from './fallbackTelemetry';
 import { EnhancedContextCollector } from './enhancedContext';
 import { optimizeLoopRoute, validateLoopRoute } from './routeOptimizer';
 import { filterRoutesByInfrastructure, enhanceRouteWithInfrastructure, generateInfrastructureReport } from './infrastructureValidator';
@@ -146,8 +154,12 @@ export async function generateAIRoutes(params, onProgress = null) {
   console.log('🧠 Generating intelligent routes with Claude AI...');
   console.log('Claude parameters:', { startLocation, timeAvailable, trainingGoal, routeType, targetDistance });
   
+  // Track why the Claude path failed so the fallback can record it.
+  // `null` here means Claude succeeded and produced usable suggestions.
+  let claudeFailureReason = null;
+
   try {
-    const claudeRoutes = await generateClaudeRoutes({
+    const claudeRoutes = await generateClaudeRoutesOrThrow({
       startLocation,
       timeAvailable,
       trainingGoal,
@@ -159,67 +171,103 @@ export async function generateAIRoutes(params, onProgress = null) {
       userId,
       trainingContext
     });
-    
+
     console.log(`✅ Claude returned ${claudeRoutes.length} route suggestions`);
 
-    if (claudeRoutes.length > 0) {
-      // Filter out Claude routes that are obviously bad (missing data or way off target)
-      const validClaudeRoutes = claudeRoutes.filter(route => {
-        const routeDistance = route.distance || route.estimatedDistance;
-        const hasValidName = route.name && !route.name.match(/^Claude Route \d+$/i);
-        const hasValidDistance = routeDistance && routeDistance > 10;
-        const isCloseToTarget = hasValidDistance &&
-          routeDistance >= targetDistance * 0.4 &&
-          routeDistance <= targetDistance * 2.0;
+    // Filter out Claude routes that are obviously bad (missing data or way off target)
+    const validClaudeRoutes = claudeRoutes.filter(route => {
+      const routeDistance = route.distance || route.estimatedDistance;
+      const hasValidName = route.name && !route.name.match(/^Claude Route \d+$/i);
+      const hasValidDistance = routeDistance && routeDistance > 10;
+      const isCloseToTarget = hasValidDistance &&
+        routeDistance >= targetDistance * 0.4 &&
+        routeDistance <= targetDistance * 2.0;
 
-        if (!hasValidDistance) {
-          console.warn(`🚫 Filtering out "${route.name}": missing or invalid distance (${routeDistance}km)`);
-          return false;
-        }
-        if (!isCloseToTarget) {
-          console.warn(`🚫 Filtering out "${route.name}": distance ${routeDistance}km is too far from target ${targetDistance.toFixed(1)}km`);
-          return false;
-        }
-        if (!hasValidName) {
-          console.warn(`⚠️ Route has fallback name "${route.name}" - Claude may not have returned proper data`);
-        }
-        return true;
-      });
-
-      console.log(`📊 ${validClaudeRoutes.length}/${claudeRoutes.length} Claude routes passed validation`);
-
-      if (validClaudeRoutes.length > 0) {
-        console.log(`Converting ${validClaudeRoutes.length} Claude suggestions to full routes (parallel)...`);
-        // Convert Claude suggestions to full routes with coordinates — in parallel
-        const userSpeed = speedProfile?.road_speed || speedProfile?.average_speed || null;
-        const conversionResults = await Promise.allSettled(
-          validClaudeRoutes.map(claudeRoute => {
-            console.log('Converting Claude route:', claudeRoute.name);
-            const routeWithContext = {
-              ...claudeRoute,
-              routeType,
-              pastRidePatterns: ridingPatterns
-            };
-            return convertClaudeToFullRoute(routeWithContext, startLocation, targetDistance, userPreferences, userSpeed);
-          })
-        );
-        for (const result of conversionResults) {
-          if (result.status === 'fulfilled' && result.value) {
-            console.log(`✅ Successfully converted: ${result.value.name}`);
-            routes.push(result.value);
-          } else if (result.status === 'rejected') {
-            console.warn(`❌ Failed to convert Claude route:`, result.reason?.message);
-          }
-        }
-        console.log(`✅ Total routes after Claude conversion: ${routes.length}`);
-      } else {
-        console.warn('❌ All Claude routes filtered out due to invalid data, will use fallback generation');
+      if (!hasValidDistance) {
+        console.warn(`🚫 Filtering out "${route.name}": missing or invalid distance (${routeDistance}km)`);
+        return false;
       }
+      if (!isCloseToTarget) {
+        console.warn(`🚫 Filtering out "${route.name}": distance ${routeDistance}km is too far from target ${targetDistance.toFixed(1)}km`);
+        return false;
+      }
+      if (!hasValidName) {
+        console.warn(`⚠️ Route has fallback name "${route.name}" - Claude may not have returned proper data`);
+      }
+      return true;
+    });
+
+    console.log(`📊 ${validClaudeRoutes.length}/${claudeRoutes.length} Claude routes passed validation`);
+
+    if (validClaudeRoutes.length > 0) {
+      console.log(`Converting ${validClaudeRoutes.length} Claude suggestions to full routes (parallel)...`);
+      const userSpeed = speedProfile?.road_speed || speedProfile?.average_speed || null;
+      const conversionResults = await Promise.allSettled(
+        validClaudeRoutes.map(claudeRoute => {
+          console.log('Converting Claude route:', claudeRoute.name);
+          const routeWithContext = {
+            ...claudeRoute,
+            routeType,
+            pastRidePatterns: ridingPatterns
+          };
+          return convertClaudeToFullRoute(routeWithContext, startLocation, targetDistance, userPreferences, userSpeed);
+        })
+      );
+      for (const result of conversionResults) {
+        if (result.status === 'fulfilled' && result.value) {
+          console.log(`✅ Successfully converted: ${result.value.name}`);
+          routes.push(result.value);
+        } else if (result.status === 'rejected') {
+          console.warn(`❌ Failed to convert Claude route:`, result.reason?.message);
+        }
+      }
+      console.log(`✅ Total routes after Claude conversion: ${routes.length}`);
     } else {
-      console.warn('❌ Claude returned no routes, will use fallback generation');
+      console.warn('❌ All Claude routes filtered out due to invalid data, will use fallback generation');
+      claudeFailureReason = 'claude_invalid';
     }
   } catch (error) {
-    console.error('❌ Claude route generation failed:', error);
+    if (error instanceof ClaudeRouteServiceError) {
+      console.warn(`⚠️ Claude unavailable (${error.reason}): ${error.message} — falling back to heuristic`);
+      claudeFailureReason = error.reason || 'claude_error';
+    } else {
+      console.error('❌ Claude route generation failed:', error);
+      claudeFailureReason = 'claude_error';
+    }
+  }
+
+  // If Claude failed OR produced zero usable converted routes, generate a
+  // heuristic fallback so the user is never shown an empty result. The
+  // wrapper returns ONE route; downstream sees `isFallback: true` and
+  // renders the appropriate banner.
+  if (routes.length === 0) {
+    if (claudeFailureReason === null) {
+      // Reached when Claude returned suggestions but every conversion
+      // rejected — treat as an error for telemetry purposes.
+      claudeFailureReason = 'claude_error';
+    }
+    try {
+      const fallback = await generateFallbackRoute({
+        startLocation,
+        targetDistanceKm: targetDistance,
+        trainingGoal,
+        routeProfile: routeType,
+        userId,
+        reason: claudeFailureReason,
+      });
+      captureFallback({
+        tier: fallback.fallbackTier,
+        reason: fallback.fallbackReason,
+        userId,
+        trainingGoal,
+        targetDistanceKm: targetDistance,
+      });
+      console.log(`🛟 Fallback tier ${fallback.fallbackTier} generated (${fallback.fallbackReason})`);
+      return [fallback];
+    } catch (fallbackErr) {
+      // Should be unreachable — Tier 3 cannot fail — but record it if it does.
+      console.error('❌ Fallback orchestrator threw (unexpected):', fallbackErr);
+    }
   }
   
   // Priority 1: Routes from your actual riding history (highest priority)
