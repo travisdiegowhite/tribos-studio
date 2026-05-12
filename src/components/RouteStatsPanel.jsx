@@ -5,7 +5,7 @@ import { projectTWLForRoute } from '../lib/metrics/twl';
 
 /**
  * RouteStatsPanel - Route stats with icons, grid layout, and personalized ETA
- * @param {object} stats - { distance, elevation, duration }
+ * @param {object} stats - { distance_km, elevation_gain_m, duration_s }
  * @param {string} routingSource - The routing engine used
  * @param {object} speedProfile - User's speed profile from Strava
  * @param {function} formatDist - Distance formatter function
@@ -41,21 +41,25 @@ function RouteStatsPanel({
 
   // Use personalized ETA if available, fall back to raw routing duration
   const hasETA = personalizedETA && personalizedETA.totalSeconds > 0;
-  const rawDuration = stats.duration > 0
-    ? `${Math.floor(stats.duration / 60)}h ${stats.duration % 60}m`
+  const duration_s = stats.duration_s ?? 0;
+  const rawDuration = duration_s > 0
+    ? `${Math.floor(duration_s / 60)}h ${duration_s % 60}m`
     : null;
+
+  const distance_km = stats.distance_km ?? 0;
+  const elevation_gain_m = stats.elevation_gain_m ?? 0;
 
   const statItems = [
     {
       icon: <Ruler size={20} />,
       label: 'Distance',
-      value: formatDist(stats.distance),
+      value: formatDist(distance_km),
       color: 'var(--color-teal)',
     },
     {
       icon: <Mountains size={20} />,
       label: 'Elevation',
-      value: stats.elevation > 0 ? `${formatElev(stats.elevation)} ↗` : '--',
+      value: elevation_gain_m > 0 ? `${formatElev(elevation_gain_m)} ↗` : '--',
       color: tokens.colors.zone4,
     },
     {
@@ -143,7 +147,7 @@ function RouteStatsPanel({
       </SimpleGrid>
 
       {/* TWL projection (if route has elevation data) */}
-      {stats.elevation > 0 && stats.distance > 0 && (
+      {elevation_gain_m > 0 && distance_km > 0 && (
         <TWLProjection stats={stats} hasETA={hasETA} personalizedETA={personalizedETA} />
       )}
 
@@ -235,22 +239,24 @@ function ETABreakdownBar({ breakdown, isPersonalized }) {
  * TWL projection row — shows estimated terrain-weighted load alongside TSS
  */
 function TWLProjection({ stats, hasETA, personalizedETA }) {
+  const distance_km = stats.distance_km ?? 0;
+  const elevation_gain_m = stats.elevation_gain_m ?? 0;
+  const duration_s = stats.duration_s ?? 0;
   // Estimate TSS from duration and intensity
   const durationHours = hasETA
     ? personalizedETA.totalSeconds / 3600
-    : (stats.duration > 0 ? stats.duration / 60 : 2);
+    : (duration_s > 0 ? duration_s / 60 : 2);
   // Conservative TSS estimate: ~50 TSS/hour for endurance pace
   const estimatedTSS = Math.round(durationHours * 50);
   // GVI estimate from elevation gain and distance
-  const distKm = stats.distance;
-  const avgGradePct = distKm > 0 ? (stats.elevation / (distKm * 1000)) * 100 : 0;
+  const avgGradePct = distance_km > 0 ? (elevation_gain_m / (distance_km * 1000)) * 100 : 0;
   const estimatedGVI = Math.min(12, avgGradePct * 1.5);
   // Mean elevation estimate (rough midpoint heuristic)
-  const estimatedMeanElev = stats.elevation > 500 ? 1200 : 500;
+  const estimatedMeanElev = elevation_gain_m > 500 ? 1200 : 500;
 
   const twlResult = projectTWLForRoute(
     estimatedTSS,
-    stats.elevation,
+    elevation_gain_m,
     durationHours,
     estimatedGVI,
     estimatedMeanElev,

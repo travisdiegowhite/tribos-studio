@@ -119,40 +119,46 @@ export default function RaceDayGuide({
 }) {
   const [expandedSection, setExpandedSection] = useState('segments');
 
+  const distance_km = routeStats?.distance_km ?? 0;
+  const elevation_gain_m = routeStats?.elevation_gain_m ?? 0;
+  const duration_s = routeStats?.duration_s ?? 0;
+  // duration_s is seconds; calculateFuelPlan wants minutes.
+  const duration_min = Math.round(duration_s / 60);
+
   const fuelPlan = useMemo(() => {
-    if (!routeStats?.duration) return null;
+    if (!duration_min) return null;
     return calculateFuelPlan({
-      durationMinutes: routeStats.duration,
+      durationMinutes: duration_min,
       intensity: 'race',
       weather: weatherData ? {
         temperatureCelsius: weatherData.temperature,
         humidity: weatherData.humidity,
       } : undefined,
-      elevationGainMeters: routeStats.elevation || 0,
+      elevationGainMeters: elevation_gain_m,
       isRaceDay: true,
     });
-  }, [routeStats?.duration, routeStats?.elevation, weatherData]);
+  }, [duration_min, elevation_gain_m, weatherData]);
 
   const raceSegments = useMemo(() => {
-    if (!personalizedETA?.segments?.length || !routeStats?.distance) return [];
+    if (!personalizedETA?.segments?.length || !distance_km) return [];
     const fuelInterval = fuelPlan?.frequency?.intervalMinutes?.min || 20;
-    return buildRaceSegments(personalizedETA.segments, routeStats.distance, fuelInterval);
-  }, [personalizedETA?.segments, routeStats?.distance, fuelPlan]);
+    return buildRaceSegments(personalizedETA.segments, distance_km, fuelInterval);
+  }, [personalizedETA?.segments, distance_km, fuelPlan]);
 
-  if (!routeStats?.distance || !routeStats?.duration) return null;
+  if (!distance_km || !duration_s) return null;
 
   const raceLabel = RACE_TYPE_MAP[raceType] || 'Race';
   const warmup = WARMUP_PROTOCOLS[raceType] || WARMUP_PROTOCOLS.other;
   const preRaceNote = PRE_RACE_NOTES[raceType] || PRE_RACE_NOTES.other;
 
   const distLabel = useImperial
-    ? `${(routeStats.distance * 0.621371).toFixed(1)} mi`
-    : `${routeStats.distance.toFixed(1)} km`;
+    ? `${(distance_km * 0.621371).toFixed(1)} mi`
+    : `${distance_km.toFixed(1)} km`;
   const elevLabel = useImperial
-    ? `${Math.round(routeStats.elevation * 3.28084)} ft`
-    : `${routeStats.elevation}m`;
+    ? `${Math.round(elevation_gain_m * 3.28084)} ft`
+    : `${elevation_gain_m}m`;
 
-  const etaFormatted = personalizedETA?.formattedTime || `${Math.floor(routeStats.duration / 60)}h ${routeStats.duration % 60}m`;
+  const etaFormatted = personalizedETA?.formattedTime || `${Math.floor(duration_min / 60)}h ${duration_min % 60}m`;
   const targetFormatted = targetFinishMinutes
     ? `${Math.floor(targetFinishMinutes / 60)}h ${targetFinishMinutes % 60}m`
     : null;

@@ -3,6 +3,8 @@
  * Specifically addresses loop routes with unnecessary tangents and detours
  */
 
+import { haversineMeters } from './distanceUnits';
+
 /**
  * Optimize a loop route to remove unnecessary tangents and detours
  * @param {Array} coordinates - Array of [lon, lat] coordinates
@@ -427,19 +429,11 @@ function interpolatePoint(point1, point2, factor) {
   ];
 }
 
-/**
- * Haversine distance calculation
- */
-function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371000; // Earth's radius in meters
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
+// Local haversineDistance() consolidated into haversineMeters from
+// src/utils/distanceUnits.ts. The wrapper below preserves the call sites in
+// this file without a sweeping rename.
+const haversineDistance = (lat1, lon1, lat2, lon2) =>
+  haversineMeters(lat1, lon1, lat2, lon2);
 
 /**
  * Validate that a route is actually a reasonable loop

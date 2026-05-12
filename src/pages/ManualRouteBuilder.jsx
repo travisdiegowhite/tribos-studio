@@ -633,19 +633,19 @@ export default function ManualRouteBuilder() {
                         <Group justify="space-between">
                           <Text size="sm" c="dimmed">Distance</Text>
                           <Text size="sm" fw={600}>
-                            {formatDist(routeStats.distance || 0)}
+                            {formatDist(routeStats.distance_km || 0)}
                           </Text>
                         </Group>
                         <Group justify="space-between">
                           <Text size="sm" c="dimmed">Elevation Gain</Text>
                           <Text size="sm" fw={600}>
-                            {formatElev(routeStats.gain || 0)}
+                            {formatElev(routeStats.elevation_gain_m || 0)}
                           </Text>
                         </Group>
                         <Group justify="space-between">
                           <Text size="sm" c="dimmed">Elevation Loss</Text>
                           <Text size="sm" fw={600}>
-                            {formatElev(routeStats.loss || 0)}
+                            {formatElev(routeStats.elevation_loss_m || 0)}
                           </Text>
                         </Group>
                         {routeStats.routingSource && (

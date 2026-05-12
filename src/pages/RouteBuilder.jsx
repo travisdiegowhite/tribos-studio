@@ -34,6 +34,7 @@ import { fetchRouteSurfaceData, createSurfaceRoute, computeSurfaceDistribution, 
 import { supabase } from '../lib/supabase';
 import { decodePolyline } from '../utils/activityRouteAnalyzer';
 import { useRouteBuilderStore, useRouteBuilderHydrated } from '../stores/routeBuilderStore';
+import { M_TO_KM, KM_TO_M, assertKm, haversineMeters } from '../utils/distanceUnits';
 import CollapsibleSection from '../components/CollapsibleSection.jsx';
 import StepIndicator from '../components/StepIndicator.jsx';
 import DifficultyBadge from '../components/DifficultyBadge.jsx';
@@ -366,7 +367,7 @@ function RouteBuilder() {
       // Create route object for interval cue generation
       const route = {
         coordinates: routeGeometry.coordinates,
-        distance: routeStats.distance
+        distance_km: routeStats.distance_km
       };
 
       // Generate cues from workout structure
@@ -378,7 +379,7 @@ function RouteBuilder() {
       console.error('Error generating colored segments:', error);
     }
     return null;
-  }, [routeGeometry, selectedWorkout, routeStats.distance, showWorkoutOverlay]);
+  }, [routeGeometry, selectedWorkout, routeStats.distance_km, showWorkoutOverlay]);
 
   // Sync interval cues as a side effect (separate from memoized computation to avoid render loops)
   useEffect(() => {
@@ -388,7 +389,7 @@ function RouteBuilder() {
     try {
       const route = {
         coordinates: routeGeometry.coordinates,
-        distance: routeStats.distance
+        distance_km: routeStats.distance_km
       };
       const cues = generateCuesFromWorkoutStructure(route, selectedWorkout);
       if (cues && cues.length > 0) {
@@ -397,7 +398,7 @@ function RouteBuilder() {
     } catch (error) {
       // Already logged in useMemo above
     }
-  }, [routeGeometry, selectedWorkout, routeStats.distance, showWorkoutOverlay]);
+  }, [routeGeometry, selectedWorkout, routeStats.distance_km, showWorkoutOverlay]);
 
   // Generate transition marker points at zone boundaries
   const zoneTransitionPoints = useMemo(() => {
@@ -480,17 +481,17 @@ function RouteBuilder() {
 
   // Personalized ETA: terrain- and fitness-aware ride time
   const personalizedETA = useMemo(() => {
-    if (!routeStats?.distance || routeStats.distance <= 0) return null;
+    if (!routeStats?.distance_km || routeStats.distance_km <= 0) return null;
     if (!elevationProfileData || elevationProfileData.length < 2) return null;
     return calculatePersonalizedETA({
-      distanceKm: routeStats.distance,
+      distanceKm: routeStats.distance_km,
       elevationProfile: elevationProfileData,
       surfaceDistribution: surfaceDistribution,
       speedProfile: speedProfile,
       routeProfile: routeProfile,
       trainingGoal: trainingGoal,
     });
-  }, [routeStats?.distance, elevationProfileData, surfaceDistribution, speedProfile, routeProfile, trainingGoal]);
+  }, [routeStats?.distance_km, elevationProfileData, surfaceDistribution, speedProfile, routeProfile, trainingGoal]);
 
   // Memoize segment highlight GeoJSON for edit mode
   const segmentHighlightGeoJSON = useMemo(() => {
@@ -737,13 +738,15 @@ function RouteBuilder() {
           setAiSuggestions([]);
           setRoutingSource(route.generated_by || null);
 
-          // Coerce database values to ensure correct types (Supabase NUMERIC can return strings)
+          // Coerce database values to ensure correct types (Supabase NUMERIC can return strings).
+          // DB column is estimated_duration_minutes; convert to seconds to match
+          // the canonical store contract (`duration_s`).
           setRouteName(String(route.name || 'Untitled Route'));
           setRouteGeometry(route.geometry);
           setRouteStats({
-            distance: Number(route.distance_km) || 0,
-            elevation: Number(route.elevation_gain_m) || 0,
-            duration: Number(route.estimated_duration_minutes) || 0
+            distance_km: Number(route.distance_km) || 0,
+            elevation_gain_m: Number(route.elevation_gain_m) || 0,
+            duration_s: (Number(route.estimated_duration_minutes) || 0) * 60,
           });
           setRouteType(String(route.route_type || 'loop'));
           setTrainingGoal(String(route.training_goal || 'endurance'));
@@ -913,7 +916,7 @@ function RouteBuilder() {
   const calculateRoute = useCallback(async (points) => {
     if (points.length < 2) {
       setRouteGeometry(null);
-      setRouteStats({ distance: 0, elevation: 0, duration: 0 });
+      setRouteStats({ distance_km: 0, elevation_gain_m: 0, duration_s: 0 });
       return;
     }
 
@@ -924,23 +927,21 @@ function RouteBuilder() {
       if (!snapToRoads) {
         // Freehand mode: connect waypoints with straight lines
         const coordinates = waypointCoordinates;
-        // Calculate straight-line distance (haversine)
-        let totalDistance = 0;
+        // Calculate straight-line distance via haversineMeters (canonical helper)
+        let totalDistance_m = 0;
         for (let i = 1; i < coordinates.length; i++) {
           const [lon1, lat1] = coordinates[i - 1];
           const [lon2, lat2] = coordinates[i];
-          const R = 6371000;
-          const dLat = (lat2 - lat1) * Math.PI / 180;
-          const dLon = (lon2 - lon1) * Math.PI / 180;
-          const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-          totalDistance += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          totalDistance_m += haversineMeters(lat1, lon1, lat2, lon2);
         }
 
         setRouteGeometry({ type: 'LineString', coordinates });
+        const distance_km = parseFloat(M_TO_KM(totalDistance_m).toFixed(1));
+        assertKm(distance_km, 'calculateRoute.freehand.distance_km');
         setRouteStats({
-          distance: parseFloat((totalDistance / 1000).toFixed(1)),
-          elevation: 0,
-          duration: 0,
+          distance_km,
+          elevation_gain_m: 0,
+          duration_s: 0,
           routingSource: 'freehand',
         });
         setRoutingSource('freehand');
@@ -950,10 +951,16 @@ function RouteBuilder() {
         if (elevation) {
           setElevationProfileData(elevation);
           const elevStats = calculateElevationStats(elevation);
-          setRouteStats(prev => ({ ...prev, ...elevStats }));
+          setRouteStats(prev => ({
+            ...prev,
+            elevation_gain_m: elevStats.gain,
+            elevation_loss_m: elevStats.loss,
+            elevation_min_m: elevStats.min,
+            elevation_max_m: elevStats.max,
+          }));
         }
 
-        console.log(`✏️ Freehand route: ${(totalDistance / 1000).toFixed(1)}km`);
+        console.log(`✏️ Freehand route: ${distance_km.toFixed(1)}km`);
         return;
       }
 
@@ -969,10 +976,15 @@ function RouteBuilder() {
           type: 'LineString',
           coordinates: smartRoute.coordinates,
         });
+        // Provider returns meters/seconds; convert at the boundary.
+        const distance_m = smartRoute.distance_m ?? smartRoute.distance ?? 0;
+        const duration_s = smartRoute.duration_s ?? smartRoute.duration ?? 0;
+        const distance_km = parseFloat(M_TO_KM(distance_m).toFixed(1));
+        assertKm(distance_km, 'calculateRoute.smart.distance_km');
         setRouteStats({
-          distance: parseFloat(((smartRoute.distance || 0) / 1000).toFixed(1)), // meters → km
-          elevation: smartRoute.elevationGain || 0,
-          duration: Math.round((smartRoute.duration || 0) / 60), // seconds → minutes
+          distance_km,
+          elevation_gain_m: smartRoute.elevationGain || 0,
+          duration_s,
           routingSource: smartRoute.source || 'smart',
         });
         setRoutingSource(smartRoute.source || 'smart');
@@ -982,11 +994,17 @@ function RouteBuilder() {
           if (elevation) {
             setElevationProfileData(elevation);
             const elevStats = calculateElevationStats(elevation);
-            setRouteStats(prev => ({ ...prev, ...elevStats }));
+            setRouteStats(prev => ({
+              ...prev,
+              elevation_gain_m: elevStats.gain,
+              elevation_loss_m: elevStats.loss,
+              elevation_min_m: elevStats.min,
+              elevation_max_m: elevStats.max,
+            }));
           }
         }).catch(err => console.warn('Elevation fetch failed:', err));
 
-        console.log(`✅ Smart route via ${smartRoute.source}: ${((smartRoute.distance || 0) / 1000).toFixed(1)}km`);
+        console.log(`✅ Smart route via ${smartRoute.source}: ${distance_km.toFixed(1)}km`);
       } else {
         console.warn('Smart routing returned no results');
       }
@@ -1310,18 +1328,15 @@ function RouteBuilder() {
 
     setRouteGeometry({ type: 'LineString', coordinates: newCoords });
 
-    // Recalculate distance
-    let newDist = 0;
+    // Recalculate distance using the canonical haversine helper.
+    let newDist_m = 0;
     for (let i = 1; i < newCoords.length; i++) {
       const [lo1, la1] = newCoords[i - 1];
       const [lo2, la2] = newCoords[i];
-      const R = 6371;
-      const dLat = (la2 - la1) * Math.PI / 180;
-      const dLon = (lo2 - lo1) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2 + Math.cos(la1 * Math.PI / 180) * Math.cos(la2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-      newDist += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      newDist_m += haversineMeters(la1, lo1, la2, lo2);
     }
-    setRouteStats(prev => ({ ...prev, distance: Math.round(newDist * 10) / 10 }));
+    const newDistance_km = Math.round(M_TO_KM(newDist_m) * 10) / 10;
+    setRouteStats(prev => ({ ...prev, distance_km: newDistance_km }));
 
     // Clear alternatives
     setAltSegmentIdx(null);
@@ -1354,7 +1369,7 @@ function RouteBuilder() {
       const result = await applyRouteEdit({
         routeGeometry,
         routeProfile: routeProfile || 'road',
-        routeStats: routeStats || { distance: 0, elevation: 0, duration: 0 },
+        routeStats: routeStats || { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
         editIntent,
         mapboxToken: MAPBOX_TOKEN,
       });
@@ -1448,25 +1463,17 @@ function RouteBuilder() {
         coordinates: newCoordinates
       });
 
-      // Recalculate route stats
-      // Simple distance calculation (sum of segments)
-      let newDistance = 0;
+      // Recalculate route stats — sum segment distances via canonical helper.
+      let newDistance_m = 0;
       for (let i = 0; i < newCoordinates.length - 1; i++) {
         const [lon1, lat1] = newCoordinates[i];
         const [lon2, lat2] = newCoordinates[i + 1];
-        const R = 6371; // Earth radius in km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        newDistance += R * c;
+        newDistance_m += haversineMeters(lat1, lon1, lat2, lon2);
       }
 
       setRouteStats(prev => ({
         ...prev,
-        distance: parseFloat(newDistance.toFixed(1))
+        distance_km: parseFloat(M_TO_KM(newDistance_m).toFixed(1)),
       }));
 
       // Clear selection
@@ -1498,7 +1505,9 @@ function RouteBuilder() {
 
   // clearRoute comes from the store (clears waypoints, geometry, stats, etc.)
 
-  // Create route data object for export
+  // Create route data object for export.
+  // routeStats values are always in canonical units after T1.1
+  // (distance_km, elevation_gain_m, elevation_loss_m) — no conversion needed.
   const routeDataForExport = useMemo(() => {
     if (!routeGeometry) return null;
     return {
@@ -1510,9 +1519,9 @@ function RouteBuilder() {
         name: wp.name || 'Waypoint',
         type: wp.type || 'waypoint',
       })),
-      distanceKm: routeStats?.distance,
-      elevationGainM: routeStats?.elevationGain,
-      elevationLossM: routeStats?.elevationLoss,
+      distanceKm: routeStats?.distance_km ?? 0,
+      elevationGainM: routeStats?.elevation_gain_m ?? 0,
+      elevationLossM: routeStats?.elevation_loss_m ?? 0,
     };
   }, [routeName, routeGeometry, waypoints, routeStats]);
 
@@ -1539,13 +1548,18 @@ function RouteBuilder() {
     setIsSaving(true);
     try {
       const raceTags = trainingGoal === 'race' && raceType ? [`race:${raceType}`] : [];
+      // routeStats is in canonical units after T1.1; duration_s → minutes
+      // here because the DB column is `estimated_duration_minutes`.
+      const distance_km = routeStats?.distance_km ?? null;
+      const elevation_gain_m = routeStats?.elevation_gain_m ?? null;
+      const duration_s = routeStats?.duration_s ?? null;
       const routeData = {
         id: savedRouteId, // Include ID if updating existing route
         name: routeName,
         geometry: routeGeometry,
-        distance_km: parseFloat(routeStats.distance) || null,
-        elevation_gain_m: routeStats.elevation || null,
-        estimated_duration_minutes: routeStats.duration || null,
+        distance_km,
+        elevation_gain_m,
+        estimated_duration_minutes: duration_s != null ? Math.round(duration_s / 60) : null,
         route_type: routeType,
         training_goal: trainingGoal,
         surface_type: routeProfile,
@@ -1560,7 +1574,7 @@ function RouteBuilder() {
       trackFeature(EventType.ROUTE_CREATE, {
         routeId: saved.id,
         routeName: routeName,
-        distanceKm: parseFloat(routeStats.distance) || null,
+        distanceKm: distance_km,
         routeType: routeType,
         trainingGoal: trainingGoal,
         generatedBy: aiSuggestions.length > 0 ? 'ai' : 'manual',
@@ -1650,10 +1664,14 @@ function RouteBuilder() {
         setRouteGeometry({ type: 'LineString', coordinates: coords });
         if (gpxData.metadata?.name) setRouteName(gpxData.metadata.name);
         if (gpxData.summary) {
+          // gpxParser exposes summary.totalDistance_km after T1.1.
+          const distance_km = gpxData.summary.totalDistance_km ?? 0;
+          assertKm(distance_km, 'RouteBuilder.gpxImport.distance_km');
           setRouteStats({
-            distance: (gpxData.summary.totalDistance || 0) / 1000,
-            elevation: gpxData.summary.totalAscent || 0,
-            duration: Math.round((gpxData.summary.totalDistance || 0) / 1000 / 25 * 60),
+            distance_km,
+            elevation_gain_m: gpxData.summary.totalAscent || 0,
+            // Rough ETA at 25 km/h converted to seconds.
+            duration_s: Math.round((distance_km / 25) * 3600),
           });
         }
         setBuilderMode('editing');
@@ -1715,10 +1733,10 @@ function RouteBuilder() {
           trainingGoal
         }, 3); // Generate 3 route variations
 
-        // Normalize route format for UI compatibility
+        // Normalize route format for UI compatibility (carries `distance` in KM).
         routes = routes.map(route => ({
           ...route,
-          distance: route.distanceKm, // km for display
+          distance_km: route.distanceKm ?? route.distance_km ?? route.distance,
           source: route.source || 'iterative_builder'
         }));
       } else {
@@ -1822,11 +1840,15 @@ function RouteBuilder() {
         };
         setRouteGeometry(geometry);
 
-        // Update route stats from the pre-computed route data
+        // Update route stats from the pre-computed AI route suggestion.
+        // aiRouteGenerator emits suggestion.distance in KM (it divides by 1000
+        // before returning). Treat as the canonical km value.
+        const suggestion_distance_km = parseFloat((suggestion.distance_km ?? suggestion.distance ?? 0).toFixed(1));
+        assertKm(suggestion_distance_km, 'aiSuggestion.distance_km');
         setRouteStats({
-          distance: parseFloat((suggestion.distance || 0).toFixed(1)),
-          elevation: suggestion.elevationGain || 0,
-          duration: Math.round((suggestion.distance || 0) / 25 * 60) // Estimate based on 25km/h
+          distance_km: suggestion_distance_km,
+          elevation_gain_m: suggestion.elevationGain || 0,
+          duration_s: Math.round((suggestion_distance_km / 25) * 3600), // 25 km/h estimate → seconds
         });
 
         // Track routing source for display
@@ -2072,12 +2094,14 @@ function RouteBuilder() {
             });
 
             if (routeResult && routeResult.coordinates && routeResult.coordinates.length >= 10) {
+              const familiar_distance_m = routeResult.distance_m ?? routeResult.distance ?? 0;
+              const familiar_distance_km = M_TO_KM(familiar_distance_m);
               iterativeResult = {
                 coordinates: routeResult.coordinates,
-                distanceKm: routeResult.distance / 1000,
+                distanceKm: familiar_distance_km,
                 elevationGain: routeResult.elevationGain || 0,
-                duration: routeResult.duration || 0,
-                name: `Familiar ${(routeResult.distance / 1000).toFixed(0)}km ${goal} loop`,
+                duration_s: routeResult.duration_s ?? routeResult.duration ?? 0,
+                name: `Familiar ${familiar_distance_km.toFixed(0)}km ${goal} loop`,
                 source: 'familiar_segments'
               };
               routeSource = 'familiar_segments';
@@ -2124,10 +2148,13 @@ function RouteBuilder() {
             coordinates: iterativeResult.coordinates
           });
 
+          // iterativeResult.duration is seconds (passed through from router boundaries).
+          const iterativeDuration_s = iterativeResult.duration_s ?? iterativeResult.duration ?? 0;
+          assertKm(distanceKm, 'iterativeResult.distance_km');
           setRouteStats({
-            distance: distanceKm,
-            elevation: iterativeResult.elevationGain || 0,
-            duration: Math.round((iterativeResult.duration || 0) / 60),
+            distance_km: distanceKm,
+            elevation_gain_m: iterativeResult.elevationGain || 0,
+            duration_s: iterativeDuration_s,
             familiarityScore: familiarityScore
           });
 
@@ -2221,11 +2248,13 @@ function RouteBuilder() {
         coordinates: routeResult.coordinates
       });
 
+      // routeResult.duration is seconds from the routing layer.
+      assertKm(distanceKm, 'aiRouteResult.distance_km');
       setRouteStats({
-        distance: distanceKm, // Now a number, not string
-        elevation: routeResult.elevationGain || 0,
-        duration: Math.round(routeResult.duration / 60),
-        familiarityScore: familiarityScore // Include familiarity in stats
+        distance_km: distanceKm,
+        elevation_gain_m: routeResult.elevationGain || 0,
+        duration_s: routeResult.duration_s ?? routeResult.duration ?? 0,
+        familiarityScore: familiarityScore, // Include familiarity in stats
       });
 
       // Only update route name if not already set from calendar context
@@ -2346,7 +2375,7 @@ function RouteBuilder() {
   }, []);
 
   // Render route stats for the bottom sheet peek content
-  const safeStats = useMemo(() => routeStats || { distance: 0, elevation: 0, duration: 0 }, [routeStats]);
+  const safeStats = useMemo(() => routeStats || { distance_km: 0, elevation_gain_m: 0, duration_s: 0 }, [routeStats]);
   const peekContentElement = useMemo(() => (
     <Group justify="space-between" style={{ width: '100%' }}>
       <Box>
@@ -3084,15 +3113,15 @@ function RouteBuilder() {
           <Group gap="xs" mb="sm">
             <ForkKnife size={18} style={{ color: 'var(--color-teal)' }} />
             <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>Fuel Plan</Text>
-            {routeStats.duration >= 45 && routeGeometry && (
+            {routeStats.duration_s >= 45 * 60 && routeGeometry && (
               <Badge size="xs" variant="light" color="green">Active</Badge>
             )}
           </Group>
-          {routeStats.duration >= 45 && routeGeometry ? (
+          {routeStats.duration_s >= 45 * 60 && routeGeometry ? (
             <FuelCard
               route={{
-                estimatedDurationMinutes: routeStats.duration,
-                elevationGainMeters: routeStats.elevation || 0,
+                estimatedDurationMinutes: Math.round(routeStats.duration_s / 60),
+                elevationGainMeters: routeStats.elevation_gain_m || 0,
                 intensity: trainingGoal === 'race' ? 'race' : undefined,
               }}
               weather={weatherData ? { temperatureCelsius: weatherData.temperature, humidity: weatherData.humidity } : undefined}
@@ -3108,7 +3137,7 @@ function RouteBuilder() {
         </Paper>
 
         {/* Race Day Guide */}
-        {trainingGoal === 'race' && routeGeometry && routeStats.duration > 0 && (
+        {trainingGoal === 'race' && routeGeometry && routeStats.duration_s > 0 && (
           <RaceDayGuide
             routeStats={routeStats}
             personalizedETA={personalizedETA}
@@ -4503,7 +4532,7 @@ function RouteBuilder() {
                         onClick={() => {
                           setWaypoints([]);
                           setRouteGeometry(null);
-                          setRouteStats({ distance: 0, elevation: 0, duration: 0 });
+                          setRouteStats({ distance_km: 0, elevation_gain_m: 0, duration_s: 0 });
                         }}
                       >
                         <Trash size={16} />
@@ -4644,15 +4673,15 @@ function RouteBuilder() {
                     <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                       Fuel Plan
                     </Text>
-                    {routeStats.duration >= 45 && routeGeometry && (
+                    {routeStats.duration_s >= 45 * 60 && routeGeometry && (
                       <Badge size="xs" variant="light" color="green">Active</Badge>
                     )}
                   </Group>
-                  {routeStats.duration >= 45 && routeGeometry ? (
+                  {routeStats.duration_s >= 45 * 60 && routeGeometry ? (
                     <FuelCard
                       route={{
-                        estimatedDurationMinutes: routeStats.duration,
-                        elevationGainMeters: routeStats.elevation || 0,
+                        estimatedDurationMinutes: Math.round(routeStats.duration_s / 60),
+                        elevationGainMeters: routeStats.elevation_gain_m || 0,
                         intensity: trainingGoal === 'race' ? 'race' : undefined,
                       }}
                       weather={weatherData ? {
@@ -4671,7 +4700,7 @@ function RouteBuilder() {
                 </Paper>
 
                 {/* Race Day Guide */}
-                {trainingGoal === 'race' && routeGeometry && routeStats.duration > 0 && (
+                {trainingGoal === 'race' && routeGeometry && routeStats.duration_s > 0 && (
                   <RaceDayGuide
                     routeStats={routeStats}
                     personalizedETA={personalizedETA}
@@ -5766,7 +5795,7 @@ function RouteBuilder() {
       {routeGeometry?.coordinates && routeGeometry.coordinates.length > 1 && (
         <ElevationProfile
           coordinates={routeGeometry.coordinates}
-          totalDistance={routeStats.distance}
+          totalDistance={routeStats.distance_km}
           isImperial={isImperial}
           leftOffset={isMobile ? 0 : 380}
           onHoverPosition={setElevationHoverPosition}

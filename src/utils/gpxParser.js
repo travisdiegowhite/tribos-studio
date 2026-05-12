@@ -2,6 +2,8 @@
 // Parses .gpx files from Strava exports and other sources
 // Uses browser's DOMParser for XML parsing
 
+import { haversineMeters, M_TO_KM } from './distanceUnits';
+
 /**
  * Parse a GPX file and extract activity data
  * @param {string} gpxContent - The raw GPX XML string
@@ -173,32 +175,32 @@ function extractTrackPoints(doc) {
       cadence: cadence ? Math.round(cadence) : null,
       speed: null, // Will be calculated from distance/time
       temperature,
-      distance: null // Will be calculated cumulatively
+      distance_m: null, // Cumulative distance in METERS (filled below)
     });
   });
 
-  // Calculate speeds and cumulative distances
-  let cumulativeDistance = 0;
+  // Calculate speeds and cumulative distances (all in METERS)
+  let cumulativeDistance_m = 0;
   for (let i = 0; i < trackPoints.length; i++) {
-    trackPoints[i].distance = cumulativeDistance;
+    trackPoints[i].distance_m = cumulativeDistance_m;
 
     if (i > 0) {
       const prev = trackPoints[i - 1];
       const curr = trackPoints[i];
 
-      // Calculate segment distance
-      const segmentDistance = haversineDistance(
+      // Calculate segment distance in meters
+      const segmentDistance_m = haversineMeters(
         prev.latitude, prev.longitude,
         curr.latitude, curr.longitude
       );
-      cumulativeDistance += segmentDistance;
-      trackPoints[i].distance = cumulativeDistance;
+      cumulativeDistance_m += segmentDistance_m;
+      trackPoints[i].distance_m = cumulativeDistance_m;
 
       // Calculate speed if we have timestamps
       if (prev.timestamp && curr.timestamp) {
         const timeDiff = (new Date(curr.timestamp) - new Date(prev.timestamp)) / 1000; // seconds
         if (timeDiff > 0 && timeDiff < 300) { // Ignore gaps > 5 min
-          const speed = (segmentDistance / 1000) / (timeDiff / 3600); // km/h
+          const speed = M_TO_KM(segmentDistance_m) / (timeDiff / 3600); // km/h
           if (speed < 150) { // Sanity check
             trackPoints[i].speed = speed;
           }
@@ -216,7 +218,7 @@ function extractTrackPoints(doc) {
 function calculateSummary(trackPoints, metadata) {
   if (!trackPoints || trackPoints.length < 2) {
     return {
-      totalDistance: 0,
+      totalDistance_km: 0,
       totalMovingTime: 0,
       totalElapsedTime: 0,
       totalAscent: 0,
@@ -232,8 +234,8 @@ function calculateSummary(trackPoints, metadata) {
     };
   }
 
-  // Total distance (from last point's cumulative distance)
-  const totalDistance = trackPoints[trackPoints.length - 1].distance || 0;
+  // Cumulative distance is stored on track points in METERS (`distance_m`).
+  const totalDistance_m = trackPoints[trackPoints.length - 1].distance_m || 0;
 
   // Calculate elevation gain/loss
   let totalAscent = 0;
@@ -301,17 +303,17 @@ function calculateSummary(trackPoints, metadata) {
   }
 
   // If we couldn't calculate moving time, estimate from distance and avg speed
-  if (totalMovingTime === 0 && totalDistance > 0 && totalElapsedTime > 0) {
+  if (totalMovingTime === 0 && totalDistance_m > 0 && totalElapsedTime > 0) {
     totalMovingTime = totalElapsedTime * 0.9; // Estimate 90% moving
   }
 
   // Calculate averages
   const avgSpeed = totalMovingTime > 0
-    ? (totalDistance / 1000) / (totalMovingTime / 3600)
+    ? M_TO_KM(totalDistance_m) / (totalMovingTime / 3600)
     : (speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0);
 
   return {
-    totalDistance: totalDistance / 1000, // Convert to km
+    totalDistance_km: M_TO_KM(totalDistance_m),
     totalMovingTime: Math.round(totalMovingTime),
     totalElapsedTime: Math.round(totalElapsedTime),
     totalAscent: Math.round(totalAscent),
@@ -351,19 +353,8 @@ function smoothElevation(elevations, windowSize = 5) {
   return smoothed;
 }
 
-/**
- * Calculate Haversine distance between two points (in meters)
- */
-function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371000; // Earth's radius in meters
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
+// haversineDistance() removed — consolidated into haversineMeters in
+// src/utils/distanceUnits.ts (T1.1 distance unit contract).
 
 /**
  * Parse float or return null
@@ -404,7 +395,8 @@ export function gpxToActivityFormat(gpxData, userId) {
     return val;
   };
 
-  const distance = sanitize(summary.totalDistance * 1000, 500000, 0); // Max 500km
+  // activities.distance column is METERS; totalDistance_km → meters.
+  const distance = sanitize((summary.totalDistance_km ?? 0) * 1000, 500000, 0); // Max 500km
   const movingTime = sanitize(Math.round(summary.totalMovingTime), 86400, 0); // Max 24 hours
   const elapsedTime = sanitize(Math.round(summary.totalElapsedTime || summary.totalMovingTime), 172800, movingTime);
   const elevGain = sanitize(summary.totalAscent, 6000, 0); // Max 6km elevation (~20,000 ft)

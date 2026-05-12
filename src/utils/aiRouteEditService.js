@@ -169,7 +169,7 @@ export const QUICK_ACTIONS = [
  * @param {Object} params
  * @param {Object} params.routeGeometry  GeoJSON LineString geometry
  * @param {string} params.routeProfile   Current profile: road | gravel | mountain | commuting
- * @param {Object} params.routeStats     { distance (km), elevation (m), duration (s) }
+ * @param {Object} params.routeStats     { distance_km, elevation_gain_m, duration_s }
  * @param {Object} params.editIntent     Output of classifyEditIntent()
  * @param {Object} [params.mapboxToken]  For geocoding detour locations
  * @returns {Promise<Object>} { success, editedRoute, comparison, message }
@@ -301,7 +301,7 @@ async function applySurfaceEdit(coords, profile, stats, targetSurface) {
   }
 
   // Pick best by distance similarity to original (don't deviate too much)
-  const originalDistKm = stats.distance || estimateDistanceKm(coords);
+  const originalDistKm = (stats.distance_km ?? stats.distance) || estimateDistanceKm(coords);
   const best = results.reduce((a, b) => {
     const diffA = Math.abs((a.distance || 0) / 1000 - originalDistKm);
     const diffB = Math.abs((b.distance || 0) / 1000 - originalDistKm);
@@ -411,7 +411,7 @@ async function applyFasterEdit(coords, profile, stats) {
 }
 
 function applyShorterEdit(coords, stats, targetReduction) {
-  const totalDist = stats.distance || estimateDistanceKm(coords);
+  const totalDist = (stats.distance_km ?? stats.distance) || estimateDistanceKm(coords);
 
   // Default: cut ~20%, or user-specified amount
   const cutKm = targetReduction || totalDist * 0.2;
@@ -459,7 +459,7 @@ function applyShorterEdit(coords, stats, targetReduction) {
 }
 
 async function applyLongerEdit(coords, profile, stats, targetExtension) {
-  const totalDist = stats.distance || estimateDistanceKm(coords);
+  const totalDist = (stats.distance_km ?? stats.distance) || estimateDistanceKm(coords);
   const addKm = targetExtension || totalDist * 0.2;
   const start = coords[0];
   const end = coords[coords.length - 1];
@@ -518,8 +518,8 @@ function applyReverseEdit(coords, stats) {
     },
     comparison: {
       distanceDelta: 0,
-      newDistance: stats.distance || estimateDistanceKm(reversed),
-      originalDistance: stats.distance || estimateDistanceKm(coords),
+      newDistance: (stats.distance_km ?? stats.distance) || estimateDistanceKm(reversed),
+      originalDistance: (stats.distance_km ?? stats.distance) || estimateDistanceKm(coords),
       elevationDelta: null, // Same total but opposite profile
     },
     message: 'Route direction reversed',

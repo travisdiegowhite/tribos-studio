@@ -215,10 +215,16 @@ export async function getGraphHopperCyclingDirections(coordinates, options = {})
 
     const route = data.paths[0];
     
+    // GraphHopper returns time in MILLISECONDS; convert to seconds for the
+    // canonical contract. distance is meters per provider docs.
+    const distance_m = route.distance;
+    const duration_s = Math.round((route.time || 0) / 1000);
     return {
       coordinates: route.points.coordinates, // GeoJSON format
-      distance: route.distance, // meters
-      duration: route.time, // milliseconds  
+      distance_m,
+      duration_s,
+      distance: distance_m, // legacy alias (meters)
+      duration: route.time, // legacy alias (milliseconds — historical)
       elevation: {
         ascent: route.ascent || 0,
         descent: route.descent || 0
