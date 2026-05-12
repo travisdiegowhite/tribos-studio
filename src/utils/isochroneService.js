@@ -9,6 +9,8 @@
  * is the same regardless of speed.
  */
 
+import { canonicalToValhalla } from './coordConverters';
+
 const VALHALLA_BASE = 'https://valhalla1.openstreetmap.de';
 
 // --- Pace & Speed Presets ---
@@ -107,7 +109,7 @@ export async function fetchRunReachRoads(center, options = {}) {
   const body = {
     costing,
     action: 'isochrone',
-    locations: [{ lon: center[0], lat: center[1] }],
+    locations: [canonicalToValhalla(center)],
     contours: [{ distance: distanceKm }],
     skip_opposites: true,
     expansion_properties: ['distance', 'duration', 'edge_status'],

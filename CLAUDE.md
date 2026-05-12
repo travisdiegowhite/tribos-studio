@@ -387,6 +387,40 @@ All distance variables in `src/` end in either `_km` (kilometers) or `_m` / `_me
 
 Treat it as a bug, especially in any new code. The grep audit in `audit-report.md` enumerates the ~80 Category C sites that exist today; most are inside `aiRouteGenerator.js`, `iterativeRouteBuilder.js`, `segmentDetector.ts`, and `directions.js` internals where the name didn't change to keep the PR tractable. They are unit-correct at boundaries but name-incorrect; a follow-up sweep should finish them.
 
+## Coordinate Format Convention — Critical Rules (DO NOT BREAK)
+
+T1.2 (May 2026) defined the internal coordinate contract for the Route Builder pipeline. The audit that motivated this lives in `coord-audit-report.md`.
+
+### The rule
+
+All internal coordinates are the canonical `Coordinate` type = `readonly [longitude: number, latitude: number]` (GeoJSON convention, same as Mapbox GL native). The type is defined in `src/types/geo.ts` along with `isValidCoordinate` and `assertCoordinate`. Conversion to/from any other shape happens through named converters in `src/utils/coordConverters.ts` — never inline.
+
+### Practical implications
+
+- **Mapbox GL** is canonical natively. The one wrinkle is DOM events (`event.lngLat`) which arrive as `{lng, lat}` objects — use `mapboxEventToCanonical()` at the handler. Today, `useRouteManipulation.addWaypoint()` and `updateWaypointPosition()` accept Mapbox-style `{lng, lat}` and convert internally; that boundary is documented but call-site conversion via `mapboxEventToCanonical` is preferred in new code.
+- **Stadia Maps / Valhalla** uses `{lat, lon}` in request bodies — `canonicalToValhalla()` / `valhallaToCanonical()` are the boundary. Polyline response geometry is decoded into canonical arrays.
+- **BRouter** uses `lon,lat|lon,lat|…` query strings — `canonicalToBRouter()`. Response geometry is GeoJSON (canonical).
+- **Open-Elevation** uses `{latitude, longitude}` — `canonicalToOpenElevation()` / `openElevationToCanonical()`.
+- **OpenTopoData** (via our `/api/elevation` proxy) takes canonical arrays in the request but returns per-result `{lat, lon, elevation}` — `openTopoToCanonical()`.
+- **Activity imports** (Strava polyline decode, FIT records, GPX track points) use per-point `{latitude, longitude}` objects. **These parsers are intentionally left emitting their existing shapes** to avoid breaking the import pipeline (Strava webhook, Garmin webhook, FIT upload, GPX upload). Consumers convert via `activityPointToCanonical()` / `activityPointsToCanonical()` at the seam where imported data hands off to internal analysis.
+- **`routes.start_*` / `routes.end_*` scalar columns** are read via `routeRowStartToCanonical()` / `routeRowEndToCanonical()` for new readers. Existing readers continue to do their own field extraction; the helper is preferred in new code.
+- **The waypoint shape** is `{ id, position: Coordinate, type, name }` — `position` was already canonical pre-T1.2, just untyped. No data migration is needed for waypoint state in localStorage.
+- **`routes.waypoints` JSONB shape** is not modified by T1.2 — see `scripts/audit-route-waypoints-shape.js`, a dry-run report script. The manual save path doesn't write that column; AI/legacy rows may carry various shapes. Run the audit script before deciding whether a transform script is worth writing.
+
+### Runtime assertions
+
+`assertCoordinate(value, fieldName)` from `src/types/geo.ts` fires `console.warn` in dev when a value isn't a plausible `[lng, lat]` or looks reversed for the US region. Call it at any new boundary where a coordinate enters internal code (router waypoint lists, persisted state hydration, geometry assembled from DB rows).
+
+### When you see `{lat, lng}` / `{lat, lon}` / `{latitude, longitude}` in `src/`
+
+It is either (a) a boundary that needs a converter from `coordConverters.ts`, or (b) an internal shape that should be `Coordinate`. The five private `normalizeStartLocation`-style helpers in `aiRouteGenerator.js`, `claudeRouteService.js`, `enhancedContext.js`, `iterativeRouteBuilder.js`, and `rideAnalysis.js` are unchanged in T1.2 to keep the diff small; new code should call `looseToCanonical()` from `coordConverters.ts` instead.
+
+### Out of scope (do not "fix" opportunistically)
+
+- `react-map-gl` viewport state (`{latitude, longitude, zoom}`) is the library's native shape.
+- `activities.stream_data` JSONB column shape (Strava/Garmin imports) is preserved per the activity-import safety rule.
+- `routes.start_latitude/start_longitude/end_latitude/end_longitude` columns stay scalar (rename is out of scope per the migration freeze policy).
+
 ## Code Conventions
 
 ### File Organization
