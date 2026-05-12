@@ -271,6 +271,30 @@ export const useRouteBuilderStore = create(
             }
           }
 
+          // T1.2 coordinate format contract: normalize any waypoint
+          // whose .position is missing or stored as a {lng,lat}/{lon,lat}
+          // object back to the canonical [lng, lat] tuple. The current
+          // writer (`useRouteManipulation`) already produces tuples, so
+          // this is purely defensive for users with very old persisted
+          // state.
+          if (Array.isArray(state.waypoints)) {
+            state.waypoints = state.waypoints
+              .map((wp) => {
+                if (!wp) return null;
+                if (Array.isArray(wp.position) && wp.position.length === 2) {
+                  return wp; // canonical
+                }
+                const lng = wp.position?.lng ?? wp.lng ?? wp.lon ?? wp.longitude;
+                const lat = wp.position?.lat ?? wp.lat ?? wp.latitude;
+                if (typeof lng === 'number' && typeof lat === 'number') {
+                  return { ...wp, position: [lng, lat] };
+                }
+                console.warn('[coord-migrate] dropping malformed waypoint:', wp);
+                return null;
+              })
+              .filter(Boolean);
+          }
+
           // Optional: Check if state is too old (e.g., > 24 hours)
           const ONE_DAY = 24 * 60 * 60 * 1000;
           if (state.lastSaved && Date.now() - state.lastSaved > ONE_DAY) {

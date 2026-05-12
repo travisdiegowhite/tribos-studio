@@ -7,6 +7,8 @@
  */
 
 import { fetchBikeInfrastructure, INFRASTRUCTURE_TYPES } from './bikeInfrastructureService';
+import { canonicalToValhalla } from './coordConverters';
+import { assertCoordinate } from '../types/geo';
 
 const STADIA_MAPS_API_URL = 'https://api.stadiamaps.com/route/v1';
 
@@ -193,6 +195,9 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     throw new Error('At least 2 waypoints required for routing');
   }
 
+  // Boundary assertion: callers must pass canonical [lng, lat] tuples
+  waypoints.forEach((c, i) => assertCoordinate(c, `stadiaMaps.waypoints[${i}]`));
+
   console.log(`🗺️ Stadia Maps: Generating ${profile} route with ${waypoints.length} waypoints`);
 
   // Get base costing options for profile
@@ -282,12 +287,11 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     }
   }
 
-  // Convert waypoints to Stadia Maps format
-  // Use "break" type to force routing through each waypoint
-  const locations = waypoints.map(([lon, lat]) => ({
-    lat: lat,
-    lon: lon,
-    type: 'break' // Force route to pass through this point (not just use as hint)
+  // Convert waypoints to Stadia Maps format via the canonical boundary
+  // converter. Use "break" type to force routing through each waypoint.
+  const locations = waypoints.map((c) => ({
+    ...canonicalToValhalla(c),
+    type: 'break',
   }));
 
   // Build request — include directions_type to get maneuver data for analysis

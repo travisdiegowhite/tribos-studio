@@ -24,16 +24,27 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * Find the nearest point on a route to a clicked location
+ * Find the nearest point on a route to a clicked location.
  *
- * @param {Array} coordinates - Route coordinates [[lon, lat], ...]
- * @param {Object} clickLocation - {lng, lat} of the click
- * @returns {Object} - { index, distance, point }
+ * @param {Array<[number, number]>} coordinates - Route coordinates [[lng, lat], …]
+ * @param {[number, number] | { lng: number; lat: number }} clickLocation
+ *   The click position. Canonical `[lng, lat]` is preferred. A Mapbox-style
+ *   `{lng, lat}` object is accepted for backwards compatibility — call
+ *   `mapboxEventToCanonical` at the event handler instead in new code.
+ * @returns {Object|null} - { index, distance, point }
  */
 export function findNearestPointOnRoute(coordinates, clickLocation) {
   if (!coordinates || coordinates.length === 0) {
     return null;
   }
+
+  // Accept both canonical arrays and legacy {lng, lat} objects
+  const clickLng = Array.isArray(clickLocation)
+    ? clickLocation[0]
+    : clickLocation.lng;
+  const clickLat = Array.isArray(clickLocation)
+    ? clickLocation[1]
+    : clickLocation.lat;
 
   let nearestIndex = 0;
   let nearestDistance = Infinity;
@@ -41,10 +52,7 @@ export function findNearestPointOnRoute(coordinates, clickLocation) {
 
   for (let i = 0; i < coordinates.length; i++) {
     const [lon, lat] = coordinates[i];
-    const dist = haversineDistance(
-      clickLocation.lat, clickLocation.lng,
-      lat, lon
-    );
+    const dist = haversineDistance(clickLat, clickLng, lat, lon);
 
     if (dist < nearestDistance) {
       nearestDistance = dist;
@@ -56,15 +64,16 @@ export function findNearestPointOnRoute(coordinates, clickLocation) {
   return {
     index: nearestIndex,
     distance: nearestDistance,
-    point: nearestPoint
+    point: nearestPoint,
   };
 }
 
 /**
- * Detect if a click is close enough to the route to be considered a "route click"
+ * Detect if a click is close enough to the route to be considered a "route click".
  *
- * @param {Array} coordinates - Route coordinates
- * @param {Object} clickLocation - {lng, lat}
+ * @param {Array<[number, number]>} coordinates - Route coordinates [[lng, lat], …]
+ * @param {[number, number] | { lng: number; lat: number }} clickLocation
+ *   Canonical `[lng, lat]` or Mapbox `{lng, lat}` (see findNearestPointOnRoute).
  * @param {number} threshold - Maximum distance in meters (default 50m)
  * @returns {Object|null} - Nearest point info if within threshold, null otherwise
  */
