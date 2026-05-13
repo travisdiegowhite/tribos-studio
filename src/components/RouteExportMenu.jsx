@@ -11,6 +11,7 @@ import { notifications } from '@mantine/notifications';
 import { exportAndDownloadRoute } from '../utils/routeExport';
 import { garminService } from '../utils/garminService';
 import { trackFeature, EventType } from '../utils/activityTracking';
+import { trackRouteBuilder } from '../utils/routeBuilderTelemetry';
 import { CaretDown, Check, CloudArrowUp, DownloadSimple, File, FileArrowUp, Path, Watch } from '@phosphor-icons/react';
 
 /**
@@ -87,6 +88,13 @@ export function RouteExportMenu({
       trackFeature(EventType.ROUTE_EXPORT, {
         format: format,
         routeName: getRouteData().name
+      });
+
+      const data = getRouteData();
+      trackRouteBuilder('route_exported', {
+        route_id: route?.id ?? null,
+        format,
+        distance_km: data.distanceKm ?? null,
       });
 
       notifications.show({

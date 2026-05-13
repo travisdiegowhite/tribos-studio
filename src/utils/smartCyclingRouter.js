@@ -8,6 +8,7 @@
 
 import { getStadiaMapsRoute, isStadiaMapsAvailable } from './stadiaMapsRouter';
 import { getBRouterDirections, selectBRouterProfile, BROUTER_PROFILES } from './brouter';
+import { trackRouteBuilder, truncateErrorMessage } from './routeBuilderTelemetry';
 
 /**
  * Get the best cycling route using multiple routing services
@@ -61,6 +62,11 @@ export async function getSmartCyclingRoute(waypoints, options = {}) {
       };
     } else {
       console.warn('⚠️ BRouter routing failed, falling back to Stadia Maps');
+      trackRouteBuilder('provider_fallback_chain_advanced', {
+        from_provider: 'brouter',
+        to_provider: 'stadia',
+        failure_reason: 'brouter_no_route',
+      });
     }
 
     // Strategy 2: Fall back to Stadia Maps for gravel
@@ -109,6 +115,11 @@ export async function getSmartCyclingRoute(waypoints, options = {}) {
         };
       } else {
         console.warn('⚠️ Stadia Maps routing failed, falling back to BRouter');
+        trackRouteBuilder('provider_fallback_chain_advanced', {
+          from_provider: 'stadia',
+          to_provider: 'brouter',
+          failure_reason: 'stadia_no_route',
+        });
       }
     }
 
@@ -137,6 +148,11 @@ export async function getSmartCyclingRoute(waypoints, options = {}) {
   // Strategy 3: Try Mapbox as final fallback (for any profile)
   if (mapboxToken) {
     console.log('🔄 Falling back to Mapbox with cycling profile...');
+    trackRouteBuilder('provider_fallback_chain_advanced', {
+      from_provider: isGravelOrMTB ? 'stadia' : 'brouter',
+      to_provider: 'mapbox',
+      failure_reason: 'primary_and_secondary_failed',
+    });
     const mapboxResult = await tryMapboxRouting(waypoints, {
       preferences,
       trainingGoal,
@@ -162,6 +178,12 @@ export async function getSmartCyclingRoute(waypoints, options = {}) {
  */
 async function tryStadiaMapsRouting(waypoints, options) {
   const { profile, preferences, trainingGoal, userSpeed } = options;
+  const startMs = Date.now();
+  trackRouteBuilder('generation_routing_called', {
+    provider: 'stadia',
+    profile,
+    waypoint_count: waypoints?.length ?? 0,
+  });
 
   try {
     console.log(`🗺️ Trying Stadia Maps with profile: ${profile}`);
@@ -174,6 +196,10 @@ async function tryStadiaMapsRouting(waypoints, options) {
     });
 
     if (result && result.coordinates && result.coordinates.length > 0) {
+      trackRouteBuilder('generation_routing_succeeded', {
+        provider: 'stadia',
+        duration_ms: Date.now() - startMs,
+      });
       // T1.1: emit canonical suffixed fields. `distance` / `duration` are
       // kept as transitional aliases for callers that haven't migrated.
       const distance_m = result.distance_m ?? result.distance;
@@ -197,9 +223,19 @@ async function tryStadiaMapsRouting(waypoints, options) {
       };
     }
 
+    trackRouteBuilder('generation_routing_failed', {
+      provider: 'stadia',
+      duration_ms: Date.now() - startMs,
+      failure_reason: 'empty_or_no_coordinates',
+    });
     return null;
   } catch (error) {
     console.warn('Stadia Maps routing failed:', error);
+    trackRouteBuilder('generation_routing_failed', {
+      provider: 'stadia',
+      duration_ms: Date.now() - startMs,
+      failure_reason: truncateErrorMessage(error?.message ?? String(error)),
+    });
     return null;
   }
 }
@@ -209,11 +245,15 @@ async function tryStadiaMapsRouting(waypoints, options) {
  */
 async function tryBRouterRouting(waypoints, options) {
   const { profile, preferences, trainingGoal } = options;
+  const brouterProfile = profile || selectBRouterProfile(trainingGoal, preferences?.surfaceType);
+  const startMs = Date.now();
+  trackRouteBuilder('generation_routing_called', {
+    provider: 'brouter',
+    profile: brouterProfile,
+    waypoint_count: waypoints?.length ?? 0,
+  });
 
   try {
-    // Select BRouter profile (gravel, trekking, mtb, etc.)
-    const brouterProfile = profile || selectBRouterProfile(trainingGoal, preferences?.surfaceType);
-
     console.log(`🚴 Trying BRouter with profile: ${brouterProfile}`);
 
     const result = await getBRouterDirections(waypoints, {
@@ -221,6 +261,10 @@ async function tryBRouterRouting(waypoints, options) {
     });
 
     if (result && result.coordinates && result.coordinates.length > 0) {
+      trackRouteBuilder('generation_routing_succeeded', {
+        provider: 'brouter',
+        duration_ms: Date.now() - startMs,
+      });
       const distance_m = result.distance_m ?? result.distance;
       const duration_s = result.duration_s ?? result.duration;
       return {
@@ -237,9 +281,19 @@ async function tryBRouterRouting(waypoints, options) {
       };
     }
 
+    trackRouteBuilder('generation_routing_failed', {
+      provider: 'brouter',
+      duration_ms: Date.now() - startMs,
+      failure_reason: 'empty_or_no_coordinates',
+    });
     return null;
   } catch (error) {
     console.warn('BRouter routing failed:', error);
+    trackRouteBuilder('generation_routing_failed', {
+      provider: 'brouter',
+      duration_ms: Date.now() - startMs,
+      failure_reason: truncateErrorMessage(error?.message ?? String(error)),
+    });
     return null;
   }
 }
@@ -249,6 +303,12 @@ async function tryBRouterRouting(waypoints, options) {
  */
 async function tryMapboxRouting(waypoints, options) {
   const { preferences, trainingGoal, mapboxToken } = options;
+  const startMs = Date.now();
+  trackRouteBuilder('generation_routing_called', {
+    provider: 'mapbox',
+    profile: 'cycling',
+    waypoint_count: waypoints?.length ?? 0,
+  });
 
   try {
     console.log('🗺️ Trying Mapbox Directions API...');
@@ -263,6 +323,11 @@ async function tryMapboxRouting(waypoints, options) {
 
     if (!response.ok) {
       console.error('Mapbox API error:', response.status);
+      trackRouteBuilder('generation_routing_failed', {
+        provider: 'mapbox',
+        duration_ms: Date.now() - startMs,
+        failure_reason: `http_${response.status}`,
+      });
       return null;
     }
 
@@ -270,11 +335,20 @@ async function tryMapboxRouting(waypoints, options) {
 
     if (!data.routes || data.routes.length === 0) {
       console.warn('No routes from Mapbox');
+      trackRouteBuilder('generation_routing_failed', {
+        provider: 'mapbox',
+        duration_ms: Date.now() - startMs,
+        failure_reason: 'empty_routes',
+      });
       return null;
     }
 
     const route = data.routes[0];
 
+    trackRouteBuilder('generation_routing_succeeded', {
+      provider: 'mapbox',
+      duration_ms: Date.now() - startMs,
+    });
     return {
       coordinates: route.geometry.coordinates,
       distance_m: route.distance,
@@ -290,6 +364,11 @@ async function tryMapboxRouting(waypoints, options) {
 
   } catch (error) {
     console.warn('Mapbox routing failed:', error);
+    trackRouteBuilder('generation_routing_failed', {
+      provider: 'mapbox',
+      duration_ms: Date.now() - startMs,
+      failure_reason: truncateErrorMessage(error?.message ?? String(error)),
+    });
     return null;
   }
 }
