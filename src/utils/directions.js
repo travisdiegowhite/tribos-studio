@@ -7,7 +7,11 @@
 //   canonical fields, and keeps `distance` / `duration` as legacy aliases
 //   for callers that haven't migrated.
 
-import { haversineKm, haversineMeters } from './distanceUnits';
+import { haversineMeters } from './distanceUnits';
+import {
+  canonicalToOpenElevation,
+  openElevationToCanonical,
+} from './coordConverters';
 
 // Map Matching API with intelligent radius fallback for better route snapping
 export async function mapMatchRoute(waypoints, accessToken, options = {}) {
@@ -115,11 +119,9 @@ export async function fetchElevationProfile(coordinates, accessToken) {
     
     // Option 1: Try Open-Elevation API (free, no key required)
     try {
-      const locations = sampledCoords.map(([lon, lat]) => ({
-        latitude: lat,
-        longitude: lon
-      }));
-      
+      // Route through the canonical Open-Elevation boundary converter
+      const locations = sampledCoords.map(canonicalToOpenElevation);
+
       // Open-Elevation API accepts up to 100 points per request
       const response = await fetch('https://api.open-elevation.com/api/v1/lookup', {
         method: 'POST',
@@ -128,16 +130,19 @@ export async function fetchElevationProfile(coordinates, accessToken) {
         },
         body: JSON.stringify({ locations }),
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         if (data.results && data.results.length > 0) {
           console.log('✅ Got real elevation data from Open-Elevation API');
-          elevationData = data.results.map((result, index) => ({
-            coordinate: [result.longitude, result.latitude],
-            elevation: Math.round(result.elevation),
-            distance: Math.round((index / (sampledCoords.length - 1)) * totalDistance)
-          }));
+          elevationData = data.results.map((result, index) => {
+            const { coordinate, elevation } = openElevationToCanonical(result);
+            return {
+              coordinate,
+              elevation: Math.round(elevation),
+              distance: Math.round((index / (sampledCoords.length - 1)) * totalDistance),
+            };
+          });
           return elevationData;
         }
       }
@@ -208,30 +213,19 @@ export async function fetchElevationProfile(coordinates, accessToken) {
 }
 
 /**
- * Calculate total distance of a route from coordinates
+ * Calculate total distance of a route from canonical [lng, lat] coordinates.
+ * Returns METERS.
  */
 function calculateRouteDistance(coordinates) {
   if (!coordinates || coordinates.length < 2) return 0;
-  
-  let totalDistance = 0;
+
+  let totalMeters = 0;
   for (let i = 1; i < coordinates.length; i++) {
     const [lon1, lat1] = coordinates[i - 1];
     const [lon2, lat2] = coordinates[i];
-    totalDistance += calculateDistance([lat1, lon1], [lat2, lon2]);
+    totalMeters += haversineMeters(lat1, lon1, lat2, lon2);
   }
-  
-  return totalDistance * 1000; // Convert to meters
-}
-
-/**
- * Calculate distance between two points using Haversine formula.
- *
- * Returns KILOMETERS to preserve historical behaviour of this helper —
- * callers in this file multiply by 1000 to get meters when they need it.
- * Backed by the canonical implementation in src/utils/distanceUnits.ts.
- */
-function calculateDistance([lat1, lon1], [lat2, lon2]) {
-  return haversineKm(lat1, lon1, lat2, lon2);
+  return totalMeters;
 }
 
 /**

@@ -4,6 +4,8 @@
  * Public instance: http://brouter.de/brouter
  */
 
+import { canonicalToBRouter } from './coordConverters';
+
 // BRouter profiles for different cycling types
 export const BROUTER_PROFILES = {
   GRAVEL: 'gravel',              // Prioritizes unpaved roads, gravel, dirt
@@ -31,8 +33,8 @@ export async function getBRouterDirections(coordinates, options = {}) {
   }
 
   try {
-    // Format coordinates as lon,lat|lon,lat|...
-    const lonlats = coordinates.map(coord => `${coord[0]},${coord[1]}`).join('|');
+    // Format coordinates as lon,lat|lon,lat|... via the canonical boundary converter
+    const lonlats = canonicalToBRouter(coordinates);
 
     // Build BRouter API URL
     const params = new URLSearchParams({

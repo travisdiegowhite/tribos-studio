@@ -7,8 +7,16 @@
 import type { WorkoutCategory } from '../types/training';
 import { haversineKm } from './distanceUnits';
 
-// Types for route analysis
-export interface Coordinate {
+// Types for route analysis.
+// NOTE: This per-point shape is intentionally NOT the canonical
+// `Coordinate` from `src/types/geo.ts` — it carries elevation and
+// cumulative distance alongside lng/lat for the analyzer's internal
+// pipeline. The polyline decoder below returns `PolylinePoint[]` so its
+// emitted shape (objects, not [lng, lat] arrays) is preserved for
+// existing callers, including the latent bug at
+// `RouteBuilder.jsx:588-599` which destructures as if it were canonical
+// — fixing that is out of scope for T1.2 per the activity-import safety rule.
+export interface PolylinePoint {
   lng: number;
   lat: number;
   elevation?: number;
@@ -88,10 +96,10 @@ const IDEAL_INTERVAL_LENGTH = 3.0;     // km ideal for threshold intervals
 /**
  * Decode a Google-encoded polyline string to coordinates
  */
-export function decodePolyline(encoded: string): Coordinate[] {
+export function decodePolyline(encoded: string): PolylinePoint[] {
   if (!encoded) return [];
 
-  const coords: Coordinate[] = [];
+  const coords: PolylinePoint[] = [];
   let index = 0;
   let lat = 0;
   let lng = 0;
@@ -137,7 +145,7 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 /**
  * Calculate cumulative distances for coordinates
  */
-function addCumulativeDistances(coords: Coordinate[]): Coordinate[] {
+function addCumulativeDistances(coords: PolylinePoint[]): PolylinePoint[] {
   if (coords.length === 0) return coords;
 
   let cumulative = 0;
@@ -159,7 +167,7 @@ function addCumulativeDistances(coords: Coordinate[]): Coordinate[] {
  * Estimate elevation profile from coordinates using SRTM-like approximation
  * In production, this would use actual elevation data from the activity
  */
-function estimateElevation(coords: Coordinate[], totalElevationGain?: number): Coordinate[] {
+function estimateElevation(coords: PolylinePoint[], totalElevationGain?: number): PolylinePoint[] {
   // If we have actual elevation data, use it
   if (coords.some(c => c.elevation !== undefined)) {
     return coords;
@@ -174,7 +182,7 @@ function estimateElevation(coords: Coordinate[], totalElevationGain?: number): C
  * Identify segments of consistent terrain type
  */
 function identifySegments(
-  coords: Coordinate[],
+  coords: PolylinePoint[],
   totalElevationGain: number = 0,
   totalDistance: number = 0
 ): {
@@ -252,7 +260,7 @@ function identifySegments(
  * - Relatively straight (no sharp turns that would require braking)
  */
 function identifyIntervalSegments(
-  coords: Coordinate[],
+  coords: PolylinePoint[],
   flatSegments: RouteSegment[],
   rollingSegments: RouteSegment[]
 ): IntervalSegment[] {

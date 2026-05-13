@@ -18,6 +18,14 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { stravaService } from '../utils/stravaService';
 import { saveRoute, getRoute } from '../utils/routesService';
 import { trackFeature, EventType } from '../utils/activityTracking';
+import {
+  trackRouteBuilder,
+  startGenerationId,
+  getCurrentGenerationId,
+  getCurrentGenerationStartedAt,
+  clearGenerationId,
+  truncateErrorMessage,
+} from '../utils/routeBuilderTelemetry';
 import FloatingRouteSettings, { RouteSettingsButton } from '../components/FloatingRouteSettings.jsx';
 import IntervalCues from '../components/IntervalCues.jsx';
 import ElevationProfile from '../components/ElevationProfile.jsx';
@@ -151,7 +159,47 @@ function RouteBuilder() {
   const [isCalculating, setIsCalculating] = useState(false);
   const mapRef = useRef();
   const viewportRef = useRef(viewport); // Track latest viewport without triggering re-renders
+  // T1.4 — current pipeline stage for `generation_abandoned.stage`.
+  // 'idle' | 'context' | 'claude' | 'routing' | 'analysis' | 'completed' | 'failed'
+  const generationStageRef = useRef('idle');
   const isEditing = !!routeId;
+
+  // T1.4 — fire `generation_abandoned` if the user navigates away or
+  // hides the tab while a generation is still in flight. Using
+  // `send_instantly` via the helper's `immediate: true` so the event
+  // reaches PostHog before the tab actually closes.
+  useEffect(() => {
+    const maybeAbandon = () => {
+      const inFlightId = getCurrentGenerationId();
+      const inFlightStart = getCurrentGenerationStartedAt();
+      const stage = generationStageRef.current;
+      if (!inFlightId || !inFlightStart) return;
+      if (stage === 'completed' || stage === 'failed' || stage === 'idle') return;
+      trackRouteBuilder(
+        'generation_abandoned',
+        {
+          generation_id: inFlightId,
+          elapsed_ms: Date.now() - inFlightStart,
+          stage,
+          reason: document.visibilityState === 'hidden' ? 'visibility_hidden' : 'unmount',
+        },
+        { immediate: true },
+      );
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') maybeAbandon();
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', maybeAbandon);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', maybeAbandon);
+      // Unmount counts as abandonment if a generation is still active.
+      maybeAbandon();
+    };
+  }, []);
 
   // AI Route Generation transient state
   const [generatingAI, setGeneratingAI] = useState(false);
@@ -300,6 +348,24 @@ function RouteBuilder() {
   const [aiEditLoading, setAiEditLoading] = useState(false);
   const [aiEditResult, setAiEditResult] = useState(null);
   const [aiEditPrevGeometry, setAiEditPrevGeometry] = useState(null);
+
+  // T1.4 — toggle wrapper so `route_edit_started` fires once per
+  // open. Used by every UI surface that flips `aiEditMode`.
+  const toggleAiEditMode = useCallback(() => {
+    setAiEditMode((prev) => {
+      const next = !prev;
+      if (next) {
+        trackRouteBuilder('route_edit_started', {
+          route_id: savedRouteId ?? null,
+          edit_mode: 'ai',
+        });
+      } else {
+        setAiEditResult(null);
+        setAiEditPrevGeometry(null);
+      }
+      return next;
+    });
+  }, [savedRouteId]);
 
   // Run Reach — road network reachability visualization
   const [showRunReach, setShowRunReach] = useState(false);
@@ -738,6 +804,19 @@ function RouteBuilder() {
           setAiSuggestions([]);
           setRoutingSource(route.generated_by || null);
 
+          // T1.4 — emit route_opened with days-since-creation.
+          const createdAt = route.created_at ? new Date(route.created_at).getTime() : null;
+          const timeSinceCreationDays =
+            createdAt && !Number.isNaN(createdAt)
+              ? Math.max(0, Math.floor((Date.now() - createdAt) / 86_400_000))
+              : null;
+          trackRouteBuilder('route_opened', {
+            route_id: route.id,
+            time_since_creation_days: timeSinceCreationDays,
+            builder_mode: 'editing',
+            source: 'route_builder_page',
+          });
+
           // Coerce database values to ensure correct types (Supabase NUMERIC can return strings).
           // DB column is estimated_duration_minutes; convert to seconds to match
           // the canonical store contract (`duration_s`).
@@ -1120,6 +1199,13 @@ function RouteBuilder() {
         setWaypoints(newWaypoints);
         calculateRoute(newWaypoints);
         console.log(`📌 Inserted waypoint between index ${insertAfter} and ${insertAfter + 1}`);
+        trackRouteBuilder('route_edit_applied', {
+          route_id: savedRouteId ?? null,
+          edit_mode: 'manual',
+          edit_type: 'add_waypoint',
+          distance_km: routeStats?.distance_km ?? null,
+          elevation_gain_m: routeStats?.elevation_gain_m ?? null,
+        });
         return;
       }
     }
@@ -1142,7 +1228,16 @@ function RouteBuilder() {
     newWaypoints.push(newWaypoint);
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
-  }, [waypoints, calculateRoute, editMode, routeGeometry, builderMode, settingRunReachOrigin]);
+    if (newWaypoints.length > 1) {
+      trackRouteBuilder('route_edit_applied', {
+        route_id: savedRouteId ?? null,
+        edit_mode: 'manual',
+        edit_type: 'add_waypoint',
+        distance_km: routeStats?.distance_km ?? null,
+        elevation_gain_m: routeStats?.elevation_gain_m ?? null,
+      });
+    }
+  }, [waypoints, calculateRoute, editMode, routeGeometry, builderMode, settingRunReachOrigin, savedRouteId, routeStats]);
 
   // Remove waypoint (suppressed during drag)
   const removeWaypoint = useCallback((id) => {
@@ -1150,7 +1245,14 @@ function RouteBuilder() {
     const newWaypoints = waypoints.filter(w => w.id !== id);
     setWaypoints(newWaypoints);
     calculateRoute(newWaypoints);
-  }, [waypoints, calculateRoute]);
+    trackRouteBuilder('route_edit_applied', {
+      route_id: savedRouteId ?? null,
+      edit_mode: 'manual',
+      edit_type: 'remove_waypoint',
+      distance_km: routeStats?.distance_km ?? null,
+      elevation_gain_m: routeStats?.elevation_gain_m ?? null,
+    });
+  }, [waypoints, calculateRoute, savedRouteId, routeStats]);
 
   // Reorder waypoints — swap fromIndex ↔ toIndex, re-type start/end, recalculate
   const reorderWaypoints = useCallback((fromIndex, toIndex) => {
@@ -1180,9 +1282,16 @@ function RouteBuilder() {
     const { lng, lat } = event.lngLat;
     const updated = updateWaypointPosition(waypointId, { lng, lat });
     calculateRoute(updated);
+    trackRouteBuilder('route_edit_applied', {
+      route_id: savedRouteId ?? null,
+      edit_mode: 'manual',
+      edit_type: 'drag_waypoint',
+      distance_km: routeStats?.distance_km ?? null,
+      elevation_gain_m: routeStats?.elevation_gain_m ?? null,
+    });
     // Clear drag flag after a short delay so the click event is suppressed
     setTimeout(() => { waypointDragRef.current = false; }, 100);
-  }, [updateWaypointPosition, calculateRoute]);
+  }, [updateWaypointPosition, calculateRoute, savedRouteId, routeStats]);
 
   // Map → Elevation chart hover sync: when mouse moves near the route on the map,
   // compute the distance along the route and pass it to ElevationProfile as highlightDistance.
@@ -1225,11 +1334,17 @@ function RouteBuilder() {
   const handleTogglePOICategory = useCallback((catId) => {
     setPOICategories(prev => {
       const next = new Set(prev);
+      const shown = !next.has(catId);
       if (next.has(catId)) next.delete(catId);
       else next.add(catId);
+      trackRouteBuilder('poi_layer_toggled', {
+        route_id: savedRouteId ?? null,
+        layer: catId,
+        state: shown ? 'shown' : 'hidden',
+      });
       return next;
     });
-  }, []);
+  }, [savedRouteId]);
 
   // POI selection — pan map to selected POI
   const handleSelectPOI = useCallback((poi) => {
@@ -1291,6 +1406,16 @@ function RouteBuilder() {
     const wp1 = altWaypoints[segIdx];
     const wp2 = altWaypoints[segIdx + 1];
     if (!wp1 || !wp2) { setAltLoading(false); return; }
+
+    // T1.4 — record that the user explored alternatives for this
+    // segment. `segment_position_km` is approximated by cumulative
+    // distance to wp1; without that index we report null rather than
+    // recompute here.
+    trackRouteBuilder('segment_alternative_explored', {
+      route_id: savedRouteId ?? null,
+      segment_index: segIdx,
+      segment_position_km: null,
+    });
 
     try {
       const alts = await generateSegmentAlternatives(
@@ -1365,6 +1490,10 @@ function RouteBuilder() {
     setAiEditResult(null);
     setAiEditPrevGeometry(routeGeometry);
 
+    const editStartMs = Date.now();
+    const prevDistanceKm = routeStats?.distance_km ?? 0;
+    const prevElevationM = routeStats?.elevation_gain_m ?? 0;
+
     try {
       const result = await applyRouteEdit({
         routeGeometry,
@@ -1375,6 +1504,16 @@ function RouteBuilder() {
       });
 
       setAiEditResult(result);
+
+      if (!result.success) {
+        // T1.4 — failed edit (router rejected, intent unclear, etc.)
+        trackRouteBuilder('route_edit_failed', {
+          route_id: savedRouteId ?? null,
+          edit_mode: 'ai',
+          edit_type: 'ai_chat_message',
+          failure_reason: truncateErrorMessage(result?.message ?? 'unknown'),
+        });
+      }
 
       if (result.success && result.editedRoute?.coordinates) {
         // Preview: apply the edit so user can see it on the map
@@ -1406,13 +1545,29 @@ function RouteBuilder() {
       }
     } catch (err) {
       setAiEditResult({ success: false, message: `Edit failed: ${err.message}` });
+      trackRouteBuilder('route_edit_failed', {
+        route_id: savedRouteId ?? null,
+        edit_mode: 'ai',
+        edit_type: 'ai_chat_message',
+        failure_reason: truncateErrorMessage(err?.message ?? String(err)),
+      });
     } finally {
       setAiEditLoading(false);
     }
-  }, [routeGeometry, routeProfile, routeStats, setRouteGeometry]);
+  }, [routeGeometry, routeProfile, routeStats, setRouteGeometry, savedRouteId]);
 
   const handleAIEditAccept = useCallback(() => {
     // Commit the edit: clear preview state, keep the new geometry
+    // T1.4 — `route_edit_applied` fires when the user accepts the AI's
+    // proposed edit. Distance/elevation deltas use canonical units; the
+    // store has already been updated by the preview path.
+    trackRouteBuilder('route_edit_applied', {
+      route_id: savedRouteId ?? null,
+      edit_mode: 'ai',
+      edit_type: 'ai_chat_message',
+      distance_km: routeStats?.distance_km ?? null,
+      elevation_gain_m: routeStats?.elevation_gain_m ?? null,
+    });
     setAiEditResult(null);
     setAiEditPrevGeometry(null);
     notifications.show({
@@ -1421,7 +1576,7 @@ function RouteBuilder() {
       color: 'terracotta',
       autoClose: 3000,
     });
-  }, []);
+  }, [savedRouteId, routeStats]);
 
   const handleAIEditReject = useCallback(() => {
     // Revert to previous geometry
@@ -1581,6 +1736,24 @@ function RouteBuilder() {
         isUpdate: !!savedRouteId
       });
 
+      // T1.4 — funnel-aligned PostHog event. The Supabase trackFeature
+      // event above stays for historical continuity; this one carries
+      // the generation_id link and uses canonical `_km`/`_m` suffixes.
+      const generatedById = aiSuggestions.length > 0 ? 'ai' : 'manual';
+      const fallbackSuggestion = aiSuggestions.find((r) => r?.isFallback);
+      const genStartedAt = getCurrentGenerationStartedAt();
+      trackRouteBuilder('route_saved', {
+        route_id: saved.id,
+        is_new: !savedRouteId,
+        distance_km,
+        elevation_gain_m,
+        generated_by: generatedById,
+        was_fallback: Boolean(fallbackSuggestion),
+        time_from_generation_to_save_seconds:
+          genStartedAt ? Math.round((Date.now() - genStartedAt) / 1000) : null,
+        builder_mode: 'editing',
+      });
+
       notifications.show({
         title: 'Route Saved!',
         message: `"${routeName}" has been saved to your routes`,
@@ -1605,6 +1778,35 @@ function RouteBuilder() {
 
   // Clear session / Start new route - resets all state
   const handleClearSession = useCallback(() => {
+    // T1.4 — record discard. `had_edits` is approximated by whether
+    // there is geometry to throw away.
+    const hadGeometry = Boolean(routeGeometry?.coordinates?.length);
+    if (hadGeometry || savedRouteId || aiSuggestions.length > 0) {
+      trackRouteBuilder('route_discarded', {
+        route_id: savedRouteId ?? null,
+        had_edits: hadGeometry,
+        had_ai_suggestions: aiSuggestions.length > 0,
+      });
+    }
+    // If a generation was in flight, mark it abandoned.
+    const inFlightId = getCurrentGenerationId();
+    const inFlightStart = getCurrentGenerationStartedAt();
+    if (
+      inFlightId &&
+      inFlightStart &&
+      generationStageRef.current !== 'completed' &&
+      generationStageRef.current !== 'failed'
+    ) {
+      trackRouteBuilder('generation_abandoned', {
+        generation_id: inFlightId,
+        elapsed_ms: Date.now() - inFlightStart,
+        stage: generationStageRef.current,
+        reason: 'session_cleared',
+      });
+    }
+    clearGenerationId();
+    generationStageRef.current = 'idle';
+
     // Reset all persisted store state
     resetAll();
 
@@ -1624,7 +1826,7 @@ function RouteBuilder() {
       message: 'Ready to create a new route',
       color: 'terracotta'
     });
-  }, [resetAll, routeId, navigate]);
+  }, [resetAll, routeId, navigate, routeGeometry, savedRouteId, aiSuggestions]);
 
   // GPX/TCX import handler
   const handleImportGPX = useCallback(() => {
@@ -1695,6 +1897,41 @@ function RouteBuilder() {
 
   // Generate AI Routes using the comprehensive aiRouteGenerator or iterative builder
   const handleGenerateAIRoutes = useCallback(async () => {
+    // T1.4 — if a previous generation is still mid-flight, the user is
+    // starting a new one over the top of it. Record the in-flight one
+    // as abandoned before we mint a fresh generation_id.
+    const previousId = getCurrentGenerationId();
+    const previousStart = getCurrentGenerationStartedAt();
+    if (previousId && previousStart) {
+      trackRouteBuilder('generation_abandoned', {
+        generation_id: previousId,
+        elapsed_ms: Date.now() - previousStart,
+        stage: generationStageRef.current || 'unknown',
+        reason: 'new_generation_started',
+      });
+    }
+
+    const generationId = startGenerationId();
+    generationStageRef.current = 'context';
+    const generationStartMs = Date.now();
+
+    trackRouteBuilder('generation_started', {
+      generation_id: generationId,
+      training_goal: trainingGoal,
+      time_available_minutes: timeAvailable,
+      route_type: routeType,
+      route_profile: routeProfile,
+      explicit_distance_km: explicitDistanceKm ?? null,
+      start_coord_set: Boolean(
+        viewportRef.current?.latitude && viewportRef.current?.longitude
+      ),
+      race_type: raceType ?? null,
+      race_date: raceDate ?? null,
+      builder_mode: 'ai',
+      source: 'route_builder_page',
+      use_iterative_builder: useIterativeBuilder,
+    });
+
     setGeneratingAI(true);
     setRouteGenStep('analyzing');
     try {
@@ -1722,6 +1959,7 @@ function RouteBuilder() {
         }
 
         setRouteGenStep('generating');
+        generationStageRef.current = 'routing';
         routes = await generateIterativeRouteVariations({
           startLocation: [viewportRef.current.longitude, viewportRef.current.latitude],
           targetDistanceKm,
@@ -1744,6 +1982,7 @@ function RouteBuilder() {
         // 1. Uses Claude for intelligent suggestions
         // 2. Converts suggestions to full GPS routes
         // 3. Falls back to past ride patterns and Mapbox if needed
+        generationStageRef.current = 'claude';
         routes = await generateAIRoutes({
           startLocation: [viewportRef.current.longitude, viewportRef.current.latitude], // [lng, lat] format
           timeAvailable,
@@ -1752,7 +1991,15 @@ function RouteBuilder() {
           userId: user?.id,
           speedProfile,
           speedModifier: 1.0
-        }, (progress) => setRouteGenStep(progress.step));
+        }, (progress) => {
+          setRouteGenStep(progress.step);
+          // Map aiRouteGenerator progress steps to telemetry stages.
+          if (progress.step === 'analyzing') generationStageRef.current = 'context';
+          else if (progress.step === 'generating') generationStageRef.current = 'routing';
+          else if (progress.step === 'scoring' || progress.step === 'optimizing') {
+            generationStageRef.current = 'analysis';
+          }
+        });
       }
 
       // Score routes against user's riding history and rank by composite score
@@ -1789,6 +2036,21 @@ function RouteBuilder() {
 
       // Routes already have full coordinates
       setAiSuggestions(routes);
+
+      // T1.4 — generation_completed. `route_fallback_used` (T1.3) is
+      // still emitted from inside aiRouteGenerator; this event carries
+      // the funnel-aligned signal.
+      const fallbackSuggestion = Array.isArray(routes) && routes.find((r) => r?.isFallback);
+      generationStageRef.current = 'completed';
+      trackRouteBuilder('generation_completed', {
+        generation_id: generationId,
+        total_duration_ms: Date.now() - generationStartMs,
+        suggestions_count: routes.length,
+        fallback_used: Boolean(fallbackSuggestion),
+        fallback_tier: fallbackSuggestion?.fallbackTier ?? null,
+        builder_mode: 'ai',
+      });
+
       notifications.show({
         title: 'Routes Generated!',
         message: `Found ${routes.length} routes for your ${trainingGoal} session${useIterativeBuilder ? ' (iterative)' : ''}`,
@@ -1796,6 +2058,13 @@ function RouteBuilder() {
       });
     } catch (error) {
       console.error('AI route generation error:', error);
+      generationStageRef.current = 'failed';
+      trackRouteBuilder('generation_failed', {
+        generation_id: generationId,
+        total_duration_ms: Date.now() - generationStartMs,
+        failure_kind: 'unhandled_error',
+        error_message: truncateErrorMessage(error?.message ?? String(error)),
+      });
       notifications.show({
         title: 'Generation Failed',
         message: error.message || 'Failed to generate routes. Please try again.',
@@ -1805,7 +2074,7 @@ function RouteBuilder() {
       setGeneratingAI(false);
       setRouteGenStep(null);
     }
-  }, [timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm, accessToken]); // viewport read from viewportRef
+  }, [timeAvailable, trainingGoal, routeType, routeProfile, user, speedProfile, useIterativeBuilder, explicitDistanceKm, accessToken, raceType, raceDate]); // viewport read from viewportRef
 
   // Get user's speed for the current route profile
   const getUserSpeedForProfile = useCallback((profile) => {
@@ -1829,6 +2098,16 @@ function RouteBuilder() {
   const handleSelectAISuggestion = useCallback(async (suggestion, index) => {
     setConvertingRoute(index);
     setRouteName(suggestion.name);
+
+    // T1.4 — record which of the AI suggestions the user picked.
+    trackRouteBuilder('suggestion_selected', {
+      suggestion_index: index,
+      was_fallback: Boolean(suggestion?.isFallback),
+      distance_km: suggestion?.distance_km ?? suggestion?.distance ?? null,
+      elevation_gain_m: suggestion?.elevationGain ?? null,
+      source: suggestion?.source ?? null,
+      builder_mode: 'ai',
+    });
 
     try {
       // Routes from generateAIRoutes already have full coordinates
@@ -2822,6 +3101,29 @@ function RouteBuilder() {
                 }}
               >
                 <Stack gap={6}>
+                  {suggestion.isFallback && (
+                    <Text
+                      size="xs"
+                      fw={600}
+                      role="status"
+                      data-fallback-tier={suggestion.fallbackTier}
+                      style={{
+                        color:
+                          suggestion.fallbackTier === 1
+                            ? 'var(--color-ochre-gold, #C49A0A)'
+                            : suggestion.fallbackTier === 3
+                              ? 'var(--color-coral, #C43C2A)'
+                              : 'var(--color-text-muted)',
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {suggestion.fallbackTier === 1
+                        ? "Based on a route you've ridden before — AI assist will be back soon."
+                        : suggestion.fallbackTier === 3
+                          ? 'Limited connectivity — basic out-and-back. Try again in a moment.'
+                          : 'Generic route while AI is unavailable.'}
+                    </Text>
+                  )}
                   <Group justify="space-between" wrap="nowrap">
                     <Text size="sm" fw={600} lineClamp={1} style={{ flex: 1 }}>
                       {suggestion.name}
@@ -3001,10 +3303,7 @@ function RouteBuilder() {
             color={aiEditMode ? 'terracotta' : 'gray'}
             size="sm"
             fullWidth
-            onClick={() => {
-              setAiEditMode(!aiEditMode);
-              if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
-            }}
+            onClick={toggleAiEditMode}
             leftSection={<MagicWand size={16} />}
           >
             {aiEditMode ? 'Close Smart Edit' : 'Smart Edit Route'}
@@ -3727,10 +4026,7 @@ function RouteBuilder() {
                       variant={aiEditMode ? 'filled' : 'default'}
                       color={aiEditMode ? 'terracotta' : 'dark'}
                       size="md"
-                      onClick={() => {
-                        setAiEditMode(!aiEditMode);
-                        if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
-                      }}
+                      onClick={toggleAiEditMode}
                       style={{
                         padding: '0 12px',
                         flexShrink: 0,
@@ -4844,10 +5140,7 @@ function RouteBuilder() {
                         variant={aiEditMode ? 'filled' : 'light'}
                         color={aiEditMode ? 'terracotta' : 'gray'}
                         size="xs"
-                        onClick={() => {
-                          setAiEditMode(!aiEditMode);
-                          if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
-                        }}
+                        onClick={toggleAiEditMode}
                         leftSection={<MagicWand size={14} />}
                       >
                         {aiEditMode ? 'Close Smart Edit' : 'Smart Edit'}
@@ -5186,10 +5479,7 @@ function RouteBuilder() {
                     variant={aiEditMode ? 'filled' : 'default'}
                     color={aiEditMode ? 'terracotta' : 'dark'}
                     size="md"
-                    onClick={() => {
-                      setAiEditMode(!aiEditMode);
-                      if (aiEditMode) { setAiEditResult(null); setAiEditPrevGeometry(null); }
-                    }}
+                    onClick={toggleAiEditMode}
                     style={{
                       padding: '0 12px',
                       backgroundColor: aiEditMode ? '#3A5A8C' : 'var(--color-bg-secondary)',
