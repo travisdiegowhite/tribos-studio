@@ -154,6 +154,35 @@ export type Mutation =
 export type MutationType = Mutation['type'];
 
 // ---------------------------------------------------------------------------
+// ManualAction taxonomy — UI-driven direct edits (Turn Model Spec §2)
+// ---------------------------------------------------------------------------
+
+/**
+ * The 5 manual actions a user can take in the UI. Each carries a direct
+ * geometric instruction (not intent) and is handled by ManualHandlers
+ * (T2.4), which bypasses ConstraintBuilder and routes through
+ * `RouterClient.connect` directly.
+ */
+export type ManualAction =
+  | 'drag_waypoint'
+  | 'add_waypoint'
+  | 'remove_waypoint'
+  | 'reverse_route'
+  | 'clear_route';
+
+/**
+ * Discriminated payload union for `applyManualAction`. The `action`
+ * discriminator must match the `action` argument passed alongside it;
+ * `applyManualAction` enforces this with a runtime check.
+ */
+export type ManualActionPayload =
+  | { action: 'drag_waypoint'; waypoint_index: number; new_coord: Coordinate }
+  | { action: 'add_waypoint'; coord: Coordinate; insert_at?: number }
+  | { action: 'remove_waypoint'; waypoint_index: number }
+  | { action: 'reverse_route' }
+  | { action: 'clear_route' };
+
+// ---------------------------------------------------------------------------
 // RouteContext — passed alongside every executor call
 // ---------------------------------------------------------------------------
 
