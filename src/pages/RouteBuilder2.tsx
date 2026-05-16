@@ -6,7 +6,7 @@
  * chat floating bottom-right (desktop) or bottom-sheet (mobile).
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import AppShell from '../components/AppShell.jsx';
@@ -71,6 +71,22 @@ export default function RouteBuilder2() {
 
   const [visibility, setVisibility] = useState<LayerVisibilityState>(DEFAULT_VISIBILITY);
   const [errorDismissed, setErrorDismissed] = useState<string | null>(null);
+
+  // Auto-apply the first suggestion when generate() returns. The hook
+  // separates `generate` (writes to aiSuggestions) from `selectSuggestion`
+  // (commits geometry + waypoints to the store) — the harness needs that
+  // split, but the form-panel UI doesn't surface alternatives in P1.3,
+  // so a freshly generated route should land in the live store
+  // immediately. Without this, the route renders only from leftover
+  // persisted state and manual edits fail with `constraint_infeasible`
+  // because waypoints stay empty.
+  const lastAppliedRef = useRef<unknown>(null);
+  useEffect(() => {
+    const first = generation.suggestions[0];
+    if (!first || first === lastAppliedRef.current) return;
+    lastAppliedRef.current = first;
+    generation.selectSuggestion(0);
+  }, [generation]);
 
   // Page mount telemetry
   useEffect(() => {
