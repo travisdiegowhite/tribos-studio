@@ -10,6 +10,7 @@ import { Box, Text, UnstyledButton } from '@mantine/core';
 import { Minus, X, ChatCircle } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { ChatBody } from './ChatBody';
+import type { ChatMessage } from '../chat/types';
 import { trackRb2 } from '../telemetry/trackRb2';
 
 export type ChatPanelState = 'open' | 'minimized' | 'closed';
@@ -17,9 +18,22 @@ export type ChatPanelState = 'open' | 'minimized' | 'closed';
 export interface ChatPanelProps {
   state: ChatPanelState;
   onStateChange: (next: ChatPanelState) => void;
+  messages: ChatMessage[];
+  isProcessing: boolean;
+  exampleHint: readonly string[];
+  showAfterRefuseHint: boolean;
+  onSubmit: (text: string) => void;
 }
 
-export function ChatPanel({ state, onStateChange }: ChatPanelProps) {
+export function ChatPanel({
+  state,
+  onStateChange,
+  messages,
+  isProcessing,
+  exampleHint,
+  showAfterRefuseHint,
+  onSubmit,
+}: ChatPanelProps) {
   if (state === 'closed') {
     return (
       <Box
@@ -171,7 +185,14 @@ export function ChatPanel({ state, onStateChange }: ChatPanelProps) {
           </UnstyledButton>
         </Box>
       </Box>
-      <ChatBody fillHeight />
+      <ChatBody
+        fillHeight
+        messages={messages}
+        isProcessing={isProcessing}
+        exampleHint={exampleHint}
+        showAfterRefuseHint={showAfterRefuseHint}
+        onSubmit={onSubmit}
+      />
     </Box>
   );
 }

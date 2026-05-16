@@ -10,6 +10,7 @@ import { Box, Text, UnstyledButton } from '@mantine/core';
 import { ChatCircle, CaretUp, CaretDown } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { ChatBody } from './ChatBody';
+import type { ChatMessage } from '../chat/types';
 import { trackRb2 } from '../telemetry/trackRb2';
 
 export type ChatDrawerState = 'open' | 'peek';
@@ -17,9 +18,22 @@ export type ChatDrawerState = 'open' | 'peek';
 export interface ChatDrawerProps {
   state: ChatDrawerState;
   onStateChange: (next: ChatDrawerState) => void;
+  messages: ChatMessage[];
+  isProcessing: boolean;
+  exampleHint: readonly string[];
+  showAfterRefuseHint: boolean;
+  onSubmit: (text: string) => void;
 }
 
-export function ChatDrawer({ state, onStateChange }: ChatDrawerProps) {
+export function ChatDrawer({
+  state,
+  onStateChange,
+  messages,
+  isProcessing,
+  exampleHint,
+  showAfterRefuseHint,
+  onSubmit,
+}: ChatDrawerProps) {
   const open = state === 'open';
   return (
     <Box
@@ -77,7 +91,16 @@ export function ChatDrawer({ state, onStateChange }: ChatDrawerProps) {
           <CaretUp size={14} color={RB2.textInverse} />
         )}
       </UnstyledButton>
-      {open && <ChatBody fillHeight />}
+      {open && (
+        <ChatBody
+          fillHeight
+          messages={messages}
+          isProcessing={isProcessing}
+          exampleHint={exampleHint}
+          showAfterRefuseHint={showAfterRefuseHint}
+          onSubmit={onSubmit}
+        />
+      )}
     </Box>
   );
 }

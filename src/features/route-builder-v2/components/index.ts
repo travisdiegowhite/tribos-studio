@@ -1,5 +1,5 @@
 export { Map } from './Map';
-export { FormPanel } from './FormPanel';
+export { FormPanel, type FormPanelHandle } from './FormPanel';
 export { StatsOverlay } from './StatsOverlay';
 export { LayerToggles, type LayerVisibilityState } from './LayerToggles';
 export { WaypointListPanel } from './WaypointListPanel';

@@ -169,10 +169,12 @@ hook's 500ms debounce.
 - `<ChatDrawer state onStateChange />` — mobile bottom sheet. States:
   `open` (~55vh) and `peek` (56px handle).
 
-Both wrap `<ChatBody />`, which renders 3 hardcoded placeholder
-bubbles and a no-op input field. The input shows a "Chat coming in
-next update" hint when the user attempts to send. P1.4 replaces the
-hardcoded bubbles + wires real conversation state.
+Both wrap `<ChatBody />`. P1.4 turns `<ChatBody />` into a controlled
+component that takes `messages`, `isProcessing`, `exampleHint`,
+`showAfterRefuseHint`, and `onSubmit` as props — `<ChatShell />`
+threads them through. The actual chat logic (translation, session
+state) lives in `src/features/route-builder-v2/chat/` and is the
+heuristic stub described in the **P1.4 chat stub** section below.
 
 ### PersonaDropdown placement
 
@@ -237,6 +239,108 @@ Helper: `trackRb2(event, properties)` from
 The v1 `route_builder_*` events continue to fire from `RouteBuilder.jsx`
 unchanged. Both prefixes coexist until v1 is retired in Phase 3.
 
+## P1.4 chat stub — to be deleted in Phase 3
+
+P1.4 makes the chat surface in `<ChatShell />` functional through a
+**heuristic translation stub**. The real conversational pipeline lives
+in Doc 2b and lands in Phase 2; everything described below is throwaway
+code marked with the header `// P1.4 STUB — DELETE IN PHASE 3 CUTOVER`.
+
+### What the stub does
+
+- **Keyword → mutation translation.** Input is lowercased, punctuation
+  stripped, then substring-matched against a fixed list of 7 phrase
+  groups. Each group produces a single Phase-1 `Mutation` with
+  hardcoded magnitudes/deltas. The full catalog:
+
+  | Input substrings | Mutation |
+  |---|---|
+  | `hillier`, `more climbing`, `more elevation` | `increase_climbing` (moderate) |
+  | `flatter`, `less climbing`, `less elevation`, `easier hills` | `reduce_climbing` (moderate) |
+  | `shorter`, `less distance`, `trim` | `shorten_distance` (5km) |
+  | `longer`, `more distance`, `add some distance` | `extend_distance` (5km) |
+  | `reverse`, `flip it` | `reverse_route` |
+  | `skip 287`, `avoid 287` | `avoid_segment` (`us-287`) |
+  | `more gravel`, `less road` | `change_surface_mix` toward gravel |
+
+- **Cold-start detection.** Inputs matching
+  `/build|generate|make|create/` + `/ride|loop|route/` expand the
+  `<FormPanel />` via an imperative ref handle. The user confirms
+  values and clicks **Generate**. The stub deliberately does NOT
+  auto-generate.
+
+- **Refuse fallback.** Anything else returns a polite "I don't
+  understand that one yet" message and visibly emphasizes the supported
+  phrases below the message bubble. The persistent example-phrases hint
+  also sits below the input field at all times.
+
+### Files (`src/features/route-builder-v2/chat/`)
+
+| File | Responsibility |
+|---|---|
+| `heuristicTranslation.ts` | Pure `translate(input): TranslationResult` — keyword + cold-start + refuse |
+| `useChatSession.ts` | Ephemeral session state: messages, processing flag, refused-once flag |
+| `submitChatMessage.ts` | Orchestrator: user bubble → translate → executor or form-expand → assistant bubble. Calls `useRouteEditing.applyMutation` directly (bypassing the legacy stub `interpretChatInput`) |
+| `examplePhrases.ts` | The supported-phrases list rendered in two places (input hint, post-refuse) |
+| `types.ts` | `ChatMessage`, `ChatRole`, `ChatSession`, `TranslationResult` |
+| `index.ts` | Barrel |
+
+### Explicit limits (do not extend)
+
+- Only 3 response types: `cold_start`, `modify`, `refuse`. The other 5
+  from Turn Model Spec §3 (`alternatives`, `replace`, `clarify`,
+  `pushback`, `explain`) are Phase 2.
+- No manual edit narration — drag/click/remove edits stay silent and
+  are narrated in Phase 2 by the real LLM.
+- Ephemeral history only — messages live in `useState`, lost on
+  reload. Phase 2 wires real persistence via the memory model.
+- No multi-mutation compositional handling, no streaming, no pushback
+  counter, no MANDATE block enforcement, no schema validation, no
+  persona-modulated phrasing.
+- The hardcoded `us-287` segment id demonstrates `avoid_segment` only;
+  the stub never tries to extract road names dynamically.
+
+### Telemetry (`rb2_chat_*`)
+
+| Event | When | Properties |
+|---|---|---|
+| `rb2_chat_message_submitted` | User submits typed input | `input_length` |
+| `rb2_chat_mutation_applied` | Heuristic translation produced a successful mutation | `mutation_type` |
+| `rb2_chat_mutation_failed` | Mutation applied but executor failed | `mutation_type`, `failure_kind` |
+| `rb2_chat_cold_start_triggered` | Input recognized as cold-start | `input_length` |
+| `rb2_chat_refused` | Input not understood | `input_length` |
+| `rb2_chat_error` | Unexpected exception in submission handler | `error_name` |
+
+No PII — the input text is never captured, only its length.
+
+The `rb2_chat_refused` rate is the most important signal: it tells us
+which user intents the stub cannot handle, which informs Phase 2
+prompt engineering priority.
+
+### Test coverage
+
+- `heuristicTranslation.test.ts` — 41 tests, 100% coverage on the
+  translator (exceeds the ≥90% bar).
+- `useChatSession.test.ts` — 9 tests covering opening message, append,
+  processing flag, refuse-hint flag.
+- `submitChatMessage.test.ts` — 8 tests covering all 3 response types
+  plus the no-route path and the error path. 100% statements/lines
+  (exceeds the ≥80% bar).
+
+### Phase 3 deletion contract
+
+When Phase 2 lands real chat:
+
+1. Delete `src/features/route-builder-v2/chat/` entirely.
+2. Replace `submitChatMessage` import in `RouteBuilder2.tsx` with the
+   Phase 2 dispatcher.
+3. `<ChatShell />`, `<ChatPanel />`, `<ChatDrawer />`, `<ChatBody />`
+   stay — they're the durable surface. Only the props that today flow
+   from the stub will rewire to the real session state.
+4. `<FormPanel />`'s `forwardRef` + `useImperativeHandle({ expand })`
+   may stay (Phase 2 still needs to surface the form) or get folded
+   into the dispatcher — decide at the cutover.
+
 ## Migration intent
 
 - After P1.3 (real UI) and P1.4 (chat surface) land, the hook APIs may
@@ -263,6 +367,9 @@ unchanged. Both prefixes coexist until v1 is retired in Phase 3.
   `src/utils/elevation.getElevationData` lands in P1.3.
 - **`useRoutePersistence.exportRoute`** is a launcher (telemetry only);
   serialization stays in `RouteExportMenu` until P1.3.
-- **`useRouteEditing.applyAIEdit`** returns
-  `{ ok: false, reason: 'chat_translation_unavailable' }` until P1.4
-  fills `interpretChatInput`.
+- **`useRouteEditing.applyAIEdit`** still returns
+  `{ ok: false, reason: 'chat_translation_unavailable' }` — the P1.4
+  chat surface bypasses it and calls `applyMutation` directly. The
+  legacy stub `interpretChatInput` in the executor adapter remains a
+  no-op (`null`). Both go away in Phase 3 with the rest of the
+  P1.4 stub.
