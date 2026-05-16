@@ -68,6 +68,8 @@ export default function RouteBuilder2() {
   const routeStats = useRouteBuilderStore((s) => s.routeStats);
   const routeName = useRouteBuilderStore((s) => s.routeName);
   const waypoints = useRouteBuilderStore((s) => s.waypoints);
+  const setWaypointsInStore = useRouteBuilderStore((s) => s.setWaypoints);
+  const clearRouteInStore = useRouteBuilderStore((s) => s.clearRoute);
 
   const [visibility, setVisibility] = useState<LayerVisibilityState>(DEFAULT_VISIBILITY);
   const [errorDismissed, setErrorDismissed] = useState<string | null>(null);
@@ -87,6 +89,31 @@ export default function RouteBuilder2() {
     lastAppliedRef.current = first;
     generation.selectSuggestion(0);
   }, [generation]);
+
+  // Backfill waypoints from geometry endpoints. v1 sometimes persists a
+  // route without a populated waypoints array (loaded routes, legacy
+  // snapshots). Manual edits need ≥ 2 waypoints to route between, so
+  // when we have geometry but no waypoints, seed start + end from the
+  // first/last coordinates. Idempotent — only runs when the gap exists.
+  useEffect(() => {
+    if (!routeGeometry || !Array.isArray(routeGeometry.coordinates)) return;
+    if (routeGeometry.coordinates.length < 2) return;
+    if (Array.isArray(waypoints) && waypoints.length >= 2) return;
+    const coords = routeGeometry.coordinates as Coordinate[];
+    const start = coords[0];
+    const end = coords[coords.length - 1];
+    setWaypointsInStore([
+      { id: 'wp-0', position: start, type: 'start', name: '' },
+      { id: 'wp-1', position: end, type: 'end', name: '' },
+    ]);
+  }, [routeGeometry, waypoints, setWaypointsInStore]);
+
+  const handleClearRoute = () => {
+    clearRouteInStore();
+    generation.clearSuggestions();
+    lastAppliedRef.current = null;
+    trackRb2('route_cleared', {});
+  };
 
   // Page mount telemetry
   useEffect(() => {
@@ -221,6 +248,7 @@ export default function RouteBuilder2() {
                     : null
                 }
                 routeName={routeName}
+                onClear={handleClearRoute}
               />
             )}
             <FormPanel generation={generation} defaultStart={null} />
@@ -275,6 +303,7 @@ export default function RouteBuilder2() {
                     : null
                 }
                 routeName={routeName}
+                onClear={handleClearRoute}
               />
             )}
             <FormPanel generation={generation} defaultStart={null} isMobile />
