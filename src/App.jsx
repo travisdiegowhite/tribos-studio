@@ -31,6 +31,12 @@ const MyRoutes = lazy(() => import('./pages/MyRoutes.jsx'));
 const Progress = lazy(() => import('./pages/Progress.jsx'));
 const MetricsCalculatorPage = lazy(() => import('./pages/MetricsCalculatorPage.tsx'));
 const RouteBuilder2 = lazy(() => import('./pages/RouteBuilder2.tsx'));
+const RouteBuilder2HarnessDev = lazy(() => import('./pages/RouteBuilder2HarnessDev.tsx'));
+
+// Dev harness gate: only mount when running in dev AND the v2 flag is on.
+const ROUTE_BUILDER_V2_DEV_HARNESS_ENABLED =
+  Boolean(import.meta.env?.DEV) &&
+  import.meta.env?.VITE_ROUTE_BUILDER_V2_ENABLED === 'true';
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
@@ -182,6 +188,18 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* Hook test harness (P1.2). Gated to DEV + flag. Returns null in prod. */}
+      {ROUTE_BUILDER_V2_DEV_HARNESS_ENABLED && (
+        <Route
+          path="/route-builder-2/dev-harness"
+          element={
+            <ProtectedRoute>
+              <RouteBuilder2HarnessDev />
+            </ProtectedRoute>
+          }
+        />
+      )}
 
       {/* TRAIN — training depth (renders existing TrainingDashboard) */}
       <Route
