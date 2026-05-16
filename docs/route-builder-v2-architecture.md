@@ -102,6 +102,115 @@ The harness is intentionally unstyled — it exposes buttons and a JSON
 state pane per hook. Use it to verify telemetry is firing, executor
 calls are routing correctly, and store writes land.
 
+## P1.3 page composition
+
+Layout B (map-dominant). The page lives at `/route-builder-2` and is
+composed in `src/pages/RouteBuilder2.tsx`. Components are grouped under
+`src/features/route-builder-v2/components/` and map layers under
+`src/features/route-builder-v2/layers/`. All consume the P1.2 hooks
+unchanged.
+
+```
+<RouteBuilder2>
+  <AppShell fullWidth>                  (shared chrome — nav + retro stripe)
+    <div data-testid="rb2-page">
+      <Map>                             (fills the canvas)
+        <SurfaceLayer />                (toggleable)
+        <GradientLayer />               (toggleable)
+        <POILayer />                    (toggleable, wraps RoutePOILayer)
+        <BikeInfraLayer />              (toggleable, wraps BikeInfrastructureLayer)
+        <FamiliarSegmentsLayer />       (toggleable; disabled w/o Strava)
+      </Map>
+      <PersonaDropdown />               (top-right of page)
+      <StatsOverlay />                  (upper-left, when route exists)
+      <FormPanel />                     (upper-left, collapsible)
+      <LayerToggles />                  (upper-left, below form)
+      <WaypointListPanel />             (upper-left, when waypoints exist)
+      <ChatShell isMobile>              (responsive)
+        <ChatPanel />                   (desktop, floating bottom-right)
+        <ChatDrawer />                  (mobile, bottom-sheet)
+      </ChatShell>
+      <LoadingState />                  (when generating or editing)
+      <ErrorState />                    (when a hook surfaces an error)
+      <EmptyState />                    (when no route exists)
+    </div>
+  </AppShell>
+</RouteBuilder2>
+```
+
+### `<Map />` wrapper API
+
+```tsx
+<Map
+  map={useMapInteraction()}
+  routeGeometry={{ type: 'LineString', coordinates: Coordinate[] } | null}
+  waypoints={Array<{ id, position, type? }>}
+  cursor?={string}
+  mapStyle?={string | object}
+>
+  {/* layers as children */}
+</Map>
+```
+
+The wrapper does NOT own toggle state — that lives in the page. It
+renders the default route line, the waypoint markers (with drag
+handlers wired into the hook), and whatever children are passed.
+Reads `MAPBOX_TOKEN` and `BASEMAP_STYLES` from
+`src/components/RouteBuilder/index.js`. On viewport changes, calls
+`map.setViewport(...)` which writes through to the store via the
+hook's 500ms debounce.
+
+### Chat shell responsive pattern
+
+`<ChatShell isMobile={boolean}>` picks one of:
+- `<ChatPanel state onStateChange />` — desktop floating window. States:
+  `open` (full 360×460 panel), `minimized` (compact tab at
+  bottom-right), `closed` (dismissed; an "Open chat" button appears).
+- `<ChatDrawer state onStateChange />` — mobile bottom sheet. States:
+  `open` (~55vh) and `peek` (56px handle).
+
+Both wrap `<ChatBody />`, which renders 3 hardcoded placeholder
+bubbles and a no-op input field. The input shows a "Chat coming in
+next update" hint when the user attempts to send. P1.4 replaces the
+hardcoded bubbles + wires real conversation state.
+
+### PersonaDropdown placement
+
+The dropdown lives **inside** `RouteBuilder2.tsx`, positioned absolute
+at the top-right of the map area. The shared `AppShell` is unchanged.
+This avoids coupling the layout component to a single page. If
+persona becomes relevant across multiple surfaces post-Phase 1, it
+can graduate to `AppShell` at that time. Persona is read/written via
+`useCoachCheckIn` against `user_coach_settings.coaching_persona`.
+
+### Mobile vs desktop divergences
+
+- Form panel, layer toggles, and waypoint list collapse to full-width
+  cards stacked at the top of the viewport on mobile (max-width
+  768px); on desktop they're a fixed-width (320px) column anchored
+  upper-left.
+- The persona dropdown renders in a compact variant (smaller chip,
+  label-only) on mobile.
+- Chat surface swaps from floating window to bottom-sheet drawer.
+- Stats overlay shows the same fields on both, but the mobile card
+  takes full width.
+
+### P1.3 UI telemetry (in addition to P1.2 hook events)
+
+| Event | When | Properties |
+|---|---|---|
+| `rb2_page_viewed` | Mount | `is_mobile`, `has_existing_route` |
+| `rb2_form_expanded` | Form panel toggle → expanded | none |
+| `rb2_form_collapsed` | Form panel toggle → collapsed | none |
+| `rb2_form_field_changed` | Any form field changes | `field` |
+| `rb2_form_submitted` | Submit button | `goal, duration_minutes, surface, shape` |
+| `rb2_layer_toggled` | Any layer switch | `layer, state` ("shown" / "hidden") |
+| `rb2_chat_opened` | Chat opened from closed/minimized | none |
+| `rb2_chat_minimized` | Chat minimized | none |
+| `rb2_chat_closed` | Chat dismissed | none |
+| `rb2_persona_changed` | Persona dropdown selection | `from, to` |
+| `rb2_waypoint_removed` | Waypoint removed via list | none |
+
 ## Telemetry events (`rb2_*`)
 
 Helper: `trackRb2(event, properties)` from
