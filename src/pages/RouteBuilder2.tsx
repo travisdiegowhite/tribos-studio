@@ -6,7 +6,7 @@
  * chat floating bottom-right (desktop) or bottom-sheet (mobile).
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import AppShell from '../components/AppShell.jsx';
@@ -34,7 +34,13 @@ import {
   ErrorState,
   RB2,
   type LayerVisibilityState,
+  type FormPanelHandle,
 } from '../features/route-builder-v2/components';
+import {
+  useChatSession,
+  submitChatMessage,
+  EXAMPLE_PHRASES,
+} from '../features/route-builder-v2/chat';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
 import { POILayer } from '../features/route-builder-v2/layers/POILayer';
@@ -73,6 +79,9 @@ export default function RouteBuilder2() {
 
   const [visibility, setVisibility] = useState<LayerVisibilityState>(DEFAULT_VISIBILITY);
   const [errorDismissed, setErrorDismissed] = useState<string | null>(null);
+
+  const chat = useChatSession();
+  const formPanelRef = useRef<FormPanelHandle | null>(null);
 
   // Auto-apply the first suggestion when generate() returns. The hook
   // separates `generate` (writes to aiSuggestions) from `selectSuggestion`
@@ -114,6 +123,23 @@ export default function RouteBuilder2() {
     lastAppliedRef.current = null;
     trackRb2('route_cleared', {});
   };
+
+  const hasRouteForChat =
+    !!routeGeometry?.coordinates && routeGeometry.coordinates.length > 0;
+  const handleChatSubmit = useCallback(
+    (text: string) => {
+      void submitChatMessage({
+        input: text,
+        hasRoute: hasRouteForChat,
+        append: chat.append,
+        setProcessing: chat.setProcessing,
+        markRefused: chat.markRefused,
+        editing,
+        formPanelControl: formPanelRef.current ?? { expand: () => {} },
+      });
+    },
+    [hasRouteForChat, chat.append, chat.setProcessing, chat.markRefused, editing],
+  );
 
   // Page mount telemetry
   useEffect(() => {
@@ -251,7 +277,7 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
-            <FormPanel generation={generation} defaultStart={null} />
+            <FormPanel ref={formPanelRef} generation={generation} defaultStart={null} />
             <LayerToggles
               visibility={visibility}
               onToggle={handleVisibilityToggle}
@@ -306,7 +332,7 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
-            <FormPanel generation={generation} defaultStart={null} isMobile />
+            <FormPanel ref={formPanelRef} generation={generation} defaultStart={null} isMobile />
             <LayerToggles
               visibility={visibility}
               onToggle={handleVisibilityToggle}
@@ -319,7 +345,14 @@ export default function RouteBuilder2() {
         )}
 
         {/* Chat surface */}
-        <ChatShell isMobile={!!isMobile} />
+        <ChatShell
+          isMobile={!!isMobile}
+          messages={chat.messages}
+          isProcessing={chat.isProcessing}
+          exampleHint={EXAMPLE_PHRASES}
+          showAfterRefuseHint={chat.showAfterRefuseHint}
+          onSubmit={handleChatSubmit}
+        />
 
         {/* Empty / loading / error */}
         {isLoading && (

@@ -6,13 +6,17 @@
  * form. Submit calls useAIGeneration.generate.
  */
 
-import { useCallback, useState } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useState } from 'react';
 import { Box, Text, UnstyledButton, Select, NumberInput, TextInput, Button, Loader } from '@mantine/core';
 import { CaretDown, CaretRight, X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import type { UseAIGenerationReturn } from '../../../hooks/route-builder';
 import type { Coordinate } from '../../../routing/executor';
 import { trackRb2 } from '../telemetry/trackRb2';
+
+export interface FormPanelHandle {
+  expand: () => void;
+}
 
 export interface FormPanelProps {
   generation: UseAIGenerationReturn;
@@ -55,7 +59,10 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 4,
 };
 
-export function FormPanel({ generation, defaultStart, isMobile = false }: FormPanelProps) {
+export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function FormPanel(
+  { generation, defaultStart, isMobile = false },
+  ref,
+) {
   const [expanded, setExpanded] = useState(false);
   const [goal, setGoal] = useState<Goal>('endurance');
   const [duration, setDuration] = useState<number>(60);
@@ -70,6 +77,22 @@ export function FormPanel({ generation, defaultStart, isMobile = false }: FormPa
       return next;
     });
   }, []);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      expand: () => {
+        setExpanded((prev) => {
+          if (!prev) {
+            trackRb2('form_expanded', { source: 'chat_cold_start' });
+            return true;
+          }
+          return prev;
+        });
+      },
+    }),
+    [],
+  );
 
   const onSubmit = useCallback(async () => {
     trackRb2('form_submitted', {
@@ -314,7 +337,7 @@ export function FormPanel({ generation, defaultStart, isMobile = false }: FormPa
       )}
     </Box>
   );
-}
+});
 
 function prettyLabel<T extends string>(
   options: Array<{ value: T; label: string }>,
