@@ -235,6 +235,70 @@ export interface RouteContext {
 
   /** Optional weather context, used by avoid_exposure(wind). */
   weather?: WeatherContext;
+
+  /**
+   * Recent rides used by `Executor.generate()` to resolve
+   * `like_ride_id`. Optional — when missing, generate falls back to a
+   * radial loop from `start_coord`. Shape is intentionally minimal at
+   * this layer; the full RouteContext (Executor Spec §3) carries
+   * richer per-ride telemetry.
+   */
+  recent_rides?: RideSummary[];
+}
+
+// ---------------------------------------------------------------------------
+// RideSummary — minimal shape used by `like_ride_id` resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimum fields the executor reads for `like_ride_id` lookup. The full
+ * shape (with stats, training-day metadata, etc.) is defined upstream by
+ * the Doc 2b pipeline and is allowed to carry additional fields — only
+ * `id` and `waypoints` are load-bearing here.
+ */
+export interface RideSummary {
+  id: string;
+  waypoints: Coordinate[];
+}
+
+// ---------------------------------------------------------------------------
+// GenerationConstraints — input to `Executor.generate()`
+// ---------------------------------------------------------------------------
+
+/**
+ * Input to `Executor.generate()`. Mirrors Turn Model Spec §3
+ * (`GenerationConstraints`). Already constraint-shaped — the executor
+ * maps it directly to a `RouteConstraint` without going through
+ * ConstraintBuilder.
+ *
+ * All fields are optional; defaults come from `RouteContext` where
+ * applicable.
+ */
+export interface GenerationConstraints {
+  /** Training goal bucket. Loose string — matches `RouteContext.training_goal`. */
+  goal?: string;
+
+  /** Target ride duration in minutes. Converted to distance via `speed_profile`. */
+  duration_minutes?: number;
+
+  /** Target distance in kilometers. Takes precedence over `duration_minutes` when both are set. */
+  distance_km?: number;
+
+  /** Target elevation gain in meters. */
+  elevation_gain_m?: number;
+
+  /** Surface mix preference. */
+  surface_mix?: SurfaceMix;
+
+  /** Explicit start coordinate. Falls back to `RouteContext.start_coord`. */
+  start_coord?: Coordinate;
+
+  /**
+   * Reference a past ride as a structural template. The executor
+   * resolves the ID via `RouteContext.recent_rides`; on miss it falls
+   * through to the radial-loop seed.
+   */
+  like_ride_id?: string;
 }
 
 // ---------------------------------------------------------------------------
