@@ -31,12 +31,25 @@ import { formatDistance } from '../utils/units';
 import { ListChecks } from '@phosphor-icons/react';
 
 // Four-tab primary navigation: TODAY · RIDE · TRAIN · PROGRESS
-const navItems = [
+// Phase 1 (P1.1): when VITE_ROUTE_BUILDER_V2_ENABLED === 'true', a fifth
+// BUILDER 2.0 BETA tab is appended that links to /route-builder-2. The new
+// page is reachable by direct URL regardless of the flag.
+const ROUTE_BUILDER_V2_ENABLED =
+  import.meta.env.VITE_ROUTE_BUILDER_V2_ENABLED === 'true';
+
+const baseNavItems = [
   { path: '/today', label: 'TODAY' },
   { path: '/ride', label: 'RIDE' },
   { path: '/train', label: 'TRAIN' },
   { path: '/progress', label: 'PROGRESS' },
 ];
+
+const navItems = ROUTE_BUILDER_V2_ENABLED
+  ? [
+      ...baseNavItems,
+      { path: '/route-builder-2', label: 'BUILDER 2.0', beta: true },
+    ]
+  : baseNavItems;
 
 function AppShell({ children, fullWidth = false, hideNav = false }) {
   const location = useLocation();
@@ -83,6 +96,9 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
     }
     if (item.path === '/progress') {
       return location.pathname === '/progress';
+    }
+    if (item.path === '/route-builder-2') {
+      return location.pathname === '/route-builder-2';
     }
     return false;
   };
@@ -174,9 +190,29 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                             textTransform: 'uppercase',
                             color: active ? '#FFFFFF' : '#9A9990',
                             transition: 'color 150ms ease',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
                           }}
                         >
                           {item.label}
+                          {item.beta && (
+                            <Box
+                              component="span"
+                              style={{
+                                backgroundColor: '#2A8C82',
+                                color: '#FFFFFF',
+                                fontSize: 10,
+                                fontWeight: 700,
+                                letterSpacing: '1.5px',
+                                padding: '2px 6px',
+                                borderRadius: 0,
+                                lineHeight: 1,
+                              }}
+                            >
+                              BETA
+                            </Box>
+                          )}
                         </Text>
                         {/* Active indicator — 2px teal underline flush to bottom */}
                         {active && (
@@ -487,9 +523,29 @@ function MobileBottomNav({ navItems, isActive }) {
                 letterSpacing: '2px',
                 textTransform: 'uppercase',
                 color: active ? '#FFFFFF' : '#9A9990',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
               }}
             >
               {item.label}
+              {item.beta && (
+                <Box
+                  component="span"
+                  style={{
+                    backgroundColor: '#2A8C82',
+                    color: '#FFFFFF',
+                    fontSize: 8,
+                    fontWeight: 700,
+                    letterSpacing: '1px',
+                    padding: '1px 4px',
+                    borderRadius: 0,
+                    lineHeight: 1,
+                  }}
+                >
+                  BETA
+                </Box>
+              )}
             </Text>
           </UnstyledButton>
         );

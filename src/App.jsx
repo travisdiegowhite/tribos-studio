@@ -30,6 +30,7 @@ const InternalMetricsAudit = lazy(() => import('./pages/InternalMetricsAudit.tsx
 const MyRoutes = lazy(() => import('./pages/MyRoutes.jsx'));
 const Progress = lazy(() => import('./pages/Progress.jsx'));
 const MetricsCalculatorPage = lazy(() => import('./pages/MetricsCalculatorPage.tsx'));
+const RouteBuilder2 = lazy(() => import('./pages/RouteBuilder2.tsx'));
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
@@ -166,6 +167,18 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RouteBuilder />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Route Builder 2.0 BETA (Phase 1 scaffolding — P1.1) */}
+      {/* Accessible by direct URL regardless of VITE_ROUTE_BUILDER_V2_ENABLED; */}
+      {/* the flag only controls nav visibility (see AppShell.jsx). */}
+      <Route
+        path="/route-builder-2"
+        element={
+          <ProtectedRoute>
+            <RouteBuilder2 />
           </ProtectedRoute>
         }
       />
