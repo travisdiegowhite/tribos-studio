@@ -107,8 +107,27 @@ type TurnResponse = {
   // Always an array. Empty if nothing new to remember this turn.
   memory_updates: MemoryFact[];
 
-  // Internal: short reason for chosen response_type. Logged for debugging.
+  // LLM-emitted. Short reason for chosen response_type. Logged for debugging.
+  // This is the model's own reasoning trace, written by the LLM.
   reasoning: string;
+
+  // Dispatcher-added (NOT LLM-emitted). Used to flag synthetic responses,
+  // MANDATE rewrites, and other dispatcher-side annotations. The LLM never
+  // emits this field; if it does, validation strips it.
+  // Conventional keys:
+  //   - synthetic: boolean — true if response was synthesized by dispatcher
+  //     (e.g. from timeout, schema failure, router failure)
+  //   - reason: string — category of synthetic response
+  //     ("timeout", "schema_failure", "router_failure", "mandate_rewrite")
+  //   - router_failure: boolean — true if this synthetic pushback came from
+  //     a router failure (so the pushback counter doesn't increment)
+  // Optional; absent for normal LLM-emitted responses.
+  meta?: {
+    synthetic?: boolean;
+    reason?: string;
+    router_failure?: boolean;
+    [key: string]: unknown;
+  };
 };
 
 type RouteOperation =

@@ -1,9 +1,17 @@
 # Doc 2b — Conversational AI Pipeline Spec
 
-**Status:** v0.1 DRAFT
+**Status:** v0.2 DRAFT
 **Phase:** Drafted during Phase 0; implementation in Phase 2 (~4 weeks out)
 **Canonical contracts:** `docs/turn-model-spec-v1.0-LOCKED.md`, `docs/executor-spec-v0.1-DRAFT.md`
 **Related:** T1.1–T1.4 (foundations), T2.1–T2.5 (executor)
+
+**Revisions from v0.1:**
+- Schema reconciliation: `meta` field added to Turn Model Spec; `reasoning` (LLM-emitted) and `meta` (dispatcher-added) clearly separated in §3.4 and §6.3
+- New §9.1 — `RouteContext` assembly responsibility explicitly named; assembly logic specified
+- §9 dispatcher pseudocode signatures corrected to include `route` and `context` parameters
+- §9 section numbers renumbered: old §9.1 → §9.2 (Dispatcher contract), old §9.2 → §9.3 (Response_type → action dispatch), old §9.3 → §9.4 (Error translation table)
+- §4.3 distance rendering wording clarified (`_km` is variable naming, not prompt text)
+- §5.1 history example aligned with §5.4 first-sentence rendering rule
 
 ---
 
@@ -198,9 +206,15 @@ You always respond with a single JSON object of this shape:
                  | "clarify" | "pushback" | "explain" | "refuse",
   "message_to_user": string,                // what the user reads in chat
   "route_operation": { ... } | null,        // executor instruction; see below
+  "follow_up_question": string | null,      // for clarify/pushback; null otherwise
   "memory_updates": [ ... ],                // 0+ memory facts to write
-  "meta": { ... }                           // telemetry/debug fields
+  "reasoning": string                       // your short internal reason for the
+                                            // chosen response_type, for debugging
 }
+
+Do NOT emit a `meta` field. That field is added by the dispatcher after your
+response for telemetry and synthetic-response tracking. If you emit it, it
+will be stripped.
 
 Response types — emit exactly one per turn:
 
@@ -236,7 +250,9 @@ For route_operation when present, see the mutation taxonomy in the
 decision rules below.
 ```
 
-> **Note for the Phase 2 implementer.** The full schema (including `meta` field details, the shape of `memory_updates`, the full `route_operation` schema) lives in Turn Model Spec §3. The block above is what the LLM sees. The validation layer (§6.2) enforces the full schema, not just the projection above.
+> **Note for the Phase 2 implementer.** The full schema (including `follow_up_question` details and the shape of `memory_updates`) lives in Turn Model Spec §3. The block above is the prompt-facing projection — what the LLM sees. The validation layer (§6.2) enforces the full schema, not just the projection above.
+>
+> **On `meta` vs `reasoning`:** `reasoning` is LLM-emitted (the model's own reason for picking the response_type). `meta` is dispatcher-added — it's set on synthetic responses (timeout, schema failure, router failure) and on MANDATE rewrites. The LLM never sees `meta` in examples and is explicitly told not to emit it. See Turn Model Spec §3 for the canonical schema with both fields.
 
 ### 3.5 Output rules (literal)
 
@@ -436,7 +452,7 @@ PUSHBACK COUNTER:
 
 ### 4.3 Assembly rules
 
-- All distances rendered with `_km` suffix per coordinate/distance invariants.
+- Distances rendered to the LLM in prose form with natural units ("52 km", "1,200 m"). The `_km` / `_m` suffix convention from T1.1 is for code variable names, not prompt text. The placeholder `{{distance_km}}` in the templates above is a code variable that renders as the number itself; the prompt text says "km" after it.
 - Empty sections are rendered as `(none)` rather than omitted — keeps the block shape stable for the LLM.
 - Total context block target: under 2000 tokens. If it exceeds this, trim `past_ride_summaries` first, then `session_facts` summarization, then training_context detail.
 
@@ -454,7 +470,7 @@ The `[HISTORY]` block carries the conversation forward.
 Turn 1 (user, text): "Build me a 50km loop with some climbing."
 Turn 1 (assistant): cold_start — generated a 52km loop with 600m climbing.
 Turn 2 (user, manual): dragged waypoint at km 23 by 1.2km north.
-Turn 2 (assistant): explain — "I see you pulled that section onto the dirt road. Nice call."
+Turn 2 (assistant): explain — "I see you pulled that section onto the dirt road."
 Turn 3 (user, text): "Can we add more climbing in the back half?"
 Turn 3 (assistant): modify — increase_climbing on second half.
 ```
@@ -538,7 +554,9 @@ Two failures allowed before falling through to synthetic clarify:
      "response_type": "clarify",
      "message_to_user": "I had trouble understanding that. Could you rephrase?",
      "route_operation": null,
+     "follow_up_question": "Could you rephrase what you're looking for?",
      "memory_updates": [],
+     "reasoning": "Synthetic response after schema validation failed twice",
      "meta": { "synthetic": true, "reason": "schema_failure" }
    }
    ```
@@ -672,17 +690,75 @@ If the executor's manual handler fails (router error, geometry invalid):
 
 ## 9. The turn dispatcher
 
-### 9.1 Dispatcher contract
+### 9.1 RouteContext assembly
 
-Input: `TurnResponse` (real or synthetic), validated.
-Output: triggers executor calls + memory writes + chat stream. No return value.
+Every executor call requires a `RouteContext` (per Executor Spec §3). The dispatcher owns assembling it before each call. Without this, executor calls fail with `context_missing` errors.
 
-### 9.2 Response_type → action dispatch
+`RouteContext` is built fresh per turn from these sources:
+
+| Source                  | Fields contributed                                                  |
+|-------------------------|---------------------------------------------------------------------|
+| User profile (Supabase) | `user_id`, `start_coord` (home), `speed_profile`, `preferences`     |
+| Session state (Zustand) | `current_region_bbox`, current route geometry for bbox calc         |
+| Training context        | `training_goal`, `duration_target_minutes`, `distance_target_km`    |
+| Memory layer (Doc 4)    | `persistent_facts`, `session_facts`                                 |
+| Past rides (cached)     | `recent_rides`, `familiar_segments`                                 |
+| Environmental           | `weather` (optional), `time_of_day`                                 |
+
+Assembly happens once per turn and is reused across all executor calls within that turn (e.g., compositional mutations call `applyMutations` once, not multiple times).
 
 Pseudocode:
 
 ```typescript
-async function dispatch(response: TurnResponse, turn: Turn): Promise<void> {
+async function assembleRouteContext(turn: Turn): Promise<RouteContext> {
+  const profile = await userProfile.get(turn.user_id);
+  const memorySnapshot = await memory.getAll(turn.user_id, turn.session_id);
+  const trainingContext = await trainingPlan.activeContextFor(turn.user_id);
+  const pastRides = await pastRides.getRelevant(
+    turn.user_id,
+    profile.region_bbox,
+    trainingContext.goal,
+  );
+
+  return {
+    user_id: turn.user_id,
+    start_coord: profile.start_coord,
+    current_region_bbox: computeBbox(turn.current_route, profile),
+    training_goal: trainingContext.goal,
+    duration_target_minutes: trainingContext.duration_target_minutes,
+    distance_target_km: trainingContext.distance_target_km,
+    speed_profile: profile.speed_profile,
+    preferences: profile.preferences,
+    familiar_segments: pastRides.familiar_segment_ids,
+    recent_rides: pastRides.summaries,
+    persistent_facts: memorySnapshot.persistent,
+    session_facts: memorySnapshot.session,
+    weather: await weather.forUser(turn.user_id), // may return undefined
+    time_of_day: new Date().toISOString(),
+  };
+}
+```
+
+Caching: `pastRides.getRelevant` is cached 1hr keyed to `(user_id, region_bbox)` per the past-ride caching rule. Other fields are pulled fresh per turn.
+
+Failures: if any required field is missing (e.g., user has no profile), the dispatcher emits a synthetic `clarify` rather than calling the executor with incomplete context.
+
+### 9.2 Dispatcher contract
+
+Input: `TurnResponse` (real or synthetic), validated. Plus the `RouteContext` assembled in §9.1 and the current route snapshot.
+Output: triggers executor calls + memory writes + chat stream. No return value.
+
+### 9.3 Response_type → action dispatch
+
+Pseudocode:
+
+```typescript
+async function dispatch(
+  response: TurnResponse,
+  turn: Turn,
+  context: RouteContext,
+  currentRoute: RouteSnapshot | null,
+): Promise<void> {
   // 1. Stream message to user (or hold for non-streaming)
   if (response.message_to_user) {
     chat.emit(response.message_to_user);
@@ -692,10 +768,11 @@ async function dispatch(response: TurnResponse, turn: Turn): Promise<void> {
   switch (response.response_type) {
     case "cold_start":
     case "replace":
-      await executor.generate({
-        ...response.route_operation,
-        count: 1,
-      });
+      await executor.generate(
+        context,
+        response.route_operation.constraints,
+        1,
+      );
       if (response.response_type === "replace") {
         memory.clearSession(turn.user_id);
         history.archive(turn.session_id);
@@ -703,21 +780,28 @@ async function dispatch(response: TurnResponse, turn: Turn): Promise<void> {
       break;
 
     case "alternatives":
-      await executor.generate({
-        ...response.route_operation,
-        count: 3,
-      });
+      await executor.generate(
+        context,
+        response.route_operation.constraints,
+        3,
+      );
       break;
 
     case "modify": {
+      if (!currentRoute) {
+        // Defensive: modify without a route is a contract violation;
+        // synthesize clarify
+        await dispatch(synthesizeClarifyMissingRoute(), turn, context, null);
+        return;
+      }
       const mutations = response.route_operation.mutations;
       const result = mutations.length === 1
-        ? await executor.applyMutation(mutations[0])
-        : await executor.applyMutations(mutations);
+        ? await executor.applyMutation(currentRoute, context, mutations[0])
+        : await executor.applyMutations(currentRoute, context, mutations);
 
       if (!result.ok) {
         // Mutation array partial failure or single failure
-        await handleMutationFailure(result, turn);
+        await handleMutationFailure(result, turn, context);
         return;
       }
       break;
@@ -747,30 +831,36 @@ async function dispatch(response: TurnResponse, turn: Turn): Promise<void> {
   telemetry.record(turn, response);
 }
 
-async function handleMutationFailure(result: ExecutorFailure, turn: Turn) {
+async function handleMutationFailure(
+  result: ExecutorFailure,
+  turn: Turn,
+  context: RouteContext,
+) {
   // Per T2.3: rollback already happened, result contains `partial: originalRoute`
   // Convert to synthetic pushback
   const synthetic: TurnResponse = {
     response_type: "pushback",
     message_to_user: `That change didn't work — ${result.reason}. Want to try a different approach?`,
     route_operation: null,
+    follow_up_question: null,
     memory_updates: [],
+    reasoning: "Synthetic pushback after executor rollback",
     meta: { synthetic: true, reason: "router_failure", router_failure: true },
   };
-  await dispatch(synthetic, turn);
+  await dispatch(synthetic, turn, context, result.partial ?? null);
 }
 ```
 
-### 9.3 Error translation table
+### 9.4 Error translation table
 
 | Source                          | Translation                                                  |
 |---------------------------------|--------------------------------------------------------------|
 | Claude timeout                  | Synthetic `clarify` (§6.4)                                   |
 | Claude 5xx/429                  | Synthetic `clarify` with retry message (§6.4)                |
 | Schema validation fails ×2      | Synthetic `clarify` (§6.3)                                   |
-| Router fails on `route_operation` | Synthetic `pushback`, counter NOT incremented (§9.2)         |
+| Router fails on `route_operation` | Synthetic `pushback`, counter NOT incremented (§9.3)         |
 | Manual turn router fails        | Revert + synthetic `explain` (§8.5)                          |
-| Mutation array partial failure  | Rollback + synthetic `pushback` (§9.2)                       |
+| Mutation array partial failure  | Rollback + synthetic `pushback` (§9.3)                       |
 | MANDATE violated by LLM         | Rewrite to `clarify` (§3.7)                                  |
 | `optimize_for` raw emit         | Reject at validation → synthetic `clarify` asking the user to specify |
 
@@ -803,7 +893,7 @@ type MemoryUpdate = {
 
 ### 10.3 Scope clearing
 
-- `replace` response → session memory cleared (§9.2).
+- `replace` response → session memory cleared (§9.3).
 - Route discard (UI action, not a `TurnResponse`) → session memory cleared.
 - Session timeout (24hr inactivity) → session memory cleared.
 - Persistent memory never auto-clears.
@@ -874,7 +964,7 @@ Doc 2b is implementable when all of the following are checked:
 - [ ] System prompt template (§3) ships as a literal string with `{{PLACEHOLDER}}` substitution.
 - [ ] All five persona blocks (§3.3) are implemented in a `PERSONA_BLOCKS` map.
 - [ ] The MANDATE block (§3.7) injects at cap and the rewrite-to-clarify safety net works.
-- [ ] Pushback counter increments and resets per the rules in §3.7 and §9.2.
+- [ ] Pushback counter increments and resets per the rules in §3.7 and §9.3.
 - [ ] Context block (§4) assembles with all sections; empty sections render as `(none)`.
 - [ ] History block (§5) renders turns per §5.4 format table; v1 has no trim.
 - [ ] Training context block (§4.2) renders the v1 best-guess format.
@@ -886,8 +976,8 @@ Doc 2b is implementable when all of the following are checked:
 - [ ] Manual turn deterministic narration triggers (§8.3) all fire correctly.
 - [ ] Concurrency cancellation (§8.4) aborts in-flight manual calls when text turns arrive.
 - [ ] Manual turn router failure reverts to `before` state and emits synthetic explain.
-- [ ] Dispatcher routes all 8 response types per §9.2.
-- [ ] Mutation failure rollback produces synthetic pushback per §9.2.
+- [ ] Dispatcher routes all 8 response types per §9.3.
+- [ ] Mutation failure rollback produces synthetic pushback per §9.3.
 - [ ] Memory updates apply with correct scope keys; scope clearing fires on `replace`.
 - [ ] All telemetry events from §11 fire with the listed properties.
 - [ ] No silent failures: every code path produces a user-visible response.
