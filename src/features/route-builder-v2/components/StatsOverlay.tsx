@@ -5,7 +5,8 @@
  * current route. Hidden when no route exists.
  */
 
-import { Box, Text } from '@mantine/core';
+import { Box, Text, UnstyledButton } from '@mantine/core';
+import { X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 
 export interface RouteStats {
@@ -17,6 +18,7 @@ export interface RouteStats {
 export interface StatsOverlayProps {
   stats: RouteStats | null;
   routeName?: string;
+  onClear?: () => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -32,7 +34,7 @@ function formatKm(km: number): string {
   return km < 10 ? km.toFixed(1) : Math.round(km).toString();
 }
 
-export function StatsOverlay({ stats, routeName }: StatsOverlayProps) {
+export function StatsOverlay({ stats, routeName, onClear }: StatsOverlayProps) {
   if (!stats || stats.distance_km <= 0) return null;
 
   return (
@@ -47,20 +49,52 @@ export function StatsOverlay({ stats, routeName }: StatsOverlayProps) {
         minWidth: 260,
       }}
     >
-      {routeName && (
-        <Text
-          style={{
-            fontFamily: RB2_FONT.mono,
-            fontSize: 10,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: RB2.textTertiary,
-            marginBottom: 6,
-          }}
-        >
-          {routeName}
-        </Text>
-      )}
+      <Box
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 8,
+          marginBottom: routeName ? 6 : 0,
+        }}
+      >
+        {routeName ? (
+          <Text
+            style={{
+              fontFamily: RB2_FONT.mono,
+              fontSize: 10,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: RB2.textTertiary,
+              lineHeight: 1.4,
+            }}
+          >
+            {routeName}
+          </Text>
+        ) : (
+          <span />
+        )}
+        {onClear && (
+          <UnstyledButton
+            data-testid="rb2-stats-clear"
+            onClick={onClear}
+            aria-label="Clear route"
+            style={{
+              padding: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              color: RB2.textTertiary,
+              fontFamily: RB2_FONT.mono,
+              fontSize: 10,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Clear <X size={12} />
+          </UnstyledButton>
+        )}
+      </Box>
       <Box style={{ display: 'flex', gap: 18 }}>
         <StatCell label="Distance" value={`${formatKm(stats.distance_km)}km`} />
         <StatCell label="Elevation" value={`${Math.round(stats.elevation_gain_m)}m`} />
