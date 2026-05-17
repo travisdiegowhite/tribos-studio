@@ -134,14 +134,38 @@ export function fnv1a32(str: string): string {
 }
 
 /**
- * Build a deterministic cache key for a constraint.
+ * Subset of `RouteContext` whose values affect provider output for the
+ * same constraint. Per the T2.6.3 audit fix: without these in the
+ * cache key, a user who generates a route then changes their training
+ * goal (or any preference field) gets a stale cached route on the
+ * next call.
+ *
+ * Kept narrow on purpose — including fields that don't change output
+ * (mapbox_token, user_id, etc.) would just shrink the hit rate
+ * without correcting anything.
+ */
+export interface CacheableContext {
+  training_goal?: string;
+  user_speed_kph?: number;
+  preferences?: unknown;
+}
+
+/**
+ * Build a deterministic cache key for a `(constraint, context)` pair.
  *
  * - Coordinates quantized to 6 decimals
  * - Segment lists sorted (order doesn't matter for set semantics)
  * - Object keys sorted via `stableJson`
+ * - Context section keyed separately (`_ctx`) for debuggability
  * - 32-bit FNV-1a digest of the canonical JSON
+ *
+ * Per CLAUDE.md "no backwards-compat shims", `context` is a required
+ * arg. Pass `{}` when no context fields are relevant (e.g. tests).
  */
-export function cacheKeyForConstraint(constraint: RouteConstraint): string {
+export function cacheKeyForConstraint(
+  constraint: RouteConstraint,
+  context: CacheableContext,
+): string {
   const normalized = {
     waypoints: constraint.waypoints.map(([lng, lat]) => [
       quantizeCoord(lng),
@@ -162,6 +186,11 @@ export function cacheKeyForConstraint(constraint: RouteConstraint): string {
     exclude_segments: constraint.exclude_segments
       ? [...constraint.exclude_segments].sort()
       : null,
+    _ctx: {
+      training_goal: context.training_goal ?? null,
+      user_speed_kph: context.user_speed_kph ?? null,
+      preferences: context.preferences ?? null,
+    },
   };
   return fnv1a32(stableJson(normalized));
 }

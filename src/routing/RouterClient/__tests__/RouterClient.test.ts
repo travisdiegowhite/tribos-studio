@@ -281,6 +281,43 @@ describe('RouterClient', () => {
       await client.solve(baseConstraint, baseContext);
       expect(stadia.solve).toHaveBeenCalledTimes(2);
     });
+
+    it('same constraint + different training_goal misses the cache (T2.6.3)', async () => {
+      stadia.succeedWith(makeRoute(10));
+      await client.solve(baseConstraint, { ...baseContext, training_goal: 'endurance' });
+      await client.solve(baseConstraint, { ...baseContext, training_goal: 'intervals' });
+      expect(stadia.solve).toHaveBeenCalledTimes(2);
+    });
+
+    it('same constraint + different user_speed_kph misses the cache (T2.6.3)', async () => {
+      stadia.succeedWith(makeRoute(10));
+      await client.solve(baseConstraint, { ...baseContext, user_speed_kph: 22 });
+      await client.solve(baseConstraint, { ...baseContext, user_speed_kph: 28 });
+      expect(stadia.solve).toHaveBeenCalledTimes(2);
+    });
+
+    it('same constraint + different preferences misses the cache (T2.6.3)', async () => {
+      stadia.succeedWith(makeRoute(10));
+      await client.solve(baseConstraint, {
+        ...baseContext,
+        preferences: { avoidHills: true },
+      });
+      await client.solve(baseConstraint, {
+        ...baseContext,
+        preferences: { avoidHills: false },
+      });
+      expect(stadia.solve).toHaveBeenCalledTimes(2);
+    });
+
+    it('same constraint + identical context still hits cache', async () => {
+      stadia.succeedWith(makeRoute(10));
+      const ctx = { ...baseContext, training_goal: 'tempo', user_speed_kph: 25 };
+      await client.solve(baseConstraint, ctx);
+      const r2 = await client.solve(baseConstraint, ctx);
+      expect(stadia.solve).toHaveBeenCalledTimes(1);
+      if (!r2.ok) throw new Error('expected ok');
+      expect(r2.metadata.cache_hit).toBe(true);
+    });
   });
 
   // -----------------------------------------------------------------------
