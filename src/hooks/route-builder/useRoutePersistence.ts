@@ -11,6 +11,7 @@
 import { useCallback, useState } from 'react';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import * as routesService from '../../utils/routesService';
+import { exportAndDownloadRoute } from '../../utils/routeExport';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 
 interface SavedRouteRow {
@@ -25,12 +26,20 @@ interface SavedRouteRow {
 
 const saveRoute = routesService.saveRoute as (data: unknown) => Promise<SavedRouteRow>;
 const getRoute = routesService.getRoute as (id: string) => Promise<SavedRouteRow | null>;
+const listRoutesSvc = routesService.listRoutes as () => Promise<SavedRouteRow[]>;
 
 export type ExportFormat = 'gpx' | 'tcx' | 'fit';
 
 export interface SavedRoute {
   id: string;
   name?: string;
+}
+
+export interface SavedRouteSummary {
+  id: string;
+  name?: string;
+  distance_km?: number | null;
+  elevation_gain_m?: number | null;
 }
 
 export interface UseRoutePersistenceReturn {
@@ -40,6 +49,7 @@ export interface UseRoutePersistenceReturn {
   savedRouteId: string | null;
   save: (name?: string) => Promise<SavedRoute | null>;
   loadRoute: (id: string) => Promise<boolean>;
+  listSavedRoutes: () => Promise<SavedRouteSummary[]>;
   exportRoute: (format: ExportFormat) => void;
 }
 
@@ -159,13 +169,59 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
 
   const exportRoute = useCallback(
     (format: ExportFormat) => {
-      // Actual serialization is owned by `RouteExportMenu` in v1. P1.3
-      // will wire that component (or its replacement) to the new page.
-      // The hook only fires the event so the export funnel is captured.
-      trackRb2('route_exported', { format, route_id: savedRouteId });
+      if (!routeGeometry || !Array.isArray((routeGeometry as { coordinates?: unknown[] }).coordinates)) {
+        setLastError('No route to export');
+        return;
+      }
+      const coords = (routeGeometry as { coordinates: [number, number][] | [number, number, number][] }).coordinates;
+      try {
+        exportAndDownloadRoute(
+          {
+            name: routeName ?? 'Untitled Route',
+            coordinates: coords,
+            distanceKm: routeStats?.distance_km ?? undefined,
+            elevationGainM: routeStats?.elevation_gain_m ?? undefined,
+            waypoints: Array.isArray(waypoints)
+              ? waypoints
+                  .filter((wp): wp is { position: [number, number]; type?: string; name?: string } => {
+                    const p = (wp as { position?: unknown }).position;
+                    return Array.isArray(p) && p.length === 2;
+                  })
+                  .map((wp) => ({
+                    lng: wp.position[0],
+                    lat: wp.position[1],
+                    name: wp.name,
+                    type: (wp.type as 'start' | 'end' | 'waypoint' | 'poi' | undefined) ?? 'waypoint',
+                  }))
+              : undefined,
+          },
+          format,
+        );
+        trackRb2('route_exported', { format, route_id: savedRouteId });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        setLastError(message);
+        trackRb2('route_export_failed', { format, error_message: message.slice(0, 200) });
+      }
     },
-    [savedRouteId],
+    [routeGeometry, routeName, routeStats, waypoints, savedRouteId],
   );
+
+  const listSavedRoutes = useCallback(async (): Promise<SavedRouteSummary[]> => {
+    try {
+      const rows = await listRoutesSvc();
+      return (rows ?? []).map((r) => ({
+        id: r.id,
+        name: r.name,
+        distance_km: r.distance_km ?? null,
+        elevation_gain_m: r.elevation_gain_m ?? null,
+      }));
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setLastError(message);
+      return [];
+    }
+  }, []);
 
   return {
     isSaving,
@@ -174,6 +230,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     savedRouteId,
     save,
     loadRoute,
+    listSavedRoutes,
     exportRoute,
   };
 }

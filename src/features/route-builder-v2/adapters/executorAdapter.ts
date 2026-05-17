@@ -184,8 +184,11 @@ export async function applyManualAction(
 }
 
 /**
- * STUB: P1.4 will implement chat translation (NL → Mutation).
- * Returns null in P1.2 — callers fall back to the legacy edit panel.
+ * Legacy chat-translation stub. Returns null; real chat translation now
+ * happens in `submitChatMessage` via the `/api/route-builder-2-chat`
+ * endpoint. Kept as a no-op so `useRouteEditing.applyAIEdit` and the
+ * dev harness continue to compile and resolve to
+ * `chat_translation_unavailable` without an exception.
  */
 export function interpretChatInput(_text: string): Mutation | null {
   return null;

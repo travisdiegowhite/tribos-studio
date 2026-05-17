@@ -188,6 +188,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/route-builder-2/:routeId"
+        element={
+          <ProtectedRoute>
+            <RouteBuilder2 />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Hook test harness (P1.2). Gated to DEV + flag. Returns null in prod. */}
       {ROUTE_BUILDER_V2_DEV_HARNESS_ENABLED && (
