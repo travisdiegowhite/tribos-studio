@@ -95,13 +95,18 @@ export const useRouteManipulation = ({
   }, [waypoints, setWaypoints, pushToHistory]);
 
   // === Reverse Route ===
-  const reverseRoute = useCallback(() => {
+  // The `options.silent` flag suppresses Mantine notifications so callers
+  // (notably Route Builder 2.0's chat-driven flows) can own their own user
+  // feedback without double-toasting. Default false preserves v1 behavior.
+  const reverseRoute = useCallback((options = {}) => {
     if (waypoints.length < 2) {
-      notifications.show({
-        title: 'Cannot reverse',
-        message: 'Need at least 2 waypoints to reverse route',
-        color: 'yellow',
-      });
+      if (!options.silent) {
+        notifications.show({
+          title: 'Cannot reverse',
+          message: 'Need at least 2 waypoints to reverse route',
+          color: 'yellow',
+        });
+      }
       return waypoints;
     }
 
@@ -134,17 +139,19 @@ export const useRouteManipulation = ({
       }
     }
 
-    notifications.show({
-      title: 'Route reversed',
-      message: 'Start and end points swapped',
-      color: 'green',
-    });
+    if (!options.silent) {
+      notifications.show({
+        title: 'Route reversed',
+        message: 'Start and end points swapped',
+        color: 'green',
+      });
+    }
 
     return reversed;
   }, [waypoints, setWaypoints, routeGeometry, setRouteGeometry, elevationProfile, setElevationProfile, pushToHistory]);
 
   // === Clear Route ===
-  const clearRoute = useCallback(() => {
+  const clearRoute = useCallback((options = {}) => {
     setWaypoints([]);
     setRouteGeometry(null);
     setRouteStats({ distance_km: 0, elevation_gain_m: 0, duration_s: 0 });
@@ -154,59 +161,69 @@ export const useRouteManipulation = ({
     setHistoryIndex(-1);
     setHistoryLength(0);
 
-    notifications.show({
-      title: 'Route cleared',
-      message: 'All waypoints removed',
-      color: 'blue',
-    });
+    if (!options.silent) {
+      notifications.show({
+        title: 'Route cleared',
+        message: 'All waypoints removed',
+        color: 'blue',
+      });
+    }
   }, [setWaypoints, setRouteGeometry, setRouteStats, setElevationProfile]);
 
   // === Undo ===
-  const undo = useCallback(() => {
+  const undo = useCallback((options = {}) => {
     if (historyIndexRef.current > 0) {
       historyIndexRef.current -= 1;
       setHistoryIndex(historyIndexRef.current);
       const previousState = historyRef.current[historyIndexRef.current];
       setWaypoints(structuredClone(previousState));
 
-      notifications.show({
-        title: 'Undo',
-        message: 'Reverted to previous state',
-        color: 'blue',
-      });
+      if (!options.silent) {
+        notifications.show({
+          title: 'Undo',
+          message: 'Reverted to previous state',
+          color: 'blue',
+        });
+      }
 
       return previousState;
     } else {
-      notifications.show({
-        title: 'Cannot undo',
-        message: 'No more history to undo',
-        color: 'yellow',
-      });
+      if (!options.silent) {
+        notifications.show({
+          title: 'Cannot undo',
+          message: 'No more history to undo',
+          color: 'yellow',
+        });
+      }
       return waypoints;
     }
   }, [waypoints, setWaypoints]);
 
   // === Redo ===
-  const redo = useCallback(() => {
+  const redo = useCallback((options = {}) => {
     if (historyIndexRef.current < historyRef.current.length - 1) {
       historyIndexRef.current += 1;
       setHistoryIndex(historyIndexRef.current);
       const nextState = historyRef.current[historyIndexRef.current];
       setWaypoints(structuredClone(nextState));
 
-      notifications.show({
-        title: 'Redo',
-        message: 'Restored next state',
-        color: 'blue',
-      });
+      if (!options.silent) {
+        notifications.show({
+          title: 'Redo',
+          message: 'Restored next state',
+          color: 'blue',
+        });
+      }
 
       return nextState;
     } else {
-      notifications.show({
-        title: 'Cannot redo',
-        message: 'No more history to redo',
-        color: 'yellow',
-      });
+      if (!options.silent) {
+        notifications.show({
+          title: 'Cannot redo',
+          message: 'No more history to redo',
+          color: 'yellow',
+        });
+      }
       return waypoints;
     }
   }, [waypoints, setWaypoints]);
@@ -216,13 +233,15 @@ export const useRouteManipulation = ({
   const canRedo = historyIndex < historyLength - 1;
 
   // === Snap to Roads ===
-  const snapToRoads = useCallback(async (waypointsToSnap = waypoints) => {
+  const snapToRoads = useCallback(async (waypointsToSnap = waypoints, options = {}) => {
     if (waypointsToSnap.length < 2) {
-      notifications.show({
-        title: 'Cannot snap',
-        message: 'Need at least 2 waypoints to create a route',
-        color: 'yellow',
-      });
+      if (!options.silent) {
+        notifications.show({
+          title: 'Cannot snap',
+          message: 'Need at least 2 waypoints to create a route',
+          color: 'yellow',
+        });
+      }
       return null;
     }
 
@@ -331,11 +350,13 @@ export const useRouteManipulation = ({
         }));
       }
 
-      notifications.show({
-        title: 'Route calculated',
-        message: `${distance_km.toFixed(1)} km route snapped to roads`,
-        color: 'green',
-      });
+      if (!options.silent) {
+        notifications.show({
+          title: 'Route calculated',
+          message: `${distance_km.toFixed(1)} km route snapped to roads`,
+          color: 'green',
+        });
+      }
 
       return {
         geometry,
@@ -344,11 +365,13 @@ export const useRouteManipulation = ({
       };
     } catch (err) {
       console.error('Route snapping failed:', err);
-      notifications.show({
-        title: 'Route calculation failed',
-        message: err.message,
-        color: 'red',
-      });
+      if (!options.silent) {
+        notifications.show({
+          title: 'Route calculation failed',
+          message: err.message,
+          color: 'red',
+        });
+      }
       return null;
     }
   }, [waypoints, routingProfile, useSmartRouting, setRouteGeometry, setRouteStats, setElevationProfile]);
