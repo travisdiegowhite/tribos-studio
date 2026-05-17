@@ -21,6 +21,7 @@ export type {
   FullRouteContext,
   BBox,
   AssembleOptions,
+  RouteContextErrorKind,
 } from './assembleRouteContext';
 export {
   enrichElevation,
