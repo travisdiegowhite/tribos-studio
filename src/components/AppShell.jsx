@@ -27,29 +27,19 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { useGear } from '../hooks/useGear.ts';
 import { useActivation } from '../hooks/useActivation.ts';
+import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access.ts';
 import { formatDistance } from '../utils/units';
 import { ListChecks } from '@phosphor-icons/react';
 
 // Four-tab primary navigation: TODAY · RIDE · TRAIN · PROGRESS
-// Phase 1 (P1.1): when VITE_ROUTE_BUILDER_V2_ENABLED === 'true', a fifth
-// BUILDER 2.0 BETA tab is appended that links to /route-builder-2. The new
-// page is reachable by direct URL regardless of the flag.
-const ROUTE_BUILDER_V2_ENABLED =
-  import.meta.env.VITE_ROUTE_BUILDER_V2_ENABLED === 'true';
-
+// Stabilize S1: the fifth BUILDER 2.0 BETA tab is gated per-user via
+// useRouteBuilderV2Access (env flag AND user_profiles.route_builder_v2_enabled).
 const baseNavItems = [
   { path: '/today', label: 'TODAY' },
   { path: '/ride', label: 'RIDE' },
   { path: '/train', label: 'TRAIN' },
   { path: '/progress', label: 'PROGRESS' },
 ];
-
-const navItems = ROUTE_BUILDER_V2_ENABLED
-  ? [
-      ...baseNavItems,
-      { path: '/route-builder-2', label: 'BUILDER 2.0', beta: true },
-    ]
-  : baseNavItems;
 
 function AppShell({ children, fullWidth = false, hideNav = false }) {
   const location = useLocation();
@@ -64,6 +54,15 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
 
   // Activation guide — undismiss support
   const { isDismissed: guideIsDismissed, isComplete: guideIsComplete, undismissGuide } = useActivation(user?.id);
+
+  // Route Builder 2.0 BETA gate (S1: env flag + per-user column).
+  const { hasAccess: routeBuilderV2Access } = useRouteBuilderV2Access();
+  const navItems = routeBuilderV2Access
+    ? [
+        ...baseNavItems,
+        { path: '/route-builder-2', label: 'BUILDER 2.0', beta: true },
+      ]
+    : baseNavItems;
 
   // Persist pending consent from signup flow to user_profiles
   useEffect(() => {

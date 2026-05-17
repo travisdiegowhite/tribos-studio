@@ -286,6 +286,8 @@ export interface UserProfileDB {
   garmin_data_consent_at: string | null;
   account_deletion_requested_at: string | null;
   data_export_requested_at: string | null;
+  // Per-user beta gates
+  route_builder_v2_enabled: boolean;
 }
 
 export interface UserProfileInsert {
@@ -323,6 +325,8 @@ export interface UserProfileInsert {
   onboarding_persona_set?: boolean;
   welcome_email_sent?: boolean;
   activation_nudge_sent?: boolean;
+  // Per-user beta gates
+  route_builder_v2_enabled?: boolean;
 }
 
 export interface UserProfileUpdate {
@@ -359,6 +363,8 @@ export interface UserProfileUpdate {
   onboarding_persona_set?: boolean;
   welcome_email_sent?: boolean;
   activation_nudge_sent?: boolean;
+  // Per-user beta gates
+  route_builder_v2_enabled?: boolean;
 }
 
 // ============================================================
