@@ -32,6 +32,7 @@ import {
   type AssembleOptions,
   type FullRouteContext,
 } from './assembleRouteContext';
+import { enrichElevation, enrichElevationBatch } from './elevationEnrichment';
 
 // ---------------------------------------------------------------------------
 // GenerationFormInput — the UI's view of the generation form
@@ -112,9 +113,11 @@ export async function generateRoute(
   const constraints = toGenerationConstraints(input);
   const executor = getExecutor();
   if (count === 3) {
-    return executor.generate(ctx, constraints, 3);
+    const results = await executor.generate(ctx, constraints, 3);
+    return enrichElevationBatch(results);
   }
-  return executor.generate(ctx, constraints, 1);
+  const result = await executor.generate(ctx, constraints, 1);
+  return enrichElevation(result);
 }
 
 export async function applyMutation(
@@ -124,7 +127,8 @@ export async function applyMutation(
 ): Promise<ExecutorResult> {
   const full = await buildContext(options);
   const ctx = toExecutorContext(full);
-  return getExecutor().applyMutation(route, ctx, mutation);
+  const result = await getExecutor().applyMutation(route, ctx, mutation);
+  return enrichElevation(result);
 }
 
 export async function applyManualAction(
@@ -135,7 +139,8 @@ export async function applyManualAction(
 ): Promise<ExecutorResult> {
   const full = await buildContext(options);
   const ctx = toExecutorContext(full);
-  return getExecutor().applyManualAction(route, ctx, action, payload);
+  const result = await getExecutor().applyManualAction(route, ctx, action, payload);
+  return enrichElevation(result);
 }
 
 /**

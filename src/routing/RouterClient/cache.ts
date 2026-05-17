@@ -93,8 +93,11 @@ function quantizeCoord(value: number): number {
  * Stable JSON: sorts object keys recursively so equivalent objects
  * hash to the same string regardless of key ordering. Arrays preserve
  * order (their order is semantic).
+ *
+ * Exported so other in-memory caches (e.g. `elevationEnrichment`) can
+ * share the same canonicalization without duplicating the helper.
  */
-function stableJson(value: unknown): string {
+export function stableJson(value: unknown): string {
   if (value === null || typeof value !== 'object') {
     return JSON.stringify(value);
   }
@@ -116,8 +119,11 @@ function stableJson(value: unknown): string {
  * FNV-1a 32-bit hash. Sufficient for cache keys at this scale
  * (collisions astronomically unlikely at <1000 entries). Crypto-grade
  * is not required.
+ *
+ * Exported for reuse by sibling caches; see `stableJson` for the
+ * canonical input shape.
  */
-function fnv1a32(str: string): string {
+export function fnv1a32(str: string): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
     hash ^= str.charCodeAt(i);

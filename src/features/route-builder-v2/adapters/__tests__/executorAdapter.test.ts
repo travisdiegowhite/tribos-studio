@@ -1,4 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('../elevationEnrichment', () => ({
+  enrichElevation: vi.fn((r: unknown) => Promise.resolve(r)),
+  enrichElevationBatch: vi.fn((rs: unknown) => Promise.resolve(rs)),
+}));
+
 import {
   generateRoute,
   applyMutation,
@@ -6,8 +12,12 @@ import {
   interpretChatInput,
   toGenerationConstraints,
 } from '../executorAdapter';
+import { enrichElevation, enrichElevationBatch } from '../elevationEnrichment';
 import type { FullRouteContext } from '../assembleRouteContext';
 import { setExecutor, type ExecutorResult, type RouteSnapshot } from '../../../../routing/executor';
+
+const mockEnrich = vi.mocked(enrichElevation);
+const mockEnrichBatch = vi.mocked(enrichElevationBatch);
 
 function makeContext(): FullRouteContext {
   return {
@@ -92,6 +102,8 @@ describe('interpretChatInput', () => {
 describe('generateRoute', () => {
   beforeEach(() => {
     setExecutor(null);
+    mockEnrich.mockClear();
+    mockEnrichBatch.mockClear();
   });
 
   it('forwards constraints and context to executor.generate (count=1)', async () => {
@@ -139,11 +151,32 @@ describe('generateRoute', () => {
     const result = await generateRoute({}, 1, { contextOverride: makeContext() });
     expect((result as { ok: boolean }).ok).toBe(false);
   });
+
+  it('runs elevation enrichment on the count=1 result', async () => {
+    const generate = vi.fn().mockResolvedValue(makeSuccessResult());
+    setExecutor({ generate } as any);
+    await generateRoute({}, 1, { contextOverride: makeContext() });
+    expect(mockEnrich).toHaveBeenCalledTimes(1);
+    expect(mockEnrichBatch).not.toHaveBeenCalled();
+  });
+
+  it('runs elevation enrichment on the count=3 batch', async () => {
+    const generate = vi.fn().mockResolvedValue([
+      makeSuccessResult(),
+      makeSuccessResult(),
+      makeSuccessResult(),
+    ]);
+    setExecutor({ generate } as any);
+    await generateRoute({}, 3, { contextOverride: makeContext() });
+    expect(mockEnrichBatch).toHaveBeenCalledTimes(1);
+    expect(mockEnrich).not.toHaveBeenCalled();
+  });
 });
 
 describe('applyMutation', () => {
   beforeEach(() => {
     setExecutor(null);
+    mockEnrich.mockClear();
   });
 
   it('forwards route, context, and mutation to executor.applyMutation', async () => {
@@ -162,11 +195,23 @@ describe('applyMutation', () => {
     expect(passedCtx.user_id).toBe('u1');
     expect(passedMutation).toEqual({ type: 'extend_distance', delta_km: 5 });
   });
+
+  it('runs elevation enrichment on the result', async () => {
+    const applyMutationFn = vi.fn().mockResolvedValue(makeSuccessResult());
+    setExecutor({ applyMutation: applyMutationFn } as any);
+    await applyMutation(
+      makeRouteSnapshot(),
+      { type: 'extend_distance', delta_km: 5 },
+      { contextOverride: makeContext() },
+    );
+    expect(mockEnrich).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('applyManualAction', () => {
   beforeEach(() => {
     setExecutor(null);
+    mockEnrich.mockClear();
   });
 
   it('forwards route, context, action and payload', async () => {
@@ -184,5 +229,17 @@ describe('applyManualAction', () => {
     expect(passedRoute).toBe(route);
     expect(passedAction).toBe('drag_waypoint');
     expect(payload).toMatchObject({ waypoint_index: 0 });
+  });
+
+  it('runs elevation enrichment on the result', async () => {
+    const applyManualActionFn = vi.fn().mockResolvedValue(makeSuccessResult());
+    setExecutor({ applyManualAction: applyManualActionFn } as any);
+    await applyManualAction(
+      makeRouteSnapshot(),
+      'drag_waypoint',
+      { action: 'drag_waypoint', waypoint_index: 0, new_coord: [-105.2, 40.2] },
+      { contextOverride: makeContext() },
+    );
+    expect(mockEnrich).toHaveBeenCalledTimes(1);
   });
 });
