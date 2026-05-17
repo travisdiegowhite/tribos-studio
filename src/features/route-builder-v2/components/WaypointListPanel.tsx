@@ -9,7 +9,7 @@ import { Box, Text, UnstyledButton } from '@mantine/core';
 import { X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { trackRb2 } from '../telemetry/trackRb2';
-import type { Coordinate } from '../../../routing/executor';
+import type { Coordinate } from '../../../types/geo';
 
 export interface WaypointListPanelProps {
   waypoints: ReadonlyArray<{ id: string; position: Coordinate; type?: string }>;

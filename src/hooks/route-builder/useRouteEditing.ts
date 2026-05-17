@@ -1,35 +1,30 @@
 /**
  * useRouteEditing — Route Builder 2.0 editing hook.
  *
- * Applies mutations and chat-driven edits to the current route. Reads
- * the live route from the Zustand store; on success, writes the new
- * geometry/stats back to the store.
+ * Thin wrapper around v1's AI edit pipeline. The only public action is
+ * `applyAIEdit(text)`, which delegates to `replicatedEditLogic.applyAIEdit`
+ * (which itself calls v1's `aiRouteEditService.classifyEditIntent` +
+ * `applyRouteEdit`). Undo/redo is implemented locally via a snapshot
+ * stack of `{ geometry, stats }` pairs captured immediately before each
+ * edit; restoring writes back to the store.
  *
- * Edit history is kept in-hook (`useState`) — it's transient to the
- * editing session. Undo/redo restores prior snapshots from history.
- *
- * Chat translation is stubbed via `executorAdapter.interpretChatInput`
- * (P1.4 fills it). When the stub returns `null`, `applyAIEdit` resolves
- * with `{ ok: false, reason: 'chat_translation_unavailable' }`.
+ * S2 rewire: replaces the executor-adapter `applyMutation` path. The
+ * `Mutation` type and its associated taxonomy go away with the executor.
  */
-
 import { useCallback, useState } from 'react';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
-import * as executorAdapter from '../../features/route-builder-v2/adapters';
-import type {
-  ExecutorResult,
-  ExecutorFailure,
-  Mutation,
-  RouteSnapshot,
-  RouteWaypoint,
-} from '../../routing/executor';
+import { applyAIEdit as applyAIEditViaV1 } from '../../features/route-builder-v2/chat/replicatedEditLogic';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
+import type { Coordinate, RouteStats } from './types';
 
-interface HistoryEntry {
-  route: RouteSnapshot;
-  appliedAt: number;
-  label?: string;
-}
+export type ApplyAIEditResult =
+  | {
+      ok: true;
+      assistantText: string;
+      distance_km: number;
+      elevation_gain_m: number;
+    }
+  | { ok: false; reason: string };
 
 export interface UseRouteEditingReturn {
   isApplying: boolean;
@@ -37,176 +32,131 @@ export interface UseRouteEditingReturn {
   canUndo: boolean;
   canRedo: boolean;
   historyDepth: number;
-  applyMutation: (mutation: Mutation) => Promise<ExecutorResult>;
-  applyAIEdit: (
-    text: string,
-  ) => Promise<ExecutorResult | { ok: false; reason: 'chat_translation_unavailable' }>;
+  applyAIEdit: (text: string) => Promise<ApplyAIEditResult>;
   undo: () => boolean;
   redo: () => boolean;
 }
 
-function formatFailure(reason: ExecutorFailure): string {
-  if (reason.kind === 'constraint_infeasible') return reason.explanation;
-  if (reason.kind === 'mutation_not_supported') return `Unsupported: ${reason.mutation_type}`;
-  if (reason.kind === 'router_unavailable') return 'No router available';
-  if (reason.kind === 'waypoint_unreachable') return `Waypoint unreachable`;
-  if (reason.kind === 'context_missing') return `Missing: ${reason.required_field}`;
-  if (reason.kind === 'internal_error') return reason.message;
-  return 'Unknown error';
+interface Snapshot {
+  geometry: Coordinate[];
+  stats: RouteStats;
 }
 
 export function useRouteEditing(): UseRouteEditingReturn {
   const [isApplying, setIsApplying] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [history, setHistory] = useState<Snapshot[]>([]);
   const [cursor, setCursor] = useState<number>(-1);
 
-  const routeGeometry = useRouteBuilderStore((s) => s.routeGeometry);
-  const routeStats = useRouteBuilderStore((s) => s.routeStats);
-  const waypoints = useRouteBuilderStore((s) => s.waypoints);
-  const setRouteGeometry = useRouteBuilderStore((s) => s.setRouteGeometry);
-  const setRouteStats = useRouteBuilderStore((s) => s.setRouteStats);
-  const setWaypoints = useRouteBuilderStore((s) => s.setWaypoints);
-
-  const snapshotCurrentRoute = useCallback((): RouteSnapshot | null => {
-    if (!routeGeometry || !Array.isArray(routeGeometry.coordinates)) return null;
-    const coords = routeGeometry.coordinates;
-    const wpList: RouteWaypoint[] = (Array.isArray(waypoints) ? waypoints : []).map(
-      (wp: { position?: [number, number] | readonly [number, number] }) => ({
-        coordinate: (wp.position ?? coords[0]) as [number, number],
-      }),
-    );
+  const captureCurrentSnapshot = useCallback((): Snapshot | null => {
+    const state = useRouteBuilderStore.getState();
+    const geom = state.routeGeometry;
+    if (!geom || !Array.isArray(geom.coordinates) || geom.coordinates.length < 2) {
+      return null;
+    }
+    const stats = state.routeStats ?? {
+      distance_km: 0,
+      elevation_gain_m: 0,
+      duration_s: 0,
+    };
     return {
-      geometry: coords,
-      waypoints: wpList,
+      geometry: geom.coordinates as Coordinate[],
       stats: {
-        distance_km: routeStats?.distance_km ?? 0,
-        elevation_gain_m: routeStats?.elevation_gain_m ?? 0,
-        elevation_loss_m: 0,
-        duration_s: routeStats?.duration_s ?? 0,
+        distance_km: stats.distance_km ?? 0,
+        elevation_gain_m: stats.elevation_gain_m ?? 0,
+        elevation_loss_m: (stats as { elevation_loss_m?: number }).elevation_loss_m ?? 0,
+        duration_s: stats.duration_s ?? 0,
       },
     };
-  }, [routeGeometry, routeStats, waypoints]);
+  }, []);
 
-  const writeSnapshotToStore = useCallback(
-    (snap: RouteSnapshot) => {
-      setRouteGeometry({ type: 'LineString', coordinates: snap.geometry });
-      setRouteStats({
-        distance_km: snap.stats.distance_km,
-        elevation_gain_m: snap.stats.elevation_gain_m,
-        duration_s: snap.stats.duration_s,
-      });
-      setWaypoints(
-        snap.waypoints.map((wp, i) => ({
-          id: `wp-${i}`,
-          position: wp.coordinate,
-          type:
-            i === 0 ? 'start' : i === snap.waypoints.length - 1 ? 'end' : 'waypoint',
-          name: '',
-        })),
-      );
-    },
-    [setRouteGeometry, setRouteStats, setWaypoints],
-  );
+  const writeSnapshot = useCallback((snap: Snapshot) => {
+    const state = useRouteBuilderStore.getState();
+    state.setRouteGeometry({ type: 'LineString', coordinates: snap.geometry });
+    state.setRouteStats({
+      distance_km: snap.stats.distance_km,
+      elevation_gain_m: snap.stats.elevation_gain_m,
+      duration_s: snap.stats.duration_s,
+    });
+  }, []);
 
-  const pushHistory = useCallback(
-    (snap: RouteSnapshot, label?: string) => {
-      setHistory((prev) => {
-        const truncated = prev.slice(0, cursor + 1);
-        return [...truncated, { route: snap, appliedAt: Date.now(), label }];
-      });
-      setCursor((c) => c + 1);
-    },
-    [cursor],
-  );
-
-  const applyMutation = useCallback(
-    async (mutation: Mutation): Promise<ExecutorResult> => {
-      const current = snapshotCurrentRoute();
-      if (!current) {
-        const failure: ExecutorResult = {
-          ok: false,
-          reason: { kind: 'context_missing', required_field: 'route' },
-        };
-        setLastError('No current route to edit');
-        trackRb2('mutation_failed', {
-          mutation_type: mutation.type,
-          failure_kind: 'context_missing',
-        });
-        return failure;
-      }
+  const applyAIEdit = useCallback(
+    async (text: string): Promise<ApplyAIEditResult> => {
       setIsApplying(true);
       setLastError(null);
       const startedAt = Date.now();
+      const before = captureCurrentSnapshot();
       try {
-        const result = await executorAdapter.applyMutation(current, mutation);
-        if (result.ok) {
-          pushHistory(result.route, mutation.type);
-          writeSnapshotToStore(result.route);
-          trackRb2('mutation_applied', {
-            mutation_type: mutation.type,
-            duration_ms: Date.now() - startedAt,
+        const result = await applyAIEditViaV1(text);
+        if (!result.ok) {
+          setLastError(result.reason);
+          trackRb2('chat_edit_failed', {
+            input_length: text.length,
+            failure_reason: result.reason.slice(0, 200),
           });
-        } else {
-          setLastError(formatFailure(result.reason));
-          trackRb2('mutation_failed', {
-            mutation_type: mutation.type,
-            failure_kind: result.reason.kind,
-          });
+          return result;
         }
+        if (before) {
+          setHistory((prev) => {
+            const truncated = prev.slice(0, cursor + 1);
+            return [...truncated, before];
+          });
+          setCursor((c) => c + 1);
+        }
+        trackRb2('chat_edit_applied', {
+          input_length: text.length,
+          duration_ms: Date.now() - startedAt,
+          distance_km: result.distance_km,
+          elevation_gain_m: result.elevation_gain_m,
+        });
         return result;
       } finally {
         setIsApplying(false);
       }
     },
-    [pushHistory, snapshotCurrentRoute, writeSnapshotToStore],
-  );
-
-  const applyAIEdit = useCallback(
-    async (
-      text: string,
-    ): Promise<
-      ExecutorResult | { ok: false; reason: 'chat_translation_unavailable' }
-    > => {
-      const mutation = executorAdapter.interpretChatInput(text);
-      if (!mutation) {
-        trackRb2('ai_edit_unavailable', {});
-        return { ok: false, reason: 'chat_translation_unavailable' as const };
-      }
-      return applyMutation(mutation);
-    },
-    [applyMutation],
+    [captureCurrentSnapshot, cursor],
   );
 
   const undo = useCallback((): boolean => {
     if (cursor < 0) return false;
-    if (cursor === 0) {
-      // Going back beyond first entry is a no-op in v1 — clear is a
-      // separate action handled by the store.
-      return false;
-    }
-    const previous = history[cursor - 1];
+    const previous = history[cursor];
     if (!previous) return false;
-    writeSnapshotToStore(previous.route);
+    // Save the current state before undoing so we can redo.
+    const current = captureCurrentSnapshot();
+    writeSnapshot(previous);
+    if (current) {
+      setHistory((prev) => {
+        const copy = [...prev];
+        copy[cursor] = current;
+        return copy;
+      });
+    }
     setCursor(cursor - 1);
     return true;
-  }, [cursor, history, writeSnapshotToStore]);
+  }, [cursor, history, captureCurrentSnapshot, writeSnapshot]);
 
   const redo = useCallback((): boolean => {
     const next = history[cursor + 1];
     if (!next) return false;
-    writeSnapshotToStore(next.route);
+    const current = captureCurrentSnapshot();
+    writeSnapshot(next);
+    if (current) {
+      setHistory((prev) => {
+        const copy = [...prev];
+        copy[cursor + 1] = current;
+        return copy;
+      });
+    }
     setCursor(cursor + 1);
     return true;
-  }, [cursor, history, writeSnapshotToStore]);
+  }, [cursor, history, captureCurrentSnapshot, writeSnapshot]);
 
   return {
     isApplying,
     lastError,
-    canUndo: cursor > 0,
-    canRedo: cursor >= 0 && cursor < history.length - 1,
+    canUndo: cursor >= 0,
+    canRedo: cursor < history.length - 1,
     historyDepth: history.length,
-    applyMutation,
     applyAIEdit,
     undo,
     redo,

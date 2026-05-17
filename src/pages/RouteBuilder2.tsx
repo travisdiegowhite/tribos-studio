@@ -50,7 +50,7 @@ import { POILayer } from '../features/route-builder-v2/layers/POILayer';
 import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLayer';
 import { FamiliarSegmentsLayer } from '../features/route-builder-v2/layers/FamiliarSegmentsLayer';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
-import type { Coordinate } from '../routing/executor';
+import type { Coordinate } from '../types/geo';
 
 const DEFAULT_VISIBILITY: LayerVisibilityState = {
   surface: false,
@@ -162,44 +162,16 @@ export default function RouteBuilder2() {
     !!routeGeometry?.coordinates && routeGeometry.coordinates.length > 0;
   const handleChatSubmit = useCallback(
     (text: string) => {
-      const snapshot =
-        hasRouteForChat && routeGeometry && routeStats
-          ? {
-              geometry: (routeGeometry.coordinates ?? []) as Coordinate[],
-              waypoints: (Array.isArray(waypoints) ? waypoints : []).map(
-                (wp: { position?: Coordinate }) => ({
-                  coordinate: (wp.position ?? [0, 0]) as Coordinate,
-                }),
-              ),
-              stats: {
-                distance_km: routeStats.distance_km ?? 0,
-                elevation_gain_m: routeStats.elevation_gain_m ?? 0,
-                elevation_loss_m: 0,
-                duration_s: routeStats.duration_s ?? 0,
-              },
-            }
-          : null;
       void submitChatMessage({
         input: text,
         hasRoute: hasRouteForChat,
         append: chat.append,
         setProcessing: chat.setProcessing,
         markRefused: chat.markRefused,
-        editing,
         formPanelControl: formPanelRef.current ?? { expand: () => {} },
-        routeSnapshot: snapshot,
       });
     },
-    [
-      hasRouteForChat,
-      chat.append,
-      chat.setProcessing,
-      chat.markRefused,
-      editing,
-      routeGeometry,
-      routeStats,
-      waypoints,
-    ],
+    [hasRouteForChat, chat.append, chat.setProcessing, chat.markRefused],
   );
 
   // Load a saved route when a routeId is in the URL. Runs once per id.

@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 // eslint-disable-next-line import/no-unresolved
 import { Source, Layer } from 'react-map-gl';
-import type { Coordinate } from '../../../routing/executor';
+import type { Coordinate } from '../../../types/geo';
 import { createGradientRoute } from '../../../utils/routeGradient.js';
 import { getElevationData } from '../../../utils/elevation.js';
 

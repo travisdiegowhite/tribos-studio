@@ -1,13 +1,11 @@
 /**
  * useRoutePersistence — Route Builder 2.0 save / load / export hook.
  *
- * Reads the current route from the Zustand store and delegates to
- * `routesService` for save/load and emits export telemetry. Export
- * format conversion is intentionally deferred — the legacy
- * `RouteExportMenu` continues to own GPX/TCX/FIT serialization; the
- * hook only exposes a launcher.
+ * Thin wrapper around v1's `routesService` for save/load and
+ * `routeExport` for GPX/TCX/FIT serialization. S2 rewire: drops the
+ * executor-type imports; otherwise behavior is the same as P1.2 since
+ * persistence never went through the executor adapter.
  */
-
 import { useCallback, useState } from 'react';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import * as routesService from '../../utils/routesService';

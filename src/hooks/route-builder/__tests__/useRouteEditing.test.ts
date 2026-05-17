@@ -2,46 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useRouteEditing } from '../useRouteEditing';
 import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
-import type { ExecutorResult, RouteSnapshot, Mutation } from '../../../routing/executor';
 
-vi.mock('../../../features/route-builder-v2/adapters', async () => ({
-  applyMutation: vi.fn(),
-  interpretChatInput: vi.fn(),
+vi.mock('../../../features/route-builder-v2/chat/replicatedEditLogic', () => ({
+  applyAIEdit: vi.fn(),
 }));
 
-import * as adapter from '../../../features/route-builder-v2/adapters';
+import { applyAIEdit } from '../../../features/route-builder-v2/chat/replicatedEditLogic';
 
-function makeRoute(distance = 25): RouteSnapshot {
-  return {
-    geometry: [
-      [-105, 40],
-      [-105.1, 40.1],
-    ],
-    waypoints: [
-      { coordinate: [-105, 40] },
-      { coordinate: [-105.1, 40.1] },
-    ],
-    stats: {
-      distance_km: distance,
-      elevation_gain_m: 100,
-      elevation_loss_m: 100,
-      duration_s: 1800,
-    },
-  };
-}
-
-function makeSuccess(distance: number): ExecutorResult {
-  return {
-    ok: true,
-    route: makeRoute(distance),
-    metadata: {
-      provider_used: 'stadia',
-      duration_ms: 1,
-      cache_hit: false,
-      attempts_tried: 1,
-    },
-  };
-}
+const mockApply = applyAIEdit as unknown as ReturnType<typeof vi.fn>;
 
 function seedStoreWithRoute(distance = 25) {
   const store = useRouteBuilderStore.getState();
@@ -79,94 +47,91 @@ describe('useRouteEditing', () => {
     expect(result.current.historyDepth).toBe(0);
   });
 
-  it('returns context_missing failure when no current route', async () => {
-    const { result } = renderHook(() => useRouteEditing());
-    let res: ExecutorResult | null = null;
-    await act(async () => {
-      res = await result.current.applyMutation({
-        type: 'extend_distance',
-        delta_km: 5,
-      } as Mutation);
-    });
-    expect(res!.ok).toBe(false);
-    expect(result.current.lastError).toContain('No current route');
-  });
-
-  it('applies a mutation and writes back to the store', async () => {
+  it('applyAIEdit on success returns ok and records history', async () => {
     seedStoreWithRoute(25);
-    vi.mocked(adapter.applyMutation).mockResolvedValue(makeSuccess(30));
-
+    mockApply.mockResolvedValue({
+      ok: true,
+      assistantText: 'Done.',
+      distance_km: 22,
+      elevation_gain_m: 80,
+    });
     const { result } = renderHook(() => useRouteEditing());
+
     await act(async () => {
-      await result.current.applyMutation({
-        type: 'extend_distance',
-        delta_km: 5,
-      } as Mutation);
+      const r = await result.current.applyAIEdit('make it flatter');
+      expect(r.ok).toBe(true);
     });
 
-    expect(result.current.lastError).toBeNull();
+    expect(mockApply).toHaveBeenCalledWith('make it flatter');
+    expect(result.current.canUndo).toBe(true);
     expect(result.current.historyDepth).toBe(1);
-    const stats = useRouteBuilderStore.getState().routeStats;
-    expect(stats.distance_km).toBe(30);
   });
 
-  it('sets lastError when executor returns failure', async () => {
+  it('applyAIEdit on failure surfaces the reason and does not record history', async () => {
     seedStoreWithRoute(25);
-    vi.mocked(adapter.applyMutation).mockResolvedValue({
-      ok: false,
-      reason: { kind: 'constraint_infeasible', constraint: 'x', explanation: 'too short' },
-    });
+    mockApply.mockResolvedValue({ ok: false, reason: 'no route to edit' });
     const { result } = renderHook(() => useRouteEditing());
+
     await act(async () => {
-      await result.current.applyMutation({
-        type: 'extend_distance',
-        delta_km: 1000,
-      } as Mutation);
+      const r = await result.current.applyAIEdit('make it flatter');
+      expect(r.ok).toBe(false);
     });
-    expect(result.current.lastError).toBe('too short');
+
+    expect(result.current.lastError).toBe('no route to edit');
+    expect(result.current.canUndo).toBe(false);
     expect(result.current.historyDepth).toBe(0);
   });
 
-  it('applyAIEdit returns chat_translation_unavailable when stub returns null', async () => {
+  it('undo restores the prior geometry/stats', async () => {
     seedStoreWithRoute(25);
-    vi.mocked(adapter.interpretChatInput).mockReturnValue(null);
+    const initialGeom = useRouteBuilderStore.getState().routeGeometry;
+
+    mockApply.mockImplementation(async () => {
+      // simulate the edit pipeline writing a new geometry/stats to the store
+      const store = useRouteBuilderStore.getState();
+      store.setRouteGeometry({
+        type: 'LineString',
+        coordinates: [
+          [-105, 40],
+          [-105.2, 40.2],
+        ],
+      });
+      store.setRouteStats({
+        distance_km: 30,
+        elevation_gain_m: 200,
+        duration_s: 2400,
+      });
+      return {
+        ok: true,
+        assistantText: 'Longer.',
+        distance_km: 30,
+        elevation_gain_m: 200,
+      };
+    });
+
     const { result } = renderHook(() => useRouteEditing());
-    let res: any;
-    await act(async () => {
-      res = await result.current.applyAIEdit('make it flatter');
-    });
-    expect(res).toEqual({ ok: false, reason: 'chat_translation_unavailable' });
-  });
-
-  it('undo restores prior history entry', async () => {
-    seedStoreWithRoute(25);
-    vi.mocked(adapter.applyMutation)
-      .mockResolvedValueOnce(makeSuccess(30))
-      .mockResolvedValueOnce(makeSuccess(40));
-    const { result } = renderHook(() => useRouteEditing());
 
     await act(async () => {
-      await result.current.applyMutation({
-        type: 'extend_distance',
-        delta_km: 5,
-      } as Mutation);
-    });
-    await act(async () => {
-      await result.current.applyMutation({
-        type: 'extend_distance',
-        delta_km: 10,
-      } as Mutation);
+      await result.current.applyAIEdit('longer');
     });
 
-    expect(result.current.historyDepth).toBe(2);
-    expect(useRouteBuilderStore.getState().routeStats.distance_km).toBe(40);
+    expect(useRouteBuilderStore.getState().routeStats?.distance_km).toBe(30);
 
     act(() => {
-      const ok = result.current.undo();
-      expect(ok).toBe(true);
+      const didUndo = result.current.undo();
+      expect(didUndo).toBe(true);
     });
 
-    expect(useRouteBuilderStore.getState().routeStats.distance_km).toBe(30);
-    expect(result.current.canRedo).toBe(true);
+    expect(useRouteBuilderStore.getState().routeGeometry).toEqual(initialGeom);
+    expect(useRouteBuilderStore.getState().routeStats?.distance_km).toBe(25);
+  });
+
+  it('canUndo is false with empty history', () => {
+    const { result } = renderHook(() => useRouteEditing());
+    expect(result.current.canUndo).toBe(false);
+    act(() => {
+      const ok = result.current.undo();
+      expect(ok).toBe(false);
+    });
   });
 });

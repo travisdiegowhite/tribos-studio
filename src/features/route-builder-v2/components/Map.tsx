@@ -17,7 +17,7 @@ import MapboxMap, { Marker, Source, Layer, type MapRef, type MapLayerMouseEvent 
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Box, Text } from '@mantine/core';
 import { MAPBOX_TOKEN, BASEMAP_STYLES, WAYPOINT_COLORS } from '../../../components/RouteBuilder';
-import type { Coordinate } from '../../../routing/executor';
+import type { Coordinate } from '../../../types/geo';
 import type { UseMapInteractionReturn } from '../../../hooks/route-builder';
 
 const DEFAULT_STYLE = BASEMAP_STYLES[0].style;

@@ -7,7 +7,15 @@ vi.mock('../../../utils/routePOIService', () => ({
   queryPOIsAlongRoute: vi.fn(),
 }));
 
+vi.mock('../../../utils/elevation', () => ({
+  getElevationData: vi.fn(),
+  calculateElevationStats: vi.fn(),
+}));
+
 import * as poiService from '../../../utils/routePOIService';
+import { getElevationData } from '../../../utils/elevation';
+
+const mockElev = getElevationData as unknown as ReturnType<typeof vi.fn>;
 
 function seedRoute() {
   const s = useRouteBuilderStore.getState();
@@ -27,6 +35,7 @@ describe('useRouteAnalysis', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useRouteBuilderStore.getState().resetAll();
+    mockElev.mockResolvedValue(null);
   });
 
   it('has expected initial state with no route', () => {
@@ -38,11 +47,21 @@ describe('useRouteAnalysis', () => {
     expect(result.current.lastError).toBeNull();
   });
 
-  it('derives an elevation profile from the current route', () => {
+  it('derives an elevation profile from the current route', async () => {
     seedRoute();
-    const { result } = renderHook(() => useRouteAnalysis());
+    mockElev.mockResolvedValue([
+      { distance: 0, elevation: 100 },
+      { distance: 6, elevation: 200 },
+      { distance: 12, elevation: 150 },
+    ]);
+    const { result, rerender } = renderHook(() => useRouteAnalysis());
+    // Wait for the effect-driven async fetch
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    rerender();
     expect(result.current.elevationProfile).not.toBeNull();
-    expect(result.current.elevationProfile!.length).toBeGreaterThan(0);
+    expect(result.current.elevationProfile!.length).toBe(3);
     expect(result.current.gradientData).not.toBeNull();
   });
 
