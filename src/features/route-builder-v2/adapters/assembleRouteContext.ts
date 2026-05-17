@@ -116,14 +116,29 @@ function isMissingRow(err: SupabaseErrorShape | null | undefined): boolean {
 }
 
 /**
- * Anything else with a code is a real failure: schema (`42P01`
- * undefined_table, `42703` undefined_column, `PGRST106` schema cache),
- * RLS deny, etc. Treat all non-PGRST116 errors as unrecoverable so the
- * caller can surface them rather than silently using defaults.
+ * Schema-shaped errors (undefined_table, undefined_column, schema-cache
+ * miss). These indicate the codebase is asking for a column or table
+ * the production database doesn't have — historically these have
+ * surfaced as opaque user-facing failures (e.g. `user_profiles
+ * [42703]`). We treat them as benign and degrade to an empty profile
+ * so generation/edits can still run; the underlying schema drift is
+ * logged for follow-up.
+ */
+function isSchemaMismatch(err: SupabaseErrorShape | null | undefined): boolean {
+  if (!err) return false;
+  return err.code === '42P01' || err.code === '42703' || err.code === 'PGRST106';
+}
+
+/**
+ * Anything that isn't a missing row and isn't a recognized schema
+ * mismatch is a real failure (RLS deny, network, unknown). Bubbled up
+ * so the caller can surface a real error.
  */
 function isQueryFailure(err: SupabaseErrorShape | null | undefined): boolean {
   if (!err) return false;
-  return !isMissingRow(err);
+  if (isMissingRow(err)) return false;
+  if (isSchemaMismatch(err)) return false;
+  return true;
 }
 
 function formatQueryError(query: string, err: SupabaseErrorShape): string {
@@ -191,6 +206,14 @@ export async function getRelevantPastRides(
     .limit(20);
 
   if (error) {
+    if (isSchemaMismatch(error)) {
+      console.warn(
+        `[RB2] activities schema mismatch (${error.code}: ${error.message}) — falling back to empty past-rides`,
+      );
+      const result: PastRidesResult = { summaries: [], familiar_segment_ids: [] };
+      pastRidesCache.set(key, { key, value: result, expiresAt: now + ONE_HOUR_MS });
+      return result;
+    }
     throw new RouteContextError('profile_query_failed', {
       message: formatQueryError('activities', error),
       cause: error,
@@ -255,14 +278,25 @@ interface UserProfileRow {
 }
 
 async function getUserProfile(userId: string): Promise<UserProfileFields> {
+  // Note: `weekly_hours_available` was previously selected here but the
+  // column never actually shipped to production despite an `IF NOT
+  // EXISTS` migration comment claiming otherwise. Selecting only
+  // columns that demonstrably exist; everything else is read off the
+  // returned row defensively in case future columns get added.
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('id, primary_goal, weekly_hours_available, weight_kg, experience_level, ftp')
+    .select('id, primary_goal, weight_kg, experience_level, ftp')
     .eq('id', userId)
     .single();
 
   if (error) {
     if (isMissingRow(error)) return {};
+    if (isSchemaMismatch(error)) {
+      console.warn(
+        `[RB2] user_profiles schema mismatch (${error.code}: ${error.message}) — falling back to empty profile`,
+      );
+      return {};
+    }
     if (isQueryFailure(error)) {
       throw new RouteContextError('profile_query_failed', {
         message: formatQueryError('user_profiles', error),
@@ -310,6 +344,12 @@ async function getUserSpeedProfile(
 
   if (error) {
     if (isMissingRow(error)) return undefined;
+    if (isSchemaMismatch(error)) {
+      console.warn(
+        `[RB2] user_speed_profiles schema mismatch (${error.code}: ${error.message}) — falling back to default speed`,
+      );
+      return undefined;
+    }
     if (isQueryFailure(error)) {
       throw new RouteContextError('profile_query_failed', {
         message: formatQueryError('user_speed_profiles', error),
