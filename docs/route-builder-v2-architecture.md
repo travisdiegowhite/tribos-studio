@@ -33,8 +33,15 @@ What changed in S2:
   called from `useAIGeneration` after generation. This is the fix for
   the "elevation is 0" smoking-gun from P1.4 verification.
 
-`RouteBuilder.jsx`, `routeBuilderStore.js`, every v1 service, and the
-executor code under `src/routing/executor/` are byte-unchanged.
+`RouteBuilder.jsx`, `routeBuilderStore.js`, and the executor code under
+`src/routing/executor/` are byte-unchanged. The only v1 file modified by
+S2 is `src/hooks/useRouteManipulation.js`, and the change is strictly
+additive: five methods (`reverseRoute`, `clearRoute`, `undo`, `redo`,
+`snapToRoads`) gained an optional `options.silent` parameter. When omitted
+or `false`, v1's Mantine notifications fire exactly as before; when
+`true`, the notification is suppressed. v2's `useMapInteraction` passes
+`silent: true` on every call so chat / status surfaces own the user
+feedback without double-toasting.
 
 ### Hook summary (post-S2)
 
@@ -42,7 +49,7 @@ executor code under `src/routing/executor/` are byte-unchanged.
 |---|---|
 | `useAIGeneration` | v1's `generateAIRoutes` (`src/utils/aiRouteGenerator.js`). Elevation enriched via `elevationEnrichment.enrichRouteElevation`. |
 | `useRouteEditing` | v1's `aiRouteEditService` via `replicatedEditLogic.applyAIEdit`. Owns local undo/redo over `{geometry, stats}` snapshots. |
-| `useMapInteraction` | v1's `getSmartCyclingRoute` + `getElevationData`. Inlines waypoint-list management; no shared dependency on `useRouteManipulation` (v1's hook stays for v1's UI). |
+| `useMapInteraction` | v1's `useRouteManipulation` hook (waypoint mutations + `snapToRoads` + elevation backfill). Plumbs Zustand-store-backed setters into v1 and calls every method with `silent: true` to suppress v1's Mantine notifications — v2's chat / status surfaces own the user feedback. The only v1-side modification S2 makes is an optional `silent?: boolean` parameter on v1's notification-emitting methods. |
 | `useRoutePersistence` | v1's `routesService` for save/load/list and `routeExport` for GPX/TCX/FIT — unchanged from P1.2, just stripped of dead executor type imports. |
 | `useRouteAnalysis` | v1's `getElevationData` + `calculateElevationStats` for real elevation profile (replaces the P1.2 placeholder), and `routePOIService.queryPOIsAlongRoute` for POIs. |
 
