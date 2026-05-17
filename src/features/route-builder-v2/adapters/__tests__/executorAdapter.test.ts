@@ -171,6 +171,35 @@ describe('generateRoute', () => {
     expect(mockEnrichBatch).toHaveBeenCalledTimes(1);
     expect(mockEnrich).not.toHaveBeenCalled();
   });
+
+  it('throws RouteContextError(context_missing) when no start_coord is provided', async () => {
+    const generate = vi.fn().mockResolvedValue(makeSuccessResult());
+    setExecutor({ generate } as any);
+    const ctxWithoutStart: FullRouteContext = { ...makeContext(), start_coord: undefined };
+    await expect(
+      generateRoute({}, 1, { contextOverride: ctxWithoutStart }),
+    ).rejects.toMatchObject({
+      name: 'RouteContextError',
+      kind: 'context_missing',
+      required_field: 'start_coord',
+    });
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it('uses input.start_coord when provided even if contextOverride lacks one', async () => {
+    const generate = vi.fn().mockResolvedValue(makeSuccessResult());
+    setExecutor({ generate } as any);
+    const ctxWithoutStart: FullRouteContext = { ...makeContext(), start_coord: undefined };
+    const result = await generateRoute(
+      { start_coord: [-122.4, 37.7] },
+      1,
+      { contextOverride: ctxWithoutStart },
+    );
+    expect((result as { ok: boolean }).ok).toBe(true);
+    const [passedCtx, passedConstraints] = generate.mock.calls[0];
+    expect(passedCtx.start_coord).toEqual([-122.4, 37.7]);
+    expect(passedConstraints.start_coord).toEqual([-122.4, 37.7]);
+  });
 });
 
 describe('applyMutation', () => {

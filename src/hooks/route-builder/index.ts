@@ -14,3 +14,9 @@ export type {
   GradientSegment,
   POIResult,
 } from './useRouteAnalysis';
+export { useUserLocation } from './useUserLocation';
+export type {
+  UseUserLocationReturn,
+  UseUserLocationOptions,
+  UserLocationStatus,
+} from './useUserLocation';

@@ -16,6 +16,7 @@ import {
   useMapInteraction,
   useRoutePersistence,
   useRouteAnalysis,
+  useUserLocation,
 } from '../hooks/route-builder';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -65,6 +66,7 @@ export default function RouteBuilder2() {
   const map = useMapInteraction();
   const persistence = useRoutePersistence();
   const analysis = useRouteAnalysis();
+  const userLocation = useUserLocation();
 
   // Persona (top-bar dropdown)
   const coach = useCoachCheckIn(user?.id);
@@ -277,7 +279,7 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
-            <FormPanel ref={formPanelRef} generation={generation} defaultStart={null} />
+            <FormPanel ref={formPanelRef} generation={generation} defaultStart={userLocation.coord} />
             <LayerToggles
               visibility={visibility}
               onToggle={handleVisibilityToggle}
@@ -332,7 +334,7 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
-            <FormPanel ref={formPanelRef} generation={generation} defaultStart={null} isMobile />
+            <FormPanel ref={formPanelRef} generation={generation} defaultStart={userLocation.coord} isMobile />
             <LayerToggles
               visibility={visibility}
               onToggle={handleVisibilityToggle}

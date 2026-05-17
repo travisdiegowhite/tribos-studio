@@ -28,6 +28,7 @@ import {
 } from '../../../routing/executor';
 import {
   assembleRouteContext,
+  RouteContextError,
   toExecutorContext,
   type AssembleOptions,
   type FullRouteContext,
@@ -42,8 +43,12 @@ import { enrichElevation, enrichElevationBatch } from './elevationEnrichment';
  * Form-level inputs collected by the Route Builder UI. The adapter
  * maps these to `GenerationConstraints` for the executor.
  *
- * Optional everywhere — RouteContext fills in defaults where the form
- * omits a field (e.g., `start_coord` falls back to profile home).
+ * Most fields are optional. `start_coord` is REQUIRED for generate
+ * paths (the assembler no longer pulls a home location from the DB —
+ * it must come from the geolocation hook in the page). When omitted
+ * the adapter throws `RouteContextError('context_missing',
+ * { required_field: 'start_coord' })` which surfaces in the UI via
+ * `useAIGeneration.lastError`.
  */
 export interface GenerationFormInput {
   goal?: string;
@@ -88,6 +93,28 @@ async function buildContext(
   return assembleRouteContext(options);
 }
 
+/**
+ * Resolve the start coordinate for a generate call. Caller-provided
+ * `input.start_coord` (from geolocation in the page) wins; a
+ * pre-assembled `contextOverride.start_coord` (tests) is the fallback.
+ * Throws `context_missing` when neither is present so the UI surfaces
+ * an actionable error rather than silently routing from a default.
+ */
+function resolveGenerateStartCoord(
+  input: GenerationFormInput,
+  options: AdapterCallOptions,
+): Coordinate {
+  const fromInput = input.start_coord;
+  if (fromInput) return fromInput;
+  const fromOverride = options.contextOverride?.start_coord;
+  if (fromOverride) return fromOverride;
+  throw new RouteContextError('context_missing', {
+    required_field: 'start_coord',
+    message:
+      'start_coord is required for generation. Pass it via GenerationFormInput.start_coord (typically from useUserLocation in the page).',
+  });
+}
+
 export async function generateRoute(
   input: GenerationFormInput,
   count: 1,
@@ -108,9 +135,22 @@ export async function generateRoute(
   count: 1 | 3 = 1,
   options: AdapterCallOptions = {},
 ): Promise<ExecutorResult | ExecutorResult[]> {
-  const full = await buildContext(options);
-  const ctx = toExecutorContext(full);
-  const constraints = toGenerationConstraints(input);
+  // Validate start_coord before any expensive assembly work — fast
+  // path for a configuration error.
+  const start = resolveGenerateStartCoord(input, options);
+  const full = await buildContext({
+    ...options,
+    startCoordOverride: options.contextOverride
+      ? options.contextOverride.start_coord ?? start
+      : start,
+  });
+  // Ensure the context the executor sees carries the start coord even
+  // when contextOverride didn't pre-populate it.
+  const fullWithStart: FullRouteContext = full.start_coord
+    ? full
+    : { ...full, start_coord: start };
+  const ctx = toExecutorContext(fullWithStart);
+  const constraints = toGenerationConstraints({ ...input, start_coord: start });
   const executor = getExecutor();
   if (count === 3) {
     const results = await executor.generate(ctx, constraints, 3);
