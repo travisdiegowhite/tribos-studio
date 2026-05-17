@@ -248,3 +248,16 @@ describe('cacheKeyForConnect', () => {
     expect(solveKey).not.toBe(connectKey);
   });
 });
+
+describe('exported hash helpers', () => {
+  it('exports fnv1a32 and stableJson for sibling caches', async () => {
+    // Sibling modules (e.g. `elevationEnrichment`) import these to
+    // share canonicalization without duplicating the implementation.
+    // If either name disappears the sibling cache breaks silently —
+    // this test guards the export surface.
+    const mod = await import('../cache');
+    expect(typeof mod.fnv1a32).toBe('function');
+    expect(typeof mod.stableJson).toBe('function');
+    expect(mod.fnv1a32(mod.stableJson({ a: 1, b: [2, 3] }))).toMatch(/^[0-9a-f]{8}$/);
+  });
+});

@@ -336,6 +336,13 @@ export interface RouteSnapshot {
    * Same length as `geometry` when present. Required by elevation
    * analysis helpers (`elevationUtils`). Handlers that lack this
    * fall back to `stats.elevation_gain_m`.
+   *
+   * Populated by the executor-adapter elevation enrichment pass
+   * (`src/features/route-builder-v2/adapters/elevationEnrichment.ts`)
+   * for every successful result on the RB2 path. Providers may
+   * pre-populate this (BRouter does, indirectly via its response
+   * shape); the adapter skips re-fetching when the field is already
+   * present.
    */
   elevations_m?: number[];
 }

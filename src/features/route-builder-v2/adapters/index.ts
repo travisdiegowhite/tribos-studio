@@ -22,3 +22,10 @@ export type {
   BBox,
   AssembleOptions,
 } from './assembleRouteContext';
+export {
+  enrichElevation,
+  enrichElevationBatch,
+  clearElevationCache,
+  __elevationCacheStats,
+} from './elevationEnrichment';
+export type { EnrichElevationOptions } from './elevationEnrichment';
