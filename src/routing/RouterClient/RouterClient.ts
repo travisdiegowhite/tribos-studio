@@ -105,7 +105,15 @@ export class RouterClient {
   ): Promise<ExecutorResult> {
     const profile = normalizeProfile(constraint.profile);
     const normalised: RouteConstraint = { ...constraint, profile };
-    const cacheKey = cacheKeyForConstraint(normalised);
+    // Per T2.6.3: context fields that affect provider costing
+    // (training_goal, user_speed_kph, preferences) must participate
+    // in the cache key. Otherwise a re-generation with the same
+    // waypoints but a changed training goal serves the stale route.
+    const cacheKey = cacheKeyForConstraint(normalised, {
+      training_goal: context.training_goal,
+      user_speed_kph: context.user_speed_kph,
+      preferences: context.preferences,
+    });
 
     track('solve_called', {
       profile,

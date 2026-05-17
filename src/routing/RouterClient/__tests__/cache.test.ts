@@ -151,8 +151,8 @@ describe('cacheKeyForConstraint', () => {
   };
 
   it('returns the same key for the same constraint', () => {
-    const k1 = cacheKeyForConstraint(baseConstraint);
-    const k2 = cacheKeyForConstraint(baseConstraint);
+    const k1 = cacheKeyForConstraint(baseConstraint, {});
+    const k2 = cacheKeyForConstraint(baseConstraint, {});
     expect(k1).toBe(k2);
   });
 
@@ -171,24 +171,24 @@ describe('cacheKeyForConstraint', () => {
         [-105.0, 40.1],
       ],
     };
-    expect(cacheKeyForConstraint(c1)).toBe(cacheKeyForConstraint(c2));
+    expect(cacheKeyForConstraint(c1, {})).toBe(cacheKeyForConstraint(c2, {}));
   });
 
   it('returns a different key for different profiles', () => {
-    const k1 = cacheKeyForConstraint(baseConstraint);
-    const k2 = cacheKeyForConstraint({ ...baseConstraint, profile: 'gravel' });
+    const k1 = cacheKeyForConstraint(baseConstraint, {});
+    const k2 = cacheKeyForConstraint({ ...baseConstraint, profile: 'gravel' }, {});
     expect(k1).not.toBe(k2);
   });
 
   it('returns a different key for different waypoints', () => {
-    const k1 = cacheKeyForConstraint(baseConstraint);
+    const k1 = cacheKeyForConstraint(baseConstraint, {});
     const k2 = cacheKeyForConstraint({
       ...baseConstraint,
       waypoints: [
         [-105.5, 40.0],
         [-105.0, 40.1],
       ],
-    });
+    }, {});
     expect(k1).not.toBe(k2);
   });
 
@@ -196,27 +196,27 @@ describe('cacheKeyForConstraint', () => {
     const k1 = cacheKeyForConstraint({
       ...baseConstraint,
       avoid_segments: ['a', 'b', 'c'],
-    });
+    }, {});
     const k2 = cacheKeyForConstraint({
       ...baseConstraint,
       avoid_segments: ['c', 'a', 'b'],
-    });
+    }, {});
     expect(k1).toBe(k2);
   });
 
   it('treats undefined and present-but-null preferences as the same', () => {
     // Defensive: an explicit `undefined` and a missing key should both
     // map to the same canonical "no preference" key.
-    const k1 = cacheKeyForConstraint(baseConstraint);
+    const k1 = cacheKeyForConstraint(baseConstraint, {});
     const k2 = cacheKeyForConstraint({
       ...baseConstraint,
       target_distance_km: undefined,
-    });
+    }, {});
     expect(k1).toBe(k2);
   });
 
   it('produces an 8-char hex digest', () => {
-    const k = cacheKeyForConstraint(baseConstraint);
+    const k = cacheKeyForConstraint(baseConstraint, {});
     expect(k).toMatch(/^[0-9a-f]{8}$/);
   });
 });
@@ -243,7 +243,7 @@ describe('cacheKeyForConnect', () => {
       profile: 'road',
       shape: 'point_to_point',
     };
-    const solveKey = cacheKeyForConstraint(constraint);
+    const solveKey = cacheKeyForConstraint(constraint, {});
     const connectKey = cacheKeyForConnect(constraint.waypoints);
     expect(solveKey).not.toBe(connectKey);
   });
@@ -259,5 +259,70 @@ describe('exported hash helpers', () => {
     expect(typeof mod.fnv1a32).toBe('function');
     expect(typeof mod.stableJson).toBe('function');
     expect(mod.fnv1a32(mod.stableJson({ a: 1, b: [2, 3] }))).toMatch(/^[0-9a-f]{8}$/);
+  });
+});
+
+describe('cacheKeyForConstraint (context)', () => {
+  const baseConstraint: RouteConstraint = {
+    waypoints: [
+      [-105.1, 40.0],
+      [-105.0, 40.1],
+    ],
+    profile: 'road',
+    shape: 'loop',
+  };
+
+  it('returns different keys for different training_goal', () => {
+    const k1 = cacheKeyForConstraint(baseConstraint, { training_goal: 'endurance' });
+    const k2 = cacheKeyForConstraint(baseConstraint, { training_goal: 'intervals' });
+    expect(k1).not.toBe(k2);
+  });
+
+  it('returns different keys for different user_speed_kph', () => {
+    const k1 = cacheKeyForConstraint(baseConstraint, { user_speed_kph: 22 });
+    const k2 = cacheKeyForConstraint(baseConstraint, { user_speed_kph: 28 });
+    expect(k1).not.toBe(k2);
+  });
+
+  it('returns different keys for different preferences', () => {
+    const k1 = cacheKeyForConstraint(baseConstraint, {
+      preferences: { avoidHills: true },
+    });
+    const k2 = cacheKeyForConstraint(baseConstraint, {
+      preferences: { avoidHills: false },
+    });
+    expect(k1).not.toBe(k2);
+  });
+
+  it('returns the same key when preferences are key-reordered but otherwise identical', () => {
+    const k1 = cacheKeyForConstraint(baseConstraint, {
+      preferences: { avoidHills: true, avoidTraffic: 'high' },
+    });
+    const k2 = cacheKeyForConstraint(baseConstraint, {
+      preferences: { avoidTraffic: 'high', avoidHills: true },
+    });
+    expect(k1).toBe(k2);
+  });
+
+  it('returns the same key for empty contexts across calls', () => {
+    expect(cacheKeyForConstraint(baseConstraint, {})).toBe(
+      cacheKeyForConstraint(baseConstraint, {}),
+    );
+  });
+
+  it('treats undefined fields and missing keys as the same', () => {
+    const k1 = cacheKeyForConstraint(baseConstraint, {});
+    const k2 = cacheKeyForConstraint(baseConstraint, {
+      training_goal: undefined,
+      user_speed_kph: undefined,
+      preferences: undefined,
+    });
+    expect(k1).toBe(k2);
+  });
+
+  it('empty context differs from a context with a training_goal', () => {
+    const empty = cacheKeyForConstraint(baseConstraint, {});
+    const withGoal = cacheKeyForConstraint(baseConstraint, { training_goal: 'endurance' });
+    expect(empty).not.toBe(withGoal);
   });
 });
