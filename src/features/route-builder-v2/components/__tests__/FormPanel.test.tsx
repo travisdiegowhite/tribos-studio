@@ -3,7 +3,7 @@ import { MantineProvider } from '@mantine/core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FormPanel } from '../FormPanel';
 import type { UseAIGenerationReturn } from '../../../../hooks/route-builder';
-import type { Coordinate } from '../../../../routing/executor';
+import type { Coordinate } from '../../../../types/geo';
 
 vi.mock('../../../../utils/geocoding.js', () => ({
   geocodeWaypoint: vi.fn(),

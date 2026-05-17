@@ -1,7 +1,99 @@
-# Route Builder 2.0 — Architecture (P1.2)
+# Route Builder 2.0 — Architecture (S2 rewire)
 
-P1.2 lands the plumbing between the new Route Builder 2.0 page and the
-routing executor (`src/routing/executor`). It introduces:
+## S2 — v2 now uses v1's backend (current state, May 2026)
+
+S2 replaced v2's executor-based plumbing with thin wrappers around v1's
+proven services. The new executor architecture (`src/routing/executor/`)
+remains in the repo unused, awaiting deletion at S6 cutover.
+
+What changed in S2:
+
+- All five hooks under `src/hooks/route-builder/` are now thin wrappers
+  calling v1 services directly. No imports of `src/routing/executor/`
+  remain in v2 code (hooks, page, components, chat). The hook public
+  signatures are unchanged so v2 components did not need to change.
+- The executor adapter (`src/features/route-builder-v2/adapters/`) is
+  **deleted**.
+- The P1.4 chat translation pipeline (heuristic keywords +
+  Claude-backed `/api/route-builder-2-chat`) is **deleted**. The chat
+  submission handler now calls `replicatedEditLogic.applyAIEdit`, which
+  in turn calls v1's `classifyEditIntent` + `applyRouteEdit` from
+  `src/utils/aiRouteEditService.js`. The duplication is intentional and
+  resolves at S6 when v1 retires.
+- The `Mutation` taxonomy (an executor concept) is removed from v2 —
+  chat edits go through `applyAIEdit(text)` from end to end.
+- A local `RouteSnapshot`-like shape is defined in
+  `src/hooks/route-builder/types.ts`. `Coordinate` is imported from the
+  canonical `src/types/geo.ts` everywhere.
+- The dev harness at `/route-builder-2/dev-harness` is rewired to the
+  new thin wrappers; the buttons exercise the same paths the production
+  page does.
+- The elevation enrichment that previously lived at the adapter seam
+  now lives at `src/hooks/route-builder/elevationEnrichment.ts` and is
+  called from `useAIGeneration` after generation. This is the fix for
+  the "elevation is 0" smoking-gun from P1.4 verification.
+
+`RouteBuilder.jsx`, `routeBuilderStore.js`, every v1 service, and the
+executor code under `src/routing/executor/` are byte-unchanged.
+
+### Hook summary (post-S2)
+
+| Hook | Wraps |
+|---|---|
+| `useAIGeneration` | v1's `generateAIRoutes` (`src/utils/aiRouteGenerator.js`). Elevation enriched via `elevationEnrichment.enrichRouteElevation`. |
+| `useRouteEditing` | v1's `aiRouteEditService` via `replicatedEditLogic.applyAIEdit`. Owns local undo/redo over `{geometry, stats}` snapshots. |
+| `useMapInteraction` | v1's `getSmartCyclingRoute` + `getElevationData`. Inlines waypoint-list management; no shared dependency on `useRouteManipulation` (v1's hook stays for v1's UI). |
+| `useRoutePersistence` | v1's `routesService` for save/load/list and `routeExport` for GPX/TCX/FIT — unchanged from P1.2, just stripped of dead executor type imports. |
+| `useRouteAnalysis` | v1's `getElevationData` + `calculateElevationStats` for real elevation profile (replaces the P1.2 placeholder), and `routePOIService.queryPOIsAlongRoute` for POIs. |
+
+### Replicated edit logic
+
+`src/features/route-builder-v2/chat/replicatedEditLogic.ts` is the seam
+between v2's chat surface and v1's edit pipeline. It:
+
+1. Classifies the user's text via v1's `classifyEditIntent`.
+2. Reads the live route from the Zustand store.
+3. Delegates to v1's `applyRouteEdit({routeGeometry, routeProfile,
+   routeStats, editIntent, mapboxToken})`.
+4. For intents that return `needsReroute: true` (currently `shorter`),
+   re-snaps via `getSmartCyclingRoute` — same as v1.
+5. Recomputes distance (from coordinates) and elevation (via a fresh
+   `getElevationData` fetch) and writes both back to the store.
+
+The duplication is intentional. At S6, v1 retires and this becomes the
+canonical edit pipeline.
+
+### Telemetry events (post-S2)
+
+- `rb2_generation_started`, `rb2_generation_completed`,
+  `rb2_generation_failed` — generation lifecycle (unchanged).
+- `rb2_chat_message_submitted`, `rb2_chat_cold_start_triggered` —
+  cold-start branch (unchanged).
+- `rb2_chat_edit_applied` (new, replaces `rb2_chat_mutation_applied`
+  and `rb2_chat_translated_*`) — fires when a chat edit succeeds.
+- `rb2_chat_edit_failed` (new) — fires on classification or routing
+  failure.
+- `rb2_manual_action_applied`, `rb2_manual_action_failed` — manual
+  edit lifecycle. The `action` field now uses descriptive strings
+  (`add_waypoint`, `drag_waypoint`, `remove_waypoint`,
+  `reverse_route`, `clear_route`) instead of executor enum values.
+- `rb2_analysis_layer_toggled` — layer toggles (unchanged).
+- `rb2_route_saved`, `rb2_route_loaded`, `rb2_route_save_failed`,
+  `rb2_route_exported`, `rb2_route_export_failed` — persistence
+  events (unchanged).
+- **Removed:** `rb2_mutation_applied`, `rb2_mutation_failed`,
+  `rb2_ai_edit_unavailable`, `rb2_chat_translated_heuristic`,
+  `rb2_chat_translated_ai`, `rb2_chat_translator_error`,
+  `rb2_chat_refused`, `rb2_elevation_enrich_*` (the elevation
+  enrichment moved out of the adapter seam, no separate telemetry).
+
+## Original P1.2 design (frozen — superseded by S2)
+
+The below describes the previous state for historical context. It is
+not how v2 works today.
+
+P1.2 landed the plumbing between the Route Builder 2.0 page and the
+routing executor (`src/routing/executor`). It introduced:
 
 - Five React hooks under `src/hooks/route-builder/`.
 - An executor adapter under `src/features/route-builder-v2/adapters/`.

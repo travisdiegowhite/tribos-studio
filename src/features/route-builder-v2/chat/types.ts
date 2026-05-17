@@ -1,10 +1,5 @@
-// P1.4 STUB — DELETE IN PHASE 3 CUTOVER
-// This module exists to give Phase 1 beta testers a working chat interface.
-// Phase 2 (Doc 2b) replaces this with the real LLM-backed conversational
-// pipeline. Do not extend this module's capabilities. New chat behavior
-// goes in Phase 2.
-
-import type { Mutation } from '../../../routing/executor';
+// S2: chat types after the v1 rewire. No more `Mutation` references —
+// edits go through `replicatedEditLogic.applyAIEdit(text)`.
 
 export type ChatRole = 'user' | 'assistant';
 
@@ -21,8 +16,3 @@ export interface ChatSession {
   showExamplesHint: boolean;
   showAfterRefuseHint: boolean;
 }
-
-export type TranslationResult =
-  | { kind: 'modify'; mutation: Mutation; ackText: string }
-  | { kind: 'cold_start'; ackText: string }
-  | { kind: 'refuse'; refuseText: string };

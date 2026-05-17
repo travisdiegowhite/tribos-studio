@@ -1,27 +1,24 @@
 /**
  * useMapInteraction — Route Builder 2.0 map interaction hook.
  *
- * Owns viewport state (debounced via store writes) and translates
- * manual user actions (click/drag/add/remove/reverse/clear) into
- * `applyManualAction` calls through the executor adapter.
+ * Thin wrapper around v1's routing services. Owns viewport state
+ * (debounced via store writes) and translates manual user actions
+ * (click/drag/add/remove/reverse/clear) into:
+ *   1. Waypoint list mutations (add/remove/reorder), then
+ *   2. A `getSmartCyclingRoute` call to recompute geometry, then
+ *   3. An elevation backfill to keep `stats.elevation_gain_m` honest.
  *
- * P1.2 note: this hook takes canonical Coordinate (`[lng, lat]`) as
- * input and trusts it. P1.3 wires `react-map-gl` and provides the
- * conversion from Mapbox events via `mapboxEventToCanonical`.
+ * S2 rewire: replaces executor-adapter `applyManualAction` calls with
+ * direct v1 service calls. Snap, elevation, distance conversion all
+ * happen inline using the same utils v1 uses.
  */
-
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
-import * as executorAdapter from '../../features/route-builder-v2/adapters';
-import type {
-  Coordinate,
-  ExecutorResult,
-  ManualAction,
-  ManualActionPayload,
-  RouteSnapshot,
-  RouteWaypoint,
-} from '../../routing/executor';
+import { getSmartCyclingRoute } from '../../utils/smartCyclingRouter';
+import { getElevationData, calculateElevationStats } from '../../utils/elevation';
+import { M_TO_KM } from '../../utils/distanceUnits';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
+import type { Coordinate } from './types';
 
 /** Viewport update debounce — too-frequent writes caused re-render jank in v1. */
 export const VIEWPORT_DEBOUNCE_MS = 500;
@@ -32,59 +29,147 @@ export interface ViewportState {
   zoom: number;
 }
 
+export interface MapActionResult {
+  ok: boolean;
+  reason?: string;
+}
+
 export interface UseMapInteractionReturn {
   viewport: ViewportState;
   isApplying: boolean;
   lastError: string | null;
   setViewport: (next: ViewportState) => void;
-  handleMapClick: (coord: Coordinate) => Promise<ExecutorResult | null>;
+  handleMapClick: (coord: Coordinate) => Promise<MapActionResult>;
   handleWaypointDrag: (
     waypointIndex: number,
     newCoord: Coordinate,
-  ) => Promise<ExecutorResult | null>;
+  ) => Promise<MapActionResult>;
   handleAddWaypointAtClick: (
     coord: Coordinate,
     insertAt?: number,
-  ) => Promise<ExecutorResult | null>;
-  handleRemoveWaypoint: (waypointIndex: number) => Promise<ExecutorResult | null>;
-  handleReverseRoute: () => Promise<ExecutorResult | null>;
-  handleClearRoute: () => Promise<ExecutorResult | null>;
+  ) => Promise<MapActionResult>;
+  handleRemoveWaypoint: (waypointIndex: number) => Promise<MapActionResult>;
+  handleReverseRoute: () => Promise<MapActionResult>;
+  handleClearRoute: () => Promise<MapActionResult>;
 }
 
-function snapshotFromStore(state: ReturnType<typeof useRouteBuilderStore.getState>): RouteSnapshot | null {
-  const { routeGeometry, routeStats, waypoints } = state;
-  if (!routeGeometry || !Array.isArray(routeGeometry.coordinates)) return null;
-  const coords = routeGeometry.coordinates as Coordinate[];
-  const wpList: RouteWaypoint[] = (Array.isArray(waypoints) ? waypoints : []).map(
-    (wp: { position?: Coordinate | readonly [number, number] }) => ({
-      coordinate: (wp.position ?? coords[0]) as Coordinate,
-    }),
-  );
+interface StoreWaypoint {
+  id: string;
+  position: Coordinate;
+  type?: string;
+  name?: string;
+}
+
+function readWaypoints(): StoreWaypoint[] {
+  const wps = useRouteBuilderStore.getState().waypoints;
+  return Array.isArray(wps) ? (wps as StoreWaypoint[]) : [];
+}
+
+function assignTypes(waypoints: StoreWaypoint[]): StoreWaypoint[] {
+  if (waypoints.length === 0) return waypoints;
+  return waypoints.map((wp, i) => ({
+    ...wp,
+    type:
+      i === 0
+        ? 'start'
+        : i === waypoints.length - 1
+          ? 'end'
+          : 'waypoint',
+  }));
+}
+
+function newWaypointId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `wp-${crypto.randomUUID()}`;
+  }
+  return `wp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function snapWaypointsToRoute(
+  waypoints: StoreWaypoint[],
+  profile: string,
+): Promise<{
+  coordinates: Coordinate[];
+  distance_km: number;
+  duration_s: number;
+  source: string | undefined;
+} | null> {
+  if (waypoints.length < 2) return null;
+  const coords = waypoints.map((wp) => wp.position) as Array<[number, number]>;
+  const routerProfile =
+    profile === 'gravel' ? 'gravel' : profile === 'mountain' ? 'mountain' : 'bike';
+  const route = (await (
+    getSmartCyclingRoute as unknown as (
+      waypoints: Array<[number, number]>,
+      options: { profile: string },
+    ) => Promise<{
+      coordinates?: Array<[number, number]>;
+      distance_m?: number;
+      distance?: number;
+      duration_s?: number;
+      duration?: number;
+      source?: string;
+    } | null>
+  )(coords, { profile: routerProfile }));
+  if (!route?.coordinates || route.coordinates.length < 2) return null;
+  const distance_m = route.distance_m ?? route.distance ?? 0;
+  const duration_s = route.duration_s ?? route.duration ?? 0;
   return {
-    geometry: coords,
-    waypoints: wpList,
-    stats: {
-      distance_km: routeStats?.distance_km ?? 0,
-      elevation_gain_m: routeStats?.elevation_gain_m ?? 0,
-      elevation_loss_m: 0,
-      duration_s: routeStats?.duration_s ?? 0,
-    },
+    coordinates: route.coordinates as Coordinate[],
+    distance_km: M_TO_KM(distance_m),
+    duration_s,
+    source: route.source,
   };
+}
+
+async function resnapAndPersist(
+  waypoints: StoreWaypoint[],
+): Promise<MapActionResult> {
+  const state = useRouteBuilderStore.getState();
+  const profile = state.routeProfile ?? 'road';
+  state.setWaypoints(waypoints);
+  if (waypoints.length < 2) {
+    state.setRouteGeometry(null);
+    state.setRouteStats({ distance_km: 0, elevation_gain_m: 0, duration_s: 0 });
+    return { ok: true };
+  }
+  const snapped = await snapWaypointsToRoute(waypoints, profile);
+  if (!snapped) {
+    return { ok: false, reason: 'routing_failed' };
+  }
+  state.setRouteGeometry({ type: 'LineString', coordinates: snapped.coordinates });
+  state.setRouteStats({
+    distance_km: snapped.distance_km,
+    elevation_gain_m: 0,
+    duration_s: snapped.duration_s,
+  });
+  if (snapped.source) state.setRoutingSource(snapped.source);
+
+  try {
+    const elev = await getElevationData(snapped.coordinates as Array<[number, number]>);
+    if (elev) {
+      const stats = calculateElevationStats(elev);
+      state.setRouteStats({
+        distance_km: snapped.distance_km,
+        duration_s: snapped.duration_s,
+        elevation_gain_m: stats.gain,
+        elevation_loss_m: stats.loss,
+      });
+    }
+  } catch {
+    /* keep zero elevation on failure */
+  }
+  return { ok: true };
 }
 
 export function useMapInteraction(): UseMapInteractionReturn {
   const storeViewport = useRouteBuilderStore((s) => s.viewport);
   const setStoreViewport = useRouteBuilderStore((s) => s.setViewport);
-  const setRouteGeometry = useRouteBuilderStore((s) => s.setRouteGeometry);
-  const setRouteStats = useRouteBuilderStore((s) => s.setRouteStats);
-  const setWaypoints = useRouteBuilderStore((s) => s.setWaypoints);
-  const clearRouteInStore = useRouteBuilderStore((s) => s.clearRoute);
 
   // Local viewport mirrors store and writes through after debounce.
   const [localViewport, setLocalViewport] = useState<ViewportState>(storeViewport);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync local→store on viewport change (debounced).
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -102,120 +187,125 @@ export function useMapInteraction(): UseMapInteractionReturn {
     setLocalViewport(next);
   }, []);
 
-  const writeResultToStore = useCallback(
-    (snap: RouteSnapshot) => {
-      setRouteGeometry({ type: 'LineString', coordinates: snap.geometry });
-      setRouteStats({
-        distance_km: snap.stats.distance_km,
-        elevation_gain_m: snap.stats.elevation_gain_m,
-        duration_s: snap.stats.duration_s,
-      });
-      setWaypoints(
-        snap.waypoints.map((wp, i) => ({
-          id: `wp-${i}`,
-          position: wp.coordinate,
-          type:
-            i === 0 ? 'start' : i === snap.waypoints.length - 1 ? 'end' : 'waypoint',
-          name: '',
-        })),
-      );
-    },
-    [setRouteGeometry, setRouteStats, setWaypoints],
-  );
-
   const runManual = useCallback(
     async (
-      action: ManualAction,
-      payload: ManualActionPayload,
-    ): Promise<ExecutorResult | null> => {
-      const current = snapshotFromStore(useRouteBuilderStore.getState());
-      if (!current && action !== 'add_waypoint') {
-        setLastError('No current route');
-        trackRb2('manual_action_failed', {
-          action,
-          failure_kind: 'no_route',
-        });
-        return null;
-      }
+      action: string,
+      mutate: () => StoreWaypoint[] | null,
+    ): Promise<MapActionResult> => {
       setIsApplying(true);
       setLastError(null);
       const startedAt = Date.now();
       try {
-        const base: RouteSnapshot = current ?? {
-          geometry: [],
-          waypoints: [],
-          stats: {
-            distance_km: 0,
-            elevation_gain_m: 0,
-            elevation_loss_m: 0,
-            duration_s: 0,
-          },
-        };
-        const result = await executorAdapter.applyManualAction(base, action, payload);
+        const next = mutate();
+        if (next === null) {
+          setLastError('no current route');
+          trackRb2('manual_action_failed', { action, failure_kind: 'no_route' });
+          return { ok: false, reason: 'no_current_route' };
+        }
+        const result = await resnapAndPersist(next);
         if (result.ok) {
-          writeResultToStore(result.route);
           trackRb2('manual_action_applied', {
             action,
             duration_ms: Date.now() - startedAt,
           });
         } else {
-          setLastError(`Action failed: ${result.reason.kind}`);
+          setLastError(result.reason ?? 'unknown');
           trackRb2('manual_action_failed', {
             action,
-            failure_kind: result.reason.kind,
+            failure_kind: result.reason ?? 'unknown',
           });
         }
         return result;
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        setLastError(message);
+        trackRb2('manual_action_failed', {
+          action,
+          failure_kind: 'thrown',
+          error_message: message.slice(0, 200),
+        });
+        return { ok: false, reason: message };
       } finally {
         setIsApplying(false);
       }
     },
-    [writeResultToStore],
+    [],
   );
 
   const handleMapClick = useCallback(
-    (coord: Coordinate) => runManual('add_waypoint', { action: 'add_waypoint', coord }),
+    (coord: Coordinate) =>
+      runManual('add_waypoint', () => {
+        const current = readWaypoints();
+        const next: StoreWaypoint[] = [
+          ...current,
+          { id: newWaypointId(), position: coord, type: 'waypoint', name: '' },
+        ];
+        return assignTypes(next);
+      }),
     [runManual],
   );
 
   const handleAddWaypointAtClick = useCallback(
     (coord: Coordinate, insertAt?: number) =>
-      runManual('add_waypoint', { action: 'add_waypoint', coord, insert_at: insertAt }),
+      runManual('add_waypoint', () => {
+        const current = readWaypoints();
+        const newWp: StoreWaypoint = {
+          id: newWaypointId(),
+          position: coord,
+          type: 'waypoint',
+          name: '',
+        };
+        const next = [...current];
+        if (typeof insertAt === 'number' && insertAt >= 0 && insertAt <= next.length) {
+          next.splice(insertAt, 0, newWp);
+        } else {
+          next.push(newWp);
+        }
+        return assignTypes(next);
+      }),
     [runManual],
   );
 
   const handleWaypointDrag = useCallback(
     (waypointIndex: number, newCoord: Coordinate) =>
-      runManual('drag_waypoint', {
-        action: 'drag_waypoint',
-        waypoint_index: waypointIndex,
-        new_coord: newCoord,
+      runManual('drag_waypoint', () => {
+        const current = readWaypoints();
+        if (waypointIndex < 0 || waypointIndex >= current.length) return null;
+        const next = current.map((wp, i) =>
+          i === waypointIndex ? { ...wp, position: newCoord } : wp,
+        );
+        return assignTypes(next);
       }),
     [runManual],
   );
 
   const handleRemoveWaypoint = useCallback(
     (waypointIndex: number) =>
-      runManual('remove_waypoint', {
-        action: 'remove_waypoint',
-        waypoint_index: waypointIndex,
+      runManual('remove_waypoint', () => {
+        const current = readWaypoints();
+        if (waypointIndex < 0 || waypointIndex >= current.length) return null;
+        const next = current.filter((_, i) => i !== waypointIndex);
+        return assignTypes(next);
       }),
     [runManual],
   );
 
   const handleReverseRoute = useCallback(
-    () => runManual('reverse_route', { action: 'reverse_route' }),
+    () =>
+      runManual('reverse_route', () => {
+        const current = readWaypoints();
+        if (current.length < 2) return null;
+        return assignTypes([...current].reverse());
+      }),
     [runManual],
   );
 
-  const handleClearRoute = useCallback(async (): Promise<ExecutorResult | null> => {
-    // Clear bypasses the executor — there is no route to apply against.
-    // We still mirror the action through the manual API for telemetry
-    // and to keep the contract consistent.
-    const result = await runManual('clear_route', { action: 'clear_route' });
-    clearRouteInStore();
-    return result;
-  }, [clearRouteInStore, runManual]);
+  const handleClearRoute = useCallback(async (): Promise<MapActionResult> => {
+    const state = useRouteBuilderStore.getState();
+    state.clearRoute();
+    trackRb2('manual_action_applied', { action: 'clear_route', duration_ms: 0 });
+    return { ok: true };
+  }, []);
 
   return {
     viewport: localViewport,

@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Coordinate } from '../../routing/executor';
+import type { Coordinate } from '../../types/geo';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 
 export type UserLocationStatus =

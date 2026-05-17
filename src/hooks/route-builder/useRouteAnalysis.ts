@@ -1,20 +1,23 @@
 /**
  * useRouteAnalysis — Route Builder 2.0 analysis hook.
  *
- * Owns route-derived analytics: elevation profile, gradient slices,
- * POI layer toggles. Heavy work happens lazily and is memoized to the
- * current route geometry.
- *
- * POI fetching delegates to `routePOIService.queryPOIsAlongRoute`.
- * Elevation/gradient delegate to the existing `elevation` /
- * `routeGradient` utils.
+ * Thin wrapper around v1's elevation + POI services. Owns route-derived
+ * analytics: elevation profile (real, from `getElevationData`),
+ * gradient segments, POI layer toggles. S2 rewire: replaces the
+ * placeholder elevation profile from P1.2 with a real fetch.
  */
-
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
+import { getElevationData } from '../../utils/elevation';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 
-export type POILayer = 'coffee' | 'water' | 'food' | 'bike_shop' | 'restroom' | 'viewpoint';
+export type POILayer =
+  | 'coffee'
+  | 'water'
+  | 'food'
+  | 'bike_shop'
+  | 'restroom'
+  | 'viewpoint';
 
 export interface ElevationPoint {
   distance_km: number;
@@ -54,13 +57,13 @@ const EMPTY_POIS: Record<POILayer, POIResult | null> = {
 
 export function useRouteAnalysis(): UseRouteAnalysisReturn {
   const routeGeometry = useRouteBuilderStore((s) => s.routeGeometry);
-  const routeStats = useRouteBuilderStore((s) => s.routeStats);
 
   const [poiResults, setPoiResults] = useState<Record<POILayer, POIResult | null>>(EMPTY_POIS);
   const [activeLayers, setActiveLayers] = useState<POILayer[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const [analysisRevision, setAnalysisRevision] = useState(0);
+  const [elevationProfile, setElevationProfile] = useState<ElevationPoint[] | null>(null);
 
   const coordinates = useMemo(() => {
     if (!routeGeometry || !Array.isArray(routeGeometry.coordinates)) return null;
@@ -68,27 +71,46 @@ export function useRouteAnalysis(): UseRouteAnalysisReturn {
   }, [routeGeometry]);
 
   /**
-   * Elevation profile is computed lazily from geometry. In P1.2 we
-   * return a placeholder shape derived from `routeStats` so the
-   * harness can verify the hook wiring; the real elevation fetcher
-   * (`src/utils/elevation.getElevationData`) is async and slow, so
-   * the P1.3 UI will trigger it via `refreshAnalysis`.
+   * Fetch real elevation profile when geometry changes. v1 stores
+   * the elevation profile as `[{ distance, elevation }]` where
+   * `distance` is in km (legacy alias). We normalize to
+   * `{ distance_km, elevation_m }` here.
    */
-  const elevationProfile = useMemo<ElevationPoint[] | null>(() => {
-    if (!coordinates || coordinates.length === 0) return null;
-    const distanceKm = routeStats?.distance_km ?? 0;
-    const gain = routeStats?.elevation_gain_m ?? 0;
-    if (distanceKm <= 0) return null;
-    return [
-      { distance_km: 0, elevation_m: 0 },
-      { distance_km: distanceKm / 2, elevation_m: gain / 2 },
-      { distance_km: distanceKm, elevation_m: 0 },
-    ];
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coordinates, routeStats?.distance_km, routeStats?.elevation_gain_m, analysisRevision]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!coordinates || coordinates.length < 2) {
+      setElevationProfile(null);
+      return;
+    }
+    (async () => {
+      try {
+        const data = await getElevationData(coordinates);
+        if (cancelled) return;
+        if (!data || !Array.isArray(data)) {
+          setElevationProfile(null);
+          return;
+        }
+        const profile: ElevationPoint[] = data.map(
+          (p: { distance?: number; distance_km?: number; elevation: number }) => ({
+            distance_km: p.distance_km ?? p.distance ?? 0,
+            elevation_m: p.elevation,
+          }),
+        );
+        setElevationProfile(profile);
+      } catch (e) {
+        if (cancelled) return;
+        setElevationProfile(null);
+        const message = e instanceof Error ? e.message : String(e);
+        setLastError(message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [coordinates, analysisRevision]);
 
   const gradientData = useMemo<GradientSegment[] | null>(() => {
-    if (!elevationProfile) return null;
+    if (!elevationProfile || elevationProfile.length < 2) return null;
     const segments: GradientSegment[] = [];
     for (let i = 1; i < elevationProfile.length; i++) {
       const a = elevationProfile[i - 1];
@@ -121,8 +143,6 @@ export function useRouteAnalysis(): UseRouteAnalysisReturn {
       try {
         let features: unknown[] = [];
         if (coordinates && coordinates.length >= 2) {
-          // Lazy-load to keep the hook tree-shakeable and avoid
-          // pulling routePOIService into harness-only flows.
           const mod = await import('../../utils/routePOIService');
           const result = (await mod.queryPOIsAlongRoute(coordinates, [layer])) as
             | unknown[]

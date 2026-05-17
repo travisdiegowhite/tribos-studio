@@ -1,14 +1,14 @@
 /**
- * Route Builder 2.0 dev harness (P1.2).
+ * Route Builder 2.0 dev harness (S2 rewire).
  *
- * Buttons that exercise each of the five Route Builder 2.0 hooks so
- * the plumbing can be verified before P1.3 builds the real UI.
+ * Buttons that exercise each of the five Route Builder 2.0 hooks so the
+ * v1-backed plumbing can be verified at a glance. After S2, the hooks
+ * call v1 services directly (no executor adapter), so the buttons
+ * exercise the same paths the production page does.
  *
  * Gating: this page is mounted only when
  *   - `import.meta.env.DEV === true`, AND
  *   - `VITE_ROUTE_BUILDER_V2_ENABLED === 'true'`
- *
- * The route element in `App.jsx` renders `null` otherwise.
  *
  * Intentionally unstyled — this is a verification surface, not a UI.
  */
@@ -22,7 +22,6 @@ import {
   useRouteAnalysis,
   type POILayer,
 } from '../hooks/route-builder';
-import type { Mutation } from '../routing/executor';
 
 const BOULDER: [number, number] = [-105.27, 40.02];
 const NEDERLAND: [number, number] = [-105.51, 39.96];
@@ -64,7 +63,8 @@ export default function RouteBuilder2HarnessDev() {
     <div style={{ padding: 24, fontFamily: 'sans-serif' }}>
       <h1 style={{ marginBottom: 0 }}>Route Builder 2.0 — Hook Harness</h1>
       <p style={{ color: '#666', marginTop: 4 }}>
-        Dev-only. Not user-facing. Each section exercises one hook.
+        Dev-only. Not user-facing. Each section exercises one hook, now
+        wired through v1's backend.
       </p>
 
       <section style={sectionStyle}>
@@ -115,6 +115,7 @@ export default function RouteBuilder2HarnessDev() {
               first: gen.suggestions[0]
                 ? {
                     distance_km: gen.suggestions[0].stats.distance_km,
+                    elevation_gain_m: gen.suggestions[0].stats.elevation_gain_m,
                     geometry_pts: gen.suggestions[0].geometry.length,
                   }
                 : null,
@@ -126,41 +127,13 @@ export default function RouteBuilder2HarnessDev() {
       </section>
 
       <section style={sectionStyle}>
-        <h2>useRouteEditing</h2>
-        <button
-          style={buttonStyle}
-          onClick={() =>
-            edit.applyMutation({
-              type: 'extend_distance',
-              delta_km: 5,
-            } as Mutation)
-          }
-        >
-          extend +5km
-        </button>
-        <button
-          style={buttonStyle}
-          onClick={() =>
-            edit.applyMutation({
-              type: 'reduce_climbing',
-              magnitude: 'moderate',
-            } as Mutation)
-          }
-        >
-          reduce climbing
-        </button>
-        <button
-          style={buttonStyle}
-          onClick={() => edit.applyMutation({ type: 'reverse_route' } as Mutation)}
-        >
-          reverse
-        </button>
+        <h2>useRouteEditing (chat-style edits via v1)</h2>
         <input
           type="text"
-          placeholder="chat: make it flatter"
+          placeholder='try "make it flatter" or "more gravel"'
           value={chatInput}
           onChange={(e) => setChatInput(e.target.value)}
-          style={{ ...buttonStyle, width: 220 }}
+          style={{ ...buttonStyle, width: 280 }}
         />
         <button style={buttonStyle} onClick={() => edit.applyAIEdit(chatInput)}>
           applyAIEdit

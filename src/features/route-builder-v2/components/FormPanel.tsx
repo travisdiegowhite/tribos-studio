@@ -11,7 +11,7 @@ import { Box, Text, UnstyledButton, Select, NumberInput, TextInput, Button, Load
 import { CaretDown, CaretRight, X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import type { UseAIGenerationReturn, UserLocationStatus } from '../../../hooks/route-builder';
-import type { Coordinate } from '../../../routing/executor';
+import type { Coordinate } from '../../../types/geo';
 import { trackRb2 } from '../telemetry/trackRb2';
 import { geocodeWaypoint } from '../../../utils/geocoding.js';
 
@@ -111,8 +111,15 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
     //   3) map viewport center
     const trimmed = startLocation.trim();
     if (trimmed) {
-      const bias = defaultStart ?? viewportCenter ?? undefined;
-      const result = await geocodeWaypoint(trimmed, bias ?? null);
+      const bias = defaultStart ?? viewportCenter ?? null;
+      const biasMutable = bias ? ([bias[0], bias[1]] as [number, number]) : null;
+      const result = await (geocodeWaypoint as (
+        name: string,
+        proximity: [number, number] | null,
+      ) => Promise<{ coordinates: [number, number]; name: string } | null>)(
+        trimmed,
+        biasMutable,
+      );
       if (result?.coordinates) {
         return result.coordinates as Coordinate;
       }

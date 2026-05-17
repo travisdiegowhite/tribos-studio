@@ -1,9 +1,8 @@
-// P1.4 STUB — DELETE IN PHASE 3 CUTOVER
-// This module exists to give Phase 1 beta testers a working chat interface.
-// Phase 2 (Doc 2b) replaces this with the real LLM-backed conversational
-// pipeline. Do not extend this module's capabilities. New chat behavior
-// goes in Phase 2.
-
+/**
+ * useChatSession — message-list + processing state for the v2 chat
+ * surface. S2 leaves this unchanged from P1.4 since it owns no edit
+ * pipeline coupling.
+ */
 import { useCallback, useState } from 'react';
 import type { ChatMessage } from './types';
 

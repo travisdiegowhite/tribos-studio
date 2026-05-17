@@ -1,46 +1,92 @@
 /**
  * useAIGeneration — Route Builder 2.0 AI generation hook.
  *
- * Wraps `executorAdapter.generateRoute` with loading/error state and
- * `rb2_*` telemetry. Reads/writes `aiSuggestions` on the existing
- * Zustand store (`routeBuilderStore`).
+ * Thin wrapper around v1's `generateAIRoutes` (`src/utils/aiRouteGenerator.js`).
+ * S2 rewire: replaces the previous executor-adapter call path with a
+ * direct v1 service call. Elevation enrichment runs after generation
+ * so Stadia/Mapbox-sourced routes don't surface 0m of climbing.
  */
 
 import { useCallback, useState } from 'react';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
-import * as executorAdapter from '../../features/route-builder-v2/adapters';
-import type {
-  GenerationFormInput,
-} from '../../features/route-builder-v2/adapters';
-import type {
-  ExecutorResult,
-  ExecutorFailure,
-  RouteSnapshot,
-} from '../../routing/executor';
+import { generateAIRoutes } from '../../utils/aiRouteGenerator.js';
+import { supabase } from '../../lib/supabase';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
+import { enrichRouteElevation } from './elevationEnrichment';
+import type {
+  Coordinate,
+  GenerationFormInput,
+  RouteShape,
+  RouteSnapshot,
+} from './types';
 
-function formatFailure(reason: ExecutorFailure): string {
-  switch (reason.kind) {
-    case 'router_unavailable':
-      return `No routing provider available (tried: ${reason.providers_tried.join(', ')})`;
-    case 'constraint_infeasible':
-      return reason.explanation;
-    case 'waypoint_unreachable':
-      return `Waypoint ${reason.waypoint_index} is unreachable`;
-    case 'mutation_not_supported':
-      return `Mutation not supported: ${reason.mutation_type}`;
-    case 'context_missing':
-      return `Missing context field: ${reason.required_field}`;
-    case 'internal_error':
-      return reason.message;
-    default:
-      return 'Unknown error';
+export type { GenerationFormInput };
+
+interface Rb1RouteResult {
+  name?: string;
+  distance?: number; // km
+  elevationGain?: number; // m
+  elevationLoss?: number; // m
+  coordinates?: Array<[number, number]>;
+  description?: string;
+}
+
+function mapShape(shape: RouteShape | undefined): 'loop' | 'out_and_back' | 'point_to_point' {
+  if (shape === 'out_and_back') return 'out_and_back';
+  if (shape === 'point_to_point') return 'point_to_point';
+  return 'loop';
+}
+
+function deriveTimeMinutes(input: GenerationFormInput): number {
+  if (typeof input.duration_minutes === 'number' && input.duration_minutes > 0) {
+    return input.duration_minutes;
+  }
+  if (typeof input.distance_km === 'number' && input.distance_km > 0) {
+    return Math.round((input.distance_km / 28) * 60);
+  }
+  return 60;
+}
+
+async function getCurrentUserId(): Promise<string | undefined> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data?.user?.id ?? undefined;
+  } catch {
+    return undefined;
   }
 }
 
-function formatError(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  return String(e);
+function toRouteSnapshot(
+  route: Rb1RouteResult,
+  durationMinutes: number,
+): RouteSnapshot | null {
+  if (!route?.coordinates || route.coordinates.length < 2) return null;
+  const coords = route.coordinates as Coordinate[];
+  const distance_km =
+    typeof route.distance === 'number' && Number.isFinite(route.distance)
+      ? route.distance
+      : 0;
+  const elevation_gain_m =
+    typeof route.elevationGain === 'number' && Number.isFinite(route.elevationGain)
+      ? route.elevationGain
+      : 0;
+  const elevation_loss_m =
+    typeof route.elevationLoss === 'number' && Number.isFinite(route.elevationLoss)
+      ? route.elevationLoss
+      : 0;
+  return {
+    geometry: coords,
+    waypoints: [
+      { coordinate: coords[0] },
+      { coordinate: coords[coords.length - 1] },
+    ],
+    stats: {
+      distance_km,
+      elevation_gain_m,
+      elevation_loss_m,
+      duration_s: durationMinutes * 60,
+    },
+  };
 }
 
 export interface UseAIGenerationReturn {
@@ -63,48 +109,65 @@ export function useAIGeneration(): UseAIGenerationReturn {
   const setWaypoints = useRouteBuilderStore((s) => s.setWaypoints);
   const setBuilderMode = useRouteBuilderStore((s) => s.setBuilderMode);
 
-  // The store may hold legacy suggestion shapes; narrow to RouteSnapshot
-  // when shape matches, otherwise return empty.
   const suggestions = (Array.isArray(aiSuggestions) ? aiSuggestions : []) as RouteSnapshot[];
 
   const generate = useCallback(
     async (input: GenerationFormInput, count: 1 | 3 = 1): Promise<void> => {
+      if (!input.start_coord) {
+        setLastError('start_coord is required for generation.');
+        return;
+      }
       setIsGenerating(true);
       setLastError(null);
       const startedAt = Date.now();
       trackRb2('generation_started', { count });
-      try {
-        const result = await executorAdapter.generateRoute(input, count);
-        const results: ExecutorResult[] = Array.isArray(result) ? result : [result];
-        const successful = results.filter((r): r is Extract<ExecutorResult, { ok: true }> => r.ok);
-        const failed = results.filter((r): r is Extract<ExecutorResult, { ok: false }> => !r.ok);
 
-        if (successful.length === 0) {
-          const firstFailure = failed[0];
-          const failureKind = firstFailure ? firstFailure.reason.kind : 'unknown';
-          const message = firstFailure
-            ? formatFailure(firstFailure.reason)
-            : 'Generation returned no results';
+      const durationMinutes = deriveTimeMinutes(input);
+      const userId = await getCurrentUserId();
+      const params = {
+        startLocation: input.start_coord,
+        timeAvailable: durationMinutes,
+        trainingGoal: input.goal && input.goal.length > 0 ? input.goal : 'endurance',
+        routeType: mapShape(input.route_shape),
+        userId,
+        speedProfile: null,
+        speedModifier: 1.0,
+      };
+
+      try {
+        const rb1Routes = (await generateAIRoutes(params, null)) as Rb1RouteResult[];
+        const snapshots = (rb1Routes ?? [])
+          .map((r) => toRouteSnapshot(r, durationMinutes))
+          .filter((s): s is RouteSnapshot => s !== null);
+
+        if (snapshots.length === 0) {
+          const message = 'No routes generated — try a different start point or duration.';
           setLastError(message);
           trackRb2('generation_failed', {
             count,
-            failure_kind: failureKind,
+            failure_kind: 'no_routes',
             duration_ms: Date.now() - startedAt,
           });
           return;
         }
 
-        setAiSuggestions(successful.map((r) => r.route));
-        const provider = successful[0].metadata.provider_used;
+        const toKeep = count === 3 ? snapshots.slice(0, 3) : snapshots.slice(0, 1);
+        // Pad to `count` if v1 returned fewer.
+        while (toKeep.length < count) toKeep.push(toKeep[toKeep.length - 1]);
+
+        const enriched = await Promise.all(
+          toKeep.map((s) => enrichRouteElevation(s)),
+        );
+        setAiSuggestions(enriched);
         trackRb2('generation_completed', {
           count,
           duration_ms: Date.now() - startedAt,
-          provider_used: provider,
-          successes: successful.length,
-          failures: failed.length,
+          provider_used: 'rb1-generator',
+          successes: enriched.length,
+          failures: 0,
         });
       } catch (e) {
-        const message = formatError(e);
+        const message = e instanceof Error ? e.message : String(e);
         setLastError(message);
         trackRb2('generation_failed', {
           count,
@@ -123,8 +186,7 @@ export function useAIGeneration(): UseAIGenerationReturn {
     (index: number): RouteSnapshot | null => {
       const chosen = suggestions[index];
       if (!chosen) return null;
-      const coords = chosen.geometry;
-      setRouteGeometry({ type: 'LineString', coordinates: coords });
+      setRouteGeometry({ type: 'LineString', coordinates: chosen.geometry });
       setRouteStats({
         distance_km: chosen.stats.distance_km,
         elevation_gain_m: chosen.stats.elevation_gain_m,
