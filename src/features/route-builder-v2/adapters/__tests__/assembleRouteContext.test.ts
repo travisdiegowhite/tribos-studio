@@ -95,12 +95,20 @@ describe('getRelevantPastRides caching', () => {
     expect(mockFromBuilder).toHaveBeenCalledTimes(2);
   });
 
-  it('throws RouteContextError on a Supabase query failure', async () => {
+  it('returns empty summaries on a schema mismatch (42703) and caches the empty result', async () => {
     mockFromBuilder.mockReturnValue(
       buildSelectChain({ data: null, error: { code: '42703', message: 'undefined_column' } }),
     );
+    const result = await getRelevantPastRides('u1', undefined, undefined, { now: 0 });
+    expect(result).toEqual({ summaries: [], familiar_segment_ids: [] });
+  });
+
+  it('throws RouteContextError on a non-schema query failure', async () => {
+    mockFromBuilder.mockReturnValue(
+      buildSelectChain({ data: null, error: { code: '40000', message: 'rls deny' } }),
+    );
     await expect(
-      getRelevantPastRides('u1', undefined, undefined, { now: 0 }),
+      getRelevantPastRides('u1', undefined, undefined, { now: 0, force: true }),
     ).rejects.toBeInstanceOf(RouteContextError);
   });
 });
@@ -188,7 +196,7 @@ describe('assembleRouteContext', () => {
     expect(ctx.recent_rides).toEqual([]);
   });
 
-  it('throws RouteContextError(profile_query_failed) on schema errors (42703 undefined_column)', async () => {
+  it('degrades to empty profile on schema errors (42703 undefined_column)', async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: 'u' } },
       error: null,
@@ -202,13 +210,13 @@ describe('assembleRouteContext', () => {
       activities: { data: [], error: null },
     });
 
-    await expect(assembleRouteContext({ now: 0 })).rejects.toMatchObject({
-      name: 'RouteContextError',
-      kind: 'profile_query_failed',
-    });
+    const ctx = await assembleRouteContext({ now: 0 });
+    expect(ctx.user_id).toBe('u');
+    // profile-derived fields fall through to undefined / session defaults
+    expect(ctx.preferences).toBeUndefined();
   });
 
-  it('throws RouteContextError(profile_query_failed) when activities query fails for schema reason', async () => {
+  it('degrades to empty past-rides when activities fails for a schema reason', async () => {
     mockGetUser.mockResolvedValue({
       data: { user: { id: 'u' } },
       error: null,
@@ -222,10 +230,8 @@ describe('assembleRouteContext', () => {
       },
     });
 
-    await expect(assembleRouteContext({ now: 0 })).rejects.toMatchObject({
-      name: 'RouteContextError',
-      kind: 'profile_query_failed',
-    });
+    const ctx = await assembleRouteContext({ now: 0 });
+    expect(ctx.recent_rides).toEqual([]);
   });
 
   it('passes startCoordOverride through to the returned context', async () => {

@@ -33,6 +33,7 @@ import {
   type AssembleOptions,
   type FullRouteContext,
 } from './assembleRouteContext';
+import { generateRouteViaRb1 } from './rb1Generator';
 import { enrichElevation, enrichElevationBatch } from './elevationEnrichment';
 
 // ---------------------------------------------------------------------------
@@ -135,29 +136,44 @@ export async function generateRoute(
   count: 1 | 3 = 1,
   options: AdapterCallOptions = {},
 ): Promise<ExecutorResult | ExecutorResult[]> {
-  // Validate start_coord before any expensive assembly work — fast
-  // path for a configuration error.
+  // Validate start_coord up-front so the form gets the precise error
+  // message; resolution rules are owned by FormPanel + this adapter.
   const start = resolveGenerateStartCoord(input, options);
-  const full = await buildContext({
-    ...options,
-    startCoordOverride: options.contextOverride
-      ? options.contextOverride.start_coord ?? start
-      : start,
-  });
-  // Ensure the context the executor sees carries the start coord even
-  // when contextOverride didn't pre-populate it.
-  const fullWithStart: FullRouteContext = full.start_coord
-    ? full
-    : { ...full, start_coord: start };
-  const ctx = toExecutorContext(fullWithStart);
-  const constraints = toGenerationConstraints({ ...input, start_coord: start });
-  const executor = getExecutor();
-  if (count === 3) {
-    const results = await executor.generate(ctx, constraints, 3);
-    return enrichElevationBatch(results);
+  const withStart: GenerationFormInput = { ...input, start_coord: start };
+
+  // Test/dev path: when callers pass `contextOverride`, exercise the
+  // executor (the override is the whole point of these tests). In
+  // production the override is never set and we route through the RB1
+  // generator — which uses Claude for waypoint ideation, has a track
+  // record in production, and avoids the in-progress executor's
+  // schema/context dependencies (see ROUTE_BUILDER_V2 plan §"Wrap RB1
+  // generator").
+  if (options.contextOverride) {
+    const full = await buildContext({
+      ...options,
+      startCoordOverride: options.contextOverride.start_coord ?? start,
+    });
+    const fullWithStart: FullRouteContext = full.start_coord
+      ? full
+      : { ...full, start_coord: start };
+    const ctx = toExecutorContext(fullWithStart);
+    const constraints = toGenerationConstraints(withStart);
+    const executor = getExecutor();
+    if (count === 3) {
+      const results = await executor.generate(ctx, constraints, 3);
+      return enrichElevationBatch(results);
+    }
+    const result = await executor.generate(ctx, constraints, 1);
+    return enrichElevation(result);
   }
-  const result = await executor.generate(ctx, constraints, 1);
-  return enrichElevation(result);
+
+  if (count === 3) {
+    const result = await generateRouteViaRb1(withStart, 3);
+    return enrichElevationBatch(Array.isArray(result) ? result : [result]);
+  }
+  const result = await generateRouteViaRb1(withStart, 1);
+  const single = Array.isArray(result) ? result[0] : result;
+  return enrichElevation(single);
 }
 
 export async function applyMutation(
