@@ -10,4 +10,5 @@ export { ChatDrawer, type ChatDrawerState } from './ChatDrawer';
 export { EmptyState } from './EmptyState';
 export { LoadingState } from './LoadingState';
 export { ErrorState } from './ErrorState';
+export { RouteActionsPanel } from './RouteActionsPanel';
 export { RB2, RB2_FONT } from './brand';

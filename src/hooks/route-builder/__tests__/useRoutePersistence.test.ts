@@ -6,6 +6,11 @@ import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
 vi.mock('../../../utils/routesService', () => ({
   saveRoute: vi.fn(),
   getRoute: vi.fn(),
+  listRoutes: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../../../utils/routeExport', () => ({
+  exportAndDownloadRoute: vi.fn(),
 }));
 
 import * as routesService from '../../../utils/routesService';

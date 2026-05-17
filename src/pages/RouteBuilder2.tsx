@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
+import { useNavigate, useParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import {
   useAIGeneration,
@@ -33,6 +34,7 @@ import {
   EmptyState,
   LoadingState,
   ErrorState,
+  RouteActionsPanel,
   RB2,
   type LayerVisibilityState,
   type FormPanelHandle,
@@ -60,6 +62,8 @@ const DEFAULT_VISIBILITY: LayerVisibilityState = {
 
 export default function RouteBuilder2() {
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const navigate = useNavigate();
+  const { routeId: routeIdFromUrl } = useParams<{ routeId?: string }>();
   const { user } = useAuth() as { user: { id: string } | null };
   const generation = useAIGeneration();
   const editing = useRouteEditing();
@@ -76,8 +80,36 @@ export default function RouteBuilder2() {
   const routeStats = useRouteBuilderStore((s) => s.routeStats);
   const routeName = useRouteBuilderStore((s) => s.routeName);
   const waypoints = useRouteBuilderStore((s) => s.waypoints);
+  const viewport = useRouteBuilderStore((s) => s.viewport);
   const setWaypointsInStore = useRouteBuilderStore((s) => s.setWaypoints);
   const clearRouteInStore = useRouteBuilderStore((s) => s.clearRoute);
+
+  // Map viewport center as a last-resort start_coord fallback for the form.
+  const viewportCenter = useMemo<Coordinate | null>(() => {
+    if (!viewport) return null;
+    const lng = (viewport as { longitude?: number }).longitude;
+    const lat = (viewport as { latitude?: number }).latitude;
+    if (typeof lng !== 'number' || typeof lat !== 'number') return null;
+    return [lng, lat] as Coordinate;
+  }, [viewport]);
+
+  // Approximate bbox derived from viewport for layer overlays
+  // (bike infra, familiar segments). Doesn't need to be exact — the
+  // services accept a bbox and we want to fetch enough area to cover
+  // what's visible. Half-spans scale with zoom: ~360/2^z degrees wide.
+  const viewportBbox = useMemo(() => {
+    if (!viewport || !viewportCenter) return null;
+    const zoom = Math.max(2, (viewport as { zoom?: number }).zoom ?? 12);
+    const halfWidthDeg = 360 / Math.pow(2, zoom);
+    const halfHeightDeg = halfWidthDeg * 0.6; // rough aspect ratio
+    const [lng, lat] = viewportCenter;
+    return {
+      west: lng - halfWidthDeg,
+      east: lng + halfWidthDeg,
+      south: lat - halfHeightDeg,
+      north: lat + halfHeightDeg,
+    };
+  }, [viewport, viewportCenter]);
 
   const [visibility, setVisibility] = useState<LayerVisibilityState>(DEFAULT_VISIBILITY);
   const [errorDismissed, setErrorDismissed] = useState<string | null>(null);
@@ -130,6 +162,23 @@ export default function RouteBuilder2() {
     !!routeGeometry?.coordinates && routeGeometry.coordinates.length > 0;
   const handleChatSubmit = useCallback(
     (text: string) => {
+      const snapshot =
+        hasRouteForChat && routeGeometry && routeStats
+          ? {
+              geometry: (routeGeometry.coordinates ?? []) as Coordinate[],
+              waypoints: (Array.isArray(waypoints) ? waypoints : []).map(
+                (wp: { position?: Coordinate }) => ({
+                  coordinate: (wp.position ?? [0, 0]) as Coordinate,
+                }),
+              ),
+              stats: {
+                distance_km: routeStats.distance_km ?? 0,
+                elevation_gain_m: routeStats.elevation_gain_m ?? 0,
+                elevation_loss_m: 0,
+                duration_s: routeStats.duration_s ?? 0,
+              },
+            }
+          : null;
       void submitChatMessage({
         input: text,
         hasRoute: hasRouteForChat,
@@ -138,9 +187,47 @@ export default function RouteBuilder2() {
         markRefused: chat.markRefused,
         editing,
         formPanelControl: formPanelRef.current ?? { expand: () => {} },
+        routeSnapshot: snapshot,
       });
     },
-    [hasRouteForChat, chat.append, chat.setProcessing, chat.markRefused, editing],
+    [
+      hasRouteForChat,
+      chat.append,
+      chat.setProcessing,
+      chat.markRefused,
+      editing,
+      routeGeometry,
+      routeStats,
+      waypoints,
+    ],
+  );
+
+  // Load a saved route when a routeId is in the URL. Runs once per id.
+  const loadedRouteIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!routeIdFromUrl) return;
+    if (loadedRouteIdRef.current === routeIdFromUrl) return;
+    loadedRouteIdRef.current = routeIdFromUrl;
+    void persistence.loadRoute(routeIdFromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeIdFromUrl]);
+
+  const handleSaved = useCallback(
+    (id: string) => {
+      if (routeIdFromUrl !== id) {
+        navigate(`/route-builder-2/${id}`, { replace: true });
+      }
+    },
+    [navigate, routeIdFromUrl],
+  );
+
+  const handleLoaded = useCallback(
+    (id: string) => {
+      if (routeIdFromUrl !== id) {
+        navigate(`/route-builder-2/${id}`, { replace: true });
+      }
+    },
+    [navigate, routeIdFromUrl],
   );
 
   // Page mount telemetry
@@ -229,8 +316,10 @@ export default function RouteBuilder2() {
                 activeLayers={analysis.activeLayers}
               />
             )}
-            {visibility.bikeInfra && <BikeInfraLayer data={null} visible />}
-            {visibility.familiar && <FamiliarSegmentsLayer segments={null} />}
+            {visibility.bikeInfra && <BikeInfraLayer bbox={viewportBbox} visible />}
+            {visibility.familiar && (
+              <FamiliarSegmentsLayer bbox={viewportBbox} visible />
+            )}
           </Map>
         </Box>
 
@@ -279,7 +368,13 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
-            <FormPanel ref={formPanelRef} generation={generation} defaultStart={userLocation.coord} />
+            <FormPanel
+              ref={formPanelRef}
+              generation={generation}
+              defaultStart={userLocation.coord}
+              locationStatus={userLocation.status}
+              viewportCenter={viewportCenter}
+            />
             <LayerToggles
               visibility={visibility}
               onToggle={handleVisibilityToggle}
@@ -291,6 +386,14 @@ export default function RouteBuilder2() {
               <WaypointListPanel
                 waypoints={waypointsForMap}
                 onRemove={(idx) => void map.handleRemoveWaypoint(idx)}
+              />
+            )}
+            {hasRoute && (
+              <RouteActionsPanel
+                persistence={persistence}
+                defaultName={routeName}
+                onSaved={handleSaved}
+                onLoaded={handleLoaded}
               />
             )}
           </Box>
@@ -334,7 +437,14 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
-            <FormPanel ref={formPanelRef} generation={generation} defaultStart={userLocation.coord} isMobile />
+            <FormPanel
+              ref={formPanelRef}
+              generation={generation}
+              defaultStart={userLocation.coord}
+              locationStatus={userLocation.status}
+              viewportCenter={viewportCenter}
+              isMobile
+            />
             <LayerToggles
               visibility={visibility}
               onToggle={handleVisibilityToggle}
@@ -343,6 +453,15 @@ export default function RouteBuilder2() {
               isMobile
               hasStravaConnection={false}
             />
+            {hasRoute && (
+              <RouteActionsPanel
+                persistence={persistence}
+                defaultName={routeName}
+                onSaved={handleSaved}
+                onLoaded={handleLoaded}
+                isMobile
+              />
+            )}
           </Box>
         )}
 

@@ -10,9 +10,10 @@ import { forwardRef, useCallback, useImperativeHandle, useState } from 'react';
 import { Box, Text, UnstyledButton, Select, NumberInput, TextInput, Button, Loader } from '@mantine/core';
 import { CaretDown, CaretRight, X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
-import type { UseAIGenerationReturn } from '../../../hooks/route-builder';
+import type { UseAIGenerationReturn, UserLocationStatus } from '../../../hooks/route-builder';
 import type { Coordinate } from '../../../routing/executor';
 import { trackRb2 } from '../telemetry/trackRb2';
+import { geocodeWaypoint } from '../../../utils/geocoding.js';
 
 export interface FormPanelHandle {
   expand: () => void;
@@ -20,7 +21,12 @@ export interface FormPanelHandle {
 
 export interface FormPanelProps {
   generation: UseAIGenerationReturn;
+  /** Coordinate from geolocation (`useUserLocation.coord`), if available. */
   defaultStart?: Coordinate | null;
+  /** Geolocation status, drives the inline hint when denied/error. */
+  locationStatus?: UserLocationStatus;
+  /** Map viewport center, used as a last-resort start_coord fallback. */
+  viewportCenter?: Coordinate | null;
   isMobile?: boolean;
 }
 
@@ -60,7 +66,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function FormPanel(
-  { generation, defaultStart, isMobile = false },
+  { generation, defaultStart, locationStatus = 'idle', viewportCenter = null, isMobile = false },
   ref,
 ) {
   const [expanded, setExpanded] = useState(false);
@@ -69,6 +75,10 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
   const [surface, setSurface] = useState<Surface>('road');
   const [shape, setShape] = useState<Shape>('loop');
   const [startLocation, setStartLocation] = useState<string>('');
+  const [distanceKm, setDistanceKm] = useState<number | ''>('');
+  const [elevationGainM, setElevationGainM] = useState<number | ''>('');
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
 
   const toggleExpanded = useCallback(() => {
     setExpanded((prev) => {
@@ -94,21 +104,77 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
     [],
   );
 
+  const resolveStartCoord = useCallback(async (): Promise<Coordinate | null> => {
+    // Priority chain mirrors RB1 (RouteBuilder.jsx:2238-2255):
+    //   1) typed address (geocoded)
+    //   2) geolocation
+    //   3) map viewport center
+    const trimmed = startLocation.trim();
+    if (trimmed) {
+      const bias = defaultStart ?? viewportCenter ?? undefined;
+      const result = await geocodeWaypoint(trimmed, bias ?? null);
+      if (result?.coordinates) {
+        return result.coordinates as Coordinate;
+      }
+      return null;
+    }
+    if (defaultStart) return defaultStart;
+    if (viewportCenter) {
+      console.warn(
+        '[RB2] No geolocation or address; falling back to map viewport center as start_coord',
+      );
+      return viewportCenter;
+    }
+    return null;
+  }, [startLocation, defaultStart, viewportCenter]);
+
   const onSubmit = useCallback(async () => {
+    setLocalError(null);
     trackRb2('form_submitted', {
       goal,
       duration_minutes: duration,
       surface,
       shape,
+      has_distance: distanceKm !== '',
+      has_elevation: elevationGainM !== '',
     });
+    setIsResolving(true);
+    let start: Coordinate | null = null;
+    try {
+      start = await resolveStartCoord();
+    } catch (err) {
+      console.error('[RB2] start_coord resolution failed', err);
+    } finally {
+      setIsResolving(false);
+    }
+    if (!start) {
+      setLocalError(
+        startLocation.trim()
+          ? `Could not find "${startLocation.trim()}". Try a more specific address.`
+          : 'Enable location, type an address, or move the map to set a start point.',
+      );
+      return;
+    }
     await generation.generate({
       goal,
       duration_minutes: duration,
       route_profile: surface === 'mountain' ? 'mtb' : surface === 'mixed' ? 'gravel' : (surface as 'road' | 'gravel'),
       route_shape: shape,
-      start_coord: defaultStart ?? undefined,
+      start_coord: start,
+      distance_km: distanceKm === '' ? undefined : distanceKm,
+      elevation_gain_m: elevationGainM === '' ? undefined : elevationGainM,
     });
-  }, [generation, goal, duration, surface, shape, defaultStart]);
+  }, [
+    generation,
+    goal,
+    duration,
+    surface,
+    shape,
+    distanceKm,
+    elevationGainM,
+    resolveStartCoord,
+    startLocation,
+  ]);
 
   const onReset = useCallback(() => {
     setGoal('endurance');
@@ -116,6 +182,9 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
     setSurface('road');
     setShape('loop');
     setStartLocation('');
+    setDistanceKm('');
+    setElevationGainM('');
+    setLocalError(null);
     generation.clearSuggestions();
   }, [generation]);
 
@@ -246,19 +315,117 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
               allowDeselect={false}
             />
           </Box>
+          <Box style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+            <Box style={{ flex: 1 }}>
+              <Text style={labelStyle}>Distance (km)</Text>
+              <NumberInput
+                value={distanceKm}
+                onChange={(v) => {
+                  if (v === '' || v === null || v === undefined) {
+                    setDistanceKm('');
+                  } else {
+                    const n = typeof v === 'number' ? v : Number(v);
+                    setDistanceKm(Number.isFinite(n) ? n : '');
+                  }
+                  trackRb2('form_field_changed', { field: 'distance_km' });
+                }}
+                min={1}
+                max={500}
+                step={5}
+                placeholder="auto"
+                disabled={generation.isGenerating}
+                styles={{ input: { borderRadius: 0 } }}
+              />
+            </Box>
+            <Box style={{ flex: 1 }}>
+              <Text style={labelStyle}>Elevation (m)</Text>
+              <NumberInput
+                value={elevationGainM}
+                onChange={(v) => {
+                  if (v === '' || v === null || v === undefined) {
+                    setElevationGainM('');
+                  } else {
+                    const n = typeof v === 'number' ? v : Number(v);
+                    setElevationGainM(Number.isFinite(n) ? n : '');
+                  }
+                  trackRb2('form_field_changed', { field: 'elevation_gain_m' });
+                }}
+                min={0}
+                max={10000}
+                step={50}
+                placeholder="auto"
+                disabled={generation.isGenerating}
+                styles={{ input: { borderRadius: 0 } }}
+              />
+            </Box>
+          </Box>
           <Box style={{ marginTop: 10 }}>
             <Text style={labelStyle}>Start Location</Text>
             <TextInput
               value={startLocation}
               onChange={(e) => {
                 setStartLocation(e.currentTarget.value);
+                if (localError) setLocalError(null);
                 trackRb2('form_field_changed', { field: 'start_location' });
               }}
-              placeholder={defaultStart ? 'Using map center' : 'Address or place'}
+              placeholder={
+                defaultStart
+                  ? 'Using current location'
+                  : locationStatus === 'denied' || locationStatus === 'error' || locationStatus === 'unsupported'
+                    ? 'Address or place (geolocation off)'
+                    : 'Address or place'
+              }
               disabled={generation.isGenerating}
               styles={{ input: { borderRadius: 0 } }}
             />
+            {(locationStatus === 'denied' ||
+              locationStatus === 'error' ||
+              locationStatus === 'unsupported') &&
+              !defaultStart && (
+                <Text
+                  data-testid="rb2-form-location-hint"
+                  style={{
+                    fontFamily: RB2_FONT.body,
+                    fontSize: 11,
+                    color: RB2.textTertiary,
+                    marginTop: 4,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Geolocation unavailable — type an address or pan the map to set a start point.
+                </Text>
+              )}
           </Box>
+
+          {localError && (
+            <Box
+              data-testid="rb2-form-local-error"
+              style={{
+                marginTop: 12,
+                padding: '8px 10px',
+                backgroundColor: '#FBE9E5',
+                border: `1px solid ${RB2.coral}`,
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: RB2_FONT.body,
+                  fontSize: 13,
+                  color: RB2.coral,
+                  flex: 1,
+                  lineHeight: 1.4,
+                }}
+              >
+                {localError}
+              </Text>
+              <UnstyledButton onClick={() => setLocalError(null)} aria-label="Dismiss error">
+                <X size={14} color={RB2.coral} />
+              </UnstyledButton>
+            </Box>
+          )}
 
           {generation.lastError && (
             <Box
@@ -297,7 +464,7 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
             <Button
               data-testid="rb2-form-submit"
               onClick={onSubmit}
-              disabled={generation.isGenerating}
+              disabled={generation.isGenerating || isResolving}
               styles={{
                 root: {
                   borderRadius: 0,
@@ -309,7 +476,7 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
                 },
               }}
             >
-              {generation.isGenerating ? (
+              {generation.isGenerating || isResolving ? (
                 <Loader size="xs" color="white" />
               ) : (
                 'Generate'
