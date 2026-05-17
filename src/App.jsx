@@ -7,6 +7,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { UserPreferencesProvider } from './contexts/UserPreferencesContext.jsx';
+import { useRouteBuilderV2Access } from './hooks/useRouteBuilderV2Access.ts';
 import { theme } from './theme';
 
 // Pages — eagerly loaded (critical path)
@@ -72,6 +73,27 @@ function ProtectedRoute({ children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/auth" replace />;
+  }
+
+  return children;
+}
+
+// Route Builder 2.0 BETA gate (Stabilize S1). Requires the env flag AND the
+// per-user user_profiles.route_builder_v2_enabled column. Falls through to v1
+// at /ride/new when access is denied.
+function RouteBuilderV2Guard({ children }) {
+  const { hasAccess, isLoading } = useRouteBuilderV2Access();
+
+  if (isLoading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
+
+  if (!hasAccess) {
+    return <Navigate to="/ride/new" replace />;
   }
 
   return children;
@@ -177,14 +199,16 @@ function AppRoutes() {
         }
       />
 
-      {/* Route Builder 2.0 BETA (Phase 1 scaffolding — P1.1) */}
-      {/* Accessible by direct URL regardless of VITE_ROUTE_BUILDER_V2_ENABLED; */}
-      {/* the flag only controls nav visibility (see AppShell.jsx). */}
+      {/* Route Builder 2.0 BETA (Stabilize S1: per-user gate). */}
+      {/* RouteBuilderV2Guard redirects to /ride/new when the env flag is off */}
+      {/* OR user_profiles.route_builder_v2_enabled is false. */}
       <Route
         path="/route-builder-2"
         element={
           <ProtectedRoute>
-            <RouteBuilder2 />
+            <RouteBuilderV2Guard>
+              <RouteBuilder2 />
+            </RouteBuilderV2Guard>
           </ProtectedRoute>
         }
       />
@@ -192,18 +216,23 @@ function AppRoutes() {
         path="/route-builder-2/:routeId"
         element={
           <ProtectedRoute>
-            <RouteBuilder2 />
+            <RouteBuilderV2Guard>
+              <RouteBuilder2 />
+            </RouteBuilderV2Guard>
           </ProtectedRoute>
         }
       />
 
-      {/* Hook test harness (P1.2). Gated to DEV + flag. Returns null in prod. */}
+      {/* Hook test harness (P1.2). DEV+env gate at mount, per-user gate via */}
+      {/* RouteBuilderV2Guard. The route doesn't even exist in production. */}
       {ROUTE_BUILDER_V2_DEV_HARNESS_ENABLED && (
         <Route
           path="/route-builder-2/dev-harness"
           element={
             <ProtectedRoute>
-              <RouteBuilder2HarnessDev />
+              <RouteBuilderV2Guard>
+                <RouteBuilder2HarnessDev />
+              </RouteBuilderV2Guard>
             </ProtectedRoute>
           }
         />
