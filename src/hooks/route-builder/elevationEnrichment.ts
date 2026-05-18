@@ -52,11 +52,16 @@ function cacheKeyForGeometry(geometry: ReadonlyArray<Coordinate>): string {
 }
 
 function isAlreadyEnriched(snap: RouteSnapshot): boolean {
-  const hasPositiveGain = (snap.stats?.elevation_gain_m ?? 0) > 0;
-  const hasPerPoint =
-    Array.isArray(snap.elevations_m) &&
-    snap.elevations_m.length === snap.geometry.length;
-  return hasPositiveGain && hasPerPoint;
+  // v1's `generateAIRoutes` already invokes `fetchElevationProfile`
+  // inside `convertClaudeToFullRoute` and the Mapbox-based generators,
+  // so a route that comes back with positive gain has already paid the
+  // elevation-API cost. The per-point `elevations_m` array is owned by
+  // `useRouteAnalysis` (which fetches it on demand for the profile UI);
+  // treating its absence as "needs enrichment" caused every generation
+  // to fire a second elevation pass and dominated v2's latency budget.
+  // The enrichment fallback still runs when v1 returned 0 — the
+  // original "elevation = 0" smoking-gun case from pre-S2.
+  return (snap.stats?.elevation_gain_m ?? 0) > 0;
 }
 
 export interface EnrichOptions {
