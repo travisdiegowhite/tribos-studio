@@ -4,6 +4,20 @@
 import { supabase } from '../lib/supabase';
 import { getWeatherData } from './weather';
 import { getTurnDirectionGuidance } from './claudeRouteService';
+import {
+  classifyFormBandDisplay,
+  classifyFsConfidenceTier,
+  daysBetween,
+} from './formBands';
+import {
+  renderStructureSummary,
+  renderStructureDetailed,
+  hasIntervals,
+  deriveRoutingImplications,
+  formatDateHuman,
+} from './promptBuilders';
+import WORKOUT_LIBRARY from '../data/workoutLibrary';
+import { RUNNING_WORKOUT_LIBRARY } from '../data/runningWorkoutLibrary';
 
 /**
  * Enhanced user context collection for better AI route generation
@@ -51,6 +65,12 @@ export class EnhancedContextCollector {
       safetyPreferences: await this.getSafetyPreferences(userId),
       scenicPreferences: await this.getScenicPreferences(userId),
       trainingContext: await this.getTrainingContext(userId),
+      // Unit 1: real fitness state (training_load_daily) — distinct from
+      // the legacy `trainingContext` prefs shape that drives the prefs UI.
+      fitnessState: await this.getFitnessState(userId),
+      // Unit 1: today's prescribed workout from planned_workouts +
+      // workoutLibrary hydration.
+      prescription: await this.getTodaysPrescription(userId),
       localKnowledge: await this.getLocalKnowledge(baseParams.startLocation, userId),
       // Include cross-training activities for holistic training view
       recentCrossTraining: await this.getRecentCrossTraining(userId),
@@ -410,6 +430,165 @@ export class EnhancedContextCollector {
   }
 
   /**
+   * Unit 1: Real fitness state from training_load_daily.
+   *
+   * Returns Tribos Metrics Spec-shaped fields (RSS / TFI / AFI / FormScore)
+   * derived from the most recent 7 days. Returns an empty shape (all nulls)
+   * when no rows exist — the prompt renderer drops null lines so new users
+   * degrade gracefully rather than seeing hardcoded placeholders.
+   *
+   * Distinct from getTrainingContext (which feeds the preferences UI from
+   * the legacy `training_context` table).
+   */
+  static async getFitnessState(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('training_load_daily')
+        .select('date, rss, tfi, afi, form_score, fs_confidence, rss_source')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .limit(7);
+
+      if (error || !data || data.length === 0) {
+        return this.getEmptyFitnessState();
+      }
+
+      const todayRow = data[0];
+      const rss7d = data.reduce((sum, r) => sum + Number(r.rss ?? 0), 0);
+      // First row strictly after today with RSS > 80 = most recent hard day.
+      const lastHardDay = data.find(r => Number(r.rss ?? 0) > 80);
+      const today = new Date().toISOString().slice(0, 10);
+      const formScore = todayRow.form_score != null ? Number(todayRow.form_score) : null;
+      const fsConfidence = todayRow.fs_confidence != null ? Number(todayRow.fs_confidence) : null;
+
+      return {
+        weeklyLoadRSS: rss7d > 0 ? rss7d : null,
+        tfi: todayRow.tfi != null ? Number(todayRow.tfi) : null,
+        afi: todayRow.afi != null ? Number(todayRow.afi) : null,
+        formScore,
+        formBand: classifyFormBandDisplay(formScore),
+        fsConfidence,
+        fsConfidenceTier: classifyFsConfidenceTier(fsConfidence),
+        lastHardDayDaysAgo: lastHardDay
+          ? daysBetween(lastHardDay.date, today)
+          : null,
+        rssSource: todayRow.rss_source ?? null,
+        latestDate: todayRow.date ?? null,
+      };
+    } catch (err) {
+      console.warn('getFitnessState failed, returning empty:', err?.message);
+      return this.getEmptyFitnessState();
+    }
+  }
+
+  /**
+   * Empty fitness state — all nulls. Prompt builder drops null lines.
+   */
+  static getEmptyFitnessState() {
+    return {
+      weeklyLoadRSS: null,
+      tfi: null,
+      afi: null,
+      formScore: null,
+      formBand: null,
+      fsConfidence: null,
+      fsConfidenceTier: null,
+      lastHardDayDaysAgo: null,
+      rssSource: null,
+      latestDate: null,
+    };
+  }
+
+  /**
+   * Unit 1: Today's prescribed workout from planned_workouts, hydrated
+   * with the in-code WorkoutDefinition library entry.
+   *
+   * Returns null when there is no incomplete workout scheduled for today.
+   * Returns a partial (libraryEntryFound: false) when the planned row
+   * exists but its workout_id has no library hit — the prompt block will
+   * be sparse but accurate.
+   *
+   * Freeze-policy rename: canonical names (targetRSS, intensityRI) are
+   * returned at the boundary; the underlying columns/fields keep their
+   * legacy names (target_tss, intensityFactor). Read canonical-first with
+   * legacy fallback per CLAUDE.md.
+   */
+  static async getTodaysPrescription(userId) {
+    const today = new Date().toISOString().slice(0, 10);
+
+    let data, error;
+    try {
+      const res = await supabase
+        .from('planned_workouts')
+        .select(
+          'id, scheduled_date, workout_id, workout_type, name, ' +
+          'target_rss, target_tss, target_duration, duration_minutes, ' +
+          'target_distance_km, completed, notes'
+        )
+        .eq('user_id', userId)
+        .eq('scheduled_date', today)
+        .eq('completed', false)
+        .order('id', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      data = res.data;
+      error = res.error;
+    } catch (err) {
+      console.warn('getTodaysPrescription query failed:', err?.message);
+      return null;
+    }
+
+    if (error || !data) return null;
+
+    const libraryEntry =
+      (data.workout_id && WORKOUT_LIBRARY[data.workout_id]) ||
+      (data.workout_id && RUNNING_WORKOUT_LIBRARY[data.workout_id]) ||
+      null;
+
+    if (!libraryEntry) {
+      const computedDuration =
+        data.duration_minutes ??
+        (data.target_duration != null ? Math.round(Number(data.target_duration) / 60) : null);
+      return {
+        plannedWorkoutId: data.id,
+        workoutId: data.workout_id ?? null,
+        name: data.name ?? data.workout_type ?? 'Today\'s workout',
+        category: data.workout_type ?? null,
+        difficulty: null,
+        durationMin: computedDuration,
+        targetRSS: data.target_rss ?? data.target_tss ?? null,
+        intensityRI: null,
+        description: null,
+        focusArea: null,
+        terrainType: null,
+        structure: null,
+        cyclingStructure: null,
+        coachNotes: data.notes ?? null,
+        libraryEntryFound: false,
+      };
+    }
+
+    return {
+      plannedWorkoutId: data.id,
+      workoutId: data.workout_id,
+      name: data.name ?? libraryEntry.name,
+      category: libraryEntry.category,
+      difficulty: libraryEntry.difficulty,
+      durationMin: data.duration_minutes ?? libraryEntry.duration,
+      // Canonical-first with legacy fallback (freeze-policy compliant).
+      targetRSS: data.target_rss ?? data.target_tss ?? libraryEntry.targetTSS,
+      intensityRI: libraryEntry.intensityFactor,
+      description: libraryEntry.description,
+      focusArea: libraryEntry.focusArea,
+      terrainType: libraryEntry.terrainType,
+      structure: libraryEntry.structure,
+      cyclingStructure: libraryEntry.cyclingStructure ?? null,
+      coachNotes: libraryEntry.coachNotes,
+      libraryEntryFound: true,
+    };
+  }
+
+  /**
    * Gather local knowledge and constraints
    */
   static async getLocalKnowledge(startLocation, userId) {
@@ -442,6 +621,8 @@ export class EnhancedContextCollector {
       safetyPreferences,
       scenicPreferences,
       trainingContext,
+      fitnessState,
+      prescription,
       localKnowledge
     } = enhancedContext;
 
@@ -472,11 +653,82 @@ LOCATION & CONSTRAINTS:
 - Route type preference: ${routeType}
 
 TRAINING CONTEXT:
-- Primary goal: ${trainingGoal}
-- Current training phase: ${trainingContext.currentTrainingPhase}
-- Weekly volume: ${trainingContext.weeklyVolume}km
-- Fatigue level: ${trainingContext.fatigueLevel}
-- Recent intensity: ${trainingContext.recentIntensity}
+- Primary goal: ${trainingGoal}`;
+
+    // Unit 1: render real fitness state when available. Every line is
+    // conditional on its source; new users with no training_load_daily
+    // rows get a stripped block instead of placeholders.
+    if (fitnessState) {
+      if (fitnessState.weeklyLoadRSS != null) {
+        prompt += `\n- Weekly load (RSS, 7-day): ${fitnessState.weeklyLoadRSS.toFixed(0)}`;
+      }
+      if (fitnessState.tfi != null) {
+        prompt += `\n- Training Fitness Index (TFI, long-term): ${fitnessState.tfi.toFixed(0)}`;
+      }
+      if (fitnessState.afi != null) {
+        prompt += `\n- Acute Fatigue Index (AFI, short-term): ${fitnessState.afi.toFixed(0)}`;
+      }
+      if (fitnessState.formScore != null && fitnessState.formBand) {
+        // Confidence-aware rendering per Tribos Metrics Spec §5.
+        const tier = fitnessState.fsConfidenceTier;
+        const fs = fitnessState.formScore.toFixed(0);
+        const band = fitnessState.formBand;
+        if (tier === 'high' || tier == null) {
+          prompt += `\n- Form score: ${fs} (band: ${band})`;
+        } else if (tier === 'moderate') {
+          prompt += `\n- Form score: ~${fs} (band: approximately ${band}, moderate confidence)`;
+        } else {
+          prompt += `\n- Form score: ~${fs} (band: approximately ${band}, LOW confidence — limited recent ride data, weight this signal lightly)`;
+        }
+      }
+      if (fitnessState.lastHardDayDaysAgo != null) {
+        prompt += `\n- Last hard day: ${fitnessState.lastHardDayDaysAgo} day(s) ago`;
+      }
+    }
+
+    // Unit 1: today's prescribed workout, if any. Branches on whether the
+    // workout has structured intervals — steady workouts get a one-line
+    // summary; intervals get the full segment block + derived routing
+    // implications so Claude can match road geometry to interval timing.
+    if (prescription) {
+      prompt += `\n\nPRESCRIBED WORKOUT (${formatDateHuman(new Date())}):`;
+      prompt += `\n- Name: ${prescription.name}`;
+      if (prescription.category) {
+        prompt += `\n- Category: ${prescription.category}`;
+      }
+      if (prescription.durationMin != null) {
+        prompt += `\n- Duration: ${prescription.durationMin} minutes`;
+      }
+      if (prescription.targetRSS != null) {
+        prompt += `\n- Target stress (RSS): ${prescription.targetRSS}`;
+      }
+      if (prescription.intensityRI != null) {
+        prompt += `\n- Target intensity (RI): ${Number(prescription.intensityRI).toFixed(2)}`;
+      }
+      if (prescription.terrainType) {
+        prompt += `\n- Terrain type: ${prescription.terrainType}`;
+      }
+      if (prescription.focusArea) {
+        prompt += `\n- Focus: ${prescription.focusArea}`;
+      }
+      if (prescription.structure) {
+        if (hasIntervals(prescription.structure)) {
+          prompt += `\n- Structure:\n${renderStructureDetailed(prescription.structure)}`;
+          const impl = deriveRoutingImplications(prescription.structure);
+          if (impl) prompt += `\n- Routing implications: ${impl}`;
+        } else {
+          prompt += `\n- Structure: ${renderStructureSummary(prescription.structure)}`;
+        }
+      }
+      if (prescription.coachNotes) {
+        // Coach notes can be multi-sentence but rarely contain newlines.
+        // Collapse any whitespace to keep the prompt block clean.
+        prompt += `\n- Coach notes: ${String(prescription.coachNotes).replace(/\s+/g, ' ').trim()}`;
+      }
+      prompt += `\n\nThis route is for the prescribed workout above. The route's elevation, surface, and turn density should support the prescribed intensity — not contradict it. If the prescription is steady aerobic, avoid sustained climbs or interval-suitable segments that would invite the rider out of zone. If the prescription has structured intervals, the route MUST provide sustained uninterrupted segments that fit the work-block duration.`;
+    }
+
+    prompt += `
 
 ROUTING PREFERENCES:
 - Traffic tolerance: ${routingPreferences.trafficTolerance}
