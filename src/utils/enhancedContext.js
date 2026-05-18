@@ -69,8 +69,11 @@ export class EnhancedContextCollector {
       // the legacy `trainingContext` prefs shape that drives the prefs UI.
       fitnessState: await this.getFitnessState(userId),
       // Unit 1: today's prescribed workout from planned_workouts +
-      // workoutLibrary hydration.
-      prescription: await this.getTodaysPrescription(userId),
+      // workoutLibrary hydration. Unit 1.5: caller may suppress for the
+      // current generation (user picked "Generate something else").
+      prescription: baseParams?.suppressPrescription
+        ? null
+        : await this.getTodaysPrescription(userId),
       localKnowledge: await this.getLocalKnowledge(baseParams.startLocation, userId),
       // Include cross-training activities for holistic training view
       recentCrossTraining: await this.getRecentCrossTraining(userId),

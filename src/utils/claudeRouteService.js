@@ -53,7 +53,8 @@ export async function generateClaudeRoutes(params) {
     ridingPatterns,
     targetDistance,
     userId,
-    trainingContext
+    trainingContext,
+    suppressPrescription,
   } = params;
 
   try {
@@ -119,6 +120,7 @@ export async function generateClaudeRoutesOrThrow(params) {
     targetDistance,
     userId,
     trainingContext,
+    suppressPrescription,
   } = params;
 
   let prompt;
@@ -281,7 +283,8 @@ function buildRoutePrompt(params) {
     weatherData,
     ridingPatterns,
     targetDistance,
-    trainingContext
+    trainingContext,
+    suppressPrescription,
   } = params;
 
   // Normalize startLocation to array format [lng, lat]

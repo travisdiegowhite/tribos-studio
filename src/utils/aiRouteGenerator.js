@@ -61,7 +61,8 @@ export async function generateAIRoutes(params, onProgress = null) {
     userId,
     trainingContext,
     speedProfile,
-    speedModifier = 1.0
+    speedModifier = 1.0,
+    suppressPrescription,
   } = params;
 
   // T1.4 — wall-clock anchor for `generation_context_built.duration_ms`.
@@ -193,7 +194,8 @@ export async function generateAIRoutes(params, onProgress = null) {
       targetDistance,
       claudeAnalysis,
       userId,
-      trainingContext
+      trainingContext,
+      suppressPrescription,
     });
 
     trackRouteBuilder('generation_claude_responded', {

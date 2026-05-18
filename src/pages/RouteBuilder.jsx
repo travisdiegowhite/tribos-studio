@@ -31,6 +31,7 @@ import IntervalCues from '../components/IntervalCues.jsx';
 import ElevationProfile from '../components/ElevationProfile.jsx';
 import WeatherWidget from '../components/WeatherWidget.jsx';
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
+import { EnhancedContextCollector } from '../utils/enhancedContext';
 import { generateCuesFromWorkoutStructure, createColoredRouteSegments } from '../utils/intervalCues';
 import { DEFAULT_ROUTE_COLOR } from '../components/ui/zoneColors';
 import RouteGenerationProgress from '../components/RouteGenerationProgress.jsx';
@@ -156,6 +157,14 @@ function RouteBuilder() {
   const [savedRoutesOpen, setSavedRoutesOpen] = useState(false);
   // Calendar context state (when navigating from training calendar)
   const [calendarContext, setCalendarContext] = useState(null);
+  // Unit 1.5: soft-default prescription card for direct-navigation users.
+  // `prescriptionCard` is set when getTodaysPrescription returns a workout
+  // and the user arrived without ?from=calendar. `prescriptionSuppressed`
+  // becomes true when the user picks "Generate something else" — it gates
+  // both the card visibility and the suppressPrescription flag we send
+  // to the AI prompt builder.
+  const [prescriptionCard, setPrescriptionCard] = useState(null);
+  const [prescriptionSuppressed, setPrescriptionSuppressed] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
   const mapRef = useRef();
   const viewportRef = useRef(viewport); // Track latest viewport without triggering re-renders
@@ -633,6 +642,75 @@ function RouteBuilder() {
 
     // Clear the URL params after reading (keeps URL clean)
     setSearchParams({}, { replace: true });
+  }, []);
+
+  // Unit 1.5: when arriving WITHOUT ?from=calendar, fetch today's
+  // prescribed workout (if any) and offer it as a soft default. This
+  // makes the smart Route Builder feel intelligent on direct navigation,
+  // which is the path Travis-as-user most often uses.
+  useEffect(() => {
+    if (!user?.id) return;
+    // Don't fetch if user explicitly came from the calendar — that flow
+    // already pre-fills the form via the effect above.
+    if (searchParams.get('from') === 'calendar') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const prescription = await EnhancedContextCollector.getTodaysPrescription(user.id);
+        if (cancelled) return;
+        if (!prescription) return;
+        // If the user is editing an existing route, don't surface the
+        // soft default — they have a different intent.
+        if (routeId) return;
+        setPrescriptionCard(prescription);
+      } catch (err) {
+        console.warn('Failed to load today\'s prescription:', err?.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, routeId]);
+
+  // Unit 1.5: apply the prescription to the form (same pre-fill behavior
+  // as the calendar handoff). Sets `calendarContext` so the rest of the
+  // page treats this exactly like a calendar-originated flow.
+  const handleUsePrescription = useCallback(() => {
+    if (!prescriptionCard) return;
+    const p = prescriptionCard;
+    const context = {
+      workoutType: p.category || 'endurance',
+      trainingGoal: p.category === 'recovery' ? 'recovery'
+                   : p.category === 'vo2max' || p.category === 'threshold' ? 'intervals'
+                   : p.category === 'tempo' ? 'tempo'
+                   : p.category === 'climbing' ? 'hills'
+                   : 'endurance',
+      duration: p.durationMin ?? 60,
+      distance: null,
+      workoutId: p.workoutId,
+      workoutName: p.name,
+      scheduledDate: new Date().toISOString().slice(0, 10),
+    };
+    setCalendarContext(context);
+    setTrainingGoal(context.trainingGoal);
+    setTimeAvailable(context.duration);
+    if (p.workoutId && WORKOUT_LIBRARY[p.workoutId]) {
+      setSelectedWorkout(WORKOUT_LIBRARY[p.workoutId]);
+    }
+    setRouteName(`Route for ${p.name}`);
+    const goalText = context.trainingGoal === 'intervals' ? 'with intervals' :
+                     context.trainingGoal === 'hills' ? 'with climbing' :
+                     context.trainingGoal === 'recovery' ? 'easy recovery' : '';
+    setNaturalLanguageInput(
+      `Create a ${context.duration} minute ${p.name} route ${goalText}`.trim()
+    );
+    setPrescriptionCard(null);
+    setPrescriptionSuppressed(false);
+  }, [prescriptionCard, setSelectedWorkout]);
+
+  // Unit 1.5: explicit "no thanks" — hide the card AND suppress the
+  // prescription block on the next AI generation.
+  const handleDismissPrescription = useCallback(() => {
+    setPrescriptionCard(null);
+    setPrescriptionSuppressed(true);
   }, []);
 
   // Load activity GPS track when from_activity param is present
@@ -1990,7 +2068,10 @@ function RouteBuilder() {
           routeType,
           userId: user?.id,
           speedProfile,
-          speedModifier: 1.0
+          speedModifier: 1.0,
+          // Unit 1.5: user picked "Generate something else" — drop the
+          // PRESCRIBED WORKOUT block from this generation's prompt.
+          suppressPrescription: prescriptionSuppressed,
         }, (progress) => {
           setRouteGenStep(progress.step);
           // Map aiRouteGenerator progress steps to telemetry stages.
@@ -2572,7 +2653,7 @@ function RouteBuilder() {
       setGeneratingAI(false);
       setRouteGenStep(null);
     }
-  }, [naturalLanguageInput, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext, accessToken]); // viewport read from viewportRef
+  }, [naturalLanguageInput, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext, accessToken, prescriptionSuppressed]); // viewport read from viewportRef
 
   // Search for address using Mapbox Geocoding API
   const handleAddressSearch = useCallback(async (query) => {
@@ -2783,6 +2864,57 @@ function RouteBuilder() {
               <X size={12} />
             </ActionIcon>
           </Group>
+        </Paper>
+      )}
+
+      {/* Unit 1.5: Soft-default prescription card (mobile) — shows when a
+          workout is scheduled for today and the user arrived without
+          ?from=calendar. Distinct terracotta styling marks it as a
+          suggestion, not a confirmed handoff. */}
+      {prescriptionCard && !calendarContext && (
+        <Paper
+          p="sm"
+          style={{
+            backgroundColor: `${'var(--color-terracotta)'}12`,
+            border: `1px dashed var(--color-terracotta)`,
+          }}
+          radius="md"
+        >
+          <Stack gap="xs">
+            <Group gap="xs" wrap="nowrap" align="flex-start">
+              <Sparkle size={16} style={{ color: 'var(--color-terracotta)', marginTop: 2 }} />
+              <Box style={{ flex: 1 }}>
+                <Text size="xs" fw={600} style={{ color: 'var(--color-terracotta)' }}>
+                  Today's workout
+                </Text>
+                <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  {prescriptionCard.name}
+                  {prescriptionCard.durationMin != null && ` • ${prescriptionCard.durationMin} min`}
+                  {prescriptionCard.category && ` • ${prescriptionCard.category}`}
+                </Text>
+              </Box>
+            </Group>
+            <Group gap="xs">
+              <Button
+                size="xs"
+                variant="filled"
+                color="orange"
+                onClick={handleUsePrescription}
+                style={{ flex: 1 }}
+              >
+                Use this workout
+              </Button>
+              <Button
+                size="xs"
+                variant="subtle"
+                color="gray"
+                onClick={handleDismissPrescription}
+                style={{ flex: 1 }}
+              >
+                Something else
+              </Button>
+            </Group>
+          </Stack>
         </Paper>
       )}
 
@@ -4346,6 +4478,52 @@ function RouteBuilder() {
                     >
                       <X size={12} />
                     </ActionIcon>
+                  </Group>
+                </Paper>
+              )}
+
+              {/* Unit 1.5: Soft-default prescription card (desktop) */}
+              {prescriptionCard && !calendarContext && (
+                <Paper
+                  p="sm"
+                  style={{
+                    backgroundColor: `${'var(--color-terracotta)'}12`,
+                    border: `1px dashed var(--color-terracotta)`,
+                  }}
+                  radius="md"
+                >
+                  <Group justify="space-between" align="center" wrap="nowrap">
+                    <Group gap="xs" wrap="nowrap" align="flex-start" style={{ flex: 1, minWidth: 0 }}>
+                      <Sparkle size={16} style={{ color: 'var(--color-terracotta)', marginTop: 2, flexShrink: 0 }} />
+                      <Box style={{ minWidth: 0 }}>
+                        <Text size="xs" fw={600} style={{ color: 'var(--color-terracotta)' }}>
+                          Today's workout
+                        </Text>
+                        <Text size="xs" style={{ color: 'var(--color-text-secondary)' }} lineClamp={1}>
+                          {prescriptionCard.name}
+                          {prescriptionCard.durationMin != null && ` • ${prescriptionCard.durationMin} min`}
+                          {prescriptionCard.category && ` • ${prescriptionCard.category}`}
+                        </Text>
+                      </Box>
+                    </Group>
+                    <Group gap="xs" wrap="nowrap">
+                      <Button
+                        size="xs"
+                        variant="filled"
+                        color="orange"
+                        onClick={handleUsePrescription}
+                      >
+                        Use this workout
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        color="gray"
+                        onClick={handleDismissPrescription}
+                      >
+                        Something else
+                      </Button>
+                    </Group>
                   </Group>
                 </Paper>
               )}
