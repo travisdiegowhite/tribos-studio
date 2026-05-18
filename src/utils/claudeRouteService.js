@@ -53,7 +53,8 @@ export async function generateClaudeRoutes(params) {
     ridingPatterns,
     targetDistance,
     userId,
-    trainingContext
+    trainingContext,
+    suppressPrescription,
   } = params;
 
   try {
@@ -119,6 +120,7 @@ export async function generateClaudeRoutesOrThrow(params) {
     targetDistance,
     userId,
     trainingContext,
+    suppressPrescription,
   } = params;
 
   let prompt;
@@ -281,7 +283,8 @@ function buildRoutePrompt(params) {
     weatherData,
     ridingPatterns,
     targetDistance,
-    trainingContext
+    trainingContext,
+    suppressPrescription,
   } = params;
 
   // Normalize startLocation to array format [lng, lat]
@@ -334,7 +337,7 @@ TRAINING PLAN WORKOUT:
 - Workout Type: ${trainingContext.workoutType}
 - Training Phase: ${trainingContext.phase}
 - Target Duration: ${trainingContext.targetDuration} minutes
-- Target TSS (Training Stress Score): ${trainingContext.targetTSS}
+- Target stress (RSS): ${trainingContext.targetRSS ?? trainingContext.targetTSS}
 - Primary Heart Rate Zone: Zone ${trainingContext.primaryZone}
 
 IMPORTANT: This route should be specifically designed for a ${trainingContext.workoutType} workout in the ${trainingContext.phase} phase.
