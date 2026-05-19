@@ -554,7 +554,7 @@ export async function computeAndStoreTCAS(supabase, userId) {
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('years_training, experience_level')
-    .eq('user_id', userId)
+    .eq('id', userId)
     .maybeSingle();
 
   let yearsTraining = profile?.years_training || 3;

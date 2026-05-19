@@ -156,7 +156,7 @@ async function loadAthleteContext(userId) {
     supabase
       .from('user_profiles')
       .select('ftp, weight_kg, max_hr')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .maybeSingle(),
     supabase
       .from('training_load_daily')
