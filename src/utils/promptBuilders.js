@@ -198,6 +198,85 @@ export function deriveRoutingImplications(structure) {
 }
 
 /**
+ * Unit 3: Render the FAMILIAR ROADS prompt block from an aggregate
+ * familiarity descriptor (see EnhancedContextCollector.getFamiliarRoads).
+ *
+ * Returns an empty string when the descriptor is null — caller can
+ * concatenate unconditionally; the block is silent for new users.
+ *
+ * Three guidance tiers based on familiarityStrength, plus an explore-mode
+ * inversion. Names are never referenced — the data doesn't have them.
+ *
+ * @param {object|null} familiarRoads
+ * @returns {string}
+ */
+export function renderFamiliarRoads(familiarRoads) {
+  if (!familiarRoads) return '';
+
+  const {
+    familiarSegmentCount,
+    totalFamiliarKm,
+    topRideCount,
+    directionalBias,
+    familiarityStrength,
+    exploreMode,
+    minRidesForFamiliar,
+    familiarityDecayDays,
+  } = familiarRoads;
+
+  const lines = [];
+  lines.push('FAMILIAR ROADS:');
+  lines.push(
+    `- This rider has ${familiarSegmentCount} familiar road segments in the candidate routing area ` +
+    `(segments ridden ${minRidesForFamiliar}+ times within the last ${familiarityDecayDays} days)`
+  );
+  lines.push(`- Total familiar mileage in candidate area: ~${totalFamiliarKm} km`);
+  lines.push(`- Most-ridden segment in this area: ${topRideCount} times`);
+
+  const biasParts = Object.entries(directionalBias)
+    .filter(([, share]) => share > 0)
+    .sort(([, a], [, b]) => b - a)
+    .map(([dir, share]) => `${dir} ${Math.round(share * 100)}%`)
+    .join(', ');
+  if (biasParts) {
+    lines.push(`- Direction of familiarity from start: ${biasParts}`);
+  }
+
+  let guidance;
+  if (exploreMode) {
+    guidance =
+      `\nGUIDANCE: The rider has explore_mode enabled. Where the prescription is flexible on ` +
+      `direction, bias toward UNFAMILIAR areas (low-share or absent directions in the bias above). ` +
+      `This is the rider's explicit preference for discovering new roads. The prescription still ` +
+      `takes precedence — explore mode is a tiebreaker, not an override.`;
+  } else if (familiarityStrength >= 70) {
+    guidance =
+      `\nGUIDANCE: The rider strongly prefers familiar roads (familiarity_strength=${familiarityStrength}). ` +
+      `Where the prescription is flexible on direction, bias strongly toward the highest-share ` +
+      `directions in the bias above. If the prescription requires terrain not present in familiar ` +
+      `territory, the prescription takes precedence — familiarity is a tiebreaker, not an override.`;
+  } else if (familiarityStrength >= 30) {
+    guidance =
+      `\nGUIDANCE: The rider has a moderate preference for familiar roads ` +
+      `(familiarity_strength=${familiarityStrength}). Where the prescription is flexible on direction, ` +
+      `lean toward the higher-share directions. Treat familiarity as one consideration among several ` +
+      `(terrain match, safety, scenic value).`;
+  } else {
+    guidance =
+      `\nGUIDANCE: The rider has a low preference for familiarity ` +
+      `(familiarity_strength=${familiarityStrength}). Use this signal lightly — direction-of-familiarity ` +
+      `is informational, not a strong bias.`;
+  }
+  lines.push(guidance);
+  lines.push(
+    '\nDo not invent road names. Refer to areas by direction (east, north-east, etc.) or by ' +
+    'distance from start. The rider\'s road data does not include street names.'
+  );
+
+  return lines.join('\n');
+}
+
+/**
  * Format a Date as "Tuesday, May 19" — used in the PRESCRIBED WORKOUT
  * block header. Falls back to ISO date on environments without Intl.
  */

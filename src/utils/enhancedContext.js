@@ -14,8 +14,11 @@ import {
   renderStructureDetailed,
   hasIntervals,
   deriveRoutingImplications,
+  renderFamiliarRoads,
   formatDateHuman,
 } from './promptBuilders';
+import { computeBboxAround, computeDirectionalBias } from './geo';
+import { haversineMeters, M_TO_KM } from './distanceUnits';
 import WORKOUT_LIBRARY from '../data/workoutLibrary';
 import { RUNNING_WORKOUT_LIBRARY } from '../data/runningWorkoutLibrary';
 import { getVoiceProfile } from './coachVoices';
@@ -79,6 +82,14 @@ export class EnhancedContextCollector {
       // hasn't completed onboarding (coaching_persona='pending') — the
       // prompt builder drops the COACH VOICE block entirely in that case.
       coachPersona: await this.getCoachPersona(userId),
+      // Unit 3: aggregate familiar-roads descriptor for the candidate
+      // routing area. Null when the rider has no familiar segments
+      // nearby (new users), in which case the prompt block is silent.
+      familiarRoads: await this.getFamiliarRoads(
+        userId,
+        baseParams.startLocation,
+        baseParams.targetDistance,
+      ),
       localKnowledge: await this.getLocalKnowledge(baseParams.startLocation, userId),
       // Include cross-training activities for holistic training view
       recentCrossTraining: await this.getRecentCrossTraining(userId),
@@ -513,6 +524,129 @@ export class EnhancedContextCollector {
   }
 
   /**
+   * Unit 3: Fetch aggregate familiarity descriptor for the candidate
+   * routing area, plus the user's road preferences. Returns null for
+   * new users with no familiar segments nearby (the prompt block is
+   * silent in that case) and on any error.
+   *
+   * Honors all five preference knobs: familiarity_strength and
+   * explore_mode shape the prompt's GUIDANCE; min_rides_for_familiar
+   * filters the RPC; familiarity_decay_days hard-excludes stale
+   * segments; recency_weight softly upweights recently-ridden segments
+   * when bucketing directional bias.
+   *
+   * @param {string} userId
+   * @param {[number, number] | object} startLocation - canonical [lng, lat] or {lng/lon, lat}
+   * @param {number} targetDistanceKm - already km (see RouteBuilder.jsx targetDistance calc)
+   * @returns {Promise<object|null>}
+   */
+  static async getFamiliarRoads(userId, startLocation, targetDistanceKm) {
+    try {
+      if (!userId || !startLocation || !targetDistanceKm) return null;
+
+      // Normalize to canonical [lng, lat] — buildEnhancedRoutePrompt does
+      // the same dance; we duplicate the minimal version here so the
+      // fetcher doesn't depend on the prompt path's normalization.
+      let lngLat = startLocation;
+      if (!Array.isArray(lngLat) && typeof lngLat === 'object') {
+        const lng = lngLat.lng ?? lngLat.longitude ?? lngLat.lon;
+        const lat = lngLat.lat ?? lngLat.latitude;
+        if (lng === undefined || lat === undefined) return null;
+        lngLat = [lng, lat];
+      }
+      if (!Array.isArray(lngLat) || lngLat.length < 2) return null;
+
+      // Fetch preferences (or defaults). maybeSingle so new users
+      // without a row don't trip the error path.
+      const { data: prefsData } = await supabase
+        .from('user_road_preferences')
+        .select(
+          'familiarity_strength, explore_mode, min_rides_for_familiar, ' +
+          'recency_weight, familiarity_decay_days'
+        )
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const prefs = prefsData ?? {
+        familiarity_strength: 50,
+        explore_mode: false,
+        min_rides_for_familiar: 2,
+        recency_weight: 30,
+        familiarity_decay_days: 180,
+      };
+
+      // 0.6× target distance comfortably covers loops + out-and-backs.
+      const bbox = computeBboxAround(lngLat, targetDistanceKm * 0.6);
+
+      const { data: segments, error } = await supabase.rpc(
+        'get_user_segments_in_bbox',
+        {
+          p_user_id: userId,
+          p_min_lat: bbox.minLat,
+          p_max_lat: bbox.maxLat,
+          p_min_lng: bbox.minLng,
+          p_max_lng: bbox.maxLng,
+          p_min_ride_count: prefs.min_rides_for_familiar,
+        }
+      );
+
+      if (error || !segments || segments.length === 0) return null;
+
+      // Hard decay cutoff: drop segments not ridden within
+      // familiarity_decay_days. Decay days = 0 means "never decay".
+      const decayDays = prefs.familiarity_decay_days;
+      const fresh = (!decayDays || decayDays <= 0)
+        ? segments
+        : segments.filter((s) => {
+          if (!s.last_ridden_at) return true; // benefit of the doubt
+          const ageDays =
+            (Date.now() - new Date(s.last_ridden_at).getTime()) /
+            (24 * 60 * 60 * 1000);
+          return ageDays <= decayDays;
+        });
+
+      if (fresh.length === 0) return null;
+
+      // segment_length_m is NOT returned by the RPC — compute via
+      // haversine from start/end coordinates.
+      let totalFamiliarKm = 0;
+      for (const seg of fresh) {
+        totalFamiliarKm += M_TO_KM(
+          haversineMeters(
+            Number(seg.start_lat),
+            Number(seg.start_lng),
+            Number(seg.end_lat),
+            Number(seg.end_lng),
+          )
+        );
+      }
+
+      // RPC sorts by ride_count DESC.
+      const topRideCount = fresh[0]?.ride_count ?? 0;
+
+      const directionalBias = computeDirectionalBias(
+        fresh,
+        lngLat,
+        prefs.recency_weight,
+        prefs.familiarity_decay_days,
+      );
+
+      return {
+        familiarSegmentCount: fresh.length,
+        totalFamiliarKm: Number(totalFamiliarKm.toFixed(1)),
+        topRideCount,
+        directionalBias,
+        familiarityStrength: prefs.familiarity_strength,
+        exploreMode: prefs.explore_mode,
+        minRidesForFamiliar: prefs.min_rides_for_familiar,
+        familiarityDecayDays: prefs.familiarity_decay_days,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Empty fitness state — all nulls. Prompt builder drops null lines.
    */
   static getEmptyFitnessState() {
@@ -655,6 +789,7 @@ export class EnhancedContextCollector {
       fitnessState,
       prescription,
       coachPersona,
+      familiarRoads,
       localKnowledge
     } = enhancedContext;
 
@@ -769,6 +904,14 @@ TRAINING CONTEXT:
       prompt += `\n${voiceProfile.voice_instruction}`;
       prompt += `\n\n${voiceProfile.anti_pattern}`;
       prompt += `\n\nIMPORTANT: The coach voice applies to route NAMES, DESCRIPTIONS, and TRAINING FOCUS narrative. It does NOT change route geometry, difficulty ratings, safety warnings, surface breakdowns, or any factual content. Same prescription, same fitness state, same roads → same route regardless of voice. The voice changes only how the route is presented.`;
+    }
+
+    // Unit 3: familiar-roads spatial awareness. Empty string when the
+    // rider has no familiar segments in the candidate area — the block
+    // is silent for new users by design.
+    const familiarRoadsBlock = renderFamiliarRoads(familiarRoads);
+    if (familiarRoadsBlock) {
+      prompt += `\n\n${familiarRoadsBlock}`;
     }
 
     prompt += `
@@ -897,6 +1040,8 @@ CRITICAL REQUIREMENTS:
 - Respond with raw JSON only - do NOT wrap in markdown code blocks (no \`\`\`json)
 - Prioritize rider safety above all else
 - Safety language (bike infrastructure warnings, traffic cautions, dangerous-turn callouts) MUST appear in every route regardless of coach voice. The voice never softens, omits, or trivializes safety content.
+- Familiarity bias never overrides the prescription. If the prescription requires terrain that exists only in low-familiarity territory, route through it. Familiarity is a tiebreaker among prescription-compatible options, not a filter.
+- Do not invent road names. The rider's familiar-roads data does not include street names; refer to roads by direction, distance from start, or terrain type only.
 - Ensure routes match specified surface and traffic preferences${
   safetyPreferences.bikeInfrastructure === 'required' ? `
 - MANDATORY: Route MUST use ONLY dedicated bike lanes, bike paths, or protected cycling infrastructure
