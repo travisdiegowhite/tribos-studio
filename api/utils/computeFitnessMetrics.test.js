@@ -79,7 +79,7 @@ function makeSupabase(activities, ftp = null) {
           }),
         };
       }
-      if (table === 'user_preferences') {
+      if (table === 'user_profiles') {
         return {
           select: () => ({
             eq: () => ({
