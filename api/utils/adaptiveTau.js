@@ -142,9 +142,9 @@ export async function recomputeUserTauConstants(supabase, userId) {
   if (actErr) throw actErr;
 
   const { data: prefs } = await supabase
-    .from('user_preferences')
+    .from('user_profiles')
     .select('ftp')
-    .eq('user_id', userId)
+    .eq('id', userId)
     .maybeSingle();
   const userFtp = prefs?.ftp || null;
 

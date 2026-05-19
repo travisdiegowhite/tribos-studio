@@ -682,11 +682,11 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
 
   if (error) throw error;
 
-  // Get FTP from user preferences (needed for TSS estimation)
+  // Get FTP from user profile (needed for TSS estimation)
   const { data: prefs } = await supabase
-    .from('user_preferences')
+    .from('user_profiles')
     .select('ftp')
-    .eq('user_id', userId)
+    .eq('id', userId)
     .maybeSingle();
 
   const userFtp = prefs?.ftp || null;
@@ -828,7 +828,7 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
     afi: atlRounded,
     form_score: tsbRounded,
     ftp: prefs?.ftp || null,
-    ftp_source: prefs?.ftp ? 'user_preferences' : null,
+    ftp_source: prefs?.ftp ? 'user_profiles' : null,
     weekly_tss: weeklyTssRounded,
     weekly_rss: weeklyTssRounded,
     weekly_hours: Math.round(weeklyHours * 100) / 100,

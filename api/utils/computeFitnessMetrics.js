@@ -143,9 +143,9 @@ export async function computeFitnessMetrics(supabase, userId, throughDate) {
       .lte('start_date', end.toISOString())
       .order('start_date', { ascending: true }),
     supabase
-      .from('user_preferences')
+      .from('user_profiles')
       .select('ftp')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .maybeSingle(),
   ]);
 
@@ -225,9 +225,9 @@ export async function computeTFIBreakdown(supabase, userId, throughDate) {
       .eq('id', userId)
       .maybeSingle(),
     supabase
-      .from('user_preferences')
+      .from('user_profiles')
       .select('ftp')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .maybeSingle(),
   ]);
 

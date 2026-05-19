@@ -2333,7 +2333,7 @@ function getTrainingGoalScore(route, goal) {
 
       // Use interval suitability analysis if available — weight heavily for interval/tempo goals
       if (route.intervalSuitability?.overallScore !== undefined) {
-        const suitabilityWeight = (trainingGoal === 'intervals' || trainingGoal === 'tempo') ? 0.6 : 0.3;
+        const suitabilityWeight = (goal === 'intervals' || goal === 'tempo') ? 0.6 : 0.3;
         score += (route.intervalSuitability.overallScore - 0.5) * suitabilityWeight;
       }
       // Prefer flatter routes for consistent power output

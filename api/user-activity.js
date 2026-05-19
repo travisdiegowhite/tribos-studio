@@ -1,20 +1,9 @@
 // Vercel API Route: User Activity Tracking
 // Logs user activity events for analytics
 
-import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 
-// Initialize Supabase clients
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-
-// Regular client for user operations
-const supabase = createClient(
-  supabaseUrl,
-  process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
-);
-
-// Admin client for admin operations
 const supabaseAdmin = getSupabaseAdmin();
 
 // SECURITY: Hardcoded admin email
@@ -89,7 +78,7 @@ async function getUser(req) {
   }
 
   const token = authHeader.substring(7);
-  const { data: { user }, error } = await supabase.auth.getUser(token);
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
 
   if (error || !user) {
     return null;
