@@ -352,7 +352,7 @@ async function fetchUserFTP(supabase, userId) {
   const { data } = await supabase
     .from('user_profiles')
     .select('ftp')
-    .eq('user_id', userId)
+    .eq('id', userId)
     .single();
 
   return data?.ftp || 0;

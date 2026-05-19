@@ -360,7 +360,7 @@ export async function computeWorkoutSegmentMatches(userId, workoutId, workoutDef
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('ftp')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .single();
     userFtp = profile?.ftp || 0;
   }
@@ -454,7 +454,7 @@ export async function computeAllMatchesForUser(userId, workoutDefs, supabaseClie
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('ftp')
-    .eq('user_id', userId)
+    .eq('id', userId)
     .single();
   const ftp = profile?.ftp || 0;
 

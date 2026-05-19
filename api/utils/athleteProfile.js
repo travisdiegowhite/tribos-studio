@@ -20,7 +20,7 @@ export async function fetchAthleteProfile(userId) {
     const { data, error } = await supabase
       .from('user_profiles')
       .select('ftp, power_zones, max_hr')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .maybeSingle();
     if (error || !data) return null;
     return {

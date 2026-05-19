@@ -509,7 +509,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         const userProfileQuery = supabase
           .from('user_profiles')
           .select('ftp')
-          .eq('user_id', userId)
+          .eq('id', userId)
           .maybeSingle();
 
         const ninetyDaysAgo = new Date();
