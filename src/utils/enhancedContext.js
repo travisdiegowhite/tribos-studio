@@ -18,6 +18,7 @@ import {
 } from './promptBuilders';
 import WORKOUT_LIBRARY from '../data/workoutLibrary';
 import { RUNNING_WORKOUT_LIBRARY } from '../data/runningWorkoutLibrary';
+import { getVoiceProfile } from './coachVoices';
 
 /**
  * Enhanced user context collection for better AI route generation
@@ -74,6 +75,10 @@ export class EnhancedContextCollector {
       prescription: baseParams?.suppressPrescription
         ? null
         : await this.getTodaysPrescription(userId),
+      // Unit 2: coaching persona for prompt voice. Null when the user
+      // hasn't completed onboarding (coaching_persona='pending') — the
+      // prompt builder drops the COACH VOICE block entirely in that case.
+      coachPersona: await this.getCoachPersona(userId),
       localKnowledge: await this.getLocalKnowledge(baseParams.startLocation, userId),
       // Include cross-training activities for holistic training view
       recentCrossTraining: await this.getRecentCrossTraining(userId),
@@ -485,6 +490,29 @@ export class EnhancedContextCollector {
   }
 
   /**
+   * Unit 2: Fetch the user's coaching persona from user_coach_settings.
+   * Returns one of the five PersonaId values, or null when the user is
+   * 'pending' (onboarding incomplete), missing a row, or on any error.
+   * Null silences the COACH VOICE block in the prompt — falling back
+   * to Claude's generic-helpful default.
+   */
+  static async getCoachPersona(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('user_coach_settings')
+        .select('coaching_persona')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      if (data.coaching_persona === 'pending') return null;
+      return data.coaching_persona;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Empty fitness state — all nulls. Prompt builder drops null lines.
    */
   static getEmptyFitnessState() {
@@ -626,6 +654,7 @@ export class EnhancedContextCollector {
       trainingContext,
       fitnessState,
       prescription,
+      coachPersona,
       localKnowledge
     } = enhancedContext;
 
@@ -729,6 +758,17 @@ TRAINING CONTEXT:
         prompt += `\n- Coach notes: ${String(prescription.coachNotes).replace(/\s+/g, ' ').trim()}`;
       }
       prompt += `\n\nThis route is for the prescribed workout above. The route's elevation, surface, and turn density should support the prescribed intensity — not contradict it. If the prescription is steady aerobic, avoid sustained climbs or interval-suitable segments that would invite the rider out of zone. If the prescription has structured intervals, the route MUST provide sustained uninterrupted segments that fit the work-block duration.`;
+    }
+
+    // Unit 2: coach persona voice. Tone instruction for narrative copy
+    // only — explicitly does NOT change geometry, difficulty, or safety
+    // content (also reinforced in CRITICAL REQUIREMENTS below).
+    const voiceProfile = getVoiceProfile(coachPersona);
+    if (voiceProfile) {
+      prompt += `\n\nCOACH VOICE (${voiceProfile.label}):`;
+      prompt += `\n${voiceProfile.voice_instruction}`;
+      prompt += `\n\n${voiceProfile.anti_pattern}`;
+      prompt += `\n\nIMPORTANT: The coach voice applies to route NAMES, DESCRIPTIONS, and TRAINING FOCUS narrative. It does NOT change route geometry, difficulty ratings, safety warnings, surface breakdowns, or any factual content. Same prescription, same fitness state, same roads → same route regardless of voice. The voice changes only how the route is presented.`;
     }
 
     prompt += `
@@ -856,6 +896,7 @@ CRITICAL REQUIREMENTS:
 - Each route MUST have an accurate "estimatedDistance" within 20% of the target distance (${targetDistance.toFixed(1)}km)
 - Respond with raw JSON only - do NOT wrap in markdown code blocks (no \`\`\`json)
 - Prioritize rider safety above all else
+- Safety language (bike infrastructure warnings, traffic cautions, dangerous-turn callouts) MUST appear in every route regardless of coach voice. The voice never softens, omits, or trivializes safety content.
 - Ensure routes match specified surface and traffic preferences${
   safetyPreferences.bikeInfrastructure === 'required' ? `
 - MANDATORY: Route MUST use ONLY dedicated bike lanes, bike paths, or protected cycling infrastructure
