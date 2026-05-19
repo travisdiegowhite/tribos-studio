@@ -2,6 +2,7 @@
 // Uses secure backend API for Claude AI integration
 
 import { EnhancedContextCollector } from './enhancedContext';
+import { getVoiceProfile } from './coachVoices';
 
 // Hard cap on the time we'll wait for Claude before declaring failure.
 // Anything longer than this and the user is staring at a spinner — fall
@@ -55,6 +56,7 @@ export async function generateClaudeRoutes(params) {
     userId,
     trainingContext,
     suppressPrescription,
+    coachPersona,
   } = params;
 
   try {
@@ -121,6 +123,7 @@ export async function generateClaudeRoutesOrThrow(params) {
     userId,
     trainingContext,
     suppressPrescription,
+    coachPersona,
   } = params;
 
   let prompt;
@@ -285,6 +288,7 @@ function buildRoutePrompt(params) {
     targetDistance,
     trainingContext,
     suppressPrescription,
+    coachPersona,
   } = params;
 
   // Normalize startLocation to array format [lng, lat]
@@ -390,6 +394,17 @@ RIDER PREFERENCES (based on past rides):`;
     }
   }
 
+  // Unit 2: coach persona voice. Tone instruction for narrative copy
+  // only — explicitly does NOT change geometry, difficulty, or safety
+  // content (also reinforced in IMPORTANT below).
+  const voiceProfile = getVoiceProfile(coachPersona);
+  if (voiceProfile) {
+    prompt += `\n\nCOACH VOICE (${voiceProfile.label}):`;
+    prompt += `\n${voiceProfile.voice_instruction}`;
+    prompt += `\n\n${voiceProfile.anti_pattern}`;
+    prompt += `\n\nIMPORTANT: The coach voice applies to route NAMES, DESCRIPTIONS, and TRAINING FOCUS narrative. It does NOT change route geometry, difficulty ratings, safety warnings, surface breakdowns, or any factual content. Same prescription, same fitness state, same roads → same route regardless of voice. The voice changes only how the route is presented.`;
+  }
+
   prompt += `
 
 Please provide 3-4 route suggestions in the following JSON format:
@@ -420,6 +435,7 @@ ${(trainingGoal === 'intervals' || trainingGoal === 'tempo') ? getTurnDirectionG
 IMPORTANT:
 - Focus on realistic, rideable routes
 - Consider safety (bike lanes, traffic levels)
+- Safety language (bike infrastructure warnings, traffic cautions, dangerous-turn callouts) MUST appear in every route regardless of coach voice. The voice never softens, omits, or trivializes safety content.
 - Match difficulty to training goal
 - Explain route benefits clearly
 - Account for weather impact on route choice
