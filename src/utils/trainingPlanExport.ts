@@ -238,7 +238,7 @@ export function generateICal(
         structParts.push('Main:');
         for (const interval of struct.main) {
           if ('type' in interval && interval.type === 'repeat') {
-            structParts.push(`  ${interval.iterations}x repeat`);
+            structParts.push(`  ${interval.sets}x repeat`);
           } else {
             const step = interval as { name?: string; duration?: number; zone?: string };
             structParts.push(`  ${step.name || 'Interval'}: ${step.duration || '?'}min @ ${step.zone || '?'}`);

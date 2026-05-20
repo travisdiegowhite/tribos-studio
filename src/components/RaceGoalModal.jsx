@@ -50,11 +50,18 @@ const PRIORITY_OPTIONS = [
 /**
  * RaceGoalModal Component
  * Modal for adding/editing race goals with AI coach awareness
+ *
+ * @param {object} props
+ * @param {boolean} props.opened
+ * @param {() => void} props.onClose
+ * @param {object | null} [props.raceGoal] - Existing race goal to edit
+ * @param {() => void} props.onSaved
+ * @param {boolean} [props.isImperial]
  */
 const RaceGoalModal = ({
   opened,
   onClose,
-  raceGoal = null, // Pass existing race goal for editing
+  raceGoal = null,
   onSaved,
   isImperial = false,
 }) => {

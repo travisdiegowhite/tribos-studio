@@ -346,7 +346,7 @@ export function PlanCalendarOverview({
                     padding: '1px 6px',
                   }}
                 >
-                  <Text size={10} fw={600} c="white">{CATEGORY_SHORT_LABELS[cat] || cat}</Text>
+                  <Text size="10px" fw={600} c="white">{CATEGORY_SHORT_LABELS[cat] || cat}</Text>
                 </Box>
                 <Text size="xs" c="dimmed">{CATEGORY_FULL_LABELS[cat] || cat}</Text>
               </Group>
@@ -367,7 +367,7 @@ export function PlanCalendarOverview({
               gap: 2,
             }}>
               <Check size={8} color="white" />
-              <Text size={10} fw={600} c="white">Done</Text>
+              <Text size="10px" fw={600} c="white">Done</Text>
             </Box>
             <Text size="xs" c="dimmed">Completed</Text>
           </Group>
@@ -382,7 +382,7 @@ export function PlanCalendarOverview({
               gap: 2,
             }}>
               <X size={8} color="#ff6b6b" />
-              <Text size={10} fw={600} c="red.4">Miss</Text>
+              <Text size="10px" fw={600} c="red.4">Miss</Text>
             </Box>
             <Text size="xs" c="dimmed">Missed</Text>
           </Group>
@@ -551,7 +551,7 @@ function DayCell({
         {day.raceGoal && (
           <Group gap={3} wrap="nowrap" style={{ overflow: 'hidden' }}>
             <Trophy size={12} color="var(--mantine-color-yellow-5)" style={{ flexShrink: 0 }} />
-            <Text size={10} c="yellow" fw={600} lineClamp={1} lh={1}>
+            <Text size="10px" c="yellow" fw={600} lineClamp={1} lh={1}>
               {day.raceGoal.name}
             </Text>
           </Group>
@@ -576,7 +576,7 @@ function DayCell({
                 }}
               >
                 <Check size={9} color="white" style={{ flexShrink: 0 }} />
-                <Text size={10} fw={600} c="white" lineClamp={1} lh={1.2}>
+                <Text size="10px" fw={600} c="white" lineClamp={1} lh={1.2}>
                   {isMobile ? categoryLabel.slice(0, 3) : categoryLabel}
                 </Text>
               </Box>
@@ -596,7 +596,7 @@ function DayCell({
                 }}
               >
                 <X size={9} color="#ff6b6b" style={{ flexShrink: 0 }} />
-                <Text size={10} fw={600} c="red.4" lineClamp={1} lh={1.2}>
+                <Text size="10px" fw={600} c="red.4" lineClamp={1} lh={1.2}>
                   {isMobile ? categoryLabel.slice(0, 3) : categoryLabel}
                 </Text>
               </Box>
@@ -612,7 +612,7 @@ function DayCell({
                   overflow: 'hidden',
                 }}
               >
-                <Text size={10} fw={600} c="white" lineClamp={1} lh={1.2}>
+                <Text size="10px" fw={600} c="white" lineClamp={1} lh={1.2}>
                   {isMobile ? categoryLabel.slice(0, 3) : categoryLabel}
                 </Text>
               </Box>
@@ -620,7 +620,7 @@ function DayCell({
 
             {/* TSS */}
             {tss > 0 && (
-              <Text size={11} c="orange" fw={600} lh={1}>
+              <Text size="11px" c="orange" fw={600} lh={1}>
                 {tss} TSS
               </Text>
             )}
@@ -629,7 +629,7 @@ function DayCell({
 
         {/* Rest day indicator */}
         {isRestDay && !day.activity && (
-          <Text size={10} c="dimmed" fs="italic" lh={1}>
+          <Text size="10px" c="dimmed" fs="italic" lh={1}>
             Rest
           </Text>
         )}

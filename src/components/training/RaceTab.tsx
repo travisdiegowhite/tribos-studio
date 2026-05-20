@@ -246,11 +246,12 @@ export default function RaceTab({
     setElevationProfile(null);
     getRoute(selectedRace.route_id)
       .then(async (data) => {
-        setRouteData(data);
+        const route = data as RouteData;
+        setRouteData(route);
         setRouteLoading(false);
 
         // Fetch elevation (same as route builder) if geometry exists
-        const coords = data?.geometry?.coordinates;
+        const coords = route?.geometry?.coordinates;
         if (coords?.length >= 2) {
           const elev = await getElevationData(coords);
           if (elev?.length >= 2) {

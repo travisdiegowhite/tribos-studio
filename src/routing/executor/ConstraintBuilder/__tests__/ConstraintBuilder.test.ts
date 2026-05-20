@@ -219,7 +219,8 @@ describe('stub coverage', () => {
         let m: Mutation;
         if (t === 'change_climb_character') m = { type: t, target: 'sustained' };
         else if (t === 'anchor_at_poi') m = { type: t, poi_query: 'x' };
-        else m = { type: t, property: 'steep_climb' };
+        else if (t === 'avoid_segment_by_property') m = { type: t, property: 'steep_climb' };
+        else throw new Error(`unhandled stub type: ${t}`);
         buildConstraint(route, makeContext(), m);
       } catch (e) {
         threw = true;

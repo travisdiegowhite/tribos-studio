@@ -97,7 +97,7 @@ export function useCoachCheckIn(userId: string | undefined): UseCoachCheckInRetu
       setPendingProposal((proposalResult.data as CorrectionProposal | null) ?? null);
 
       if (settingsResult.data) {
-        const p = settingsResult.data.coaching_persona as PersonaId;
+        const p = settingsResult.data.coaching_persona as PersonaId | 'pending';
         if (p && p !== 'pending') {
           setPersona(p);
         }
