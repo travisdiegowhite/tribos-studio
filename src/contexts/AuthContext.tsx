@@ -1,9 +1,28 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import type { AuthError, AuthResponse, OAuthResponse, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
-const AuthContext = createContext({});
+interface AuthContextValue {
+  user: User | null;
+  loading: boolean;
+  signUp: (
+    email: string,
+    password: string,
+    metadata?: Record<string, unknown>,
+  ) => Promise<AuthResponse>;
+  signIn: (email: string, password: string) => Promise<AuthResponse>;
+  signInWithGoogle: () => Promise<OAuthResponse>;
+  signOut: () => Promise<{ error: AuthError | null }>;
+  resetPassword: (
+    email: string,
+  ) => Promise<{ data: object | null; error: AuthError | null }>;
+  isNewUser: () => boolean;
+  isAuthenticated: boolean;
+}
 
-export const useAuth = () => {
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export const useAuth = (): AuthContextValue => {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
@@ -11,9 +30,9 @@ export const useAuth = () => {
   return context;
 };
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     // Get initial session - simple like the OLD implementation
@@ -32,8 +51,8 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email, password, metadata = {}) => {
-    const { data, error } = await supabase.auth.signUp({
+  const signUp: AuthContextValue['signUp'] = async (email, password, metadata = {}) => {
+    return await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -41,35 +60,33 @@ export function AuthProvider({ children }) {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
-    return { data, error };
   };
 
-  const signIn = async (email, password) => {
+  const signIn: AuthContextValue['signIn'] = async (email, password) => {
     console.log('signIn called with email:', email);
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const result = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    console.log('signIn result:', { data, error });
-    return { data, error };
+    console.log('signIn result:', result);
+    return result;
   };
 
-  const signInWithGoogle = async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
+  const signInWithGoogle: AuthContextValue['signInWithGoogle'] = async () => {
+    return await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
-    return { data, error };
   };
 
-  const signOut = async () => {
+  const signOut: AuthContextValue['signOut'] = async () => {
     const { error } = await supabase.auth.signOut();
     return { error };
   };
 
-  const resetPassword = async (email) => {
+  const resetPassword: AuthContextValue['resetPassword'] = async (email) => {
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset-password`,
     });
@@ -82,12 +99,12 @@ export function AuthProvider({ children }) {
 
     const accountCreatedAt = new Date(user.created_at);
     const now = new Date();
-    const hoursSinceCreation = (now - accountCreatedAt) / (1000 * 60 * 60);
+    const hoursSinceCreation = (now.getTime() - accountCreatedAt.getTime()) / (1000 * 60 * 60);
 
     return hoursSinceCreation <= 48;
   };
 
-  const value = {
+  const value: AuthContextValue = {
     user,
     loading,
     signUp,
