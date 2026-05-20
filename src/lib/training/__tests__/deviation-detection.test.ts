@@ -11,7 +11,7 @@ import type {
 
 const defaultCal: CalibrationFactors = { ...DEFAULT_CALIBRATION };
 
-const currentState: ProjectionState = { ctl: 50, atl: 50, tsb: 0 };
+const currentState: ProjectionState = { tfi: 50, afi: 50, formScore: 0 };
 
 const planned: PlannedWorkoutRef = {
   date: '2026-03-23',
@@ -22,11 +22,11 @@ const planned: PlannedWorkoutRef = {
 };
 
 const upcomingSchedule: DailyLoad[] = [
-  { date: '2026-03-23', tss: 40, is_quality: false },
-  { date: '2026-03-24', tss: 35, is_quality: false },
-  { date: '2026-03-25', tss: 90, is_quality: true },
-  { date: '2026-03-26', tss: 35, is_quality: false },
-  { date: '2026-03-27', tss: 40, is_quality: false },
+  { date: '2026-03-23', rss: 40, is_quality: false },
+  { date: '2026-03-24', rss: 35, is_quality: false },
+  { date: '2026-03-25', rss: 90, is_quality: true },
+  { date: '2026-03-26', rss: 35, is_quality: false },
+  { date: '2026-03-27', rss: 40, is_quality: false },
 ];
 
 describe('analyzeDeviation', () => {
@@ -74,9 +74,9 @@ describe('analyzeDeviation', () => {
 
   it('returns deviation without options when no quality session upcoming', () => {
     const noQualitySchedule: DailyLoad[] = [
-      { date: '2026-03-23', tss: 40, is_quality: false },
-      { date: '2026-03-24', tss: 35, is_quality: false },
-      { date: '2026-03-25', tss: 40, is_quality: false },
+      { date: '2026-03-23', rss: 40, is_quality: false },
+      { date: '2026-03-24', rss: 35, is_quality: false },
+      { date: '2026-03-25', rss: 40, is_quality: false },
     ];
     const activity: ActivityData = {
       duration_seconds: 3600,
