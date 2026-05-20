@@ -105,11 +105,17 @@ export interface TrainingPlanUpdate {
 export interface PlannedWorkoutInsert {
   id?: string;
   plan_id: string;
+  /** Direct user ownership (planned_workouts.user_id, NOT NULL — migration 012). */
+  user_id: string;
   week_number: number;
   day_of_week: number;
   scheduled_date: string;
   workout_type?: string | null;
   workout_id?: string | null;
+  /** Display name (NOT NULL DEFAULT 'Workout' — migration 012). */
+  name?: string;
+  /** Workout duration in minutes (NOT NULL DEFAULT 0 — migration 012). */
+  duration_minutes?: number;
   target_tss?: number | null;
   /** Canonical twin of target_tss (spec §2 RSS). */
   target_rss?: number | null;
