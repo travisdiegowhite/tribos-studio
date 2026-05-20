@@ -182,7 +182,7 @@ export function classifyTerrain(distanceM, elevationM) {
  * @param {{ distance?: number, total_elevation_gain?: number,
  *           moving_time?: number,
  *           average_gradient_percent?: number,
- *           percent_above_6_percent?: number }} activity
+ *           percent_above_6_percent?: number } | null | undefined} activity
  * @returns {number}
  */
 export function terrainMultiplier(activity) {
@@ -223,7 +223,7 @@ const MTB_SPORT_TYPES = new Set(['MountainBikeRide']);
  * MOUNTAIN_BIKING and Wahoo's mountain_biking to Strava's
  * MountainBikeRide at ingestion, so a single equality check suffices.
  *
- * @param {{ sport_type?: string, type?: string }} activity
+ * @param {{ sport_type?: string, type?: string } | null | undefined} activity
  * @returns {boolean}
  */
 export function isMountainBike(activity) {
@@ -257,8 +257,8 @@ export function applyActivityTypeMultiplier(rss, activity) {
  * the data provider (activity.effective_power). This is exported for
  * future stream-based recomputation paths.
  *
- * @param {number[]} powerStream — instant power in W, one sample/sec
- * @param {number[]} [speedStreamKmh] — instant speed in km/h; optional
+ * @param {number[] | null | undefined} powerStream — instant power in W, one sample/sec
+ * @param {number[] | null} [speedStreamKmh] — instant speed in km/h; optional
  * @returns {number[]} filtered power stream suitable for EP rolling avg
  */
 export function filterZeroPowerPoints(powerStream, speedStreamKmh) {
@@ -450,7 +450,7 @@ export function calculateFormScoreConfidence(last7DaysConfidence = []) {
  * @param {Array<{ rss: number,
  *                 aerobic_seconds: number,
  *                 threshold_seconds: number,
- *                 high_intensity_seconds: number }>} dailyEntries
+ *                 high_intensity_seconds: number }> | null | undefined} dailyEntries
  * @returns {{ aerobic_fraction: number,
  *             threshold_fraction: number,
  *             high_intensity_fraction: number } | null}
