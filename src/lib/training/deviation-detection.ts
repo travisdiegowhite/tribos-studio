@@ -69,7 +69,7 @@ export function analyzeDeviation(
   // Check swap feasibility: is there a light day 2 slots after quality session?
   const swapTargetIdx = qualityIdx + 2;
   const swapFeasible = swapTargetIdx < upcomingSchedule.length
-    && upcomingSchedule[swapTargetIdx].tss < 60
+    && upcomingSchedule[swapTargetIdx].rss < 60
     && !upcomingSchedule[swapTargetIdx].is_quality;
 
   const adjustment_options = projectAdjustmentOptions(

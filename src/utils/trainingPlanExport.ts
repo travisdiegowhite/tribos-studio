@@ -551,9 +551,7 @@ export async function exportTrainingPlanFit(
  * Trigger download of exported training plan file
  */
 export function downloadPlanExport(result: PlanExportResult): void {
-  const blob = result.content instanceof Uint8Array
-    ? new Blob([result.content], { type: result.mimeType })
-    : new Blob([result.content], { type: result.mimeType });
+  const blob = new Blob([result.content as BlobPart], { type: result.mimeType });
   const url = URL.createObjectURL(blob);
 
   const link = document.createElement('a');

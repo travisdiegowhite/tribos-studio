@@ -1030,6 +1030,7 @@ export function useTrainingPlan({
         // Insert the supplement workout
         const workoutInsert: PlannedWorkoutInsert = {
           plan_id: activePlan.id,
+          user_id: activePlan.user_id,
           week_number: weekNumber,
           day_of_week: dayOfWeek,
           scheduled_date: formatLocalDate(scheduledDate),

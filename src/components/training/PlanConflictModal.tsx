@@ -68,16 +68,16 @@ function ConflictRow({
 
   return (
     <Paper p="sm" withBorder>
-      <Group position="apart" align="flex-start">
-        <Stack spacing={4} style={{ flex: 1 }}>
-          <Group spacing="xs">
+      <Group justify="space-between" align="flex-start">
+        <Stack gap={4} style={{ flex: 1 }}>
+          <Group gap="xs">
             <Text fw={600} size="sm">{dateStr}</Text>
             <Badge size="xs" color={actionInfo.color} variant="light">
               {actionInfo.label}
             </Badge>
           </Group>
 
-          <Group spacing="xs">
+          <Group gap="xs">
             <Badge size="xs" color="orange" variant="dot">
               {resolution.primaryWorkout.workout_type || 'workout'}
             </Badge>
@@ -90,7 +90,7 @@ function ConflictRow({
           <Text size="xs" c="dimmed">{resolution.reason}</Text>
 
           {resolution.movedToDate && (
-            <Group spacing={4}>
+            <Group gap={4}>
               <ArrowRight size={12} />
               <Text size="xs" c="blue">
                 Moved to {new Date(resolution.movedToDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
@@ -100,7 +100,7 @@ function ConflictRow({
         </Stack>
 
         {(resolution.action === 'downgrade_secondary' || resolution.action === 'skip_secondary') && (
-          <Group spacing={4}>
+          <Group gap={4}>
             <Button size="xs" variant="light" color="green" onClick={() => onAccept(index)}>
               <Check size={14} />
             </Button>
@@ -119,9 +119,9 @@ function WeeklyLoadRow({ analysis }: { analysis: WeeklyLoadAnalysis }) {
   const weekStr = weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   return (
-    <Group position="apart">
+    <Group justify="space-between">
       <Text size="sm">Week of {weekStr}</Text>
-      <Group spacing="xs">
+      <Group gap="xs">
         <Text size="sm" fw={500}>
           {analysis.combinedTSS} / {analysis.capacityTSS} TSS
         </Text>
@@ -156,7 +156,7 @@ export default function PlanConflictModal({
       opened={opened}
       onClose={onClose}
       title={
-        <Group spacing="sm">
+        <Group gap="sm">
           <ThemeIcon color="yellow" variant="light" size="lg">
             <WarningCircle size={20} weight="bold" />
           </ThemeIcon>
@@ -170,9 +170,9 @@ export default function PlanConflictModal({
       }
       size="lg"
     >
-      <Stack spacing="md">
+      <Stack gap="md">
         {/* Summary */}
-        <Group spacing="md">
+        <Group gap="md">
           <Paper p="sm" withBorder style={{ flex: 1 }}>
             <Text size="xs" c="dimmed">Auto-resolved</Text>
             <Text fw={700} size="lg" c="green">{autoResolvable}</Text>
@@ -191,7 +191,7 @@ export default function PlanConflictModal({
             color="yellow"
             variant="light"
           >
-            <Stack spacing={4}>
+            <Stack gap={4}>
               {overloadedWeeks.map(analysis => (
                 <WeeklyLoadRow key={analysis.weekStart} analysis={analysis} />
               ))}
@@ -202,7 +202,7 @@ export default function PlanConflictModal({
         <Divider label="Scheduling Conflicts" labelPosition="center" />
 
         {/* Conflict List */}
-        <Stack spacing="sm">
+        <Stack gap="sm">
           {conflicts.map((resolution, index) => (
             <ConflictRow
               key={`${resolution.date}-${index}`}
