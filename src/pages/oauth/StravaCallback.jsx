@@ -101,7 +101,7 @@ function StravaCallback() {
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [loading, user, authCheckCount.current]);
+  }, [loading, user]);
 
   return (
     <Box

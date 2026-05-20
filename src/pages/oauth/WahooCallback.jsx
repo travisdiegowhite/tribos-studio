@@ -92,7 +92,7 @@ function WahooCallback() {
       }, 250);
       return () => clearTimeout(timer);
     }
-  }, [user, loading, authCheckCount.current]);
+  }, [user, loading]);
 
   return (
     <Box

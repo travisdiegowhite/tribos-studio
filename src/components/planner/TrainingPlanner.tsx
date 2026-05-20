@@ -332,7 +332,7 @@ export function TrainingPlanner({
     }
 
     return result;
-  }, [store.focusedWeekStart, weeklyAvailability, dateOverrides, getAvailabilityForDate]);
+  }, [store.focusedWeekStart, getAvailabilityForDate]);
 
   // Handle setting availability from calendar context menu
   const handleSetAvailability = useCallback(
