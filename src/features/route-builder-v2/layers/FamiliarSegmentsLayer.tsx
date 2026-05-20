@@ -8,7 +8,6 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-// eslint-disable-next-line import/no-unresolved
 import { Source, Layer } from 'react-map-gl';
 import { getFamiliarSegmentsGeoJSON } from '../../../utils/routePreferences.js';
 import { supabase } from '../../../lib/supabase.js';

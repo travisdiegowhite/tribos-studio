@@ -12,7 +12,6 @@
  */
 
 import { type ReactNode, useCallback, useRef } from 'react';
-// eslint-disable-next-line import/no-unresolved
 import MapboxMap, { Marker, Source, Layer, type MapRef, type MapLayerMouseEvent } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Box, Text } from '@mantine/core';
