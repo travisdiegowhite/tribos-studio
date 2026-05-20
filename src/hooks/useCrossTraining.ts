@@ -394,7 +394,7 @@ export function useCrossTraining() {
 
       // Count by category
       data.forEach(a => {
-        const category = (a.activity_type as { category: string } | null)?.category || 'other';
+        const category = (a.activity_type as unknown as { category: string } | null)?.category || 'other';
         stats.activitiesByCategory[category] = (stats.activitiesByCategory[category] || 0) + 1;
       });
 
@@ -484,8 +484,8 @@ export function useCrossTraining() {
 
       return (data || []).map(a => ({
         date: a.activity_date,
-        type: (a.activity_type as { name: string } | null)?.name || 'Unknown',
-        category: (a.activity_type as { category: string } | null)?.category || 'other',
+        type: (a.activity_type as unknown as { name: string } | null)?.name || 'Unknown',
+        category: (a.activity_type as unknown as { category: string } | null)?.category || 'other',
         duration: a.duration_minutes,
         intensity: a.intensity,
         tss: a.estimated_tss || 0,

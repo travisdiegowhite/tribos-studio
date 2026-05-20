@@ -167,7 +167,9 @@ export function useUserAvailability({
           maxHardDaysPerWeek: prefsData.max_hard_days_per_week,
           preferMorningWorkouts: prefsData.prefer_morning_workouts,
           preferWeekendLongRides: prefsData.prefer_weekend_long_rides,
+          preferWeekendLongRuns: prefsData.prefer_weekend_long_runs,
           minRestDaysPerWeek: prefsData.min_rest_days_per_week,
+          primarySport: prefsData.primary_sport,
         });
       } else if (prefsResult.error?.code !== 'PGRST116') {
         // PGRST116 = no rows found, which is fine (use defaults)
@@ -348,8 +350,14 @@ export function useUserAvailability({
         if (input.preferWeekendLongRides !== undefined) {
           updateData.prefer_weekend_long_rides = input.preferWeekendLongRides;
         }
+        if (input.preferWeekendLongRuns !== undefined) {
+          updateData.prefer_weekend_long_runs = input.preferWeekendLongRuns;
+        }
         if (input.minRestDaysPerWeek !== undefined) {
           updateData.min_rest_days_per_week = input.minRestDaysPerWeek;
+        }
+        if (input.primarySport !== undefined) {
+          updateData.primary_sport = input.primarySport;
         }
 
         // Upsert preferences
@@ -366,7 +374,9 @@ export function useUserAvailability({
           maxHardDaysPerWeek: input.maxHardDaysPerWeek ?? prev?.maxHardDaysPerWeek ?? null,
           preferMorningWorkouts: input.preferMorningWorkouts ?? prev?.preferMorningWorkouts ?? null,
           preferWeekendLongRides: input.preferWeekendLongRides ?? prev?.preferWeekendLongRides ?? true,
+          preferWeekendLongRuns: input.preferWeekendLongRuns ?? prev?.preferWeekendLongRuns ?? false,
           minRestDaysPerWeek: input.minRestDaysPerWeek ?? prev?.minRestDaysPerWeek ?? 1,
+          primarySport: input.primarySport ?? prev?.primarySport ?? null,
         }));
 
         return true;

@@ -351,7 +351,7 @@ export function calculateFuelPlan(input: FuelPlanInput): FuelPlan {
     carbsGramsMin: preRideTier.carbsMin,
     carbsGramsMax: preRideTier.carbsMax,
     timingHours: preRideTier.timingHours,
-    required: 'required' in preRideTier ? preRideTier.required : true,
+    required: 'required' in preRideTier ? !!preRideTier.required : true,
     notes: preRideNotes,
   };
 

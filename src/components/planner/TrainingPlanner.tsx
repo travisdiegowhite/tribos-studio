@@ -632,7 +632,7 @@ export function TrainingPlanner({
         if (adaptationResult.success && adaptationResult.adaptation) {
           const adaptation = adaptationResult.adaptation;
           const adaptationType = adaptation.adaptationType.replace(/_/g, ' ');
-          const assessment = adaptation.analysis.assessment;
+          const assessment = adaptation.aiAssessment.assessment;
 
           // Determine color and message based on assessment
           let color = 'green';
@@ -649,11 +649,11 @@ export function TrainingPlanner({
             color = 'blue';
             title = 'Workout Linked';
             message = `Your workout was ${adaptationType}. This is acceptable for your current training.`;
-          } else if (assessment === 'concerning') {
+          } else if (assessment === 'minor_concern') {
             color = 'orange';
             title = 'Adaptation Noted';
             message = `Your workout was ${adaptationType}. Let us know why so we can adjust your plan.`;
-          } else if (assessment === 'detrimental') {
+          } else if (assessment === 'concerning') {
             color = 'red';
             title = 'Significant Change Detected';
             message = `Your workout was ${adaptationType}. This may impact your training goals.`;
@@ -675,7 +675,7 @@ export function TrainingPlanner({
           });
 
           // If it's a significant adaptation, prompt for feedback
-          if (assessment === 'concerning' || assessment === 'detrimental' ||
+          if (assessment === 'minor_concern' || assessment === 'concerning' ||
               adaptation.adaptationType === 'skipped' ||
               adaptation.adaptationType === 'downgraded') {
             // Small delay so the notification shows first

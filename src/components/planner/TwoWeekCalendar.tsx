@@ -574,7 +574,7 @@ export function TwoWeekCalendar({
               {/* Weather Forecast */}
               {selectedDay && weatherForecast?.[selectedDay.date] && (() => {
                 const weather = weatherForecast[selectedDay.date];
-                const severity = getWeatherSeverity(weather, null, useImperial);
+                const severity = getWeatherSeverity(weather, undefined, useImperial);
                 return (
                   <Group
                     gap="xs"

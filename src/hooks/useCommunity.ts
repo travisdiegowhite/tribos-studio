@@ -133,6 +133,14 @@ interface UseCommunityReturn {
   createCafe: (data: Partial<Cafe>) => Promise<Cafe | null>;
   findMatchingCafes: (goalType?: string, experienceLevel?: string) => Promise<CafeMatch[]>;
 
+  // Cafe management (admin)
+  updateCafe: (cafeId: string, data: UpdateCafeData) => Promise<boolean>;
+  deleteCafe: (cafeId: string) => Promise<boolean>;
+  loadCafeMembers: (cafeId: string) => Promise<CafeMember[]>;
+  removeMember: (cafeId: string, memberUserId: string) => Promise<boolean>;
+  updateMemberRole: (cafeId: string, memberUserId: string, newRole: 'admin' | 'member') => Promise<boolean>;
+  isUserAdmin: (cafe: CafeMembership | null) => boolean;
+
   // Encouragements
   addEncouragement: (checkInId: string, type?: string, message?: string) => Promise<boolean>;
 
@@ -263,10 +271,10 @@ export function useCommunity({
         console.warn('Could not fetch activity stats:', activitiesResult.error);
       }
 
-      const activities = activitiesResult.data;
-      const ridesCompleted = activities?.length || 0;
-      const totalHours = activities?.reduce((sum: number, a: any) => sum + (a.duration_seconds || 0), 0) / 3600 || 0;
-      const totalTss = activities?.reduce((sum: number, a: any) => sum + (a.tss || 0), 0) || 0;
+      const activities = activitiesResult.data ?? [];
+      const ridesCompleted = activities.length;
+      const totalHours = activities.reduce((sum: number, a: any) => sum + (a.duration_seconds || 0), 0) / 3600;
+      const totalTss = activities.reduce((sum: number, a: any) => sum + (a.tss || 0), 0);
       const ridesPlanned = plannedResult.data?.length || null;
 
       const { error: insertError } = await supabase
