@@ -58,7 +58,6 @@ export function assertCoordinate(value: unknown, fieldName: string): void {
   // is loaded outside Vite (e.g. a future node script).
   const inProd =
     typeof import.meta !== 'undefined' &&
-    // @ts-expect-error -- import.meta.env shape varies by tooling
     import.meta?.env?.PROD === true;
   if (inProd) return;
 
