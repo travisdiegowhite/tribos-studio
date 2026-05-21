@@ -2762,7 +2762,6 @@ function RouteBuilder() {
         Save
       </Button>
     </Group>
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [safeStats, routeGeometry, isSaving, formatDist, formatElev, handleSaveRoute]);
 
   // Memoize controls to prevent dropdown strobe: the BottomSheet content tree stays stable

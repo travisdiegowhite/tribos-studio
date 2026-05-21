@@ -137,7 +137,7 @@ function createQueryChain(finalData: any = null, finalError: any = null) {
 
   // For non-single queries (array results), make the chain thenable
   // loadActivePlan now expects array results (no .single())
-  chain.then = (resolve: Function) => resolve({ data: finalData, error: finalError });
+  chain.then = (resolve: (value: unknown) => unknown) => resolve({ data: finalData, error: finalError });
 
   return chain;
 }

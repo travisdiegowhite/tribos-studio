@@ -73,11 +73,6 @@ const TIER_LABEL: Record<number, string> = {
 export default function InternalMetricsAudit() {
   const { user } = useAuth();
 
-  // Gate: redirect non-Travis users
-  if (user && user.email?.toLowerCase() !== AUDIT_EMAIL.toLowerCase()) {
-    return <Navigate to="/today" replace />;
-  }
-
   const [data, setData] = useState<AuditData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -174,6 +169,12 @@ export default function InternalMetricsAudit() {
     a.click();
     URL.revokeObjectURL(url);
   }, [filteredDaily]);
+
+  // Gate: redirect non-Travis users. Must run after all hooks so the hook
+  // call order is identical on every render (rules-of-hooks).
+  if (user && user.email?.toLowerCase() !== AUDIT_EMAIL.toLowerCase()) {
+    return <Navigate to="/today" replace />;
+  }
 
   const fmt = (v: number | null | undefined, d = 1) =>
     v != null ? v.toFixed(d) : '—';
