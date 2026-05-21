@@ -61,9 +61,12 @@ export default async function handler(req, res) {
     if (message.length > 5000) {
       return res.status(400).json({ success: false, error: 'Message too long (max 5,000)' });
     }
-    if (!routeId || typeof routeId !== 'string') {
-      return res.status(400).json({ success: false, error: 'routeId is required' });
+    if (routeId !== null && routeId !== undefined && typeof routeId !== 'string') {
+      return res
+        .status(400)
+        .json({ success: false, error: 'routeId must be a string when provided' });
     }
+    // routeId may be null/undefined — that's allowed; persistence just won't happen.
     if (!routeSnapshot?.geometry?.coordinates?.length) {
       return res
         .status(400)
