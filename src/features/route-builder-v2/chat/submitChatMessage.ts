@@ -1,16 +1,15 @@
 /**
  * submitChatMessage — chat dispatch for Route Builder 2.0.
  *
- * S2 rewire: collapses P1.4's two-stage (heuristic + AI translator)
- * pipeline into a single call into v1's edit pipeline via
- * `replicatedEditLogic.applyAIEdit`. Cold-start detection (regex on the
- * user's phrasing) still happens first and opens the form panel.
- * Everything else goes through v1, which decides whether the input is a
- * known intent.
+ * PR-4B rewire: the default edit dispatch is now `applyAIEditViaCoach`,
+ * which POSTs to the conversational `/api/route-coach` endpoint. The
+ * previous default (`replicatedEditLogic.applyAIEdit`, the keyword
+ * classifier) stays in place for v1's `/route-builder` edit panel.
  *
- * S5 will replace this with the real conversational pipeline.
+ * Cold-start detection (regex on the user's phrasing) still runs first
+ * and opens the form panel. Everything else goes through the endpoint.
  */
-import { applyAIEdit } from './replicatedEditLogic';
+import { applyAIEditViaCoach } from './applyAIEditViaCoach';
 import type { ChatMessage } from './types';
 import { trackRb2 } from '../telemetry/trackRb2';
 
@@ -18,17 +17,26 @@ export interface FormPanelControl {
   expand: () => void;
 }
 
-type ApplyAIEditFn = typeof applyAIEdit;
+interface ConversationTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+type ApplyAIEditImpl = typeof applyAIEditViaCoach;
 
 export interface SubmitChatMessageArgs {
   input: string;
   hasRoute: boolean;
+  routeId: string | null;
+  conversationHistory: ConversationTurn[];
   append: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   setProcessing: (b: boolean) => void;
   markRefused: () => void;
   formPanelControl: FormPanelControl;
-  /** Test seam — defaults to the real `applyAIEdit`. */
-  applyAIEditImpl?: ApplyAIEditFn;
+  /** Persists the completed user/assistant pair. Owned by `useChatSession`. */
+  persistTurn?: (userText: string, assistantText: string) => Promise<void>;
+  /** Test seam — defaults to the real `applyAIEditViaCoach`. */
+  applyAIEditImpl?: ApplyAIEditImpl;
 }
 
 const COLD_START_PATTERN =
@@ -38,11 +46,14 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
   const {
     input,
     hasRoute,
+    routeId,
+    conversationHistory,
     append,
     setProcessing,
     markRefused,
     formPanelControl,
-    applyAIEditImpl = applyAIEdit,
+    persistTurn,
+    applyAIEditImpl = applyAIEditViaCoach,
   } = args;
 
   const trimmed = input.trim();
@@ -51,6 +62,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
   append({ role: 'user', text: trimmed });
   trackRb2('chat_message_submitted', { input_length: trimmed.length });
 
+  // Cold start — unchanged.
   if (COLD_START_PATTERN.test(trimmed)) {
     append({
       role: 'assistant',
@@ -76,17 +88,23 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
 
   setProcessing(true);
   try {
-    const result = await applyAIEditImpl(trimmed);
+    const result = await applyAIEditImpl(trimmed, conversationHistory, routeId);
     if (result.ok) {
-      append({
-        role: 'assistant',
-        text: `${result.assistantText} Now ${result.distance_km}km, ${result.elevation_gain_m}m climbing.`,
-      });
-      trackRb2('chat_edit_applied', {
+      // Suffix the stats only when the route actually changed; otherwise
+      // the prose stands alone (clarifying question, refusal, etc.).
+      const assistantText = result.routeChanged
+        ? `${result.assistantText} Now ${result.distance_km}km, ${result.elevation_gain_m}m climbing.`
+        : result.assistantText;
+      append({ role: 'assistant', text: assistantText });
+      trackRb2(result.routeChanged ? 'chat_edit_applied' : 'chat_message_received', {
         input_length: trimmed.length,
         distance_km: result.distance_km,
         elevation_gain_m: result.elevation_gain_m,
+        route_changed: result.routeChanged,
       });
+      if (persistTurn) {
+        await persistTurn(trimmed, assistantText);
+      }
     } else {
       append({
         role: 'assistant',

@@ -22,9 +22,11 @@ import {
   classifyEditIntent,
   applyRouteEdit,
 } from '../../../utils/aiRouteEditService';
-import { getSmartCyclingRoute } from '../../../utils/smartCyclingRouter';
-import { getElevationData, calculateElevationStats } from '../../../utils/elevation';
-import { haversineMeters, M_TO_KM } from '../../../utils/distanceUnits';
+import {
+  computeDistanceKm,
+  rerouteShortened,
+  fetchElevationGain,
+} from '../../../utils/routeMutation';
 import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
 import type { Coordinate } from '../../../types/geo';
 
@@ -35,56 +37,6 @@ export type EditResult =
 const MAPBOX_TOKEN: string =
   ((import.meta as unknown as { env?: Record<string, string | undefined> }).env
     ?.VITE_MAPBOX_TOKEN as string | undefined) ?? '';
-
-function computeDistanceKm(coordinates: ReadonlyArray<Coordinate>): number {
-  let total_m = 0;
-  for (let i = 1; i < coordinates.length; i++) {
-    const [lon1, lat1] = coordinates[i - 1];
-    const [lon2, lat2] = coordinates[i];
-    total_m += haversineMeters(lat1, lon1, lat2, lon2);
-  }
-  return M_TO_KM(total_m);
-}
-
-async function rerouteShortened(
-  trimmed: ReadonlyArray<Coordinate>,
-  profile: string,
-): Promise<Coordinate[]> {
-  if (trimmed.length < 2) return trimmed as Coordinate[];
-  const stride = Math.max(1, Math.floor(trimmed.length / 4));
-  const seedWaypoints = trimmed.filter(
-    (_, i) => i === 0 || i === trimmed.length - 1 || i % stride === 0,
-  ) as Array<[number, number]>;
-  try {
-    const rerouted = await (
-      getSmartCyclingRoute as unknown as (
-        waypoints: Array<[number, number]>,
-        options: { profile: string },
-      ) => Promise<{ coordinates?: Array<[number, number]> } | null>
-    )(seedWaypoints, { profile });
-    if (rerouted?.coordinates && rerouted.coordinates.length > 1) {
-      return rerouted.coordinates as Coordinate[];
-    }
-  } catch {
-    /* fall through */
-  }
-  return trimmed as Coordinate[];
-}
-
-async function fetchElevationGain(
-  coordinates: ReadonlyArray<Coordinate>,
-): Promise<number | null> {
-  try {
-    const profile = (await getElevationData(
-      coordinates as Array<[number, number]>,
-    )) as Array<{ elevation: number }> | null;
-    if (!profile || !Array.isArray(profile) || profile.length === 0) return null;
-    const stats = calculateElevationStats(profile) as { gain?: number };
-    return stats.gain ?? null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Apply a natural-language edit to the current route.

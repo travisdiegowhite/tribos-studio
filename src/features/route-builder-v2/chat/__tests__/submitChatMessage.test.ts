@@ -6,16 +6,20 @@ function makeArgs(overrides: Partial<Parameters<typeof submitChatMessage>[0]> = 
   const setProcessing = vi.fn();
   const markRefused = vi.fn();
   const expand = vi.fn();
+  const persistTurn = vi.fn().mockResolvedValue(undefined);
   const applyAIEditImpl = vi.fn();
 
   return {
     args: {
       input: 'make it flatter',
       hasRoute: true,
+      routeId: 'route-1',
+      conversationHistory: [],
       append,
       setProcessing,
       markRefused,
       formPanelControl: { expand },
+      persistTurn,
       applyAIEditImpl,
       ...overrides,
     },
@@ -23,6 +27,7 @@ function makeArgs(overrides: Partial<Parameters<typeof submitChatMessage>[0]> = 
     setProcessing,
     markRefused,
     expand,
+    persistTurn,
     applyAIEditImpl,
   };
 }
@@ -80,36 +85,62 @@ describe('submitChatMessage — no current route', () => {
 });
 
 describe('submitChatMessage — edit success', () => {
-  it('toggles processing, applies edit, appends new-stats ack', async () => {
-    const { args, append, setProcessing, applyAIEditImpl } = makeArgs({
+  it('toggles processing, applies edit, appends new-stats ack when route changed', async () => {
+    const { args, append, setProcessing, persistTurn, applyAIEditImpl } = makeArgs({
       input: 'make it flatter',
+      conversationHistory: [{ role: 'user', content: 'earlier' }],
     });
     applyAIEditImpl.mockResolvedValue({
       ok: true,
       assistantText: 'Found a flatter route',
       distance_km: 24,
       elevation_gain_m: 60,
+      routeChanged: true,
     });
 
     await submitChatMessage(args);
 
     expect(setProcessing).toHaveBeenNthCalledWith(1, true);
     expect(setProcessing).toHaveBeenLastCalledWith(false);
-    expect(applyAIEditImpl).toHaveBeenCalledWith('make it flatter');
+    expect(applyAIEditImpl).toHaveBeenCalledWith(
+      'make it flatter',
+      [{ role: 'user', content: 'earlier' }],
+      'route-1',
+    );
 
     const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
     expect(lastCall.role).toBe('assistant');
     expect(lastCall.text).toContain('Found a flatter route');
     expect(lastCall.text).toContain('24km');
     expect(lastCall.text).toContain('60m');
+    expect(persistTurn).toHaveBeenCalledWith('make it flatter', lastCall.text);
+  });
+
+  it('omits the stats suffix when the route did not change', async () => {
+    const { args, append, persistTurn, applyAIEditImpl } = makeArgs({
+      input: 'how long is this?',
+    });
+    applyAIEditImpl.mockResolvedValue({
+      ok: true,
+      assistantText: 'It runs about 24km — what would you like to change?',
+      distance_km: 24,
+      elevation_gain_m: 60,
+      routeChanged: false,
+    });
+
+    await submitChatMessage(args);
+
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.text).toBe('It runs about 24km — what would you like to change?');
+    expect(lastCall.text).not.toMatch(/climbing\./);
+    expect(persistTurn).toHaveBeenCalledWith('how long is this?', lastCall.text);
   });
 });
 
 describe('submitChatMessage — edit failure', () => {
   it('appends a friendly failure message and marks refused', async () => {
-    const { args, append, markRefused, setProcessing, applyAIEditImpl } = makeArgs({
-      input: 'go to the moon',
-    });
+    const { args, append, markRefused, setProcessing, persistTurn, applyAIEditImpl } =
+      makeArgs({ input: 'go to the moon' });
     applyAIEditImpl.mockResolvedValue({
       ok: false,
       reason: "I didn't catch that",
@@ -119,6 +150,7 @@ describe('submitChatMessage — edit failure', () => {
 
     expect(setProcessing).toHaveBeenLastCalledWith(false);
     expect(markRefused).toHaveBeenCalled();
+    expect(persistTurn).not.toHaveBeenCalled();
     const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
     expect(lastCall.role).toBe('assistant');
     expect(lastCall.text).toMatch(/couldn't/i);
