@@ -43,7 +43,6 @@ export async function applyAIEditViaCoach(
 ): Promise<EditResult & { routeChanged: boolean }> {
   const trimmed = text.trim();
   if (!trimmed) return { ok: false, reason: 'empty input', routeChanged: false };
-  if (!routeId) return { ok: false, reason: 'no route id', routeChanged: false };
 
   const state = useRouteBuilderStore.getState();
   const routeGeometry = state.routeGeometry;
