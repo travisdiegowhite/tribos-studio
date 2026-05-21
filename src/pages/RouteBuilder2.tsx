@@ -43,7 +43,9 @@ import {
   useChatSession,
   submitChatMessage,
   EXAMPLE_PHRASES,
+  type ChatMessage,
 } from '../features/route-builder-v2/chat';
+import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
 import { POILayer } from '../features/route-builder-v2/layers/POILayer';
@@ -58,6 +60,13 @@ const DEFAULT_VISIBILITY: LayerVisibilityState = {
   poi: false,
   bikeInfra: false,
   familiar: false,
+};
+
+const STATIC_OPENING: ChatMessage = {
+  id: 'opening',
+  role: 'assistant',
+  text: "Tell me what kind of ride you're looking for, or ask me to change the route.",
+  timestamp: 0,
 };
 
 export default function RouteBuilder2() {
@@ -114,7 +123,40 @@ export default function RouteBuilder2() {
   const [visibility, setVisibility] = useState<LayerVisibilityState>(DEFAULT_VISIBILITY);
   const [errorDismissed, setErrorDismissed] = useState<string | null>(null);
 
-  const chat = useChatSession();
+  // Persona-voiced chat opener — fetched once per session. Falls back to
+  // the static line on any error.
+  const [opener, setOpener] = useState<ChatMessage>(STATIC_OPENING);
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const res = await fetch('/api/route-coach/opener', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+        if (!res.ok || cancelled) return;
+        const { message } = await res.json();
+        if (message && !cancelled) {
+          setOpener({ id: 'opening', role: 'assistant', text: message, timestamp: 0 });
+        }
+      } catch {
+        /* keep the static opener */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  const chat = useChatSession({
+    routeId: routeIdFromUrl ?? null,
+    userId: user?.id ?? null,
+    openingMessage: opener,
+  });
   const formPanelRef = useRef<FormPanelHandle | null>(null);
 
   // Auto-apply the first suggestion when generate() returns. The hook
@@ -162,16 +204,32 @@ export default function RouteBuilder2() {
     !!routeGeometry?.coordinates && routeGeometry.coordinates.length > 0;
   const handleChatSubmit = useCallback(
     (text: string) => {
+      // Derive the endpoint's conversation-history shape from the live
+      // message list, dropping the synthetic opener.
+      const conversationHistory = chat.messages
+        .filter((m) => m.id !== 'opening')
+        .map((m) => ({ role: m.role, content: m.text }));
       void submitChatMessage({
         input: text,
         hasRoute: hasRouteForChat,
+        routeId: routeIdFromUrl ?? null,
+        conversationHistory,
         append: chat.append,
         setProcessing: chat.setProcessing,
         markRefused: chat.markRefused,
         formPanelControl: formPanelRef.current ?? { expand: () => {} },
+        persistTurn: chat.persistTurn,
       });
     },
-    [hasRouteForChat, chat.append, chat.setProcessing, chat.markRefused],
+    [
+      hasRouteForChat,
+      routeIdFromUrl,
+      chat.messages,
+      chat.append,
+      chat.setProcessing,
+      chat.markRefused,
+      chat.persistTurn,
+    ],
   );
 
   // Load a saved route when a routeId is in the URL. Runs once per id.
