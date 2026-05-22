@@ -9,11 +9,12 @@
  *     - get_segment_detail: Get detailed segment info including rides and profile
  *     - update_segment_name: Update a segment's custom name
  *     - get_matches: Get workout-segment matches for a workout type
+ *     - reconcile_aggregates: Recompute segment rollups from training_segment_rides
  */
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setCorsHeaders } from './utils/cors.js';
-import { analyzeActivitySegments, analyzeUnprocessedActivities, analyzePolylineActivities } from './utils/segmentAnalysisPipeline.js';
+import { analyzeActivitySegments, analyzeUnprocessedActivities, analyzePolylineActivities, reconcileSegmentAggregates } from './utils/segmentAnalysisPipeline.js';
 import { computeWorkoutSegmentMatches, computeAllMatchesForUser } from './utils/workoutSegmentMatcher.js';
 
 export default async function handler(req, res) {
@@ -55,6 +56,9 @@ export default async function handler(req, res) {
 
       case 'analyze_polyline_activities':
         return await handleAnalyzePolyline(res, userId, params);
+
+      case 'reconcile_aggregates':
+        return await handleReconcileAggregates(res, userId);
 
       case 'get_segments':
         return await handleGetSegments(res, supabase, userId, params);
@@ -125,6 +129,11 @@ async function handleAnalyzeAll(res, userId, params) {
 async function handleAnalyzePolyline(res, userId, params) {
   const { limit = 20 } = params;
   const result = await analyzePolylineActivities(userId, Math.min(limit, 50));
+  return res.status(200).json(result);
+}
+
+async function handleReconcileAggregates(res, userId) {
+  const result = await reconcileSegmentAggregates(userId);
   return res.status(200).json(result);
 }
 

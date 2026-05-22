@@ -118,17 +118,21 @@ export async function analyzeActivitySegments(activityId, userId) {
   };
 
   for (const segment of detected.segments) {
-    const result = await processDetectedSegment(
-      supabase,
-      segment,
-      activityId,
-      userId,
-      activity,
-      ftp
-    );
+    try {
+      const result = await processDetectedSegment(
+        supabase,
+        segment,
+        activityId,
+        userId,
+        activity,
+        ftp
+      );
 
-    if (result.isNew) results.newSegments++;
-    else results.updatedSegments++;
+      if (result.isNew) results.newSegments++;
+      else results.updatedSegments++;
+    } catch (err) {
+      console.error(`[SegmentPipeline] Error processing segment in activity ${activityId}:`, err.message);
+    }
   }
 
   // Step 5: Mark activity as analyzed
@@ -308,18 +312,22 @@ async function analyzeActivityFromPolyline(activity, userId, supabase) {
   const ftp = await fetchUserFTP(supabase, userId);
 
   for (const segment of detected.segments) {
-    const result = await processDetectedSegment(
-      supabase,
-      segment,
-      activityId,
-      userId,
-      activity,
-      ftp,
-      'geometry_only' // data quality tier
-    );
+    try {
+      const result = await processDetectedSegment(
+        supabase,
+        segment,
+        activityId,
+        userId,
+        activity,
+        ftp,
+        'geometry_only' // data quality tier
+      );
 
-    if (result.isNew) results.newSegments++;
-    else results.updatedSegments++;
+      if (result.isNew) results.newSegments++;
+      else results.updatedSegments++;
+    } catch (err) {
+      console.error(`[SegmentPipeline] Error processing polyline segment in activity ${activityId}:`, err.message);
+    }
   }
 
   return {
@@ -666,10 +674,9 @@ async function processDetectedSegment(supabase, segment, activityId, userId, act
   if (existingMatch) {
     // Update existing segment with this ride's data
     await addRideToSegment(supabase, existingMatch.id, activityId, userId, segment, activity, ftp);
-    await updateSegmentMetadata(supabase, existingMatch.id, segment);
-    await updateSegmentProfile(supabase, existingMatch.id, ftp);
 
-    // If existing segment is geometry_only and new data is measured, upgrade the tier
+    // If existing segment is geometry_only and new data is measured, upgrade the
+    // tier before recomputing aggregates so the confidence calc sees the new tier.
     if (existingMatch.data_quality_tier === 'geometry_only' && dataQualityTier === 'measured') {
       await supabase
         .from('training_segments')
@@ -677,13 +684,14 @@ async function processDetectedSegment(supabase, segment, activityId, userId, act
         .eq('id', existingMatch.id);
     }
 
+    await updateSegmentAggregates(supabase, existingMatch.id, ftp);
     return { isNew: false, segmentId: existingMatch.id };
   }
 
   // Create new segment
   const newSegmentId = await createNewSegment(supabase, userId, segment, dataQualityTier);
   await addRideToSegment(supabase, newSegmentId, activityId, userId, segment, activity, ftp);
-  await createSegmentProfile(supabase, newSegmentId);
+  await updateSegmentAggregates(supabase, newSegmentId, ftp);
   return { isNew: true, segmentId: newSegmentId };
 }
 
@@ -891,40 +899,15 @@ async function addRideToSegment(supabase, segmentId, activityId, userId, segment
   }
 }
 
-async function updateSegmentMetadata(supabase, segmentId, segment) {
-  // Increment ride count and update last ridden
-  const { error } = await supabase
-    .rpc('increment_segment_ride_count', {
-      p_segment_id: segmentId,
-      p_last_ridden: new Date().toISOString(),
-    });
-
-  // Fallback if RPC not available
-  if (error) {
-    await supabase
-      .from('training_segments')
-      .update({
-        ride_count: supabase.raw('ride_count + 1'),
-        last_ridden_at: new Date().toISOString(),
-      })
-      .eq('id', segmentId);
-  }
-}
-
-async function createSegmentProfile(supabase, segmentId) {
-  const { error } = await supabase
-    .from('training_segment_profiles')
-    .insert({
-      segment_id: segmentId,
-      updated_at: new Date().toISOString(),
-    });
-
-  if (error && !error.message.includes('duplicate')) {
-    console.error('[SegmentPipeline] Error creating profile:', error.message);
-  }
-}
-
-async function updateSegmentProfile(supabase, segmentId, ftp) {
+/**
+ * Recompute every aggregate for a segment from its source-of-truth rows in
+ * training_segment_rides, and write them to both training_segment_profiles
+ * (power/HR/frequency stats) and training_segments (ride_count, first/last
+ * ridden, confidence). This is the single authoritative rollup writer — it is
+ * called after every ride insert (new or matched segment) and by the one-shot
+ * reconciliation. It is idempotent: running it twice yields the same result.
+ */
+async function updateSegmentAggregates(supabase, segmentId, ftp) {
   // Fetch all rides for this segment
   const { data: rides } = await supabase
     .from('training_segment_rides')
@@ -1083,13 +1066,52 @@ async function updateSegmentProfile(supabase, segmentId, ftp) {
   else if (daysSince >= 90) confidence -= 20;
   confidence = Math.max(0, Math.min(100, confidence));
 
+  // rides is ordered ridden_at descending, so rides[0] is the most recent
+  // traversal and the last element is the oldest.
   await supabase
     .from('training_segments')
     .update({
       confidence_score: confidence,
       ride_count: rides.length,
+      first_ridden_at: rides[rides.length - 1].ridden_at,
+      last_ridden_at: rides[0].ridden_at,
     })
     .eq('id', segmentId);
+}
+
+/**
+ * One-shot reconciliation: recompute aggregates for every segment belonging to
+ * a user, bringing training_segments and training_segment_profiles back in sync
+ * with training_segment_rides. Safe to run repeatedly.
+ *
+ * @param {string} userId - User UUID
+ * @returns {Object} { success, reconciled, total }
+ */
+export async function reconcileSegmentAggregates(userId) {
+  const supabase = getSupabase();
+
+  const { data: segments, error } = await supabase
+    .from('training_segments')
+    .select('id')
+    .eq('user_id', userId);
+
+  if (error || !segments) {
+    return { success: false, error: error?.message || 'Failed to fetch segments', reconciled: 0 };
+  }
+
+  const ftp = await fetchUserFTP(supabase, userId);
+  let reconciled = 0;
+
+  for (const segment of segments) {
+    try {
+      await updateSegmentAggregates(supabase, segment.id, ftp);
+      reconciled++;
+    } catch (err) {
+      console.error(`[SegmentPipeline] Reconcile error for segment ${segment.id}:`, err.message);
+    }
+  }
+
+  return { success: true, reconciled, total: segments.length };
 }
 
 // ============================================================================
