@@ -237,6 +237,13 @@ function Settings() {
         const status = await garminService.getConnectionStatus();
         setGarminStatus({ ...status, loading: false });
 
+        // If Garmin rejected our refresh token, surface the reconnect modal
+        // automatically. Without this, users silently lose sync until they
+        // happen to notice the missing activities in the dashboard.
+        if (status.refreshTokenInvalid) {
+          setOpenModal('garminReconnect');
+        }
+
         // Also load backfill status if connected
         if (status.connected) {
           try {
@@ -2107,6 +2114,32 @@ function Settings() {
               )}
 
               <Divider />
+
+              {garminStatus.refreshTokenInvalid && (
+                <Alert
+                  color="orange"
+                  variant="light"
+                  icon={<Warning size={18} />}
+                  title="Garmin reconnect required"
+                  withCloseButton={false}
+                >
+                  <Stack gap="xs">
+                    <Text size="sm">
+                      Your Garmin refresh token was rejected. New activities are not syncing.
+                      Reconnect to resume — your existing activities won't be affected.
+                    </Text>
+                    <Group justify="flex-end">
+                      <Button
+                        size="xs"
+                        color="orange"
+                        onClick={() => setOpenModal('garminReconnect')}
+                      >
+                        Reconnect Garmin
+                      </Button>
+                    </Group>
+                  </Stack>
+                </Alert>
+              )}
 
               <ServiceConnection
                 name="Garmin Connect"

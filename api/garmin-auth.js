@@ -648,7 +648,7 @@ async function getConnectionStatus(req, res, userId) {
   try {
     const { data: integration, error } = await supabase
       .from('bike_computer_integrations')
-      .select('provider_user_id, provider_user_data, updated_at, sync_enabled, token_expires_at')
+      .select('provider_user_id, provider_user_data, updated_at, sync_enabled, token_expires_at, refresh_token_invalid')
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .maybeSingle();
@@ -681,7 +681,14 @@ async function getConnectionStatus(req, res, userId) {
     let healthMessage = 'Connected and working';
     let requiresReconnect = false;
 
-    if (!hasUserID) {
+    if (integration.refresh_token_invalid) {
+      // Refresh token rejected by Garmin (typically: revoked in Garmin Connect,
+      // password change, or the token expired during inactivity). No amount
+      // of retrying recovers this — the user has to re-authorize.
+      healthStatus = 'refresh_token_invalid';
+      healthMessage = 'Your Garmin connection has expired. Reconnect to resume syncing.';
+      requiresReconnect = true;
+    } else if (!hasUserID) {
       healthStatus = 'missing_user_id';
       healthMessage = 'Missing Garmin User ID - activity sync will not work. Please reconnect.';
       requiresReconnect = true;
@@ -695,6 +702,7 @@ async function getConnectionStatus(req, res, userId) {
       syncEnabled: integration.sync_enabled,
       lastUpdated: integration.updated_at,
       tokenExpired: isExpired,
+      refreshTokenInvalid: !!integration.refresh_token_invalid,
       // New detailed status fields
       garminUserId: integration.provider_user_id,
       hasGarminUserId: hasUserID,

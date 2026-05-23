@@ -27,6 +27,14 @@ const supabase = getSupabaseAdmin();
 
 const MAX_RETRIES = 6;
 const BATCH_SIZE = 20;
+// Activity events (CONNECT_ACTIVITY / ACTIVITY_DETAIL / ACTIVITY_FILE_DATA)
+// can sit in the queue when health-event bursts back things up. The previous
+// 24h cutoff silently dropped them forever; widen it so the safety-net
+// requestActivityDetailsBackfill in downloadAndProcessActivity actually gets
+// to run. Health events keep the tight window — they're cheap to lose.
+const ACTIVITY_EVENT_TYPES = ['CONNECT_ACTIVITY', 'ACTIVITY_DETAIL', 'ACTIVITY_FILE_DATA'];
+const ACTIVITY_CUTOFF_DAYS = 14;
+const HEALTH_CUTOFF_HOURS = 24;
 
 export default async function handler(req, res) {
   // Verify cron authorization (timing-safe)
@@ -40,27 +48,44 @@ export default async function handler(req, res) {
   const results = { processed: 0, failed: 0, skipped: 0, retried: 0 };
 
   try {
-    // Fetch unprocessed events that are ready for processing
-    // - Not yet processed
-    // - Either never tried (next_retry_at is null) or retry time has arrived
-    // - Not exceeded max retries
-    // - Within last 24 hours (don't process ancient events)
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Fetch unprocessed events that are ready for processing.
+    // Activity events get priority and a 14d window so a health-event burst
+    // can't starve them past a hard 24h drop. Health events keep the tight
+    // 24h cutoff.
+    const activityCutoff = new Date(Date.now() - ACTIVITY_CUTOFF_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const healthCutoff = new Date(Date.now() - HEALTH_CUTOFF_HOURS * 60 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
 
-    const { data: events, error: queryError } = await supabase
+    const baseQuery = () => supabase
       .from('garmin_webhook_events')
       .select('*')
       .eq('processed', false)
       .lt('retry_count', MAX_RETRIES)
-      .gte('created_at', cutoff)
       .or(`next_retry_at.is.null,next_retry_at.lte.${now}`)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    const { data: activityEvents, error: activityErr } = await baseQuery()
+      .in('event_type', ACTIVITY_EVENT_TYPES)
+      .gte('created_at', activityCutoff)
       .limit(BATCH_SIZE);
 
-    if (queryError) {
-      console.error('Failed to query events:', queryError);
-      return res.status(500).json({ error: 'Query failed', details: queryError.message });
+    if (activityErr) {
+      console.error('Failed to query activity events:', activityErr);
+      return res.status(500).json({ error: 'Query failed', details: activityErr.message });
+    }
+
+    let events = activityEvents || [];
+    const remaining = BATCH_SIZE - events.length;
+    if (remaining > 0) {
+      const { data: healthEvents, error: healthErr } = await baseQuery()
+        .not('event_type', 'in', `(${ACTIVITY_EVENT_TYPES.join(',')})`)
+        .gte('created_at', healthCutoff)
+        .limit(remaining);
+      if (healthErr) {
+        console.error('Failed to query health events:', healthErr);
+      } else if (healthEvents?.length) {
+        events = events.concat(healthEvents);
+      }
     }
 
     if (!events || events.length === 0) {
@@ -109,7 +134,8 @@ export default async function handler(req, res) {
         } else {
           // Max retries exceeded - mark as permanently failed
           await markEventProcessed(event.id, `Max retries (${MAX_RETRIES}) exceeded. Last error: ${err.message}`);
-          console.log(`💀 Event ${event.id} permanently failed after ${MAX_RETRIES} retries`);
+          const sev = ACTIVITY_EVENT_TYPES.includes(event.event_type) ? '🚨 ACTIVITY EVENT LOST' : '💀';
+          console.error(`${sev} Event ${event.id} (${event.event_type}, activity_id=${event.activity_id}) permanently failed after ${MAX_RETRIES} retries: ${err.message}`);
         }
       }
     }
@@ -141,8 +167,8 @@ async function getCachedIntegration(garminUserId, cache, fullSelect = false) {
   }
 
   const selectFields = fullSelect
-    ? 'id, user_id, access_token, refresh_token, token_expires_at, provider_user_id'
-    : 'id, user_id';
+    ? 'id, user_id, access_token, refresh_token, token_expires_at, provider_user_id, refresh_token_invalid'
+    : 'id, user_id, refresh_token_invalid';
 
   const { data: integration, error } = await supabase
     .from('bike_computer_integrations')
@@ -221,6 +247,14 @@ async function processActivityEvent(event, integrationCache) {
     .from('garmin_webhook_events')
     .update({ user_id: integration.user_id, integration_id: integration.id })
     .eq('id', event.id);
+
+  // Short-circuit known-dead integrations. Without this, every webhook for a
+  // disconnected user burns 6 retries against Garmin's token endpoint and
+  // pollutes logs. The user only recovers via the in-app reconnect prompt.
+  if (integration.refresh_token_invalid) {
+    await markEventProcessed(event.id, 'Integration disconnected (refresh_token_invalid); user must reconnect Garmin');
+    return;
+  }
 
   // Refresh token if needed (also updates cached integration object for subsequent events)
   const validToken = await ensureValidAccessToken(integration, supabase);
@@ -498,18 +532,13 @@ async function downloadAndProcessActivity(event, integration) {
   if (fitFileUrl && integration.access_token) {
     console.log(`[FIT:DOWNLOAD] Processing FIT file for new activity ${activity.id}`);
     await processFitFile(activity.id, fitFileUrl, integration.access_token, integration.user_id);
-  } else {
-    // Request backfill for outdoor activities without FIT URL
-    const isIndoorActivity = activityData.trainer === true ||
-      (activityInfo.activityType || '').toLowerCase().includes('indoor') ||
-      (activityInfo.activityType || '').toLowerCase().includes('virtual');
-
-    if (!isIndoorActivity && activityInfo.startTimeInSeconds) {
-      console.log(`[FIT:BACKFILL] No FIT URL for activity ${activity.id}, requesting backfill`);
-      await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
-    } else {
-      console.log(`[FIT:SKIP] No FIT URL for activity ${activity.id} (indoor: ${isIndoorActivity})`);
-    }
+  } else if (integration.access_token && activityInfo.startTimeInSeconds) {
+    // Always request backfill, including indoor rides. Trainer/Zwift activities
+    // don't have GPS but DO have power/HR/cadence streams, which are the most
+    // important data for a cycling platform — previously skipping these left
+    // indoor cycling activities at ~30% stream coverage in production.
+    console.log(`[FIT:BACKFILL] No FIT URL for activity ${activity.id}, requesting backfill`);
+    await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
   }
 
   // Update fitness snapshot for the week of this activity
@@ -628,15 +657,8 @@ async function handleDuplicateActivity(event, integration, activityData, activit
         // inline FIT URL (common for summary-only PUSH), ask Garmin to send a
         // fresh PING with the FIT callbackURL so the follow-up webhook can fill
         // in streams/curve/analytics via handleExistingActivity.
-        const isIndoorActivity = activityData.trainer === true ||
-          (activityInfo.activityType || '').toLowerCase().includes('indoor') ||
-          (activityInfo.activityType || '').toLowerCase().includes('virtual');
-        if (!isIndoorActivity) {
-          console.log(`[FIT:BACKFILL] No FIT URL on takeover for activity ${dupCheck.existingActivity.id}, requesting backfill`);
-          await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
-        } else {
-          console.log(`[FIT:SKIP] No FIT URL on takeover for activity ${dupCheck.existingActivity.id} (indoor)`);
-        }
+        console.log(`[FIT:BACKFILL] No FIT URL on takeover for activity ${dupCheck.existingActivity.id}, requesting backfill`);
+        await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
       }
 
       if (activityInfo.startTimeInSeconds) {
@@ -682,17 +704,9 @@ async function handleDuplicateActivity(event, integration, activityData, activit
         console.warn('⚠️ FIT processing in merge path failed:', fitError.message);
       }
     } else if (integration.access_token && activityInfo?.startTimeInSeconds) {
-      // Defensive symmetry with the takeover branch / new-activity path: when
-      // we hit the merge branch without an inline FIT URL, ask Garmin to
-      // re-deliver. Doesn't fire today (Garmin > Strava in priority always
-      // takeovers), but protects against future provider-priority changes.
-      const isIndoorActivity = activityData.trainer === true ||
-        (activityInfo.activityType || '').toLowerCase().includes('indoor') ||
-        (activityInfo.activityType || '').toLowerCase().includes('virtual');
-      if (!isIndoorActivity) {
-        console.log(`[FIT:BACKFILL] No FIT URL on merge for activity ${dupCheck.existingActivity.id}, requesting backfill`);
-        await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
-      }
+      // Defensive symmetry with the takeover branch / new-activity path.
+      console.log(`[FIT:BACKFILL] No FIT URL on merge for activity ${dupCheck.existingActivity.id}, requesting backfill`);
+      await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
     }
 
     if (activityInfo.startTimeInSeconds) {
