@@ -54,6 +54,12 @@ const supabase = getSupabaseAdmin();
 
 const WEBHOOK_SECRET = process.env.GARMIN_WEBHOOK_SECRET;
 
+// Health types the processor actually persists. Anything outside this set
+// short-circuits to "unhandled type: X" in healthDataProcessor.js — storing
+// those events just floods the processor queue, starves real activity events,
+// and contributed to the May 2026 bike-ride ingestion outage.
+const HANDLED_HEALTH_TYPES = new Set(['dailies', 'sleeps', 'bodyComps', 'stressDetails', 'hrv']);
+
 let lastWebhookReceived = null;
 
 export default async function handler(req, res) {
@@ -118,6 +124,14 @@ export default async function handler(req, res) {
       itemCount: parsed.items.length,
       ip: clientIP
     });
+
+    // Drop health events whose type the processor doesn't handle. These
+    // (epochs / allDayRespiration / userMetrics) accounted for ~90% of
+    // garmin_webhook_events volume and starved the processor queue.
+    if (parsed.type === 'HEALTH' && !HANDLED_HEALTH_TYPES.has(parsed.healthType)) {
+      console.log(`ℹ️ Skipping unhandled health type at door: ${parsed.healthType} (${parsed.items.length} items)`);
+      return res.status(200).json({ stored: 0, skipped: parsed.items.length, reason: 'unhandled_health_type' });
+    }
 
     // Store every item as a separate event for the processor to pick up
     const eventIds = [];

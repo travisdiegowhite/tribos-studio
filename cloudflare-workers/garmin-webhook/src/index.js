@@ -18,6 +18,10 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+// Keep in sync with api/garmin-webhook.js. Health types outside this set are
+// no-ops in healthDataProcessor.js; storing them floods the processor queue.
+const HANDLED_HEALTH_TYPES = new Set(['dailies', 'sleeps', 'bodyComps', 'stressDetails', 'hrv']);
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
@@ -54,6 +58,10 @@ export default {
       const webhookData = JSON.parse(bodyText);
       const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
       const { type, healthType, items } = parsePayload(webhookData);
+
+      if (type === 'HEALTH' && !HANDLED_HEALTH_TYPES.has(healthType)) {
+        return json(200, { stored: 0, skipped: items.length, reason: 'unhandled_health_type' });
+      }
 
       const eventIds = [];
       let batchIndex = 0;

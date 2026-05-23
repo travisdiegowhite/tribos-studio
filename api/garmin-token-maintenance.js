@@ -3,10 +3,9 @@
 // This prevents the "silent token death" problem
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
+import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
 
 const supabase = getSupabaseAdmin();
-
-const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oauth/token';
 
 // How many days before expiry to refresh
 // Garmin ACCESS tokens expire in ~24 hours, so we need to be aggressive
@@ -44,25 +43,30 @@ export default async function handler(req, res) {
     const refreshTokenThreshold = new Date();
     refreshTokenThreshold.setDate(refreshTokenThreshold.getDate() + REFRESH_TOKEN_REFRESH_THRESHOLD_DAYS);
 
+    const selectFields = 'id, user_id, access_token, refresh_token, token_expires_at, refresh_token_expires_at, provider_user_id, refresh_token_invalid';
+
     // Query 1: Access tokens expiring soon
     const { data: accessTokenExpiring, error: accessError } = await supabase
       .from('bike_computer_integrations')
-      .select('id, user_id, refresh_token, token_expires_at, refresh_token_expires_at, provider_user_id, refresh_token_invalid')
+      .select(selectFields)
       .eq('provider', 'garmin')
       .not('refresh_token', 'is', null)
       .neq('refresh_token_invalid', true)
       .lt('token_expires_at', accessTokenThreshold.toISOString());
 
-    // Query 2: Refresh tokens expiring soon (even if access token is still valid)
-    // This catches inactive users before their refresh token expires
+    // Query 2: Refresh tokens expiring soon OR unknown. The original query
+    // required `refresh_token_expires_at IS NOT NULL`, which made it blind
+    // to integrations created by the older OAuth flow that never populated
+    // that column — exactly the 6 cyclist integrations that died silently
+    // in January 2026 (refresh_token_expires_at NULL → never picked up
+    // proactively → access token expired → refresh failed → marked invalid).
     const { data: refreshTokenExpiring, error: refreshError } = await supabase
       .from('bike_computer_integrations')
-      .select('id, user_id, refresh_token, token_expires_at, refresh_token_expires_at, provider_user_id, refresh_token_invalid')
+      .select(selectFields)
       .eq('provider', 'garmin')
       .not('refresh_token', 'is', null)
-      .not('refresh_token_expires_at', 'is', null)
       .neq('refresh_token_invalid', true)
-      .lt('refresh_token_expires_at', refreshTokenThreshold.toISOString());
+      .or(`refresh_token_expires_at.is.null,refresh_token_expires_at.lt.${refreshTokenThreshold.toISOString()}`);
 
     if (accessError || refreshError) {
       console.error('Failed to fetch integrations:', accessError || refreshError);
@@ -120,27 +124,22 @@ export default async function handler(req, res) {
       }
 
       try {
-        // Attempt token refresh
-        const refreshResult = await refreshGarminToken(userId, integration.refresh_token);
-
-        if (refreshResult.success) {
-          console.log('  - SUCCESS: Token refreshed');
-          results.refreshed++;
-        } else {
-          console.log('  - FAILED:', refreshResult.error);
-          results.failed++;
-          results.errors.push({
-            userId,
-            error: refreshResult.error,
-            requiresReconnect: refreshResult.requiresReconnect
-          });
-        }
+        // Delegate to the shared mutex-aware helper. Previously this cron had
+        // its own `refreshGarminToken` that bypassed `acquire_token_refresh_lock`,
+        // so a webhook-driven refresh in `ensureValidAccessToken` and this cron
+        // could run concurrently. With Garmin's refresh-token rotation, the
+        // loser stored a stale refresh_token and the next call returned 400 —
+        // a latent path to silent token death.
+        await ensureValidAccessToken(integration, supabase);
+        console.log('  - SUCCESS: Token refreshed');
+        results.refreshed++;
       } catch (err) {
         console.error('  - ERROR:', err.message);
         results.failed++;
         results.errors.push({
           userId,
-          error: err.message
+          error: err.message,
+          requiresReconnect: /Refresh token may be invalid or revoked/.test(err.message)
         });
       }
     }
@@ -165,73 +164,3 @@ export default async function handler(req, res) {
   }
 }
 
-async function refreshGarminToken(userId, refreshToken) {
-  const tokenParams = new URLSearchParams({
-    grant_type: 'refresh_token',
-    client_id: process.env.GARMIN_CONSUMER_KEY,
-    client_secret: process.env.GARMIN_CONSUMER_SECRET,
-    refresh_token: refreshToken
-  });
-
-  const response = await fetch(GARMIN_TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: tokenParams.toString()
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Token refresh failed:', response.status, errorText);
-
-    // Check if refresh token was revoked
-    const isRevoked = errorText.includes('invalid_grant') ||
-                      errorText.includes('revoked') ||
-                      response.status === 400;
-
-    return {
-      success: false,
-      error: `Garmin returned ${response.status}: ${errorText}`,
-      requiresReconnect: isRevoked
-    };
-  }
-
-  const tokenData = await response.json();
-
-  // Calculate new access token expiration (Garmin tokens last ~24 hours)
-  const expiresAt = new Date();
-  expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 86400));
-
-  // Calculate refresh token expiration (~90 days)
-  const refreshTokenExpiresAt = new Date();
-  refreshTokenExpiresAt.setSeconds(
-    refreshTokenExpiresAt.getSeconds() + (tokenData.refresh_token_expires_in || 7776000)
-  );
-
-  // Update database with new tokens
-  const { error: updateError } = await supabase
-    .from('bike_computer_integrations')
-    .update({
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token || refreshToken, // Garmin may return new refresh token
-      token_expires_at: expiresAt.toISOString(),
-      refresh_token_expires_at: refreshTokenExpiresAt.toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .eq('user_id', userId)
-    .eq('provider', 'garmin');
-
-  if (updateError) {
-    return {
-      success: false,
-      error: `Database update failed: ${updateError.message}`
-    };
-  }
-
-  return {
-    success: true,
-    newExpiresAt: expiresAt.toISOString(),
-    refreshTokenExpiresAt: refreshTokenExpiresAt.toISOString()
-  };
-}
