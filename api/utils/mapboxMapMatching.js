@@ -46,9 +46,9 @@ function downsample(coords, max) {
 export async function buildAutoNameFromGeometry(coordinates, opts = {}) {
   const token =
     opts.token ||
-    process.env.MAPBOX_ACCESS_TOKEN ||
-    process.env.VITE_MAPBOX_ACCESS_TOKEN;
-  if (!token) throw new Error('MAPBOX_ACCESS_TOKEN not configured');
+    process.env.VITE_MAPBOX_TOKEN ||
+    process.env.MAPBOX_ACCESS_TOKEN;
+  if (!token) throw new Error('VITE_MAPBOX_TOKEN not configured');
 
   if (!Array.isArray(coordinates) || coordinates.length < MIN_COORDS) {
     return null;
