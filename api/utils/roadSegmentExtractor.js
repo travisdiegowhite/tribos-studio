@@ -4,6 +4,7 @@
  */
 
 import { getSupabaseAdmin } from './supabaseAdmin.js';
+import { lookupRoadForSegment } from './mapboxRoadLookup.js';
 import crypto from 'crypto';
 
 // Initialize Supabase
@@ -413,6 +414,12 @@ export async function extractAndStoreActivitySegments(activityId, userId, option
           result.errors.push(`Segment ${segment.segmentHash}: ${upsertError.message}`);
         } else {
           result.stored++;
+          // Fire-and-forget OSM enrichment for newly inserted rows.
+          // Failure must not block segment extraction — backfill picks
+          // up any rows the live hook missed.
+          enrichSegmentOsm(userId, segment).catch((err) => {
+            console.warn('[RoadSegmentExtractor] OSM enrich failed:', err.message);
+          });
         }
       } catch (segmentError) {
         result.errors.push(`Segment error: ${segmentError.message}`);
@@ -521,6 +528,56 @@ export async function extractSegmentsForUser(userId, options = {}) {
   }
 
   return result;
+}
+
+// ============================================================================
+// OSM ENRICHMENT (Mapbox Tilequery)
+// ============================================================================
+
+/**
+ * Look up OSM road metadata for a freshly upserted segment and write it
+ * back. Only runs for rows that don't already have a road_name (the
+ * upsert RPC preserves existing names on re-extraction of the same
+ * segment_hash, so this is idempotent across activity reprocessing).
+ *
+ * Failures are warned-and-swallowed at the caller — segment extraction
+ * itself must never depend on Mapbox availability.
+ */
+async function enrichSegmentOsm(userId, segment) {
+  if (!CONFIG.MAPBOX_ACCESS_TOKEN) return; // no token, no-op
+
+  // Check whether this row already has a name — re-extraction of an
+  // existing segment_hash should not re-query Mapbox.
+  const { data: existing } = await supabase
+    .from('user_road_segments')
+    .select('id, road_name')
+    .eq('user_id', userId)
+    .eq('segment_hash', segment.segmentHash)
+    .maybeSingle();
+
+  if (!existing) return;
+  if (existing.road_name) return;
+
+  const lookup = await lookupRoadForSegment({
+    start_lat: segment.startLat,
+    start_lng: segment.startLng,
+    end_lat: segment.endLat,
+    end_lng: segment.endLng,
+    bearing: segment.bearing,
+    segment_length_m: segment.lengthM,
+  }, { token: CONFIG.MAPBOX_ACCESS_TOKEN });
+
+  if (!lookup || !lookup.road_name) return;
+
+  await supabase
+    .from('user_road_segments')
+    .update({
+      road_name: lookup.road_name,
+      osm_way_id: lookup.osm_way_id,
+      road_type: lookup.road_type,
+      surface_type: lookup.surface_type,
+    })
+    .eq('id', existing.id);
 }
 
 // ============================================================================

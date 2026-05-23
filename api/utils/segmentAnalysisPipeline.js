@@ -20,6 +20,7 @@
 
 import { getSupabaseAdmin } from './supabaseAdmin.js';
 import { buildStreamsFromPolyline, calculatePolylineDistance } from './polylineStreamBuilder.js';
+import { recomputeTrainingSegment } from './trainingSegmentRollup.js';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -666,8 +667,14 @@ async function processDetectedSegment(supabase, segment, activityId, userId, act
   if (existingMatch) {
     // Update existing segment with this ride's data
     await addRideToSegment(supabase, existingMatch.id, activityId, userId, segment, activity, ftp);
-    await updateSegmentMetadata(supabase, existingMatch.id, segment);
     await updateSegmentProfile(supabase, existingMatch.id, ftp);
+    // Recompute rollup (ride_count, first/last_ridden_at) and profile
+    // (rides_last_30/90, avg_rides_per_month, frequency_tier) from
+    // training_segment_rides as the source of truth. Replaces the
+    // pre-migration-092 `updateSegmentMetadata` increment, which
+    // silently failed because the RPC didn't exist and the JS-side
+    // fallback used a non-existent supabase.raw() method.
+    await recomputeTrainingSegment(supabase, existingMatch.id);
 
     // If existing segment is geometry_only and new data is measured, upgrade the tier
     if (existingMatch.data_quality_tier === 'geometry_only' && dataQualityTier === 'measured') {
@@ -684,6 +691,11 @@ async function processDetectedSegment(supabase, segment, activityId, userId, act
   const newSegmentId = await createNewSegment(supabase, userId, segment, dataQualityTier);
   await addRideToSegment(supabase, newSegmentId, activityId, userId, segment, activity, ftp);
   await createSegmentProfile(supabase, newSegmentId);
+  // Rebuild auto_name via Map Matching on first creation — the reverse
+  // geocode in createNewSegment is a fallback that runs even when Map
+  // Matching is unavailable, but Map Matching produces road-name
+  // strings ("Spine Rd → 36th") that the route coach can reference.
+  await recomputeTrainingSegment(supabase, newSegmentId, { rebuildName: true });
   return { isNew: true, segmentId: newSegmentId };
 }
 
@@ -888,26 +900,6 @@ async function addRideToSegment(supabase, segmentId, activityId, userId, segment
 
   if (error) {
     console.error('[SegmentPipeline] Error adding ride to segment:', error.message);
-  }
-}
-
-async function updateSegmentMetadata(supabase, segmentId, segment) {
-  // Increment ride count and update last ridden
-  const { error } = await supabase
-    .rpc('increment_segment_ride_count', {
-      p_segment_id: segmentId,
-      p_last_ridden: new Date().toISOString(),
-    });
-
-  // Fallback if RPC not available
-  if (error) {
-    await supabase
-      .from('training_segments')
-      .update({
-        ride_count: supabase.raw('ride_count + 1'),
-        last_ridden_at: new Date().toISOString(),
-      })
-      .eq('id', segmentId);
   }
 }
 
