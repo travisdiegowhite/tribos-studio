@@ -17,7 +17,15 @@
 //   fileName:           string,
 //   fileBase64:         string,         // raw FIT bytes, base64-encoded
 //   compressed:         boolean,        // true for .fit.gz
-//   stravaActivityName: string|null     // optional, preserved from activities.csv
+//   stravaActivityName: string|null,    // optional, preserved from activities.csv
+//   provider:           'fit_upload'|'garmin'|undefined,  // defaults to 'fit_upload'
+//   garminActivityId:   string|undefined  // required when provider==='garmin';
+//                                         // numeric Garmin activity ID parsed
+//                                         // from the FIT filename in a
+//                                         // Garmin Connect "Export Your Data"
+//                                         // ZIP. Used as provider_activity_id
+//                                         // so bulk imports dedupe against
+//                                         // webhook-imported activities.
 // }
 // Response: { success, action: 'inserted'|'updated', activity }
 
@@ -120,6 +128,28 @@ function decodeBase64ToBuffer(fileBase64, compressed) {
  * semantics. Strict match: same user + start time within ±60s + distance
  * within ±5%. Returns the row id or null.
  */
+/**
+ * ID-first dedupe for Garmin bulk imports. Looks up an existing row whose
+ * provider/provider_activity_id already match what this Garmin export FIT
+ * would write. Catches both webhook-imported rows (no streams/analytics) and
+ * re-runs of the same bulk import.
+ */
+async function findExistingByGarminId(userId, garminActivityId) {
+  const { data, error } = await supabase
+    .from('activities')
+    .select('id, name, gear_id, provider, provider_activity_id')
+    .eq('user_id', userId)
+    .eq('provider', 'garmin')
+    .eq('provider_activity_id', garminActivityId)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.warn('fit-upload: garmin-id lookup failed (non-fatal):', error.message);
+    return null;
+  }
+  return data;
+}
+
 async function findExistingActivity(userId, startTimeIso, distanceMeters) {
   if (!startTimeIso) return null;
   const start = new Date(startTimeIso);
@@ -169,11 +199,31 @@ export default async function handler(req, res) {
   }
   const userId = user.id;
 
-  // Rate limit — caps accidental base64 spam and runaway bulk imports.
-  const limited = await rateLimitByUser(req, res, 'fit-upload', userId, 60, 5);
-  if (limited) return;
+  const { fileName, fileBase64, compressed, stravaActivityName, provider: providerRaw, garminActivityId: garminActivityIdRaw } = req.body || {};
 
-  const { fileName, fileBase64, compressed, stravaActivityName } = req.body || {};
+  // Provider tagging. Default 'fit_upload' preserves Strava bulk + single-file
+  // upload behavior; 'garmin' opts the request into Garmin-export semantics
+  // (real provider_activity_id from filename, dedupe against webhook rows).
+  const provider = providerRaw === 'garmin' ? 'garmin' : 'fit_upload';
+  let garminActivityId = null;
+  if (provider === 'garmin') {
+    if (typeof garminActivityIdRaw !== 'string' || !/^\d+$/.test(garminActivityIdRaw)) {
+      return res.status(400).json({
+        error: 'bad_request',
+        message: 'garminActivityId is required and must be numeric when provider="garmin".',
+      });
+    }
+    garminActivityId = garminActivityIdRaw;
+  }
+
+  // Rate limit — caps accidental base64 spam and runaway bulk imports.
+  // Garmin exports can contain thousands of files and the modal pushes
+  // ~20-wide parallelism, so the bulk-Garmin bucket is generous; the regular
+  // fit-upload bucket stays tight.
+  const rateLimitBucket = provider === 'garmin' ? 'fit-upload-garmin' : 'fit-upload';
+  const rateLimitMax = provider === 'garmin' ? 600 : 60;
+  const limited = await rateLimitByUser(req, res, rateLimitBucket, userId, rateLimitMax, 5);
+  if (limited) return;
 
   if (!fileBase64 || typeof fileBase64 !== 'string') {
     return res.status(400).json({ error: 'bad_request', message: 'fileBase64 is required' });
@@ -241,10 +291,12 @@ export default async function handler(req, res) {
   const normalizedPower = sanitize(pm.normalizedPower ?? summary.normalizedPower, MAX_POWER_W, null);
   const workKj = pm.workKj ?? (avgPower && movingTime ? Math.round((avgPower * movingTime) / 1000) : null);
 
-  const providerActivityId = `fit_${new Date(summary.startTime).getTime()}_${Math.random().toString(36).slice(2, 11)}`;
+  const providerActivityId = provider === 'garmin'
+    ? garminActivityId
+    : `fit_${new Date(summary.startTime).getTime()}_${Math.random().toString(36).slice(2, 11)}`;
 
   const rawData = {
-    source: 'fit_upload',
+    source: provider === 'garmin' ? 'garmin_bulk_export' : 'fit_upload',
     device: summary.manufacturer,
     product: summary.product,
     serial_number: summary.serialNumber,
@@ -255,7 +307,7 @@ export default async function handler(req, res) {
 
   const insertRow = {
     user_id: userId,
-    provider: 'fit_upload',
+    provider,
     provider_activity_id: providerActivityId,
     name: activityName,
     type,
@@ -298,7 +350,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const existing = await findExistingActivity(userId, summary.startTime, distance);
+    // For Garmin bulk imports, dedupe by provider_activity_id first — this
+    // catches webhook-imported rows (which lack server-side streams /
+    // analytics) and re-runs of the same export. Fall through to the
+    // time+distance heuristic so we can still upgrade a prior 'fit_upload'
+    // row of the same activity.
+    let existing = null;
+    if (provider === 'garmin') {
+      existing = await findExistingByGarminId(userId, garminActivityId);
+    }
+    if (!existing) {
+      existing = await findExistingActivity(userId, summary.startTime, distance);
+    }
 
     if (existing) {
       // UPDATE path — preserve user-editable fields (name if user renamed,
@@ -306,12 +369,19 @@ export default async function handler(req, res) {
       const { id: existingId, name: existingName, gear_id: existingGearId, provider: existingProvider, provider_activity_id: existingProviderActivityId } = existing;
 
       const updateRow = { ...insertRow };
-      // Don't clobber these — they may reflect user edits or a different
-      // ingestion source (e.g., a Strava-synced row now being enriched by a
-      // user-uploaded FIT).
+      // Don't clobber user_id. Provider identity is normally preserved (a
+      // Strava-synced row stays Strava when enriched by a manual FIT). The
+      // one exception: a Garmin bulk import that matches an older
+      // 'fit_upload' row should upgrade that row to provider='garmin' with
+      // the real Garmin ID, so future webhook events from Garmin Connect
+      // dedupe against it via UNIQUE(user_id, provider_activity_id).
       delete updateRow.user_id;
-      delete updateRow.provider;
-      delete updateRow.provider_activity_id;
+      const shouldUpgradeProvider =
+        provider === 'garmin' && existingProvider === 'fit_upload';
+      if (!shouldUpgradeProvider) {
+        delete updateRow.provider;
+        delete updateRow.provider_activity_id;
+      }
       // Preserve a non-generic existing name.
       if (existingName && existingName !== activityName) {
         delete updateRow.name;
