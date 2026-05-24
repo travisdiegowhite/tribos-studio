@@ -183,6 +183,7 @@ const ImportWizard = ({ opened, onClose }) => {
       opened={garminBulkOpen}
       onClose={() => setGarminBulkOpen(false)}
       onUploadComplete={(results) => setGarminBulkResults(results)}
+      zIndex={400}
     />
     <Modal
       opened={opened}
