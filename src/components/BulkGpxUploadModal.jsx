@@ -31,7 +31,7 @@ import JSZip from 'jszip';
 import pako from 'pako';
 import { ArrowSquareOut, Bicycle, CaretRight, Check, Clock, File, FileZip, Files, FolderOpen, Heartbeat, Info, Mountains, Path, UploadSimple, Warning, WarningCircle, Watch, X } from '@phosphor-icons/react';
 
-function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
+function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('guide');
   const [uploading, setUploading] = useState(false);
@@ -157,25 +157,47 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
   /**
    * Detect whether the ZIP is a Strava export, a Garmin Connect "Export Your
-   * Data" archive, or something we can't identify. Strava puts files at the
-   * root with an activities.csv name map; Garmin nests them under
-   * DI_CONNECT/DI-Connect-Fitness/<garminActivityId>.fit(.gz). Path-anchored
-   * regex so substring collisions can't false-positive.
+   * Data" archive, or something we can't identify.
+   *
+   * Strava: flat root + activities.csv name map.
+   * Garmin: real exports nest activities under a top-level UUID folder.
+   *   Two variants in the wild:
+   *     1. Newer / multi-part: <UUID>_1/DI_CONNECT/DI-Connect-Uploaded-Files/
+   *        UploadedFiles_*.zip → FIT files live INSIDE those inner ZIPs.
+   *     2. Older / smaller: <UUID>_1/DI_CONNECT/DI-Connect-Fitness/<id>.fit(.gz)
+   *        sitting loose in the outer ZIP.
+   * We accept either by dropping the start-of-string anchor.
    */
   const detectZipSource = (zip) => {
-    let hasGarminFitDir = false;
+    let hasGarminNestedZip = false;
+    let hasGarminLooseFit = false;
     let hasStravaCsv = false;
     zip.forEach((relativePath) => {
-      if (/^DI_CONNECT\/DI-Connect-Fitness\/.+\.fit(\.gz)?$/i.test(relativePath)) {
-        hasGarminFitDir = true;
+      if (/(^|\/)DI_CONNECT\/DI-Connect-Uploaded-Files\/UploadedFiles[^/]*\.zip$/i.test(relativePath)) {
+        hasGarminNestedZip = true;
+      }
+      if (/(^|\/)DI_CONNECT\/DI-Connect-Fitness\/[^/]+\.fit(\.gz)?$/i.test(relativePath)) {
+        hasGarminLooseFit = true;
       }
       if (relativePath.split('/').pop().toLowerCase() === 'activities.csv') {
         hasStravaCsv = true;
       }
     });
-    if (hasGarminFitDir) return 'garmin';
+    if (hasGarminNestedZip || hasGarminLooseFit) return 'garmin';
     if (hasStravaCsv) return 'strava';
     return 'unknown';
+  };
+
+  /**
+   * Garmin filenames in DI-Connect-Uploaded-Files commonly use one of:
+   *   - <activityId>.fit
+   *   - <activityId>_ACTIVITY.fit
+   *   - <userId>_<activityId>.fit
+   * Returns the trailing numeric activity ID, or null if no variant matches.
+   */
+  const parseGarminFilename = (baseName) => {
+    const m = baseName.match(/^(?:\d+_)?(\d+)(?:_ACTIVITY)?\.fit(\.gz)?$/i);
+    return m ? m[1] : null;
   };
 
   /**
@@ -213,53 +235,107 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     // Collect only activity file entries (filter BEFORE reading content)
     // This skips photos, JSON sidecars, and other non-activity files entirely.
     const activityEntries = [];
-    zip.forEach((relativePath, zipEntry) => {
-      if (zipEntry.dir) return;
 
-      // Garmin export structure: only ingest files under DI-Connect-Fitness.
-      // The export ZIP also contains JSON sidecars (user_bio.json, summaries,
-      // metrics) and per-feature folders we don't want to feed to the FIT
-      // parser.
-      if (zipSource === 'garmin' && !/^DI_CONNECT\/DI-Connect-Fitness\//i.test(relativePath)) {
-        return;
-      }
-
-      const fileType = getFileType(relativePath);
-      if (!fileType) return; // Skip non-activity files (photos, JSON, etc.)
-      if (fileType.startsWith('tcx')) return; // Skip TCX files
-
-      const baseName = relativePath.split('/').pop();
-
-      // Garmin filenames are <garminActivityId>.fit(.gz). Skip anything that
-      // doesn't match — these are sidecar files (e.g. *_ACTIVITY_summary.fit)
-      // we can't dedupe against the webhook ingest.
-      let garminActivityId = null;
-      if (zipSource === 'garmin') {
-        const m = baseName.match(/^(\d+)\.fit(\.gz)?$/i);
-        if (!m) {
-          skipped.push({ file: baseName, reason: 'Filename is not a Garmin activity ID' });
-          return;
+    if (zipSource === 'garmin') {
+      // Garmin export ships FIT files inside DI-Connect-Uploaded-Files/
+      // UploadedFiles_*.zip (multi-part) OR loose under DI-Connect-Fitness/.
+      // Handle both shapes. We open inner ZIPs sequentially to bound peak
+      // memory (each inner part can be ~40MB).
+      const innerZipEntries = [];
+      const looseFitEntries = [];
+      zip.forEach((relativePath, zipEntry) => {
+        if (zipEntry.dir) return;
+        if (/(^|\/)DI_CONNECT\/DI-Connect-Uploaded-Files\/UploadedFiles[^/]*\.zip$/i.test(relativePath)) {
+          innerZipEntries.push({ relativePath, zipEntry });
+        } else if (/(^|\/)DI_CONNECT\/DI-Connect-Fitness\/[^/]+\.fit(\.gz)?$/i.test(relativePath)) {
+          looseFitEntries.push({ relativePath, zipEntry });
         }
-        garminActivityId = m[1];
+      });
+
+      for (let i = 0; i < innerZipEntries.length; i++) {
+        const { relativePath: innerPath, zipEntry: innerZipEntry } = innerZipEntries[i];
+        if (onProgress) {
+          onProgress(0, 0, `Opening ${innerPath.split('/').pop()} (${i + 1}/${innerZipEntries.length})…`);
+        }
+        let innerZip;
+        try {
+          const buf = await innerZipEntry.async('arraybuffer');
+          innerZip = await JSZip.loadAsync(buf);
+        } catch (err) {
+          console.warn(`Failed to open inner Garmin ZIP ${innerPath}:`, err);
+          skipped.push({ file: innerPath.split('/').pop(), reason: `Inner ZIP unreadable: ${err.message}` });
+          continue;
+        }
+
+        innerZip.forEach((innerRelPath, innerEntry) => {
+          if (innerEntry.dir) return;
+          const fileType = getFileType(innerRelPath);
+          if (!fileType || !fileType.startsWith('fit')) return;
+          const baseName = innerRelPath.split('/').pop();
+          const garminActivityId = parseGarminFilename(baseName);
+          if (!garminActivityId) {
+            skipped.push({ file: baseName, reason: "Filename doesn't match a Garmin activity ID pattern" });
+            return;
+          }
+          activityEntries.push({
+            relativePath: `${innerPath}!${innerRelPath}`,
+            zipEntry: innerEntry,
+            fileType,
+            isBinary: true,
+            stravaActivityName: null,
+            zipSource: 'garmin',
+            garminActivityId,
+          });
+        });
       }
 
-      const activityIdMatch = baseName.match(/^(\d+)\.(fit|gpx)/i);
-      const activityId = activityIdMatch ? activityIdMatch[1] : null;
-      const stravaActivityName = (zipSource === 'strava' && activityId)
-        ? activityNames[activityId]
-        : null;
-      const isBinary = fileType.startsWith('fit');
+      for (const { relativePath, zipEntry } of looseFitEntries) {
+        const fileType = getFileType(relativePath);
+        if (!fileType || !fileType.startsWith('fit')) continue;
+        const baseName = relativePath.split('/').pop();
+        const garminActivityId = parseGarminFilename(baseName);
+        if (!garminActivityId) {
+          skipped.push({ file: baseName, reason: "Filename doesn't match a Garmin activity ID pattern" });
+          continue;
+        }
+        activityEntries.push({
+          relativePath,
+          zipEntry,
+          fileType,
+          isBinary: true,
+          stravaActivityName: null,
+          zipSource: 'garmin',
+          garminActivityId,
+        });
+      }
+    } else {
+      // Strava / unknown — flat walk; accept FIT and GPX at any path.
+      zip.forEach((relativePath, zipEntry) => {
+        if (zipEntry.dir) return;
 
-      activityEntries.push({
-        relativePath,
-        zipEntry,
-        fileType,
-        isBinary,
-        stravaActivityName,
-        zipSource,
-        garminActivityId,
+        const fileType = getFileType(relativePath);
+        if (!fileType) return; // Skip non-activity files (photos, JSON, etc.)
+        if (fileType.startsWith('tcx')) return; // Skip TCX files
+
+        const baseName = relativePath.split('/').pop();
+        const activityIdMatch = baseName.match(/^(\d+)\.(fit|gpx)/i);
+        const activityId = activityIdMatch ? activityIdMatch[1] : null;
+        const stravaActivityName = (zipSource === 'strava' && activityId)
+          ? activityNames[activityId]
+          : null;
+        const isBinary = fileType.startsWith('fit');
+
+        activityEntries.push({
+          relativePath,
+          zipEntry,
+          fileType,
+          isBinary,
+          stravaActivityName,
+          zipSource,
+          garminActivityId: null,
+        });
       });
-    });
+    }
 
     console.log(`Found ${activityEntries.length} activity files to extract (zipSource=${zipSource}, skipped=${skipped.length} non-activity entries)`);
 
@@ -725,6 +801,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
       size="xl"
       closeOnClickOutside={!uploading}
       closeOnEscape={!uploading}
+      zIndex={zIndex}
     >
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List mb="md">
