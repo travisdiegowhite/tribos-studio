@@ -2115,6 +2115,45 @@ function Settings() {
 
               <Divider />
 
+              {/* Garmin Info Box — parallels the Strava bulk-import box above. */}
+              <Alert
+                icon={<Info size={18} />}
+                title="About Garmin Integration"
+                color="blue"
+                variant="light"
+              >
+                <Stack gap="xs">
+                  <Text size="sm">
+                    Connect Garmin Connect to auto-sync new rides via webhook. To backfill
+                    rides from before you connected, use the bulk Garmin export import.
+                  </Text>
+                  <List size="sm" spacing="xs">
+                    <List.Item icon={<ThemeIcon color="blue" size={20} radius="xl"><Check size={12} /></ThemeIcon>}>
+                      Imports the full .fit file (power streams, NP, IF, ride analytics)
+                    </List.Item>
+                    <List.Item icon={<ThemeIcon color="blue" size={20} radius="xl"><Check size={12} /></ThemeIcon>}>
+                      Dedupes against activities already synced via the Garmin webhook
+                    </List.Item>
+                    <List.Item icon={<ThemeIcon color="blue" size={20} radius="xl"><Check size={12} /></ThemeIcon>}>
+                      Safe to re-run — duplicate uploads enrich existing rows instead of creating new ones
+                    </List.Item>
+                  </List>
+                  <Text size="xs" c="dimmed">
+                    To export: Sign into Garmin Connect → Account → Account Information → Export Your Data → Request Export. You'll receive an email with the ZIP when ready.
+                  </Text>
+                  <Button
+                    variant="light"
+                    color="blue"
+                    size="sm"
+                    leftSection={<UploadSimple size={16} />}
+                    onClick={() => setOpenModal('bulkUpload')}
+                    mt="xs"
+                  >
+                    Bulk Import from Garmin Export
+                  </Button>
+                </Stack>
+              </Alert>
+
               {garminStatus.refreshTokenInvalid && (
                 <Alert
                   color="orange"
