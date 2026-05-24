@@ -17,13 +17,15 @@ import {
   List,
   ThemeIcon,
   Loader,
+  Code,
 } from '@mantine/core';
 import { ConnectWithStravaButton, StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
 import { tokens } from '../theme';
-import { Calendar, Check, CheckCircle, DownloadSimple, Lightning, TrendUp, WarningCircle, Watch } from '@phosphor-icons/react';
+import { Calendar, Check, CheckCircle, DownloadSimple, FileZip, Lightning, TrendUp, UploadSimple, WarningCircle, Watch } from '@phosphor-icons/react';
+import BulkGpxUploadModal from './BulkGpxUploadModal.jsx';
 
 /**
  * Smart Import Wizard - Guides users through hybrid Strava + Device setup
@@ -48,6 +50,11 @@ const ImportWizard = ({ opened, onClose }) => {
   const [garminConnected, setGarminConnected] = useState(false);
   const [wahooConnected, setWahooConnected] = useState(false);
   const [checkingConnections, setCheckingConnections] = useState(true);
+
+  // Garmin bulk ZIP modal — alternative to API-based history import for users
+  // with a Garmin Connect "Export Your Data" archive.
+  const [garminBulkOpen, setGarminBulkOpen] = useState(false);
+  const [garminBulkResults, setGarminBulkResults] = useState(null);
 
   useEffect(() => {
     if (opened) {
@@ -171,6 +178,12 @@ const ImportWizard = ({ opened, onClose }) => {
   const deviceConnected = selectedDevice === 'garmin' ? garminConnected : wahooConnected;
 
   return (
+    <>
+    <BulkGpxUploadModal
+      opened={garminBulkOpen}
+      onClose={() => setGarminBulkOpen(false)}
+      onUploadComplete={(results) => setGarminBulkResults(results)}
+    />
     <Modal
       opened={opened}
       onClose={onClose}
@@ -346,6 +359,46 @@ const ImportWizard = ({ opened, onClose }) => {
                   </Button>
                 </>
               )}
+
+              {/* Garmin bulk ZIP alternative — for users with a Garmin Connect
+                  "Export Your Data" archive. Mirrors the Strava bulk import
+                  surface in Settings. */}
+              <Paper withBorder p="md" mt="sm">
+                <Stack gap="xs">
+                  <Group gap="xs">
+                    <ThemeIcon size="lg" color="blue" variant="light">
+                      <FileZip size={18} />
+                    </ThemeIcon>
+                    <div>
+                      <Text size="sm" fw={600}>Or upload a Garmin export ZIP</Text>
+                      <Text size="xs" c="dimmed">
+                        Full <Code>.fit</Code> files with power streams; dedupes against Garmin webhook activities.
+                      </Text>
+                    </div>
+                  </Group>
+                  {garminBulkResults && (
+                    <Alert color="green" variant="light" icon={<CheckCircle size={18} />}>
+                      <Text size="xs">
+                        Imported {garminBulkResults.success?.length || 0} new
+                        {garminBulkResults.updated?.length ? `, enriched ${garminBulkResults.updated.length} existing` : ''}
+                        {' '}activit{((garminBulkResults.success?.length || 0) + (garminBulkResults.updated?.length || 0)) === 1 ? 'y' : 'ies'}.
+                      </Text>
+                    </Alert>
+                  )}
+                  <Button
+                    variant="light"
+                    color="blue"
+                    size="sm"
+                    leftSection={<UploadSimple size={16} />}
+                    onClick={() => setGarminBulkOpen(true)}
+                  >
+                    Upload Garmin Export ZIP
+                  </Button>
+                  <Text size="xs" c="dimmed">
+                    Get the ZIP from Garmin Connect → Account → Account Information → Export Your Data.
+                  </Text>
+                </Stack>
+              </Paper>
 
               <Group justify="space-between" mt="xl">
                 <Button variant="subtle" onClick={prevStep}>
@@ -536,6 +589,7 @@ const ImportWizard = ({ opened, onClose }) => {
         </Stepper>
       )}
     </Modal>
+    </>
   );
 };
 

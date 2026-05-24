@@ -29,7 +29,7 @@ import { formatDistance as formatDistanceUnit, formatElevation as formatElevatio
 import { trackUpload, EventType } from '../utils/activityTracking';
 import JSZip from 'jszip';
 import pako from 'pako';
-import { ArrowSquareOut, Bicycle, CaretRight, Check, Clock, File, FileZip, Files, FolderOpen, Heartbeat, Info, Mountains, Path, UploadSimple, Warning, WarningCircle, X } from '@phosphor-icons/react';
+import { ArrowSquareOut, Bicycle, CaretRight, Check, Clock, File, FileZip, Files, FolderOpen, Heartbeat, Info, Mountains, Path, UploadSimple, Warning, WarningCircle, Watch, X } from '@phosphor-icons/react';
 
 function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   const { user } = useAuth();
@@ -42,6 +42,10 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   const [error, setError] = useState(null);
   const [results, setResults] = useState(null);
   const [unitsPreference, setUnitsPreference] = useState('imperial');
+  // Per-ZIP detection results, used to drive the banner + an initial skipped
+  // tally (Garmin export ZIPs contain many JSON sidecars we don't ingest).
+  const [zipSources, setZipSources] = useState([]);
+  const [preSkipped, setPreSkipped] = useState([]);
 
   // Load user's units preference
   useEffect(() => {
@@ -152,46 +156,98 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   };
 
   /**
-   * Extract activity files from a Strava export zip
-   * Uses batched extraction to handle large exports without running out of memory
+   * Detect whether the ZIP is a Strava export, a Garmin Connect "Export Your
+   * Data" archive, or something we can't identify. Strava puts files at the
+   * root with an activities.csv name map; Garmin nests them under
+   * DI_CONNECT/DI-Connect-Fitness/<garminActivityId>.fit(.gz). Path-anchored
+   * regex so substring collisions can't false-positive.
+   */
+  const detectZipSource = (zip) => {
+    let hasGarminFitDir = false;
+    let hasStravaCsv = false;
+    zip.forEach((relativePath) => {
+      if (/^DI_CONNECT\/DI-Connect-Fitness\/.+\.fit(\.gz)?$/i.test(relativePath)) {
+        hasGarminFitDir = true;
+      }
+      if (relativePath.split('/').pop().toLowerCase() === 'activities.csv') {
+        hasStravaCsv = true;
+      }
+    });
+    if (hasGarminFitDir) return 'garmin';
+    if (hasStravaCsv) return 'strava';
+    return 'unknown';
+  };
+
+  /**
+   * Extract activity files from a Strava or Garmin export zip.
+   * Uses batched extraction to handle large exports without running out of memory.
    * @param {File} zipFile - The zip file to extract
    * @param {Function} onProgress - Optional callback for progress updates (current, total, fileName)
+   * @returns {Promise<{files: Array, zipSource: 'strava'|'garmin'|'unknown', skipped: Array}>}
    */
   const extractFilesFromZip = async (zipFile, onProgress) => {
     const zip = await JSZip.loadAsync(zipFile);
+    const zipSource = detectZipSource(zip);
     let activityNames = {};
+    const skipped = [];
 
-    // First, look for activities.csv to get activity names
-    for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
-      if (zipEntry.dir) continue;
-
-      const fileName = relativePath.split('/').pop().toLowerCase();
-      if (fileName === 'activities.csv') {
-        try {
-          const csvContent = await zipEntry.async('string');
-          activityNames = parseActivitiesCsv(csvContent);
-          console.log(`Found ${Object.keys(activityNames).length} activity names in activities.csv`);
-        } catch (err) {
-          console.warn('Failed to parse activities.csv:', err);
+    // Only Strava exports carry an activities.csv name map; skip the scan
+    // entirely for Garmin / unknown.
+    if (zipSource === 'strava') {
+      for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+        if (zipEntry.dir) continue;
+        const fileName = relativePath.split('/').pop().toLowerCase();
+        if (fileName === 'activities.csv') {
+          try {
+            const csvContent = await zipEntry.async('string');
+            activityNames = parseActivitiesCsv(csvContent);
+            console.log(`Found ${Object.keys(activityNames).length} activity names in activities.csv`);
+          } catch (err) {
+            console.warn('Failed to parse activities.csv:', err);
+          }
+          break;
         }
-        break;
       }
     }
 
     // Collect only activity file entries (filter BEFORE reading content)
-    // This skips photos and other media files entirely
+    // This skips photos, JSON sidecars, and other non-activity files entirely.
     const activityEntries = [];
     zip.forEach((relativePath, zipEntry) => {
       if (zipEntry.dir) return;
 
+      // Garmin export structure: only ingest files under DI-Connect-Fitness.
+      // The export ZIP also contains JSON sidecars (user_bio.json, summaries,
+      // metrics) and per-feature folders we don't want to feed to the FIT
+      // parser.
+      if (zipSource === 'garmin' && !/^DI_CONNECT\/DI-Connect-Fitness\//i.test(relativePath)) {
+        return;
+      }
+
       const fileType = getFileType(relativePath);
-      if (!fileType) return; // Skip non-activity files (photos, etc.)
+      if (!fileType) return; // Skip non-activity files (photos, JSON, etc.)
       if (fileType.startsWith('tcx')) return; // Skip TCX files
 
       const baseName = relativePath.split('/').pop();
+
+      // Garmin filenames are <garminActivityId>.fit(.gz). Skip anything that
+      // doesn't match — these are sidecar files (e.g. *_ACTIVITY_summary.fit)
+      // we can't dedupe against the webhook ingest.
+      let garminActivityId = null;
+      if (zipSource === 'garmin') {
+        const m = baseName.match(/^(\d+)\.fit(\.gz)?$/i);
+        if (!m) {
+          skipped.push({ file: baseName, reason: 'Filename is not a Garmin activity ID' });
+          return;
+        }
+        garminActivityId = m[1];
+      }
+
       const activityIdMatch = baseName.match(/^(\d+)\.(fit|gpx)/i);
       const activityId = activityIdMatch ? activityIdMatch[1] : null;
-      const stravaActivityName = activityId ? activityNames[activityId] : null;
+      const stravaActivityName = (zipSource === 'strava' && activityId)
+        ? activityNames[activityId]
+        : null;
       const isBinary = fileType.startsWith('fit');
 
       activityEntries.push({
@@ -199,11 +255,13 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
         zipEntry,
         fileType,
         isBinary,
-        stravaActivityName
+        stravaActivityName,
+        zipSource,
+        garminActivityId,
       });
     });
 
-    console.log(`Found ${activityEntries.length} activity files to extract (skipped non-activity files)`);
+    console.log(`Found ${activityEntries.length} activity files to extract (zipSource=${zipSource}, skipped=${skipped.length} non-activity entries)`);
 
     // Extract files in batches to prevent memory issues and reference staleness
     const BATCH_SIZE = 20;
@@ -220,7 +278,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
 
       // Extract this batch in parallel
       const batchPromises = batch.map(async (entry) => {
-        const { relativePath, zipEntry, fileType, isBinary, stravaActivityName } = entry;
+        const { relativePath, zipEntry, fileType, isBinary, stravaActivityName, zipSource: entryZipSource, garminActivityId } = entry;
         try {
           const content = await zipEntry.async(isBinary ? 'arraybuffer' : 'string');
           return {
@@ -230,7 +288,9 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
             size: isBinary ? content.byteLength : content.length,
             fileType,
             isBinary,
-            stravaActivityName
+            stravaActivityName,
+            zipSource: entryZipSource,
+            garminActivityId,
           };
         } catch (err) {
           console.warn(`Failed to extract ${relativePath}:`, err);
@@ -247,7 +307,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
       onProgress(activityEntries.length, activityEntries.length, 'Done');
     }
 
-    return extractedFiles;
+    return { files: extractedFiles, zipSource, skipped };
   };
 
   /**
@@ -295,17 +355,25 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     setError(null);
     setParsedActivities([]);
     setResults(null);
+    setZipSources([]);
+    setPreSkipped([]);
 
     const allFiles = [];
+    const detectedSources = [];
+    const allPreSkipped = [];
 
     for (const file of files) {
       if (file.name.toLowerCase().endsWith('.zip')) {
         // Handle zip file
         try {
           setCurrentFile(`Loading ${file.name}...`);
-          const extractedFiles = await extractFilesFromZip(file, (current, total, fileName) => {
+          const { files: extractedFiles, zipSource, skipped } = await extractFilesFromZip(file, (current, total, fileName) => {
             setCurrentFile(`Extracting ${file.name}: ${current}/${total} files (${fileName})`);
           });
+          detectedSources.push({ zipName: file.name, zipSource });
+          if (skipped.length > 0) {
+            allPreSkipped.push(...skipped.map(s => ({ ...s, zipName: file.name })));
+          }
           allFiles.push(...extractedFiles.map(f => ({
             ...f,
             source: 'zip',
@@ -340,6 +408,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     }
 
     setSelectedFiles(allFiles);
+    setZipSources(detectedSources);
+    setPreSkipped(allPreSkipped);
     setCurrentFile('');
 
     // Parse first few files for preview
@@ -382,6 +452,11 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     const fileBase64 = arrayBufferToBase64(buffer);
     const compressed = actFile.fileType === 'fit.gz';
 
+    // Garmin export ZIPs tag every file with provider='garmin' + the numeric
+    // activity ID parsed from the filename, so the server can dedupe against
+    // webhook-imported activities via UNIQUE(user_id, provider_activity_id).
+    const isGarminBulk = actFile.zipSource === 'garmin' && !!actFile.garminActivityId;
+
     const resp = await fetch('/api/fit-upload', {
       method: 'POST',
       headers: {
@@ -393,6 +468,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
         fileBase64,
         compressed,
         stravaActivityName: actFile.stravaActivityName || null,
+        provider: isGarminBulk ? 'garmin' : undefined,
+        garminActivityId: isGarminBulk ? actFile.garminActivityId : undefined,
       }),
     });
 
@@ -417,7 +494,9 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     const uploadResults = {
       success: [],
       updated: [],
-      skipped: [],
+      // Seed with sidecar files (e.g. Garmin user_bio.json) we filtered out
+      // at extraction time so the user sees a single accurate tally.
+      skipped: preSkipped.map(s => ({ file: s.file, reason: s.reason })),
       failed: []
     };
 
@@ -610,6 +689,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
     setProgress(0);
     setCurrentFile('');
     setActiveTab('guide');
+    setZipSources([]);
+    setPreSkipped([]);
   };
 
   const handleClose = () => {
@@ -636,7 +717,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
             <Heartbeat size={20} />
           </ThemeIcon>
           <div>
-            <Text fw={600}>Import from Strava Export</Text>
+            <Text fw={600}>Import from Strava or Garmin Export</Text>
             <Text size="xs" c="dimmed">Bulk import your ride history</Text>
           </div>
         </Group>
@@ -671,6 +752,10 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
             >
               Follow these steps to download your complete activity history from Strava,
               then upload it here to import all your rides at once.
+              <Text size="xs" mt={4}>
+                Garmin Connect "Export Your Data" archives work too — drop the ZIP into
+                the Upload tab and we'll auto-detect the format.
+              </Text>
             </Alert>
 
             <Paper withBorder p="md">
@@ -731,6 +816,37 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
               </Timeline>
             </Paper>
 
+            {/* Garmin export shortcut — same modal handles both archives. */}
+            <Paper withBorder p="md">
+              <Stack gap="xs">
+                <Group gap="xs">
+                  <ThemeIcon color="blue" variant="light" size="md">
+                    <Watch size={16} />
+                  </ThemeIcon>
+                  <Text fw={600}>Have a Garmin account instead?</Text>
+                </Group>
+                <Text size="sm" c="dimmed">
+                  Request your Garmin Connect data export and drop the ZIP into the Upload tab —
+                  we auto-detect Garmin archives and import the full <Code>.fit</Code> files.
+                </Text>
+                <Button
+                  component="a"
+                  href="https://www.garmin.com/en-US/account/datamanagement/exportdata"
+                  target="_blank"
+                  variant="light"
+                  color="blue"
+                  size="xs"
+                  rightSection={<ArrowSquareOut size={14} />}
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  Garmin Data Export Page
+                </Button>
+                <Text size="xs" c="dimmed">
+                  Or go to: Garmin Connect → Account → Account Information → Export Your Data
+                </Text>
+              </Stack>
+            </Paper>
+
             <Accordion variant="contained">
               <Accordion.Item value="what-gets-imported">
                 <Accordion.Control icon={<Bicycle size={18} />}>
@@ -767,13 +883,14 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                 </Accordion.Control>
                 <Accordion.Panel>
                   <List size="sm" spacing="xs">
-                    <List.Item><Code>.zip</Code> - Strava export archive (recommended)</List.Item>
-                    <List.Item><Code>.fit / .fit.gz</Code> - Garmin FIT files</List.Item>
+                    <List.Item><Code>.zip</Code> - Strava export OR Garmin Connect "Export Your Data" archive</List.Item>
+                    <List.Item><Code>.fit / .fit.gz</Code> - Individual Garmin FIT files</List.Item>
                     <List.Item><Code>.gpx</Code> - GPX files</List.Item>
                   </List>
                   <Text size="sm" c="dimmed" mt="xs">
-                    Strava exports typically contain FIT files from Garmin-synced rides and GPX files from other sources.
-                    We handle both formats automatically.
+                    Garmin exports nest activities under <Code>DI_CONNECT/DI-Connect-Fitness/</Code>;
+                    we extract them automatically and dedupe against any activities already synced
+                    via the Garmin webhook.
                   </Text>
                 </Accordion.Panel>
               </Accordion.Item>
@@ -836,6 +953,49 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
               <Alert color="red" icon={<X size={16} />}>
                 {error}
               </Alert>
+            )}
+
+            {/* ZIP source detection banner — surfaces whether we detected a
+                Strava or Garmin export so the user knows the dedupe and
+                tagging mode the import will use. */}
+            {zipSources.length > 0 && !results && (
+              <Stack gap="xs">
+                {zipSources.map(({ zipName, zipSource }) => (
+                  <Alert
+                    key={zipName}
+                    color={zipSource === 'garmin' ? 'blue' : zipSource === 'strava' ? 'orange' : 'yellow'}
+                    variant="light"
+                    icon={zipSource === 'unknown' ? <Warning size={16} /> : <Info size={16} />}
+                    title={
+                      zipSource === 'garmin'
+                        ? `Detected: Garmin export (${zipName})`
+                        : zipSource === 'strava'
+                          ? `Detected: Strava export (${zipName})`
+                          : `Unknown ZIP — attempting generic FIT/GPX extraction (${zipName})`
+                    }
+                  >
+                    {zipSource === 'garmin' && (
+                      <Text size="xs">
+                        Activities will be tagged <Code>provider=garmin</Code> using their Garmin
+                        activity ID. Re-running this import, or connecting Garmin later, won't
+                        produce duplicates.
+                      </Text>
+                    )}
+                    {zipSource === 'strava' && (
+                      <Text size="xs">
+                        Activity names will be pulled from <Code>activities.csv</Code>. Duplicates
+                        of existing rides are detected by date + distance.
+                      </Text>
+                    )}
+                    {zipSource === 'unknown' && (
+                      <Text size="xs">
+                        We couldn't identify the export shape. FIT/GPX files at any path will be
+                        imported as generic uploads.
+                      </Text>
+                    )}
+                  </Alert>
+                ))}
+              </Stack>
             )}
 
             {/* Selected Files Summary */}
