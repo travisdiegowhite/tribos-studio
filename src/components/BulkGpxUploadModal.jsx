@@ -29,7 +29,7 @@ import { formatDistance as formatDistanceUnit, formatElevation as formatElevatio
 import { trackUpload, EventType } from '../utils/activityTracking';
 import JSZip from 'jszip';
 import pako from 'pako';
-import { ArrowSquareOut, Bicycle, CaretRight, Check, Clock, File, FileZip, Files, FolderOpen, Heartbeat, Info, Mountains, Path, UploadSimple, Warning, WarningCircle, X } from '@phosphor-icons/react';
+import { ArrowSquareOut, Bicycle, CaretRight, Check, Clock, File, FileZip, Files, FolderOpen, Heartbeat, Info, Mountains, Path, UploadSimple, Warning, WarningCircle, Watch, X } from '@phosphor-icons/react';
 
 function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
   const { user } = useAuth();
@@ -814,6 +814,37 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete }) {
                   </Text>
                 </Timeline.Item>
               </Timeline>
+            </Paper>
+
+            {/* Garmin export shortcut — same modal handles both archives. */}
+            <Paper withBorder p="md">
+              <Stack gap="xs">
+                <Group gap="xs">
+                  <ThemeIcon color="blue" variant="light" size="md">
+                    <Watch size={16} />
+                  </ThemeIcon>
+                  <Text fw={600}>Have a Garmin account instead?</Text>
+                </Group>
+                <Text size="sm" c="dimmed">
+                  Request your Garmin Connect data export and drop the ZIP into the Upload tab —
+                  we auto-detect Garmin archives and import the full <Code>.fit</Code> files.
+                </Text>
+                <Button
+                  component="a"
+                  href="https://www.garmin.com/en-US/account/datamanagement/exportdata"
+                  target="_blank"
+                  variant="light"
+                  color="blue"
+                  size="xs"
+                  rightSection={<ArrowSquareOut size={14} />}
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  Garmin Data Export Page
+                </Button>
+                <Text size="xs" c="dimmed">
+                  Or go to: Garmin Connect → Account → Account Information → Export Your Data
+                </Text>
+              </Stack>
             </Paper>
 
             <Accordion variant="contained">

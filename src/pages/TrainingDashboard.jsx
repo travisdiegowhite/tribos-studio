@@ -76,7 +76,7 @@ import { PoweredByGarmin } from '../components/GarminBranding';
 import { garminService } from '../utils/garminService.js';
 import PageHeader from '../components/PageHeader.jsx';
 import { useCrossTraining } from '../hooks/useCrossTraining';
-import { Barbell, Bicycle, Calendar, CalendarBlank, CaretDown, CaretRight, ChartBar, ChartLine, ChatCircle, Clock, DownloadSimple, FileArrowDown, FileArrowUp, Fire, Gear, Heart, Heartbeat, Lightning, Medal, Moon, Mountains, Path, PersonSimpleRun, Sparkle, Target, TrendDown, TrendUp, Trophy, UploadSimple, Watch } from '@phosphor-icons/react';
+import { Barbell, Bicycle, Calendar, CalendarBlank, CaretDown, CaretRight, ChartBar, ChartLine, ChatCircle, Clock, DownloadSimple, FileArrowDown, FileArrowUp, FileZip, Fire, Gear, Heart, Heartbeat, Lightning, Medal, Moon, Mountains, Path, PersonSimpleRun, Sparkle, Target, TrendDown, TrendUp, Trophy, UploadSimple, Watch } from '@phosphor-icons/react';
 import PlanProgressBar from '../components/train/PlanProgressBar.jsx';
 import WeekSummaryGrid from '../components/train/WeekSummaryGrid.jsx';
 import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
@@ -932,13 +932,19 @@ function TrainingDashboard() {
                       leftSection={<Heartbeat size={16} />}
                       onClick={() => setGpxUploadOpen(true)}
                     >
-                      Strava Export (GPX)
+                      Strava Export (ZIP)
+                    </Menu.Item>
+                    <Menu.Item
+                      leftSection={<FileZip size={16} />}
+                      onClick={() => setGpxUploadOpen(true)}
+                    >
+                      Garmin Export (ZIP)
                     </Menu.Item>
                     <Menu.Item
                       leftSection={<Watch size={16} />}
                       onClick={() => setFitUploadOpen(true)}
                     >
-                      FIT Files (Garmin/Wahoo)
+                      FIT Files (single)
                     </Menu.Item>
                   </Menu.Dropdown>
                 </Menu>
