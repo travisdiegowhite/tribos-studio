@@ -189,15 +189,34 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
   };
 
   /**
-   * Garmin filenames in DI-Connect-Uploaded-Files commonly use one of:
-   *   - <activityId>.fit
-   *   - <activityId>_ACTIVITY.fit
-   *   - <userId>_<activityId>.fit
-   * Returns the trailing numeric activity ID, or null if no variant matches.
+   * Extract a Garmin activity ID from a FIT filename inside a Garmin export.
+   * Garmin's DI-Connect-Uploaded-Files archive uses many naming conventions
+   * across firmware generations and third-party uploaders. Known patterns:
+   *   - <activityId>.fit                       (modern Connect uploads)
+   *   - <activityId>_ACTIVITY.fit              (older Edge devices)
+   *   - <userId>_<activityId>.fit              (some legacy exports)
+   *   - <timestamp>-<activityId>-<hash>.fit    (third-party uploads)
+   *   - YYYY-MM-DD-HH-MM-SS.fit                (no ID at all)
+   * Strategy: find the longest numeric run of 8+ digits in the basename
+   * (Garmin activity IDs are typically 10–12 digits). If none, return null
+   * and the caller falls back to a generic FIT upload (no ID-based dedupe
+   * against webhook, but the row still imports via the time+distance
+   * heuristic).
    */
   const parseGarminFilename = (baseName) => {
-    const m = baseName.match(/^(?:\d+_)?(\d+)(?:_ACTIVITY)?\.fit(\.gz)?$/i);
-    return m ? m[1] : null;
+    // Strip extension first so .fit/.gz aren't candidates.
+    const stem = baseName.replace(/\.fit(\.gz)?$/i, '');
+    const runs = stem.match(/\d{8,}/g);
+    if (!runs || runs.length === 0) return null;
+    // Return the longest numeric run. Ties → pick the last one
+    // (in <userId>_<activityId> the activity ID is typically the larger
+    // tail value).
+    let best = runs[0];
+    for (const r of runs) {
+      if (r.length > best.length) best = r;
+      else if (r.length === best.length) best = r; // keeps the later occurrence
+    }
+    return best;
   };
 
   /**
@@ -267,26 +286,41 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
           continue;
         }
 
+        // Tally inner-zip contents for debugging — Garmin's archive shape
+        // varies enough that a "0 files queued" outcome is hard to diagnose
+        // without seeing what's actually inside the parts.
+        let innerTotal = 0;
+        let innerFitCount = 0;
+        let innerSamples = [];
+        const queuedBefore = activityEntries.length;
         innerZip.forEach((innerRelPath, innerEntry) => {
           if (innerEntry.dir) return;
+          innerTotal += 1;
+          if (innerSamples.length < 5) innerSamples.push(innerRelPath);
           const fileType = getFileType(innerRelPath);
           if (!fileType || !fileType.startsWith('fit')) return;
+          innerFitCount += 1;
           const baseName = innerRelPath.split('/').pop();
+          // Best-effort activity-ID parse. If it fails we still import the
+          // file — just as a generic fit_upload row instead of a Garmin
+          // ID-keyed row. The time+distance dedupe still protects us.
           const garminActivityId = parseGarminFilename(baseName);
-          if (!garminActivityId) {
-            skipped.push({ file: baseName, reason: "Filename doesn't match a Garmin activity ID pattern" });
-            return;
-          }
           activityEntries.push({
             relativePath: `${innerPath}!${innerRelPath}`,
             zipEntry: innerEntry,
             fileType,
             isBinary: true,
             stravaActivityName: null,
-            zipSource: 'garmin',
+            zipSource: garminActivityId ? 'garmin' : 'garmin_no_id',
             garminActivityId,
           });
         });
+        console.log(
+          `Garmin inner ZIP ${innerPath.split('/').pop()}: ` +
+          `${innerTotal} entries, ${innerFitCount} FIT, ` +
+          `${activityEntries.length - queuedBefore} queued. ` +
+          `Samples: ${JSON.stringify(innerSamples)}`
+        );
       }
 
       for (const { relativePath, zipEntry } of looseFitEntries) {
@@ -294,17 +328,13 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         if (!fileType || !fileType.startsWith('fit')) continue;
         const baseName = relativePath.split('/').pop();
         const garminActivityId = parseGarminFilename(baseName);
-        if (!garminActivityId) {
-          skipped.push({ file: baseName, reason: "Filename doesn't match a Garmin activity ID pattern" });
-          continue;
-        }
         activityEntries.push({
           relativePath,
           zipEntry,
           fileType,
           isBinary: true,
           stravaActivityName: null,
-          zipSource: 'garmin',
+          zipSource: garminActivityId ? 'garmin' : 'garmin_no_id',
           garminActivityId,
         });
       }
