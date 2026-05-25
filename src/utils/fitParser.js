@@ -66,6 +66,51 @@ export function parseFitFile(fitBuffer, isCompressed = false) {
 }
 
 /**
+ * Lightweight peek that parses a FIT file and returns just its declared
+ * file_id.type (e.g. 'activity', 'monitoring_b', 'settings', 'workout',
+ * 'course', 'sport', 'device', …) and the first session sport if present.
+ * Used by the Garmin bulk-import path to skip non-activity FITs locally
+ * before uploading them to /api/fit-upload.js.
+ */
+export function peekFitType(fitBuffer, isCompressed = false) {
+  return new Promise((resolve, reject) => {
+    try {
+      let processedBuffer = fitBuffer;
+      if (isCompressed) {
+        try {
+          processedBuffer = pako.inflate(new Uint8Array(fitBuffer)).buffer;
+        } catch (decompressError) {
+          reject(new Error(`Failed to decompress FIT file: ${decompressError.message}`));
+          return;
+        }
+      }
+
+      const easyFit = new EasyFit({
+        force: true,
+        speedUnit: 'km/h',
+        lengthUnit: 'm',
+        temperatureUnit: 'celsius',
+        elapsedRecordField: true,
+        mode: 'list',
+      });
+
+      easyFit.parse(processedBuffer, (error, data) => {
+        if (error) {
+          reject(new Error(`Failed to parse FIT file: ${error.message}`));
+          return;
+        }
+        resolve({
+          type: data.file_id?.[0]?.type || null,
+          sport: data.sessions?.[0]?.sport || null,
+        });
+      });
+    } catch (error) {
+      reject(new Error(`FIT parser initialization failed: ${error.message}`));
+    }
+  });
+}
+
+/**
  * Extract metadata from FIT file
  */
 function extractMetadata(data) {
