@@ -253,7 +253,18 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
 
     // Collect only activity file entries (filter BEFORE reading content)
     // This skips photos, JSON sidecars, and other non-activity files entirely.
+    // For Garmin: push directly to extractedFiles (read content immediately
+    // while the inner ZIP is in scope) and apply a 5KB size filter to drop
+    // monitoring/wellness/sleep FITs before they reach the server.
+    // For Strava/unknown: queue in activityEntries for the batch loop below.
     const activityEntries = [];
+    const extractedFiles = [];
+
+    // Garmin's UploadedFiles archive includes every FIT the user ever
+    // uploaded — monitoring, wellness, sleep, sport, settings, etc. — not
+    // just activities. Real activity FITs are >=10KB; monitoring FITs are
+    // 1-5KB. 5KB cutoff drops the bulk without false-skipping any short ride.
+    const GARMIN_MIN_FIT_BYTES = 5 * 1024;
 
     if (zipSource === 'garmin') {
       // Garmin export ships FIT files inside DI-Connect-Uploaded-Files/
@@ -286,51 +297,93 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
           continue;
         }
 
-        // Tally inner-zip contents for debugging — Garmin's archive shape
-        // varies enough that a "0 files queued" outcome is hard to diagnose
-        // without seeing what's actually inside the parts.
+        // Sync-collect FIT entries from the inner ZIP (forEach can't await).
+        const innerFitFiles = [];
         let innerTotal = 0;
-        let innerFitCount = 0;
-        let innerSamples = [];
-        const queuedBefore = activityEntries.length;
+        const innerSamples = [];
         innerZip.forEach((innerRelPath, innerEntry) => {
           if (innerEntry.dir) return;
           innerTotal += 1;
           if (innerSamples.length < 5) innerSamples.push(innerRelPath);
           const fileType = getFileType(innerRelPath);
           if (!fileType || !fileType.startsWith('fit')) return;
-          innerFitCount += 1;
+          innerFitFiles.push({ innerRelPath, innerEntry, fileType });
+        });
+
+        // Async loop: read each FIT immediately while innerZip is in scope.
+        // Size-filter inline so monitoring/wellness FITs never hit the network.
+        let keptCount = 0;
+        let sizeSkippedCount = 0;
+        for (const { innerRelPath, innerEntry, fileType } of innerFitFiles) {
           const baseName = innerRelPath.split('/').pop();
+          let content;
+          try {
+            content = await innerEntry.async('arraybuffer');
+          } catch (err) {
+            console.warn(`Failed to read FIT ${innerRelPath} from inner ZIP:`, err);
+            skipped.push({ file: baseName, reason: `Read failed: ${err.message}` });
+            continue;
+          }
+          if (content.byteLength < GARMIN_MIN_FIT_BYTES) {
+            sizeSkippedCount += 1;
+            skipped.push({
+              file: baseName,
+              reason: `Too small to be an activity (${(content.byteLength / 1024).toFixed(1)} KB) — likely monitoring/wellness data`,
+            });
+            continue;
+          }
           // Best-effort activity-ID parse. If it fails we still import the
           // file — just as a generic fit_upload row instead of a Garmin
           // ID-keyed row. The time+distance dedupe still protects us.
           const garminActivityId = parseGarminFilename(baseName);
-          activityEntries.push({
-            relativePath: `${innerPath}!${innerRelPath}`,
-            zipEntry: innerEntry,
+          extractedFiles.push({
+            name: baseName,
+            path: `${innerPath}!${innerRelPath}`,
+            content,
+            size: content.byteLength,
             fileType,
             isBinary: true,
             stravaActivityName: null,
             zipSource: garminActivityId ? 'garmin' : 'garmin_no_id',
             garminActivityId,
           });
-        });
+          keptCount += 1;
+        }
         console.log(
           `Garmin inner ZIP ${innerPath.split('/').pop()}: ` +
-          `${innerTotal} entries, ${innerFitCount} FIT, ` +
-          `${activityEntries.length - queuedBefore} queued. ` +
+          `${innerTotal} entries, ${innerFitFiles.length} FIT, ` +
+          `${keptCount} kept, ${sizeSkippedCount} size-skipped. ` +
           `Samples: ${JSON.stringify(innerSamples)}`
         );
       }
 
+      // Loose FIT files from older Garmin exports — read immediately too,
+      // for the same size-filter benefit and a uniform code path.
       for (const { relativePath, zipEntry } of looseFitEntries) {
         const fileType = getFileType(relativePath);
         if (!fileType || !fileType.startsWith('fit')) continue;
         const baseName = relativePath.split('/').pop();
+        let content;
+        try {
+          content = await zipEntry.async('arraybuffer');
+        } catch (err) {
+          console.warn(`Failed to read loose FIT ${relativePath}:`, err);
+          skipped.push({ file: baseName, reason: `Read failed: ${err.message}` });
+          continue;
+        }
+        if (content.byteLength < GARMIN_MIN_FIT_BYTES) {
+          skipped.push({
+            file: baseName,
+            reason: `Too small to be an activity (${(content.byteLength / 1024).toFixed(1)} KB) — likely monitoring/wellness data`,
+          });
+          continue;
+        }
         const garminActivityId = parseGarminFilename(baseName);
-        activityEntries.push({
-          relativePath,
-          zipEntry,
+        extractedFiles.push({
+          name: baseName,
+          path: relativePath,
+          content,
+          size: content.byteLength,
           fileType,
           isBinary: true,
           stravaActivityName: null,
@@ -367,11 +420,16 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
       });
     }
 
-    console.log(`Found ${activityEntries.length} activity files to extract (zipSource=${zipSource}, skipped=${skipped.length} non-activity entries)`);
+    console.log(
+      `extractFilesFromZip(${zipSource}): ` +
+      `${activityEntries.length} entries queued for batch extraction, ` +
+      `${extractedFiles.length} already extracted (Garmin immediate), ` +
+      `${skipped.length} skipped`
+    );
 
-    // Extract files in batches to prevent memory issues and reference staleness
+    // Extract Strava/unknown entries in batches. Garmin entries are already in
+    // extractedFiles (read immediately during the Garmin branch above).
     const BATCH_SIZE = 20;
-    const extractedFiles = [];
 
     for (let i = 0; i < activityEntries.length; i += BATCH_SIZE) {
       const batch = activityEntries.slice(i, i + BATCH_SIZE);
@@ -626,6 +684,15 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         // could enrich.
         if (actFile.fileType === 'fit' || actFile.fileType === 'fit.gz') {
           const payload = await uploadFitToServer(actFile, accessToken);
+          // Server classifies non-activity FITs (monitoring, wellness, settings,
+          // etc.) as action: 'skipped' so they don't pollute the Failed bucket.
+          if (payload.action === 'skipped') {
+            uploadResults.skipped.push({
+              file: actFile.name,
+              reason: payload.message || 'Not an activity file',
+            });
+            continue;
+          }
           const bucket = payload.action === 'updated' ? uploadResults.updated : uploadResults.success;
           bucket.push({ file: actFile.name, activity: payload.activity });
           continue;
