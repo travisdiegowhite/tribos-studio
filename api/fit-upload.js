@@ -257,9 +257,16 @@ export default async function handler(req, res) {
 
   const summary = result.summary;
   if (!summary || !summary.startTime) {
-    return res.status(400).json({
-      error: 'invalid_fit',
-      message: 'FIT file has no session or start time — cannot import.',
+    // Garmin's "Export Your Data" UploadedFiles archive contains every FIT
+    // the user has ever uploaded — monitoring, wellness, sleep, sport, settings,
+    // etc. — not just activities. Those parse cleanly but have no session
+    // message, so they're "not an activity" rather than an error. Return 200
+    // with action: 'skipped' so the client tallies them in the Skipped bucket.
+    return res.status(200).json({
+      success: true,
+      action: 'skipped',
+      reason: 'not_activity_file',
+      message: 'FIT file is not an activity (likely monitoring, wellness, or settings data).',
     });
   }
 
