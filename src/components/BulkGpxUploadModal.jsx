@@ -23,7 +23,7 @@ import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { parseGpxFile, gpxToActivityFormat } from '../utils/gpxParser';
-import { parseFitFile } from '../utils/fitParser';
+import { parseFitFile, peekFitType } from '../utils/fitParser';
 import { arrayBufferToBase64 } from '../utils/base64';
 import { formatDistance as formatDistanceUnit, formatElevation as formatElevationUnit } from '../utils/units';
 import { trackUpload, EventType } from '../utils/activityTracking';
@@ -314,8 +314,13 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         // Size-filter inline so monitoring/wellness FITs never hit the network.
         let keptCount = 0;
         let sizeSkippedCount = 0;
-        for (const { innerRelPath, innerEntry, fileType } of innerFitFiles) {
+        let peekSkippedCount = 0;
+        for (let fitIdx = 0; fitIdx < innerFitFiles.length; fitIdx++) {
+          const { innerRelPath, innerEntry, fileType } = innerFitFiles[fitIdx];
           const baseName = innerRelPath.split('/').pop();
+          if (onProgress && fitIdx > 0 && fitIdx % 100 === 0) {
+            onProgress(0, 0, `Inspecting Garmin export FIT ${fitIdx}/${innerFitFiles.length}…`);
+          }
           let content;
           try {
             content = await innerEntry.async('arraybuffer');
@@ -331,6 +336,23 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
               reason: `Too small to be an activity (${(content.byteLength / 1024).toFixed(1)} KB) — likely monitoring/wellness data`,
             });
             continue;
+          }
+          // Local file_id.type peek — drop non-activity FITs (workout,
+          // course, sport, settings, device, monitoring_b, …) before
+          // they ever leave the browser. On parse failure, let the file
+          // through; the server still has the action: 'skipped' backstop.
+          try {
+            const peek = await peekFitType(content, fileType === 'fit.gz');
+            if (peek.type && peek.type !== 'activity') {
+              peekSkippedCount += 1;
+              skipped.push({
+                file: baseName,
+                reason: `Not an activity FIT (file_id.type=${peek.type})`,
+              });
+              continue;
+            }
+          } catch (err) {
+            console.warn(`peekFitType failed for ${innerRelPath}, deferring to server:`, err);
           }
           // Best-effort activity-ID parse. If it fails we still import the
           // file — just as a generic fit_upload row instead of a Garmin
@@ -352,7 +374,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         console.log(
           `Garmin inner ZIP ${innerPath.split('/').pop()}: ` +
           `${innerTotal} entries, ${innerFitFiles.length} FIT, ` +
-          `${keptCount} kept, ${sizeSkippedCount} size-skipped. ` +
+          `${keptCount} kept, ${sizeSkippedCount} size-skipped, ` +
+          `${peekSkippedCount} peek-skipped. ` +
           `Samples: ${JSON.stringify(innerSamples)}`
         );
       }
@@ -377,6 +400,18 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
             reason: `Too small to be an activity (${(content.byteLength / 1024).toFixed(1)} KB) — likely monitoring/wellness data`,
           });
           continue;
+        }
+        try {
+          const peek = await peekFitType(content, fileType === 'fit.gz');
+          if (peek.type && peek.type !== 'activity') {
+            skipped.push({
+              file: baseName,
+              reason: `Not an activity FIT (file_id.type=${peek.type})`,
+            });
+            continue;
+          }
+        } catch (err) {
+          console.warn(`peekFitType failed for ${relativePath}, deferring to server:`, err);
         }
         const garminActivityId = parseGarminFilename(baseName);
         extractedFiles.push({
