@@ -156,6 +156,27 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
   };
 
   /**
+   * Walk an arbitrary parsed-JSON value and collect any numeric `activityId`
+   * fields into the given Set. Handles Garmin's two known manifest shapes:
+   * wrapped (`[{ summarizedActivitiesExport: [{ activityId, … }] }]`) and
+   * flat (`[{ activityId, … }]`), plus any unknown nesting.
+   */
+  const collectActivityIdsFromJson = (parsed, acc) => {
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) collectActivityIdsFromJson(item, acc);
+    } else if (parsed && typeof parsed === 'object') {
+      if (parsed.activityId != null) {
+        acc.add(String(parsed.activityId));
+      }
+      for (const v of Object.values(parsed)) {
+        if (Array.isArray(v) || (v && typeof v === 'object')) {
+          collectActivityIdsFromJson(v, acc);
+        }
+      }
+    }
+  };
+
+  /**
    * Detect whether the ZIP is a Strava export, a Garmin Connect "Export Your
    * Data" archive, or something we can't identify.
    *
@@ -272,33 +293,62 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
       // Handle both shapes. We open inner ZIPs sequentially to bound peak
       // memory (each inner part can be ~40MB).
 
-      // Step 0: Look for summarizedActivities.csv in the outer ZIP.
-      // Garmin includes this manifest in every export — it lists every real
-      // training activity with its numeric Activity ID, which matches the ID
-      // embedded in each FIT filename (<email>_<activityId>.fit). Building a
-      // Set from it lets us drop all non-activity FITs in a fast in-memory
-      // lookup without parsing any FIT binary locally.
-      let garminActivityIds = null; // null = no manifest found
-      let manifestZipEntry = null;
+      // Step 0: Find the activity manifest in the outer ZIP.
+      // Garmin ships every export with a list of real training activities
+      // (their numeric activityId values match the ID embedded in each FIT
+      // filename: <email>_<activityId>.fit). The format is JSON in modern
+      // exports — typically DI_CONNECT/DI-Connect-Fitness/<userNum>_<N>_summarizedActivities.json
+      // either as a flat array of activity objects or wrapped in an outer
+      // [{ summarizedActivitiesExport: [...] }]. We also accept the legacy
+      // summarizedActivities.csv variant. Building a Set from it lets us
+      // drop all non-activity FITs in a fast in-memory lookup without
+      // parsing any FIT binary locally.
+      const manifestJsonEntries = [];
+      let manifestCsvEntry = null;
+      const outerSamples = [];
       zip.forEach((relativePath, zipEntry) => {
-        if (!zipEntry.dir && /summarizedActivities\.csv$/i.test(relativePath)) {
-          manifestZipEntry = zipEntry;
+        if (outerSamples.length < 30) outerSamples.push(relativePath);
+        if (zipEntry.dir) return;
+        if (/summarizedActivities.*\.json$/i.test(relativePath)) {
+          manifestJsonEntries.push({ relativePath, zipEntry });
+        } else if (/summarizedActivities\.csv$/i.test(relativePath)) {
+          manifestCsvEntry = zipEntry;
         }
       });
-      if (manifestZipEntry) {
+      console.log(`Garmin outer ZIP sample paths (first 30): ${JSON.stringify(outerSamples)}`);
+      console.log(`Garmin manifest scan: ${manifestJsonEntries.length} JSON, ${manifestCsvEntry ? 1 : 0} CSV`);
+
+      let garminActivityIds = null; // null = no manifest found
+      if (manifestJsonEntries.length > 0) {
+        const ids = new Set();
+        for (const { relativePath, zipEntry } of manifestJsonEntries) {
+          try {
+            const text = await zipEntry.async('string');
+            const parsed = JSON.parse(text);
+            const before = ids.size;
+            collectActivityIdsFromJson(parsed, ids);
+            console.log(`Garmin manifest ${relativePath}: +${ids.size - before} activity IDs (running total ${ids.size})`);
+          } catch (err) {
+            console.warn(`Failed to parse Garmin manifest ${relativePath}:`, err);
+          }
+        }
+        if (ids.size > 0) garminActivityIds = ids;
+      }
+      if (garminActivityIds === null && manifestCsvEntry) {
         try {
-          const csvText = await manifestZipEntry.async('string');
-          const activityNameMap = parseActivitiesCsv(csvText);
-          garminActivityIds = new Set(Object.keys(activityNameMap));
-          console.log(`Garmin manifest: ${garminActivityIds.size} activities found in summarizedActivities.csv`);
-          if (onProgress) {
-            onProgress(0, 0, `Manifest loaded — ${garminActivityIds.size} activities to import…`);
+          const csvText = await manifestCsvEntry.async('string');
+          const map = parseActivitiesCsv(csvText);
+          if (Object.keys(map).length > 0) {
+            garminActivityIds = new Set(Object.keys(map));
+            console.log(`Garmin legacy CSV manifest: ${garminActivityIds.size} activity IDs`);
           }
         } catch (err) {
-          console.warn('Failed to parse Garmin summarizedActivities.csv — falling back to size+type filters:', err);
+          console.warn('Failed to parse legacy Garmin summarizedActivities.csv:', err);
         }
-      } else {
-        console.log('No summarizedActivities.csv found — keeping all ≥5KB FIT files');
+      }
+      console.log(`Garmin manifest result: ${garminActivityIds ? garminActivityIds.size + ' activity IDs' : 'NONE FOUND — fallback to size+peek filters'}`);
+      if (garminActivityIds !== null && onProgress) {
+        onProgress(0, 0, `Manifest loaded — ${garminActivityIds.size} activities to import…`);
       }
 
       const innerZipEntries = [];
@@ -358,7 +408,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
             const actId = parseGarminFilename(baseName);
             if (!actId || !garminActivityIds.has(actId)) {
               manifestSkippedCount += 1;
-              skipped.push({ file: baseName, reason: 'Not in Garmin activity manifest (summarizedActivities.csv)' });
+              skipped.push({ file: baseName, reason: 'Not in Garmin activity manifest (summarizedActivities.json)' });
               continue;
             }
           }
@@ -430,7 +480,7 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         if (garminActivityIds !== null) {
           const actId = parseGarminFilename(baseName);
           if (!actId || !garminActivityIds.has(actId)) {
-            skipped.push({ file: baseName, reason: 'Not in Garmin activity manifest (summarizedActivities.csv)' });
+            skipped.push({ file: baseName, reason: 'Not in Garmin activity manifest (summarizedActivities.json)' });
             continue;
           }
         }
@@ -476,6 +526,20 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
           zipSource: garminActivityId ? 'garmin' : 'garmin_no_id',
           garminActivityId,
         });
+      }
+
+      // Defensive guard: if we couldn't find a manifest AND we'd be about to
+      // upload thousands of files, refuse rather than silently flooding the
+      // server. The outer-ZIP sample log above tells the user (and us) what
+      // files are actually in the export so the regex can be fixed.
+      if (garminActivityIds === null && extractedFiles.length > 2000) {
+        throw new Error(
+          `Found ${extractedFiles.length} candidate FIT files but no Garmin ` +
+          `activity manifest (summarizedActivities.json / .csv) in the export. ` +
+          `Aborting to avoid uploading thousands of non-activity files. ` +
+          `Check the browser console for the outer-ZIP path sample so the ` +
+          `manifest pattern can be updated.`
+        );
       }
     } else {
       // Strava / unknown — flat walk; accept FIT and GPX at any path.
