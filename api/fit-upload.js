@@ -298,6 +298,28 @@ export default async function handler(req, res) {
   const normalizedPower = sanitize(pm.normalizedPower ?? summary.normalizedPower, MAX_POWER_W, null);
   const workKj = pm.workKj ?? (avgPower && movingTime ? Math.round((avgPower * movingTime) / 1000) : null);
 
+  // intensity_factor / ride_intensity are NUMERIC(4,3) — max 9.999. The FIT
+  // spec stores IF as uint16 scaled ×1000, so a real IF of 1.05 is 1050 on
+  // disk. easy-fit usually applies the scale, but some FIT files / firmware
+  // versions skip it and we get the raw integer. Anything > 5 is implausible
+  // for a real session, so divide by 1000 once and clamp.
+  const sanitizeIntensity = (val) => {
+    if (val == null || isNaN(val) || val < 0) return null;
+    let v = val > 5 ? val / 1000 : val;
+    if (v < 0 || v >= 10) return null;
+    return v;
+  };
+  // tss / rss are NUMERIC(6,2) — max 9999.99. TSS values that high are
+  // implausible (a 24h race might hit ~1500) so clamp at 9999 and null out
+  // anything beyond.
+  const sanitizeTss = (val) => {
+    if (val == null || isNaN(val) || val < 0 || val >= 10000) return null;
+    return val;
+  };
+
+  const intensityValue = sanitizeIntensity(pm.intensityFactor ?? summary.intensityFactor);
+  const tssValue = sanitizeTss(pm.trainingStressScore ?? summary.trainingStressScore);
+
   const providerActivityId = provider === 'garmin'
     ? garminActivityId
     : `fit_${new Date(summary.startTime).getTime()}_${Math.random().toString(36).slice(2, 11)}`;
@@ -332,10 +354,10 @@ export default async function handler(req, res) {
     // B9 dual-write: normalized_power→effective_power, tss→rss, intensity_factor→ride_intensity.
     normalized_power: normalizedPower,
     effective_power: normalizedPower,
-    tss: pm.trainingStressScore ?? summary.trainingStressScore ?? null,
-    rss: pm.trainingStressScore ?? summary.trainingStressScore ?? null,
-    intensity_factor: pm.intensityFactor ?? summary.intensityFactor ?? null,
-    ride_intensity: pm.intensityFactor ?? summary.intensityFactor ?? null,
+    tss: tssValue,
+    rss: tssValue,
+    intensity_factor: intensityValue,
+    ride_intensity: intensityValue,
     power_curve_summary: pm.powerCurveSummary ?? null,
     kilojoules: workKj,
     average_heartrate: avgHR,
@@ -418,7 +440,15 @@ export default async function handler(req, res) {
         .single();
 
       if (updateError) {
-        console.error('fit-upload: update failed', updateError);
+        console.error('fit-upload: update failed', updateError, {
+          numericFields: {
+            distance, movingTime, elapsedTime, elevGain,
+            avgSpeed, maxSpeed: maxSpeedVal, avgHR, maxHR,
+            avgPower, maxPower, normalizedPower,
+            tss: tssValue, intensity: intensityValue, workKj,
+          },
+          fileName,
+        });
         return res.status(500).json({ error: 'update_failed', message: updateError.message });
       }
 
@@ -432,7 +462,15 @@ export default async function handler(req, res) {
       .single();
 
     if (insertError) {
-      console.error('fit-upload: insert failed', insertError);
+      console.error('fit-upload: insert failed', insertError, {
+        numericFields: {
+          distance, movingTime, elapsedTime, elevGain,
+          avgSpeed, maxSpeed: maxSpeedVal, avgHR, maxHR,
+          avgPower, maxPower, normalizedPower,
+          tss: tssValue, intensity: intensityValue, workKj,
+        },
+        fileName,
+      });
       return res.status(500).json({ error: 'insert_failed', message: insertError.message });
     }
 
