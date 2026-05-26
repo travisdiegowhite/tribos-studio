@@ -271,6 +271,36 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
       // UploadedFiles_*.zip (multi-part) OR loose under DI-Connect-Fitness/.
       // Handle both shapes. We open inner ZIPs sequentially to bound peak
       // memory (each inner part can be ~40MB).
+
+      // Step 0: Look for summarizedActivities.csv in the outer ZIP.
+      // Garmin includes this manifest in every export — it lists every real
+      // training activity with its numeric Activity ID, which matches the ID
+      // embedded in each FIT filename (<email>_<activityId>.fit). Building a
+      // Set from it lets us drop all non-activity FITs in a fast in-memory
+      // lookup without parsing any FIT binary locally.
+      let garminActivityIds = null; // null = no manifest found
+      let manifestZipEntry = null;
+      zip.forEach((relativePath, zipEntry) => {
+        if (!zipEntry.dir && /summarizedActivities\.csv$/i.test(relativePath)) {
+          manifestZipEntry = zipEntry;
+        }
+      });
+      if (manifestZipEntry) {
+        try {
+          const csvText = await manifestZipEntry.async('string');
+          const activityNameMap = parseActivitiesCsv(csvText);
+          garminActivityIds = new Set(Object.keys(activityNameMap));
+          console.log(`Garmin manifest: ${garminActivityIds.size} activities found in summarizedActivities.csv`);
+          if (onProgress) {
+            onProgress(0, 0, `Manifest loaded — ${garminActivityIds.size} activities to import…`);
+          }
+        } catch (err) {
+          console.warn('Failed to parse Garmin summarizedActivities.csv — falling back to size+type filters:', err);
+        }
+      } else {
+        console.log('No summarizedActivities.csv found — keeping all ≥5KB FIT files');
+      }
+
       const innerZipEntries = [];
       const looseFitEntries = [];
       zip.forEach((relativePath, zipEntry) => {
@@ -285,7 +315,10 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
       for (let i = 0; i < innerZipEntries.length; i++) {
         const { relativePath: innerPath, zipEntry: innerZipEntry } = innerZipEntries[i];
         if (onProgress) {
-          onProgress(0, 0, `Opening ${innerPath.split('/').pop()} (${i + 1}/${innerZipEntries.length})…`);
+          const label = garminActivityIds !== null
+            ? `Filtering with manifest: ${innerPath.split('/').pop()} (${i + 1}/${innerZipEntries.length})…`
+            : `Opening ${innerPath.split('/').pop()} (${i + 1}/${innerZipEntries.length})…`;
+          onProgress(0, 0, label);
         }
         let innerZip;
         try {
@@ -311,15 +344,27 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         });
 
         // Async loop: read each FIT immediately while innerZip is in scope.
-        // Size-filter inline so monitoring/wellness FITs never hit the network.
         let keptCount = 0;
         let sizeSkippedCount = 0;
+        let manifestSkippedCount = 0;
         let peekSkippedCount = 0;
         for (let fitIdx = 0; fitIdx < innerFitFiles.length; fitIdx++) {
           const { innerRelPath, innerEntry, fileType } = innerFitFiles[fitIdx];
           const baseName = innerRelPath.split('/').pop();
+
+          // Manifest fast-path: check activity ID against the manifest Set
+          // before reading any bytes. This is a pure string lookup — O(1).
+          if (garminActivityIds !== null) {
+            const actId = parseGarminFilename(baseName);
+            if (!actId || !garminActivityIds.has(actId)) {
+              manifestSkippedCount += 1;
+              skipped.push({ file: baseName, reason: 'Not in Garmin activity manifest (summarizedActivities.csv)' });
+              continue;
+            }
+          }
+
           if (onProgress && fitIdx > 0 && fitIdx % 100 === 0) {
-            onProgress(0, 0, `Inspecting Garmin export FIT ${fitIdx}/${innerFitFiles.length}…`);
+            onProgress(0, 0, `Reading activity FITs from ${innerPath.split('/').pop()} (${fitIdx}/${innerFitFiles.length})…`);
           }
           let content;
           try {
@@ -337,26 +382,22 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
             });
             continue;
           }
-          // Local file_id.type peek — drop non-activity FITs (workout,
-          // course, sport, settings, device, monitoring_b, …) before
-          // they ever leave the browser. On parse failure, let the file
-          // through; the server still has the action: 'skipped' backstop.
-          try {
-            const peek = await peekFitType(content, fileType === 'fit.gz');
-            if (peek.type && peek.type !== 'activity') {
-              peekSkippedCount += 1;
-              skipped.push({
-                file: baseName,
-                reason: `Not an activity FIT (file_id.type=${peek.type})`,
-              });
-              continue;
+          // No manifest: use file_id.type peek as fallback filter.
+          if (garminActivityIds === null) {
+            try {
+              const peek = await peekFitType(content, fileType === 'fit.gz');
+              if (peek.type && peek.type !== 'activity') {
+                peekSkippedCount += 1;
+                skipped.push({
+                  file: baseName,
+                  reason: `Not an activity FIT (file_id.type=${peek.type})`,
+                });
+                continue;
+              }
+            } catch (err) {
+              console.warn(`peekFitType failed for ${innerRelPath}, deferring to server:`, err);
             }
-          } catch (err) {
-            console.warn(`peekFitType failed for ${innerRelPath}, deferring to server:`, err);
           }
-          // Best-effort activity-ID parse. If it fails we still import the
-          // file — just as a generic fit_upload row instead of a Garmin
-          // ID-keyed row. The time+distance dedupe still protects us.
           const garminActivityId = parseGarminFilename(baseName);
           extractedFiles.push({
             name: baseName,
@@ -374,18 +415,26 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         console.log(
           `Garmin inner ZIP ${innerPath.split('/').pop()}: ` +
           `${innerTotal} entries, ${innerFitFiles.length} FIT, ` +
-          `${keptCount} kept, ${sizeSkippedCount} size-skipped, ` +
-          `${peekSkippedCount} peek-skipped. ` +
+          `${keptCount} kept, ${manifestSkippedCount} manifest-skipped, ` +
+          `${sizeSkippedCount} size-skipped, ${peekSkippedCount} peek-skipped. ` +
           `Samples: ${JSON.stringify(innerSamples)}`
         );
       }
 
-      // Loose FIT files from older Garmin exports — read immediately too,
-      // for the same size-filter benefit and a uniform code path.
+      // Loose FIT files from older Garmin exports — same manifest+size filter.
       for (const { relativePath, zipEntry } of looseFitEntries) {
         const fileType = getFileType(relativePath);
         if (!fileType || !fileType.startsWith('fit')) continue;
         const baseName = relativePath.split('/').pop();
+
+        if (garminActivityIds !== null) {
+          const actId = parseGarminFilename(baseName);
+          if (!actId || !garminActivityIds.has(actId)) {
+            skipped.push({ file: baseName, reason: 'Not in Garmin activity manifest (summarizedActivities.csv)' });
+            continue;
+          }
+        }
+
         let content;
         try {
           content = await zipEntry.async('arraybuffer');
@@ -401,17 +450,19 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
           });
           continue;
         }
-        try {
-          const peek = await peekFitType(content, fileType === 'fit.gz');
-          if (peek.type && peek.type !== 'activity') {
-            skipped.push({
-              file: baseName,
-              reason: `Not an activity FIT (file_id.type=${peek.type})`,
-            });
-            continue;
+        if (garminActivityIds === null) {
+          try {
+            const peek = await peekFitType(content, fileType === 'fit.gz');
+            if (peek.type && peek.type !== 'activity') {
+              skipped.push({
+                file: baseName,
+                reason: `Not an activity FIT (file_id.type=${peek.type})`,
+              });
+              continue;
+            }
+          } catch (err) {
+            console.warn(`peekFitType failed for ${relativePath}, deferring to server:`, err);
           }
-        } catch (err) {
-          console.warn(`peekFitType failed for ${relativePath}, deferring to server:`, err);
         }
         const garminActivityId = parseGarminFilename(baseName);
         extractedFiles.push({
