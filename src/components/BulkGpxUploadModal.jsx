@@ -84,6 +84,11 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
     return null;
   };
 
+  // Yield to the browser so any pending React render (e.g. the progress
+  // label updated via onProgress) can paint before the next blocking
+  // operation (zipEntry.async or JSON.parse on multi-MB strings).
+  const yieldToUi = () => new Promise((resolve) => setTimeout(resolve, 0));
+
   /**
    * Parse activities.csv from Strava export to get activity names
    * @param {string} csvContent - The CSV file content
@@ -303,10 +308,15 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
       // summarizedActivities.csv variant. Building a Set from it lets us
       // drop all non-activity FITs in a fast in-memory lookup without
       // parsing any FIT binary locally.
+      if (onProgress) onProgress(0, 0, 'Scanning Garmin export…');
+      await yieldToUi();
+
       const manifestJsonEntries = [];
       let manifestCsvEntry = null;
       const outerSamples = [];
+      let outerEntryCount = 0;
       zip.forEach((relativePath, zipEntry) => {
+        outerEntryCount += 1;
         if (outerSamples.length < 30) outerSamples.push(relativePath);
         if (zipEntry.dir) return;
         if (/summarizedActivities.*\.json$/i.test(relativePath)) {
@@ -315,19 +325,30 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
           manifestCsvEntry = zipEntry;
         }
       });
-      console.log(`Garmin outer ZIP sample paths (first 30): ${JSON.stringify(outerSamples)}`);
+      console.log(`Garmin outer ZIP: ${outerEntryCount} entries. Sample paths (first 30): ${JSON.stringify(outerSamples)}`);
       console.log(`Garmin manifest scan: ${manifestJsonEntries.length} JSON, ${manifestCsvEntry ? 1 : 0} CSV`);
 
       let garminActivityIds = null; // null = no manifest found
       if (manifestJsonEntries.length > 0) {
+        if (onProgress) {
+          onProgress(0, 0, `Found ${manifestJsonEntries.length} manifest file(s) — reading…`);
+        }
+        await yieldToUi();
+
         const ids = new Set();
-        for (const { relativePath, zipEntry } of manifestJsonEntries) {
+        for (let mi = 0; mi < manifestJsonEntries.length; mi++) {
+          const { relativePath, zipEntry } = manifestJsonEntries[mi];
           try {
+            if (onProgress) onProgress(0, 0, `Reading manifest ${mi + 1}/${manifestJsonEntries.length}…`);
+            await yieldToUi();
             const text = await zipEntry.async('string');
+            const sizeMb = (text.length / (1024 * 1024)).toFixed(1);
+            if (onProgress) onProgress(0, 0, `Parsing manifest ${mi + 1}/${manifestJsonEntries.length} (${sizeMb} MB)…`);
+            await yieldToUi();
             const parsed = JSON.parse(text);
             const before = ids.size;
             collectActivityIdsFromJson(parsed, ids);
-            console.log(`Garmin manifest ${relativePath}: +${ids.size - before} activity IDs (running total ${ids.size})`);
+            console.log(`Garmin manifest ${relativePath} (${sizeMb} MB): +${ids.size - before} activity IDs (running total ${ids.size})`);
           } catch (err) {
             console.warn(`Failed to parse Garmin manifest ${relativePath}:`, err);
           }
@@ -335,6 +356,8 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         if (ids.size > 0) garminActivityIds = ids;
       }
       if (garminActivityIds === null && manifestCsvEntry) {
+        if (onProgress) onProgress(0, 0, 'Reading legacy CSV manifest…');
+        await yieldToUi();
         try {
           const csvText = await manifestCsvEntry.async('string');
           const map = parseActivitiesCsv(csvText);
@@ -347,9 +370,20 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         }
       }
       console.log(`Garmin manifest result: ${garminActivityIds ? garminActivityIds.size + ' activity IDs' : 'NONE FOUND — fallback to size+peek filters'}`);
-      if (garminActivityIds !== null && onProgress) {
-        onProgress(0, 0, `Manifest loaded — ${garminActivityIds.size} activities to import…`);
+      if (onProgress) {
+        if (garminActivityIds !== null) {
+          onProgress(0, 0, `Manifest loaded — ${garminActivityIds.size} activities to import…`);
+        } else {
+          // Hint: Garmin sometimes splits exports into multiple parts.
+          const looksMultiPart = /_\d+\.zip$/i.test(zipFile?.name || '');
+          if (looksMultiPart) {
+            onProgress(0, 0, 'No manifest in this ZIP — Garmin may have split your export into multiple parts. Check for other <UUID>_N.zip files.');
+          } else {
+            onProgress(0, 0, 'No manifest found — falling back to size + type filters…');
+          }
+        }
       }
+      await yieldToUi();
 
       const innerZipEntries = [];
       const looseFitEntries = [];
@@ -533,12 +567,14 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
       // server. The outer-ZIP sample log above tells the user (and us) what
       // files are actually in the export so the regex can be fixed.
       if (garminActivityIds === null && extractedFiles.length > 2000) {
+        const samplePaths = outerSamples.slice(0, 10).join('  •  ');
         throw new Error(
           `Found ${extractedFiles.length} candidate FIT files but no Garmin ` +
           `activity manifest (summarizedActivities.json / .csv) in the export. ` +
           `Aborting to avoid uploading thousands of non-activity files. ` +
-          `Check the browser console for the outer-ZIP path sample so the ` +
-          `manifest pattern can be updated.`
+          `First paths in the ZIP: ${samplePaths}. ` +
+          `Share these so the manifest regex can be updated, or check whether ` +
+          `Garmin split your export into multiple parts (additional <UUID>_N.zip files).`
         );
       }
     } else {
