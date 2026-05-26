@@ -161,17 +161,27 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
   };
 
   /**
-   * Walk an arbitrary parsed-JSON value and collect any numeric `activityId`
-   * fields into the given Set. Handles Garmin's two known manifest shapes:
-   * wrapped (`[{ summarizedActivitiesExport: [{ activityId, … }] }]`) and
-   * flat (`[{ activityId, … }]`), plus any unknown nesting.
+   * Walk an arbitrary parsed-JSON value and collect any ID fields that
+   * could match the numeric ID in a Garmin FIT filename. Garmin's data
+   * model uses several:
+   *   - activityId       — the Connect activity entity
+   *   - uploadId/fileId  — the uploaded source file (what FIT filenames use)
+   *   - summaryId        — webhook/summary correlation
+   *   - originalFileId   — pre-conversion file ID for some upload paths
+   * The FIT filenames inside DI-Connect-Uploaded-Files are named by the
+   * upload-side ID, so we have to grab all of them and union into one Set
+   * for filename matching.
    */
+  const GARMIN_ID_FIELDS = ['activityId', 'uploadId', 'fileId', 'summaryId', 'originalFileId'];
   const collectActivityIdsFromJson = (parsed, acc) => {
     if (Array.isArray(parsed)) {
       for (const item of parsed) collectActivityIdsFromJson(item, acc);
     } else if (parsed && typeof parsed === 'object') {
-      if (parsed.activityId != null) {
-        acc.add(String(parsed.activityId));
+      for (const field of GARMIN_ID_FIELDS) {
+        const v = parsed[field];
+        if (v != null && (typeof v === 'number' || typeof v === 'string')) {
+          acc.add(String(v));
+        }
       }
       for (const v of Object.values(parsed)) {
         if (Array.isArray(v) || (v && typeof v === 'object')) {
@@ -179,6 +189,31 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         }
       }
     }
+  };
+
+  /**
+   * Diagnostic: find the first object in a parsed manifest that carries
+   * any known Garmin ID field, so we can log its keys and see what other
+   * ID fields exist (in case Garmin uses a name we don't know about yet).
+   */
+  const findFirstObjectWithIdField = (parsed) => {
+    if (Array.isArray(parsed)) {
+      for (const item of parsed) {
+        const found = findFirstObjectWithIdField(item);
+        if (found) return found;
+      }
+    } else if (parsed && typeof parsed === 'object') {
+      for (const field of GARMIN_ID_FIELDS) {
+        if (parsed[field] != null) return parsed;
+      }
+      for (const v of Object.values(parsed)) {
+        if (Array.isArray(v) || (v && typeof v === 'object')) {
+          const found = findFirstObjectWithIdField(v);
+          if (found) return found;
+        }
+      }
+    }
+    return null;
   };
 
   /**
@@ -349,6 +384,12 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
             const before = ids.size;
             collectActivityIdsFromJson(parsed, ids);
             console.log(`Garmin manifest ${relativePath} (${sizeMb} MB): +${ids.size - before} activity IDs (running total ${ids.size})`);
+            // Diagnostic: dump the keys of the first activity-shaped object so
+            // we can spot any unknown ID field if matching still fails.
+            const firstObj = findFirstObjectWithIdField(parsed);
+            if (firstObj) {
+              console.log(`Garmin manifest ${relativePath} first-entry keys: ${JSON.stringify(Object.keys(firstObj))}`);
+            }
           } catch (err) {
             console.warn(`Failed to parse Garmin manifest ${relativePath}:`, err);
           }
@@ -370,6 +411,10 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         }
       }
       console.log(`Garmin manifest result: ${garminActivityIds ? garminActivityIds.size + ' activity IDs' : 'NONE FOUND — fallback to size+peek filters'}`);
+      if (garminActivityIds && garminActivityIds.size > 0) {
+        const sampleIds = Array.from(garminActivityIds).slice(0, 5);
+        console.log(`Garmin manifest sample IDs (first 5): ${JSON.stringify(sampleIds)}`);
+      }
       if (onProgress) {
         if (garminActivityIds !== null) {
           onProgress(0, 0, `Manifest loaded — ${garminActivityIds.size} activities to import…`);
@@ -426,6 +471,15 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
           if (!fileType || !fileType.startsWith('fit')) return;
           innerFitFiles.push({ innerRelPath, innerEntry, fileType });
         });
+
+        // Diagnostic: log the first 5 parsed filename IDs so we can confirm
+        // they overlap with the manifest sample IDs logged earlier.
+        if (innerFitFiles.length > 0) {
+          const filenameIdSamples = innerFitFiles.slice(0, 5).map((f) =>
+            parseGarminFilename(f.innerRelPath.split('/').pop())
+          );
+          console.log(`Inner ZIP ${innerPath.split('/').pop()} filename IDs (first 5): ${JSON.stringify(filenameIdSamples)}`);
+        }
 
         // Async loop: read each FIT immediately while innerZip is in scope.
         let keptCount = 0;
