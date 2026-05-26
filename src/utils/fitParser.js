@@ -66,6 +66,151 @@ export function parseFitFile(fitBuffer, isCompressed = false) {
 }
 
 /**
+ * FIT file_id.type enum → string. Spec values from the FIT Profile.
+ * Only the values we expect to see in a Garmin export are mapped; anything
+ * else returns 'unknown' and the caller can decide what to do.
+ */
+const FIT_TYPE_NAMES = {
+  1: 'device',
+  2: 'settings',
+  3: 'sport',
+  4: 'activity',
+  5: 'workout',
+  6: 'course',
+  7: 'schedules',
+  9: 'weight',
+  10: 'totals',
+  11: 'goals',
+  14: 'bike_profile',
+  15: 'monitoring_a',
+  17: 'activity_summary',
+  20: 'monitoring_daily',
+  28: 'monitoring_b',
+  32: 'segment',
+  34: 'segment_list',
+  40: 'exd_configuration',
+};
+
+const FIT_EPOCH_SECONDS = 631065600; // 1989-12-31 00:00:00 UTC, Unix seconds
+
+/**
+ * Read ONLY the file_id message from a FIT file and return its `type` enum
+ * (as a string) plus its `time_created` (as Unix seconds). Reads just the
+ * first ~50 bytes of the data section — does NOT walk the entire file like
+ * easy-fit does. Built for bulk filtering during Garmin export import,
+ * where parsing 26 K full FITs is prohibitively slow.
+ *
+ * Returns:
+ *   { ok: true,  type: 'activity'|…, timeCreatedSeconds: number|null }
+ *   { ok: false }   on malformed input
+ */
+export function peekFitHeader(arrayBuffer) {
+  if (!arrayBuffer || arrayBuffer.byteLength < 14) return { ok: false };
+
+  const bytes = new Uint8Array(arrayBuffer);
+  const view = new DataView(arrayBuffer);
+
+  const headerSize = bytes[0];
+  if (headerSize !== 12 && headerSize !== 14) return { ok: false };
+  // ".FIT" magic at bytes 8..11
+  if (bytes[8] !== 0x2E || bytes[9] !== 0x46 || bytes[10] !== 0x49 || bytes[11] !== 0x54) {
+    return { ok: false };
+  }
+
+  const dataSize = view.getUint32(4, true); // little-endian per FIT spec
+  const endPos = Math.min(headerSize + dataSize, bytes.length);
+
+  // Definitions keyed by local_message_type.
+  const definitions = {};
+
+  let pos = headerSize;
+  // Bound iteration to avoid pathological loops on malformed input.
+  let safety = 64; // file_id is always one of the first few records
+  while (pos < endPos && safety-- > 0) {
+    const recordHeader = bytes[pos];
+    pos += 1;
+
+    if ((recordHeader & 0x80) !== 0) {
+      // Compressed timestamp header — bits 5-6 are local_message_type.
+      const localMsgType = (recordHeader >> 5) & 0x03;
+      const def = definitions[localMsgType];
+      if (!def) return { ok: false };
+      pos += def.totalSize;
+      continue;
+    }
+
+    const isDefinition = (recordHeader & 0x40) !== 0;
+    const hasDevData = (recordHeader & 0x20) !== 0;
+    const localMsgType = recordHeader & 0x0F;
+
+    if (isDefinition) {
+      if (pos + 5 > bytes.length) return { ok: false };
+      pos += 1; // reserved
+      const arch = bytes[pos];
+      pos += 1;
+      const littleEndian = arch === 0;
+      const globalMsgNum = view.getUint16(pos, littleEndian);
+      pos += 2;
+      const numFields = bytes[pos];
+      pos += 1;
+      if (pos + numFields * 3 > bytes.length) return { ok: false };
+
+      const fields = new Array(numFields);
+      let totalSize = 0;
+      for (let i = 0; i < numFields; i++) {
+        const defNum = bytes[pos];
+        const size = bytes[pos + 1];
+        const baseType = bytes[pos + 2];
+        fields[i] = { defNum, size, baseType };
+        totalSize += size;
+        pos += 3;
+      }
+      if (hasDevData) {
+        if (pos + 1 > bytes.length) return { ok: false };
+        const numDevFields = bytes[pos];
+        pos += 1;
+        if (pos + numDevFields * 3 > bytes.length) return { ok: false };
+        for (let i = 0; i < numDevFields; i++) {
+          totalSize += bytes[pos + 1]; // size byte
+          pos += 3;
+        }
+      }
+      definitions[localMsgType] = { littleEndian, globalMsgNum, fields, totalSize };
+      continue;
+    }
+
+    // Data message — look up its definition.
+    const def = definitions[localMsgType];
+    if (!def) return { ok: false };
+    if (pos + def.totalSize > bytes.length) return { ok: false };
+
+    if (def.globalMsgNum === 0) {
+      // file_id! Walk the fields and pull out type + time_created.
+      let fileType = null;
+      let timeCreated = null;
+      let fieldPos = pos;
+      for (const field of def.fields) {
+        if (field.defNum === 0 && field.size === 1) {
+          fileType = bytes[fieldPos];
+        } else if (field.defNum === 4 && field.size === 4) {
+          timeCreated = view.getUint32(fieldPos, def.littleEndian);
+        }
+        fieldPos += field.size;
+      }
+      const typeName = fileType != null ? (FIT_TYPE_NAMES[fileType] || 'unknown') : 'unknown';
+      const timeCreatedSeconds = (timeCreated != null && timeCreated !== 0 && timeCreated !== 0xFFFFFFFF)
+        ? timeCreated + FIT_EPOCH_SECONDS
+        : null;
+      return { ok: true, type: typeName, timeCreatedSeconds };
+    }
+
+    pos += def.totalSize;
+  }
+
+  return { ok: false };
+}
+
+/**
  * Lightweight peek that parses a FIT file and returns just its declared
  * file_id.type (e.g. 'activity', 'monitoring_b', 'settings', 'workout',
  * 'course', 'sport', 'device', …) and the first session sport if present.
