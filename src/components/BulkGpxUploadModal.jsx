@@ -444,9 +444,20 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
         }
       }
       console.log(`Garmin manifest result: ${activityTimestamps ? activityTimestamps.size + ' timestamps' : ''}${activityTimestamps && garminActivityIds ? ' / ' : ''}${garminActivityIds ? garminActivityIds.size + ' IDs' : ''}${(!activityTimestamps && !garminActivityIds) ? 'NONE FOUND — fallback to size+peek filters' : ''}`);
+      // Precompute manifest time bounds for fast outside-range check
+      // in the FIT loops below. ±12 h pad covers device boot-time drift.
+      let manifestTimeBounds = null;
       if (activityTimestamps && activityTimestamps.size > 0) {
+        let minTs = Infinity, maxTs = -Infinity;
+        for (const ts of activityTimestamps) {
+          if (ts < minTs) minTs = ts;
+          if (ts > maxTs) maxTs = ts;
+        }
+        const TWELVE_HOURS = 12 * 3600;
+        manifestTimeBounds = { min: minTs - TWELVE_HOURS, max: maxTs + TWELVE_HOURS };
         const sampleTs = Array.from(activityTimestamps).slice(0, 5);
         console.log(`Garmin manifest sample timestamps (first 5, Unix seconds): ${JSON.stringify(sampleTs)}`);
+        console.log(`Garmin manifest time range (±12h pad): ${new Date(manifestTimeBounds.min * 1000).toISOString()} → ${new Date(manifestTimeBounds.max * 1000).toISOString()}`);
       }
       if (onProgress) {
         if (activityTimestamps !== null) {
@@ -573,16 +584,18 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
                 skipped.push({ file: baseName, reason: `Not an activity FIT (type=${peek.type})` });
                 continue;
               }
-              if (peek.timeCreatedSeconds != null) {
-                let matched = false;
-                for (let off = -10; off <= 10; off++) {
-                  if (activityTimestamps.has(peek.timeCreatedSeconds + off)) { matched = true; break; }
-                }
-                if (!matched) {
-                  timestampFilteredCount += 1;
-                  skipped.push({ file: baseName, reason: 'No matching manifest timestamp' });
-                  continue;
-                }
+              // Timestamp sanity check: file_id.time_created can lag
+              // session start by minutes (device boot) or hours (file
+              // saved at session end). type=activity already does the
+              // primary filtering — this just rejects FITs whose time
+              // is wildly outside the manifest's date range.
+              if (peek.timeCreatedSeconds != null
+                  && manifestTimeBounds
+                  && (peek.timeCreatedSeconds < manifestTimeBounds.min
+                      || peek.timeCreatedSeconds > manifestTimeBounds.max)) {
+                timestampFilteredCount += 1;
+                skipped.push({ file: baseName, reason: `time_created ${new Date(peek.timeCreatedSeconds * 1000).toISOString()} outside manifest range` });
+                continue;
               }
             }
             // peek.ok === false → let it through; server backstop will sort it.
@@ -671,15 +684,12 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
               skipped.push({ file: baseName, reason: `Not an activity FIT (type=${peek.type})` });
               continue;
             }
-            if (peek.timeCreatedSeconds != null) {
-              let matched = false;
-              for (let off = -10; off <= 10; off++) {
-                if (activityTimestamps.has(peek.timeCreatedSeconds + off)) { matched = true; break; }
-              }
-              if (!matched) {
-                skipped.push({ file: baseName, reason: 'No matching manifest timestamp' });
-                continue;
-              }
+            if (peek.timeCreatedSeconds != null
+                && manifestTimeBounds
+                && (peek.timeCreatedSeconds < manifestTimeBounds.min
+                    || peek.timeCreatedSeconds > manifestTimeBounds.max)) {
+              skipped.push({ file: baseName, reason: `time_created outside manifest range` });
+              continue;
             }
           }
         } else if (garminActivityIds === null) {
@@ -963,27 +973,52 @@ function BulkGpxUploadModal({ opened, onClose, onUploadComplete, zIndex }) {
     // webhook-imported activities via UNIQUE(user_id, provider_activity_id).
     const isGarminBulk = actFile.zipSource === 'garmin' && !!actFile.garminActivityId;
 
-    const resp = await fetch('/api/fit-upload', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        fileName: actFile.name,
-        fileBase64,
-        compressed,
-        stravaActivityName: actFile.stravaActivityName || null,
-        provider: isGarminBulk ? 'garmin' : undefined,
-        garminActivityId: isGarminBulk ? actFile.garminActivityId : undefined,
-      }),
+    const body = JSON.stringify({
+      fileName: actFile.name,
+      fileBase64,
+      compressed,
+      stravaActivityName: actFile.stravaActivityName || null,
+      provider: isGarminBulk ? 'garmin' : undefined,
+      garminActivityId: isGarminBulk ? actFile.garminActivityId : undefined,
     });
 
-    const payload = await resp.json().catch(() => ({}));
-    if (!resp.ok || !payload.success) {
-      throw new Error(payload.message || payload.error || `Upload failed (${resp.status})`);
+    // Retry on transient failures: network disconnects (ERR_INTERNET_DISCONNECTED,
+    // Failed to fetch) and 5xx responses. 4xx and parsed app errors aren't retried.
+    const MAX_ATTEMPTS = 4;
+    const BACKOFFS_MS = [1000, 3000, 9000]; // before attempts 2, 3, 4
+    let lastErr = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const resp = await fetch('/api/fit-upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body,
+        });
+        const payload = await resp.json().catch(() => ({}));
+        if (resp.ok && payload.success) return payload;
+        // 5xx → transient; retry. 4xx → permanent; throw.
+        if (resp.status >= 500 && attempt < MAX_ATTEMPTS) {
+          lastErr = new Error(payload.message || payload.error || `Upload failed (${resp.status})`);
+          await new Promise((r) => setTimeout(r, BACKOFFS_MS[attempt - 1]));
+          continue;
+        }
+        throw new Error(payload.message || payload.error || `Upload failed (${resp.status})`);
+      } catch (err) {
+        // TypeError from fetch = network drop / DNS / TLS / ERR_INTERNET_DISCONNECTED.
+        // Retry; on final attempt let it bubble.
+        const isNetworkError = err instanceof TypeError;
+        if (isNetworkError && attempt < MAX_ATTEMPTS) {
+          lastErr = err;
+          await new Promise((r) => setTimeout(r, BACKOFFS_MS[attempt - 1]));
+          continue;
+        }
+        throw err;
+      }
     }
-    return payload; // { action, activity }
+    throw lastErr || new Error('Upload failed after retries');
   };
 
   /**
