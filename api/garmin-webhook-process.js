@@ -267,7 +267,7 @@ async function processActivityEvent(event, integrationCache) {
   if (event.activity_id) {
     const { data: existing } = await supabase
       .from('activities')
-      .select('id, map_summary_polyline, average_watts, normalized_power, power_curve_summary, activity_streams, ride_analytics')
+      .select('id, start_date, map_summary_polyline, average_watts, normalized_power, power_curve_summary, activity_streams, ride_analytics')
       .eq('provider_activity_id', event.activity_id)
       .eq('user_id', integration.user_id)
       .eq('provider', 'garmin')
@@ -406,8 +406,25 @@ async function handleExistingActivity(event, existing, integration) {
       if (ctxErr) console.warn(`⚠️ fit_coach_context write failed (non-critical):`, ctxErr.message);
     }
   } else {
+    // FIT download succeeded but extracted nothing usable — the callbackURL
+    // sometimes points at a "summary FIT" without per-second records. Request
+    // a fresh backfill so Garmin re-emits ACTIVITY_FILE_DATA with the full file,
+    // mirroring the no-URL branch above. Without this, the activity is stranded
+    // as summary-only forever.
+    const startTime = webhookInfo?.startTimeInSeconds
+      ?? (existing.start_date ? Math.floor(new Date(existing.start_date).getTime() / 1000) : null);
+    let message = 'Already imported, no new data in FIT file';
+    if (integration.access_token && startTime) {
+      try {
+        await requestActivityDetailsBackfill(integration.access_token, startTime);
+        console.log(`[FIT:BACKFILL] FIT yielded no data; requested backfill for ${event.activity_id} (start=${startTime})`);
+        message = 'Already imported, FIT empty - backfill requested';
+      } catch (backfillErr) {
+        console.warn(`[FIT:BACKFILL] Backfill request failed for ${event.activity_id}:`, backfillErr.message);
+      }
+    }
     console.log(`[FIT:SKIP] FIT file parsed but no new data for activity ${existing.id}`);
-    await markEventProcessed(event.id, 'Already imported, no new data in FIT file', existing.id);
+    await markEventProcessed(event.id, message, existing.id);
   }
 }
 
