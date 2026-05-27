@@ -13,6 +13,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/garmin-orphan-retry",
+      "schedule": "30 */6 * * *"
+    },
+    {
       "path": "/api/proactive-insights-process",
       "schedule": "*/10 * * * *"
     },
