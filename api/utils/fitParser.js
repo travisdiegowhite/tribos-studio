@@ -703,7 +703,16 @@ export async function parseFitBuffer(fitBuffer, athlete = null) {
  * @param {Object} [athlete.powerZones] - user_profiles.power_zones shape { z1:{min,max}, ..., z7:{min,max} }
  * @returns {Promise<Object>} Same shape as parseFitBuffer, or an error object on download failure
  */
+// FIT files from Garmin/Wahoo are typically 50KB–2MB. A 30 s ceiling means
+// a hung download can't eat the entire 60 s function budget — without this,
+// one slow FIT fetch in a batch stalled every following event in the queue
+// behind it. Kept generous so legitimately large multi-hour activity files
+// (rare, but happen on 6+ hour rides at 1 s sample rate) still succeed.
+const FIT_DOWNLOAD_TIMEOUT_MS = 30_000;
+
 export async function downloadAndParseFitFile(url, accessToken, athlete = null) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FIT_DOWNLOAD_TIMEOUT_MS);
   try {
     console.log('📥 Downloading FIT file...');
 
@@ -712,7 +721,8 @@ export async function downloadAndParseFitFile(url, accessToken, athlete = null) 
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/octet-stream, application/fit, */*'
-      }
+      },
+      signal: controller.signal
     });
 
     if (!response.ok) {
@@ -744,13 +754,20 @@ export async function downloadAndParseFitFile(url, accessToken, athlete = null) 
 
     return await parseFitBuffer(Buffer.from(arrayBuffer), athlete);
   } catch (error) {
-    console.error('❌ FIT file download/processing error:', error.message);
+    const isTimeout = error.name === 'AbortError';
+    const msg = isTimeout
+      ? `FIT download timed out after ${FIT_DOWNLOAD_TIMEOUT_MS / 1000}s`
+      : error.message;
+    console.error('❌ FIT file download/processing error:', msg);
     return {
       polyline: null,
       summary: null,
       powerMetrics: null,
-      error: error.message
+      error: msg,
+      timedOut: isTimeout || undefined,
     };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

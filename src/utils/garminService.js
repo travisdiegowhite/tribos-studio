@@ -763,6 +763,41 @@ export class GarminService {
       throw error;
     }
   }
+
+  /**
+   * Re-request a single Garmin activity's FIT data from Garmin.
+   * Used by the "Re-sync" button in RideAnalysisModal when an activity
+   * is stuck as summary_only (no streams / power / polyline).
+   *
+   * Returns the JSON envelope from /api/garmin-resync-activity, which
+   * always includes a `status` field:
+   *   - 'requested'         backfill request accepted by Garmin
+   *   - 'already_full'      activity already has all data
+   *   - 'backfill_failed'   Garmin rejected the request
+   *   - 'throttled'         too soon since last request (5 min)
+   *   - 'at_max_attempts'   already tried 5 times, Garmin won't help
+   *   - 'no_integration'    user disconnected Garmin
+   *   - 'no_token'          refresh token expired, user must reconnect
+   */
+  async resyncActivity(activityId) {
+    const headers = await this.getAuthHeaders();
+    if (!headers.Authorization) {
+      throw new Error('Not authenticated');
+    }
+    const response = await fetch(`${getApiBaseUrl()}/api/garmin-resync-activity`, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify({ activity_id: activityId }),
+    });
+    const data = await response.json().catch(() => ({}));
+    // The endpoint returns 200 with success=false for "user-actionable" states
+    // (no_integration, no_token); only 4xx/5xx are infrastructure failures.
+    if (!response.ok && response.status >= 500) {
+      throw new Error(data?.error || `Re-sync failed (HTTP ${response.status})`);
+    }
+    return { ...data, httpStatus: response.status };
+  }
 }
 
 // Export singleton instance
