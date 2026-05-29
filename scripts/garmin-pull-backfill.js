@@ -15,7 +15,7 @@
  * as the cron — they're idempotent with respect to each other.
  *
  * Usage:
- *   node scripts/garmin-pull-backfill.js [options]
+ *   node --env-file=.env scripts/garmin-pull-backfill.js [options]
  *
  * Options:
  *   --commit         Actually write changes. Default is dry-run.
@@ -29,7 +29,6 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
 import { ensureValidAccessToken } from '../api/utils/garmin/tokenManager.js';
 import {
   fetchActivityDetailsByUploadRange,
@@ -39,8 +38,6 @@ import {
 } from '../api/utils/garmin/garminApiClient.js';
 import { extractStreamsFromActivityDetails } from '../api/utils/garmin/activityDetailsParser.js';
 import { refreshCompleteness } from '../api/utils/garmin/completeness.js';
-
-dotenv.config();
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
