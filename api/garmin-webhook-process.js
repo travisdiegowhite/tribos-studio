@@ -450,23 +450,21 @@ async function handleExistingActivity(event, existing, integration) {
     // as summary-only forever.
     const startTime = webhookInfo?.startTimeInSeconds
       ?? (existing.start_date ? Math.floor(new Date(existing.start_date).getTime() / 1000) : null);
-    let message = 'Already imported, no new data in FIT file';
-    if (integration.access_token && startTime) {
-      try {
-        await requestActivityDetailsBackfill(integration.access_token, startTime);
-        console.log(`[FIT:BACKFILL] FIT yielded no data; requested backfill for ${event.activity_id} (start=${startTime})`);
-        message = 'Already imported, FIT empty - backfill requested';
-        // Stamp the activity so the reconciliation cron (Phase 4) can throttle.
-        await supabase
-          .from('activities')
-          .update({ last_resync_requested_at: new Date().toISOString() })
-          .eq('id', existing.id);
-      } catch (backfillErr) {
-        console.warn(`[FIT:BACKFILL] Backfill request failed for ${event.activity_id}:`, backfillErr.message);
-      }
+    // FIT was downloaded but yielded no per-second records (summary-only
+    // FIT). Phase 7's Pull-first reconciler (api/garmin-reconcile.js) will
+    // try the activityDetails JSON endpoint on its next tick within 15 min,
+    // so we no longer fire requestActivityDetailsBackfill here — the
+    // webhook-backfill API can only re-emit events Garmin already
+    // produced, and we just proved it doesn't have anything to re-emit.
+    // Stamp the timestamp so the reconciler's throttle starts the clock.
+    if (startTime) {
+      await supabase
+        .from('activities')
+        .update({ last_resync_requested_at: new Date().toISOString() })
+        .eq('id', existing.id);
     }
-    console.log(`[FIT:SKIP] FIT file parsed but no new data for activity ${existing.id}`);
-    await markEventProcessed(event.id, message, existing.id);
+    console.log(`[FIT:SKIP] FIT file parsed but no new data for activity ${existing.id} — reconciler will Pull`);
+    await markEventProcessed(event.id, 'Already imported, FIT empty - reconciler will Pull', existing.id);
   }
 }
 
@@ -595,14 +593,14 @@ async function downloadAndProcessActivity(event, integration) {
   if (fitFileUrl && integration.access_token) {
     console.log(`[FIT:DOWNLOAD] Processing FIT file for new activity ${activity.id}`);
     await processFitFile(activity.id, fitFileUrl, integration.access_token, integration.user_id);
-  } else if (integration.access_token && activityInfo.startTimeInSeconds) {
-    // Always request backfill, including indoor rides. Trainer/Zwift activities
-    // don't have GPS but DO have power/HR/cadence streams, which are the most
-    // important data for a cycling platform — previously skipping these left
-    // indoor cycling activities at ~30% stream coverage in production.
-    console.log(`[FIT:BACKFILL] No FIT URL for activity ${activity.id}, requesting backfill`);
-    await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
   }
+  // No FIT URL on the new-activity webhook — common when Garmin only sent
+  // CONNECT_ACTIVITY without the ACTIVITY_FILE_DATA follow-up. Phase 7's
+  // Pull-first reconciler (api/garmin-reconcile.js) will retrieve the
+  // sample data directly from the activityDetails endpoint within 15 min,
+  // so we no longer fire requestActivityDetailsBackfill here — asking
+  // Garmin to re-emit a webhook is exactly the path that's broken for
+  // ~70% of activities. Cron will Pull.
 
   // Update fitness snapshot for the week of this activity
   try {

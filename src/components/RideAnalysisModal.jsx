@@ -154,7 +154,31 @@ const RideAnalysisModal = ({
       const result = await garminService.resyncActivity(ride.id);
       const status = result.status;
       // Map server status → user-facing tone
-      if (status === 'requested') {
+      if (status === 'recovered_with_data') {
+        // Phase 7: the Pull endpoint actually returned data. The row is
+        // already `full` server-side; surface a clear "refresh to see it"
+        // CTA since the modal won't auto-rerender with the new streams.
+        notifications.show({
+          color: 'teal',
+          title: 'Synced from Garmin',
+          message: result.message || 'Activity data recovered. Refresh the page to see streams and GPS.',
+        });
+        setResyncState({ loading: false, message: 'Recovered — refresh to see streams.', kind: 'success' });
+      } else if (status === 'still_waiting') {
+        notifications.show({
+          color: 'yellow',
+          title: 'Not ready yet',
+          message: result.message || "Garmin hasn't released this ride's full data yet. Try again in a few minutes.",
+        });
+        setResyncState({ loading: false, message: result.message, kind: 'warning' });
+      } else if (status === 'consent_revoked') {
+        notifications.show({
+          color: 'orange',
+          title: 'Reconnect Garmin',
+          message: result.error || 'Activity Details access was revoked. Reconnect Garmin in Settings.',
+        });
+        setResyncState({ loading: false, message: result.error, kind: 'warning' });
+      } else if (status === 'requested') {
         notifications.show({
           color: 'teal',
           title: 'Re-sync requested',

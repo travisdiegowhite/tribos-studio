@@ -9,9 +9,11 @@ import { buildFitCoachContext } from './fitCoachContext.js';
 // Maximum valid values for FIT data fields
 // FIT protocol uses sentinel values (e.g., 0xFFFF = 65535 for uint16) to indicate "invalid/no data"
 // These must be filtered out before any metric calculations
-const MAX_VALID_POWER_WATTS = 2500;    // Covers elite track sprinters
-const MAX_VALID_HR_BPM = 250;          // Physiological maximum
-const MAX_VALID_CADENCE_RPM = 250;     // Covers high-cadence drills
+// Exported so the Activity Details JSON path (api/utils/garmin/activityDetailsParser.js)
+// applies the same sentinel filters when ingesting Garmin's Pull endpoint payloads.
+export const MAX_VALID_POWER_WATTS = 2500;    // Covers elite track sprinters
+export const MAX_VALID_HR_BPM = 250;          // Physiological maximum
+export const MAX_VALID_CADENCE_RPM = 250;     // Covers high-cadence drills
 
 /**
  * Parse a FIT file buffer and extract GPS track points
@@ -267,7 +269,7 @@ function extractSummary(data) {
  * NP = 4th root of average of (30-second rolling average)^4
  * This weights high-intensity efforts more heavily than simple average
  */
-function calculateNormalizedPower(powerValues) {
+export function calculateNormalizedPower(powerValues) {
   if (!powerValues || powerValues.length < 30) {
     return null;
   }
@@ -328,7 +330,7 @@ function calculateMMP(powerValues, durationSeconds) {
  * Calculate power curve summary (MMP at key durations)
  * This enables power curve analysis without storing full streams
  */
-function calculatePowerCurveSummary(powerValues) {
+export function calculatePowerCurveSummary(powerValues) {
   if (!powerValues || powerValues.length < 5) {
     return null;
   }
@@ -380,7 +382,7 @@ function extractPowerStream(dataPoints) {
 /**
  * Calculate average power from a power stream
  */
-function calculateAveragePower(powerValues) {
+export function calculateAveragePower(powerValues) {
   if (!powerValues || powerValues.length === 0) {
     return null;
   }
@@ -514,7 +516,7 @@ function perpendicularDistance(point, lineStart, lineEnd) {
  * Used for colored route rendering on the map (by speed, power, elevation, HR)
  * Returns null if fewer than 2 points
  */
-function buildActivityStreams(simplifiedPoints) {
+export function buildActivityStreams(simplifiedPoints) {
   if (!simplifiedPoints || simplifiedPoints.length < 2) return null;
 
   const coords = [];
@@ -562,7 +564,7 @@ function buildActivityStreams(simplifiedPoints) {
  * Uses point index as implicit time axis.
  * Fallback for indoor rides or when GPS simplification drops too many points.
  */
-function buildActivityStreamsFromDataPoints(allDataPoints) {
+export function buildActivityStreamsFromDataPoints(allDataPoints) {
   if (!allDataPoints || allDataPoints.length < 2) return null;
 
   const power = [];
