@@ -22,6 +22,8 @@ import { fetchGarminActivityDetails, requestActivityDetailsBackfill } from './ut
 import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
 import { processHealthPushData, extractAndSaveHealthMetrics } from './utils/garmin/healthDataProcessor.js';
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
+import { deriveCompleteness, refreshCompleteness } from './utils/garmin/completeness.js';
+import { captureServerError } from './utils/serverSentry.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -134,8 +136,33 @@ export default async function handler(req, res) {
         } else {
           // Max retries exceeded - mark as permanently failed
           await markEventProcessed(event.id, `Max retries (${MAX_RETRIES}) exceeded. Last error: ${err.message}`);
-          const sev = ACTIVITY_EVENT_TYPES.includes(event.event_type) ? '🚨 ACTIVITY EVENT LOST' : '💀';
+          const isActivity = ACTIVITY_EVENT_TYPES.includes(event.event_type);
+          const sev = isActivity ? '🚨 ACTIVITY EVENT LOST' : '💀';
           console.error(`${sev} Event ${event.id} (${event.event_type}, activity_id=${event.activity_id}) permanently failed after ${MAX_RETRIES} retries: ${err.message}`);
+
+          if (isActivity) {
+            // Flag the linked activity (if we have one) and emit a structured
+            // error so it's discoverable via Sentry / admin/garmin-health.
+            captureServerError(err, {
+              tag: 'garmin.activity_lost',
+              extra: {
+                event_id: event.id,
+                event_type: event.event_type,
+                activity_id: event.activity_id,
+                garmin_user_id: event.garmin_user_id,
+                retry_count: MAX_RETRIES,
+              },
+            });
+            if (event.activity_imported_id) {
+              await supabase
+                .from('activities')
+                .update({ data_completeness: 'needs_resync' })
+                .eq('id', event.activity_imported_id)
+                .then(({ error }) => {
+                  if (error) console.warn(`⚠️ Could not flag activity needs_resync:`, error.message);
+                });
+            }
+          }
         }
       }
     }
@@ -267,7 +294,7 @@ async function processActivityEvent(event, integrationCache) {
   if (event.activity_id) {
     const { data: existing } = await supabase
       .from('activities')
-      .select('id, map_summary_polyline, average_watts, normalized_power, power_curve_summary, activity_streams, ride_analytics')
+      .select('id, start_date, map_summary_polyline, average_watts, normalized_power, power_curve_summary, activity_streams, ride_analytics')
       .eq('provider_activity_id', event.activity_id)
       .eq('user_id', integration.user_id)
       .eq('provider', 'garmin')
@@ -312,6 +339,11 @@ async function handleExistingActivity(event, existing, integration) {
       if (integration.access_token && startTime) {
         await requestActivityDetailsBackfill(integration.access_token, startTime);
         console.log(`[FIT:BACKFILL] Requested backfill for existing activity missing FIT data: ${event.activity_id}`);
+        // Stamp the activity so the reconciliation cron (Phase 4) can throttle.
+        await supabase
+          .from('activities')
+          .update({ last_resync_requested_at: new Date().toISOString() })
+          .eq('id', existing.id);
       }
       await markEventProcessed(event.id, 'Already imported, missing FIT data - backfill requested', existing.id);
       return;
@@ -398,6 +430,11 @@ async function handleExistingActivity(event, existing, integration) {
     console.log(`[FIT:SUCCESS] Data added to existing activity ${existing.id}: ${updates.join(', ')}`);
     await markEventProcessed(event.id, `Data added: ${updates.join(', ')}`, existing.id);
 
+    // Re-derive completeness now that the missing fields have landed.
+    refreshCompleteness(supabase, existing.id).catch(err =>
+      console.warn(`⚠️ completeness refresh failed for ${existing.id}:`, err.message)
+    );
+
     if (fitCoachCtx) {
       const { error: ctxErr } = await supabase
         .from('activities')
@@ -406,8 +443,30 @@ async function handleExistingActivity(event, existing, integration) {
       if (ctxErr) console.warn(`⚠️ fit_coach_context write failed (non-critical):`, ctxErr.message);
     }
   } else {
+    // FIT download succeeded but extracted nothing usable — the callbackURL
+    // sometimes points at a "summary FIT" without per-second records. Request
+    // a fresh backfill so Garmin re-emits ACTIVITY_FILE_DATA with the full file,
+    // mirroring the no-URL branch above. Without this, the activity is stranded
+    // as summary-only forever.
+    const startTime = webhookInfo?.startTimeInSeconds
+      ?? (existing.start_date ? Math.floor(new Date(existing.start_date).getTime() / 1000) : null);
+    let message = 'Already imported, no new data in FIT file';
+    if (integration.access_token && startTime) {
+      try {
+        await requestActivityDetailsBackfill(integration.access_token, startTime);
+        console.log(`[FIT:BACKFILL] FIT yielded no data; requested backfill for ${event.activity_id} (start=${startTime})`);
+        message = 'Already imported, FIT empty - backfill requested';
+        // Stamp the activity so the reconciliation cron (Phase 4) can throttle.
+        await supabase
+          .from('activities')
+          .update({ last_resync_requested_at: new Date().toISOString() })
+          .eq('id', existing.id);
+      } catch (backfillErr) {
+        console.warn(`[FIT:BACKFILL] Backfill request failed for ${event.activity_id}:`, backfillErr.message);
+      }
+    }
     console.log(`[FIT:SKIP] FIT file parsed but no new data for activity ${existing.id}`);
-    await markEventProcessed(event.id, 'Already imported, no new data in FIT file', existing.id);
+    await markEventProcessed(event.id, message, existing.id);
   }
 }
 
@@ -473,6 +532,10 @@ async function downloadAndProcessActivity(event, integration) {
   const source = activityDetails ? 'webhook_with_api' : 'webhook_push';
   const activityData = buildActivityData(integration.user_id, event.activity_id, activityInfo, source);
   activityData.raw_data = { webhook: payload, api: activityDetails };
+  // Stamp completeness on insert so the row is honest the moment it lands.
+  // The FIT enrichment in processFitFile / handleExistingActivity will
+  // refresh this to 'full' once streams/power/polyline land.
+  activityData.data_completeness = deriveCompleteness(activityData) || 'summary_only';
 
   // Cross-provider duplicate check
   const dupCheck = await checkForDuplicate(
@@ -648,6 +711,10 @@ async function handleDuplicateActivity(event, integration, activityData, activit
               .from('activities')
               .update(fitUpdate)
               .eq('id', dupCheck.existingActivity.id);
+            // Re-derive completeness now that streams/power have landed.
+            refreshCompleteness(supabase, dupCheck.existingActivity.id).catch(err =>
+              console.warn(`⚠️ completeness refresh failed for ${dupCheck.existingActivity.id}:`, err.message)
+            );
           }
         } catch (fitError) {
           console.warn('⚠️ Could not add FIT data to taken-over activity:', fitError.message);
@@ -779,6 +846,12 @@ async function processFitFile(activityId, fitFileUrl, accessToken, userId = null
         if (fitResult.polyline) updates.push(`GPS: ${fitResult.simplifiedCount} points`);
         if (fitResult.powerMetrics?.normalizedPower) updates.push(`NP: ${fitResult.powerMetrics.normalizedPower}W`);
         console.log(`✅ FIT data saved: ${updates.join(', ')}`);
+
+        // Re-derive completeness now that streams/power/polyline have landed.
+        // Failure here is non-critical (Phase 4 reconciliation will fix drift).
+        refreshCompleteness(supabase, activityId).catch(err =>
+          console.warn(`⚠️ completeness refresh failed for ${activityId}:`, err.message)
+        );
 
         if (fitResult.polyline) {
           extractAndStoreActivitySegments(activityId, null).catch(err => {
