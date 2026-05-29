@@ -157,16 +157,19 @@ async function findExistingActivity(userId, startTimeIso, distanceMeters) {
 
   const lo = new Date(start.getTime() - 60_000).toISOString();
   const hi = new Date(start.getTime() + 60_000).toISOString();
-  // If distance is 0/null we can't do the ±5% window; fall back to any
-  // activity with a matching start time.
+  // summary.startTime is a UTC ISO string (FIT timestamps are UTC), so we
+  // must query the UTC TIMESTAMPTZ column `start_date`, not the local-time
+  // `start_date_local` column — those differ by the user's TZ offset
+  // (5–8 h in the US), which silently makes the ±60 s window miss every
+  // existing Strava-synced row.
   const hasDistance = typeof distanceMeters === 'number' && distanceMeters > 0;
 
   let query = supabase
     .from('activities')
     .select('id, name, gear_id, provider, provider_activity_id')
     .eq('user_id', userId)
-    .gte('start_date_local', lo)
-    .lte('start_date_local', hi);
+    .gte('start_date', lo)
+    .lte('start_date', hi);
 
   if (hasDistance) {
     query = query.gte('distance', distanceMeters * 0.95).lte('distance', distanceMeters * 1.05);
