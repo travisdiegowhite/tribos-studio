@@ -262,11 +262,63 @@ async function getWebhookStats(userId) {
         statusEmoji: e.processed && !e.process_error ? '✅' :
                      e.processed && e.process_error ? '❌' : '⏳'
       })),
+      dataCompleteness: await getDataCompletenessSummary(userId),
       troubleshooting: troubleshooting.length > 0 ? troubleshooting : ['✅ No issues detected']
     };
 
   } catch (error) {
     console.error('Error getting webhook stats:', error);
     throw error;
+  }
+}
+
+// Per-user completeness snapshot. Tolerates the data_completeness column not
+// existing yet (Phase 1 migration 093) — returns a stub with available:false.
+async function getDataCompletenessSummary(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('activities')
+      .select('id, type, start_date, data_completeness, last_resync_requested_at, resync_attempt_count')
+      .eq('user_id', userId)
+      .eq('provider', 'garmin')
+      .not('data_completeness', 'is', null)
+      .order('start_date', { ascending: false })
+      .limit(200);
+
+    if (error) {
+      // Most likely cause: column doesn't exist yet (42703).
+      return { available: false, reason: error.message };
+    }
+
+    const counts = { summary_only: 0, full: 0, needs_resync: 0, unrecoverable: 0 };
+    const incomplete = [];
+    let lastCompleteAt = null;
+
+    for (const row of data || []) {
+      counts[row.data_completeness] = (counts[row.data_completeness] || 0) + 1;
+      if (row.data_completeness === 'full' && (!lastCompleteAt || row.start_date > lastCompleteAt)) {
+        lastCompleteAt = row.start_date;
+      }
+      if (row.data_completeness !== 'full' && incomplete.length < 10) {
+        incomplete.push({
+          id: row.id,
+          type: row.type,
+          startDate: row.start_date,
+          status: row.data_completeness,
+          lastResyncRequestedAt: row.last_resync_requested_at,
+          resyncAttempts: row.resync_attempt_count,
+        });
+      }
+    }
+
+    return {
+      available: true,
+      window: 'last 200 garmin activities',
+      counts,
+      lastCompleteActivityAt: lastCompleteAt,
+      incompleteActivities: incomplete,
+    };
+  } catch (err) {
+    return { available: false, reason: err.message };
   }
 }
