@@ -13,8 +13,8 @@
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/garmin-orphan-retry",
-      "schedule": "30 */6 * * *"
+      "path": "/api/garmin-reconcile",
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/proactive-insights-process",
@@ -69,6 +69,9 @@
       "maxDuration": 60
     },
     "api/garmin-webhook-process.js": {
+      "maxDuration": 60
+    },
+    "api/garmin-reconcile.js": {
       "maxDuration": 60
     },
     "api/coros-webhook-process.js": {

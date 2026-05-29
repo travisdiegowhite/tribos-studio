@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Modal,
@@ -13,7 +13,10 @@ import {
   Divider,
   Button,
   Tooltip,
+  Alert,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { garminService } from '../utils/garminService';
 import {
   estimateNormalizedPower,
   calculateIF,
@@ -142,6 +145,68 @@ const RideAnalysisModal = ({
   hasCreatedRoute = false,
 }) => {
   const navigate = useNavigate();
+  const [resyncState, setResyncState] = useState({ loading: false, message: null, kind: null });
+
+  const handleResync = async () => {
+    if (!ride?.id) return;
+    setResyncState({ loading: true, message: null, kind: null });
+    try {
+      const result = await garminService.resyncActivity(ride.id);
+      const status = result.status;
+      // Map server status → user-facing tone
+      if (status === 'requested') {
+        notifications.show({
+          color: 'teal',
+          title: 'Re-sync requested',
+          message: result.message || 'Garmin usually delivers within 1–5 minutes. Refresh shortly.',
+        });
+        setResyncState({ loading: false, message: result.message, kind: 'success' });
+      } else if (status === 'already_full') {
+        notifications.show({
+          color: 'teal',
+          title: 'Already complete',
+          message: 'This activity already has all the data Garmin can provide.',
+        });
+        setResyncState({ loading: false, message: 'Already complete.', kind: 'success' });
+      } else if (status === 'throttled') {
+        notifications.show({
+          color: 'yellow',
+          title: 'Slow down',
+          message: result.error || 'Please wait a moment before requesting again.',
+        });
+        setResyncState({ loading: false, message: result.error, kind: 'warning' });
+      } else if (status === 'at_max_attempts') {
+        notifications.show({
+          color: 'red',
+          title: 'Cannot recover',
+          message: result.error || 'This activity has been retried the maximum number of times.',
+        });
+        setResyncState({ loading: false, message: result.error, kind: 'error' });
+      } else if (status === 'no_integration' || status === 'no_token') {
+        notifications.show({
+          color: 'orange',
+          title: 'Reconnect Garmin',
+          message: result.error || 'Please reconnect Garmin in Settings.',
+        });
+        setResyncState({ loading: false, message: result.error, kind: 'warning' });
+      } else {
+        notifications.show({
+          color: 'gray',
+          title: 'Re-sync',
+          message: result.message || result.error || 'Request submitted.',
+        });
+        setResyncState({ loading: false, message: result.message || result.error, kind: 'info' });
+      }
+    } catch (err) {
+      notifications.show({
+        color: 'red',
+        title: 'Re-sync failed',
+        message: err.message || 'Could not request re-sync.',
+      });
+      setResyncState({ loading: false, message: err.message, kind: 'error' });
+    }
+  };
+
   // Extract polyline from various possible locations
   const polyline = useMemo(() => {
     if (!ride) return null;
@@ -733,10 +798,51 @@ const RideAnalysisModal = ({
           </Box>
         )}
 
-        {/* Garmin attribution if applicable */}
+        {/* Garmin attribution + re-sync escape hatch if data is incomplete */}
         {ride.provider === 'garmin' && (
           <Box pt="sm" style={{ borderTop: ride.provider === 'strava' ? 'none' : '1px solid var(--color-border)' }}>
-            <PoweredByGarmin variant="light" size="sm" />
+            <Group justify="space-between" align="center" wrap="nowrap">
+              <PoweredByGarmin variant="light" size="sm" />
+              {ride.data_completeness && ride.data_completeness !== 'full' && (
+                <Tooltip
+                  label={
+                    ride.data_completeness === 'unrecoverable'
+                      ? 'Garmin no longer has this activity’s file data — too old to recover.'
+                      : 'Ask Garmin to re-deliver the full activity file (streams, power, GPS).'
+                  }
+                  withArrow
+                  multiline
+                  w={260}
+                >
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color={ride.data_completeness === 'unrecoverable' ? 'gray' : 'blue'}
+                    leftSection={<ArrowsClockwise size={12} />}
+                    loading={resyncState.loading}
+                    disabled={ride.data_completeness === 'unrecoverable'}
+                    onClick={handleResync}
+                  >
+                    {ride.data_completeness === 'unrecoverable' ? 'Cannot recover' : 'Re-sync from Garmin'}
+                  </Button>
+                </Tooltip>
+              )}
+            </Group>
+            {resyncState.message && resyncState.kind && (
+              <Alert
+                mt="xs"
+                variant="light"
+                color={
+                  resyncState.kind === 'success' ? 'teal'
+                  : resyncState.kind === 'warning' ? 'yellow'
+                  : resyncState.kind === 'error' ? 'red'
+                  : 'gray'
+                }
+                p="xs"
+              >
+                <Text size="xs">{resyncState.message}</Text>
+              </Alert>
+            )}
           </Box>
         )}
       </Stack>
