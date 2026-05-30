@@ -139,13 +139,17 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: 'Activity has no start_date — cannot request backfill' });
     }
 
-    // Look up integration
+    // Look up integration. NOTE: bike_computer_integrations has no `status`
+    // column (see database/create_bike_computer_integrations.sql) — it has
+    // `sync_enabled`. Earlier Phase 7 code filtered on a phantom status, which
+    // caused PostgREST to error and the integration lookup to return null,
+    // making the resync silently inert. Fixed in the hotfix preceding the
+    // ping/pull rebuild.
     const { data: integration } = await supabase
       .from('bike_computer_integrations')
-      .select('user_id, provider, provider_user_id, access_token, refresh_token, token_expires_at, refresh_token_expires_at, refresh_token_invalid, status, sync_enabled')
+      .select('user_id, provider, provider_user_id, access_token, refresh_token, token_expires_at, refresh_token_expires_at, refresh_token_invalid, sync_enabled')
       .eq('user_id', authUser.id)
       .eq('provider', 'garmin')
-      .eq('status', 'active')
       .eq('sync_enabled', true)
       .maybeSingle();
 
