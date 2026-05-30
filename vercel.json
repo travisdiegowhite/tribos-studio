@@ -17,6 +17,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/garmin2-pull",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/proactive-insights-process",
       "schedule": "*/10 * * * *"
     },
@@ -72,6 +76,9 @@
       "maxDuration": 60
     },
     "api/garmin-reconcile.js": {
+      "maxDuration": 60
+    },
+    "api/garmin2-pull.js": {
       "maxDuration": 60
     },
     "api/coros-webhook-process.js": {
