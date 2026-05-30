@@ -26,6 +26,11 @@ export default defineConfig({
       VITE_SUPABASE_URL: 'https://test.supabase.co',
       VITE_SUPABASE_ANON_KEY: 'test-anon-key',
       VITE_MAPBOX_TOKEN: 'test-mapbox-token',
+      // Server-side singleton (api/utils/supabaseAdmin.js) reads these without
+      // the VITE_ prefix; needed when api/* tests load util modules that
+      // instantiate the admin client at module load (e.g. activityDedup.js).
+      SUPABASE_URL: 'https://test.supabase.co',
+      SUPABASE_SERVICE_KEY: 'test-service-key',
     },
   },
   resolve: {
