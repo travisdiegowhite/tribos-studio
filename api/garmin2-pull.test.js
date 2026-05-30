@@ -65,11 +65,16 @@ vi.mock('./utils/garmin2/writeActivity.js', () => ({
   writeActivityFromDetail: vi.fn(),
 }));
 
+vi.mock('./utils/garmin/healthDataProcessor.js', () => ({
+  processHealthPushData: vi.fn().mockResolvedValue({ processed: 1, skipped: 0, results: [] }),
+}));
+
 // Now import — after the mocks are set up.
-import handler from './garmin2-pull.js';
+import handler, { healthTypeFromEventType } from './garmin2-pull.js';
 import { claimPings, markProcessed, markFailed } from './utils/garmin2/pingQueue.js';
 import { pullActivityDetail, ConsentRevokedError } from './utils/garmin2/pullActivity.js';
 import { writeActivityFromDetail } from './utils/garmin2/writeActivity.js';
+import { processHealthPushData } from './utils/garmin/healthDataProcessor.js';
 import { verifyCronAuth } from './utils/verifyCronAuth.js';
 
 function mockResponse() {
@@ -176,5 +181,113 @@ describe('garmin2-pull handler', () => {
     expect(res.body.inserted).toBe(1);
     expect(markFailed).toHaveBeenCalledTimes(1);
     expect(markProcessed).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ============================================================================
+// Health-ping dispatch
+// ============================================================================
+
+describe('healthTypeFromEventType', () => {
+  it('maps simple types lowercase', () => {
+    expect(healthTypeFromEventType('HEALTH_DAILIES_PING')).toBe('dailies');
+    expect(healthTypeFromEventType('HEALTH_SLEEPS_PING')).toBe('sleeps');
+    expect(healthTypeFromEventType('HEALTH_HRV_PING')).toBe('hrv');
+  });
+  it('preserves Garmin camelCase for compound types', () => {
+    expect(healthTypeFromEventType('HEALTH_BODYCOMPS_PING')).toBe('bodyComps');
+    expect(healthTypeFromEventType('HEALTH_STRESSDETAILS_PING')).toBe('stressDetails');
+  });
+  it('returns null on non-health event_types', () => {
+    expect(healthTypeFromEventType('ACTIVITY_DETAIL_PING')).toBeNull();
+    expect(healthTypeFromEventType(null)).toBeNull();
+    expect(healthTypeFromEventType('HEALTH_DAILIES')).toBeNull();  // missing _PING suffix
+  });
+});
+
+describe('health-ping handling in the cron', () => {
+  const HEALTH_PING = (overrides = {}) => ({
+    id: 'h-1',
+    event_type: 'HEALTH_DAILIES_PING',
+    garmin_user_id: 'gu-1',
+    activity_id: 'd1',
+    file_url: 'https://cb.example/dailies',
+    payload: { uploadStartTimeInSeconds: 1, uploadEndTimeInSeconds: 86400 },
+    retry_count: 0,
+    ...overrides,
+  });
+
+  it('happy path: pulls callbackURL, dispatches to processHealthPushData, markProcessed', async () => {
+    claimPings.mockResolvedValueOnce([HEALTH_PING()]);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      status: 200,
+      text: async () => JSON.stringify({ dailies: [{ userId: 'gu-1', restingHeartRateInBeatsPerMinute: 52 }] }),
+    }));
+
+    const res = mockResponse();
+    await handler({ headers: {} }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(processHealthPushData).toHaveBeenCalledWith(
+      'dailies',
+      expect.arrayContaining([expect.objectContaining({ userId: 'gu-1' })]),
+      expect.anything(),
+    );
+    expect(markProcessed).toHaveBeenCalledWith(expect.anything(), 'h-1', expect.objectContaining({
+      note: expect.stringMatching(/health dailies/),
+    }));
+    expect(res.body.health_processed).toBe(1);
+
+    vi.unstubAllGlobals();
+  });
+
+  it('accepts a bare array body (response is just [...] not {dailies: [...]})', async () => {
+    claimPings.mockResolvedValueOnce([HEALTH_PING()]);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      status: 200,
+      text: async () => JSON.stringify([{ userId: 'gu-1' }]),
+    }));
+
+    const res = mockResponse();
+    await handler({ headers: {} }, res);
+
+    expect(processHealthPushData).toHaveBeenCalledWith('dailies', expect.any(Array), expect.anything());
+    expect(res.body.health_processed).toBe(1);
+
+    vi.unstubAllGlobals();
+  });
+
+  it('empty response → markProcessed without calling processHealthPushData', async () => {
+    claimPings.mockResolvedValueOnce([HEALTH_PING()]);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      status: 200,
+      text: async () => JSON.stringify({ dailies: [] }),
+    }));
+
+    const res = mockResponse();
+    await handler({ headers: {} }, res);
+
+    expect(processHealthPushData).not.toHaveBeenCalled();
+    expect(markProcessed).toHaveBeenCalled();
+    expect(res.body.health_skipped).toBeGreaterThanOrEqual(1);
+
+    vi.unstubAllGlobals();
+  });
+
+  it('410 on health callbackURL → markProcessed (terminal)', async () => {
+    claimPings.mockResolvedValueOnce([HEALTH_PING()]);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      status: 410,
+      text: async () => 'gone',
+    }));
+
+    const res = mockResponse();
+    await handler({ headers: {} }, res);
+
+    expect(markProcessed).toHaveBeenCalledWith(expect.anything(), 'h-1', expect.objectContaining({
+      note: expect.stringMatching(/expired/),
+    }));
+
+    vi.unstubAllGlobals();
   });
 });

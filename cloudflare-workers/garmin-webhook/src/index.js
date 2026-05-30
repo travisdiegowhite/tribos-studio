@@ -1,26 +1,56 @@
 /**
  * Cloudflare Worker: Garmin Webhook Proxy
  *
- * Thin store-and-respond handler — no business logic.
- * Verifies signature, stores events to Supabase.
- * Returns 200 if stored, 503 if storage failed (so Garmin retries).
- * All processing happens via Vercel cron (api/garmin-webhook-process.js).
+ * Thin store-and-respond handler — no business logic. Verifies signature,
+ * stores events to Supabase, returns 200 if stored, 503 if storage failed
+ * (so Garmin retries). All processing happens via Vercel cron.
+ *
+ * The worker exists to decouple webhook receipt from Vercel deploys. That
+ * property is what ended the recurring March 2026 outage where Vercel code
+ * changes were breaking webhook reception — keep it.
+ *
+ * ╔════════════════════════════════════════════════════════════════════════╗
+ * ║  DUPLICATION NOTE                                                       ║
+ * ╠════════════════════════════════════════════════════════════════════════╣
+ * ║  The ping-detection and row-shape logic below MUST stay in sync with    ║
+ * ║  api/utils/garmin2/pingParser.js and api/utils/garmin2/pingQueue.js.    ║
+ * ║  We cannot import from outside this worker directory (different package ║
+ * ║  + edge runtime), so the logic is duplicated. Treat pingParser.js as    ║
+ * ║  the canonical reference and mirror any change here.                    ║
+ * ╚════════════════════════════════════════════════════════════════════════╝
+ *
+ * Routing model: PING/PULL (Phase 2 of the ground-up Garmin rebuild).
+ *   - PING activity-detail (Activity API §4) → row event_type='ACTIVITY_DETAIL_PING',
+ *     drained by api/garmin2-pull.js cron.
+ *   - PING health → 'HEALTH_<TYPE>_PING'.
+ *   - Legacy PUSH still flowing during cutover is stored with the legacy
+ *     event_type values; the old processor api/garmin-webhook-process.js
+ *     handles them. Strict event_type partition prevents double-processing.
+ *
+ * HMAC policy (matches api/garmin2-ping.js):
+ *   - Missing GARMIN_WEBHOOK_SECRET env var → warn and accept.
+ *   - Secret configured + signature present → verify; reject on mismatch.
+ *   - Secret configured + signature absent  → warn and accept. (Some Garmin
+ *     ping configurations deliver unsigned bodies.)
+ *   - HMAC is over the RAW request body bytes (the March 2026 outage was
+ *     caused by hashing JSON.stringify(parsed) — never do that).
  *
  * FALLBACK PLAN: If Garmin disables the endpoint due to sustained 503s,
- * upgrade to a circuit breaker pattern:
- *   - Track consecutive 503 responses (module-level counter, resets on 200)
- *   - After N consecutive 503s (e.g. 10), flip to returning 200
- *   - Log a critical alert when the circuit breaker trips
- *   - This limits Garmin's exposure to failures while still getting retries
- *     for brief outages (the common case)
- *   - To re-enable a disabled endpoint: Garmin Developer Portal → re-register URL
+ * upgrade to a circuit breaker (counter resets on 200, after N consecutive
+ * 503s flip to returning 200 with a critical alert).
  */
 
 import { createClient } from '@supabase/supabase-js';
 
-// Keep in sync with api/garmin-webhook.js. Health types outside this set are
-// no-ops in healthDataProcessor.js; storing them floods the processor queue.
+// Health summary types the puller (processHealthPushData) knows about.
+// Others — epochs, allDayRespiration, userMetrics, etc. — flood the queue
+// with rows the processor no-ops on. Drop at the door.
 const HANDLED_HEALTH_TYPES = new Set(['dailies', 'sleeps', 'bodyComps', 'stressDetails', 'hrv']);
+
+// Constants mirror api/utils/garmin2/pingQueue.js.
+const ACTIVITY_PING = 'ACTIVITY_DETAIL_PING';
+const HEALTH_PING_PREFIX = 'HEALTH_';
+const HEALTH_PING_SUFFIX = '_PING';
 
 export default {
   async fetch(request, env) {
@@ -32,9 +62,10 @@ export default {
       return json(200, {
         status: 'ok',
         service: 'garmin-webhook-proxy-cf',
-        version: '3.0.0',
+        version: '4.0.0',
         timestamp: new Date().toISOString(),
-        processing: 'async (Vercel cron every minute)'
+        model: 'ping-primary, push-fallback-during-cutover',
+        processing: 'async (Vercel cron every 5 min)',
       });
     }
 
@@ -42,40 +73,125 @@ export default {
       return json(405, { error: 'Method not allowed' });
     }
 
-    // Read body once (needed for both signature check and parsing)
+    // Read body once for both signature check and parsing.
     const bodyText = await request.text();
 
-    // Signature verification
+    // === Signature verification ============================================
     if (env.GARMIN_WEBHOOK_SECRET) {
-      const sig = request.headers.get('x-garmin-signature') || request.headers.get('x-webhook-signature');
-      if (!sig) return json(401, { error: 'Missing signature' });
-      if (!(await verifyHmac(env.GARMIN_WEBHOOK_SECRET, sig, bodyText))) {
-        return json(401, { error: 'Invalid signature' });
+      const sig = request.headers.get('x-garmin-signature')
+        || request.headers.get('x-webhook-signature');
+      if (sig) {
+        if (!(await verifyHmac(env.GARMIN_WEBHOOK_SECRET, sig, bodyText))) {
+          return json(401, { error: 'Invalid signature' });
+        }
+      } else {
+        // Secret configured but no signature header → warn+accept. Some
+        // Garmin ping configurations are unsigned.
+        console.warn('Webhook: secret configured but no signature header — accepting');
       }
+    } else {
+      console.warn('GARMIN_WEBHOOK_SECRET not configured — accepting without verification');
     }
 
+    // === Parse + classify =================================================
+    let webhookData;
     try {
-      const webhookData = JSON.parse(bodyText);
-      const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
-      const { type, healthType, items } = parsePayload(webhookData);
+      webhookData = JSON.parse(bodyText);
+    } catch (err) {
+      return json(400, { error: 'Malformed JSON' });
+    }
 
-      if (type === 'HEALTH' && !HANDLED_HEALTH_TYPES.has(healthType)) {
-        return json(200, { stored: 0, skipped: items.length, reason: 'unhandled_health_type' });
-      }
+    const classified = classifyPayload(webhookData);
+
+    if (classified.kind === 'UNKNOWN') {
+      return json(200, { stored: 0, skipped: classified.items.length || 0, reason: 'unhandled_or_unknown_payload' });
+    }
+    if (classified.kind === 'PING_HEALTH' && !HANDLED_HEALTH_TYPES.has(classified.healthType)) {
+      return json(200, { stored: 0, skipped: classified.items.length, reason: 'unhandled_health_type' });
+    }
+    if (classified.kind === 'PUSH_HEALTH' && !HANDLED_HEALTH_TYPES.has(classified.healthType)) {
+      return json(200, { stored: 0, skipped: classified.items.length, reason: 'unhandled_health_type' });
+    }
+
+    // === Store ============================================================
+    try {
+      const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+      const eventType = eventTypeFor(classified);
+      const isPing = classified.kind.startsWith('PING_');
 
       const eventIds = [];
-      let batchIndex = 0;
       let storageAttempts = 0;
+      let batchIndex = 0;
 
-      for (const item of items) {
+      for (const item of classified.items) {
+        if (!item || typeof item !== 'object') { batchIndex++; continue; }
         const userId = item.userId;
+        if (!userId) { batchIndex++; continue; }
+
+        if (isPing) {
+          // === PING path ===================================================
+          const missing = validatePingItem(item);
+          if (missing.length > 0) {
+            console.warn(`Worker: dropping invalid ping item, missing: ${missing.join(',')}`);
+            batchIndex++;
+            continue;
+          }
+
+          // Dedupe: a redelivered ping for the same activity should not
+          // create a duplicate row. If a row exists AND is not yet processed,
+          // refresh the file_url (Garmin may have issued a fresher callbackURL
+          // closer to its 24h expiry).
+          const summaryId = String(item.summaryId).replace(/-detail$/, '');
+          const { data: existing } = await supabase
+            .from('garmin_webhook_events')
+            .select('id, processed')
+            .eq('activity_id', summaryId)
+            .eq('garmin_user_id', userId)
+            .eq('event_type', eventType)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          const existingRow = existing?.[0] || null;
+
+          if (existingRow) {
+            if (!existingRow.processed) {
+              storageAttempts++;
+              await supabase.from('garmin_webhook_events')
+                .update({ file_url: item.callbackURL, retry_count: 0, next_retry_at: null })
+                .eq('id', existingRow.id);
+              eventIds.push(existingRow.id);
+            }
+            batchIndex++;
+            continue;
+          }
+
+          storageAttempts++;
+          const { data: event, error } = await supabase
+            .from('garmin_webhook_events')
+            .insert({
+              event_type: eventType,
+              garmin_user_id: String(userId),
+              activity_id: summaryId,
+              file_url: item.callbackURL,
+              file_type: 'JSON',
+              upload_timestamp: new Date(item.uploadStartTimeInSeconds * 1000).toISOString(),
+              payload: item,                         // store the ITEM, not the envelope
+              processed: false,
+              retry_count: 0,
+              next_retry_at: null,
+              batch_index: batchIndex,
+            })
+            .select('id')
+            .single();
+          if (!error) eventIds.push(event.id);
+          batchIndex++;
+          continue;
+        }
+
+        // === Legacy PUSH path (during cutover) =============================
         const activityId = (item.activityId || item.summaryId)?.toString() || null;
         const fileUrl = item.callbackURL || item.fileUrl || null;
 
-        if (!userId) { batchIndex++; continue; }
-
-        // Duplicate check for activity webhooks
-        if (activityId && type !== 'HEALTH') {
+        if (activityId) {
           const { data: rows } = await supabase
             .from('garmin_webhook_events')
             .select('id, file_url')
@@ -84,9 +200,8 @@ export default {
             .order('created_at', { ascending: false })
             .limit(1);
           const existing = rows?.[0] || null;
-
           if (existing) {
-            if (type === 'ACTIVITY_FILE_DATA' && fileUrl) {
+            if (classified.kind === 'PUSH_ACTIVITY_FILE' && fileUrl) {
               storageAttempts++;
               await supabase.from('garmin_webhook_events')
                 .update({ file_url: fileUrl, processed: false, process_error: null, retry_count: 0, next_retry_at: null })
@@ -102,69 +217,62 @@ export default {
         const { data: event, error } = await supabase
           .from('garmin_webhook_events')
           .insert({
-            event_type: type === 'HEALTH' ? `HEALTH_${healthType}` : type,
-            garmin_user_id: userId,
+            event_type: eventType,
+            garmin_user_id: String(userId),
             activity_id: activityId,
             file_url: fileUrl,
             file_type: webhookData.fileType || item.fileType || 'FIT',
-            upload_timestamp: webhookData.uploadTimestamp ||
-              (item.startTimeInSeconds ? new Date(item.startTimeInSeconds * 1000).toISOString() : null) ||
-              (webhookData.startTimeInSeconds ? new Date(webhookData.startTimeInSeconds * 1000).toISOString() : null),
+            upload_timestamp: webhookData.uploadTimestamp
+              || (item.startTimeInSeconds ? new Date(item.startTimeInSeconds * 1000).toISOString() : null)
+              || (webhookData.startTimeInSeconds ? new Date(webhookData.startTimeInSeconds * 1000).toISOString() : null),
             payload: webhookData,
             processed: false,
             retry_count: 0,
             next_retry_at: null,
-            batch_index: batchIndex
+            batch_index: batchIndex,
           })
           .select('id')
           .single();
-
         if (!error) eventIds.push(event.id);
         batchIndex++;
       }
 
-      // Return 503 when ALL storage attempts failed (e.g. database is down).
-      // Garmin will retry delivery. Losing events silently is worse than risking
-      // a temporary endpoint disable.
+      // ALL inserts failed → 503 so Garmin retries delivery. Losing events
+      // silently is worse than risking a temporary endpoint disable.
       if (eventIds.length === 0 && storageAttempts > 0) {
         console.error('All event storage failed — returning 503 for Garmin retry', {
-          attemptedCount: storageAttempts, type
+          attemptedCount: storageAttempts, kind: classified.kind,
         });
-        return json(503, {
-          success: false,
-          error: 'Service temporarily unavailable — all event storage failed',
-          retryable: true
-        });
+        return json(503, { success: false, error: 'Service temporarily unavailable', retryable: true });
       }
-
       if (eventIds.length > 0 && eventIds.length < storageAttempts) {
         console.warn('Partial storage failure', {
-          stored: eventIds.length, attempted: storageAttempts, type
+          stored: eventIds.length, attempted: storageAttempts, kind: classified.kind,
         });
       }
 
-      return json(200, { success: true, eventIds, message: `${eventIds.length} events queued` });
-
+      return json(200, {
+        success: true,
+        eventIds,
+        kind: classified.kind,
+        eventType,
+        message: `${eventIds.length} events queued`,
+      });
     } catch (err) {
       console.error('Webhook error:', err);
-      // Return 503 so Garmin retries delivery.
-      return json(503, {
-        success: false,
-        error: 'Service temporarily unavailable',
-        retryable: true
-      });
+      return json(503, { success: false, error: 'Service temporarily unavailable', retryable: true });
     }
-  }
+  },
 };
 
-// --- Helpers ---
+// --- Helpers ----------------------------------------------------------------
 
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
   };
 }
 
@@ -178,18 +286,64 @@ async function verifyHmac(secret, signature, body) {
     'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   );
   const signed = await crypto.subtle.sign('HMAC', key, enc.encode(body));
-  const expected = Array.from(new Uint8Array(signed)).map(b => b.toString(16).padStart(2, '0')).join('');
+  const expected = Array.from(new Uint8Array(signed))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
   return expected === signature.toLowerCase();
 }
 
-function parsePayload(data) {
-  const healthTypes = ['dailies', 'sleeps', 'bodyComps', 'stressDetails', 'hrv',
-    'epochs', 'respirations', 'pulseOx', 'allDayRespiration', 'bloodPressures', 'userMetrics'];
-  for (const ht of healthTypes) {
-    if (data[ht]?.length) return { type: 'HEALTH', healthType: ht, items: data[ht] };
+/**
+ * Mirror of api/utils/garmin2/pingParser.js#classifyPayload. Keep in sync.
+ */
+function classifyPayload(body) {
+  if (!body || typeof body !== 'object') return { kind: 'UNKNOWN', healthType: null, items: [] };
+
+  if (Array.isArray(body.activityDetails) && body.activityDetails.length > 0) {
+    const sample = body.activityDetails[0];
+    const isPing = sample && typeof sample === 'object' && typeof sample.callbackURL === 'string';
+    return {
+      kind: isPing ? 'PING_ACTIVITY_DETAIL' : 'PUSH_CONNECT_ACTIVITY',
+      healthType: null,
+      items: body.activityDetails,
+    };
   }
-  if (data.activityFiles?.length) return { type: 'ACTIVITY_FILE_DATA', items: data.activityFiles };
-  if (data.activityDetails?.length) return { type: 'ACTIVITY_DETAIL', items: data.activityDetails };
-  if (data.activities?.length) return { type: 'CONNECT_ACTIVITY', items: data.activities };
-  return { type: 'UNKNOWN', items: [data] };
+  if (Array.isArray(body.activityFiles) && body.activityFiles.length > 0) {
+    return { kind: 'PUSH_ACTIVITY_FILE', healthType: null, items: body.activityFiles };
+  }
+  if (Array.isArray(body.activities) && body.activities.length > 0) {
+    return { kind: 'PUSH_CONNECT_ACTIVITY', healthType: null, items: body.activities };
+  }
+  for (const ht of HANDLED_HEALTH_TYPES) {
+    if (Array.isArray(body[ht]) && body[ht].length > 0) {
+      const sample = body[ht][0];
+      const isPing = sample && typeof sample === 'object' && typeof sample.callbackURL === 'string';
+      return {
+        kind: isPing ? 'PING_HEALTH' : 'PUSH_HEALTH',
+        healthType: ht,
+        items: body[ht],
+      };
+    }
+  }
+  return { kind: 'UNKNOWN', healthType: null, items: [] };
+}
+
+function validatePingItem(item) {
+  const missing = [];
+  if (!item.userId) missing.push('userId');
+  if (!item.summaryId) missing.push('summaryId');
+  if (!item.callbackURL) missing.push('callbackURL');
+  if (typeof item.uploadStartTimeInSeconds !== 'number') missing.push('uploadStartTimeInSeconds');
+  if (typeof item.uploadEndTimeInSeconds !== 'number') missing.push('uploadEndTimeInSeconds');
+  return missing;
+}
+
+function eventTypeFor({ kind, healthType }) {
+  switch (kind) {
+    case 'PING_ACTIVITY_DETAIL': return ACTIVITY_PING;
+    case 'PING_HEALTH':           return `${HEALTH_PING_PREFIX}${(healthType || '').toUpperCase()}${HEALTH_PING_SUFFIX}`;
+    case 'PUSH_ACTIVITY_FILE':    return 'ACTIVITY_FILE_DATA';
+    case 'PUSH_CONNECT_ACTIVITY': return 'CONNECT_ACTIVITY';
+    case 'PUSH_HEALTH':           return `${HEALTH_PING_PREFIX}${healthType || ''}`;
+    default:                      return 'UNKNOWN';
+  }
 }
