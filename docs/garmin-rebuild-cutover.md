@@ -1,285 +1,185 @@
-# Garmin Ping/Pull Rebuild — Cutover Runbook
+# Garmin Ping/Pull Rebuild — Cutover Runbook (sole-user fast path)
 
-> **Status:** Phases 0–4 shipped on branch `garmin-ping-pull-rebuild`
-> (the new pipeline is code-complete and tested, 1450 tests passing, but
-> dormant — not wired into the frontend, portal still on PUSH).
-> **This doc covers the operational steps (Phases 5–7) to make it live.**
-> **Owner:** travisdiegowhite
-> **Related:** `docs/garmin-integration-context.md` (legacy architecture),
-> the plan file for the rebuild.
+> **Updated 2026-05-30 for the sole-user case.** Earlier draft assumed a
+> second Garmin consumer key + per-user flag rollout; we're taking the
+> straight cutover instead because Travis is effectively the only active
+> Garmin user.
 
----
+## Why this is now small
 
-## What's already done (Phases 0–4)
+Originally the cutover meant repointing the entire frontend to the new
+`garmin2-*` endpoints AND running a require-reconnect SQL AND flipping the
+portal. But the frontend isn't actually on the critical path — the legacy
+endpoints still read the same DB columns and call the same OAuth flow.
+What changes when Garmin flips from PUSH to PING is what arrives in
+`garmin_webhook_events`, and that's handled by the new `garmin2-pull` cron
+(already registered, dormant in production).
 
-New pipeline, all under the `garmin2-*` / `api/utils/garmin2/` namespace:
+So the entire cutover collapses to **three steps**: deploy, flip, ride.
 
-| Concern | New code | Replaces |
-|---|---|---|
-| Ping receipt | Cloudflare worker (updated) + `api/garmin2-ping.js` | `api/garmin-webhook.js` |
-| Activity pull + write | `api/garmin2-pull.js`, `api/utils/garmin2/{pullActivity,writeActivity,pingQueue,deriveTss,pingParser}.js` | `api/garmin-webhook-process.js` + `api/garmin-reconcile.js` |
-| OAuth | `api/garmin2-auth.js` | auth actions of `api/garmin-auth.js` |
-| Token maintenance | `api/garmin2-token-maintenance.js` | `api/garmin-token-maintenance.js` |
-| Route push | `api/garmin2-route-push.js` | `pushRoute` in `api/garmin-auth.js` |
-| Health pings | health dispatch in `api/garmin2-pull.js` (reuses `healthDataProcessor.js`) | health path of `garmin-webhook-process.js` |
-| Historical backfill | `api/garmin2-backfill.js` | backfill actions of `api/garmin-activities.js` |
+The legacy frontend keeps working unchanged. The flag pattern (Builder 2.0
+style) is still the right answer for the *eventual* Settings UI rebuild,
+but it's not a prerequisite — we can ship that incrementally after the
+pipeline is verified.
 
-The `garmin2-pull` cron is **already in `vercel.json`** (every 5 min). It's a
-no-op in current production because no `ACTIVITY_DETAIL_PING` rows exist until
-the portal flips. Zero risk; it just claims 0 rows and returns.
+## What's in the deploy (branch `garmin-ping-pull-rebuild`)
 
-**Key architectural facts to remember during cutover:**
-- The Cloudflare worker handles BOTH push and ping payloads (it classifies by
-  shape). So during the transition it keeps storing legacy push rows AND new
-  ping rows; they're partitioned by `event_type` so the old processor and new
-  puller never double-process.
-- `bike_computer_integrations` has **no `status` column** — every reader filters
-  on `sync_enabled` + `refresh_token_invalid`. Do not reintroduce `status`.
-- No new migrations. The whole rebuild reuses existing tables.
+| Commit | What |
+|---|---|
+| `a8f3a43` | Hotfix: dropped the phantom `status` filter from Phase 7 endpoints |
+| `16ee6f3` | Phase 0: `deriveTss`, `pingQueue` |
+| `36c8916` | Phase 1: `pullActivity`, `writeActivity`, `garmin2-pull` cron |
+| `f7c97ef` | Phase 2: `pingParser`, `garmin2-ping` receiver, **Cloudflare worker rewrite** |
+| `7e73fda` | Phase 3: `garmin2-auth`, `garmin2-token-maintenance` (dormant) |
+| `cb62e37` | Phase 4: `garmin2-route-push`, health-ping dispatch, `garmin2-backfill` (dormant) |
+| `9cd91f3` | `vercel.json` registers `garmin2-pull` (every 5 min, currently no-op) |
+| **(this commit)** | Legacy processor patched to skip ping event types — prevents racing `garmin2-pull` post-flip |
 
----
+1450 tests passing. All Phase 3/4 endpoints are dormant in this deploy —
+they exist but nothing calls them yet.
 
-## Phase 5 — Staging verification (do this FIRST, before any prod cutover)
+## The three-step cutover
 
-The Garmin Developer Portal's PUSH-vs-PING config is **global per consumer
-key**, so you can't run push and ping in parallel on the production key. Verify
-on a separate key first.
+### Step 1 — Deploy
 
-### 5.1 Set up a staging Garmin app
-1. In the Garmin Developer Portal, request/create a **second consumer key**
-   for staging (Garmin permits dev keys).
-2. Configure its Activity API endpoints as **PING** (not PUSH), pointing at a
-   staging worker route (or the Vercel `/api/garmin2-ping` endpoint on a preview
-   deployment). For Activity Details, the ping config should target the
-   `activityDetails` notification type.
-3. Set the staging worker's env (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`,
-   `GARMIN_WEBHOOK_SECRET`) to a **staging Supabase project** if you have one,
-   or accept that staging writes land in prod tables (tag test users clearly).
+Merge `garmin-ping-pull-rebuild` to `main`. Vercel deploys:
+- `api/garmin2-pull.js` continues running every 5 min (still claims 0 rows
+  until the portal flips)
+- The Cloudflare worker code update is **not** deployed by Vercel — you
+  deploy it separately via wrangler. See Step 2.
 
-### 5.2 Connect a test account & ride
-1. Connect a real Garmin account through the staging OAuth flow
-   (`garmin2-auth`). Confirm:
-   ```sql
-   SELECT provider_user_id, sync_enabled, refresh_token_invalid
-   FROM bike_computer_integrations
-   WHERE user_id = '<test-user>' AND provider = 'garmin';
-   ```
-   `provider_user_id` MUST be populated (the linchpin). If it's null, the OAuth
-   flow failed its hard-fail guard — investigate before proceeding.
-2. Do a real ride on a Garmin device (or use Garmin's Data Generator / Summary
-   Resender web tool to replay a historical activity).
-3. Within ~1 min, confirm a ping row landed:
-   ```sql
-   SELECT id, event_type, activity_id, file_url IS NOT NULL AS has_callback,
-          processed, retry_count, process_error
-   FROM garmin_webhook_events
-   WHERE garmin_user_id = '<provider_user_id>'
-   ORDER BY received_at DESC LIMIT 5;
-   ```
-   Expect `event_type='ACTIVITY_DETAIL_PING'`, `has_callback=t`, `processed=f`.
-4. Within 5 min (next `garmin2-pull` tick), confirm the activity imported full:
-   ```sql
-   SELECT type, data_completeness, device_watts,
-          normalized_power, effective_power, tss, rss,
-          intensity_factor, ride_intensity,
-          activity_streams IS NOT NULL AS has_streams,
-          map_summary_polyline IS NOT NULL AS has_polyline,
-          power_curve_summary IS NOT NULL AS has_pcurve
-   FROM activities
-   WHERE provider='garmin' AND provider_activity_id='<summaryId>';
-   ```
-   Expect `data_completeness='full'`, streams/polyline/pcurve present, and the
-   dual-write columns equal (`normalized_power=effective_power`, `tss=rss`,
-   `intensity_factor=ride_intensity`).
-5. Open the ride in `RideAnalysisModal` → map renders, power curve renders, NP
-   shows. This is the end-to-end gate.
+### Step 2 — Deploy the Cloudflare worker
 
-### 5.3 Verify health + backfill (optional but recommended)
-- Trigger a health sync on the device; confirm a `HEALTH_*_PING` row appears and
-  a `health_metrics` row lands after the next puller tick.
-- Call `POST /api/garmin2-backfill { action: 'start', yearsBack: 1 }` for the
-  test user; confirm `garmin_backfill_chunks` rows are created and historical
-  activities trickle in over the following hours.
-
-**Do not proceed to Phase 6 until 5.2 passes cleanly for at least one real ride.**
-
----
-
-## Phase 6 — Production cutover
-
-### 6.1 Frontend repoint (code change — stage as a commit on this branch)
-
-`src/utils/garminService.js` currently points every method at the legacy
-endpoints. Repoint the ones that have garmin2 equivalents:
-
-| garminService method | Old endpoint | New endpoint |
-|---|---|---|
-| `getAuthorizationUrl`, `exchangeToken`, `getConnectionStatus`, `disconnect` | `/api/garmin-auth` | `/api/garmin2-auth` |
-| `pushRoute` | `/api/garmin-auth` (action push_route) | `/api/garmin2-route-push` (body `{ routeData }`) |
-| `backfillHistorical`, `getBackfillStatus`, `resetFailedBackfillChunks` | `/api/garmin-activities` | `/api/garmin2-backfill` (actions start/status/reset_failed) |
-
-**Leave pointing at legacy during soak** (no garmin2 equivalent built; they
-become obsolete once ping/pull is steady-state and can be removed in Phase 7):
-- `resyncActivity` (`/api/garmin-resync-activity`) — in ping/pull there are no
-  stranded `summary_only` rows to resync, but the `RideAnalysisModal` button is
-  harmless. The hotfix (commit a8f3a43) made it functional again.
-- `getWebhookStatus` (`/api/garmin-webhook-status`) — diagnostic only.
-- `syncActivities`, `backfillGps`, `backfillStreams`, `repairConnection`,
-  `reprocessFailedEvents`, `diagnose` — obsolete in ping/pull (every activity
-  arrives full). Remove the UI affordances in Phase 7.
-
-Note the request-shape differences: `garmin2-route-push` takes `{ routeData }`
-directly (not `{ action: 'push_route', routeData }`); `garmin2-backfill` uses
-`{ action: 'start'|'status'|'reset_failed' }`.
-
-### 6.2 Cron swap (`vercel.json`)
-
-At cutover, swap the token-maintenance cron and **keep the legacy processors
-running for the soak** so any in-flight legacy push rows drain:
-
-```jsonc
-// Replace the old token-maintenance path:
-{ "path": "/api/garmin2-token-maintenance", "schedule": "0 */6 * * *" }
-// (remove "/api/garmin-token-maintenance" — running both double-refreshes;
-//  the mutex protects correctness but it's wasteful)
-
-// KEEP during soak (they drain legacy push rows, harmless once empty):
-//   /api/garmin-webhook-process  (every 5 min)
-//   /api/garmin-reconcile        (every 15 min)
-// garmin2-pull is already present (every 5 min).
-```
-
-Add the maxDuration entry for `api/garmin2-token-maintenance.js` (60s).
-
-### 6.3 Flip the Garmin portal (the actual switch)
-
-In the **production** Garmin Developer Portal:
-1. Change the Activity API configuration from **PUSH** to **PING** for the
-   Activity Details notification type. Keep the endpoint URL = the Cloudflare
-   worker URL (it now handles pings).
-2. (Health + other notification types: decide per Phase 5 findings whether
-   they're ping or push; the worker + puller handle both.)
-
-After the flip, new rides arrive as pings → worker stores
-`ACTIVITY_DETAIL_PING` → `garmin2-pull` imports them full. Watch the first few:
-```sql
-SELECT event_type, COUNT(*), SUM((processed)::int) AS processed
-FROM garmin_webhook_events
-WHERE received_at > NOW() - INTERVAL '30 minutes'
-GROUP BY event_type;
-```
-
-### 6.4 Require-reconnect data update
-
-Per the locked decision, existing Garmin users re-run OAuth against the new
-pipeline. Park their old rows so the puller skips them and the
-`IntegrationAlert` UI prompts reconnection:
-
-```sql
--- Snapshot first (rollback insurance)
-CREATE TABLE bike_computer_integrations_precutover AS
-SELECT * FROM bike_computer_integrations WHERE provider = 'garmin';
-
--- Park all existing garmin integrations → forces reconnect via new OAuth.
-UPDATE bike_computer_integrations
-SET refresh_token_invalid = true, updated_at = NOW()
-WHERE provider = 'garmin';
-```
-
-When a user reconnects, `garmin2-auth.exchangeToken` sets
-`refresh_token_invalid=false` + `sync_enabled=true`, re-enabling them.
-
-> **Timing:** Run this AFTER the portal flip and AFTER the frontend repoint is
-> deployed, so the reconnect button uses `garmin2-auth`. Communicate to users
-> (in-app banner / email) that a one-time Garmin reconnect is required.
-
-### 6.5 Soak (≥48h)
-
-Monitor:
-```sql
--- New rides landing full without reconciler intervention?
-SELECT data_completeness, COUNT(*)
-FROM activities
-WHERE provider='garmin' AND created_at > NOW() - INTERVAL '24 hours'
-GROUP BY 1;
--- expect mostly 'full', few/no 'summary_only'
-
--- Ping queue draining?
-SELECT event_type, processed, COUNT(*)
-FROM garmin_webhook_events
-WHERE received_at > NOW() - INTERVAL '24 hours'
-GROUP BY 1, 2;
-
--- Any parked (terminally-failed) pings?
-SELECT id, event_type, process_error
-FROM garmin_webhook_events
-WHERE processed = true AND process_error LIKE 'parked after%'
-ORDER BY processed_at DESC LIMIT 20;
-```
-
-Watch Sentry for `garmin.pull_cron_*`, `garmin.consent_revoked`,
-`garmin.pull_write_error`.
-
----
-
-## Phase 7 — Cleanup (after a clean ≥48h soak)
-
-Delete the legacy set (≈5,800 LoC) in a **separate PR** (not the cutover branch,
-so the soak coexistence stays intact until you're sure):
-
-```
-api/garmin-auth.js
-api/garmin-webhook.js
-api/garmin-webhook-process.js
-api/garmin-activities.js
-api/garmin-token-maintenance.js
-api/garmin-reconcile.js
-api/garmin-resync-activity.js
-api/garmin-webhook-status.js
-api/admin-garmin-health.js
-```
-
-Plus:
-- Remove the legacy cron entries from `vercel.json`
-  (`garmin-webhook-process`, `garmin-reconcile`, and the already-swapped
-  `garmin-token-maintenance`) and their `functions` maxDuration entries.
-- Remove the now-obsolete `garminService.js` methods (syncActivities,
-  backfillGps, backfillStreams, repairConnection, reprocessFailedEvents,
-  diagnose) and the Settings UI affordances that call them.
-- Decide the fate of `resyncActivity` / `getWebhookStatus` — either build
-  `garmin2-status` + a ping-aware resync, or drop the UI.
-
-**Keep** (still used by the new pipeline):
-- `api/utils/garmin/*` (tokenManager, completeness, activityDetailsParser,
-  activityBuilder, activityFilters, healthDataProcessor, signatureVerifier,
-  webhookPayloadParser)
-- `api/utils/garminBackfill.js`, `api/utils/activityDedup.js`
-- `api/utils/fitParser.js` (still used by `api/fit-upload.js` for manual FIT
-  uploads — NOT on the ping/pull path, but don't delete it)
-- The Cloudflare worker (updated, not deleted)
-
-After deletion, run the connection-hygiene audit from CLAUDE.md:
 ```bash
-grep -r "createClient" api/ --include="*.js"   # only supabaseAdmin.js
-grep -rn "\.eq('status'" api/garmin2-*.js       # zero hits
+cd cloudflare-workers/garmin-webhook
+npm install   # if needed
+npx wrangler deploy
 ```
 
----
+Verify the worker version bumped:
+```bash
+curl https://garmin-webhook.tribos-studio.workers.dev/   # GET healthcheck
+# expect: { ... "version": "4.0.0", "model": "ping-primary, push-fallback-during-cutover" ... }
+```
 
-## Rollback
+If you can't deploy the worker right now: the Vercel fallback
+`api/garmin2-ping.js` will catch pings if you reconfigure the portal
+endpoint URL to point at it. The worker is preferred (decoupling from
+Vercel deploys is the whole point of having it).
 
-If the ping/pull path misbehaves after the portal flip:
-1. **Flip the portal back to PUSH.** The legacy `garmin-webhook-process` cron is
-   still running (during soak) and resumes handling push rows immediately.
-2. Revert the require-reconnect update:
-   ```sql
-   UPDATE bike_computer_integrations b
-   SET refresh_token_invalid = s.refresh_token_invalid
-   FROM bike_computer_integrations_precutover s
-   WHERE b.id = s.id;
-   ```
-3. Revert the frontend repoint deploy.
+### Step 3 — Flip the Garmin Developer Portal
 
-Because Phases 0–4 added only dormant code and one no-op cron, **nothing before
-the Phase 6 portal flip is destructive** — the rollback surface is just the
-portal setting, one SQL update, and one frontend deploy.
+1. Log into the Garmin Developer Portal for your production consumer key.
+2. For the Activity API → **Activity Details** notification type, change
+   the delivery mode from **PUSH** to **PING**. Endpoint URL stays the
+   same (worker URL).
+3. Optionally do the same for Health notification types — the pipeline
+   handles both push and ping for health.
+
+### Step 4 — Ride
+
+Do a real ride on your Garmin device. Wait for it to sync to Garmin
+Connect (typically <60 s after the device finishes recording).
+
+Within ~1 min of the upload, the ping should land:
+
+```sql
+SELECT id, event_type, garmin_user_id, activity_id,
+       file_url IS NOT NULL AS has_callback,
+       processed, retry_count
+FROM garmin_webhook_events
+ORDER BY received_at DESC LIMIT 5;
+```
+Expect: `event_type='ACTIVITY_DETAIL_PING'`, `has_callback=t`, `processed=f` (briefly).
+
+Within 5 min (next `garmin2-pull` tick), the activity should land full:
+
+```sql
+SELECT type, name, start_date, data_completeness, device_watts,
+       normalized_power, effective_power, tss, rss,
+       intensity_factor, ride_intensity,
+       activity_streams IS NOT NULL AS has_streams,
+       map_summary_polyline IS NOT NULL AS has_polyline,
+       power_curve_summary IS NOT NULL AS has_pcurve
+FROM activities
+WHERE provider='garmin'
+ORDER BY created_at DESC LIMIT 3;
+```
+Expect: `data_completeness='full'`, streams/polyline/pcurve all true,
+dual-write columns equal (`normalized_power = effective_power`, etc.).
+
+Open the ride in the Training dashboard / `RideAnalysisModal`. Map renders.
+Power curve renders. NP shows. **That's the end-to-end gate.** If it
+passes, ping/pull is verified.
+
+## If something breaks
+
+### Pings aren't arriving
+
+- Verify the worker deploy bumped version (`GET /` on the worker URL).
+- Check worker logs: `npx wrangler tail garmin-webhook` from
+  `cloudflare-workers/garmin-webhook/`. Watch for HMAC failures or
+  parser errors when you ride.
+- Check the portal config — sometimes Garmin's flip takes a few minutes
+  to propagate.
+
+### Pings arrive but `garmin2-pull` doesn't process them
+
+- Check the cron is running: Vercel dashboard → Functions → Crons. Look
+  for `/api/garmin2-pull` invocations every 5 min.
+- Manually invoke:
+  ```bash
+  curl -X POST \
+    -H "Authorization: Bearer $CRON_SECRET" \
+    https://www.tribos.studio/api/garmin2-pull
+  ```
+  Response shows counters; non-zero `errors` or `no_match` tells you why.
+- Sentry tags: `garmin.pull_cron_*`, `garmin.consent_revoked`,
+  `garmin.pull_write_error`.
+
+### Activity imports but data is incomplete
+
+- Compare `data_completeness` to the dual-write columns. If `tss` is null
+  but `normalized_power` is present, athlete FTP is unset (expected —
+  `deriveTss` returns nulls without FTP, and completeness doesn't require
+  TSS). Set FTP in user_profiles and the next ride will derive it.
+- If `activity_streams` is missing, the §7.3 response had no `samples[]`
+  — possibly a manually-entered Garmin activity. Indoor rides without
+  power meter / HR can land summary-only legitimately.
+
+### Need to roll back
+
+1. **Flip the portal back to PUSH.** The legacy processor cron is still
+   running (it just stopped grabbing ping rows; legacy push rows still
+   flow). Within ~5 min, new rides go back to the old behavior.
+2. **Optionally** revert the legacy-processor patch — strict narrowing of
+   the filter is harmless to leave in place. Without it, the legacy
+   processor would claim any leftover ping rows post-rollback (which
+   would fail to process and mark as failed — not data loss, since the
+   rows were already imported by `garmin2-pull` before the rollback).
+3. The deployed `garmin2-pull` cron continues running but claims 0 rows.
+
+## After the gate passes
+
+Once a real ride lands `full` end-to-end and renders correctly, the
+combined Phase 5/6 is done. What's left:
+
+1. **Soak ≥48 h** with the portal on PING. Watch the
+   `garmin_webhook_events` processed rate and Sentry. Run a couple more
+   rides to confirm stability.
+2. **Phase 7 cleanup** (separate PR after soak): delete the legacy
+   `garmin-auth.js` / `garmin-webhook.js` / `garmin-webhook-process.js` /
+   `garmin-activities.js` / `garmin-token-maintenance.js` /
+   `garmin-reconcile.js` / `garmin-resync-activity.js` /
+   `garmin-webhook-status.js` / `admin-garmin-health.js`. Drop the
+   `garmin-webhook-process` and `garmin-reconcile` cron entries. Remove
+   `garmin-token-maintenance` cron and swap to
+   `garmin2-token-maintenance`.
+3. **Frontend Settings rebuild** (separate work, flag-gated per the
+   Builder 2.0 pattern): new connection panel reading the richer
+   `garmin2-auth get_connection_status` response, replacing the legacy
+   diagnose / repair / backfill-GPS / backfill-streams / sync UI
+   affordances that are obsolete under ping/pull.
+
+The frontend rebuild can take as long as it needs — the pipeline doesn't
+depend on it.

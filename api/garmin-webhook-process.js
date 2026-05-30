@@ -35,6 +35,16 @@ const BATCH_SIZE = 20;
 // requestActivityDetailsBackfill in downloadAndProcessActivity actually gets
 // to run. Health events keep the tight window — they're cheap to lose.
 const ACTIVITY_EVENT_TYPES = ['CONNECT_ACTIVITY', 'ACTIVITY_DETAIL', 'ACTIVITY_FILE_DATA'];
+
+// Ping event types that belong to the NEW garmin2-pull pipeline, NOT this
+// legacy processor. The Cloudflare worker tags ping payloads with these
+// event_types; api/garmin2-pull.js owns them exclusively. Without this
+// exclusion list, the health-fallback query below ("anything that isn't
+// an activity") would claim ping rows and race the new puller for the
+// same DB rows. Keep these literals in sync with
+// api/utils/garmin2/pingQueue.js (ACTIVITY_PING + HEALTH_*_PING).
+const PING_EVENT_TYPES = ['ACTIVITY_DETAIL_PING'];
+const PING_EVENT_TYPE_LIKE_PATTERN = 'HEALTH_%_PING';
 const ACTIVITY_CUTOFF_DAYS = 14;
 const HEALTH_CUTOFF_HOURS = 24;
 
@@ -79,8 +89,13 @@ export default async function handler(req, res) {
     let events = activityEvents || [];
     const remaining = BATCH_SIZE - events.length;
     if (remaining > 0) {
+      // Health fallback: claim any non-activity event_type EXCEPT the new
+      // ping types (ACTIVITY_DETAIL_PING + HEALTH_*_PING). Those belong to
+      // api/garmin2-pull.js; without this exclusion the two crons race.
+      const excluded = [...ACTIVITY_EVENT_TYPES, ...PING_EVENT_TYPES];
       const { data: healthEvents, error: healthErr } = await baseQuery()
-        .not('event_type', 'in', `(${ACTIVITY_EVENT_TYPES.join(',')})`)
+        .not('event_type', 'in', `(${excluded.join(',')})`)
+        .not('event_type', 'like', PING_EVENT_TYPE_LIKE_PATTERN)
         .gte('created_at', healthCutoff)
         .limit(remaining);
       if (healthErr) {
