@@ -45,7 +45,8 @@ import {
   claimPings,
   markProcessed,
   markFailed,
-  ACTIVITY_PING,
+  HEALTH_PING_PREFIX,
+  HEALTH_PING_SUFFIX,
 } from './utils/garmin2/pingQueue.js';
 import {
   pullActivityDetail,
@@ -55,6 +56,7 @@ import {
   GarminPullError,
 } from './utils/garmin2/pullActivity.js';
 import { writeActivityFromDetail } from './utils/garmin2/writeActivity.js';
+import { processHealthPushData } from './utils/garmin/healthDataProcessor.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -77,14 +79,15 @@ export default async function handler(req, res) {
     no_integration: 0,
     no_token: 0,
     consent_revoked: 0,
+    health_processed: 0,
+    health_skipped: 0,
     errors: 0,
   };
 
   try {
-    const pings = await claimPings(supabase, {
-      limit: PER_RUN_LIMIT,
-      eventTypePrefix: ACTIVITY_PING,
-    });
+    // Default claim drains both ACTIVITY_DETAIL_PING and HEALTH_*_PING rows
+    // (see pingQueue.claimPings default OR filter). Dispatch happens per ping.
+    const pings = await claimPings(supabase, { limit: PER_RUN_LIMIT });
     results.claimed = pings.length;
     console.log(`=== Garmin Ping/Pull cron: ${pings.length} ping(s) claimed ===`);
 
@@ -158,6 +161,20 @@ async function processUserPings(garminUserId, userPings, results) {
   }
 
   for (const ping of userPings) {
+    // Dispatch by event_type. Health pings pull the callbackURL directly
+    // and hand the response array off to processHealthPushData (which
+    // re-resolves the integration by garmin user id internally).
+    if (isHealthPing(ping.event_type)) {
+      try {
+        await processHealthPing(ping, accessToken, results);
+      } catch (perPingErr) {
+        results.errors++;
+        console.error(`Per-ping health failed for ${ping.id}:`, perPingErr.message);
+        await markFailed(supabase, ping, perPingErr).catch(() => {});
+      }
+      continue;
+    }
+
     try {
       let detail;
       try {
@@ -242,4 +259,126 @@ async function processUserPings(garminUserId, userPings, results) {
       await markFailed(supabase, ping, perPingErr).catch(() => {});
     }
   }
+}
+
+// ============================================================================
+// Health ping handling
+// ============================================================================
+
+/**
+ * Is this row a health ping (event_type = 'HEALTH_<TYPE>_PING')?
+ * Cheaper than a regex; both bounds are fixed literals.
+ */
+function isHealthPing(eventType) {
+  return typeof eventType === 'string'
+    && eventType.startsWith(HEALTH_PING_PREFIX)
+    && eventType.endsWith(HEALTH_PING_SUFFIX);
+}
+
+/**
+ * Extract the Garmin data-type name from a HEALTH_*_PING event_type.
+ *   'HEALTH_DAILIES_PING'  → 'dailies'
+ *   'HEALTH_SLEEPS_PING'   → 'sleeps'
+ *   'HEALTH_BODYCOMPS_PING' → 'bodyComps' (preserves Garmin's camelCase)
+ *
+ * Pure / exported for testing.
+ */
+export function healthTypeFromEventType(eventType) {
+  if (!isHealthPing(eventType)) return null;
+  const inner = eventType.slice(HEALTH_PING_PREFIX.length, -HEALTH_PING_SUFFIX.length).toLowerCase();
+  // Garmin uses camelCase for compound types. Map the few that matter.
+  switch (inner) {
+    case 'bodycomps': return 'bodyComps';
+    case 'stressdetails': return 'stressDetails';
+    default: return inner;
+  }
+}
+
+async function processHealthPing(ping, accessToken, results) {
+  const healthType = healthTypeFromEventType(ping.event_type);
+  if (!healthType) {
+    results.health_skipped++;
+    await markProcessed(supabase, ping.id, { note: `unknown health event_type: ${ping.event_type}` });
+    return;
+  }
+
+  // Health pings carry the callbackURL the same way activity pings do.
+  // The pulled body is a JSON object keyed by the type, e.g.
+  // `{ dailies: [...] }`. We hand the array off to processHealthPushData.
+  let body;
+  try {
+    const response = await fetchHealthCallback(ping.file_url, accessToken);
+    body = response;
+  } catch (err) {
+    if (err instanceof ConsentRevokedError) {
+      results.consent_revoked++;
+      captureServerError(err, {
+        tag: 'garmin.consent_revoked',
+        extra: { event_type: ping.event_type, garmin_user_id: ping.garmin_user_id },
+      });
+      await markProcessed(supabase, ping.id, { note: 'consent revoked' });
+      return;
+    }
+    if (err instanceof AuthError) {
+      results.no_token++;
+      await markFailed(supabase, ping, `auth: ${err.message}`);
+      return;
+    }
+    if (err instanceof GarminPullError && err.status === 410) {
+      results.errors++;
+      await markProcessed(supabase, ping.id, { note: 'callbackURL expired' });
+      return;
+    }
+    // Generic network/5xx — retry.
+    results.errors++;
+    await markFailed(supabase, ping, err);
+    return;
+  }
+
+  // The pulled JSON might be `{ dailies: [...] }` or just `[...]`. Normalize.
+  let items;
+  if (Array.isArray(body)) items = body;
+  else if (body && Array.isArray(body[healthType])) items = body[healthType];
+  else items = [];
+
+  if (items.length === 0) {
+    results.health_skipped++;
+    await markProcessed(supabase, ping.id, { note: 'empty health response' });
+    return;
+  }
+
+  const summary = await processHealthPushData(healthType, items, supabase);
+  results.health_processed += summary?.processed ?? 0;
+  results.health_skipped += summary?.skipped ?? 0;
+
+  await markProcessed(supabase, ping.id, {
+    note: `health ${healthType}: processed=${summary?.processed ?? 0} skipped=${summary?.skipped ?? 0}`,
+  });
+}
+
+/**
+ * Health callbackURL fetch. Reuses the activity-pull helper since the
+ * HTTP surface (bearer token, JSON response, error statuses) is identical.
+ * Returns the parsed JSON body (not array-coerced); caller normalizes.
+ */
+async function fetchHealthCallback(callbackURL, accessToken) {
+  if (!callbackURL) throw new Error('health ping missing callbackURL');
+  // The activity-pull helper returns [] on empty body; for health we want
+  // the raw body shape so we can extract the typed array key. Inline the
+  // GET to preserve that.
+  const response = await fetch(callbackURL, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+  });
+  if (response.status === 200) {
+    const text = await response.text();
+    if (!text || text.trim() === '') return null;
+    try { return JSON.parse(text); }
+    catch (err) { throw new GarminPullError(`Malformed JSON: ${err.message}`, 200); }
+  }
+  const snippet = (await response.text().catch(() => '')).substring(0, 200);
+  if (response.status === 401 || response.status === 403) throw new AuthError(`health callbackURL auth (${response.status}): ${snippet}`, response.status);
+  if (response.status === 410) throw new GarminPullError(`health callbackURL gone: ${snippet}`, 410);
+  if (response.status === 412) throw new ConsentRevokedError(`Consent revoked: ${snippet}`, 412);
+  throw new GarminPullError(`health callbackURL failed (${response.status}): ${snippet}`, response.status);
 }
