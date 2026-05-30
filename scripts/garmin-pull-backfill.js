@@ -116,10 +116,9 @@ async function main() {
 
     const { data: integration } = await supabase
       .from('bike_computer_integrations')
-      .select('user_id, provider, provider_user_id, access_token, refresh_token, token_expires_at, refresh_token_expires_at, refresh_token_invalid, status, sync_enabled')
+      .select('user_id, provider, provider_user_id, access_token, refresh_token, token_expires_at, refresh_token_expires_at, refresh_token_invalid, sync_enabled')
       .eq('user_id', userId)
       .eq('provider', 'garmin')
-      .eq('status', 'active')
       .eq('sync_enabled', true)
       .maybeSingle();
     if (!integration) {
