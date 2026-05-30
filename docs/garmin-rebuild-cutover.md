@@ -58,7 +58,7 @@ npx wrangler deploy
 
 Verify the worker version bumped:
 ```bash
-curl https://garmin-webhook.tribos-studio.workers.dev/   # GET healthcheck
+curl https://garmin-webhook.tribos.workers.dev/   # GET healthcheck
 # expect: { ... "version": "4.0.0", "model": "ping-primary, push-fallback-during-cutover" ... }
 ```
 

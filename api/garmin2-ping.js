@@ -5,7 +5,7 @@
  * Phase 2 of the Garmin ping/pull rebuild. This is a thin, store-and-respond
  * Vercel endpoint that mirrors the Cloudflare worker's contract for Garmin
  * Activity API §4 PINGs. The worker (deployed at
- * garmin-webhook.tribos-studio.workers.dev) is the production receiver —
+ * garmin-webhook.tribos.workers.dev) is the production receiver —
  * it decouples webhook receipt from Vercel deploys, which is the property
  * that ended the recurring March 2026 deploy-breaks-webhook outage. This
  * Vercel endpoint exists for:

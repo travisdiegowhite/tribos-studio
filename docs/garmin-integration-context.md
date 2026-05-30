@@ -208,7 +208,7 @@ Garmin **disables your webhook endpoint** if you don't respond within 5 seconds.
 
 | Entry Point | URL | When to Use |
 |-------------|-----|-------------|
-| **Cloudflare Worker** | `garmin-webhook.tribos-studio.workers.dev` | Primary — avoids Vercel deployment protection ($150/mo) |
+| **Cloudflare Worker** | `garmin-webhook.tribos.workers.dev` | Primary — avoids Vercel deployment protection ($150/mo) |
 | **Vercel Function** | `www.tribos.studio/api/garmin-webhook` | Backup — same logic, subject to deployment protection |
 
 Both write to the same `garmin_webhook_events` table.
