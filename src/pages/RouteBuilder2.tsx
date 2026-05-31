@@ -25,6 +25,9 @@ import { useCoachCheckIn } from '../hooks/useCoachCheckIn';
 import type { PersonaId } from '../types/checkIn';
 import {
   Map,
+  RB2DesktopLayout,
+  ChatDock,
+  ElevationDock,
   FormPanel,
   StatsOverlay,
   ElevationPanel,
@@ -131,6 +134,9 @@ export default function RouteBuilder2() {
   const [surfaceSegments, setSurfaceSegments] = useState<string[] | null>(null);
   // Distance (km) hovered on the elevation chart → resolved to a map coord.
   const [hoverKm, setHoverKm] = useState<number | null>(null);
+  // Desktop region collapse state.
+  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [elevationCollapsed, setElevationCollapsed] = useState(false);
 
   // Persona-voiced chat opener — fetched once per session. Falls back to
   // the static line on any error.

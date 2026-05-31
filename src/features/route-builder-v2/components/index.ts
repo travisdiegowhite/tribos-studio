@@ -1,4 +1,7 @@
 export { Map } from './Map';
+export { RB2DesktopLayout } from './RB2DesktopLayout';
+export { ChatDock } from './ChatDock';
+export { ElevationDock } from './ElevationDock';
 export { FormPanel, type FormPanelHandle } from './FormPanel';
 export { StatsOverlay } from './StatsOverlay';
 export { ElevationPanel } from './ElevationPanel';
