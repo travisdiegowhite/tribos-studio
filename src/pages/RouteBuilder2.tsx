@@ -55,6 +55,7 @@ import { POILayer } from '../features/route-builder-v2/layers/POILayer';
 import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLayer';
 import { FamiliarSegmentsLayer } from '../features/route-builder-v2/layers/FamiliarSegmentsLayer';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
+import { coordinateAtDistanceKm } from '../utils/elevation';
 import type { Coordinate } from '../types/geo';
 
 const DEFAULT_VISIBILITY: LayerVisibilityState = {
@@ -128,6 +129,8 @@ export default function RouteBuilder2() {
   // Per-segment surface categories reported up by SurfaceLayer so the
   // summary bar reuses them without a second Overpass fetch.
   const [surfaceSegments, setSurfaceSegments] = useState<string[] | null>(null);
+  // Distance (km) hovered on the elevation chart → resolved to a map coord.
+  const [hoverKm, setHoverKm] = useState<number | null>(null);
 
   // Persona-voiced chat opener — fetched once per session. Falls back to
   // the static line on any error.
@@ -306,6 +309,20 @@ export default function RouteBuilder2() {
     };
   }, [routeGeometry]);
 
+  // Resolve the hovered elevation-chart distance to a map coordinate. Mapped
+  // by distance (via cumulative-distance walk) rather than index, so it holds
+  // even when the elevation profile and geometry have different point counts.
+  const highlightCoord = useMemo<Coordinate | null>(() => {
+    if (hoverKm == null || !geometryForLayers || geometryForLayers.coordinates.length < 2) {
+      return null;
+    }
+    const c = coordinateAtDistanceKm(
+      geometryForLayers.coordinates as [number, number][],
+      hoverKm,
+    );
+    return c ? (c as Coordinate) : null;
+  }, [hoverKm, geometryForLayers]);
+
   const waypointsForMap = useMemo(() => {
     if (!Array.isArray(waypoints)) return [];
     return waypoints
@@ -341,6 +358,7 @@ export default function RouteBuilder2() {
               !visibility.surface && !visibility.gradient ? geometryForLayers : null
             }
             waypoints={waypointsForMap}
+            highlightCoord={highlightCoord}
           >
             {visibility.surface && (
               <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
@@ -406,7 +424,6 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
-            {hasRoute && <ElevationPanel profile={analysis.elevationProfile} />}
             <FormPanel
               ref={formPanelRef}
               generation={generation}
@@ -480,7 +497,13 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
-            {hasRoute && <ElevationPanel profile={analysis.elevationProfile} isMobile />}
+            {hasRoute && (
+              <ElevationPanel
+                profile={analysis.elevationProfile}
+                isMobile
+                onHoverKm={setHoverKm}
+              />
+            )}
             <FormPanel
               ref={formPanelRef}
               generation={generation}
@@ -510,6 +533,26 @@ export default function RouteBuilder2() {
                 isMobile
               />
             )}
+          </Box>
+        )}
+
+        {/* Elevation chart — desktop bottom strip. left:12/right:388 clears the
+            360-wide chat panel; z30 sits under chat (z50) and the toasts (z40). */}
+        {!isMobile && hasRoute && (
+          <Box
+            style={{
+              position: 'absolute',
+              left: 12,
+              right: 388,
+              bottom: 12,
+              zIndex: 30,
+            }}
+          >
+            <ElevationPanel
+              profile={analysis.elevationProfile}
+              fillWidth
+              onHoverKm={setHoverKm}
+            />
           </Box>
         )}
 

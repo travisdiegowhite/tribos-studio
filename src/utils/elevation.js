@@ -134,6 +134,45 @@ export function calculateCumulativeDistances(coordinates) {
 }
 
 /**
+ * Interpolate the [lng, lat] coordinate at a given cumulative distance (km)
+ * along a polyline. Reuses calculateCumulativeDistances so the distance basis
+ * matches getElevationData's profile. Clamps to the route endpoints.
+ *
+ * @param {Array<[number, number]>} coordinates - [lng, lat] pairs
+ * @param {number} distanceKm - distance along the route, in km
+ * @returns {[number, number] | null} interpolated [lng, lat], or null on bad input
+ */
+export function coordinateAtDistanceKm(coordinates, distanceKm) {
+  if (!Array.isArray(coordinates) || coordinates.length === 0) return null;
+  if (coordinates.length === 1) return coordinates[0];
+  if (!Number.isFinite(distanceKm)) return null;
+
+  const cum = calculateCumulativeDistances(coordinates); // one cumulative km per coord
+  const total = cum[cum.length - 1];
+
+  if (distanceKm <= 0 || total === 0) return coordinates[0];
+  if (distanceKm >= total) return coordinates[coordinates.length - 1];
+
+  // First index whose cumulative distance >= target (binary search).
+  let lo = 0;
+  let hi = cum.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (cum[mid] < distanceKm) lo = mid + 1;
+    else hi = mid;
+  }
+
+  // Interpolate between coord[lo-1] and coord[lo].
+  const segStart = cum[lo - 1];
+  const segEnd = cum[lo];
+  const segLen = segEnd - segStart;
+  const t = segLen > 0 ? (distanceKm - segStart) / segLen : 0;
+  const [lng0, lat0] = coordinates[lo - 1];
+  const [lng1, lat1] = coordinates[lo];
+  return [lng0 + (lng1 - lng0) * t, lat0 + (lat1 - lat0) * t];
+}
+
+/**
  * Main function to get elevation data for a route
  * Returns array of { distance_km, elevation, lat, lon } objects
  */
