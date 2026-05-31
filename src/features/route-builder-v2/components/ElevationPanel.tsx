@@ -22,6 +22,14 @@ import type { ElevationPoint } from '../../../hooks/route-builder';
 export interface ElevationPanelProps {
   profile: ElevationPoint[] | null;
   isMobile?: boolean;
+  /**
+   * Fired with the hovered distance-along-route in km (continuous, not
+   * snapped to a profile point) while the pointer is over the chart, and
+   * `null` on leave. Drives the map scrubber marker.
+   */
+  onHoverKm?: (km: number | null) => void;
+  /** When true, the card fills its container width (desktop bottom strip). */
+  fillWidth?: boolean;
 }
 
 // Resolution-independent viewBox; the SVG scales to the card width via
@@ -91,7 +99,12 @@ function formatKm(km: number): string {
   return km < 10 ? km.toFixed(1) : Math.round(km).toString();
 }
 
-export function ElevationPanel({ profile, isMobile = false }: ElevationPanelProps) {
+export function ElevationPanel({
+  profile,
+  isMobile = false,
+  onHoverKm,
+  fillWidth = false,
+}: ElevationPanelProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
@@ -123,11 +136,17 @@ export function ElevationPanel({ profile, isMobile = false }: ElevationPanelProp
       const ratio = Math.min(1, Math.max(0, (evt.clientX - rect.left) / rect.width));
       const km = ratio * scales.totalKm;
       setHoverIdx(nearestIndexForKm(profile, km));
+      // Report the continuous km (not the snapped index) so the map dot
+      // tracks the cursor smoothly even on a sparsely sampled profile.
+      onHoverKm?.(km);
     },
-    [profile, scales],
+    [profile, scales, onHoverKm],
   );
 
-  const handlePointerLeave = useCallback(() => setHoverIdx(null), []);
+  const handlePointerLeave = useCallback(() => {
+    setHoverIdx(null);
+    onHoverKm?.(null);
+  }, [onHoverKm]);
 
   if (!profile || profile.length < 2 || !scales || !paths) return null;
 
@@ -144,7 +163,7 @@ export function ElevationPanel({ profile, isMobile = false }: ElevationPanelProp
         borderRadius: 0,
         padding: '10px 12px 6px',
         boxShadow: RB2.shadowCard,
-        width: isMobile ? '100%' : 320,
+        width: isMobile || fillWidth ? '100%' : 320,
       }}
     >
       <Box

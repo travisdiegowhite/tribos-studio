@@ -63,4 +63,32 @@ describe('ElevationPanel', () => {
     const panel = screen.getByTestId('rb2-elevation-panel');
     expect(panel).toHaveTextContent('10km · 100m');
   });
+
+  it('reports the hovered km via onHoverKm and clears it on leave', () => {
+    const onHoverKm = vi.fn();
+    render(
+      <MantineProvider>
+        <ElevationPanel profile={CLIMB} onHoverKm={onHoverKm} />
+      </MantineProvider>,
+    );
+    const svg = screen.getByRole('img');
+    vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      width: 100,
+      top: 0,
+      height: 80,
+      right: 100,
+      bottom: 80,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    } as DOMRect);
+
+    // Hover at the midpoint → ~5km (continuous, not snapped to a profile point).
+    fireEvent.pointerMove(svg, { clientX: 50 });
+    expect(onHoverKm).toHaveBeenLastCalledWith(5);
+
+    fireEvent.pointerLeave(svg);
+    expect(onHoverKm).toHaveBeenLastCalledWith(null);
+  });
 });

@@ -27,6 +27,8 @@ export interface MapWrapperProps {
   waypoints: ReadonlyArray<{ id: string; position: Coordinate; type?: string }>;
   cursor?: string;
   mapStyle?: string | object;
+  /** Elevation-chart hover position; renders a non-interactive dot on the route. */
+  highlightCoord?: Coordinate | null;
   children?: ReactNode;
 }
 
@@ -36,6 +38,7 @@ export function Map({
   waypoints,
   cursor,
   mapStyle = DEFAULT_STYLE,
+  highlightCoord,
   children,
 }: MapWrapperProps) {
   const mapRef = useRef<MapRef | null>(null);
@@ -173,6 +176,24 @@ export function Map({
           </Marker>
         );
       })}
+
+      {/* Elevation-chart hover scrubber — purely indicative, never intercepts input */}
+      {highlightCoord && (
+        <Marker longitude={highlightCoord[0]} latitude={highlightCoord[1]} anchor="center">
+          <div
+            data-testid="rb2-elevation-hover-marker"
+            style={{
+              width: 16,
+              height: 16,
+              backgroundColor: '#D4600A',
+              borderRadius: '50%',
+              border: '3px solid #FFFFFF',
+              boxShadow: '0 0 0 2px #D4600A, 0 2px 12px rgba(212, 96, 10, 0.6)',
+              pointerEvents: 'none',
+            }}
+          />
+        </Marker>
+      )}
 
       {children}
     </MapboxMap>
