@@ -3,9 +3,9 @@
  *
  * Houses the ElevationPanel as a collapsible bottom row of the map column
  * (replaces the old absolute bottom strip that overlapped the controls).
- * Expanded shows the chart (ElevationPanel renders its own "Elevation"
- * header + gain) with a small collapse caret in the corner. Collapsed
- * shows a thin labeled bar. Forwards the chart→map scrubber callback.
+ * Collapsed shows a thin labeled bar; expanded shows a slim caret strip
+ * over the chart (ElevationPanel renders its own "Elevation" header + gain).
+ * Forwards the chart→map scrubber callback unchanged.
  */
 
 import { Box, Text, UnstyledButton } from '@mantine/core';
@@ -71,10 +71,7 @@ export function ElevationDock({
   return (
     <Box
       data-testid="rb2-elevation-dock"
-      style={{
-        backgroundColor: RB2.cardBg,
-        borderTop: `1px solid ${RB2.border}`,
-      }}
+      style={{ backgroundColor: RB2.cardBg, borderTop: `1px solid ${RB2.border}` }}
     >
       <UnstyledButton
         data-testid="rb2-elevation-dock-toggle"
