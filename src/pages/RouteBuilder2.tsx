@@ -27,6 +27,9 @@ import {
   Map,
   FormPanel,
   StatsOverlay,
+  ElevationPanel,
+  GradientLegend,
+  SurfaceSummaryBar,
   LayerToggles,
   WaypointListPanel,
   PersonaDropdown,
@@ -122,6 +125,9 @@ export default function RouteBuilder2() {
 
   const [visibility, setVisibility] = useState<LayerVisibilityState>(DEFAULT_VISIBILITY);
   const [errorDismissed, setErrorDismissed] = useState<string | null>(null);
+  // Per-segment surface categories reported up by SurfaceLayer so the
+  // summary bar reuses them without a second Overpass fetch.
+  const [surfaceSegments, setSurfaceSegments] = useState<string[] | null>(null);
 
   // Persona-voiced chat opener — fetched once per session. Falls back to
   // the static line on any error.
@@ -336,7 +342,9 @@ export default function RouteBuilder2() {
             }
             waypoints={waypointsForMap}
           >
-            {visibility.surface && <SurfaceLayer geometry={geometryForLayers} />}
+            {visibility.surface && (
+              <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
+            )}
             {visibility.gradient && !visibility.surface && (
               <GradientLayer geometry={geometryForLayers} />
             )}
@@ -398,6 +406,7 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
+            {hasRoute && <ElevationPanel profile={analysis.elevationProfile} />}
             <FormPanel
               ref={formPanelRef}
               generation={generation}
@@ -412,6 +421,10 @@ export default function RouteBuilder2() {
               activePoiLayers={analysis.activeLayers}
               hasStravaConnection={false}
             />
+            {visibility.gradient && hasRoute && <GradientLegend />}
+            {visibility.surface && hasRoute && (
+              <SurfaceSummaryBar segments={surfaceSegments} />
+            )}
             {hasRoute && (
               <WaypointListPanel
                 waypoints={waypointsForMap}
@@ -467,6 +480,7 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
+            {hasRoute && <ElevationPanel profile={analysis.elevationProfile} isMobile />}
             <FormPanel
               ref={formPanelRef}
               generation={generation}
@@ -483,6 +497,10 @@ export default function RouteBuilder2() {
               isMobile
               hasStravaConnection={false}
             />
+            {visibility.gradient && hasRoute && <GradientLegend isMobile />}
+            {visibility.surface && hasRoute && (
+              <SurfaceSummaryBar segments={surfaceSegments} isMobile />
+            )}
             {hasRoute && (
               <RouteActionsPanel
                 persistence={persistence}

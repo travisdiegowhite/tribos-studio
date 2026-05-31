@@ -18,6 +18,12 @@ import {
 
 export interface SurfaceLayerProps {
   geometry: { type: 'LineString'; coordinates: Coordinate[] } | null;
+  /**
+   * Reports the per-segment surface categories as they're fetched (and
+   * `null` when cleared/unmounted) so a sibling summary bar can reuse the
+   * data without a second Overpass request.
+   */
+  onSegments?: (segments: string[] | null) => void;
 }
 
 function hashGeometry(coords: Coordinate[]): string {
@@ -27,11 +33,15 @@ function hashGeometry(coords: Coordinate[]): string {
   return `${coords.length}|${first[0].toFixed(5)},${first[1].toFixed(5)}|${last[0].toFixed(5)},${last[1].toFixed(5)}`;
 }
 
-export function SurfaceLayer({ geometry }: SurfaceLayerProps) {
+export function SurfaceLayer({ geometry, onSegments }: SurfaceLayerProps) {
   const [featureCollection, setFeatureCollection] = useState<GeoJSON.FeatureCollection | null>(
     null,
   );
   const lastKeyRef = useRef<string>('');
+  // Keep the latest callback in a ref so it isn't an effect dependency
+  // (the page passes a fresh setter each render).
+  const onSegmentsRef = useRef(onSegments);
+  onSegmentsRef.current = onSegments;
 
   const key = useMemo(() => (geometry ? hashGeometry(geometry.coordinates) : ''), [geometry]);
 
@@ -39,6 +49,7 @@ export function SurfaceLayer({ geometry }: SurfaceLayerProps) {
     if (!geometry || geometry.coordinates.length < 2 || !key) {
       setFeatureCollection(null);
       lastKeyRef.current = '';
+      onSegmentsRef.current?.(null);
       return;
     }
     if (lastKeyRef.current === key) return;
@@ -49,8 +60,10 @@ export function SurfaceLayer({ geometry }: SurfaceLayerProps) {
       if (cancelled) return;
       if (!segments) {
         setFeatureCollection(null);
+        onSegmentsRef.current?.(null);
         return;
       }
+      onSegmentsRef.current?.(segments as string[]);
       const fc = createSurfaceRoute(geometry.coordinates, segments);
       if (!cancelled) setFeatureCollection(fc as GeoJSON.FeatureCollection | null);
     })();
@@ -58,6 +71,13 @@ export function SurfaceLayer({ geometry }: SurfaceLayerProps) {
       cancelled = true;
     };
   }, [geometry, key]);
+
+  // Clear the reported segments when the layer unmounts (toggled off).
+  useEffect(() => {
+    return () => {
+      onSegmentsRef.current?.(null);
+    };
+  }, []);
 
   if (!geometry || geometry.coordinates.length < 2) return null;
 
