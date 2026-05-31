@@ -11,6 +11,7 @@
  * track it. Reuses ChatBody for the message list + input.
  */
 
+import { type ReactNode } from 'react';
 import { Box, Text, UnstyledButton } from '@mantine/core';
 import { ChatCircle, CaretRight } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
@@ -26,6 +27,9 @@ export interface ChatDockProps {
   exampleHint: readonly string[];
   showAfterRefuseHint: boolean;
   onSubmit: (text: string) => void;
+  /** Optional content rendered between the title bar and the message list
+   *  (e.g. the GenerateBar chips). */
+  header?: ReactNode;
   /** Open width in px. */
   width?: number;
 }
@@ -40,6 +44,7 @@ export function ChatDock({
   exampleHint,
   showAfterRefuseHint,
   onSubmit,
+  header,
   width = 360,
 }: ChatDockProps) {
   if (collapsed) {
@@ -143,6 +148,7 @@ export function ChatDock({
           <CaretRight size={16} color={RB2.textInverse} />
         </UnstyledButton>
       </Box>
+      {header}
       <ChatBody
         fillHeight
         messages={messages}

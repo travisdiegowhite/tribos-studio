@@ -70,20 +70,22 @@ describe('RouteBuilder2 (P1.3)', () => {
     expect(screen.getByTestId('rb2-map-stub')).toBeInTheDocument();
   });
 
-  it('renders the form panel collapsed by default', () => {
+  it('renders the desktop control rail', () => {
     renderPage();
-    const toggle = screen.getByTestId('rb2-form-panel-toggle');
+    expect(screen.getByTestId('rb2-control-rail')).toBeInTheDocument();
+    // Layers lives behind the rail, not in a standing sidebar.
+    expect(screen.getByTestId('rb2-rail-layers')).toBeInTheDocument();
+  });
+
+  it('renders the generate bar collapsed by default', () => {
+    renderPage();
+    const toggle = screen.getByTestId('rb2-generate-bar-toggle');
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('renders the layer toggles panel', () => {
+  it('renders the chat dock open by default on desktop', () => {
     renderPage();
-    expect(screen.getByTestId('rb2-layer-toggles')).toBeInTheDocument();
-  });
-
-  it('renders the chat panel open by default on desktop', () => {
-    renderPage();
-    expect(screen.getByTestId('rb2-chat-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('rb2-chat-dock')).toBeInTheDocument();
   });
 
   it('renders the empty state when there is no route', () => {
