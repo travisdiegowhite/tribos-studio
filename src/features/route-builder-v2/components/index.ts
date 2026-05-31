@@ -2,6 +2,8 @@ export { Map } from './Map';
 export { FormPanel, type FormPanelHandle } from './FormPanel';
 export { StatsOverlay } from './StatsOverlay';
 export { ElevationPanel } from './ElevationPanel';
+export { GradientLegend } from './GradientLegend';
+export { SurfaceSummaryBar } from './SurfaceSummaryBar';
 export { LayerToggles, type LayerVisibilityState } from './LayerToggles';
 export { WaypointListPanel } from './WaypointListPanel';
 export { PersonaDropdown } from './PersonaDropdown';
