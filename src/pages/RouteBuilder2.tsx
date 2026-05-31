@@ -27,6 +27,7 @@ import {
   Map,
   FormPanel,
   StatsOverlay,
+  ElevationPanel,
   LayerToggles,
   WaypointListPanel,
   PersonaDropdown,
@@ -398,6 +399,7 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
+            {hasRoute && <ElevationPanel profile={analysis.elevationProfile} />}
             <FormPanel
               ref={formPanelRef}
               generation={generation}
@@ -467,6 +469,7 @@ export default function RouteBuilder2() {
                 onClear={handleClearRoute}
               />
             )}
+            {hasRoute && <ElevationPanel profile={analysis.elevationProfile} isMobile />}
             <FormPanel
               ref={formPanelRef}
               generation={generation}
