@@ -25,6 +25,9 @@ import { useCoachCheckIn } from '../hooks/useCoachCheckIn';
 import type { PersonaId } from '../types/checkIn';
 import {
   Map,
+  RB2DesktopLayout,
+  ChatDock,
+  ElevationDock,
   FormPanel,
   StatsOverlay,
   ElevationPanel,
@@ -131,6 +134,9 @@ export default function RouteBuilder2() {
   const [surfaceSegments, setSurfaceSegments] = useState<string[] | null>(null);
   // Distance (km) hovered on the elevation chart → resolved to a map coord.
   const [hoverKm, setHoverKm] = useState<number | null>(null);
+  // Desktop region collapse state.
+  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [elevationCollapsed, setElevationCollapsed] = useState(false);
 
   // Persona-voiced chat opener — fetched once per session. Falls back to
   // the static line on any error.
@@ -337,6 +343,147 @@ export default function RouteBuilder2() {
     await coach.savePersona(next, 'manual');
   };
 
+  // The map + its layers — shared by both layouts. Fills its container.
+  const mapElement = (
+    <Map
+      map={map}
+      routeGeometry={
+        !visibility.surface && !visibility.gradient ? geometryForLayers : null
+      }
+      waypoints={waypointsForMap}
+      highlightCoord={highlightCoord}
+    >
+      {visibility.surface && (
+        <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
+      )}
+      {visibility.gradient && !visibility.surface && (
+        <GradientLayer geometry={geometryForLayers} />
+      )}
+      {visibility.poi && (
+        <POILayer poiResults={analysis.poiResults} activeLayers={analysis.activeLayers} />
+      )}
+      {visibility.bikeInfra && <BikeInfraLayer bbox={viewportBbox} visible />}
+      {visibility.familiar && <FamiliarSegmentsLayer bbox={viewportBbox} visible />}
+    </Map>
+  );
+
+  const statsNode =
+    hasRoute && routeStats ? (
+      <StatsOverlay
+        stats={{
+          distance_km: routeStats.distance_km,
+          elevation_gain_m: routeStats.elevation_gain_m,
+          duration_s: routeStats.duration_s,
+        }}
+        routeName={routeName}
+        onClear={handleClearRoute}
+      />
+    ) : null;
+
+  const loadingMessage = generation.isGenerating
+    ? 'Generating route…'
+    : editing.isApplying
+      ? 'Applying edit…'
+      : 'Updating route…';
+
+  const mapStates = (
+    <>
+      {isLoading && <LoadingState message={loadingMessage} />}
+      {error && <ErrorState message={error} onDismiss={dismissError} />}
+      {!hasRoute && !isLoading && <EmptyState />}
+    </>
+  );
+
+  // ---- Desktop: structured regions (sidebar | map + elevation dock | chat) ----
+  if (!isMobile) {
+    return (
+      <AppShell fullWidth>
+        <Box
+          data-testid="rb2-page"
+          style={{
+            position: 'relative',
+            width: '100%',
+            // Account for the 60px AppShell header + 3px retro stripe.
+            height: 'calc(100dvh - 63px)',
+            backgroundColor: RB2.bgBase,
+            overflow: 'hidden',
+          }}
+        >
+          <RB2DesktopLayout
+            stats={statsNode}
+            sidebar={
+              <>
+                <FormPanel
+                  ref={formPanelRef}
+                  generation={generation}
+                  defaultStart={userLocation.coord}
+                  locationStatus={userLocation.status}
+                  viewportCenter={viewportCenter}
+                />
+                <LayerToggles
+                  visibility={visibility}
+                  onToggle={handleVisibilityToggle}
+                  onPoiLayerToggle={handlePoiLayerToggle}
+                  activePoiLayers={analysis.activeLayers}
+                  hasStravaConnection={false}
+                />
+                {visibility.gradient && hasRoute && <GradientLegend />}
+                {visibility.surface && hasRoute && (
+                  <SurfaceSummaryBar segments={surfaceSegments} />
+                )}
+                {hasRoute && (
+                  <WaypointListPanel
+                    waypoints={waypointsForMap}
+                    onRemove={(idx) => void map.handleRemoveWaypoint(idx)}
+                  />
+                )}
+                {hasRoute && (
+                  <RouteActionsPanel
+                    persistence={persistence}
+                    defaultName={routeName}
+                    onSaved={handleSaved}
+                    onLoaded={handleLoaded}
+                  />
+                )}
+              </>
+            }
+            mapArea={
+              <>
+                {mapElement}
+                <Box style={{ position: 'absolute', top: 12, right: 12, zIndex: 25 }}>
+                  <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} />
+                </Box>
+                {mapStates}
+              </>
+            }
+            elevation={
+              hasRoute ? (
+                <ElevationDock
+                  profile={analysis.elevationProfile}
+                  collapsed={elevationCollapsed}
+                  onCollapsedChange={setElevationCollapsed}
+                  onHoverKm={setHoverKm}
+                />
+              ) : undefined
+            }
+            chat={
+              <ChatDock
+                collapsed={chatCollapsed}
+                onCollapsedChange={setChatCollapsed}
+                messages={chat.messages}
+                isProcessing={chat.isProcessing}
+                exampleHint={EXAMPLE_PHRASES}
+                showAfterRefuseHint={chat.showAfterRefuseHint}
+                onSubmit={handleChatSubmit}
+              />
+            }
+          />
+        </Box>
+      </AppShell>
+    );
+  }
+
+  // ---- Mobile: full-bleed map + stacked overlay column + bottom-sheet chat ----
   return (
     <AppShell fullWidth>
       <Box
@@ -344,221 +491,71 @@ export default function RouteBuilder2() {
         style={{
           position: 'relative',
           width: '100%',
-          // Account for the 60px AppShell header + 3px retro stripe.
           height: 'calc(100dvh - 63px)',
           backgroundColor: RB2.bgBase,
           overflow: 'hidden',
         }}
       >
-        {/* Map fills the canvas */}
-        <Box style={{ position: 'absolute', inset: 0 }}>
-          <Map
-            map={map}
-            routeGeometry={
-              !visibility.surface && !visibility.gradient ? geometryForLayers : null
-            }
-            waypoints={waypointsForMap}
-            highlightCoord={highlightCoord}
-          >
-            {visibility.surface && (
-              <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
-            )}
-            {visibility.gradient && !visibility.surface && (
-              <GradientLayer geometry={geometryForLayers} />
-            )}
-            {visibility.poi && (
-              <POILayer
-                poiResults={analysis.poiResults}
-                activeLayers={analysis.activeLayers}
-              />
-            )}
-            {visibility.bikeInfra && <BikeInfraLayer bbox={viewportBbox} visible />}
-            {visibility.familiar && (
-              <FamiliarSegmentsLayer bbox={viewportBbox} visible />
-            )}
-          </Map>
-        </Box>
+        <Box style={{ position: 'absolute', inset: 0 }}>{mapElement}</Box>
 
-        {/* Persona dropdown — top-right of page */}
-        {!isMobile && (
-          <Box
-            style={{
-              position: 'absolute',
-              top: 12,
-              right: 12,
-              zIndex: 25,
-            }}
-          >
-            <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} />
+        <Box
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            right: 8,
+            zIndex: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            maxHeight: 'calc(100% - 80px)',
+            overflowY: 'auto',
+          }}
+        >
+          <Box style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} compact />
           </Box>
-        )}
-
-        {/* Top-left overlay column */}
-        {!isMobile && (
-          <Box
-            style={{
-              position: 'absolute',
-              top: 12,
-              left: 12,
-              zIndex: 20,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-              maxHeight: 'calc(100% - 32px)',
-              overflowY: 'auto',
-              paddingRight: 4,
-            }}
-          >
-            {hasRoute && (
-              <StatsOverlay
-                stats={
-                  routeStats
-                    ? {
-                        distance_km: routeStats.distance_km,
-                        elevation_gain_m: routeStats.elevation_gain_m,
-                        duration_s: routeStats.duration_s,
-                      }
-                    : null
-                }
-                routeName={routeName}
-                onClear={handleClearRoute}
-              />
-            )}
-            <FormPanel
-              ref={formPanelRef}
-              generation={generation}
-              defaultStart={userLocation.coord}
-              locationStatus={userLocation.status}
-              viewportCenter={viewportCenter}
-            />
-            <LayerToggles
-              visibility={visibility}
-              onToggle={handleVisibilityToggle}
-              onPoiLayerToggle={handlePoiLayerToggle}
-              activePoiLayers={analysis.activeLayers}
-              hasStravaConnection={false}
-            />
-            {visibility.gradient && hasRoute && <GradientLegend />}
-            {visibility.surface && hasRoute && (
-              <SurfaceSummaryBar segments={surfaceSegments} />
-            )}
-            {hasRoute && (
-              <WaypointListPanel
-                waypoints={waypointsForMap}
-                onRemove={(idx) => void map.handleRemoveWaypoint(idx)}
-              />
-            )}
-            {hasRoute && (
-              <RouteActionsPanel
-                persistence={persistence}
-                defaultName={routeName}
-                onSaved={handleSaved}
-                onLoaded={handleLoaded}
-              />
-            )}
-          </Box>
-        )}
-
-        {/* Mobile layout — stacked top column, persona inline */}
-        {isMobile && (
-          <Box
-            style={{
-              position: 'absolute',
-              top: 8,
-              left: 8,
-              right: 8,
-              zIndex: 20,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-              maxHeight: 'calc(100% - 80px)',
-              overflowY: 'auto',
-            }}
-          >
-            <Box style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <PersonaDropdown
-                persona={coach.persona}
-                onChange={onPersonaChange}
-                compact
-              />
-            </Box>
-            {hasRoute && (
-              <StatsOverlay
-                stats={
-                  routeStats
-                    ? {
-                        distance_km: routeStats.distance_km,
-                        elevation_gain_m: routeStats.elevation_gain_m,
-                        duration_s: routeStats.duration_s,
-                      }
-                    : null
-                }
-                routeName={routeName}
-                onClear={handleClearRoute}
-              />
-            )}
-            {hasRoute && (
-              <ElevationPanel
-                profile={analysis.elevationProfile}
-                isMobile
-                onHoverKm={setHoverKm}
-              />
-            )}
-            <FormPanel
-              ref={formPanelRef}
-              generation={generation}
-              defaultStart={userLocation.coord}
-              locationStatus={userLocation.status}
-              viewportCenter={viewportCenter}
-              isMobile
-            />
-            <LayerToggles
-              visibility={visibility}
-              onToggle={handleVisibilityToggle}
-              onPoiLayerToggle={handlePoiLayerToggle}
-              activePoiLayers={analysis.activeLayers}
-              isMobile
-              hasStravaConnection={false}
-            />
-            {visibility.gradient && hasRoute && <GradientLegend isMobile />}
-            {visibility.surface && hasRoute && (
-              <SurfaceSummaryBar segments={surfaceSegments} isMobile />
-            )}
-            {hasRoute && (
-              <RouteActionsPanel
-                persistence={persistence}
-                defaultName={routeName}
-                onSaved={handleSaved}
-                onLoaded={handleLoaded}
-                isMobile
-              />
-            )}
-          </Box>
-        )}
-
-        {/* Elevation chart — desktop bottom strip. left:12/right:388 clears the
-            360-wide chat panel; z30 sits under chat (z50) and the toasts (z40). */}
-        {!isMobile && hasRoute && (
-          <Box
-            style={{
-              position: 'absolute',
-              left: 12,
-              right: 388,
-              bottom: 12,
-              zIndex: 30,
-            }}
-          >
+          {statsNode}
+          {hasRoute && (
             <ElevationPanel
               profile={analysis.elevationProfile}
-              fillWidth
+              isMobile
               onHoverKm={setHoverKm}
             />
-          </Box>
-        )}
+          )}
+          <FormPanel
+            ref={formPanelRef}
+            generation={generation}
+            defaultStart={userLocation.coord}
+            locationStatus={userLocation.status}
+            viewportCenter={viewportCenter}
+            isMobile
+          />
+          <LayerToggles
+            visibility={visibility}
+            onToggle={handleVisibilityToggle}
+            onPoiLayerToggle={handlePoiLayerToggle}
+            activePoiLayers={analysis.activeLayers}
+            isMobile
+            hasStravaConnection={false}
+          />
+          {visibility.gradient && hasRoute && <GradientLegend isMobile />}
+          {visibility.surface && hasRoute && (
+            <SurfaceSummaryBar segments={surfaceSegments} isMobile />
+          )}
+          {hasRoute && (
+            <RouteActionsPanel
+              persistence={persistence}
+              defaultName={routeName}
+              onSaved={handleSaved}
+              onLoaded={handleLoaded}
+              isMobile
+            />
+          )}
+        </Box>
 
-        {/* Chat surface */}
         <ChatShell
-          isMobile={!!isMobile}
+          isMobile
           messages={chat.messages}
           isProcessing={chat.isProcessing}
           exampleHint={EXAMPLE_PHRASES}
@@ -566,20 +563,7 @@ export default function RouteBuilder2() {
           onSubmit={handleChatSubmit}
         />
 
-        {/* Empty / loading / error */}
-        {isLoading && (
-          <LoadingState
-            message={
-              generation.isGenerating
-                ? 'Generating route…'
-                : editing.isApplying
-                  ? 'Applying edit…'
-                  : 'Updating route…'
-            }
-          />
-        )}
-        {error && <ErrorState message={error} onDismiss={dismissError} />}
-        {!hasRoute && !isLoading && <EmptyState />}
+        {mapStates}
       </Box>
     </AppShell>
   );
