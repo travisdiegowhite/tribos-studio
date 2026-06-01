@@ -115,6 +115,36 @@ describe('useMapInteraction', () => {
     expect(wps.length).toBe(2);
   });
 
+  it('handleReorderWaypoints moves a waypoint and re-derives start/end', async () => {
+    useRouteBuilderStore.getState().setWaypoints([
+      { id: 'wp-0', position: [-105, 40], type: 'start', name: '' },
+      { id: 'wp-1', position: [-105.05, 40.05], type: 'waypoint', name: '' },
+      { id: 'wp-2', position: [-105.1, 40.1], type: 'end', name: '' },
+    ]);
+    mockRoute.mockResolvedValue(happyRouteResponse());
+    const { result } = renderHook(() => useMapInteraction());
+
+    await act(async () => {
+      const r = await result.current.handleReorderWaypoints(2, 0);
+      expect(r.ok).toBe(true);
+    });
+
+    const wps = useRouteBuilderStore.getState().waypoints as Array<{ id: string; type: string }>;
+    expect(wps.map((w) => w.id)).toEqual(['wp-2', 'wp-0', 'wp-1']);
+    expect(wps[0].type).toBe('start');
+    expect(wps[2].type).toBe('end');
+  });
+
+  it('handleReorderWaypoints is a no-op for an unchanged index', async () => {
+    seedRoute();
+    const { result } = renderHook(() => useMapInteraction());
+    await act(async () => {
+      const r = await result.current.handleReorderWaypoints(1, 1);
+      expect(r.ok).toBe(true);
+    });
+    expect(mockRoute).not.toHaveBeenCalled();
+  });
+
   it('handleReverseRoute reverses the waypoint order', async () => {
     seedRoute();
     mockRoute.mockResolvedValue(happyRouteResponse());

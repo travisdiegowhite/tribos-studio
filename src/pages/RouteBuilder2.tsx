@@ -18,6 +18,7 @@ import {
   useRoutePersistence,
   useRouteAnalysis,
   useRouteHistory,
+  useRouteWeather,
   useUserLocation,
 } from '../hooks/route-builder';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
@@ -40,6 +41,8 @@ import {
   LayerToggles,
   WaypointListPanel,
   LocationSearch,
+  WeatherPanel,
+  FuelPanel,
   PersonaDropdown,
   ChatShell,
   EmptyState,
@@ -58,7 +61,7 @@ import {
   type ChatMessage,
   type FormPanelControl,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -95,6 +98,7 @@ export default function RouteBuilder2() {
   const persistence = useRoutePersistence();
   const analysis = useRouteAnalysis();
   const history = useRouteHistory();
+  const weather = useRouteWeather();
   const userLocation = useUserLocation();
 
   // Persona (top-bar dropdown)
@@ -501,7 +505,28 @@ export default function RouteBuilder2() {
           <WaypointListPanel
             waypoints={waypointsForMap}
             onRemove={(idx) => void map.handleRemoveWaypoint(idx)}
+            onReorder={(from, to) => void map.handleReorderWaypoints(from, to)}
             isMobile
+          />
+        ),
+      },
+      {
+        id: 'weather',
+        label: 'Weather',
+        icon: <CloudSun size={20} weight="duotone" />,
+        disabled: !hasRoute,
+        panel: <WeatherPanel weather={weather} />,
+      },
+      {
+        id: 'fuel',
+        label: 'Fuel',
+        icon: <ForkKnife size={20} weight="duotone" />,
+        disabled: !hasRoute,
+        panel: (
+          <FuelPanel
+            durationMinutes={(routeStats?.duration_s ?? 0) / 60}
+            elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
+            weather={weather.weather}
           />
         ),
       },
@@ -568,6 +593,8 @@ export default function RouteBuilder2() {
                       canRedo={history.canRedo}
                       onUndo={history.undo}
                       onRedo={history.redo}
+                      onReverse={() => void map.handleReverseRoute()}
+                      canReverse={waypointsForMap.length >= 2}
                     />
                   </Box>
                 )}
@@ -647,6 +674,8 @@ export default function RouteBuilder2() {
                 canRedo={history.canRedo}
                 onUndo={history.undo}
                 onRedo={history.redo}
+                onReverse={() => void map.handleReverseRoute()}
+                canReverse={waypointsForMap.length >= 2}
               />
             ) : (
               <span />
@@ -690,6 +719,34 @@ export default function RouteBuilder2() {
           {visibility.gradient && hasRoute && <GradientLegend isMobile />}
           {visibility.surface && hasRoute && (
             <SurfaceSummaryBar segments={surfaceSegments} isMobile />
+          )}
+          {hasRoute && (
+            <Box
+              style={{
+                backgroundColor: RB2.cardBg,
+                border: `1px solid ${RB2.border}`,
+                padding: '10px 12px',
+                boxShadow: RB2.shadowCard,
+              }}
+            >
+              <WeatherPanel weather={weather} />
+            </Box>
+          )}
+          {hasRoute && (
+            <Box
+              style={{
+                backgroundColor: RB2.cardBg,
+                border: `1px solid ${RB2.border}`,
+                padding: '10px 12px',
+                boxShadow: RB2.shadowCard,
+              }}
+            >
+              <FuelPanel
+                durationMinutes={(routeStats?.duration_s ?? 0) / 60}
+                elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
+                weather={weather.weather}
+              />
+            </Box>
           )}
           <RouteActionsPanel
             persistence={persistence}

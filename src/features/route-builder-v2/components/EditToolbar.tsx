@@ -9,7 +9,7 @@
  */
 
 import { Box, Tooltip, UnstyledButton } from '@mantine/core';
-import { ArrowUUpLeft, ArrowUUpRight } from '@phosphor-icons/react';
+import { ArrowUUpLeft, ArrowUUpRight, ArrowsLeftRight } from '@phosphor-icons/react';
 import { RB2 } from './brand';
 
 export interface EditToolbarProps {
@@ -17,9 +17,19 @@ export interface EditToolbarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  /** When provided, renders a reverse-route button after undo/redo. */
+  onReverse?: () => void;
+  canReverse?: boolean;
 }
 
-export function EditToolbar({ canUndo, canRedo, onUndo, onRedo }: EditToolbarProps) {
+export function EditToolbar({
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  onReverse,
+  canReverse = false,
+}: EditToolbarProps) {
   return (
     <Box
       data-testid="rb2-edit-toolbar"
@@ -49,6 +59,20 @@ export function EditToolbar({ canUndo, canRedo, onUndo, onRedo }: EditToolbarPro
       >
         <ArrowUUpRight size={18} />
       </ToolbarButton>
+      {onReverse && (
+        <>
+          <Box style={{ width: 1, backgroundColor: RB2.border }} />
+          <ToolbarButton
+            label="Reverse direction"
+            shortcut="flip start/end"
+            testid="rb2-reverse-button"
+            disabled={!canReverse}
+            onClick={onReverse}
+          >
+            <ArrowsLeftRight size={18} />
+          </ToolbarButton>
+        </>
+      )}
     </Box>
   );
 }

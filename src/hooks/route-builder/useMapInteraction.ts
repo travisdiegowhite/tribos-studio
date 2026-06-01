@@ -69,6 +69,10 @@ export interface UseMapInteractionReturn {
     insertAt?: number,
   ) => Promise<MapActionResult>;
   handleRemoveWaypoint: (waypointIndex: number) => Promise<MapActionResult>;
+  handleReorderWaypoints: (
+    fromIndex: number,
+    toIndex: number,
+  ) => Promise<MapActionResult>;
   handleReverseRoute: () => Promise<MapActionResult>;
   handleClearRoute: () => Promise<MapActionResult>;
 }
@@ -387,6 +391,34 @@ export function useMapInteraction(): UseMapInteractionReturn {
     [manip, snapAndReport, waypoints],
   );
 
+  // Move a waypoint to a new position in the list, then re-route. The
+  // splice has no v1 equivalent, so it's inlined; snapping still goes
+  // through v1's router. reassignTypes re-derives start/end after the move.
+  const handleReorderWaypoints = useCallback(
+    async (fromIndex: number, toIndex: number): Promise<MapActionResult> => {
+      if (fromIndex === toIndex) return { ok: true };
+      if (
+        fromIndex < 0 ||
+        fromIndex >= waypoints.length ||
+        toIndex < 0 ||
+        toIndex >= waypoints.length
+      ) {
+        return { ok: false, reason: 'out_of_range' };
+      }
+      return runManual('reorder_waypoints', () => {
+        const next = [...waypoints];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        const reassigned = reassignTypes(next);
+        // v1's snapToRoads reroutes geometry from the passed list but never
+        // writes the waypoint array back, so persist the new order ourselves.
+        setWaypoints(reassigned);
+        return reassigned;
+      });
+    },
+    [runManual, waypoints, setWaypoints],
+  );
+
   // Reverse is a pure-geometry transform on v1's side — no router call,
   // no elevation re-fetch. Delegate directly.
   const handleReverseRoute = useCallback(async (): Promise<MapActionResult> => {
@@ -433,6 +465,7 @@ export function useMapInteraction(): UseMapInteractionReturn {
     handleWaypointDrag,
     handleAddWaypointAtClick,
     handleRemoveWaypoint,
+    handleReorderWaypoints,
     handleReverseRoute,
     handleClearRoute,
   };
