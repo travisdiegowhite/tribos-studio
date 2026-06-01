@@ -35,11 +35,30 @@ export interface MapActionResult {
   reason?: string;
 }
 
+/**
+ * Minimal imperative surface the <Map> registers so search / import can
+ * recenter the camera. Structurally satisfied by react-map-gl's MapRef
+ * (which proxies the underlying mapbox-gl Map methods).
+ */
+export interface MapController {
+  flyTo: (opts: { center: [number, number]; zoom?: number; duration?: number }) => void;
+  fitBounds: (
+    bounds: [[number, number], [number, number]],
+    opts?: { padding?: number; duration?: number; maxZoom?: number },
+  ) => void;
+}
+
 export interface UseMapInteractionReturn {
   viewport: ViewportState;
   isApplying: boolean;
   lastError: string | null;
   setViewport: (next: ViewportState) => void;
+  /** Registers the live map instance (called by <Map> on load). */
+  registerMap: (controller: MapController | null) => void;
+  /** Animate the camera to a coordinate (e.g. a geocoded search result). */
+  flyTo: (coord: Coordinate, zoom?: number) => void;
+  /** Frame a set of coordinates (e.g. a freshly imported GPX track). */
+  fitBounds: (coords: Coordinate[]) => void;
   handleMapClick: (coord: Coordinate) => Promise<MapActionResult>;
   handleWaypointDrag: (
     waypointIndex: number,
@@ -119,6 +138,55 @@ export function useMapInteraction(): UseMapInteractionReturn {
 
   const setViewport = useCallback((next: ViewportState) => {
     setLocalViewport(next);
+  }, []);
+
+  // Imperative camera control. The map is uncontrolled (initialViewState),
+  // so store viewport writes don't move it — we drive flyTo/fitBounds on the
+  // live instance and mirror the target into localViewport so the generation
+  // form's viewport-center start fallback stays accurate.
+  const mapControllerRef = useRef<MapController | null>(null);
+  const registerMap = useCallback((controller: MapController | null) => {
+    mapControllerRef.current = controller;
+  }, []);
+
+  const flyTo = useCallback((coord: Coordinate, zoom?: number) => {
+    const controller = mapControllerRef.current;
+    const targetZoom = zoom ?? 13;
+    if (controller) {
+      controller.flyTo({ center: [coord[0], coord[1]], zoom: targetZoom, duration: 1200 });
+    }
+    setLocalViewport({ longitude: coord[0], latitude: coord[1], zoom: targetZoom });
+  }, []);
+
+  const fitBounds = useCallback((coords: Coordinate[]) => {
+    if (!coords || coords.length === 0) return;
+    let minLng = Infinity;
+    let minLat = Infinity;
+    let maxLng = -Infinity;
+    let maxLat = -Infinity;
+    for (const [lng, lat] of coords) {
+      if (lng < minLng) minLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lng > maxLng) maxLng = lng;
+      if (lat > maxLat) maxLat = lat;
+    }
+    const controller = mapControllerRef.current;
+    if (controller) {
+      controller.fitBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat],
+        ],
+        { padding: 60, duration: 1000, maxZoom: 15 },
+      );
+    }
+    // Mirror the center; the map's onMove settles the precise zoom after the
+    // animation, so we keep the current zoom as an approximation.
+    setLocalViewport((prev) => ({
+      longitude: (minLng + maxLng) / 2,
+      latitude: (minLat + maxLat) / 2,
+      zoom: prev.zoom,
+    }));
   }, []);
 
   const manip = useRouteManipulation({
@@ -358,6 +426,9 @@ export function useMapInteraction(): UseMapInteractionReturn {
     isApplying,
     lastError,
     setViewport,
+    registerMap,
+    flyTo,
+    fitBounds,
     handleMapClick,
     handleWaypointDrag,
     handleAddWaypointAtClick,

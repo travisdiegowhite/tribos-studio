@@ -7,7 +7,7 @@
  * GPX / TCX / FIT items wired to `useRoutePersistence.exportRoute`.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -20,9 +20,10 @@ import {
   TextInput,
   UnstyledButton,
 } from '@mantine/core';
-import { CaretDown, DownloadSimple, FloppyDisk, FolderOpen } from '@phosphor-icons/react';
+import { CaretDown, DownloadSimple, FloppyDisk, FolderOpen, UploadSimple } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { trackRb2 } from '../telemetry/trackRb2';
+import type { Coordinate } from '../../../types/geo';
 import type {
   UseRoutePersistenceReturn,
   SavedRouteSummary,
@@ -32,10 +33,14 @@ import type {
 export interface RouteActionsPanelProps {
   persistence: UseRoutePersistenceReturn;
   defaultName?: string;
+  /** Whether a route currently exists. Save/Export require one; Load/Import don't. */
+  hasRoute?: boolean;
   /** Called after a save succeeds with the new id (e.g. to update URL). */
   onSaved?: (id: string) => void;
   /** Called after a load succeeds with the loaded id. */
   onLoaded?: (id: string) => void;
+  /** Called after a GPX import succeeds, with the track coords (to frame the map). */
+  onImported?: (coords: Coordinate[]) => void;
   isMobile?: boolean;
 }
 
@@ -57,8 +62,10 @@ const buttonStyles = {
 export function RouteActionsPanel({
   persistence,
   defaultName,
+  hasRoute = true,
   onSaved,
   onLoaded,
+  onImported,
   isMobile = false,
 }: RouteActionsPanelProps) {
   const [saveOpen, setSaveOpen] = useState(false);
@@ -66,6 +73,24 @@ export function RouteActionsPanel({
   const [name, setName] = useState(defaultName ?? '');
   const [savedRoutes, setSavedRoutes] = useState<SavedRouteSummary[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImportClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileSelected = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      // Reset so re-selecting the same file fires change again.
+      e.target.value = '';
+      if (!file) return;
+      trackRb2('import_gpx_selected', { file_size: file.size });
+      const coords = await persistence.importGpx(file);
+      if (coords && onImported) onImported(coords);
+    },
+    [persistence, onImported],
+  );
 
   useEffect(() => {
     if (defaultName && !name) setName(defaultName);
@@ -146,7 +171,7 @@ export function RouteActionsPanel({
             variant="outline"
             leftSection={<FloppyDisk size={14} />}
             onClick={handleOpenSave}
-            disabled={persistence.isSaving}
+            disabled={persistence.isSaving || !hasRoute}
             styles={buttonStyles}
           >
             {persistence.isSaving ? <Loader size="xs" /> : 'Save'}
@@ -168,6 +193,7 @@ export function RouteActionsPanel({
                 variant="outline"
                 leftSection={<DownloadSimple size={14} />}
                 rightSection={<CaretDown size={12} />}
+                disabled={!hasRoute}
                 styles={buttonStyles}
               >
                 Export
@@ -186,6 +212,26 @@ export function RouteActionsPanel({
             </Menu.Dropdown>
           </Menu>
         </Group>
+        <Button
+          data-testid="rb2-import-gpx-button"
+          variant="outline"
+          fullWidth
+          leftSection={<UploadSimple size={14} />}
+          onClick={handleImportClick}
+          disabled={persistence.isLoading}
+          styles={buttonStyles}
+          mt={6}
+        >
+          {persistence.isLoading ? <Loader size="xs" /> : 'Import GPX'}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".gpx,application/gpx+xml,application/xml,text/xml"
+          onChange={handleFileSelected}
+          data-testid="rb2-import-gpx-input"
+          style={{ display: 'none' }}
+        />
         {persistence.lastError && (
           <Text
             style={{
