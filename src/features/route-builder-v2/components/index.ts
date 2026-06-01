@@ -15,6 +15,7 @@ export { WaypointListPanel } from './WaypointListPanel';
 export { LocationSearch } from './LocationSearch';
 export { WeatherPanel } from './WeatherPanel';
 export { FuelPanel } from './FuelPanel';
+export { TirePressurePanel } from './TirePressurePanel';
 export { PersonaDropdown } from './PersonaDropdown';
 export { ChatShell } from './ChatShell';
 export { ChatPanel, type ChatPanelState } from './ChatPanel';

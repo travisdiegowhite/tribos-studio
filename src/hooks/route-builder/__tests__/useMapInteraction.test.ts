@@ -145,6 +145,30 @@ describe('useMapInteraction', () => {
     expect(mockRoute).not.toHaveBeenCalled();
   });
 
+  it('handleAddWaypointAtClick inserts at an index and persists the new order', async () => {
+    useRouteBuilderStore.getState().setWaypoints([
+      { id: 'wp-0', position: [-105, 40], type: 'start', name: '' },
+      { id: 'wp-1', position: [-105.1, 40.1], type: 'end', name: '' },
+    ]);
+    mockRoute.mockResolvedValue(happyRouteResponse());
+    const { result } = renderHook(() => useMapInteraction());
+
+    await act(async () => {
+      const r = await result.current.handleAddWaypointAtClick([-105.05, 40.05], 1);
+      expect(r.ok).toBe(true);
+    });
+
+    const wps = useRouteBuilderStore.getState().waypoints as Array<{
+      position: [number, number];
+      type: string;
+    }>;
+    expect(wps.length).toBe(3);
+    // The inserted waypoint lands between start and end (a mid waypoint).
+    expect(wps[1].position).toEqual([-105.05, 40.05]);
+    expect(wps[1].type).toBe('waypoint');
+    expect(wps[2].type).toBe('end');
+  });
+
   it('handleReverseRoute reverses the waypoint order', async () => {
     seedRoute();
     mockRoute.mockResolvedValue(happyRouteResponse());

@@ -43,6 +43,7 @@ import {
   LocationSearch,
   WeatherPanel,
   FuelPanel,
+  TirePressurePanel,
   PersonaDropdown,
   ChatShell,
   EmptyState,
@@ -61,7 +62,7 @@ import {
   type ChatMessage,
   type FormPanelControl,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -108,6 +109,7 @@ export default function RouteBuilder2() {
   const routeGeometry = useRouteBuilderStore((s) => s.routeGeometry);
   const routeStats = useRouteBuilderStore((s) => s.routeStats);
   const routeName = useRouteBuilderStore((s) => s.routeName);
+  const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
   const waypoints = useRouteBuilderStore((s) => s.waypoints);
   const viewport = useRouteBuilderStore((s) => s.viewport);
   const setWaypointsInStore = useRouteBuilderStore((s) => s.setWaypoints);
@@ -531,6 +533,14 @@ export default function RouteBuilder2() {
         ),
       },
       {
+        // Not gated on a route — the calculator is useful standalone, and
+        // seeds surface/width from the route profile when one exists.
+        id: 'tire',
+        label: 'Tire PSI',
+        icon: <Gauge size={20} weight="duotone" />,
+        panel: <TirePressurePanel routeProfile={routeProfile} />,
+      },
+      {
         // Always enabled: Load and Import GPX are entry points that work with
         // no current route (Save/Export disable themselves inside the panel).
         id: 'routes',
@@ -746,6 +756,18 @@ export default function RouteBuilder2() {
                 elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
                 weather={weather.weather}
               />
+            </Box>
+          )}
+          {hasRoute && (
+            <Box
+              style={{
+                backgroundColor: RB2.cardBg,
+                border: `1px solid ${RB2.border}`,
+                padding: '10px 12px',
+                boxShadow: RB2.shadowCard,
+              }}
+            >
+              <TirePressurePanel routeProfile={routeProfile} />
             </Box>
           )}
           <RouteActionsPanel

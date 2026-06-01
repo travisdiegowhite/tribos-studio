@@ -301,7 +301,9 @@ export function useMapInteraction(): UseMapInteractionReturn {
   );
 
   // Insert at a specific index — v1's hook has no equivalent, so the
-  // splice is inlined; snap still routes through v1.
+  // splice is inlined; snap still routes through v1. Like reorder, v1's
+  // snapToRoads reroutes geometry but never writes the waypoint array back,
+  // so we persist the new list ourselves.
   const handleAddWaypointAtClick = useCallback(
     (coord: Coordinate, insertAt?: number) =>
       runManual('add_waypoint', () => {
@@ -317,9 +319,11 @@ export function useMapInteraction(): UseMapInteractionReturn {
         } else {
           next.push(newWp);
         }
-        return reassignTypes(next);
+        const reassigned = reassignTypes(next);
+        setWaypoints(reassigned);
+        return reassigned;
       }),
-    [runManual, waypoints],
+    [runManual, waypoints, setWaypoints],
   );
 
   const handleWaypointDrag = useCallback(
