@@ -3,7 +3,7 @@ export type { UseAIGenerationReturn } from './useAIGeneration';
 export { useRouteEditing } from './useRouteEditing';
 export type { UseRouteEditingReturn } from './useRouteEditing';
 export { useMapInteraction, VIEWPORT_DEBOUNCE_MS } from './useMapInteraction';
-export type { UseMapInteractionReturn, ViewportState } from './useMapInteraction';
+export type { UseMapInteractionReturn, ViewportState, MapController } from './useMapInteraction';
 export { useRoutePersistence } from './useRoutePersistence';
 export type {
   UseRoutePersistenceReturn,
@@ -19,6 +19,8 @@ export type {
   GradientSegment,
   POIResult,
 } from './useRouteAnalysis';
+export { useRouteHistory } from './useRouteHistory';
+export type { UseRouteHistoryReturn } from './useRouteHistory';
 export { useUserLocation } from './useUserLocation';
 export type {
   UseUserLocationReturn,

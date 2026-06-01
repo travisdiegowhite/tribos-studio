@@ -17,7 +17,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Box, Text } from '@mantine/core';
 import { MAPBOX_TOKEN, BASEMAP_STYLES, WAYPOINT_COLORS } from '../../../components/RouteBuilder';
 import type { Coordinate } from '../../../types/geo';
-import type { UseMapInteractionReturn } from '../../../hooks/route-builder';
+import type { MapController, UseMapInteractionReturn } from '../../../hooks/route-builder';
 
 const DEFAULT_STYLE = BASEMAP_STYLES[0].style;
 
@@ -101,6 +101,7 @@ export function Map({
         });
       }}
       onClick={handleClick}
+      onLoad={() => map.registerMap(mapRef.current as unknown as MapController)}
       mapStyle={mapStyle as string}
       mapboxAccessToken={MAPBOX_TOKEN}
       style={{ width: '100%', height: '100%' }}

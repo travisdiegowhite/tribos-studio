@@ -17,6 +17,7 @@ import {
   useMapInteraction,
   useRoutePersistence,
   useRouteAnalysis,
+  useRouteHistory,
   useUserLocation,
 } from '../hooks/route-builder';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
@@ -29,6 +30,7 @@ import {
   ControlRail,
   ChatDock,
   GenerateBar,
+  EditToolbar,
   ElevationDock,
   FormPanel,
   StatsOverlay,
@@ -37,6 +39,7 @@ import {
   SurfaceSummaryBar,
   LayerToggles,
   WaypointListPanel,
+  LocationSearch,
   PersonaDropdown,
   ChatShell,
   EmptyState,
@@ -55,7 +58,7 @@ import {
   type ChatMessage,
   type FormPanelControl,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FloppyDisk } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -91,6 +94,7 @@ export default function RouteBuilder2() {
   const map = useMapInteraction();
   const persistence = useRoutePersistence();
   const analysis = useRouteAnalysis();
+  const history = useRouteHistory();
   const userLocation = useUserLocation();
 
   // Persona (top-bar dropdown)
@@ -319,6 +323,29 @@ export default function RouteBuilder2() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Undo/redo keyboard shortcuts (⌘/Ctrl+Z, ⌘/Ctrl+Shift+Z or Ctrl+Y).
+  // Ignored while typing in an input/textarea so chat and form fields keep
+  // their native undo.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) history.redo();
+        else history.undo();
+      } else if (key === 'y') {
+        e.preventDefault();
+        history.redo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [history]);
+
   const handleVisibilityToggle = (key: keyof LayerVisibilityState, next: boolean) => {
     setVisibility((prev) => ({ ...prev, [key]: next }));
   };
@@ -459,6 +486,12 @@ export default function RouteBuilder2() {
         ),
       },
       {
+        id: 'search',
+        label: 'Search',
+        icon: <MagnifyingGlass size={20} weight="duotone" />,
+        panel: <LocationSearch onFlyTo={map.flyTo} proximity={viewportCenter} />,
+      },
+      {
         id: 'waypoints',
         label: 'Waypoints',
         icon: <MapPin size={20} weight="duotone" />,
@@ -473,16 +506,19 @@ export default function RouteBuilder2() {
         ),
       },
       {
-        id: 'save',
-        label: 'Save & Export',
-        icon: <FloppyDisk size={20} weight="duotone" />,
-        disabled: !hasRoute,
+        // Always enabled: Load and Import GPX are entry points that work with
+        // no current route (Save/Export disable themselves inside the panel).
+        id: 'routes',
+        label: 'Routes',
+        icon: <FolderOpen size={20} weight="duotone" />,
         panel: (
           <RouteActionsPanel
             persistence={persistence}
             defaultName={routeName}
+            hasRoute={hasRoute}
             onSaved={handleSaved}
             onLoaded={handleLoaded}
+            onImported={(coords) => map.fitBounds(coords)}
             isMobile
           />
         ),
@@ -517,6 +553,24 @@ export default function RouteBuilder2() {
                 <Box style={{ position: 'absolute', top: 12, right: 12, zIndex: 25 }}>
                   <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} />
                 </Box>
+                {(hasRoute || history.canUndo || history.canRedo) && (
+                  <Box
+                    style={{
+                      position: 'absolute',
+                      top: 12,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      zIndex: 25,
+                    }}
+                  >
+                    <EditToolbar
+                      canUndo={history.canUndo}
+                      canRedo={history.canRedo}
+                      onUndo={history.undo}
+                      onRedo={history.redo}
+                    />
+                  </Box>
+                )}
                 {mapStates}
               </>
             }
@@ -586,10 +640,30 @@ export default function RouteBuilder2() {
             overflowY: 'auto',
           }}
         >
-          <Box style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Box style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {hasRoute || history.canUndo || history.canRedo ? (
+              <EditToolbar
+                canUndo={history.canUndo}
+                canRedo={history.canRedo}
+                onUndo={history.undo}
+                onRedo={history.redo}
+              />
+            ) : (
+              <span />
+            )}
             <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} compact />
           </Box>
           {statsNode}
+          <Box
+            style={{
+              backgroundColor: RB2.cardBg,
+              border: `1px solid ${RB2.border}`,
+              padding: '10px 12px',
+              boxShadow: RB2.shadowCard,
+            }}
+          >
+            <LocationSearch onFlyTo={map.flyTo} proximity={viewportCenter} />
+          </Box>
           {hasRoute && (
             <ElevationPanel
               profile={analysis.elevationProfile}
@@ -617,15 +691,15 @@ export default function RouteBuilder2() {
           {visibility.surface && hasRoute && (
             <SurfaceSummaryBar segments={surfaceSegments} isMobile />
           )}
-          {hasRoute && (
-            <RouteActionsPanel
-              persistence={persistence}
-              defaultName={routeName}
-              onSaved={handleSaved}
-              onLoaded={handleLoaded}
-              isMobile
-            />
-          )}
+          <RouteActionsPanel
+            persistence={persistence}
+            defaultName={routeName}
+            hasRoute={hasRoute}
+            onSaved={handleSaved}
+            onLoaded={handleLoaded}
+            onImported={(coords) => map.fitBounds(coords)}
+            isMobile
+          />
         </Box>
 
         <ChatShell

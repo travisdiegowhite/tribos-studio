@@ -10,7 +10,32 @@ import { useCallback, useState } from 'react';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import * as routesService from '../../utils/routesService';
 import { exportAndDownloadRoute } from '../../utils/routeExport';
+import { parseGpxFile } from '../../utils/gpxParser.js';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
+import type { Coordinate } from '../../types/geo';
+
+interface GpxTrackPoint {
+  latitude: number;
+  longitude: number;
+  elevation?: number | null;
+  distance_m?: number | null;
+}
+
+interface GpxParseResult {
+  metadata?: { name?: string };
+  summary?: {
+    totalDistance_km?: number;
+    totalAscent?: number;
+    totalMovingTime?: number;
+    totalElapsedTime?: number;
+  };
+  trackPoints?: GpxTrackPoint[];
+}
+
+const parseGpx = parseGpxFile as (
+  content: string,
+  fileName?: string,
+) => Promise<GpxParseResult>;
 
 interface SavedRouteRow {
   id: string;
@@ -49,6 +74,12 @@ export interface UseRoutePersistenceReturn {
   loadRoute: (id: string) => Promise<boolean>;
   listSavedRoutes: () => Promise<SavedRouteSummary[]>;
   exportRoute: (format: ExportFormat) => void;
+  /**
+   * Parse a .gpx file and load it as the current route. Returns the track
+   * coordinates on success (so the caller can frame the camera) or null on
+   * failure (with `lastError` set).
+   */
+  importGpx: (file: File) => Promise<Coordinate[] | null>;
 }
 
 export function useRoutePersistence(): UseRoutePersistenceReturn {
@@ -221,6 +252,63 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     }
   }, []);
 
+  const importGpx = useCallback(
+    async (file: File): Promise<Coordinate[] | null> => {
+      setIsLoading(true);
+      setLastError(null);
+      try {
+        const text = await file.text();
+        const parsed = await parseGpx(text, file.name);
+        const points = parsed.trackPoints ?? [];
+        if (points.length < 2) {
+          setLastError('GPX file has too few track points to build a route.');
+          trackRb2('route_import_failed', { reason: 'too_few_points' });
+          return null;
+        }
+        // GPX track points are {latitude, longitude}; convert at this seam to
+        // canonical [lng, lat] (T1.2 coordinate contract).
+        const coordinates: Coordinate[] = points.map(
+          (p) => [p.longitude, p.latitude] as Coordinate,
+        );
+        const summary = parsed.summary ?? {};
+        const stats = {
+          distance_km: summary.totalDistance_km ?? 0,
+          elevation_gain_m: summary.totalAscent ?? 0,
+          duration_s: summary.totalMovingTime || summary.totalElapsedTime || 0,
+        };
+        const name =
+          parsed.metadata?.name?.trim() ||
+          file.name.replace(/\.gpx$/i, '').trim() ||
+          'Imported Route';
+        const start = coordinates[0];
+        const end = coordinates[coordinates.length - 1];
+        setRouteFromStore({
+          geometry: { type: 'LineString', coordinates },
+          name,
+          stats,
+          waypoints: [
+            { id: 'wp-0', position: start, type: 'start', name: '' },
+            { id: 'wp-1', position: end, type: 'end', name: '' },
+          ],
+          source: 'imported',
+        });
+        // Imported routes aren't persisted yet — clear any prior saved id so
+        // the next Save creates a new row rather than overwriting.
+        setSavedRouteId(null);
+        trackRb2('route_imported', { point_count: points.length, source: 'gpx' });
+        return coordinates;
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        setLastError(message);
+        trackRb2('route_import_failed', { error_message: message.slice(0, 200) });
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [setRouteFromStore],
+  );
+
   return {
     isSaving,
     isLoading,
@@ -230,5 +318,6 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     loadRoute,
     listSavedRoutes,
     exportRoute,
+    importGpx,
   };
 }
