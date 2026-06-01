@@ -26,7 +26,9 @@ import type { PersonaId } from '../types/checkIn';
 import {
   Map,
   RB2DesktopLayout,
+  ControlRail,
   ChatDock,
+  GenerateBar,
   ElevationDock,
   FormPanel,
   StatsOverlay,
@@ -44,13 +46,16 @@ import {
   RB2,
   type LayerVisibilityState,
   type FormPanelHandle,
+  type RailItem,
 } from '../features/route-builder-v2/components';
 import {
   useChatSession,
   submitChatMessage,
   EXAMPLE_PHRASES,
   type ChatMessage,
+  type FormPanelControl,
 } from '../features/route-builder-v2/chat';
+import { Stack as StackIcon, MapPin, FloppyDisk } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -137,6 +142,10 @@ export default function RouteBuilder2() {
   // Desktop region collapse state.
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [elevationCollapsed, setElevationCollapsed] = useState(false);
+  // Desktop left-rail open flyout (layers | waypoints | save), null = closed.
+  const [railOpenId, setRailOpenId] = useState<string | null>(null);
+  // Desktop cold-start: the GenerateBar (chips folded into the chat dock).
+  const [generateExpanded, setGenerateExpanded] = useState(false);
 
   // Persona-voiced chat opener — fetched once per session. Falls back to
   // the static line on any error.
@@ -188,6 +197,9 @@ export default function RouteBuilder2() {
     if (!first || first === lastAppliedRef.current) return;
     lastAppliedRef.current = first;
     generation.selectSuggestion(0);
+    // A route just landed — collapse the desktop GenerateBar so the chat
+    // reclaims the dock height.
+    setGenerateExpanded(false);
   }, [generation]);
 
   // Backfill waypoints from geometry endpoints. v1 sometimes persists a
@@ -217,6 +229,22 @@ export default function RouteBuilder2() {
 
   const hasRouteForChat =
     !!routeGeometry?.coordinates && routeGeometry.coordinates.length > 0;
+
+  // Cold-start control fed to the chat dispatcher. On desktop the structured
+  // form is folded into the chat dock (GenerateBar), so "expand the form"
+  // means open that; on mobile it expands the FormPanel card via its ref.
+  const isMobileRef = useRef(isMobile);
+  isMobileRef.current = isMobile;
+  const formControl = useRef<FormPanelControl>({
+    expand: () => {
+      if (isMobileRef.current) {
+        formPanelRef.current?.expand();
+      } else {
+        setGenerateExpanded(true);
+      }
+    },
+  });
+
   const handleChatSubmit = useCallback(
     (text: string) => {
       // Derive the endpoint's conversation-history shape from the live
@@ -232,7 +260,7 @@ export default function RouteBuilder2() {
         append: chat.append,
         setProcessing: chat.setProcessing,
         markRefused: chat.markRefused,
-        formPanelControl: formPanelRef.current ?? { expand: () => {} },
+        formPanelControl: formControl.current,
         persistTurn: chat.persistTurn,
       });
     },
@@ -394,8 +422,73 @@ export default function RouteBuilder2() {
     </>
   );
 
-  // ---- Desktop: structured regions (sidebar | map + elevation dock | chat) ----
+  // ---- Desktop: rail + map(+elevation) + chat regions ----
   if (!isMobile) {
+    const railItems: RailItem[] = [
+      {
+        id: 'layers',
+        label: 'Layers',
+        icon: <StackIcon size={20} weight="duotone" />,
+        badge:
+          (visibility.surface ? 1 : 0) +
+          (visibility.gradient ? 1 : 0) +
+          (visibility.bikeInfra ? 1 : 0) +
+          (visibility.familiar ? 1 : 0) +
+          (visibility.poi ? 1 : 0),
+        panel: (
+          <>
+            <LayerToggles
+              visibility={visibility}
+              onToggle={handleVisibilityToggle}
+              onPoiLayerToggle={handlePoiLayerToggle}
+              activePoiLayers={analysis.activeLayers}
+              isMobile
+              hasStravaConnection={false}
+            />
+            {visibility.gradient && hasRoute && (
+              <Box style={{ marginTop: 10 }}>
+                <GradientLegend isMobile />
+              </Box>
+            )}
+            {visibility.surface && hasRoute && (
+              <Box style={{ marginTop: 10 }}>
+                <SurfaceSummaryBar segments={surfaceSegments} isMobile />
+              </Box>
+            )}
+          </>
+        ),
+      },
+      {
+        id: 'waypoints',
+        label: 'Waypoints',
+        icon: <MapPin size={20} weight="duotone" />,
+        disabled: !hasRoute,
+        badge: waypointsForMap.length,
+        panel: (
+          <WaypointListPanel
+            waypoints={waypointsForMap}
+            onRemove={(idx) => void map.handleRemoveWaypoint(idx)}
+            isMobile
+          />
+        ),
+      },
+      {
+        id: 'save',
+        label: 'Save & Export',
+        icon: <FloppyDisk size={20} weight="duotone" />,
+        disabled: !hasRoute,
+        panel: (
+          <RouteActionsPanel
+            persistence={persistence}
+            defaultName={routeName}
+            onSaved={handleSaved}
+            onLoaded={handleLoaded}
+            isMobile
+          />
+        ),
+      },
+    ];
+
     return (
       <AppShell fullWidth>
         <Box
@@ -410,43 +503,14 @@ export default function RouteBuilder2() {
           }}
         >
           <RB2DesktopLayout
-            stats={statsNode}
-            sidebar={
-              <>
-                <FormPanel
-                  ref={formPanelRef}
-                  generation={generation}
-                  defaultStart={userLocation.coord}
-                  locationStatus={userLocation.status}
-                  viewportCenter={viewportCenter}
-                />
-                <LayerToggles
-                  visibility={visibility}
-                  onToggle={handleVisibilityToggle}
-                  onPoiLayerToggle={handlePoiLayerToggle}
-                  activePoiLayers={analysis.activeLayers}
-                  hasStravaConnection={false}
-                />
-                {visibility.gradient && hasRoute && <GradientLegend />}
-                {visibility.surface && hasRoute && (
-                  <SurfaceSummaryBar segments={surfaceSegments} />
-                )}
-                {hasRoute && (
-                  <WaypointListPanel
-                    waypoints={waypointsForMap}
-                    onRemove={(idx) => void map.handleRemoveWaypoint(idx)}
-                  />
-                )}
-                {hasRoute && (
-                  <RouteActionsPanel
-                    persistence={persistence}
-                    defaultName={routeName}
-                    onSaved={handleSaved}
-                    onLoaded={handleLoaded}
-                  />
-                )}
-              </>
+            left={
+              <ControlRail
+                items={railItems}
+                openId={railOpenId}
+                onOpenChange={setRailOpenId}
+              />
             }
+            statsStrip={statsNode}
             mapArea={
               <>
                 {mapElement}
@@ -475,6 +539,16 @@ export default function RouteBuilder2() {
                 exampleHint={EXAMPLE_PHRASES}
                 showAfterRefuseHint={chat.showAfterRefuseHint}
                 onSubmit={handleChatSubmit}
+                header={
+                  <GenerateBar
+                    generation={generation}
+                    defaultStart={userLocation.coord}
+                    locationStatus={userLocation.status}
+                    viewportCenter={viewportCenter}
+                    expanded={generateExpanded}
+                    onExpandedChange={setGenerateExpanded}
+                  />
+                }
               />
             }
           />

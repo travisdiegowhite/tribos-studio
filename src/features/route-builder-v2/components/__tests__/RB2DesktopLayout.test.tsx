@@ -7,8 +7,8 @@ function renderLayout(props: Partial<Parameters<typeof RB2DesktopLayout>[0]> = {
   return render(
     <MantineProvider>
       <RB2DesktopLayout
-        stats={<div>STATS</div>}
-        sidebar={<div>SIDEBAR</div>}
+        left={<div>RAIL</div>}
+        statsStrip={<div>STATS</div>}
         mapArea={<div>MAP</div>}
         elevation={<div>ELEVATION</div>}
         chat={<div>CHAT</div>}
@@ -19,23 +19,23 @@ function renderLayout(props: Partial<Parameters<typeof RB2DesktopLayout>[0]> = {
 }
 
 describe('RB2DesktopLayout', () => {
-  it('renders all five region slots', () => {
+  it('renders all region slots', () => {
     renderLayout();
     expect(screen.getByTestId('rb2-desktop-layout')).toBeInTheDocument();
+    expect(screen.getByText('RAIL')).toBeInTheDocument();
     expect(screen.getByText('STATS')).toBeInTheDocument();
-    expect(screen.getByText('SIDEBAR')).toBeInTheDocument();
     expect(screen.getByText('MAP')).toBeInTheDocument();
     expect(screen.getByText('ELEVATION')).toBeInTheDocument();
     expect(screen.getByText('CHAT')).toBeInTheDocument();
   });
 
   it('omits optional slots when not provided', () => {
-    renderLayout({ stats: undefined, elevation: undefined, chat: undefined });
+    renderLayout({ statsStrip: undefined, elevation: undefined, chat: undefined });
     expect(screen.queryByText('STATS')).toBeNull();
     expect(screen.queryByText('ELEVATION')).toBeNull();
     expect(screen.queryByText('CHAT')).toBeNull();
     // Required slots still render.
-    expect(screen.getByText('SIDEBAR')).toBeInTheDocument();
+    expect(screen.getByText('RAIL')).toBeInTheDocument();
     expect(screen.getByText('MAP')).toBeInTheDocument();
   });
 });

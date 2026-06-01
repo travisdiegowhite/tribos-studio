@@ -1,6 +1,8 @@
 export { Map } from './Map';
 export { RB2DesktopLayout } from './RB2DesktopLayout';
+export { ControlRail, type RailItem } from './ControlRail';
 export { ChatDock } from './ChatDock';
+export { GenerateBar, type GenerateBarHandle } from './GenerateBar';
 export { ElevationDock } from './ElevationDock';
 export { FormPanel, type FormPanelHandle } from './FormPanel';
 export { StatsOverlay } from './StatsOverlay';

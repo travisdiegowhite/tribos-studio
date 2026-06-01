@@ -1,43 +1,43 @@
 /**
  * RB2DesktopLayout — Route Builder 2.0 desktop region shell.
  *
- * Replaces the floating-card overlay model with partitioned regions so
- * controls, map, elevation, and chat never fight for the same corner:
+ * Three regions, no overlapping floating cards:
  *
- *   [ sidebar ][        map area        ][ chat ]
- *   [         ][   ...................   ][      ]
- *   [         ][      elevation dock     ][      ]
+ *   [ rail+flyout ][        map area        ][ chat ]
+ *   [            ][   ...................   ][      ]
+ *   [            ][      elevation dock     ][      ]
  *
- * Pure presentational: every region is a slot. All business logic stays
- * in the page. Mobile uses a different layout entirely (handled by the page).
+ * The left region is a thin icon rail (with an optional flyout); resting
+ * chrome is ~48px instead of a 352px sidebar. Set-once controls live behind
+ * the rail, the structured form is folded into the chat, and only the map,
+ * a compact stats strip, and chat are ever permanently on screen.
+ *
+ * Pure presentational: every region is a slot. Business logic stays in the
+ * page. Mobile uses a different layout entirely (handled by the page).
  */
 
 import { type ReactNode } from 'react';
-import { Box, Paper, ScrollArea } from '@mantine/core';
-import { RB2 } from './brand';
+import { Box } from '@mantine/core';
 
 export interface RB2DesktopLayoutProps {
-  /** Pinned, non-scrolling header at the top of the sidebar (e.g. stats). */
-  stats?: ReactNode;
-  /** Scrolling sidebar body (form, layers, waypoints, actions). */
-  sidebar: ReactNode;
+  /** Left region — the ControlRail (icon rail + flyout). */
+  left: ReactNode;
   /** The map and its on-map overlays (persona, loading/error/empty). */
   mapArea: ReactNode;
+  /** Compact stats strip pinned to the top of the map area. Omit to hide. */
+  statsStrip?: ReactNode;
   /** Bottom dock under the map (elevation). Omit to hide. */
   elevation?: ReactNode;
   /** Right region (chat dock). Sizes itself via its own open/collapsed state. */
   chat?: ReactNode;
-  /** Sidebar width in px. */
-  sidebarWidth?: number;
 }
 
 export function RB2DesktopLayout({
-  stats,
-  sidebar,
+  left,
   mapArea,
+  statsStrip,
   elevation,
   chat,
-  sidebarWidth = 352,
 }: RB2DesktopLayoutProps) {
   return (
     <Box
@@ -50,43 +50,8 @@ export function RB2DesktopLayout({
         overflow: 'hidden',
       }}
     >
-      {/* Left control sidebar */}
-      <Paper
-        radius={0}
-        style={{
-          width: sidebarWidth,
-          flexShrink: 0,
-          backgroundColor: RB2.bgSecondary,
-          borderRight: `1px solid ${RB2.border}`,
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-        }}
-      >
-        {stats && (
-          <Box
-            style={{
-              padding: 12,
-              borderBottom: `1px solid ${RB2.border}`,
-              flexShrink: 0,
-            }}
-          >
-            {stats}
-          </Box>
-        )}
-        <ScrollArea style={{ flex: 1 }} type="auto">
-          <Box
-            style={{
-              padding: 12,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-            }}
-          >
-            {sidebar}
-          </Box>
-        </ScrollArea>
-      </Paper>
+      {/* Left: icon rail (+ optional flyout) */}
+      {left}
 
       {/* Center: map area on top, elevation dock at the bottom */}
       <Box
@@ -98,7 +63,22 @@ export function RB2DesktopLayout({
           height: '100%',
         }}
       >
-        <Box style={{ flex: 1, position: 'relative', minHeight: 0 }}>{mapArea}</Box>
+        <Box style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+          {mapArea}
+          {statsStrip && (
+            <Box
+              style={{
+                position: 'absolute',
+                top: 12,
+                left: 12,
+                zIndex: 20,
+                maxWidth: 'calc(100% - 24px)',
+              }}
+            >
+              {statsStrip}
+            </Box>
+          )}
+        </Box>
         {elevation && <Box style={{ flexShrink: 0 }}>{elevation}</Box>}
       </Box>
 
