@@ -14,6 +14,7 @@ export { LayerToggles, type LayerVisibilityState } from './LayerToggles';
 export { WaypointListPanel } from './WaypointListPanel';
 export { LocationSearch } from './LocationSearch';
 export { WeatherPanel } from './WeatherPanel';
+export { WindLegend } from './WindLegend';
 export { FuelPanel } from './FuelPanel';
 export { TirePressurePanel } from './TirePressurePanel';
 export { PersonaDropdown } from './PersonaDropdown';

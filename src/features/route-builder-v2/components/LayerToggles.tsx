@@ -16,6 +16,7 @@ import type { POILayer } from '../../../hooks/route-builder';
 export interface LayerVisibilityState {
   surface: boolean;
   gradient: boolean;
+  wind: boolean;
   poi: boolean;
   bikeInfra: boolean;
   familiar: boolean;
@@ -110,6 +111,15 @@ export function LayerToggles({
             checked={visibility.gradient}
             onChange={(v) => toggle('gradient', v)}
           />
+          <Tooltip label="Wind direction and head/tail/cross along the route" withinPortal>
+            <Box>
+              <ToggleRow
+                label="Wind"
+                checked={visibility.wind}
+                onChange={(v) => toggle('wind', v)}
+              />
+            </Box>
+          </Tooltip>
           <ToggleRow
             label="Bike Infrastructure"
             checked={visibility.bikeInfra}
