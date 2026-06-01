@@ -8,6 +8,7 @@
 import { Box, Text, UnstyledButton } from '@mantine/core';
 import { X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
+import { convertDistance } from '../../../utils/units.jsx';
 
 export interface RouteStats {
   distance_km: number;
@@ -19,6 +20,7 @@ export interface StatsOverlayProps {
   stats: RouteStats | null;
   routeName?: string;
   onClear?: () => void;
+  isImperial?: boolean;
 }
 
 function formatDuration(seconds: number): string {
@@ -29,12 +31,22 @@ function formatDuration(seconds: number): string {
   return `${h}h ${m}m`;
 }
 
-function formatKm(km: number): string {
-  if (!km || km <= 0) return '0';
-  return km < 10 ? km.toFixed(1) : Math.round(km).toString();
+// Compact distance: <10 → one decimal, else integer. Converts to miles when
+// imperial, preserving the same glued "<n><unit>" style (e.g. "52km" / "33mi").
+function formatDistanceCompact(km: number, isImperial: boolean): string {
+  const value = isImperial ? convertDistance.kmToMiles(km) : km;
+  const unit = isImperial ? 'mi' : 'km';
+  if (!value || value <= 0) return `0${unit}`;
+  const num = value < 10 ? value.toFixed(1) : Math.round(value).toString();
+  return `${num}${unit}`;
 }
 
-export function StatsOverlay({ stats, routeName, onClear }: StatsOverlayProps) {
+function formatElevationCompact(m: number, isImperial: boolean): string {
+  const value = isImperial ? convertDistance.mToFt(m) : m;
+  return `${Math.round(value)}${isImperial ? 'ft' : 'm'}`;
+}
+
+export function StatsOverlay({ stats, routeName, onClear, isImperial = false }: StatsOverlayProps) {
   if (!stats || stats.distance_km <= 0) return null;
 
   return (
@@ -96,8 +108,8 @@ export function StatsOverlay({ stats, routeName, onClear }: StatsOverlayProps) {
         )}
       </Box>
       <Box style={{ display: 'flex', gap: 18 }}>
-        <StatCell label="Distance" value={`${formatKm(stats.distance_km)}km`} />
-        <StatCell label="Elevation" value={`${Math.round(stats.elevation_gain_m)}m`} />
+        <StatCell label="Distance" value={formatDistanceCompact(stats.distance_km, isImperial)} />
+        <StatCell label="Elevation" value={formatElevationCompact(stats.elevation_gain_m, isImperial)} />
         <StatCell label="Duration" value={formatDuration(stats.duration_s)} />
       </Box>
     </Box>

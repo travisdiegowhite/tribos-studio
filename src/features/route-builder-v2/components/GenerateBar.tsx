@@ -35,6 +35,16 @@ import {
   type Surface,
   type Shape,
 } from './useGenerateForm';
+import {
+  toDisplayDistance,
+  fromDisplayDistance,
+  toDisplayElevation,
+  fromDisplayElevation,
+  distanceUnit,
+  elevationUnit,
+  distanceBounds,
+  elevationBounds,
+} from './unitFormInput';
 
 export interface GenerateBarHandle {
   expand: () => void;
@@ -48,6 +58,7 @@ export interface GenerateBarProps {
   /** Controlled expanded state (lifted so chat cold-start can open it). */
   expanded: boolean;
   onExpandedChange: (next: boolean) => void;
+  isImperial?: boolean;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -68,6 +79,7 @@ export function GenerateBar({
   viewportCenter = null,
   expanded,
   onExpandedChange,
+  isImperial = false,
 }: GenerateBarProps) {
   const f = useGenerateForm({ generation, defaultStart, locationStatus, viewportCenter });
 
@@ -187,40 +199,24 @@ export function GenerateBar({
 
           <Box style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <Box style={{ flex: 1 }}>
-              <Text style={labelStyle}>Distance (km)</Text>
+              <Text style={labelStyle}>Distance ({distanceUnit(isImperial)})</Text>
               <NumberInput
-                value={f.distanceKm}
-                onChange={(v) => {
-                  if (v === '' || v === null || v === undefined) {
-                    f.setDistanceKm('');
-                  } else {
-                    const n = typeof v === 'number' ? v : Number(v);
-                    f.setDistanceKm(Number.isFinite(n) ? n : '');
-                  }
-                }}
-                min={1}
-                max={500}
-                step={5}
+                data-testid="rb2-distance-input"
+                value={toDisplayDistance(f.distanceKm, isImperial)}
+                onChange={(v) => f.setDistanceKm(fromDisplayDistance(v, isImperial))}
+                {...distanceBounds(isImperial)}
                 placeholder="auto"
                 disabled={generation.isGenerating}
                 styles={inputStyles}
               />
             </Box>
             <Box style={{ flex: 1 }}>
-              <Text style={labelStyle}>Elevation (m)</Text>
+              <Text style={labelStyle}>Elevation ({elevationUnit(isImperial)})</Text>
               <NumberInput
-                value={f.elevationGainM}
-                onChange={(v) => {
-                  if (v === '' || v === null || v === undefined) {
-                    f.setElevationGainM('');
-                  } else {
-                    const n = typeof v === 'number' ? v : Number(v);
-                    f.setElevationGainM(Number.isFinite(n) ? n : '');
-                  }
-                }}
-                min={0}
-                max={10000}
-                step={50}
+                data-testid="rb2-elevation-input"
+                value={toDisplayElevation(f.elevationGainM, isImperial)}
+                onChange={(v) => f.setElevationGainM(fromDisplayElevation(v, isImperial))}
+                {...elevationBounds(isImperial)}
                 placeholder="auto"
                 disabled={generation.isGenerating}
                 styles={inputStyles}

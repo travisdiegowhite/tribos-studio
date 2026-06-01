@@ -19,6 +19,7 @@ export interface ElevationDockProps {
   collapsed: boolean;
   onCollapsedChange: (next: boolean) => void;
   onHoverKm?: (km: number | null) => void;
+  isImperial?: boolean;
 }
 
 export function ElevationDock({
@@ -26,6 +27,7 @@ export function ElevationDock({
   collapsed,
   onCollapsedChange,
   onHoverKm,
+  isImperial = false,
 }: ElevationDockProps) {
   if (!profile || profile.length < 2) return null;
 
@@ -89,7 +91,7 @@ export function ElevationDock({
         <CaretDown size={14} color={RB2.textTertiary} />
       </UnstyledButton>
       <Box style={{ padding: '0 12px 8px' }}>
-        <ElevationPanel profile={profile} fillWidth onHoverKm={onHoverKm} />
+        <ElevationPanel profile={profile} fillWidth onHoverKm={onHoverKm} isImperial={isImperial} />
       </Box>
     </Box>
   );

@@ -38,6 +38,12 @@ describe('TirePressurePanel', () => {
     expect(frontPsi()).toBeLessThan(paved);
   });
 
+  it('shows rider weight in pounds when imperial', () => {
+    renderPanel({ isImperial: true });
+    // 75 kg ≈ 165 lb.
+    expect(screen.getByTestId('rb2-tire-weight')).toHaveTextContent('165 lb');
+  });
+
   it('raises pressure as rider weight increases', () => {
     renderPanel();
     const before = frontPsi();

@@ -30,10 +30,10 @@ function makeWeather(overrides: Partial<UseRouteWeatherReturn> = {}): UseRouteWe
   };
 }
 
-function renderPanel(weather: UseRouteWeatherReturn) {
+function renderPanel(weather: UseRouteWeatherReturn, isImperial = false) {
   render(
     <MantineProvider>
-      <WeatherPanel weather={weather} />
+      <WeatherPanel weather={weather} isImperial={isImperial} />
     </MantineProvider>,
   );
 }
@@ -51,6 +51,13 @@ describe('WeatherPanel', () => {
     expect(screen.getByTestId('rb2-weather-wind-compass')).toBeInTheDocument();
     expect(screen.getByTestId('rb2-weather-wind-breakdown')).toHaveTextContent('60% headwind');
     expect(screen.getByText('Head 60%')).toBeInTheDocument();
+  });
+
+  it('renders °F and mph when imperial', () => {
+    renderPanel(makeWeather(), true);
+    // 18°C → 64°F primary; 15 km/h → 9 mph.
+    expect(screen.getByText('64°F')).toBeInTheDocument();
+    expect(screen.getByText('9 mph')).toBeInTheDocument();
   });
 
   it('fetches on mount when a route exists but nothing is loaded', () => {

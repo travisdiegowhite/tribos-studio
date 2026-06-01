@@ -23,6 +23,7 @@ export interface FuelPanelProps {
   /** Current conditions, if the weather panel has loaded them. */
   weather?: { temperature: number; humidity: number } | null;
   userWeightKg?: number;
+  isImperial?: boolean;
 }
 
 const INTENSITY_CHOICES: IntensityLevel[] = ['easy', 'moderate', 'tempo', 'threshold', 'race'];
@@ -40,6 +41,7 @@ export function FuelPanel({
   elevationGainMeters,
   weather = null,
   userWeightKg,
+  isImperial = false,
 }: FuelPanelProps) {
   const [intensity, setIntensity] = useState<IntensityLevel>('moderate');
 
@@ -120,8 +122,12 @@ export function FuelPanel({
         />
         <Metric
           icon={<Drop size={15} color={RB2.teal} />}
-          value={`${plan.hydration.mlPerHour}`}
-          unit={`ml/hr · ${plan.hydration.ozPerHour}oz`}
+          value={isImperial ? `${plan.hydration.ozPerHour}` : `${plan.hydration.mlPerHour}`}
+          unit={
+            isImperial
+              ? `oz/hr · ${plan.hydration.mlPerHour}ml`
+              : `ml/hr · ${plan.hydration.ozPerHour}oz`
+          }
           testid="rb2-fuel-fluid"
         />
       </Group>
