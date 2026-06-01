@@ -32,13 +32,26 @@ vi.mock('../../features/route-builder-v2/components/Map', () => ({
   ),
 }));
 
+vi.mock('../../data/workoutLibrary', () => ({
+  getWorkoutById: (id: string) =>
+    id === 'test_workout'
+      ? {
+          id: 'test_workout',
+          name: 'Sweet Spot 3x12',
+          category: 'sweet_spot',
+          duration: 75,
+          structure: { warmup: null, main: [], cooldown: null },
+        }
+      : null,
+}));
+
 import RouteBuilder2 from '../RouteBuilder2';
 import { UserPreferencesProvider } from '../../contexts/UserPreferencesContext.jsx';
 
-function renderPage() {
+function renderPage(initialPath = '/route-builder-2') {
   return render(
     <MantineProvider>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
         <UserPreferencesProvider>
           <RouteBuilder2 />
         </UserPreferencesProvider>
@@ -99,5 +112,16 @@ describe('RouteBuilder2 (P1.3)', () => {
   it('sets the document title', () => {
     renderPage();
     expect(document.title).toBe('Route Builder 2.0 BETA — Tribos');
+  });
+
+  it('surfaces the workout overlay legend when arriving with ?workoutId', () => {
+    renderPage('/route-builder-2?workoutId=test_workout');
+    const legend = screen.getByTestId('rb2-workout-legend');
+    expect(legend).toHaveTextContent('Sweet Spot 3x12');
+  });
+
+  it('does not surface the workout legend without a workoutId', () => {
+    renderPage();
+    expect(screen.queryByTestId('rb2-workout-legend')).toBeNull();
   });
 });

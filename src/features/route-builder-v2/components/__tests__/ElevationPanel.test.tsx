@@ -91,4 +91,25 @@ describe('ElevationPanel', () => {
     fireEvent.pointerLeave(svg);
     expect(onHoverKm).toHaveBeenLastCalledWith(null);
   });
+
+  it('paints interval bands when cues are provided', () => {
+    render(
+      <MantineProvider>
+        <ElevationPanel
+          profile={CLIMB}
+          cues={[
+            { type: 'warmup', zone: 1, startDistance: 0, endDistance: 5 },
+            { type: 'interval-hard', zone: 5, startDistance: 5, endDistance: 10 },
+          ]}
+        />
+      </MantineProvider>,
+    );
+    const bands = screen.getByTestId('rb2-elevation-interval-bands');
+    expect(bands.querySelectorAll('rect')).toHaveLength(2);
+  });
+
+  it('renders no interval bands without cues', () => {
+    renderPanel(CLIMB);
+    expect(screen.queryByTestId('rb2-elevation-interval-bands')).toBeNull();
+  });
 });

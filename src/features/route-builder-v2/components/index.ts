@@ -9,6 +9,7 @@ export { FormPanel, type FormPanelHandle } from './FormPanel';
 export { StatsOverlay } from './StatsOverlay';
 export { ElevationPanel } from './ElevationPanel';
 export { GradientLegend } from './GradientLegend';
+export { WorkoutOverlayLegend } from './WorkoutOverlayLegend';
 export { SurfaceSummaryBar } from './SurfaceSummaryBar';
 export { LayerToggles, type LayerVisibilityState } from './LayerToggles';
 export { WaypointListPanel } from './WaypointListPanel';

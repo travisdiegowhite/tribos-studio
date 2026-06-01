@@ -34,6 +34,7 @@ import {
   type Goal,
   type Surface,
   type Shape,
+  type GenerateFormSeed,
 } from './useGenerateForm';
 import {
   toDisplayDistance,
@@ -59,6 +60,7 @@ export interface GenerateBarProps {
   expanded: boolean;
   onExpandedChange: (next: boolean) => void;
   isImperial?: boolean;
+  formSeed?: GenerateFormSeed;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -80,8 +82,18 @@ export function GenerateBar({
   expanded,
   onExpandedChange,
   isImperial = false,
+  formSeed,
 }: GenerateBarProps) {
-  const f = useGenerateForm({ generation, defaultStart, locationStatus, viewportCenter });
+  const f = useGenerateForm({
+    generation,
+    defaultStart,
+    locationStatus,
+    viewportCenter,
+    initialGoal: formSeed?.goal,
+    initialDurationMinutes: formSeed?.durationMinutes,
+    initialDistanceKm: formSeed?.distanceKm,
+    initialElevationGainM: formSeed?.elevationGainM,
+  });
 
   const handleSubmit = async () => {
     await f.onSubmit();

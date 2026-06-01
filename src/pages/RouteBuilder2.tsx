@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import {
   useAIGeneration,
@@ -72,8 +72,17 @@ import { POILayer } from '../features/route-builder-v2/layers/POILayer';
 import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLayer';
 import { FamiliarSegmentsLayer } from '../features/route-builder-v2/layers/FamiliarSegmentsLayer';
 import { WindArrowsLayer } from '../features/route-builder-v2/layers/WindArrowsLayer';
+import { IntervalsLayer } from '../features/route-builder-v2/layers/IntervalsLayer';
+import { WorkoutOverlayLegend } from '../features/route-builder-v2/components';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
+import { getWorkoutById } from '../data/workoutLibrary';
+import { generateCuesFromWorkoutStructure } from '../utils/intervalCues.js';
+import {
+  categoryToGoal,
+  type WorkoutCue,
+} from '../features/route-builder-v2/overlay/intervalOverlay';
+import type { GenerateFormSeed } from '../features/route-builder-v2/components/useGenerateForm';
 import type { Coordinate } from '../types/geo';
 
 const DEFAULT_VISIBILITY: LayerVisibilityState = {
@@ -83,6 +92,7 @@ const DEFAULT_VISIBILITY: LayerVisibilityState = {
   poi: false,
   bikeInfra: false,
   familiar: false,
+  intervals: false,
 };
 
 const STATIC_OPENING: ChatMessage = {
@@ -102,6 +112,31 @@ export default function RouteBuilder2() {
     updateUnitsPreference: (next: 'imperial' | 'metric') => void;
   };
   const isImperial = unitsPreference === 'imperial';
+
+  // Workout overlay: arrive from the training calendar with ?workoutId=… and we
+  // resolve the structure from the library, seed the generate form, and paint
+  // the intervals on the route. View-only — nothing is persisted.
+  const [searchParams] = useSearchParams();
+  const workoutIdParam = searchParams.get('workoutId');
+  const attachedWorkout = useMemo(
+    () => (workoutIdParam ? getWorkoutById(workoutIdParam) : null),
+    [workoutIdParam],
+  );
+  const hasWorkout = !!attachedWorkout;
+  const workoutName = attachedWorkout?.name ?? searchParams.get('workoutName');
+  const formSeed = useMemo<GenerateFormSeed | undefined>(() => {
+    if (!attachedWorkout) return undefined;
+    const durationParam = Number(searchParams.get('duration'));
+    const distanceParam = Number(searchParams.get('distance'));
+    return {
+      goal: categoryToGoal(searchParams.get('goal') ?? attachedWorkout.category),
+      durationMinutes: Number.isFinite(durationParam) && durationParam > 0
+        ? durationParam
+        : attachedWorkout.duration,
+      distanceKm: Number.isFinite(distanceParam) && distanceParam > 0 ? distanceParam : '',
+    };
+  }, [attachedWorkout, searchParams]);
+
   const generation = useAIGeneration();
   const editing = useRouteEditing();
   const map = useMapInteraction();
@@ -151,7 +186,10 @@ export default function RouteBuilder2() {
     };
   }, [viewport, viewportCenter]);
 
-  const [visibility, setVisibility] = useState<LayerVisibilityState>(DEFAULT_VISIBILITY);
+  const [visibility, setVisibility] = useState<LayerVisibilityState>(() => ({
+    ...DEFAULT_VISIBILITY,
+    intervals: hasWorkout,
+  }));
   const [errorDismissed, setErrorDismissed] = useState<string | null>(null);
   // Per-segment surface categories reported up by SurfaceLayer so the
   // summary bar reuses them without a second Overpass fetch.
@@ -164,7 +202,8 @@ export default function RouteBuilder2() {
   // Desktop left-rail open flyout (layers | waypoints | save), null = closed.
   const [railOpenId, setRailOpenId] = useState<string | null>(null);
   // Desktop cold-start: the GenerateBar (chips folded into the chat dock).
-  const [generateExpanded, setGenerateExpanded] = useState(false);
+  // Auto-expand when seeded from a workout so the prefilled goal/duration show.
+  const [generateExpanded, setGenerateExpanded] = useState(hasWorkout);
 
   // Persona-voiced chat opener — fetched once per session. Falls back to
   // the static line on any error.
@@ -390,6 +429,25 @@ export default function RouteBuilder2() {
     };
   }, [routeGeometry]);
 
+  // Scale the attached workout's structure onto the current route (km-keyed
+  // cues), reused by the elevation bands and the map intervals line.
+  const workoutCues = useMemo<WorkoutCue[] | null>(() => {
+    if (!attachedWorkout || !geometryForLayers || geometryForLayers.coordinates.length < 2) {
+      return null;
+    }
+    const cues = generateCuesFromWorkoutStructure(
+      {
+        coordinates: geometryForLayers.coordinates,
+        distance: routeStats?.distance_km,
+      },
+      attachedWorkout,
+    );
+    return (cues as WorkoutCue[] | null) ?? null;
+  }, [attachedWorkout, geometryForLayers, routeStats?.distance_km]);
+
+  // Cues actually painted (respects the layer toggle).
+  const visibleCues = visibility.intervals ? workoutCues : null;
+
   // Resolve the hovered elevation-chart distance to a map coordinate. Mapped
   // by distance (via cumulative-distance walk) rather than index, so it holds
   // even when the elevation profile and geometry have different point counts.
@@ -423,7 +481,9 @@ export default function RouteBuilder2() {
     <Map
       map={map}
       routeGeometry={
-        !visibility.surface && !visibility.gradient ? geometryForLayers : null
+        !visibility.surface && !visibility.gradient && !(visibility.intervals && workoutCues)
+          ? geometryForLayers
+          : null
       }
       waypoints={waypointsForMap}
       highlightCoord={highlightCoord}
@@ -433,6 +493,9 @@ export default function RouteBuilder2() {
       )}
       {visibility.gradient && !visibility.surface && (
         <GradientLayer geometry={geometryForLayers} />
+      )}
+      {visibility.intervals && !visibility.surface && !visibility.gradient && (
+        <IntervalsLayer geometry={geometryForLayers} cues={workoutCues} />
       )}
       {visibility.poi && (
         <POILayer poiResults={analysis.poiResults} activeLayers={analysis.activeLayers} />
@@ -500,6 +563,7 @@ export default function RouteBuilder2() {
               activePoiLayers={analysis.activeLayers}
               isMobile
               hasStravaConnection={false}
+              hasWorkout={hasWorkout}
             />
             {visibility.gradient && hasRoute && (
               <Box style={{ marginTop: 10 }}>
@@ -645,14 +709,24 @@ export default function RouteBuilder2() {
               </>
             }
             elevation={
-              hasRoute ? (
-                <ElevationDock
-                  profile={analysis.elevationProfile}
-                  collapsed={elevationCollapsed}
-                  onCollapsedChange={setElevationCollapsed}
-                  onHoverKm={setHoverKm}
-                  isImperial={isImperial}
-                />
+              hasRoute || hasWorkout ? (
+                <>
+                  {hasWorkout && (
+                    <Box style={{ padding: '8px 12px 0' }}>
+                      <WorkoutOverlayLegend workoutName={workoutName} cues={visibleCues} />
+                    </Box>
+                  )}
+                  {hasRoute && (
+                    <ElevationDock
+                      profile={analysis.elevationProfile}
+                      collapsed={elevationCollapsed}
+                      onCollapsedChange={setElevationCollapsed}
+                      onHoverKm={setHoverKm}
+                      isImperial={isImperial}
+                      cues={visibleCues}
+                    />
+                  )}
+                </>
               ) : undefined
             }
             chat={
@@ -673,6 +747,7 @@ export default function RouteBuilder2() {
                     expanded={generateExpanded}
                     onExpandedChange={setGenerateExpanded}
                     isImperial={isImperial}
+                    formSeed={formSeed}
                   />
                 }
               />
@@ -748,6 +823,7 @@ export default function RouteBuilder2() {
               isMobile
               onHoverKm={setHoverKm}
               isImperial={isImperial}
+              cues={visibleCues}
             />
           )}
           <FormPanel
@@ -758,6 +834,7 @@ export default function RouteBuilder2() {
             viewportCenter={viewportCenter}
             isMobile
             isImperial={isImperial}
+            formSeed={formSeed}
           />
           <LayerToggles
             visibility={visibility}
@@ -766,7 +843,11 @@ export default function RouteBuilder2() {
             activePoiLayers={analysis.activeLayers}
             isMobile
             hasStravaConnection={false}
+            hasWorkout={hasWorkout}
           />
+          {hasWorkout && (
+            <WorkoutOverlayLegend workoutName={workoutName} cues={visibleCues} isMobile />
+          )}
           {visibility.gradient && hasRoute && <GradientLegend isMobile />}
           {visibility.surface && hasRoute && (
             <SurfaceSummaryBar segments={surfaceSegments} isMobile />

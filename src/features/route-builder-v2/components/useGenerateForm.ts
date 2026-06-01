@@ -49,11 +49,23 @@ export const SHAPE_OPTIONS: Array<{ value: Shape; label: string }> = [
   { value: 'point_to_point', label: 'Point to Point' },
 ];
 
+/** Seed values when arriving pre-configured (e.g. from a planned workout). */
+export interface GenerateFormSeed {
+  goal?: Goal;
+  durationMinutes?: number;
+  distanceKm?: number | '';
+  elevationGainM?: number | '';
+}
+
 export interface UseGenerateFormArgs {
   generation: UseAIGenerationReturn;
   defaultStart?: Coordinate | null;
   locationStatus?: UserLocationStatus;
   viewportCenter?: Coordinate | null;
+  initialGoal?: Goal;
+  initialDurationMinutes?: number;
+  initialDistanceKm?: number | '';
+  initialElevationGainM?: number | '';
 }
 
 export function prettyLabel<T extends string>(
@@ -67,14 +79,18 @@ export function useGenerateForm({
   generation,
   defaultStart = null,
   viewportCenter = null,
+  initialGoal,
+  initialDurationMinutes,
+  initialDistanceKm,
+  initialElevationGainM,
 }: UseGenerateFormArgs) {
-  const [goal, setGoal] = useState<Goal>('endurance');
-  const [duration, setDuration] = useState<number>(60);
+  const [goal, setGoal] = useState<Goal>(initialGoal ?? 'endurance');
+  const [duration, setDuration] = useState<number>(initialDurationMinutes ?? 60);
   const [surface, setSurface] = useState<Surface>('road');
   const [shape, setShape] = useState<Shape>('loop');
   const [startLocation, setStartLocation] = useState<string>('');
-  const [distanceKm, setDistanceKm] = useState<number | ''>('');
-  const [elevationGainM, setElevationGainM] = useState<number | ''>('');
+  const [distanceKm, setDistanceKm] = useState<number | ''>(initialDistanceKm ?? '');
+  const [elevationGainM, setElevationGainM] = useState<number | ''>(initialElevationGainM ?? '');
   const [localError, setLocalError] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
 

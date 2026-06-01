@@ -13,6 +13,7 @@ import { CaretDown, CaretUp, Path } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { ElevationPanel } from './ElevationPanel';
 import type { ElevationPoint } from '../../../hooks/route-builder';
+import type { WorkoutCue } from '../overlay/intervalOverlay';
 
 export interface ElevationDockProps {
   profile: ElevationPoint[] | null;
@@ -20,6 +21,7 @@ export interface ElevationDockProps {
   onCollapsedChange: (next: boolean) => void;
   onHoverKm?: (km: number | null) => void;
   isImperial?: boolean;
+  cues?: WorkoutCue[] | null;
 }
 
 export function ElevationDock({
@@ -28,6 +30,7 @@ export function ElevationDock({
   onCollapsedChange,
   onHoverKm,
   isImperial = false,
+  cues = null,
 }: ElevationDockProps) {
   if (!profile || profile.length < 2) return null;
 
@@ -91,7 +94,13 @@ export function ElevationDock({
         <CaretDown size={14} color={RB2.textTertiary} />
       </UnstyledButton>
       <Box style={{ padding: '0 12px 8px' }}>
-        <ElevationPanel profile={profile} fillWidth onHoverKm={onHoverKm} isImperial={isImperial} />
+        <ElevationPanel
+          profile={profile}
+          fillWidth
+          onHoverKm={onHoverKm}
+          isImperial={isImperial}
+          cues={cues}
+        />
       </Box>
     </Box>
   );
