@@ -20,6 +20,7 @@ export interface LayerVisibilityState {
   poi: boolean;
   bikeInfra: boolean;
   familiar: boolean;
+  intervals: boolean;
 }
 
 export interface LayerTogglesProps {
@@ -29,6 +30,8 @@ export interface LayerTogglesProps {
   activePoiLayers: POILayer[];
   isMobile?: boolean;
   hasStravaConnection?: boolean;
+  /** When true, an "Intervals" toggle is shown (a workout is attached). */
+  hasWorkout?: boolean;
 }
 
 const POI_LAYERS: Array<{ id: POILayer; label: string }> = [
@@ -47,6 +50,7 @@ export function LayerToggles({
   activePoiLayers,
   isMobile = false,
   hasStravaConnection = false,
+  hasWorkout = false,
 }: LayerTogglesProps) {
   const [expanded, setExpanded] = useState(!isMobile);
 
@@ -111,6 +115,17 @@ export function LayerToggles({
             checked={visibility.gradient}
             onChange={(v) => toggle('gradient', v)}
           />
+          {hasWorkout && (
+            <Tooltip label="Color the route by the attached workout's intervals" withinPortal>
+              <Box>
+                <ToggleRow
+                  label="Intervals"
+                  checked={visibility.intervals}
+                  onChange={(v) => toggle('intervals', v)}
+                />
+              </Box>
+            </Tooltip>
+          )}
           <Tooltip label="Wind direction and head/tail/cross along the route" withinPortal>
             <Box>
               <ToggleRow

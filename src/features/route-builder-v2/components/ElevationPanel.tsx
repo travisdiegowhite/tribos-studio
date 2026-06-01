@@ -18,6 +18,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Box, Text } from '@mantine/core';
 import { RB2, RB2_FONT } from './brand';
 import { convertDistance } from '../../../utils/units.jsx';
+import { cueColor, type WorkoutCue } from '../overlay/intervalOverlay';
 import type { ElevationPoint } from '../../../hooks/route-builder';
 
 export interface ElevationPanelProps {
@@ -32,6 +33,8 @@ export interface ElevationPanelProps {
   /** When true, the card fills its container width (desktop bottom strip). */
   fillWidth?: boolean;
   isImperial?: boolean;
+  /** Workout interval cues (km along route) to paint as colored bands. */
+  cues?: WorkoutCue[] | null;
 }
 
 // Resolution-independent viewBox; the SVG scales to the card width via
@@ -119,6 +122,7 @@ export function ElevationPanel({
   onHoverKm,
   fillWidth = false,
   isImperial = false,
+  cues = null,
 }: ElevationPanelProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -226,6 +230,28 @@ export function ElevationPanel({
         role="img"
         aria-label={`Elevation profile, ${Math.round(isImperial ? convertDistance.mToFt(scales.gainM) : scales.gainM)} ${isImperial ? 'feet' : 'meters'} of climbing over ${isImperial ? convertDistance.kmToMiles(scales.totalKm).toFixed(1) : formatKm(scales.totalKm)} ${isImperial ? 'miles' : 'kilometers'}`}
       >
+        {cues && cues.length > 0 && (
+          <g data-testid="rb2-elevation-interval-bands">
+            {cues.map((cue, i) => {
+              const x1 = scales.toX(Math.max(0, Math.min(cue.startDistance, scales.totalKm)));
+              const x2 = scales.toX(Math.max(0, Math.min(cue.endDistance, scales.totalKm)));
+              const w = x2 - x1;
+              if (w <= 0) return null;
+              return (
+                <rect
+                  key={i}
+                  x={x1}
+                  y={0}
+                  width={w}
+                  height={VIEW_H}
+                  fill={cueColor(cue.zone)}
+                  fillOpacity={0.18}
+                  stroke="none"
+                />
+              );
+            })}
+          </g>
+        )}
         <path d={paths.area} fill={RB2.teal} fillOpacity={0.12} stroke="none" />
         <path
           d={paths.line}

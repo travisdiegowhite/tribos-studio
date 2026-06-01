@@ -34,6 +34,8 @@ import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
+import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access';
+import { buildWorkoutRouteHref } from '../utils/workoutRouteHref';
 
 /**
  * Enhanced Training Calendar Component
@@ -43,6 +45,7 @@ import { getWeatherSeverity, formatTemperature } from '../utils/weather';
 const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false, refreshKey = 0 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { hasAccess: hasRouteBuilderV2 } = useRouteBuilderV2Access();
 
   // Weather forecast for calendar days
   const viewport = useRouteBuilderStore.getState().viewport;
@@ -213,42 +216,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setRaceGoalModalOpen(true);
   };
 
-  // Navigate to Route Builder with workout context
+  // Navigate to the route builder with workout context. Opens RB2 (with the
+  // interval overlay) when the user is in the v2 cohort, else the v1 builder.
   const handleCreateRoute = (e, workout, date) => {
     e.stopPropagation(); // Prevent opening edit modal
-
-    // Map workout type to training goal
-    const workoutTypeToGoal = {
-      endurance: 'endurance',
-      tempo: 'endurance',
-      threshold: 'intervals',
-      vo2max: 'intervals',
-      anaerobic: 'intervals',
-      recovery: 'recovery',
-      climbing: 'hills',
-      racing: 'endurance',
-    };
-
-    const params = new URLSearchParams({
-      from: 'calendar',
-      workoutType: workout.workout_type || 'endurance',
-      trainingGoal: workoutTypeToGoal[workout.workout_type] || 'endurance',
-      duration: workout.target_duration || 60,
-      scheduledDate: formatLocalDate(date),
-    });
-
-    // Add optional params if they exist
-    if (workout.workout_id) {
-      params.set('workoutId', workout.workout_id);
-    }
-    if (workout.target_distance_km) {
-      params.set('distance', workout.target_distance_km);
-    }
-    if (workout.name) {
-      params.set('workoutName', workout.name);
-    }
-
-    navigate(`/routes/new?${params.toString()}`);
+    const href = buildWorkoutRouteHref(workout, formatLocalDate(date), hasRouteBuilderV2);
+    navigate(href);
   };
 
   // Get 28 days for the rolling 4-week view (always starts on a Monday)

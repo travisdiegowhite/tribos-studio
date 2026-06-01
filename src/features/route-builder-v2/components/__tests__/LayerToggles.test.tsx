@@ -10,6 +10,7 @@ const initialVisibility: LayerVisibilityState = {
   poi: false,
   bikeInfra: false,
   familiar: false,
+  intervals: false,
 };
 
 function renderToggles(overrides: Partial<React.ComponentProps<typeof LayerToggles>> = {}) {
@@ -64,5 +65,24 @@ describe('LayerToggles', () => {
     expect(labels.length).toBeGreaterThan(0);
     const familiar = labels.find((el) => (el as HTMLInputElement).disabled);
     expect(familiar).toBeTruthy();
+  });
+
+  it('shows the Intervals toggle only when a workout is attached', () => {
+    renderToggles({ hasWorkout: false });
+    expect(screen.queryByText('Intervals')).not.toBeInTheDocument();
+  });
+
+  it('fires onToggle for the intervals layer when a workout is attached', () => {
+    const { props } = renderToggles({
+      hasWorkout: true,
+      visibility: { ...initialVisibility, intervals: true },
+    });
+    expect(screen.getByText('Intervals')).toBeInTheDocument();
+    // Order with a workout: surface, gradient, intervals, wind, …
+    const switches = screen
+      .getByTestId('rb2-layer-toggles')
+      .querySelectorAll('input[type="checkbox"]');
+    fireEvent.click(switches[2] as HTMLInputElement);
+    expect(props.onToggle).toHaveBeenCalledWith('intervals', false);
   });
 });

@@ -21,6 +21,7 @@ import {
   type Goal,
   type Surface,
   type Shape,
+  type GenerateFormSeed,
 } from './useGenerateForm';
 import {
   toDisplayDistance,
@@ -47,6 +48,7 @@ export interface FormPanelProps {
   viewportCenter?: Coordinate | null;
   isMobile?: boolean;
   isImperial?: boolean;
+  formSeed?: GenerateFormSeed;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -59,7 +61,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function FormPanel(
-  { generation, defaultStart, locationStatus = 'idle', viewportCenter = null, isMobile = false, isImperial = false },
+  { generation, defaultStart, locationStatus = 'idle', viewportCenter = null, isMobile = false, isImperial = false, formSeed },
   ref,
 ) {
   const [expanded, setExpanded] = useState(false);
@@ -84,7 +86,16 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
     summary,
     onSubmit,
     onReset,
-  } = useGenerateForm({ generation, defaultStart, locationStatus, viewportCenter });
+  } = useGenerateForm({
+    generation,
+    defaultStart,
+    locationStatus,
+    viewportCenter,
+    initialGoal: formSeed?.goal,
+    initialDurationMinutes: formSeed?.durationMinutes,
+    initialDistanceKm: formSeed?.distanceKm,
+    initialElevationGainM: formSeed?.elevationGainM,
+  });
 
   const toggleExpanded = useCallback(() => {
     setExpanded((prev) => {
