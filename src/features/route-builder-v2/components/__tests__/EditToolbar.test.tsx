@@ -33,4 +33,27 @@ describe('EditToolbar', () => {
     expect(screen.getByTestId('rb2-undo-button')).toBeDisabled();
     expect(screen.getByTestId('rb2-redo-button')).toBeDisabled();
   });
+
+  it('omits the reverse button unless onReverse is provided', () => {
+    renderToolbar();
+    expect(screen.queryByTestId('rb2-reverse-button')).not.toBeInTheDocument();
+  });
+
+  it('renders and invokes reverse when onReverse is provided', () => {
+    const onReverse = vi.fn();
+    render(
+      <MantineProvider>
+        <EditToolbar
+          canUndo
+          canRedo
+          onUndo={vi.fn()}
+          onRedo={vi.fn()}
+          onReverse={onReverse}
+          canReverse
+        />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByTestId('rb2-reverse-button'));
+    expect(onReverse).toHaveBeenCalledTimes(1);
+  });
 });

@@ -501,6 +501,7 @@ export default function RouteBuilder2() {
           <WaypointListPanel
             waypoints={waypointsForMap}
             onRemove={(idx) => void map.handleRemoveWaypoint(idx)}
+            onReorder={(from, to) => void map.handleReorderWaypoints(from, to)}
             isMobile
           />
         ),
@@ -568,6 +569,8 @@ export default function RouteBuilder2() {
                       canRedo={history.canRedo}
                       onUndo={history.undo}
                       onRedo={history.redo}
+                      onReverse={() => void map.handleReverseRoute()}
+                      canReverse={waypointsForMap.length >= 2}
                     />
                   </Box>
                 )}
@@ -647,6 +650,8 @@ export default function RouteBuilder2() {
                 canRedo={history.canRedo}
                 onUndo={history.undo}
                 onRedo={history.redo}
+                onReverse={() => void map.handleReverseRoute()}
+                canReverse={waypointsForMap.length >= 2}
               />
             ) : (
               <span />
