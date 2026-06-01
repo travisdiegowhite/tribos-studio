@@ -64,7 +64,7 @@ import {
   type ChatMessage,
   type FormPanelControl,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -73,7 +73,9 @@ import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLay
 import { FamiliarSegmentsLayer } from '../features/route-builder-v2/layers/FamiliarSegmentsLayer';
 import { WindArrowsLayer } from '../features/route-builder-v2/layers/WindArrowsLayer';
 import { IntervalsLayer } from '../features/route-builder-v2/layers/IntervalsLayer';
-import { WorkoutOverlayLegend } from '../features/route-builder-v2/components';
+import { WorkoutOverlayLegend, WorkoutPickerPanel } from '../features/route-builder-v2/components';
+import { useUpcomingPlannedWorkouts } from '../hooks/useUpcomingPlannedWorkouts';
+import type { WorkoutDefinition } from '../types/training';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
 import { getWorkoutById } from '../data/workoutLibrary';
@@ -113,29 +115,41 @@ export default function RouteBuilder2() {
   };
   const isImperial = unitsPreference === 'imperial';
 
-  // Workout overlay: arrive from the training calendar with ?workoutId=… and we
-  // resolve the structure from the library, seed the generate form, and paint
-  // the intervals on the route. View-only — nothing is persisted.
+  // Workout overlay: a workout can be attached either by arriving from the
+  // training calendar with ?workoutId=… or by the in-builder picker. The
+  // selection is stateful (seeded from the URL); the picker mutates it.
+  // Resolved from the library → seeds the generate form and paints the
+  // intervals on the route. View-only — nothing is persisted.
   const [searchParams] = useSearchParams();
-  const workoutIdParam = searchParams.get('workoutId');
+  const [pickedWorkoutId, setPickedWorkoutId] = useState<string | null>(
+    searchParams.get('workoutId'),
+  );
+  const [seedOverride, setSeedOverride] = useState<{
+    durationMinutes?: number;
+    distanceKm?: number | '';
+  }>(() => {
+    const d = Number(searchParams.get('duration'));
+    const dist = Number(searchParams.get('distance'));
+    return {
+      durationMinutes: Number.isFinite(d) && d > 0 ? d : undefined,
+      distanceKm: Number.isFinite(dist) && dist > 0 ? dist : undefined,
+    };
+  });
   const attachedWorkout = useMemo(
-    () => (workoutIdParam ? getWorkoutById(workoutIdParam) : null),
-    [workoutIdParam],
+    () => (pickedWorkoutId ? getWorkoutById(pickedWorkoutId) : null),
+    [pickedWorkoutId],
   );
   const hasWorkout = !!attachedWorkout;
-  const workoutName = attachedWorkout?.name ?? searchParams.get('workoutName');
+  const workoutName = attachedWorkout?.name ?? null;
+  const upcomingPlanned = useUpcomingPlannedWorkouts(user?.id ?? null);
   const formSeed = useMemo<GenerateFormSeed | undefined>(() => {
     if (!attachedWorkout) return undefined;
-    const durationParam = Number(searchParams.get('duration'));
-    const distanceParam = Number(searchParams.get('distance'));
     return {
-      goal: categoryToGoal(searchParams.get('goal') ?? attachedWorkout.category),
-      durationMinutes: Number.isFinite(durationParam) && durationParam > 0
-        ? durationParam
-        : attachedWorkout.duration,
-      distanceKm: Number.isFinite(distanceParam) && distanceParam > 0 ? distanceParam : '',
+      goal: categoryToGoal(attachedWorkout.category),
+      durationMinutes: seedOverride.durationMinutes ?? attachedWorkout.duration,
+      distanceKm: seedOverride.distanceKm ?? '',
     };
-  }, [attachedWorkout, searchParams]);
+  }, [attachedWorkout, seedOverride]);
 
   const generation = useAIGeneration();
   const editing = useRouteEditing();
@@ -413,6 +427,28 @@ export default function RouteBuilder2() {
     void analysis.togglePOILayer(layer);
   };
 
+  // Attach a workout from the in-builder picker: light up the overlay, seed the
+  // generate form (via remount key + formSeed), expand it, and close the flyout.
+  const handleSelectWorkout = (
+    workout: WorkoutDefinition,
+    planned?: { targetDurationMinutes: number | null; targetDistanceKm: number | null },
+  ) => {
+    setPickedWorkoutId(workout.id);
+    setSeedOverride({
+      durationMinutes: planned?.targetDurationMinutes ?? undefined,
+      distanceKm: planned?.targetDistanceKm ?? undefined,
+    });
+    setVisibility((prev) => ({ ...prev, intervals: true }));
+    setGenerateExpanded(true);
+    setRailOpenId(null);
+    trackRb2('workout_attached', { workout_id: workout.id, source: planned ? 'planned' : 'library' });
+  };
+
+  const handleClearWorkout = () => {
+    setPickedWorkoutId(null);
+    setSeedOverride({});
+  };
+
   const hasRoute = !!routeGeometry?.coordinates && routeGeometry.coordinates.length > 0;
   const isLoading = generation.isGenerating || editing.isApplying || map.isApplying;
   const errorRaw =
@@ -584,6 +620,20 @@ export default function RouteBuilder2() {
         ),
       },
       {
+        id: 'workout',
+        label: 'Workout',
+        icon: <Barbell size={20} weight="duotone" />,
+        badge: hasWorkout ? 1 : 0,
+        panel: (
+          <WorkoutPickerPanel
+            plannedWorkouts={upcomingPlanned.workouts}
+            selectedWorkoutId={pickedWorkoutId}
+            onSelect={handleSelectWorkout}
+            onClear={handleClearWorkout}
+          />
+        ),
+      },
+      {
         id: 'search',
         label: 'Search',
         icon: <MagnifyingGlass size={20} weight="duotone" />,
@@ -740,6 +790,7 @@ export default function RouteBuilder2() {
                 onSubmit={handleChatSubmit}
                 header={
                   <GenerateBar
+                    key={`gen-${pickedWorkoutId ?? 'none'}`}
                     generation={generation}
                     defaultStart={userLocation.coord}
                     locationStatus={userLocation.status}
@@ -826,7 +877,24 @@ export default function RouteBuilder2() {
               cues={visibleCues}
             />
           )}
+          <Box
+            style={{
+              backgroundColor: RB2.cardBg,
+              border: `1px solid ${RB2.border}`,
+              padding: '10px 12px',
+              boxShadow: RB2.shadowCard,
+            }}
+          >
+            <WorkoutPickerPanel
+              plannedWorkouts={upcomingPlanned.workouts}
+              selectedWorkoutId={pickedWorkoutId}
+              onSelect={handleSelectWorkout}
+              onClear={handleClearWorkout}
+              isMobile
+            />
+          </Box>
           <FormPanel
+            key={`form-${pickedWorkoutId ?? 'none'}`}
             ref={formPanelRef}
             generation={generation}
             defaultStart={userLocation.coord}
@@ -835,6 +903,7 @@ export default function RouteBuilder2() {
             isMobile
             isImperial={isImperial}
             formSeed={formSeed}
+            defaultExpanded={hasWorkout}
           />
           <LayerToggles
             visibility={visibility}

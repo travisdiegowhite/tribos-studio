@@ -40,6 +40,33 @@ export function cueColor(zone: number | null | undefined): string {
 }
 
 /**
+ * Representative training zone for a workout category — used to color-accent a
+ * workout row in the picker before any route exists.
+ */
+export function categoryToZone(category: string | null | undefined): number {
+  switch ((category ?? '').toLowerCase()) {
+    case 'recovery':
+      return 1;
+    case 'endurance':
+      return 2;
+    case 'tempo':
+      return 3;
+    case 'sweet_spot':
+      return 3.5;
+    case 'threshold':
+    case 'climbing':
+    case 'racing':
+      return 4;
+    case 'vo2max':
+      return 5;
+    case 'anaerobic':
+      return 6;
+    default:
+      return 3;
+  }
+}
+
+/**
  * Map a workout library category / planned-workout type onto the RB2
  * generate-form Goal so the form seeds sensibly when arriving from a workout.
  */
