@@ -13,6 +13,7 @@ export { SurfaceSummaryBar } from './SurfaceSummaryBar';
 export { LayerToggles, type LayerVisibilityState } from './LayerToggles';
 export { WaypointListPanel } from './WaypointListPanel';
 export { LocationSearch } from './LocationSearch';
+export { WeatherPanel } from './WeatherPanel';
 export { PersonaDropdown } from './PersonaDropdown';
 export { ChatShell } from './ChatShell';
 export { ChatPanel, type ChatPanelState } from './ChatPanel';

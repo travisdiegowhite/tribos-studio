@@ -21,6 +21,12 @@ export type {
 } from './useRouteAnalysis';
 export { useRouteHistory } from './useRouteHistory';
 export type { UseRouteHistoryReturn } from './useRouteHistory';
+export { useRouteWeather } from './useRouteWeather';
+export type {
+  UseRouteWeatherReturn,
+  RouteWeather,
+  RouteWindAnalysis,
+} from './useRouteWeather';
 export { useUserLocation } from './useUserLocation';
 export type {
   UseUserLocationReturn,
