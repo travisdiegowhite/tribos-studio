@@ -49,6 +49,8 @@ export interface FormPanelProps {
   isMobile?: boolean;
   isImperial?: boolean;
   formSeed?: GenerateFormSeed;
+  /** Start expanded (e.g. when a workout has just been attached). */
+  defaultExpanded?: boolean;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -61,10 +63,10 @@ const labelStyle: React.CSSProperties = {
 };
 
 export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function FormPanel(
-  { generation, defaultStart, locationStatus = 'idle', viewportCenter = null, isMobile = false, isImperial = false, formSeed },
+  { generation, defaultStart, locationStatus = 'idle', viewportCenter = null, isMobile = false, isImperial = false, formSeed, defaultExpanded = false },
   ref,
 ) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const {
     goal,
     setGoal,

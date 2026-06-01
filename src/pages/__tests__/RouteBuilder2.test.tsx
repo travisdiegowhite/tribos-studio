@@ -32,18 +32,20 @@ vi.mock('../../features/route-builder-v2/components/Map', () => ({
   ),
 }));
 
-vi.mock('../../data/workoutLibrary', () => ({
-  getWorkoutById: (id: string) =>
-    id === 'test_workout'
-      ? {
-          id: 'test_workout',
-          name: 'Sweet Spot 3x12',
-          category: 'sweet_spot',
-          duration: 75,
-          structure: { warmup: null, main: [], cooldown: null },
-        }
-      : null,
-}));
+vi.mock('../../data/workoutLibrary', () => {
+  const fake = {
+    id: 'test_workout',
+    name: 'Sweet Spot 3x12',
+    category: 'sweet_spot',
+    duration: 75,
+    targetTSS: 80,
+    structure: { warmup: null, main: [], cooldown: null },
+  };
+  return {
+    WORKOUT_LIBRARY: { test_workout: fake },
+    getWorkoutById: (id: string) => (id === 'test_workout' ? fake : null),
+  };
+});
 
 import RouteBuilder2 from '../RouteBuilder2';
 import { UserPreferencesProvider } from '../../contexts/UserPreferencesContext.jsx';
@@ -91,6 +93,11 @@ describe('RouteBuilder2 (P1.3)', () => {
     expect(screen.getByTestId('rb2-control-rail')).toBeInTheDocument();
     // Layers lives behind the rail, not in a standing sidebar.
     expect(screen.getByTestId('rb2-rail-layers')).toBeInTheDocument();
+  });
+
+  it('exposes the in-builder Workout picker via the rail', () => {
+    renderPage();
+    expect(screen.getByTestId('rb2-rail-workout')).toBeInTheDocument();
   });
 
   it('renders the generate bar collapsed by default', () => {
